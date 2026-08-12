@@ -31,7 +31,7 @@ export const Route = createFileRoute("/")({
 
 function MenuPage() {
   const { addItem, itemCount, total } = useOrder();
-  const [category, setCategory] = useState<string>(CATEGORIES[0]);
+  const [category, setCategory] = useState<string>(CATEGORIES[0]!);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<MenuItem | null>(null);
 

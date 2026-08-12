@@ -31,7 +31,7 @@ export interface MenuItem {
   price: number;
   category: MenuCategory;
   image: string;
-  dietaryTags?: DietaryTag[];
+  dietaryTags?: DietaryTag[] | undefined;
 }
 
 export const CATEGORIES: MenuCategory[] = [

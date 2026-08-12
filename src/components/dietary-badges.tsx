@@ -1,7 +1,7 @@
 import type { DietaryTag } from "@/data/menu";
 import { Badge } from "@/components/ui/badge";
 
-export function DietaryBadges({ tags }: { tags?: DietaryTag[] }) {
+export function DietaryBadges({ tags }: { tags?: DietaryTag[] | undefined }) {
   if (!tags?.length) return null;
   return (
     <div className="flex flex-wrap gap-1.5">

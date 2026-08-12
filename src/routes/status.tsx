@@ -35,7 +35,7 @@ function StatusPage() {
     );
   }
 
-  const isLast = status === ORDER_STATUS_STEPS[ORDER_STATUS_STEPS.length - 1].key;
+  const isLast = status === ORDER_STATUS_STEPS[ORDER_STATUS_STEPS.length - 1]!.key;
 
   return (
     <div className="min-h-dvh bg-background">

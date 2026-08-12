@@ -12,7 +12,7 @@ export interface CartLine {
   lineId: string;
   item: MenuItem;
   quantity: number;
-  notes?: string;
+  notes?: string | undefined;
 }
 
 export type OrderStatus = "received" | "preparing" | "ready" | "served";
@@ -130,7 +130,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   const advanceStatus = useCallback(() => {
     setStatus((prev) => {
       const index = ORDER_STATUS_STEPS.findIndex((step) => step.key === prev);
-      return ORDER_STATUS_STEPS[Math.min(index + 1, ORDER_STATUS_STEPS.length - 1)].key;
+      return ORDER_STATUS_STEPS[Math.min(index + 1, ORDER_STATUS_STEPS.length - 1)]!.key;
     });
   }, []);
 
