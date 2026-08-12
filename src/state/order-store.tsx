@@ -2,7 +2,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -53,11 +55,47 @@ interface OrderContextValue {
 
 const OrderContext = createContext<OrderContextValue | null>(null);
 
+const STORAGE_KEY = "garden-table-order";
+
+interface PersistedState {
+  lines: CartLine[];
+  tableNumber: string;
+  order: PlacedOrder | null;
+  status: OrderStatus;
+}
+
 export function OrderProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [tableNumber, setTableNumber] = useState("");
   const [order, setOrder] = useState<PlacedOrder | null>(null);
   const [status, setStatus] = useState<OrderStatus>("received");
+  const hydrated = useRef(false);
+
+  // Session persistence keeps the order alive across refreshes; swapping this
+  // for a backend later only touches this provider.
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as PersistedState;
+        setLines(saved.lines ?? []);
+        setTableNumber(saved.tableNumber ?? "");
+        setOrder(saved.order ?? null);
+        setStatus(saved.status ?? "received");
+      }
+    } catch {
+      // ignore malformed state
+    }
+    hydrated.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    window.sessionStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ lines, tableNumber, order, status } satisfies PersistedState),
+    );
+  }, [lines, tableNumber, order, status]);
 
   const addItem = useCallback((item: MenuItem, quantity = 1, notes = "") => {
     setLines((prev) => {
