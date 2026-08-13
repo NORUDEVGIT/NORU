@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { MenuItem } from "@/data/menu";
+import { placeOrder as placeOrderFn } from "@/lib/orders.functions";
 
 export interface CartLine {
   lineId: string;
@@ -47,7 +48,7 @@ interface OrderContextValue {
   setNotes: (lineId: string, notes: string) => void;
   removeLine: (lineId: string) => void;
   setTableNumber: (value: string) => void;
-  placeOrder: () => PlacedOrder | null;
+  placeOrder: () => Promise<PlacedOrder>;
   setStatus: (status: OrderStatus) => void;
   advanceStatus: () => void;
   resetOrder: () => void;
@@ -150,20 +151,39 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     [lines],
   );
 
-  const placeOrder = useCallback(() => {
-    if (lines.length === 0 || !tableNumber) return null;
+  const placeOrder = useCallback(async () => {
+    if (lines.length === 0) throw new Error("Your order is empty.");
+    const table = Number.parseInt(tableNumber, 10);
+    if (!tableNumber || Number.isNaN(table) || table <= 0) {
+      throw new Error("Please enter your table number.");
+    }
+
+    const result = await placeOrderFn({
+      data: {
+        tableNumber: table,
+        lines: lines.map((line) => ({
+          menuItemId: line.item.id,
+          name: line.item.name,
+          quantity: line.quantity,
+          price: line.item.price,
+          specialInstructions: line.notes ?? null,
+        })),
+      },
+    });
+
     const placed: PlacedOrder = {
-      orderNumber: 1042 + Math.floor(Math.random() * 200),
+      orderNumber: result.orderNumber,
       tableNumber,
       lines,
-      total: subtotal,
+      total: result.total,
       prepMinutes: Math.min(40, 15 + lines.length * 3),
     };
+    // Cart is only cleared once the order and its items exist in the database.
     setOrder(placed);
     setStatus("received");
     setLines([]);
     return placed;
-  }, [lines, subtotal, tableNumber]);
+  }, [lines, tableNumber]);
 
   const advanceStatus = useCallback(() => {
     setStatus((prev) => {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/review")({
 function ReviewPage() {
   const navigate = useNavigate();
   const { lines, tableNumber, subtotal, total, placeOrder } = useOrder();
+  const [submitting, setSubmitting] = useState(false);
 
   if (lines.length === 0 || !tableNumber) {
     return (
@@ -82,17 +84,26 @@ function ReviewPage() {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur-md">
         <Button
           size="lg"
+          disabled={submitting}
           className="mx-auto flex h-14 w-full max-w-2xl rounded-full text-base"
-          onClick={() => {
-            const placed = placeOrder();
-            if (!placed) {
-              toast.error("We couldn't place that order. Please try again.");
-              return;
+          onClick={async () => {
+            if (submitting) return;
+            setSubmitting(true);
+            try {
+              await placeOrder();
+              navigate({ to: "/confirmation" });
+            } catch (error) {
+              toast.error(
+                error instanceof Error && error.message
+                  ? `We couldn't place that order. ${error.message}`
+                  : "We couldn't place that order. Please check your connection and try again.",
+              );
+            } finally {
+              setSubmitting(false);
             }
-            navigate({ to: "/confirmation" });
           }}
         >
-          Place order · {formatPrice(total)}
+          {submitting ? "Sending to the kitchen…" : `Place order · ${formatPrice(total)}`}
         </Button>
       </div>
     </div>
