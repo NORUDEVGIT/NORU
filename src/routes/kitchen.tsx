@@ -309,7 +309,7 @@ function OrderCard({
     <article
       className={cn(
         "rounded-xl border-2 border-border bg-card p-4 shadow-sm transition-all",
-        isNew && "animate-pulse-slow border-primary ring-4 ring-primary/30",
+        isNew && "border-primary ring-4 ring-primary/30",
       )}
     >
       {isNew && (
