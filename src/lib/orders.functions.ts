@@ -3,19 +3,17 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const lineSchema = z.object({
   menuItemId: z.string().nullable().optional(),
   name: z.string().min(1),
-  quantity: z.number().int().positive(),
+  quantity: z.number().int().positive().max(20),
   price: z.number().nonnegative(),
-  specialInstructions: z.string().nullable().optional(),
+  specialInstructions: z.string().max(500).nullable().optional(),
 });
 
 const placeOrderSchema = z.object({
-  tableNumber: z.number().int().positive(),
-  lines: z.array(lineSchema).min(1),
+  tableNumber: z.number().int().positive().max(999),
+  lines: z.array(lineSchema).min(1).max(50),
 });
 
 function serverClient() {
@@ -53,9 +51,9 @@ export const placeOrder = createServerFn({ method: "POST" })
     // table, so PostgREST rejects an insert that returns the created row.
     // Use the privileged server client for this trusted, validated write.
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
-    const total = Number(
-      data.lines.reduce((sum, l) => sum + l.price * l.quantity, 0).toFixed(2),
-    );
+    // Prices/names come from the authoritative catalog, never from the browser.
+    const { resolveOrderLines } = await import("./order-pricing.server");
+    const { resolved, total } = await resolveOrderLines(data.lines);
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
@@ -68,14 +66,7 @@ export const placeOrder = createServerFn({ method: "POST" })
     }
 
     const { error: itemsError } = await supabase.from("order_items").insert(
-      data.lines.map((line) => ({
-        order_id: order.id,
-        menu_item_id: line.menuItemId && UUID_RE.test(line.menuItemId) ? line.menuItemId : null,
-        item_name: line.name,
-        quantity: line.quantity,
-        price: line.price,
-        special_instructions: line.specialInstructions || null,
-      })),
+      resolved.map((line) => ({ order_id: order.id, ...line })),
     );
 
     if (itemsError) {
