@@ -37,9 +37,22 @@ export const placeOrder = createServerFn({ method: "POST" })
     const { resolveOrderLines } = await import("./order-pricing.server");
     const { resolved, total } = await resolveOrderLines(data.lines);
 
+    // Single-tenant MVP: every order belongs to The Garden until the
+    // restaurant is resolved from a table QR token in a later phase.
+    const { data: restaurant } = await supabase
+      .from("restaurants")
+      .select("id")
+      .eq("slug", "the-garden")
+      .single();
+
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .insert({ table_number: data.tableNumber, status: "new", total })
+      .insert({
+        table_number: data.tableNumber,
+        status: "new",
+        total,
+        restaurant_id: restaurant?.id ?? null,
+      })
       .select("id, order_number, table_number, total, status, created_at")
       .single();
 
@@ -48,7 +61,11 @@ export const placeOrder = createServerFn({ method: "POST" })
     }
 
     const { error: itemsError } = await supabase.from("order_items").insert(
-      resolved.map((line) => ({ order_id: order.id, ...line })),
+      resolved.map((line) => ({
+        order_id: order.id,
+        ...line,
+        line_total: Number((line.price * line.quantity).toFixed(2)),
+      })),
     );
 
     if (itemsError) {
