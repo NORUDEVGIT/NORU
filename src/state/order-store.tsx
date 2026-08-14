@@ -171,6 +171,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       },
     });
 
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
     const placed: PlacedOrder = {
       orderNumber: result.orderNumber,
       tableNumber,
