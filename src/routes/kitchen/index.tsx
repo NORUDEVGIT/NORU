@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, BellOff, Clock, X } from "lucide-react";
+import { Bell, BellOff, Clock, LogOut, X } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,10 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/kitchen/")({
   ssr: false,
+  beforeLoad: async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) throw redirect({ to: "/kitchen/login" });
+  },
   head: () => ({
     meta: [
       { title: "Kitchen Orders — The Garden Table" },
@@ -26,8 +30,66 @@ export const Route = createFileRoute("/kitchen/")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: KitchenPage,
+  component: KitchenGate,
 });
+
+function KitchenGate() {
+  const navigate = useNavigate();
+  const [state, setState] = useState<"checking" | "allowed" | "denied">("checking");
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        void navigate({ to: "/kitchen/login", replace: true });
+        return;
+      }
+      const { data } = await supabase
+        .from("staff_users")
+        .select("id")
+        .eq("user_id", userData.user.id)
+        .eq("active", true)
+        .maybeSingle();
+      if (!active) return;
+      setState(data ? "allowed" : "denied");
+    })();
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    void navigate({ to: "/kitchen/login", replace: true });
+  }, [navigate]);
+
+  if (state === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-lg text-muted-foreground">Checking access…</p>
+      </div>
+    );
+  }
+
+  if (state === "denied") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-5">
+        <div className="max-w-md text-center">
+          <h1 className="font-serif text-3xl font-semibold text-foreground">Access denied</h1>
+          <p className="mt-3 text-base text-muted-foreground">
+            This account is not an active staff member of The Garden.
+          </p>
+          <Button size="lg" className="mt-6" onClick={() => void signOut()}>
+            <LogOut className="mr-2 size-5" /> Sign out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return <KitchenPage onSignOut={signOut} />;
+}
 
 type OrderStatus = "new" | "preparing" | "ready" | "served";
 
@@ -89,7 +151,7 @@ function playChime() {
   }
 }
 
-function KitchenPage() {
+function KitchenPage({ onSignOut }: { onSignOut: () => Promise<void> }) {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
@@ -231,6 +293,10 @@ function KitchenPage() {
             >
               {soundOn ? <Bell className="size-5" /> : <BellOff className="size-5" />}
               <span className="ml-2 hidden sm:inline">{soundOn ? "Sound on" : "Sound off"}</span>
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => void onSignOut()}>
+              <LogOut className="size-5" />
+              <span className="ml-2 hidden sm:inline">Log out</span>
             </Button>
           </div>
         </div>

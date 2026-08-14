@@ -16,6 +16,7 @@ import { Route as ReviewRouteImport } from './routes/review'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as TableRouteImport } from './routes/table'
 import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
+import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +53,11 @@ const KitchenIndexRoute = KitchenIndexRouteImport.update({
   path: '/kitchen/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KitchenLoginRoute = KitchenLoginRouteImport.update({
+  id: '/kitchen/login',
+  path: '/kitchen/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/review': typeof ReviewRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
+  '/kitchen/login': typeof KitchenLoginRoute
   '/kitchen/': typeof KitchenIndexRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/review': typeof ReviewRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
+  '/kitchen/login': typeof KitchenLoginRoute
   '/kitchen': typeof KitchenIndexRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/review': typeof ReviewRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
+  '/kitchen/login': typeof KitchenLoginRoute
   '/kitchen/': typeof KitchenIndexRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/status'
     | '/table'
+    | '/kitchen/login'
     | '/kitchen/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/status'
     | '/table'
+    | '/kitchen/login'
     | '/kitchen'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/status'
     | '/table'
+    | '/kitchen/login'
     | '/kitchen/'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   ReviewRoute: typeof ReviewRoute
   StatusRoute: typeof StatusRoute
   TableRoute: typeof TableRoute
+  KitchenLoginRoute: typeof KitchenLoginRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
 }
 
@@ -172,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KitchenIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/kitchen/login': {
+      id: '/kitchen/login'
+      path: '/kitchen/login'
+      fullPath: '/kitchen/login'
+      preLoaderRoute: typeof KitchenLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReviewRoute: ReviewRoute,
   StatusRoute: StatusRoute,
   TableRoute: TableRoute,
+  KitchenLoginRoute: KitchenLoginRoute,
   KitchenIndexRoute: KitchenIndexRoute,
 }
 export const routeTree = rootRouteImport
