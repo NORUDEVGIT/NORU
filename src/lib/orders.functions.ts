@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 const lineSchema = z.object({
@@ -37,6 +38,22 @@ export const placeOrder = createServerFn({ method: "POST" })
     const { resolveOrderLines } = await import("./order-pricing.server");
     const { resolved, total } = await resolveOrderLines(data.lines);
 
+    // The customer identity comes ONLY from the verified bearer token on the
+    // request — never from anything the browser puts in the payload. Anonymous
+    // ordering stays supported: no valid token simply means customer_id null.
+    let customerId: string | null = null;
+    try {
+      const authHeader = getRequest()?.headers.get("authorization") ?? "";
+      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+      if (token && token.split(".").length === 3) {
+        const { publicServerClient } = await import("./order-pricing.server");
+        const { data: claimsData } = await publicServerClient().auth.getClaims(token);
+        customerId = claimsData?.claims?.sub ?? null;
+      }
+    } catch (error) {
+      console.error("[placeOrder] could not verify customer session", error);
+    }
+
     // Single-tenant MVP: every order belongs to The Garden until the
     // restaurant is resolved from a table QR token in a later phase.
     const { data: restaurant } = await supabase
@@ -52,6 +69,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         status: "new",
         total,
         restaurant_id: restaurant?.id ?? null,
+        customer_id: customerId,
       })
       .select("id, order_number, table_number, total, status, created_at")
       .single();

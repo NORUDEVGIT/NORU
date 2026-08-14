@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { CATEGORIES, RESTAURANT, formatPrice } from "@/data/menu";
 import { useOrder } from "@/state/order-store";
+import { useAuth } from "@/state/auth-store";
 
 interface SiteHeaderProps {
   search?: string;
@@ -21,6 +22,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHeaderProps) {
   const { itemCount, total } = useOrder();
+  const { user, loading: authLoading } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const searchable = typeof onSearchChange === "function";
@@ -59,6 +61,26 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
               <Link to="/status" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
                 Order status
               </Link>
+              <div className="my-3 h-px bg-border" />
+              {authLoading ? null : user ? (
+                <>
+                  <Link to="/account" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
+                    Account
+                  </Link>
+                  <Link to="/account/orders" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
+                    Your orders
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/login" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
+                    Log in
+                  </Link>
+                  <Link to="/register" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
+                    Create account
+                  </Link>
+                </>
+              )}
             </nav>
           </SheetContent>
         </Sheet>
