@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          admin_user_id: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          reason: string | null
+          restaurant_id: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          admin_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          restaurant_id?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          admin_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          restaurant_id?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_log_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_categories: {
         Row: {
           active: boolean
@@ -357,6 +398,8 @@ export type Database = {
           active: boolean
           address: string | null
           approved: boolean
+          approved_at: string | null
+          approved_by: string | null
           city: string | null
           country: string | null
           created_at: string
@@ -366,13 +409,18 @@ export type Database = {
           name: string
           phone: string | null
           postcode: string | null
+          rejection_reason: string | null
           slug: string
+          status_updated_at: string | null
+          suspension_reason: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
           address?: string | null
           approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
@@ -382,13 +430,18 @@ export type Database = {
           name: string
           phone?: string | null
           postcode?: string | null
+          rejection_reason?: string | null
           slug: string
+          status_updated_at?: string | null
+          suspension_reason?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
           address?: string | null
           approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
@@ -398,7 +451,10 @@ export type Database = {
           name?: string
           phone?: string | null
           postcode?: string | null
+          rejection_reason?: string | null
           slug?: string
+          status_updated_at?: string | null
+          suspension_reason?: string | null
           updated_at?: string
         }
         Relationships: []

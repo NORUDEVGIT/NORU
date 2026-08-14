@@ -58,9 +58,15 @@ export const placeOrder = createServerFn({ method: "POST" })
     // restaurant is resolved from a table QR token in a later phase.
     const { data: restaurant } = await supabase
       .from("restaurants")
-      .select("id")
+      .select("id, approved, active")
       .eq("slug", "the-garden")
       .single();
+
+    // Approval gating is enforced here, server-side: a stale page or QR link
+    // can never place an order at a pending, rejected or suspended restaurant.
+    if (!restaurant || !restaurant.approved || !restaurant.active) {
+      throw new Error("This restaurant is currently unavailable for ordering.");
+    }
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
@@ -68,7 +74,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         table_number: data.tableNumber,
         status: "new",
         total,
-        restaurant_id: restaurant?.id ?? null,
+        restaurant_id: restaurant.id,
         customer_id: customerId,
       })
       .select("id, order_number, table_number, total, status, created_at")
