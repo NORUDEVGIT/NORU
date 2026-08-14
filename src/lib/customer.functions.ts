@@ -120,6 +120,7 @@ export const getMyOrders = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("orders")
       .select("id, order_number, table_number, total, status, created_at, restaurants(name)")
+      .eq("customer_id", context.userId)
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) {
@@ -145,6 +146,7 @@ export const getMyOrder = createServerFn({ method: "GET" })
       .from("orders")
       .select("id, order_number, table_number, total, status, created_at, restaurants(name)")
       .eq("id", data.orderId)
+      .eq("customer_id", context.userId)
       .maybeSingle();
     if (error) {
       console.error("[getMyOrder]", error.message);
