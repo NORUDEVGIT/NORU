@@ -1,15 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-export type RestaurantStatus = "pending" | "approved" | "suspended" | "rejected";
-
-export function deriveStatus(approved: boolean, active: boolean): RestaurantStatus {
-  if (approved && active) return "approved";
-  if (approved && !active) return "suspended";
-  if (!approved && active) return "pending";
-  return "rejected";
-}
+import { deriveStatus, type RestaurantStatus } from "./restaurant-status";
 
 /**
  * Platform-admin authorization is decided server-side from the verified

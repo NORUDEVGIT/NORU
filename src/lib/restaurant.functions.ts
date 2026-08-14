@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { deriveStatus } from "./admin.functions";
+import { deriveStatus } from "./restaurant-status";
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
