@@ -49,7 +49,10 @@ export const getMenuItems = createServerFn({ method: "GET" }).handler(async () =
 export const placeOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => placeOrderSchema.parse(input))
   .handler(async ({ data }) => {
-    const supabase = serverClient();
+    // Guests are allowed to INSERT orders, but have no SELECT policy on the
+    // table, so PostgREST rejects an insert that returns the created row.
+    // Use the privileged server client for this trusted, validated write.
+    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
     const total = Number(
       data.lines.reduce((sum, l) => sum + l.price * l.quantity, 0).toFixed(2),
     );
