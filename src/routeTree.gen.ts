@@ -12,10 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as ConfirmationRouteImport } from './routes/confirmation'
-import { Route as KitchenRouteImport } from './routes/kitchen'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as TableRouteImport } from './routes/table'
+import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -30,11 +30,6 @@ const CartRoute = CartRouteImport.update({
 const ConfirmationRoute = ConfirmationRouteImport.update({
   id: '/confirmation',
   path: '/confirmation',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KitchenRoute = KitchenRouteImport.update({
-  id: '/kitchen',
-  path: '/kitchen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReviewRoute = ReviewRouteImport.update({
@@ -52,34 +47,39 @@ const TableRoute = TableRouteImport.update({
   path: '/table',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KitchenIndexRoute = KitchenIndexRouteImport.update({
+  id: '/kitchen/',
+  path: '/kitchen/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cart': typeof CartRoute
   '/confirmation': typeof ConfirmationRoute
-  '/kitchen': typeof KitchenRoute
   '/review': typeof ReviewRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
+  '/kitchen/': typeof KitchenIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cart': typeof CartRoute
   '/confirmation': typeof ConfirmationRoute
-  '/kitchen': typeof KitchenRoute
   '/review': typeof ReviewRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
+  '/kitchen': typeof KitchenIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/cart': typeof CartRoute
   '/confirmation': typeof ConfirmationRoute
-  '/kitchen': typeof KitchenRoute
   '/review': typeof ReviewRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
+  '/kitchen/': typeof KitchenIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -87,38 +87,38 @@ export interface FileRouteTypes {
     | '/'
     | '/cart'
     | '/confirmation'
-    | '/kitchen'
     | '/review'
     | '/status'
     | '/table'
+    | '/kitchen/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/cart'
     | '/confirmation'
-    | '/kitchen'
     | '/review'
     | '/status'
     | '/table'
+    | '/kitchen'
   id:
     | '__root__'
     | '/'
     | '/cart'
     | '/confirmation'
-    | '/kitchen'
     | '/review'
     | '/status'
     | '/table'
+    | '/kitchen/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CartRoute: typeof CartRoute
   ConfirmationRoute: typeof ConfirmationRoute
-  KitchenRoute: typeof KitchenRoute
   ReviewRoute: typeof ReviewRoute
   StatusRoute: typeof StatusRoute
   TableRoute: typeof TableRoute
+  KitchenIndexRoute: typeof KitchenIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -144,13 +144,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfirmationRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/kitchen': {
-      id: '/kitchen'
-      path: '/kitchen'
-      fullPath: '/kitchen'
-      preLoaderRoute: typeof KitchenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/review': {
       id: '/review'
       path: '/review'
@@ -172,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TableRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/kitchen/': {
+      id: '/kitchen/'
+      path: '/kitchen'
+      fullPath: '/kitchen/'
+      preLoaderRoute: typeof KitchenIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -179,10 +179,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CartRoute: CartRoute,
   ConfirmationRoute: ConfirmationRoute,
-  KitchenRoute: KitchenRoute,
   ReviewRoute: ReviewRoute,
   StatusRoute: StatusRoute,
   TableRoute: TableRoute,
+  KitchenIndexRoute: KitchenIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

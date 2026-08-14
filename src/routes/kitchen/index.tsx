@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/kitchen")({
+export const Route = createFileRoute("/kitchen/")({
   ssr: false,
   head: () => ({
     meta: [
