@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteRouteImport } from './routes/account/route'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as ConfirmationRouteImport } from './routes/confirmation'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -19,12 +20,19 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as TableRouteImport } from './routes/table'
+import { Route as AccountIndexRouteImport } from './routes/account/index'
 import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
+import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRouteRoute = AccountRouteRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CartRoute = CartRouteImport.update({
@@ -72,6 +80,11 @@ const TableRoute = TableRouteImport.update({
   path: '/table',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountIndexRoute = AccountIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AccountRouteRoute,
+} as any)
 const KitchenIndexRoute = KitchenIndexRouteImport.update({
   id: '/kitchen/',
   path: '/kitchen/',
@@ -82,9 +95,15 @@ const KitchenLoginRoute = KitchenLoginRouteImport.update({
   path: '/kitchen/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountOrdersIndexRoute = AccountOrdersIndexRouteImport.update({
+  id: '/orders/',
+  path: '/orders/',
+  getParentRoute: () => AccountRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteRouteWithChildren
   '/cart': typeof CartRoute
   '/confirmation': typeof ConfirmationRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -95,7 +114,9 @@ export interface FileRoutesByFullPath {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/account/': typeof AccountIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
+  '/account/orders/': typeof AccountOrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -109,11 +130,14 @@ export interface FileRoutesByTo {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/account': typeof AccountIndexRoute
   '/kitchen': typeof KitchenIndexRoute
+  '/account/orders': typeof AccountOrdersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteRouteWithChildren
   '/cart': typeof CartRoute
   '/confirmation': typeof ConfirmationRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -124,12 +148,15 @@ export interface FileRoutesById {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/account/': typeof AccountIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
+  '/account/orders/': typeof AccountOrdersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account'
     | '/cart'
     | '/confirmation'
     | '/forgot-password'
@@ -140,7 +167,9 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/account/'
     | '/kitchen/'
+    | '/account/orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -154,10 +183,13 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/account'
     | '/kitchen'
+    | '/account/orders'
   id:
     | '__root__'
     | '/'
+    | '/account'
     | '/cart'
     | '/confirmation'
     | '/forgot-password'
@@ -168,11 +200,14 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/account/'
     | '/kitchen/'
+    | '/account/orders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRouteRoute: typeof AccountRouteRouteWithChildren
   CartRoute: typeof CartRoute
   ConfirmationRoute: typeof ConfirmationRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -193,6 +228,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cart': {
@@ -258,6 +300,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TableRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account/': {
+      id: '/account/'
+      path: '/'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AccountIndexRouteImport
+      parentRoute: typeof AccountRouteRoute
+    }
     '/kitchen/': {
       id: '/kitchen/'
       path: '/kitchen'
@@ -272,11 +321,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KitchenLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account/orders/': {
+      id: '/account/orders/'
+      path: '/orders'
+      fullPath: '/account/orders/'
+      preLoaderRoute: typeof AccountOrdersIndexRouteImport
+      parentRoute: typeof AccountRouteRoute
+    }
   }
 }
 
+interface AccountRouteRouteChildren {
+  AccountIndexRoute: typeof AccountIndexRoute
+  AccountOrdersIndexRoute: typeof AccountOrdersIndexRoute
+}
+
+const AccountRouteRouteChildren: AccountRouteRouteChildren = {
+  AccountIndexRoute: AccountIndexRoute,
+  AccountOrdersIndexRoute: AccountOrdersIndexRoute,
+}
+
+const AccountRouteRouteWithChildren = AccountRouteRoute._addFileChildren(
+  AccountRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRouteRoute: AccountRouteRouteWithChildren,
   CartRoute: CartRoute,
   ConfirmationRoute: ConfirmationRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
