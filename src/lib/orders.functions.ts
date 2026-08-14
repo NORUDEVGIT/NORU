@@ -1,7 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
 
 const lineSchema = z.object({
   menuItemId: z.string().nullable().optional(),
@@ -16,25 +14,9 @@ const placeOrderSchema = z.object({
   lines: z.array(lineSchema).min(1).max(50),
 });
 
-function serverClient() {
-  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-  return createClient<Database>(process.env["SUPABASE_URL"]!, key, {
-    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
-    global: {
-      fetch: (input, init) => {
-        const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) {
-          h.delete("Authorization");
-        }
-        h.set("apikey", key);
-        return fetch(input, { ...init, headers: h });
-      },
-    },
-  });
-}
-
 export const getMenuItems = createServerFn({ method: "GET" }).handler(async () => {
-  const supabase = serverClient();
+  const { publicServerClient } = await import("./order-pricing.server");
+  const supabase = publicServerClient();
   const { data, error } = await supabase
     .from("menu_items")
     .select("id, name, description, price, category, image_url, available")
