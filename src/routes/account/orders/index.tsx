@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/data/menu";
 import { getMyOrders } from "@/lib/customer.functions";
 import { statusLabel } from "@/lib/order-status";
+import { useAuth } from "@/state/auth-store";
 
 export const Route = createFileRoute("/account/orders/")({
   head: () => ({
@@ -25,10 +26,13 @@ export const Route = createFileRoute("/account/orders/")({
 
 function OrdersPage() {
   const fetchOrders = useServerFn(getMyOrders);
+  const { session } = useAuth();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["my-orders"],
     queryFn: () => fetchOrders(),
     refetchInterval: 20000,
+    enabled: !!session,
+    retry: false,
   });
 
   return (

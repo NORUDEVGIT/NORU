@@ -28,13 +28,15 @@ export const Route = createFileRoute("/account/")({
 function AccountPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { signOut } = useAuth();
+  const { session, signOut } = useAuth();
   const fetchProfile = useServerFn(getMyProfile);
   const saveProfile = useServerFn(updateMyProfile);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["my-profile"],
     queryFn: () => fetchProfile(),
+    enabled: !!session,
+    retry: false,
   });
 
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "" });
