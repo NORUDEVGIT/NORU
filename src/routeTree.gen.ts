@@ -23,6 +23,7 @@ import { Route as TableRouteImport } from './routes/table'
 import { Route as AccountIndexRouteImport } from './routes/account/index'
 import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
+import { Route as RestaurantDashboardRouteImport } from './routes/restaurant/dashboard'
 import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
@@ -98,6 +99,11 @@ const KitchenLoginRoute = KitchenLoginRouteImport.update({
   path: '/kitchen/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantDashboardRoute = RestaurantDashboardRouteImport.update({
+  id: '/restaurant/dashboard',
+  path: '/restaurant/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantLoginRoute = RestaurantLoginRouteImport.update({
   id: '/restaurant/login',
   path: '/restaurant/login',
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/restaurant/dashboard': typeof RestaurantDashboardRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/account/': typeof AccountIndexRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/restaurant/dashboard': typeof RestaurantDashboardRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/account': typeof AccountIndexRoute
@@ -172,6 +180,7 @@ export interface FileRoutesById {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/restaurant/dashboard': typeof RestaurantDashboardRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/account/': typeof AccountIndexRoute
@@ -194,6 +203,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/restaurant/dashboard'
     | '/restaurant/login'
     | '/restaurant/register'
     | '/account/'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/restaurant/dashboard'
     | '/restaurant/login'
     | '/restaurant/register'
     | '/account'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/restaurant/dashboard'
     | '/restaurant/login'
     | '/restaurant/register'
     | '/account/'
@@ -254,6 +266,7 @@ export interface RootRouteChildren {
   StatusRoute: typeof StatusRoute
   TableRoute: typeof TableRoute
   KitchenLoginRoute: typeof KitchenLoginRoute
+  RestaurantDashboardRoute: typeof RestaurantDashboardRoute
   RestaurantLoginRoute: typeof RestaurantLoginRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
@@ -359,6 +372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KitchenLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/dashboard': {
+      id: '/restaurant/dashboard'
+      path: '/restaurant/dashboard'
+      fullPath: '/restaurant/dashboard'
+      preLoaderRoute: typeof RestaurantDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/login': {
       id: '/restaurant/login'
       path: '/restaurant/login'
@@ -419,6 +439,7 @@ const rootRouteChildren: RootRouteChildren = {
   StatusRoute: StatusRoute,
   TableRoute: TableRoute,
   KitchenLoginRoute: KitchenLoginRoute,
+  RestaurantDashboardRoute: RestaurantDashboardRoute,
   RestaurantLoginRoute: RestaurantLoginRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
   KitchenIndexRoute: KitchenIndexRoute,
