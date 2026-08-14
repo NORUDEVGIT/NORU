@@ -9,6 +9,7 @@ import { formatPrice } from "@/data/menu";
 import { getMyOrder } from "@/lib/customer.functions";
 import { CUSTOMER_STATUS_FLOW, normaliseStatus, statusLabel } from "@/lib/order-status";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/state/auth-store";
 
 export const Route = createFileRoute("/account/orders/$orderId")({
   head: () => ({
@@ -29,10 +30,13 @@ function OrderDetailPage() {
   const { orderId } = Route.useParams();
   const queryClient = useQueryClient();
   const fetchOrder = useServerFn(getMyOrder);
+  const { session } = useAuth();
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["my-order", orderId],
     queryFn: () => fetchOrder({ data: { orderId } }),
+    enabled: !!session,
+    retry: false,
   });
 
   // Realtime status updates. RLS restricts the customer's stream to their own
