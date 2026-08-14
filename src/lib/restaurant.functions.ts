@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { deriveStatus } from "./admin.functions";
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -173,6 +174,9 @@ export interface RestaurantMembership {
     logoUrl: string | null;
     approved: boolean;
     active: boolean;
+    status: "pending" | "approved" | "suspended" | "rejected";
+    rejectionReason: string | null;
+    suspensionReason: string | null;
   };
 }
 
@@ -187,7 +191,7 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("restaurant_users")
       .select(
-        "restaurant_id, role, active, restaurants(id, name, slug, email, phone, address, city, postcode, country, logo_url, approved, active)",
+        "restaurant_id, role, active, restaurants(id, name, slug, email, phone, address, city, postcode, country, logo_url, approved, active, rejection_reason, suspension_reason)",
       )
       .eq("user_id", context.userId)
       .eq("active", true);
@@ -217,6 +221,9 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
             logoUrl: r.logo_url,
             approved: r.approved,
             active: r.active,
+            status: deriveStatus(r.approved, r.active),
+            rejectionReason: r.rejection_reason,
+            suspensionReason: r.suspension_reason,
           },
         };
       });
