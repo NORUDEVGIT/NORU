@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { deriveStatus, type RestaurantStatus } from "./restaurant-status";
-import { requirePlatformAdmin, transition } from "./admin.server";
+import { requirePlatformAdmin, transition } from "./admin-authz";
 
 export const amIPlatformAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -180,11 +180,6 @@ export const getRestaurantAdmin = createServerFn({ method: "POST" })
     };
   });
 
-const reasonSchema = z.object({
-  restaurantId: z.string().uuid(),
-  reason: z.string().trim().min(5).max(500),
-});
-
 export const approveRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
@@ -199,7 +194,7 @@ export const approveRestaurant = createServerFn({ method: "POST" })
 
 export const rejectRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => reasonSchema.parse(input))
+  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(input))
   .handler(async ({ data, context }) =>
     transition(context, data.restaurantId, ["pending"], { approved: false, active: false }, "restaurant_rejected", data.reason, {
       rejection_reason: data.reason,
@@ -208,7 +203,7 @@ export const rejectRestaurant = createServerFn({ method: "POST" })
 
 export const suspendRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => reasonSchema.parse(input))
+  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(input))
   .handler(async ({ data, context }) =>
     transition(context, data.restaurantId, ["approved"], { approved: true, active: false }, "restaurant_suspended", data.reason, {
       suspension_reason: data.reason,
