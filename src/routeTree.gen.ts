@@ -34,6 +34,7 @@ import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/sett
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
 import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
 import { Route as AdminRestaurantsIndexRouteImport } from './routes/admin/restaurants/index'
+import { Route as AdminRestaurantsRestaurantIdRouteImport } from './routes/admin/restaurants/$restaurantId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -160,6 +161,12 @@ const AdminRestaurantsIndexRoute = AdminRestaurantsIndexRouteImport.update({
   path: '/admin/restaurants/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRestaurantsRestaurantIdRoute =
+  AdminRestaurantsRestaurantIdRouteImport.update({
+    id: '/admin/restaurants/$restaurantId',
+    path: '/admin/restaurants/$restaurantId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
+  '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
 }
@@ -211,6 +219,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/kitchen': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
+  '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
 }
@@ -239,6 +248,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
+  '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
 }
@@ -268,6 +278,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/kitchen/'
     | '/account/orders/$orderId'
+    | '/admin/restaurants/$restaurantId'
     | '/account/orders/'
     | '/admin/restaurants/'
   fileRoutesByTo: FileRoutesByTo
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/kitchen'
     | '/account/orders/$orderId'
+    | '/admin/restaurants/$restaurantId'
     | '/account/orders'
     | '/admin/restaurants'
   id:
@@ -321,6 +333,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/kitchen/'
     | '/account/orders/$orderId'
+    | '/admin/restaurants/$restaurantId'
     | '/account/orders/'
     | '/admin/restaurants/'
   fileRoutesById: FileRoutesById
@@ -347,6 +360,7 @@ export interface RootRouteChildren {
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
+  AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
 }
 
@@ -527,6 +541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRestaurantsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/restaurants/$restaurantId': {
+      id: '/admin/restaurants/$restaurantId'
+      path: '/admin/restaurants/$restaurantId'
+      fullPath: '/admin/restaurants/$restaurantId'
+      preLoaderRoute: typeof AdminRestaurantsRestaurantIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -568,6 +589,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantSettingsRoute: RestaurantSettingsRoute,
   AdminIndexRoute: AdminIndexRoute,
   KitchenIndexRoute: KitchenIndexRoute,
+  AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
 }
 export const routeTree = rootRouteImport
