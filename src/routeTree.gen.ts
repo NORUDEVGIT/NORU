@@ -24,6 +24,7 @@ import { Route as AccountIndexRouteImport } from './routes/account/index'
 import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
+import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -100,6 +101,11 @@ const AccountOrdersIndexRoute = AccountOrdersIndexRouteImport.update({
   path: '/orders/',
   getParentRoute: () => AccountRouteRoute,
 } as any)
+const AccountOrdersOrderIdRoute = AccountOrdersOrderIdRouteImport.update({
+  id: '/orders/$orderId',
+  path: '/orders/$orderId',
+  getParentRoute: () => AccountRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/kitchen/login': typeof KitchenLoginRoute
   '/account/': typeof AccountIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
+  '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/kitchen/login': typeof KitchenLoginRoute
   '/account': typeof AccountIndexRoute
   '/kitchen': typeof KitchenIndexRoute
+  '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/account/orders': typeof AccountOrdersIndexRoute
 }
 export interface FileRoutesById {
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/kitchen/login': typeof KitchenLoginRoute
   '/account/': typeof AccountIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
+  '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
 }
 export interface FileRouteTypes {
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/kitchen/login'
     | '/account/'
     | '/kitchen/'
+    | '/account/orders/$orderId'
     | '/account/orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/kitchen/login'
     | '/account'
     | '/kitchen'
+    | '/account/orders/$orderId'
     | '/account/orders'
   id:
     | '__root__'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/kitchen/login'
     | '/account/'
     | '/kitchen/'
+    | '/account/orders/$orderId'
     | '/account/orders/'
   fileRoutesById: FileRoutesById
 }
@@ -328,16 +340,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountOrdersIndexRouteImport
       parentRoute: typeof AccountRouteRoute
     }
+    '/account/orders/$orderId': {
+      id: '/account/orders/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/account/orders/$orderId'
+      preLoaderRoute: typeof AccountOrdersOrderIdRouteImport
+      parentRoute: typeof AccountRouteRoute
+    }
   }
 }
 
 interface AccountRouteRouteChildren {
   AccountIndexRoute: typeof AccountIndexRoute
+  AccountOrdersOrderIdRoute: typeof AccountOrdersOrderIdRoute
   AccountOrdersIndexRoute: typeof AccountOrdersIndexRoute
 }
 
 const AccountRouteRouteChildren: AccountRouteRouteChildren = {
   AccountIndexRoute: AccountIndexRoute,
+  AccountOrdersOrderIdRoute: AccountOrdersOrderIdRoute,
   AccountOrdersIndexRoute: AccountOrdersIndexRoute,
 }
 
