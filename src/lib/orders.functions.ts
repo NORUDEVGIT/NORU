@@ -64,8 +64,13 @@ export const placeOrder = createServerFn({ method: "POST" })
 
     // Approval gating is enforced here, server-side: a stale page or QR link
     // can never place an order at a pending, rejected or suspended restaurant.
+    // This is an expected business state, not a crash — return it as data so it
+    // surfaces as a message in the UI instead of an unhandled server error.
     if (!restaurant || !restaurant.approved || !restaurant.active) {
-      throw new Error("This restaurant is currently unavailable for ordering.");
+      return {
+        ok: false as const,
+        message: "This restaurant isn't accepting orders right now. Please ask a member of staff.",
+      };
     }
 
     const { data: order, error: orderError } = await supabase
@@ -97,6 +102,7 @@ export const placeOrder = createServerFn({ method: "POST" })
     }
 
     return {
+      ok: true as const,
       id: order.id,
       orderNumber: order.order_number,
       tableNumber: order.table_number,
