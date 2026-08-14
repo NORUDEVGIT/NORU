@@ -6,7 +6,8 @@ import { SiteHeader } from "@/components/site-header";
 import { MenuItemCard } from "@/components/menu-item-card";
 import { ItemDetailDialog } from "@/components/item-detail-dialog";
 import { Button } from "@/components/ui/button";
-import { CATEGORIES, MENU_ITEMS, RESTAURANT, formatPrice, type MenuItem } from "@/data/menu";
+import { CATEGORIES, RESTAURANT, formatPrice, type MenuItem } from "@/data/menu";
+import { useMenuItems } from "@/hooks/use-menu-items";
 import { useOrder } from "@/state/order-store";
 import heroImage from "@/assets/hero.jpg";
 
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/")({
 
 function MenuPage() {
   const { addItem, itemCount, total } = useOrder();
+  const menuItems = useMenuItems();
   const [category, setCategory] = useState<string>(CATEGORIES[0]!);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<MenuItem | null>(null);
@@ -38,14 +40,14 @@ function MenuPage() {
   const items = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (query) {
-      return MENU_ITEMS.filter(
+      return menuItems.filter(
         (item) =>
           item.name.toLowerCase().includes(query) ||
           item.description.toLowerCase().includes(query),
       );
     }
-    return MENU_ITEMS.filter((item) => item.category === category);
-  }, [category, search]);
+    return menuItems.filter((item) => item.category === category);
+  }, [category, search, menuItems]);
 
   const handleAdd = (item: MenuItem, quantity = 1, notes = "") => {
     addItem(item, quantity, notes);
