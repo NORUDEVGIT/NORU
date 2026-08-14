@@ -23,6 +23,7 @@ import { Route as TableRouteImport } from './routes/table'
 import { Route as AccountIndexRouteImport } from './routes/account/index'
 import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
+import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
 import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
 
@@ -96,6 +97,11 @@ const KitchenLoginRoute = KitchenLoginRouteImport.update({
   path: '/kitchen/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantLoginRoute = RestaurantLoginRouteImport.update({
+  id: '/restaurant/login',
+  path: '/restaurant/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountOrdersIndexRoute = AccountOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/restaurant/login': typeof RestaurantLoginRoute
   '/account/': typeof AccountIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/restaurant/login': typeof RestaurantLoginRoute
   '/account': typeof AccountIndexRoute
   '/kitchen': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/restaurant/login': typeof RestaurantLoginRoute
   '/account/': typeof AccountIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/restaurant/login'
     | '/account/'
     | '/kitchen/'
     | '/account/orders/$orderId'
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/restaurant/login'
     | '/account'
     | '/kitchen'
     | '/account/orders/$orderId'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/table'
     | '/kitchen/login'
+    | '/restaurant/login'
     | '/account/'
     | '/kitchen/'
     | '/account/orders/$orderId'
@@ -230,6 +242,7 @@ export interface RootRouteChildren {
   StatusRoute: typeof StatusRoute
   TableRoute: typeof TableRoute
   KitchenLoginRoute: typeof KitchenLoginRoute
+  RestaurantLoginRoute: typeof RestaurantLoginRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
 }
 
@@ -333,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KitchenLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/login': {
+      id: '/restaurant/login'
+      path: '/restaurant/login'
+      fullPath: '/restaurant/login'
+      preLoaderRoute: typeof RestaurantLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account/orders/': {
       id: '/account/orders/'
       path: '/orders'
@@ -379,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   StatusRoute: StatusRoute,
   TableRoute: TableRoute,
   KitchenLoginRoute: KitchenLoginRoute,
+  RestaurantLoginRoute: RestaurantLoginRoute,
   KitchenIndexRoute: KitchenIndexRoute,
 }
 export const routeTree = rootRouteImport
