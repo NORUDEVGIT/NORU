@@ -22,7 +22,7 @@ export function MenuItemCard({
       >
         <div className="relative aspect-[4/3] overflow-hidden">
           <img
-            src={item.image}
+            src={item.image ?? ""}
             alt={item.name}
             loading="lazy"
             width={800}

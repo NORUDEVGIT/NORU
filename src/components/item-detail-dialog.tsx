@@ -34,7 +34,7 @@ export function ItemDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-3xl p-0 sm:max-w-lg sm:rounded-3xl">
         <img
-          src={item.image}
+          src={item.image ?? ""}
           alt={item.name}
           width={800}
           height={600}
