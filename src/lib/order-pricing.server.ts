@@ -54,11 +54,13 @@ export async function resolveOrderLines(
   const dbById = new Map<string, { id: string; name: string; price: number; available: boolean }>();
   if (dbIds.length > 0) {
     const supabase = publicServerClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("menu_items")
       .select("id, name, price, available")
-      .in("id", dbIds)
-      .eq("restaurant_id", restaurantId ?? "");
+      .in("id", dbIds);
+    // Items must belong to the resolved tenant when one is known.
+    if (restaurantId) query = query.eq("restaurant_id", restaurantId);
+    const { data, error } = await query;
     if (error) throw new Error("Could not verify the menu right now. Please try again.");
     for (const row of data ?? []) {
       dbById.set(row.id, {
