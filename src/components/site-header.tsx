@@ -10,18 +10,21 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { CATEGORIES, RESTAURANT, formatPrice } from "@/data/menu";
+import { formatPrice } from "@/data/menu";
 import { MenuLink, OrderLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 import { useAuth } from "@/state/auth-store";
 
 interface SiteHeaderProps {
+  /** Category names come from the restaurant's database menu. */
+  categories?: string[];
+  restaurantName?: string;
   search?: string;
   onSearchChange?: (value: string) => void;
   onSelectCategory?: (category: string) => void;
 }
 
-export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHeaderProps) {
+export function SiteHeader({ categories = [], restaurantName = "Order to your table", search, onSearchChange, onSelectCategory }: SiteHeaderProps) {
   const { itemCount, total } = useOrder();
   const { user, loading: authLoading } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -39,10 +42,10 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
           </SheetTrigger>
           <SheetContent side="left" className="w-[85vw] max-w-sm">
             <SheetHeader>
-              <SheetTitle className="font-display text-2xl">{RESTAURANT.name}</SheetTitle>
+              <SheetTitle className="font-display text-2xl">{restaurantName}</SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col gap-1 px-4 pb-6">
-              {CATEGORIES.map((category) => (
+              {categories.map((category) => (
                 <MenuLink
                   key={category}
                   onClick={() => {
@@ -88,7 +91,7 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
         <MenuLink className="flex min-w-0 items-center justify-center gap-2">
           <Leaf className="size-5 shrink-0 text-accent" />
           <span className="truncate font-display text-lg font-semibold sm:text-xl">
-            {RESTAURANT.name}
+            {restaurantName}
           </span>
         </MenuLink>
 
