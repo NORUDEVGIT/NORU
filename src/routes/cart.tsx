@@ -27,9 +27,9 @@ function CartPage() {
     <div className="min-h-dvh bg-background pb-32">
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 py-6">
-        <Link to="/" className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <MenuLink className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground">
           <ArrowLeft className="size-4" /> Back to menu
-        </Link>
+        </MenuLink>
         <h1 className="font-display text-3xl">Your order</h1>
 
         {lines.length === 0 ? (
