@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ShoppingBag } from "lucide-react";
@@ -16,28 +16,43 @@ import heroImage from "@/assets/hero.jpg";
 export const Route = createFileRoute("/r/$restaurantSlug")({
   head: () => ({
     meta: [
-      { title: "The Garden Table — Order to Your Table" },
+      { title: "Restaurant Menu — Order to Your Table" },
       {
         name: "description",
         content:
-          "Browse the seasonal menu at The Garden Table and order straight to your table. No queue, no app, no account.",
+          "Browse the seasonal menu and order straight to your table. No queue, no app, no account.",
       },
-      { property: "og:title", content: "The Garden Table — Order to Your Table" },
+      { property: "og:title", content: "Restaurant Menu — Order to Your Table" },
       {
         property: "og:description",
-        content: "Seasonal plates, wood fire and garden greens, ordered from your seat.",
+        content: "Browse the menu and order from your seat.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: MenuPage,
+  component: RestaurantMenuPage,
 });
 
-function MenuPage() {
-  const { addItem, itemCount, total } = useOrder();
-  const menuItems = useMenuItems();
+function RestaurantMenuPage() {
+  const { restaurantSlug } = Route.useParams();
+  const { addItem, itemCount, total, setRestaurantSlug } = useOrder();
   const [category, setCategory] = useState<string>(CATEGORIES[0]!);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<MenuItem | null>(null);
+
+  const restaurantQuery = useQuery({
+    queryKey: ["public-restaurant", restaurantSlug],
+    queryFn: () => getPublicRestaurant({ data: { slug: restaurantSlug } }),
+    retry: false,
+  });
+  const restaurant = restaurantQuery.data ?? null;
+
+  useEffect(() => {
+    if (restaurant) setRestaurantSlug(restaurant.slug);
+  }, [restaurant, setRestaurantSlug]);
+
+  const menuItems = useMenuItems(restaurant?.id);
 
   const items = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -56,6 +71,34 @@ function MenuPage() {
     toast.success(`${quantity} × ${item.name} added to your order`);
   };
 
+  if (restaurantQuery.isLoading) {
+    return (
+      <div className="min-h-dvh bg-background">
+        <SiteHeader />
+        <div className="mx-auto max-w-6xl px-4 py-10">
+          <div className="h-48 w-full animate-pulse rounded-3xl bg-muted sm:h-72" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!restaurant) {
+    return (
+      <div className="min-h-dvh bg-background">
+        <SiteHeader />
+        <main className="mx-auto max-w-md px-4 py-20 text-center">
+          <h1 className="font-display text-3xl">Restaurant not available</h1>
+          <p className="mt-2 text-muted-foreground">
+            We couldn't find a restaurant taking orders at this address.
+          </p>
+          <Button asChild size="lg" className="mt-6 h-14 rounded-full px-6">
+            <Link to="/">Back to home</Link>
+          </Button>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-dvh bg-background pb-28">
       <SiteHeader
@@ -71,7 +114,7 @@ function MenuPage() {
         <div className="relative overflow-hidden rounded-3xl">
           <img
             src={heroImage}
-            alt="The dining room at The Garden Table"
+            alt={`The dining room at ${restaurant.name}`}
             width={1600}
             height={900}
             className="h-48 w-full object-cover sm:h-72"
@@ -79,7 +122,7 @@ function MenuPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-foreground/85 via-foreground/35 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
             <h1 className="font-display text-3xl text-background sm:text-5xl">
-              {RESTAURANT.name}
+              {restaurant.name}
             </h1>
             <p className="mt-2 max-w-lg text-sm text-background/85 sm:text-base">
               {RESTAURANT.tagline}

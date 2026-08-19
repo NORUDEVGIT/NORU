@@ -27,6 +27,7 @@ import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
+import { Route as RRestaurantSlugRouteImport } from './routes/r/$restaurantSlug'
 import { Route as RestaurantDashboardRouteImport } from './routes/restaurant/dashboard'
 import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
@@ -126,6 +127,11 @@ const KitchenLoginRoute = KitchenLoginRouteImport.update({
   path: '/kitchen/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RRestaurantSlugRoute = RRestaurantSlugRouteImport.update({
+  id: '/r/$restaurantSlug',
+  path: '/r/$restaurantSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantDashboardRoute = RestaurantDashboardRouteImport.update({
   id: '/restaurant/dashboard',
   path: '/restaurant/dashboard',
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/r/$restaurantSlug': typeof RRestaurantSlugRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/r/$restaurantSlug': typeof RRestaurantSlugRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
+  '/r/$restaurantSlug': typeof RRestaurantSlugRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/settings'
     | '/kitchen/login'
+    | '/r/$restaurantSlug'
     | '/restaurant/dashboard'
     | '/restaurant/login'
     | '/restaurant/register'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/settings'
     | '/kitchen/login'
+    | '/r/$restaurantSlug'
     | '/restaurant/dashboard'
     | '/restaurant/login'
     | '/restaurant/register'
@@ -325,6 +336,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/settings'
     | '/kitchen/login'
+    | '/r/$restaurantSlug'
     | '/restaurant/dashboard'
     | '/restaurant/login'
     | '/restaurant/register'
@@ -354,6 +366,7 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   KitchenLoginRoute: typeof KitchenLoginRoute
+  RRestaurantSlugRoute: typeof RRestaurantSlugRoute
   RestaurantDashboardRoute: typeof RestaurantDashboardRoute
   RestaurantLoginRoute: typeof RestaurantLoginRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
@@ -492,6 +505,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KitchenLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/$restaurantSlug': {
+      id: '/r/$restaurantSlug'
+      path: '/r/$restaurantSlug'
+      fullPath: '/r/$restaurantSlug'
+      preLoaderRoute: typeof RRestaurantSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/dashboard': {
       id: '/restaurant/dashboard'
       path: '/restaurant/dashboard'
@@ -583,6 +603,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   KitchenLoginRoute: KitchenLoginRoute,
+  RRestaurantSlugRoute: RRestaurantSlugRoute,
   RestaurantDashboardRoute: RestaurantDashboardRoute,
   RestaurantLoginRoute: RestaurantLoginRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
