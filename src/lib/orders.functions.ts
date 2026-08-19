@@ -2,11 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+// The browser sends what it wants to order, not what it costs: the id is the
+// only field the server trusts, and name/price are display-only echoes.
 const lineSchema = z.object({
-  menuItemId: z.string().nullable().optional(),
-  name: z.string().min(1),
+  menuItemId: z.string().uuid(),
+  name: z.string().min(1).max(200).optional(),
   quantity: z.number().int().positive().max(20),
-  price: z.number().nonnegative(),
+  price: z.number().nonnegative().optional(),
   specialInstructions: z.string().max(500).nullable().optional(),
 });
 
@@ -20,26 +22,6 @@ const placeOrderSchema = z.object({
   tableNumber: z.number().int().positive().max(999),
   lines: z.array(lineSchema).min(1).max(50),
 });
-
-const menuQuerySchema = z
-  .object({ restaurantId: z.string().uuid().optional().nullable() })
-  .optional()
-  .nullable();
-
-export const getMenuItems = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => menuQuerySchema.parse(input) ?? null)
-  .handler(async ({ data }) => {
-    const { publicServerClient } = await import("./order-pricing.server");
-    const supabase = publicServerClient();
-    let query = supabase
-      .from("menu_items")
-      .select("id, name, description, price, category, image_url, available")
-      .eq("available", true);
-    if (data?.restaurantId) query = query.eq("restaurant_id", data.restaurantId);
-    const { data: rows, error } = await query.order("created_at", { ascending: true });
-    if (error) return [];
-    return rows ?? [];
-  });
 
 export const placeOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => placeOrderSchema.parse(input))
