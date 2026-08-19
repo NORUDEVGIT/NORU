@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { formatPrice } from "@/data/menu";
+import { MenuLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/cart")({
@@ -38,7 +39,7 @@ function CartPage() {
               Add a few dishes from the menu to get started.
             </p>
             <Button asChild size="lg" className="mt-6 h-13 rounded-full px-6">
-              <Link to="/">Browse the menu</Link>
+              <MenuLink>Browse the menu</MenuLink>
             </Button>
           </div>
         ) : (

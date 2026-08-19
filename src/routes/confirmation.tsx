@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { OrderLines } from "@/components/order-lines";
 import { formatPrice } from "@/data/menu";
+import { MenuLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/confirmation")({
@@ -29,7 +30,7 @@ function ConfirmationPage() {
           <h1 className="font-display text-3xl">No recent order</h1>
           <p className="mt-2 text-muted-foreground">Place an order to see your confirmation.</p>
           <Button asChild size="lg" className="mt-6 h-14 rounded-full px-6">
-            <Link to="/">Browse the menu</Link>
+            <MenuLink>Browse the menu</MenuLink>
           </Button>
         </main>
       </div>
@@ -88,7 +89,7 @@ function ConfirmationPage() {
             size="lg"
             className="h-14 flex-1 rounded-full text-base"
           >
-            <Link to="/">Back to menu</Link>
+            <MenuLink>Back to menu</MenuLink>
           </Button>
         </div>
 

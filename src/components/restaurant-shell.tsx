@@ -106,7 +106,7 @@ export function RestaurantShell({
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button asChild><Link to="/restaurant/register">Register a restaurant</Link></Button>
-                <Button asChild variant="outline"><Link to="/">Back to menu</Link></Button>
+                <Button asChild variant="outline"><Link to="/">Back to home</Link></Button>
               </div>
             </div>
           ) : (

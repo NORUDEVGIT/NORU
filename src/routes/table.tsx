@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/data/menu";
+import { MenuLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/table")({
@@ -32,7 +33,7 @@ function TablePage() {
           <h1 className="font-display text-3xl">Nothing to order yet</h1>
           <p className="mt-2 text-muted-foreground">Add a dish before choosing your table.</p>
           <Button asChild size="lg" className="mt-6 h-14 rounded-full px-6">
-            <Link to="/">Browse the menu</Link>
+            <MenuLink>Browse the menu</MenuLink>
           </Button>
         </main>
       </div>

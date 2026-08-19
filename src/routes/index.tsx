@@ -47,7 +47,7 @@ function PlatformHome() {
   });
 
   const hasRestaurant = Array.isArray(restaurants.data) && restaurants.data.length > 0;
-  const isAdmin = admin.data === true || (admin.data as { isAdmin?: boolean } | undefined)?.isAdmin === true;
+  const isAdmin = admin.data?.isAdmin === true;
 
   return (
     <div className="min-h-dvh bg-background">
