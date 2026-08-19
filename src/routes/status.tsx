@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { MenuLink } from "@/components/menu-link";
 import { StatusTracker } from "@/components/status-tracker";
 import { formatPrice } from "@/data/menu";
 import { ORDER_STATUS_STEPS, useOrder } from "@/state/order-store";
@@ -28,7 +29,7 @@ function StatusPage() {
           <h1 className="font-display text-3xl">No active order</h1>
           <p className="mt-2 text-muted-foreground">Place an order to follow its progress.</p>
           <Button asChild size="lg" className="mt-6 h-14 rounded-full px-6">
-            <Link to="/">Browse the menu</Link>
+            <MenuLink>Browse the menu</MenuLink>
           </Button>
         </main>
       </div>
@@ -76,7 +77,7 @@ function StatusPage() {
         </div>
 
         <Button asChild variant="outline" size="lg" className="mt-6 h-14 w-full rounded-full text-base">
-          <Link to="/">Back to menu</Link>
+          <MenuLink>Back to menu</MenuLink>
         </Button>
       </main>
     </div>

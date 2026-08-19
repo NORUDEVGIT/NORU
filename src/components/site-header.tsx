@@ -11,6 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { CATEGORIES, RESTAURANT, formatPrice } from "@/data/menu";
+import { MenuLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 import { useAuth } from "@/state/auth-store";
 
@@ -42,9 +43,8 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
             </SheetHeader>
             <nav className="flex flex-col gap-1 px-4 pb-6">
               {CATEGORIES.map((category) => (
-                <Link
+                <MenuLink
                   key={category}
-                  to="/"
                   onClick={() => {
                     onSelectCategory?.(category);
                     setNavOpen(false);
@@ -52,7 +52,7 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
                   className="rounded-xl px-3 py-3 text-base font-medium transition-colors hover:bg-secondary"
                 >
                   {category}
-                </Link>
+                </MenuLink>
               ))}
               <div className="my-3 h-px bg-border" />
               <Link to="/cart" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
@@ -85,12 +85,12 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
           </SheetContent>
         </Sheet>
 
-        <Link to="/" className="flex min-w-0 items-center justify-center gap-2">
+        <MenuLink className="flex min-w-0 items-center justify-center gap-2">
           <Leaf className="size-5 shrink-0 text-accent" />
           <span className="truncate font-display text-lg font-semibold sm:text-xl">
             {RESTAURANT.name}
           </span>
-        </Link>
+        </MenuLink>
 
         <div className="flex items-center gap-1">
           {searchable ? (

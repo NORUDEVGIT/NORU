@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { MenuLink } from "@/components/menu-link";
 import { formatPrice } from "@/data/menu";
 import { getMyOrders } from "@/lib/customer.functions";
 import { statusLabel } from "@/lib/order-status";
@@ -49,7 +50,7 @@ function OrdersPage() {
           <div className="mt-6 rounded-2xl border border-border bg-card p-6 text-center">
             <p className="text-sm text-muted-foreground">You haven't placed any orders yet.</p>
             <Button asChild size="lg" className="mt-4 h-12 rounded-full px-6">
-              <Link to="/">Browse the menu</Link>
+              <MenuLink>Browse the menu</MenuLink>
             </Button>
           </div>
         ) : (

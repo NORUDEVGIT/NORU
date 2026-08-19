@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { formatPrice } from "@/data/menu";
+import { MenuLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/cart")({
@@ -26,9 +27,9 @@ function CartPage() {
     <div className="min-h-dvh bg-background pb-32">
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 py-6">
-        <Link to="/" className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <MenuLink className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground">
           <ArrowLeft className="size-4" /> Back to menu
-        </Link>
+        </MenuLink>
         <h1 className="font-display text-3xl">Your order</h1>
 
         {lines.length === 0 ? (
@@ -38,7 +39,7 @@ function CartPage() {
               Add a few dishes from the menu to get started.
             </p>
             <Button asChild size="lg" className="mt-6 h-13 rounded-full px-6">
-              <Link to="/">Browse the menu</Link>
+              <MenuLink>Browse the menu</MenuLink>
             </Button>
           </div>
         ) : (

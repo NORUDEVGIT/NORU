@@ -1,155 +1,145 @@
-import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { toast } from "sonner";
-import { ShoppingBag } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
-import { MenuItemCard } from "@/components/menu-item-card";
-import { ItemDetailDialog } from "@/components/item-detail-dialog";
+import { useQuery } from "@tanstack/react-query";
+import { UtensilsCrossed, Store, ShieldCheck, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CATEGORIES, RESTAURANT, formatPrice, type MenuItem } from "@/data/menu";
-import { useMenuItems } from "@/hooks/use-menu-items";
-import { useOrder } from "@/state/order-store";
-import heroImage from "@/assets/hero.jpg";
+import { useAuth } from "@/state/auth-store";
+import { getMyRestaurants } from "@/lib/restaurant.functions";
+import { amIPlatformAdmin } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "The Garden Table — Order to Your Table" },
+      { title: "Order. Manage. Serve. — Restaurant Ordering Platform" },
       {
         name: "description",
         content:
-          "Browse the seasonal menu at The Garden Table and order straight to your table. No queue, no app, no account.",
+          "One platform connecting customers and restaurants: order to your table, manage your restaurant, and run the kitchen.",
       },
-      { property: "og:title", content: "The Garden Table — Order to Your Table" },
+      { property: "og:title", content: "Order. Manage. Serve." },
       {
         property: "og:description",
-        content: "Seasonal plates, wood fire and garden greens, ordered from your seat.",
+        content: "One platform connecting customers and restaurants.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: MenuPage,
+  component: PlatformHome,
 });
 
-function MenuPage() {
-  const { addItem, itemCount, total } = useOrder();
-  const menuItems = useMenuItems();
-  const [category, setCategory] = useState<string>(CATEGORIES[0]!);
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<MenuItem | null>(null);
+function PlatformHome() {
+  const { session, user } = useAuth();
+  const signedIn = Boolean(session);
 
-  const items = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (query) {
-      return menuItems.filter(
-        (item) =>
-          item.name.toLowerCase().includes(query) ||
-          item.description.toLowerCase().includes(query),
-      );
-    }
-    return menuItems.filter((item) => item.category === category);
-  }, [category, search, menuItems]);
+  // Privileged entry points are only shown after the backend confirms the
+  // caller's membership/role; the UI never assumes access from being signed in.
+  const restaurants = useQuery({
+    queryKey: ["home", "my-restaurants", user?.id],
+    queryFn: () => getMyRestaurants(),
+    enabled: signedIn,
+    retry: false,
+  });
+  const admin = useQuery({
+    queryKey: ["home", "am-i-admin", user?.id],
+    queryFn: () => amIPlatformAdmin(),
+    enabled: signedIn,
+    retry: false,
+  });
 
-  const handleAdd = (item: MenuItem, quantity = 1, notes = "") => {
-    addItem(item, quantity, notes);
-    toast.success(`${quantity} × ${item.name} added to your order`);
-  };
+  const hasRestaurant = Array.isArray(restaurants.data) && restaurants.data.length > 0;
+  const isAdmin = admin.data?.isAdmin === true;
 
   return (
-    <div className="min-h-dvh bg-background pb-28">
-      <SiteHeader
-        search={search}
-        onSearchChange={setSearch}
-        onSelectCategory={(value) => {
-          setSearch("");
-          setCategory(value);
-        }}
-      />
+    <div className="min-h-dvh bg-background">
+      <header className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-5">
+        <Leaf className="size-5 text-accent" />
+        <span className="font-display text-lg font-semibold">Garden Table Platform</span>
+      </header>
 
-      <section className="relative mx-auto max-w-6xl px-4 pt-4">
-        <div className="relative overflow-hidden rounded-3xl">
-          <img
-            src={heroImage}
-            alt="The dining room at The Garden Table"
-            width={1600}
-            height={900}
-            className="h-48 w-full object-cover sm:h-72"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-foreground/85 via-foreground/35 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
-            <h1 className="font-display text-3xl text-background sm:text-5xl">
-              {RESTAURANT.name}
-            </h1>
-            <p className="mt-2 max-w-lg text-sm text-background/85 sm:text-base">
-              {RESTAURANT.tagline}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <nav
-        aria-label="Menu categories"
-        className="sticky top-[68px] z-30 mt-4 bg-background/90 py-2 backdrop-blur-md"
-      >
-        <div className="no-scrollbar mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4">
-          {CATEGORIES.map((name) => {
-            const active = !search && name === category;
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setCategory(name);
-                }}
-                className={[
-                  "h-11 shrink-0 rounded-full border px-5 text-sm font-medium transition-colors",
-                  active
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-card text-foreground hover:bg-secondary",
-                ].join(" ")}
-              >
-                {name}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      <main className="mx-auto max-w-6xl px-4 pt-4">
-        <h2 className="sr-only">{search ? "Search results" : category}</h2>
-        {items.length === 0 ? (
-          <p className="py-16 text-center text-muted-foreground">
-            No dishes match “{search}”.
+      <main className="mx-auto max-w-5xl px-4 pb-20">
+        <section className="pt-6 sm:pt-12">
+          <h1 className="font-display text-4xl leading-tight sm:text-6xl">Order. Manage. Serve.</h1>
+          <p className="mt-3 max-w-xl text-base text-muted-foreground sm:text-lg">
+            One platform connecting customers and restaurants.
           </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => (
-              <div key={item.id} className="fade-up">
-                <MenuItemCard item={item} onOpen={setSelected} onAdd={(value) => handleAdd(value)} />
-              </div>
-            ))}
-          </div>
-        )}
+        </section>
+
+        <section className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <article className="flex flex-col rounded-3xl border border-border bg-card p-6">
+            <UtensilsCrossed className="size-6 text-accent" />
+            <h2 className="mt-4 font-display text-2xl">Customer</h2>
+            <p className="mt-2 flex-1 text-sm text-muted-foreground">
+              Order food from participating restaurants, track your orders and view your order
+              history.
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              {signedIn ? (
+                <Button asChild size="lg" className="h-12 rounded-full">
+                  <Link to="/account">My Account</Link>
+                </Button>
+              ) : (
+                <>
+                  <Button asChild size="lg" className="h-12 rounded-full">
+                    <Link to="/login">Sign In</Link>
+                  </Button>
+                  <Button asChild size="lg" variant="outline" className="h-12 rounded-full">
+                    <Link to="/register">Create Account</Link>
+                  </Button>
+                </>
+              )}
+            </div>
+          </article>
+
+          <article className="flex flex-col rounded-3xl border border-border bg-card p-6">
+            <Store className="size-6 text-accent" />
+            <h2 className="mt-4 font-display text-2xl">Restaurant</h2>
+            <p className="mt-2 flex-1 text-sm text-muted-foreground">
+              Manage your restaurant, menu, orders, kitchen and operations.
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              {hasRestaurant ? (
+                <Button asChild size="lg" className="h-12 rounded-full">
+                  <Link to="/restaurant/dashboard">Restaurant Dashboard</Link>
+                </Button>
+              ) : null}
+              <Button
+                asChild
+                size="lg"
+                variant={hasRestaurant ? "outline" : "default"}
+                className="h-12 rounded-full"
+              >
+                <Link to="/restaurant/login">Restaurant Sign In</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="h-12 rounded-full">
+                <Link to="/restaurant/register">Register Your Restaurant</Link>
+              </Button>
+            </div>
+          </article>
+
+          <article className="flex flex-col rounded-3xl border border-border bg-card p-6">
+            <ShieldCheck className="size-6 text-accent" />
+            <h2 className="mt-4 font-display text-2xl">Platform Admin</h2>
+            <p className="mt-2 flex-1 text-sm text-muted-foreground">
+              Platform administration and restaurant approvals.
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              {isAdmin ? (
+                <Button asChild size="lg" className="h-12 rounded-full">
+                  <Link to="/admin">Admin Dashboard</Link>
+                </Button>
+              ) : null}
+              <Button
+                asChild
+                size="lg"
+                variant={isAdmin ? "outline" : "default"}
+                className="h-12 rounded-full"
+              >
+                <Link to="/admin/login">Admin Sign In</Link>
+              </Button>
+            </div>
+          </article>
+        </section>
       </main>
-
-      <ItemDetailDialog
-        item={selected}
-        open={Boolean(selected)}
-        onOpenChange={(open) => !open && setSelected(null)}
-        onAdd={handleAdd}
-      />
-
-      {itemCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur-md">
-          <Button asChild size="lg" className="mx-auto flex h-14 w-full max-w-2xl rounded-full text-base">
-            <Link to="/cart">
-              <ShoppingBag className="size-5" />
-              View order · {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
-              {formatPrice(total)}
-            </Link>
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }
