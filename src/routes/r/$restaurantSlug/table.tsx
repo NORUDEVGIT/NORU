@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Utensils } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/data/menu";
+import { resolveManualTable } from "@/lib/tables.functions";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/table")({
@@ -22,8 +24,10 @@ export const Route = createFileRoute("/r/$restaurantSlug/table")({
 function TablePage() {
   const { restaurantSlug } = Route.useParams();
   const navigate = useNavigate();
-  const { lines, tableNumber, setTableNumber, total } = useOrder();
+  const { lines, tableNumber, setTableNumber, setTableContext, total } = useOrder();
   const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const resolveTable = useServerFn(resolveManualTable);
 
   if (lines.length === 0) {
     return (
@@ -42,20 +46,35 @@ function TablePage() {
     );
   }
 
-  const submit = (event: React.FormEvent) => {
+  // Fallback flow: the typed number is never authoritative. The server matches
+  // it against this restaurant's real, active table records and returns the
+  // canonical restaurant_table_id whenever tables are configured.
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const value = tableNumber.trim();
     if (!value) {
       setError("Please enter your table number.");
       return;
     }
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 99) {
-      setError("Table numbers run from 1 to 99.");
-      return;
+    setChecking(true);
+    try {
+      const result = await resolveTable({ data: { restaurantSlug, tableNumber: value } });
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setError("");
+      setTableContext({
+        slug: restaurantSlug,
+        tableId: result.tableId,
+        tableNumber: result.tableNumber,
+      });
+      navigate({ to: "/r/$restaurantSlug/review", params: { restaurantSlug } });
+    } catch {
+      setError("We couldn't check that table number. Please try again.");
+    } finally {
+      setChecking(false);
     }
-    setError("");
-    navigate({ to: "/r/$restaurantSlug/review", params: { restaurantSlug } });
   };
 
   return (
@@ -78,14 +97,13 @@ function TablePage() {
           Enter your table number — no account needed.
         </p>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <form onSubmit={(event) => void submit(event)} className="mt-8 space-y-4">
           <Input
             autoFocus
-            inputMode="numeric"
-            pattern="[0-9]*"
+            inputMode="text"
             value={tableNumber}
             onChange={(event) => {
-              setTableNumber(event.target.value.replace(/\D/g, "").slice(0, 2));
+              setTableNumber(event.target.value.slice(0, 20));
               setError("");
             }}
             placeholder="Table number"
@@ -94,8 +112,8 @@ function TablePage() {
             className="h-20 rounded-3xl bg-card text-center font-display text-4xl tabular-nums md:text-4xl"
           />
           {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
-          <Button type="submit" size="lg" className="h-14 w-full rounded-full text-base">
-            Continue · {formatPrice(total)}
+          <Button type="submit" size="lg" disabled={checking} className="h-14 w-full rounded-full text-base">
+            {checking ? "Checking your table…" : `Continue · ${formatPrice(total)}`}
           </Button>
         </form>
       </main>

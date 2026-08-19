@@ -39,7 +39,11 @@ interface OrderContextValue {
   lines: CartLine[];
   restaurantSlug: string;
   setRestaurantSlug: (slug: string) => void;
+  /** Authoritative table identity (restaurant_tables.id) when known. */
+  restaurantTableId: string | null;
+  /** Display-only table label. */
   tableNumber: string;
+  setTableContext: (context: { slug: string; tableId: string | null; tableNumber: string }) => void;
   order: PlacedOrder | null;
   status: OrderStatus;
   itemCount: number;
@@ -63,6 +67,7 @@ const STORAGE_KEY = "garden-table-order";
 interface PersistedState {
   lines: CartLine[];
   restaurantSlug?: string;
+  restaurantTableId?: string | null;
   tableNumber: string;
   order: PlacedOrder | null;
   status: OrderStatus;
@@ -71,7 +76,8 @@ interface PersistedState {
 export function OrderProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [restaurantSlug, setRestaurantSlugState] = useState("");
-  const [tableNumber, setTableNumber] = useState("");
+  const [restaurantTableId, setRestaurantTableId] = useState<string | null>(null);
+  const [tableNumber, setTableNumberState] = useState("");
   const [order, setOrder] = useState<PlacedOrder | null>(null);
   const [status, setStatus] = useState<OrderStatus>("received");
   const hydrated = useRef(false);
@@ -85,7 +91,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         const saved = JSON.parse(raw) as PersistedState;
         setLines(saved.lines ?? []);
         setRestaurantSlugState(saved.restaurantSlug ?? "");
-        setTableNumber(saved.tableNumber ?? "");
+        setRestaurantTableId(saved.restaurantTableId ?? null);
+        setTableNumberState(saved.tableNumber ?? "");
         setOrder(saved.order ?? null);
         setStatus(saved.status ?? "received");
       }
@@ -99,17 +106,52 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     if (!hydrated.current) return;
     window.sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ lines, restaurantSlug, tableNumber, order, status } satisfies PersistedState),
+      JSON.stringify({
+        lines,
+        restaurantSlug,
+        restaurantTableId,
+        tableNumber,
+        order,
+        status,
+      } satisfies PersistedState),
     );
-  }, [lines, restaurantSlug, tableNumber, order, status]);
+  }, [lines, restaurantSlug, restaurantTableId, tableNumber, order, status]);
 
   // Selecting a different restaurant starts a fresh cart: lines are priced and
   // validated per tenant server-side, so they must never cross restaurants.
   const setRestaurantSlug = useCallback((slug: string) => {
     setRestaurantSlugState((prev) => {
-      if (prev && prev !== slug) setLines([]);
+      if (prev && prev !== slug) {
+        setLines([]);
+        // Table context belongs to the previous tenant — never carry it over.
+        setRestaurantTableId(null);
+        setTableNumberState("");
+      }
       return slug;
     });
+  }, []);
+
+  /**
+   * Applied when a QR code (or a resolved manual entry) identifies a table.
+   * Scanning another table in the SAME restaurant keeps the cart and simply
+   * moves the order to the new table; a different restaurant clears the cart.
+   */
+  const setTableContext = useCallback(
+    ({ slug, tableId, tableNumber: number }: { slug: string; tableId: string | null; tableNumber: string }) => {
+      setRestaurantSlugState((prev) => {
+        if (prev && prev !== slug) setLines([]);
+        return slug;
+      });
+      setRestaurantTableId(tableId);
+      setTableNumberState(number);
+    },
+    [],
+  );
+
+  /** Manual typing only edits the label; it clears any resolved table id. */
+  const setTableNumber = useCallback((value: string) => {
+    setTableNumberState(value);
+    setRestaurantTableId(null);
   }, []);
 
   const addItem = useCallback((item: MenuItem, quantity = 1, notes = "") => {
@@ -174,15 +216,15 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       );
     }
     if (lines.length === 0) throw new Error("Your order is empty.");
-    const table = Number.parseInt(tableNumber, 10);
-    if (!tableNumber || Number.isNaN(table) || table <= 0) {
+    if (!tableNumber.trim() && !restaurantTableId) {
       throw new Error("Please enter your table number.");
     }
 
     const result = await placeOrderFn({
       data: {
         restaurantSlug: slug,
-        tableNumber: table,
+        restaurantTableId,
+        tableNumber: tableNumber.trim(),
         lines: lines.map((line) => ({
           menuItemId: line.item.id,
           name: line.item.name,
@@ -199,7 +241,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
     const placed: PlacedOrder = {
       orderNumber: result.orderNumber,
-      tableNumber,
+      tableNumber: result.tableNumber,
       lines,
       total: result.total,
       prepMinutes: Math.min(40, 15 + lines.length * 3),
@@ -210,7 +252,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     setLines([]);
     return placed;
     },
-    [lines, tableNumber],
+    [lines, tableNumber, restaurantTableId],
   );
 
   const advanceStatus = useCallback(() => {
@@ -224,7 +266,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     setOrder(null);
     setStatus("received");
     setLines([]);
-    setTableNumber("");
+    setTableNumberState("");
+    setRestaurantTableId(null);
   }, []);
 
   const value = useMemo<OrderContextValue>(
@@ -232,7 +275,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       lines,
       restaurantSlug,
       setRestaurantSlug,
+      restaurantTableId,
       tableNumber,
+      setTableContext,
       order,
       status,
       itemCount,
@@ -252,6 +297,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       lines,
       restaurantSlug,
       setRestaurantSlug,
+      restaurantTableId,
+      setTableContext,
+      setTableNumber,
       tableNumber,
       order,
       status,

@@ -34,6 +34,7 @@ import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantMenuRouteImport } from './routes/restaurant/menu'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
 import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/settings'
+import { Route as RestaurantTablesRouteImport } from './routes/restaurant/tables'
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
 import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
 import { Route as AdminRestaurantsIndexRouteImport } from './routes/admin/restaurants/index'
@@ -44,6 +45,7 @@ import { Route as RRestaurantSlugConfirmationRouteImport } from './routes/r/$res
 import { Route as RRestaurantSlugReviewRouteImport } from './routes/r/$restaurantSlug/review'
 import { Route as RRestaurantSlugStatusRouteImport } from './routes/r/$restaurantSlug/status'
 import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
+import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -170,6 +172,11 @@ const RestaurantSettingsRoute = RestaurantSettingsRouteImport.update({
   path: '/restaurant/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantTablesRoute = RestaurantTablesRouteImport.update({
+  id: '/restaurant/tables',
+  path: '/restaurant/tables',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountOrdersIndexRoute = AccountOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
@@ -222,6 +229,11 @@ const RRestaurantSlugTableRoute = RRestaurantSlugTableRouteImport.update({
   path: '/table',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RRestaurantSlugTQrTokenRoute = RRestaurantSlugTQrTokenRouteImport.update({
+  id: '/t/$qrToken',
+  path: '/t/$qrToken',
+  getParentRoute: () => RRestaurantSlugRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -246,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
+  '/restaurant/tables': typeof RestaurantTablesRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
@@ -259,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -281,6 +295,7 @@ export interface FileRoutesByTo {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
+  '/restaurant/tables': typeof RestaurantTablesRoute
   '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
   '/kitchen': typeof KitchenIndexRoute
@@ -294,6 +309,7 @@ export interface FileRoutesByTo {
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
+  '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -319,6 +335,7 @@ export interface FileRoutesById {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
+  '/restaurant/tables': typeof RestaurantTablesRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
@@ -332,6 +349,7 @@ export interface FileRoutesById {
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -358,6 +376,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/settings'
+    | '/restaurant/tables'
     | '/account/'
     | '/admin/'
     | '/kitchen/'
@@ -371,6 +390,7 @@ export interface FileRouteTypes {
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/r/$restaurantSlug/t/$qrToken'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -393,6 +413,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/settings'
+    | '/restaurant/tables'
     | '/account'
     | '/admin'
     | '/kitchen'
@@ -406,6 +427,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
+    | '/r/$restaurantSlug/t/$qrToken'
   id:
     | '__root__'
     | '/'
@@ -430,6 +452,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/settings'
+    | '/restaurant/tables'
     | '/account/'
     | '/admin/'
     | '/kitchen/'
@@ -443,6 +466,7 @@ export interface FileRouteTypes {
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/r/$restaurantSlug/t/$qrToken'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -468,6 +492,7 @@ export interface RootRouteChildren {
   RestaurantMenuRoute: typeof RestaurantMenuRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
+  RestaurantTablesRoute: typeof RestaurantTablesRoute
   AdminIndexRoute: typeof AdminIndexRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
@@ -651,6 +676,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/tables': {
+      id: '/restaurant/tables'
+      path: '/restaurant/tables'
+      fullPath: '/restaurant/tables'
+      preLoaderRoute: typeof RestaurantTablesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account/orders/': {
       id: '/account/orders/'
       path: '/orders'
@@ -721,6 +753,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRestaurantSlugTableRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
     }
+    '/r/$restaurantSlug/t/$qrToken': {
+      id: '/r/$restaurantSlug/t/$qrToken'
+      path: '/t/$qrToken'
+      fullPath: '/r/$restaurantSlug/t/$qrToken'
+      preLoaderRoute: typeof RRestaurantSlugTQrTokenRouteImport
+      parentRoute: typeof RRestaurantSlugRouteRoute
+    }
   }
 }
 
@@ -747,6 +786,7 @@ interface RRestaurantSlugRouteRouteChildren {
   RRestaurantSlugStatusRoute: typeof RRestaurantSlugStatusRoute
   RRestaurantSlugTableRoute: typeof RRestaurantSlugTableRoute
   RRestaurantSlugIndexRoute: typeof RRestaurantSlugIndexRoute
+  RRestaurantSlugTQrTokenRoute: typeof RRestaurantSlugTQrTokenRoute
 }
 
 const RRestaurantSlugRouteRouteChildren: RRestaurantSlugRouteRouteChildren = {
@@ -756,6 +796,7 @@ const RRestaurantSlugRouteRouteChildren: RRestaurantSlugRouteRouteChildren = {
   RRestaurantSlugStatusRoute: RRestaurantSlugStatusRoute,
   RRestaurantSlugTableRoute: RRestaurantSlugTableRoute,
   RRestaurantSlugIndexRoute: RRestaurantSlugIndexRoute,
+  RRestaurantSlugTQrTokenRoute: RRestaurantSlugTQrTokenRoute,
 }
 
 const RRestaurantSlugRouteRouteWithChildren =
@@ -784,6 +825,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantMenuRoute: RestaurantMenuRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
   RestaurantSettingsRoute: RestaurantSettingsRoute,
+  RestaurantTablesRoute: RestaurantTablesRoute,
   AdminIndexRoute: AdminIndexRoute,
   KitchenIndexRoute: KitchenIndexRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,

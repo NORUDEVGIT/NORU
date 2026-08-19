@@ -18,7 +18,7 @@ type OrderItem = {
 type KitchenOrder = {
   id: string;
   order_number: number;
-  table_number: number;
+  table_number: string;
   status: OrderStatus;
   total: number;
   created_at: string;
@@ -87,7 +87,7 @@ export function KitchenBoard({
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
-  const [alert, setAlert] = useState<{ orderNumber: number; tableNumber: number } | null>(null);
+  const [alert, setAlert] = useState<{ orderNumber: number; tableNumber: string } | null>(null);
   const [flashing, setFlashing] = useState<string[]>([]);
   const soundRef = useRef(soundOn);
   soundRef.current = soundOn;
@@ -162,7 +162,7 @@ export function KitchenBoard({
     const channel = supabase
       .channel(`kitchen-orders-${restaurantId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders", filter }, (payload) => {
-        const row = payload.new as { id: string; order_number: number; table_number: number };
+        const row = payload.new as { id: string; order_number: number; table_number: string };
         void fetchOrder(row.id);
         setAlert({ orderNumber: row.order_number, tableNumber: row.table_number });
         setFlashing((prev) => (prev.includes(row.id) ? prev : [...prev, row.id]));
