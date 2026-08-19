@@ -5,7 +5,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export interface IncomingLine {
   menuItemId?: string | null | undefined;
-  name: string;
+  /** Display-only; the server never persists a browser-supplied name. */
+  name?: string | undefined;
   quantity: number;
   specialInstructions?: string | null | undefined;
 }
