@@ -11,21 +11,37 @@ const lineSchema = z.object({
 });
 
 const placeOrderSchema = z.object({
+  restaurantSlug: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[a-z0-9-]+$/i)
+    .optional()
+    .nullable(),
   tableNumber: z.number().int().positive().max(999),
   lines: z.array(lineSchema).min(1).max(50),
 });
 
-export const getMenuItems = createServerFn({ method: "GET" }).handler(async () => {
-  const { publicServerClient } = await import("./order-pricing.server");
-  const supabase = publicServerClient();
-  const { data, error } = await supabase
-    .from("menu_items")
-    .select("id, name, description, price, category, image_url, available")
-    .eq("available", true)
-    .order("created_at", { ascending: true });
-  if (error) return [];
-  return data ?? [];
-});
+const menuQuerySchema = z
+  .object({ restaurantId: z.string().uuid().optional().nullable() })
+  .optional()
+  .nullable();
+
+export const getMenuItems = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => menuQuerySchema.parse(input) ?? null)
+  .handler(async ({ data }) => {
+    const { publicServerClient } = await import("./order-pricing.server");
+    const supabase = publicServerClient();
+    let query = supabase
+      .from("menu_items")
+      .select("id, name, description, price, category, image_url, available")
+      .eq("available", true);
+    if (data?.restaurantId) query = query.eq("restaurant_id", data.restaurantId);
+    const { data: rows, error } = await query.order("created_at", { ascending: true });
+    if (error) return [];
+    return rows ?? [];
+  });
 
 export const placeOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => placeOrderSchema.parse(input))
@@ -36,7 +52,6 @@ export const placeOrder = createServerFn({ method: "POST" })
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
     // Prices/names come from the authoritative catalog, never from the browser.
     const { resolveOrderLines } = await import("./order-pricing.server");
-    const { resolved, total } = await resolveOrderLines(data.lines);
 
     // The customer identity comes ONLY from the verified bearer token on the
     // request — never from anything the browser puts in the payload. Anonymous
@@ -54,13 +69,17 @@ export const placeOrder = createServerFn({ method: "POST" })
       console.error("[placeOrder] could not verify customer session", error);
     }
 
-    // Single-tenant MVP: every order belongs to The Garden until the
-    // restaurant is resolved from a table QR token in a later phase.
+    // Tenant context comes from the public /r/:restaurantSlug route as a slug,
+    // never as a restaurant id chosen by the browser: the slug is re-resolved
+    // here and the record's own approval flags decide whether ordering is
+    // allowed. The-garden remains the fallback only for legacy clients still
+    // posting without a slug.
+    const slug = (data.restaurantSlug ?? "the-garden").toLowerCase();
     const { data: restaurant } = await supabase
       .from("restaurants")
       .select("id, approved, active")
-      .eq("slug", "the-garden")
-      .single();
+      .eq("slug", slug)
+      .maybeSingle();
 
     // Approval gating is enforced here, server-side: a stale page or QR link
     // can never place an order at a pending, rejected or suspended restaurant.
@@ -72,6 +91,8 @@ export const placeOrder = createServerFn({ method: "POST" })
         message: "This restaurant isn't accepting orders right now. Please ask a member of staff.",
       };
     }
+
+    const { resolved, total } = await resolveOrderLines(data.lines, restaurant.id);
 
     const { data: order, error: orderError } = await supabase
       .from("orders")

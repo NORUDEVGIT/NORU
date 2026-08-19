@@ -41,7 +41,10 @@ export function publicServerClient() {
  * an authoritative catalog: the menu_items table when the item exists there,
  * otherwise the server-side mock catalog that currently powers the menu.
  */
-export async function resolveOrderLines(lines: IncomingLine[]): Promise<{
+export async function resolveOrderLines(
+  lines: IncomingLine[],
+  restaurantId?: string,
+): Promise<{
   resolved: ResolvedLine[];
   total: number;
 }> {
@@ -54,7 +57,8 @@ export async function resolveOrderLines(lines: IncomingLine[]): Promise<{
     const { data, error } = await supabase
       .from("menu_items")
       .select("id, name, price, available")
-      .in("id", dbIds);
+      .in("id", dbIds)
+      .eq("restaurant_id", restaurantId ?? "");
     if (error) throw new Error("Could not verify the menu right now. Please try again.");
     for (const row of data ?? []) {
       dbById.set(row.id, {
