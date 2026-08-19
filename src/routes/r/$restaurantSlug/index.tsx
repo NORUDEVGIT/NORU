@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ShoppingBag } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
@@ -9,11 +8,11 @@ import { ItemDetailDialog } from "@/components/item-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { CATEGORIES, RESTAURANT, formatPrice, type MenuItem } from "@/data/menu";
 import { useMenuItems } from "@/hooks/use-menu-items";
-import { getPublicRestaurant } from "@/lib/public-restaurant.functions";
+import { useRestaurant } from "@/state/restaurant-context";
 import { useOrder } from "@/state/order-store";
 import heroImage from "@/assets/hero.jpg";
 
-export const Route = createFileRoute("/r/$restaurantSlug")({
+export const Route = createFileRoute("/r/$restaurantSlug/")({
   head: () => ({
     meta: [
       { title: "Restaurant Menu — Order to Your Table" },
@@ -23,10 +22,7 @@ export const Route = createFileRoute("/r/$restaurantSlug")({
           "Browse the seasonal menu and order straight to your table. No queue, no app, no account.",
       },
       { property: "og:title", content: "Restaurant Menu — Order to Your Table" },
-      {
-        property: "og:description",
-        content: "Browse the menu and order from your seat.",
-      },
+      { property: "og:description", content: "Browse the menu and order from your seat." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -36,23 +32,13 @@ export const Route = createFileRoute("/r/$restaurantSlug")({
 
 function RestaurantMenuPage() {
   const { restaurantSlug } = Route.useParams();
-  const { addItem, itemCount, total, setRestaurantSlug } = useOrder();
+  const restaurant = useRestaurant();
+  const { addItem, itemCount, total } = useOrder();
   const [category, setCategory] = useState<string>(CATEGORIES[0]!);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<MenuItem | null>(null);
 
-  const restaurantQuery = useQuery({
-    queryKey: ["public-restaurant", restaurantSlug],
-    queryFn: () => getPublicRestaurant({ data: { slug: restaurantSlug } }),
-    retry: false,
-  });
-  const restaurant = restaurantQuery.data ?? null;
-
-  useEffect(() => {
-    if (restaurant) setRestaurantSlug(restaurant.slug);
-  }, [restaurant, setRestaurantSlug]);
-
-  const menuItems = useMenuItems(restaurant?.id);
+  const menuItems = useMenuItems(restaurant.id);
 
   const items = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -70,34 +56,6 @@ function RestaurantMenuPage() {
     addItem(item, quantity, notes);
     toast.success(`${quantity} × ${item.name} added to your order`);
   };
-
-  if (restaurantQuery.isLoading) {
-    return (
-      <div className="min-h-dvh bg-background">
-        <SiteHeader />
-        <div className="mx-auto max-w-6xl px-4 py-10">
-          <div className="h-48 w-full animate-pulse rounded-3xl bg-muted sm:h-72" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!restaurant) {
-    return (
-      <div className="min-h-dvh bg-background">
-        <SiteHeader />
-        <main className="mx-auto max-w-md px-4 py-20 text-center">
-          <h1 className="font-display text-3xl">Restaurant not available</h1>
-          <p className="mt-2 text-muted-foreground">
-            We couldn't find a restaurant taking orders at this address.
-          </p>
-          <Button asChild size="lg" className="mt-6 h-14 rounded-full px-6">
-            <Link to="/">Back to home</Link>
-          </Button>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-dvh bg-background pb-28">
@@ -187,7 +145,7 @@ function RestaurantMenuPage() {
       {itemCount > 0 ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur-md">
           <Button asChild size="lg" className="mx-auto flex h-14 w-full max-w-2xl rounded-full text-base">
-            <Link to="/cart">
+            <Link to="/r/$restaurantSlug/cart" params={{ restaurantSlug }}>
               <ShoppingBag className="size-5" />
               View order · {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
               {formatPrice(total)}

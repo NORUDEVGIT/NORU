@@ -11,7 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { CATEGORIES, RESTAURANT, formatPrice } from "@/data/menu";
-import { MenuLink } from "@/components/menu-link";
+import { MenuLink, OrderLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 import { useAuth } from "@/state/auth-store";
 
@@ -55,12 +55,12 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
                 </MenuLink>
               ))}
               <div className="my-3 h-px bg-border" />
-              <Link to="/cart" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
+              <OrderLink page="cart" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
                 Your order
-              </Link>
-              <Link to="/status" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
+              </OrderLink>
+              <OrderLink page="status" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
                 Order status
-              </Link>
+              </OrderLink>
               <div className="my-3 h-px bg-border" />
               {authLoading ? null : user ? (
                 <>
@@ -108,13 +108,13 @@ export function SiteHeader({ search, onSearchChange, onSelectCategory }: SiteHea
             </Button>
           ) : null}
           <Button asChild size="lg" className="h-11 rounded-full px-3 sm:px-4">
-            <Link to="/cart" aria-label="View your order">
+            <OrderLink page="cart" aria-label="View your order">
               <ShoppingBag className="size-5" />
               <span className="ml-1 text-sm font-semibold tabular-nums">{itemCount}</span>
               <span className="ml-2 hidden text-sm font-semibold tabular-nums sm:inline">
                 {formatPrice(total)}
               </span>
-            </Link>
+            </OrderLink>
           </Button>
         </div>
       </div>
