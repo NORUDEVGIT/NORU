@@ -25,6 +25,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
 import { Route as RRestaurantSlugRouteRouteImport } from './routes/r/$restaurantSlug/route'
 import { Route as RestaurantDashboardRouteImport } from './routes/restaurant/dashboard'
@@ -121,6 +122,11 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/admin/settings',
   path: '/admin/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KitchenIndexRoute = KitchenIndexRouteImport.update({
+  id: '/kitchen/',
+  path: '/kitchen/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KitchenLoginRoute = KitchenLoginRouteImport.update({
@@ -235,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
+  '/kitchen': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/restaurant/settings'
     | '/account/'
     | '/admin/'
+    | '/kitchen/'
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/restaurant/settings'
     | '/account'
     | '/admin'
+    | '/kitchen'
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/restaurant/settings'
     | '/account/'
     | '/admin/'
+    | '/kitchen/'
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
@@ -444,6 +456,7 @@ export interface RootRouteChildren {
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  KitchenIndexRoute: typeof KitchenIndexRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
 }
@@ -560,6 +573,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kitchen/': {
+      id: '/kitchen/'
+      path: '/kitchen'
+      fullPath: '/kitchen/'
+      preLoaderRoute: typeof KitchenIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kitchen/login': {
@@ -744,6 +764,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantRegisterRoute: RestaurantRegisterRoute,
   RestaurantSettingsRoute: RestaurantSettingsRoute,
   AdminIndexRoute: AdminIndexRoute,
+  KitchenIndexRoute: KitchenIndexRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
 }
