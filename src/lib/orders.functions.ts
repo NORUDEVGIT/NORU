@@ -19,7 +19,9 @@ const placeOrderSchema = z.object({
     .min(1)
     .max(80)
     .regex(/^[a-z0-9-]+$/i),
-  tableNumber: z.number().int().positive().max(999),
+  // Both are untrusted hints: the server re-resolves the real table row.
+  restaurantTableId: z.string().uuid().nullable().optional(),
+  tableNumber: z.string().trim().max(20).optional().default(""),
   lines: z.array(lineSchema).min(1).max(50),
 });
 
@@ -71,15 +73,58 @@ export const placeOrder = createServerFn({ method: "POST" })
       };
     }
 
+    // Table identity is resolved server-side. A browser-supplied
+    // restaurant_table_id is only ever a lookup key: it must belong to THIS
+    // restaurant and be active, otherwise the order is refused. The stored
+    // table_number is the database's own label, never the typed text.
+    let tableId: string | null = null;
+    let tableLabel = data.tableNumber.trim();
+
+    const { data: activeTables } = await supabase
+      .from("restaurant_tables")
+      .select("id, table_number")
+      .eq("restaurant_id", restaurant.id)
+      .eq("active", true);
+    const tables = activeTables ?? [];
+
+    if (data.restaurantTableId) {
+      const match = tables.find((t) => t.id === data.restaurantTableId);
+      if (!match) {
+        return {
+          ok: false as const,
+          message: "That table is no longer available. Please scan the QR code on your table again.",
+        };
+      }
+      tableId = match.id;
+      tableLabel = match.table_number;
+    } else if (tables.length > 0) {
+      const match = tables.find(
+        (t) => t.table_number.toLowerCase() === tableLabel.toLowerCase(),
+      );
+      if (!match) {
+        return {
+          ok: false as const,
+          message: "Table not found. Please check your table number.",
+        };
+      }
+      tableId = match.id;
+      tableLabel = match.table_number;
+    } else if (!tableLabel) {
+      // Legacy restaurants without configured tables still need a label.
+      return { ok: false as const, message: "Please enter your table number." };
+    }
+
     const { resolved, total } = await resolveOrderLines(data.lines, restaurant.id);
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
-        table_number: data.tableNumber,
+        // Historical snapshot of the table label at ordering time.
+        table_number: tableLabel,
         status: "new",
         total,
         restaurant_id: restaurant.id,
+        restaurant_table_id: tableId,
         customer_id: customerId,
       })
       .select("id, order_number, table_number, total, status, created_at")

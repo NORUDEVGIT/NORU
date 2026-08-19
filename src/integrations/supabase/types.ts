@@ -245,7 +245,7 @@ export type Database = {
           restaurant_id: string | null
           restaurant_table_id: string | null
           status: string
-          table_number: number
+          table_number: string
           total: number
           updated_at: string
         }
@@ -257,7 +257,7 @@ export type Database = {
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           status?: string
-          table_number: number
+          table_number: string
           total?: number
           updated_at?: string
         }
@@ -269,7 +269,7 @@ export type Database = {
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           status?: string
-          table_number?: number
+          table_number?: string
           total?: number
           updated_at?: string
         }
@@ -332,6 +332,7 @@ export type Database = {
           qr_token: string
           restaurant_id: string
           table_number: string
+          updated_at: string
         }
         Insert: {
           active?: boolean
@@ -341,6 +342,7 @@ export type Database = {
           qr_token: string
           restaurant_id: string
           table_number: string
+          updated_at?: string
         }
         Update: {
           active?: boolean
@@ -350,6 +352,7 @@ export type Database = {
           qr_token?: string
           restaurant_id?: string
           table_number?: string
+          updated_at?: string
         }
         Relationships: [
           {

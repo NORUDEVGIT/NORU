@@ -14,7 +14,7 @@ const NAV = [
   { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, ready: true },
   { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
   { to: "/restaurant/dashboard", label: "Orders", icon: ReceiptText, ready: false },
-  { to: "/restaurant/dashboard", label: "Tables & QR Codes", icon: QrCode, ready: false },
+  { to: "/restaurant/tables", label: "Tables & QR Codes", icon: QrCode, ready: true },
   { to: "/restaurant/dashboard", label: "Staff", icon: Users, ready: false },
   { to: "/restaurant/settings", label: "Settings", icon: Settings, ready: true },
 ] as const;
@@ -23,7 +23,7 @@ export function RestaurantShell({
   active,
   children,
 }: {
-  active: "Dashboard" | "Settings" | "Kitchen" | "Menu";
+  active: "Dashboard" | "Settings" | "Kitchen" | "Menu" | "Tables & QR Codes";
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -88,7 +88,7 @@ export function RestaurantShell({
             ))}
           </ul>
           <p className="mt-3 hidden text-xs text-muted-foreground md:block">
-            Orders, Tables & Staff are coming in the next setup phase.
+            Orders & Staff are coming in the next setup phase.
           </p>
         </nav>
 
