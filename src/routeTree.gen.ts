@@ -38,6 +38,9 @@ import { Route as AdminRestaurantsIndexRouteImport } from './routes/admin/restau
 import { Route as AdminRestaurantsRestaurantIdRouteImport } from './routes/admin/restaurants/$restaurantId'
 import { Route as RRestaurantSlugIndexRouteImport } from './routes/r/$restaurantSlug/index'
 import { Route as RRestaurantSlugCartRouteImport } from './routes/r/$restaurantSlug/cart'
+import { Route as RRestaurantSlugConfirmationRouteImport } from './routes/r/$restaurantSlug/confirmation'
+import { Route as RRestaurantSlugReviewRouteImport } from './routes/r/$restaurantSlug/review'
+import { Route as RRestaurantSlugStatusRouteImport } from './routes/r/$restaurantSlug/status'
 import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
 
 const IndexRoute = IndexRouteImport.update({
@@ -186,6 +189,22 @@ const RRestaurantSlugCartRoute = RRestaurantSlugCartRouteImport.update({
   path: '/cart',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RRestaurantSlugConfirmationRoute =
+  RRestaurantSlugConfirmationRouteImport.update({
+    id: '/confirmation',
+    path: '/confirmation',
+    getParentRoute: () => RRestaurantSlugRouteRoute,
+  } as any)
+const RRestaurantSlugReviewRoute = RRestaurantSlugReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => RRestaurantSlugRouteRoute,
+} as any)
+const RRestaurantSlugStatusRoute = RRestaurantSlugStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => RRestaurantSlugRouteRoute,
+} as any)
 const RRestaurantSlugTableRoute = RRestaurantSlugTableRouteImport.update({
   id: '/table',
   path: '/table',
@@ -219,6 +238,9 @@ export interface FileRoutesByFullPath {
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
+  '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
+  '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
+  '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
@@ -249,6 +271,9 @@ export interface FileRoutesByTo {
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
+  '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
+  '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
+  '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
@@ -282,6 +307,9 @@ export interface FileRoutesById {
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
+  '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
+  '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
+  '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
@@ -316,6 +344,9 @@ export interface FileRouteTypes {
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
+    | '/r/$restaurantSlug/confirmation'
+    | '/r/$restaurantSlug/review'
+    | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
     | '/account/orders/'
     | '/admin/restaurants/'
@@ -346,6 +377,9 @@ export interface FileRouteTypes {
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
+    | '/r/$restaurantSlug/confirmation'
+    | '/r/$restaurantSlug/review'
+    | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
     | '/account/orders'
     | '/admin/restaurants'
@@ -378,6 +412,9 @@ export interface FileRouteTypes {
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
+    | '/r/$restaurantSlug/confirmation'
+    | '/r/$restaurantSlug/review'
+    | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
     | '/account/orders/'
     | '/admin/restaurants/'
@@ -616,6 +653,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRestaurantSlugCartRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
     }
+    '/r/$restaurantSlug/confirmation': {
+      id: '/r/$restaurantSlug/confirmation'
+      path: '/confirmation'
+      fullPath: '/r/$restaurantSlug/confirmation'
+      preLoaderRoute: typeof RRestaurantSlugConfirmationRouteImport
+      parentRoute: typeof RRestaurantSlugRouteRoute
+    }
+    '/r/$restaurantSlug/review': {
+      id: '/r/$restaurantSlug/review'
+      path: '/review'
+      fullPath: '/r/$restaurantSlug/review'
+      preLoaderRoute: typeof RRestaurantSlugReviewRouteImport
+      parentRoute: typeof RRestaurantSlugRouteRoute
+    }
+    '/r/$restaurantSlug/status': {
+      id: '/r/$restaurantSlug/status'
+      path: '/status'
+      fullPath: '/r/$restaurantSlug/status'
+      preLoaderRoute: typeof RRestaurantSlugStatusRouteImport
+      parentRoute: typeof RRestaurantSlugRouteRoute
+    }
     '/r/$restaurantSlug/table': {
       id: '/r/$restaurantSlug/table'
       path: '/table'
@@ -644,12 +702,18 @@ const AccountRouteRouteWithChildren = AccountRouteRoute._addFileChildren(
 
 interface RRestaurantSlugRouteRouteChildren {
   RRestaurantSlugCartRoute: typeof RRestaurantSlugCartRoute
+  RRestaurantSlugConfirmationRoute: typeof RRestaurantSlugConfirmationRoute
+  RRestaurantSlugReviewRoute: typeof RRestaurantSlugReviewRoute
+  RRestaurantSlugStatusRoute: typeof RRestaurantSlugStatusRoute
   RRestaurantSlugTableRoute: typeof RRestaurantSlugTableRoute
   RRestaurantSlugIndexRoute: typeof RRestaurantSlugIndexRoute
 }
 
 const RRestaurantSlugRouteRouteChildren: RRestaurantSlugRouteRouteChildren = {
   RRestaurantSlugCartRoute: RRestaurantSlugCartRoute,
+  RRestaurantSlugConfirmationRoute: RRestaurantSlugConfirmationRoute,
+  RRestaurantSlugReviewRoute: RRestaurantSlugReviewRoute,
+  RRestaurantSlugStatusRoute: RRestaurantSlugStatusRoute,
   RRestaurantSlugTableRoute: RRestaurantSlugTableRoute,
   RRestaurantSlugIndexRoute: RRestaurantSlugIndexRoute,
 }
