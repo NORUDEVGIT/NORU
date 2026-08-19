@@ -37,6 +37,8 @@ import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/order
 import { Route as AdminRestaurantsIndexRouteImport } from './routes/admin/restaurants/index'
 import { Route as AdminRestaurantsRestaurantIdRouteImport } from './routes/admin/restaurants/$restaurantId'
 import { Route as RRestaurantSlugIndexRouteImport } from './routes/r/$restaurantSlug/index'
+import { Route as RRestaurantSlugCartRouteImport } from './routes/r/$restaurantSlug/cart'
+import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -179,6 +181,16 @@ const RRestaurantSlugIndexRoute = RRestaurantSlugIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RRestaurantSlugCartRoute = RRestaurantSlugCartRouteImport.update({
+  id: '/cart',
+  path: '/cart',
+  getParentRoute: () => RRestaurantSlugRouteRoute,
+} as any)
+const RRestaurantSlugTableRoute = RRestaurantSlugTableRouteImport.update({
+  id: '/table',
+  path: '/table',
+  getParentRoute: () => RRestaurantSlugRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -206,6 +218,8 @@ export interface FileRoutesByFullPath {
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
+  '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
+  '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
@@ -234,6 +248,8 @@ export interface FileRoutesByTo {
   '/kitchen': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
+  '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
+  '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
@@ -265,6 +281,8 @@ export interface FileRoutesById {
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
+  '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
+  '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
@@ -297,6 +315,8 @@ export interface FileRouteTypes {
     | '/kitchen/'
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
+    | '/r/$restaurantSlug/cart'
+    | '/r/$restaurantSlug/table'
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
@@ -325,6 +345,8 @@ export interface FileRouteTypes {
     | '/kitchen'
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
+    | '/r/$restaurantSlug/cart'
+    | '/r/$restaurantSlug/table'
     | '/account/orders'
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
@@ -355,6 +377,8 @@ export interface FileRouteTypes {
     | '/kitchen/'
     | '/account/orders/$orderId'
     | '/admin/restaurants/$restaurantId'
+    | '/r/$restaurantSlug/cart'
+    | '/r/$restaurantSlug/table'
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
@@ -585,6 +609,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRestaurantSlugIndexRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
     }
+    '/r/$restaurantSlug/cart': {
+      id: '/r/$restaurantSlug/cart'
+      path: '/cart'
+      fullPath: '/r/$restaurantSlug/cart'
+      preLoaderRoute: typeof RRestaurantSlugCartRouteImport
+      parentRoute: typeof RRestaurantSlugRouteRoute
+    }
+    '/r/$restaurantSlug/table': {
+      id: '/r/$restaurantSlug/table'
+      path: '/table'
+      fullPath: '/r/$restaurantSlug/table'
+      preLoaderRoute: typeof RRestaurantSlugTableRouteImport
+      parentRoute: typeof RRestaurantSlugRouteRoute
+    }
   }
 }
 
@@ -605,10 +643,14 @@ const AccountRouteRouteWithChildren = AccountRouteRoute._addFileChildren(
 )
 
 interface RRestaurantSlugRouteRouteChildren {
+  RRestaurantSlugCartRoute: typeof RRestaurantSlugCartRoute
+  RRestaurantSlugTableRoute: typeof RRestaurantSlugTableRoute
   RRestaurantSlugIndexRoute: typeof RRestaurantSlugIndexRoute
 }
 
 const RRestaurantSlugRouteRouteChildren: RRestaurantSlugRouteRouteChildren = {
+  RRestaurantSlugCartRoute: RRestaurantSlugCartRoute,
+  RRestaurantSlugTableRoute: RRestaurantSlugTableRoute,
   RRestaurantSlugIndexRoute: RRestaurantSlugIndexRoute,
 }
 
