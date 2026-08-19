@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { to: "/restaurant/dashboard", label: "Menu", icon: UtensilsCrossed, ready: false },
-  { to: "/restaurant/dashboard", label: "Kitchen", icon: ChefHat, ready: false },
+  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
   { to: "/restaurant/dashboard", label: "Orders", icon: ReceiptText, ready: false },
   { to: "/restaurant/dashboard", label: "Tables & QR Codes", icon: QrCode, ready: false },
   { to: "/restaurant/dashboard", label: "Staff", icon: Users, ready: false },
@@ -23,7 +23,7 @@ export function RestaurantShell({
   active,
   children,
 }: {
-  active: "Dashboard" | "Settings";
+  active: "Dashboard" | "Settings" | "Kitchen";
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -88,7 +88,7 @@ export function RestaurantShell({
             ))}
           </ul>
           <p className="mt-3 hidden text-xs text-muted-foreground md:block">
-            Menu, Kitchen, Orders, Tables & Staff are coming in the next setup phase.
+            Menu, Orders, Tables & Staff are coming in the next setup phase.
           </p>
         </nav>
 

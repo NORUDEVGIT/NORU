@@ -7,6 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/restaurant/login")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => {
+    const raw = typeof search['redirect'] === "string" ? (search['redirect'] as string) : "";
+    // Only same-origin app paths may be used as a post-login destination.
+    const safe = /^\/[A-Za-z0-9/_-]*$/.test(raw) ? raw : "";
+    return safe ? { redirect: safe } : {};
+  },
   head: () => ({
     meta: [
       { title: "Restaurant Log In — Garden Table Platform" },
@@ -23,6 +29,7 @@ export const Route = createFileRoute("/restaurant/login")({
 
 function RestaurantLogin() {
   const navigate = useNavigate();
+  const { redirect: redirectTo } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +68,7 @@ function RestaurantLogin() {
       setError("This account isn't linked to a restaurant. Customers can log in from the main site.");
       return;
     }
-    void navigate({ to: "/restaurant/dashboard", replace: true });
+    void navigate({ to: redirectTo ?? "/restaurant/dashboard", replace: true });
   }
 
   return (

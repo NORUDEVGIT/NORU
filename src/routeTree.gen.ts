@@ -29,6 +29,7 @@ import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
 import { Route as RRestaurantSlugRouteRouteImport } from './routes/r/$restaurantSlug/route'
 import { Route as RestaurantDashboardRouteImport } from './routes/restaurant/dashboard'
+import { Route as RestaurantKitchenRouteImport } from './routes/restaurant/kitchen'
 import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
 import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/settings'
@@ -143,6 +144,11 @@ const RestaurantDashboardRoute = RestaurantDashboardRouteImport.update({
   path: '/restaurant/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantKitchenRoute = RestaurantKitchenRouteImport.update({
+  id: '/restaurant/kitchen',
+  path: '/restaurant/kitchen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantLoginRoute = RestaurantLoginRouteImport.update({
   id: '/restaurant/login',
   path: '/restaurant/login',
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
@@ -298,6 +306,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
@@ -335,6 +344,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/kitchen/login'
     | '/restaurant/dashboard'
+    | '/restaurant/kitchen'
     | '/restaurant/login'
     | '/restaurant/register'
     | '/restaurant/settings'
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/kitchen/login'
     | '/restaurant/dashboard'
+    | '/restaurant/kitchen'
     | '/restaurant/login'
     | '/restaurant/register'
     | '/restaurant/settings'
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/kitchen/login'
     | '/restaurant/dashboard'
+    | '/restaurant/kitchen'
     | '/restaurant/login'
     | '/restaurant/register'
     | '/restaurant/settings'
@@ -439,6 +451,7 @@ export interface RootRouteChildren {
   AdminSettingsRoute: typeof AdminSettingsRoute
   KitchenLoginRoute: typeof KitchenLoginRoute
   RestaurantDashboardRoute: typeof RestaurantDashboardRoute
+  RestaurantKitchenRoute: typeof RestaurantKitchenRoute
   RestaurantLoginRoute: typeof RestaurantLoginRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
@@ -590,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/kitchen': {
+      id: '/restaurant/kitchen'
+      path: '/restaurant/kitchen'
+      fullPath: '/restaurant/kitchen'
+      preLoaderRoute: typeof RestaurantKitchenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/login': {
       id: '/restaurant/login'
       path: '/restaurant/login'
@@ -739,6 +759,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSettingsRoute: AdminSettingsRoute,
   KitchenLoginRoute: KitchenLoginRoute,
   RestaurantDashboardRoute: RestaurantDashboardRoute,
+  RestaurantKitchenRoute: RestaurantKitchenRoute,
   RestaurantLoginRoute: RestaurantLoginRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
   RestaurantSettingsRoute: RestaurantSettingsRoute,
