@@ -125,6 +125,7 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
   const saveItemFn = useServerFn(saveMenuItem);
   const toggleItemFn = useServerFn(setItemAvailability);
   const deleteItemFn = useServerFn(deleteMenuItem);
+  const uploadFn = useServerFn(createMenuImageUpload);
 
   const categories = data?.categories ?? [];
   const items = data?.items ?? [];
@@ -317,7 +318,7 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
         draft={itemDraft}
         categories={categories}
         restaurantId={restaurantId}
-        uploadFn={useServerFn(createMenuImageUpload)}
+        uploadFn={uploadFn as never}
         onClose={() => setItemDraft(null)}
         onSave={async (values) => {
           const ok = await run(saveItemFn as never)({ data: { restaurantId, ...values } } as never);
