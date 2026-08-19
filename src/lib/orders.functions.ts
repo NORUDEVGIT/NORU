@@ -16,9 +16,7 @@ const placeOrderSchema = z.object({
     .trim()
     .min(1)
     .max(80)
-    .regex(/^[a-z0-9-]+$/i)
-    .optional()
-    .nullable(),
+    .regex(/^[a-z0-9-]+$/i),
   tableNumber: z.number().int().positive().max(999),
   lines: z.array(lineSchema).min(1).max(50),
 });
@@ -72,9 +70,8 @@ export const placeOrder = createServerFn({ method: "POST" })
     // Tenant context comes from the public /r/:restaurantSlug route as a slug,
     // never as a restaurant id chosen by the browser: the slug is re-resolved
     // here and the record's own approval flags decide whether ordering is
-    // allowed. The-garden remains the fallback only for legacy clients still
-    // posting without a slug.
-    const slug = (data.restaurantSlug ?? "the-garden").toLowerCase();
+    // allowed. There is no default restaurant.
+    const slug = data.restaurantSlug.toLowerCase();
     const { data: restaurant } = await supabase
       .from("restaurants")
       .select("id, approved, active")
