@@ -37,6 +37,8 @@ export interface PlacedOrder {
 
 interface OrderContextValue {
   lines: CartLine[];
+  restaurantSlug: string;
+  setRestaurantSlug: (slug: string) => void;
   tableNumber: string;
   order: PlacedOrder | null;
   status: OrderStatus;
@@ -60,6 +62,7 @@ const STORAGE_KEY = "garden-table-order";
 
 interface PersistedState {
   lines: CartLine[];
+  restaurantSlug?: string;
   tableNumber: string;
   order: PlacedOrder | null;
   status: OrderStatus;
@@ -67,6 +70,7 @@ interface PersistedState {
 
 export function OrderProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
+  const [restaurantSlug, setRestaurantSlugState] = useState("");
   const [tableNumber, setTableNumber] = useState("");
   const [order, setOrder] = useState<PlacedOrder | null>(null);
   const [status, setStatus] = useState<OrderStatus>("received");
@@ -80,6 +84,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       if (raw) {
         const saved = JSON.parse(raw) as PersistedState;
         setLines(saved.lines ?? []);
+        setRestaurantSlugState(saved.restaurantSlug ?? "");
         setTableNumber(saved.tableNumber ?? "");
         setOrder(saved.order ?? null);
         setStatus(saved.status ?? "received");
@@ -94,9 +99,18 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     if (!hydrated.current) return;
     window.sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ lines, tableNumber, order, status } satisfies PersistedState),
+      JSON.stringify({ lines, restaurantSlug, tableNumber, order, status } satisfies PersistedState),
     );
-  }, [lines, tableNumber, order, status]);
+  }, [lines, restaurantSlug, tableNumber, order, status]);
+
+  // Selecting a different restaurant starts a fresh cart: lines are priced and
+  // validated per tenant server-side, so they must never cross restaurants.
+  const setRestaurantSlug = useCallback((slug: string) => {
+    setRestaurantSlugState((prev) => {
+      if (prev && prev !== slug) setLines([]);
+      return slug;
+    });
+  }, []);
 
   const addItem = useCallback((item: MenuItem, quantity = 1, notes = "") => {
     setLines((prev) => {
@@ -160,6 +174,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
     const result = await placeOrderFn({
       data: {
+        restaurantSlug: restaurantSlug || null,
         tableNumber: table,
         lines: lines.map((line) => ({
           menuItemId: line.item.id,
@@ -187,7 +202,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     setStatus("received");
     setLines([]);
     return placed;
-  }, [lines, tableNumber]);
+  }, [lines, tableNumber, restaurantSlug]);
 
   const advanceStatus = useCallback(() => {
     setStatus((prev) => {
@@ -206,6 +221,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   const value = useMemo<OrderContextValue>(
     () => ({
       lines,
+      restaurantSlug,
+      setRestaurantSlug,
       tableNumber,
       order,
       status,
@@ -224,6 +241,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     }),
     [
       lines,
+      restaurantSlug,
+      setRestaurantSlug,
       tableNumber,
       order,
       status,
