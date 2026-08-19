@@ -64,6 +64,7 @@ export type Database = {
           name: string
           restaurant_id: string
           sort_order: number
+          updated_at: string
         }
         Insert: {
           active?: boolean
@@ -73,6 +74,7 @@ export type Database = {
           name: string
           restaurant_id: string
           sort_order?: number
+          updated_at?: string
         }
         Update: {
           active?: boolean
@@ -82,6 +84,7 @@ export type Database = {
           name?: string
           restaurant_id?: string
           sort_order?: number
+          updated_at?: string
         }
         Relationships: [
           {
@@ -491,6 +494,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_restaurant_storage: {
+        Args: { _path: string }
+        Returns: boolean
+      }
       has_kitchen_access: { Args: { _restaurant_id: string }; Returns: boolean }
       has_restaurant_role: {
         Args: { _restaurant_id: string; _role: string }

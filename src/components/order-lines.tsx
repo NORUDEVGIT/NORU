@@ -7,7 +7,7 @@ export function OrderLines({ lines }: { lines: CartLine[] }) {
       {lines.map((line) => (
         <li key={line.lineId} className="flex gap-3 py-3">
           <img
-            src={line.item.image}
+            src={line.item.image ?? ""}
             alt={line.item.name}
             loading="lazy"
             width={800}

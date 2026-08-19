@@ -63,7 +63,7 @@ function CartPage() {
                 <li key={line.lineId} className="rounded-3xl border border-border/70 bg-card p-4">
                   <div className="flex gap-4">
                     <img
-                      src={line.item.image}
+                      src={line.item.image ?? ""}
                       alt={line.item.name}
                       loading="lazy"
                       width={800}
