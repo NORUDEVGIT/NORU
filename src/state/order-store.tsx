@@ -50,7 +50,7 @@ interface OrderContextValue {
   setNotes: (lineId: string, notes: string) => void;
   removeLine: (lineId: string) => void;
   setTableNumber: (value: string) => void;
-  placeOrder: () => Promise<PlacedOrder>;
+  placeOrder: (slug: string) => Promise<PlacedOrder>;
   setStatus: (status: OrderStatus) => void;
   advanceStatus: () => void;
   resetOrder: () => void;
@@ -165,7 +165,14 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     [lines],
   );
 
-  const placeOrder = useCallback(async () => {
+  const placeOrder = useCallback(
+    async (slug: string) => {
+    // The tenant always comes from the URL-driven caller, never from a default.
+    if (!slug) {
+      throw new Error(
+        "Restaurant context is missing. Please return to the restaurant menu and try again.",
+      );
+    }
     if (lines.length === 0) throw new Error("Your order is empty.");
     const table = Number.parseInt(tableNumber, 10);
     if (!tableNumber || Number.isNaN(table) || table <= 0) {
@@ -174,7 +181,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
     const result = await placeOrderFn({
       data: {
-        restaurantSlug: restaurantSlug || null,
+        restaurantSlug: slug,
         tableNumber: table,
         lines: lines.map((line) => ({
           menuItemId: line.item.id,
@@ -202,7 +209,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     setStatus("received");
     setLines([]);
     return placed;
-  }, [lines, tableNumber, restaurantSlug]);
+    },
+    [lines, tableNumber],
+  );
 
   const advanceStatus = useCallback(() => {
     setStatus((prev) => {
