@@ -191,7 +191,7 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("restaurant_users")
       .select(
-        "restaurant_id, role, active, restaurants(id, name, slug, email, phone, address, city, postcode, country, logo_url, approved, active, rejection_reason, suspension_reason)",
+        "restaurant_id, role, active, restaurants(id, name, slug, address, city, postcode, country, logo_url, approved, active, rejection_reason, suspension_reason)",
       )
       .eq("user_id", context.userId)
       .eq("active", true);
@@ -201,10 +201,30 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
       throw new Error("We couldn't load your restaurant right now.");
     }
 
-    return (data ?? [])
-      .filter((row) => row.restaurants)
+    const rows = (data ?? []).filter((row) => row.restaurants);
+
+    // email/phone are private contact columns: not readable by the anon or
+    // authenticated roles at all. They are re-read with the privileged client
+    // only for restaurants this user is already a verified member of.
+    const contacts = new Map<string, { email: string | null; phone: string | null }>();
+    if (rows.length > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: contactRows } = await supabaseAdmin
+        .from("restaurants")
+        .select("id, email, phone")
+        .in(
+          "id",
+          rows.map((row) => row.restaurant_id),
+        );
+      for (const c of contactRows ?? []) {
+        contacts.set(c.id, { email: c.email, phone: c.phone });
+      }
+    }
+
+    return rows
       .map((row) => {
         const r = row.restaurants as NonNullable<typeof row.restaurants>;
+        const contact = contacts.get(r.id);
         return {
           restaurantId: row.restaurant_id,
           role: row.role,
@@ -212,8 +232,8 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
             id: r.id,
             name: r.name,
             slug: r.slug,
-            email: r.email,
-            phone: r.phone,
+            email: contact?.email ?? null,
+            phone: contact?.phone ?? null,
             address: r.address,
             city: r.city,
             postcode: r.postcode,
