@@ -85,13 +85,19 @@ function PlatformHome() {
               )}
             </ol>
             <div className="mt-6 flex flex-col gap-2">
+              <Button asChild size="lg" className="h-12 rounded-full">
+                <Link to="/scan">
+                  <QrCode className="mr-2 size-5" />
+                  Scan QR Code
+                </Link>
+              </Button>
               {signedIn ? (
                 <Button asChild size="lg" variant="outline" className="h-12 rounded-full">
                   <Link to="/account">My Account</Link>
                 </Button>
               ) : (
                 <Button asChild size="lg" variant="outline" className="h-12 rounded-full">
-                  <Link to="/login">Sign in for order history (optional)</Link>
+                  <Link to="/login">Sign in for order history</Link>
                 </Button>
               )}
             </div>
