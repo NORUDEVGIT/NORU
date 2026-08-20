@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { UtensilsCrossed, Store, ShieldCheck, Leaf } from "lucide-react";
+import { UtensilsCrossed, Store, ShieldCheck, Leaf, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/state/auth-store";
 import { getMyRestaurants } from "@/lib/restaurant.functions";
