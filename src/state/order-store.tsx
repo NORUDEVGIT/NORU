@@ -18,6 +18,8 @@ export interface CartLine {
   notes?: string | undefined;
 }
 
+export type TableSource = "qr" | "manual" | null;
+
 export type OrderStatus = "received" | "preparing" | "ready" | "served";
 
 export const ORDER_STATUS_STEPS: { key: OrderStatus; label: string; hint: string }[] = [
@@ -28,6 +30,16 @@ export const ORDER_STATUS_STEPS: { key: OrderStatus; label: string; hint: string
 ];
 
 export interface PlacedOrder {
+  /** Database id — used by the secure status route. */
+  id: string;
+  /**
+   * One-time guest tracking token returned by the server. Stored in
+   * sessionStorage only: it dies with the tab, is scoped to one order, grants
+   * read-only access to that order alone, and is the only way an anonymous
+   * guest can survive a refresh on the status page. Tradeoff accepted in
+   * preference to asking dine-in guests to create an account.
+   */
+  trackingToken: string;
   orderNumber: number;
   tableNumber: string;
   lines: CartLine[];
@@ -43,7 +55,14 @@ interface OrderContextValue {
   restaurantTableId: string | null;
   /** Display-only table label. */
   tableNumber: string;
-  setTableContext: (context: { slug: string; tableId: string | null; tableNumber: string }) => void;
+  /** How the current table was established. QR tables skip manual entry. */
+  tableSource: TableSource;
+  setTableContext: (context: {
+    slug: string;
+    tableId: string | null;
+    tableNumber: string;
+    source?: TableSource;
+  }) => void;
   order: PlacedOrder | null;
   status: OrderStatus;
   itemCount: number;
@@ -69,6 +88,7 @@ interface PersistedState {
   restaurantSlug?: string;
   restaurantTableId?: string | null;
   tableNumber: string;
+  tableSource?: TableSource;
   order: PlacedOrder | null;
   status: OrderStatus;
 }
@@ -78,6 +98,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   const [restaurantSlug, setRestaurantSlugState] = useState("");
   const [restaurantTableId, setRestaurantTableId] = useState<string | null>(null);
   const [tableNumber, setTableNumberState] = useState("");
+  const [tableSource, setTableSource] = useState<TableSource>(null);
   const [order, setOrder] = useState<PlacedOrder | null>(null);
   const [status, setStatus] = useState<OrderStatus>("received");
   const hydrated = useRef(false);
@@ -93,6 +114,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         setRestaurantSlugState(saved.restaurantSlug ?? "");
         setRestaurantTableId(saved.restaurantTableId ?? null);
         setTableNumberState(saved.tableNumber ?? "");
+        setTableSource(saved.tableSource ?? null);
         setOrder(saved.order ?? null);
         setStatus(saved.status ?? "received");
       }
@@ -111,11 +133,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         restaurantSlug,
         restaurantTableId,
         tableNumber,
+        tableSource,
         order,
         status,
       } satisfies PersistedState),
     );
-  }, [lines, restaurantSlug, restaurantTableId, tableNumber, order, status]);
+  }, [lines, restaurantSlug, restaurantTableId, tableNumber, tableSource, order, status]);
 
   // Selecting a different restaurant starts a fresh cart: lines are priced and
   // validated per tenant server-side, so they must never cross restaurants.
@@ -126,6 +149,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         // Table context belongs to the previous tenant — never carry it over.
         setRestaurantTableId(null);
         setTableNumberState("");
+        setTableSource(null);
       }
       return slug;
     });
@@ -137,13 +161,24 @@ export function OrderProvider({ children }: { children: ReactNode }) {
    * moves the order to the new table; a different restaurant clears the cart.
    */
   const setTableContext = useCallback(
-    ({ slug, tableId, tableNumber: number }: { slug: string; tableId: string | null; tableNumber: string }) => {
+    ({
+      slug,
+      tableId,
+      tableNumber: number,
+      source = "qr",
+    }: {
+      slug: string;
+      tableId: string | null;
+      tableNumber: string;
+      source?: TableSource;
+    }) => {
       setRestaurantSlugState((prev) => {
         if (prev && prev !== slug) setLines([]);
         return slug;
       });
       setRestaurantTableId(tableId);
       setTableNumberState(number);
+      setTableSource(source);
     },
     [],
   );
@@ -152,6 +187,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   const setTableNumber = useCallback((value: string) => {
     setTableNumberState(value);
     setRestaurantTableId(null);
+    setTableSource(null);
   }, []);
 
   const addItem = useCallback((item: MenuItem, quantity = 1, notes = "") => {
@@ -240,6 +276,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     }
 
     const placed: PlacedOrder = {
+      id: result.id,
+      trackingToken: result.trackingToken,
       orderNumber: result.orderNumber,
       tableNumber: result.tableNumber,
       lines,
@@ -268,6 +306,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     setLines([]);
     setTableNumberState("");
     setRestaurantTableId(null);
+    setTableSource(null);
   }, []);
 
   const value = useMemo<OrderContextValue>(
@@ -277,6 +316,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       setRestaurantSlug,
       restaurantTableId,
       tableNumber,
+      tableSource,
       setTableContext,
       order,
       status,
@@ -298,6 +338,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       restaurantSlug,
       setRestaurantSlug,
       restaurantTableId,
+      tableSource,
       setTableContext,
       setTableNumber,
       tableNumber,
