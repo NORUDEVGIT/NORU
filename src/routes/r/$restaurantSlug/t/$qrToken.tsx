@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -23,8 +23,15 @@ export const Route = createFileRoute("/r/$restaurantSlug/t/$qrToken")({
 function TableQrPage() {
   const { restaurantSlug, qrToken } = Route.useParams();
   const navigate = useNavigate();
-  const { setTableContext } = useOrder();
+  const {
+    setTableContext,
+    lines,
+    restaurantSlug: cartSlug,
+    restaurantTableId,
+    tableNumber,
+  } = useOrder();
   const resolve = useServerFn(resolveRestaurantTable);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["table-qr", restaurantSlug, qrToken],
@@ -32,17 +39,74 @@ function TableQrPage() {
     retry: false,
   });
 
+  const goToMenu = () =>
+    void navigate({ to: "/r/$restaurantSlug", params: { restaurantSlug }, replace: true });
+
   // The resolved table id — not the scanned URL — becomes the order's table.
   useEffect(() => {
     if (!data?.ok) return;
+    const table = data.table;
+    // Scanning a different table in the SAME restaurant while a cart exists is
+    // never applied silently: the diner confirms the move first.
+    const switchingWithinRestaurant =
+      lines.length > 0 &&
+      cartSlug === table.restaurantSlug &&
+      Boolean(restaurantTableId) &&
+      restaurantTableId !== table.tableId;
+
+    if (switchingWithinRestaurant) {
+      setNeedsConfirm(true);
+      return;
+    }
+
     setTableContext({
-      slug: data.table.restaurantSlug,
-      tableId: data.table.tableId,
-      tableNumber: data.table.tableNumber,
+      slug: table.restaurantSlug,
+      tableId: table.tableId,
+      tableNumber: table.tableNumber,
+      source: "qr",
     });
-    void navigate({ to: "/r/$restaurantSlug", params: { restaurantSlug }, replace: true });
+    goToMenu();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  if (needsConfirm && data?.ok) {
+    const table = data.table;
+    return (
+      <div className="min-h-dvh bg-background">
+        <SiteHeader />
+        <main className="mx-auto max-w-md px-4 py-20 text-center">
+          <h1 className="font-display text-3xl">Switch table?</h1>
+          <p className="mt-3 text-muted-foreground">
+            You currently have an order for Table {tableNumber}. Switch to Table{" "}
+            {table.tableNumber}?
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your items stay in your order — only the table changes.
+          </p>
+          <div className="mt-8 flex flex-col gap-3">
+            <Button
+              size="lg"
+              className="h-14 rounded-full"
+              onClick={() => {
+                setTableContext({
+                  slug: table.restaurantSlug,
+                  tableId: table.tableId,
+                  tableNumber: table.tableNumber,
+                  source: "qr",
+                });
+                goToMenu();
+              }}
+            >
+              Switch to Table {table.tableNumber}
+            </Button>
+            <Button variant="outline" size="lg" className="h-14 rounded-full" onClick={goToMenu}>
+              Stay on Table {tableNumber}
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (isLoading || data?.ok) {
     return (
