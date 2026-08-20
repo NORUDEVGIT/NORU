@@ -68,24 +68,31 @@ function PlatformHome() {
           <article className="flex flex-col rounded-3xl border border-border bg-card p-6">
             <UtensilsCrossed className="size-6 text-accent" />
             <h2 className="mt-4 font-display text-2xl">Customer</h2>
-            <p className="mt-2 flex-1 text-sm text-muted-foreground">
-              Order food from participating restaurants, track your orders and view your order
-              history.
+            <p className="mt-2 text-sm text-muted-foreground">
+              Scan the QR code on your table to view the restaurant menu and order directly. No
+              account needed.
             </p>
+            <ol className="mt-4 flex-1 space-y-2 text-sm">
+              {["Scan the QR code on your table", "Choose your items", "Place your order", "Track your order"].map(
+                (step, index) => (
+                  <li key={step} className="flex items-start gap-3">
+                    <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
+                      {index + 1}
+                    </span>
+                    <span className="text-muted-foreground">{step}</span>
+                  </li>
+                ),
+              )}
+            </ol>
             <div className="mt-6 flex flex-col gap-2">
               {signedIn ? (
-                <Button asChild size="lg" className="h-12 rounded-full">
+                <Button asChild size="lg" variant="outline" className="h-12 rounded-full">
                   <Link to="/account">My Account</Link>
                 </Button>
               ) : (
-                <>
-                  <Button asChild size="lg" className="h-12 rounded-full">
-                    <Link to="/login">Sign In</Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline" className="h-12 rounded-full">
-                    <Link to="/register">Create Account</Link>
-                  </Button>
-                </>
+                <Button asChild size="lg" variant="outline" className="h-12 rounded-full">
+                  <Link to="/login">Sign in for order history (optional)</Link>
+                </Button>
               )}
             </div>
           </article>

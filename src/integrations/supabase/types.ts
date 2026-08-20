@@ -240,6 +240,7 @@ export type Database = {
         Row: {
           created_at: string
           customer_id: string | null
+          guest_token_hash: string | null
           id: string
           order_number: number
           restaurant_id: string | null
@@ -252,6 +253,7 @@ export type Database = {
         Insert: {
           created_at?: string
           customer_id?: string | null
+          guest_token_hash?: string | null
           id?: string
           order_number?: number
           restaurant_id?: string | null
@@ -264,6 +266,7 @@ export type Database = {
         Update: {
           created_at?: string
           customer_id?: string | null
+          guest_token_hash?: string | null
           id?: string
           order_number?: number
           restaurant_id?: string | null

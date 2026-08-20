@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { TableContextBar } from "@/components/table-context-bar";
 import { OrderLines } from "@/components/order-lines";
 import { formatPrice } from "@/data/menu";
 import { useRestaurant } from "@/state/restaurant-context";
@@ -29,6 +30,7 @@ function ReviewPage() {
     lines,
     restaurantSlug: cartSlug,
     tableNumber,
+    tableSource,
     subtotal,
     total,
     placeOrder,
@@ -67,13 +69,14 @@ function ReviewPage() {
   return (
     <div className="min-h-dvh bg-background pb-32">
       <SiteHeader />
+      <TableContextBar />
       <main className="mx-auto max-w-2xl px-4 py-6">
         <Link
-          to="/r/$restaurantSlug/table"
+          to="/r/$restaurantSlug/cart"
           params={{ restaurantSlug }}
           className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground"
         >
-          <ArrowLeft className="size-4" /> Change table
+          <ArrowLeft className="size-4" /> Back to your order
         </Link>
         <h1 className="font-display text-3xl">Review your order</h1>
         <p className="mt-1 text-sm text-muted-foreground">{restaurant.name}</p>
@@ -83,11 +86,18 @@ function ReviewPage() {
             <p className="text-sm text-muted-foreground">Table</p>
             <p className="font-display text-2xl">{tableNumber}</p>
           </div>
-          <Button asChild variant="outline" size="lg" className="h-12 rounded-full">
-            <Link to="/r/$restaurantSlug/table" params={{ restaurantSlug }}>
-              Change
-            </Link>
-          </Button>
+          {tableSource === "qr" ? (
+            // Scanned tables are already verified server-side: no editable input.
+            <span className="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+              Verified by QR
+            </span>
+          ) : (
+            <Button asChild variant="outline" size="lg" className="h-12 rounded-full">
+              <Link to="/r/$restaurantSlug/table" params={{ restaurantSlug }}>
+                Change
+              </Link>
+            </Button>
+          )}
         </div>
 
         <div className="mt-4 rounded-3xl border border-border/70 bg-card px-5 py-2">

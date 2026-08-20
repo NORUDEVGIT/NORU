@@ -68,6 +68,7 @@ function TablePage() {
         slug: restaurantSlug,
         tableId: result.tableId,
         tableNumber: result.tableNumber,
+        source: "manual",
       });
       navigate({ to: "/r/$restaurantSlug/review", params: { restaurantSlug } });
     } catch {
@@ -94,7 +95,8 @@ function TablePage() {
         </div>
         <h1 className="mt-5 font-display text-3xl">Where are you sitting?</h1>
         <p className="mt-2 text-muted-foreground">
-          Enter your table number — no account needed.
+          Enter your table number — no account needed. Tip: scanning the QR code on your table
+          fills this in for you.
         </p>
 
         <form onSubmit={(event) => void submit(event)} className="mt-8 space-y-4">

@@ -76,11 +76,11 @@ export function SiteHeader({ categories = [], restaurantName = "Order to your ta
                 </>
               ) : (
                 <>
-                  <Link to="/login" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
-                    Log in
+                  <Link to="/login" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-sm text-muted-foreground hover:bg-secondary">
+                    Log in (optional — for order history)
                   </Link>
-                  <Link to="/register" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary">
-                    Create account
+                  <Link to="/register" onClick={() => setNavOpen(false)} className="rounded-xl px-3 py-3 text-sm text-muted-foreground hover:bg-secondary">
+                    Create an account (optional)
                   </Link>
                 </>
               )}

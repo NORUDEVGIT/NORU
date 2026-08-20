@@ -116,6 +116,12 @@ export const placeOrder = createServerFn({ method: "POST" })
 
     const { resolved, total } = await resolveOrderLines(data.lines, restaurant.id);
 
+    // Guest tracking: a 256-bit random token is minted per order and only its
+    // SHA-256 hash is stored. The raw token is returned once, to this browser,
+    // and is the sole way an anonymous guest can later read their own order.
+    const { newTrackingToken, hashTrackingToken } = await import("./guest-order.server");
+    const trackingToken = newTrackingToken();
+
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
@@ -126,6 +132,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         restaurant_id: restaurant.id,
         restaurant_table_id: tableId,
         customer_id: customerId,
+        guest_token_hash: await hashTrackingToken(trackingToken),
       })
       .select("id, order_number, table_number, total, status, created_at")
       .single();
@@ -152,5 +159,7 @@ export const placeOrder = createServerFn({ method: "POST" })
       orderNumber: order.order_number,
       tableNumber: order.table_number,
       total: Number(order.total),
+      trackingToken,
     };
   });
+
