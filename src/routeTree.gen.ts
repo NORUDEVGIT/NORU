@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReviewRouteImport } from './routes/review'
+import { Route as ScanRouteImport } from './routes/scan'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as TableRouteImport } from './routes/table'
 import { Route as AccountIndexRouteImport } from './routes/account/index'
@@ -91,6 +92,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const ReviewRoute = ReviewRouteImport.update({
   id: '/review',
   path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScanRoute = ScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatusRoute = StatusRouteImport.update({
@@ -252,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/review': typeof ReviewRoute
+  '/scan': typeof ScanRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugRouteRouteWithChildren
@@ -291,6 +298,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/review': typeof ReviewRoute
+  '/scan': typeof ScanRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/review': typeof ReviewRoute
+  '/scan': typeof ScanRoute
   '/status': typeof StatusRoute
   '/table': typeof TableRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugRouteRouteWithChildren
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/review'
+    | '/scan'
     | '/status'
     | '/table'
     | '/r/$restaurantSlug'
@@ -412,6 +422,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/review'
+    | '/scan'
     | '/status'
     | '/table'
     | '/admin/customers'
@@ -451,6 +462,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/review'
+    | '/scan'
     | '/status'
     | '/table'
     | '/r/$restaurantSlug'
@@ -492,6 +504,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ReviewRoute: typeof ReviewRoute
+  ScanRoute: typeof ScanRoute
   StatusRoute: typeof StatusRoute
   TableRoute: typeof TableRoute
   RRestaurantSlugRouteRoute: typeof RRestaurantSlugRouteRouteWithChildren
@@ -575,6 +588,13 @@ declare module '@tanstack/react-router' {
       path: '/review'
       fullPath: '/review'
       preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scan': {
+      id: '/scan'
+      path: '/scan'
+      fullPath: '/scan'
+      preLoaderRoute: typeof ScanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/status': {
@@ -834,6 +854,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ReviewRoute: ReviewRoute,
+  ScanRoute: ScanRoute,
   StatusRoute: StatusRoute,
   TableRoute: TableRoute,
   RRestaurantSlugRouteRoute: RRestaurantSlugRouteRouteWithChildren,

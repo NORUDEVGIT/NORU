@@ -53,10 +53,12 @@ function parseTableRoute(raw: string): { restaurantSlug: string; qrToken: string
 
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length !== 4 || parts[0] !== "r" || parts[2] !== "t") return null;
-  const [, restaurantSlug, , qrToken] = parts;
+  const restaurantSlug = parts[1] ?? "";
+  const qrToken = parts[3] ?? "";
   if (!SEGMENT.test(restaurantSlug) || !SEGMENT.test(qrToken)) return null;
   return { restaurantSlug, qrToken };
 }
+
 
 function ScanPage() {
   const navigate = useNavigate();
