@@ -51,7 +51,7 @@ function ConfirmationPage() {
           </div>
           <h1 className="mt-5 font-display text-3xl sm:text-4xl">Order Confirmed!</h1>
           <p className="mt-2 text-muted-foreground">
-            Thank you. Your order has been sent to {restaurant.name}.
+            Your order has been sent to the kitchen at {restaurant.name}.
           </p>
         </div>
 
@@ -85,7 +85,10 @@ function ConfirmationPage() {
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <Button asChild size="lg" className="h-14 flex-1 rounded-full text-base">
-            <Link to="/r/$restaurantSlug/status" params={{ restaurantSlug }}>
+            <Link
+              to="/r/$restaurantSlug/order/$orderId"
+              params={{ restaurantSlug, orderId: order.id }}
+            >
               Track your order
             </Link>
           </Button>

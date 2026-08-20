@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ShoppingBag } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
+import { TableContextBar } from "@/components/table-context-bar";
 import { MenuItemCard } from "@/components/menu-item-card";
 import { ItemDetailDialog } from "@/components/item-detail-dialog";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,8 @@ function RestaurantMenuPage() {
           setCategory(value);
         }}
       />
+
+      <TableContextBar />
 
       <section className="relative mx-auto max-w-6xl px-4 pt-4">
         <div className="relative overflow-hidden rounded-3xl">

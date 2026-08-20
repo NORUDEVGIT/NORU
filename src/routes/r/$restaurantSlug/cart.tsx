@@ -3,6 +3,7 @@ import { Trash2, ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TableContextBar } from "@/components/table-context-bar";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { formatPrice } from "@/data/menu";
 import { useRestaurant } from "@/state/restaurant-context";
@@ -23,8 +24,19 @@ export const Route = createFileRoute("/r/$restaurantSlug/cart")({
 function CartPage() {
   const { restaurantSlug } = Route.useParams();
   const restaurant = useRestaurant();
-  const { lines, restaurantSlug: cartSlug, setQuantity, setNotes, removeLine, subtotal, total } =
-    useOrder();
+  const {
+    lines,
+    restaurantSlug: cartSlug,
+    tableNumber,
+    setQuantity,
+    setNotes,
+    removeLine,
+    subtotal,
+    total,
+  } = useOrder();
+  // A table already resolved by QR (or the manual fallback) means the customer
+  // never sees the table step again.
+  const hasTable = Boolean(tableNumber);
 
   // Never render another restaurant's cart: the layout resets the cart when the
   // URL tenant changes, so anything mismatched here is treated as empty.
@@ -33,6 +45,7 @@ function CartPage() {
   return (
     <div className="min-h-dvh bg-background pb-32">
       <SiteHeader />
+      <TableContextBar />
       <main className="mx-auto max-w-3xl px-4 py-6">
         <Link
           to="/r/$restaurantSlug"
@@ -42,7 +55,10 @@ function CartPage() {
           <ArrowLeft className="size-4" /> Back to menu
         </Link>
         <h1 className="font-display text-3xl">Your order</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{restaurant.name}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {restaurant.name}
+          {hasTable ? ` · Table ${tableNumber}` : ""}
+        </p>
 
         {visibleLines.length === 0 ? (
           <div className="mt-10 rounded-3xl border border-dashed border-border p-10 text-center">
@@ -126,8 +142,11 @@ function CartPage() {
       {visibleLines.length > 0 ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur-md">
           <Button asChild size="lg" className="mx-auto flex h-14 w-full max-w-2xl rounded-full text-base">
-            <Link to="/r/$restaurantSlug/table" params={{ restaurantSlug }}>
-              Continue to order · {formatPrice(total)}
+            <Link
+              to={hasTable ? "/r/$restaurantSlug/review" : "/r/$restaurantSlug/table"}
+              params={{ restaurantSlug }}
+            >
+              {hasTable ? `Continue to order · ${formatPrice(total)}` : "Select your table"}
             </Link>
           </Button>
         </div>
