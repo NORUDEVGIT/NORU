@@ -49,9 +49,9 @@ const SORT_LABELS: Record<(typeof ORDER_SORTS)[number], string> = {
 interface OrdersSearch {
   status: string;
   period: (typeof ORDER_PERIODS)[number];
-  from?: string;
-  to?: string;
-  q?: string;
+  from?: string | undefined;
+  to?: string | undefined;
+  q?: string | undefined;
   sort: (typeof ORDER_SORTS)[number];
   page: number;
 }
@@ -133,8 +133,8 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
     const id = setTimeout(() => {
       void navigate({
         to: "/restaurant/orders",
-        search: (prev: OrdersSearch) => {
-          const next = { ...prev, page: 1 } as OrdersSearch;
+        search: (prev) => {
+          const next = { ...(prev as OrdersSearch), page: 1 } as OrdersSearch;
           if (searchInput.trim()) next.q = searchInput.trim();
           else delete next.q;
           return next;
@@ -199,7 +199,7 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
   function setParam(patch: Partial<OrdersSearch>, resetPage = true) {
     void navigate({
       to: "/restaurant/orders",
-      search: (prev: OrdersSearch) => ({ ...prev, ...patch, ...(resetPage ? { page: 1 } : {}) }),
+      search: (prev) => ({ ...(prev as OrdersSearch), ...patch, ...(resetPage ? { page: 1 } : {}) }),
     });
   }
 
