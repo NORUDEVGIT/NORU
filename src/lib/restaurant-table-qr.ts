@@ -24,6 +24,7 @@ const configuredOrigins = [
   import.meta.env.VITE_PUBLIC_PREVIEW_URL,
   "https://elegant-eat-app.lovable.app",
   "https://id-preview--9c601da0-c98a-448e-8c17-94c1dff00906.lovable.app",
+  "https://9c601da0-c98a-448e-8c17-94c1dff00906.lovableproject.com",
 ];
 
 function normalizeOrigin(value: string | undefined): string | null {
