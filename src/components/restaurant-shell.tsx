@@ -38,7 +38,7 @@ const NAV: { to: string; label: RestaurantNavLabel; icon: typeof LayoutDashboard
   { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, ready: true },
   { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
-  { to: "/restaurant/dashboard", label: "Orders", icon: ReceiptText, ready: false },
+  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, ready: true },
   { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, ready: true },
   { to: "/restaurant/dashboard", label: "Staff", icon: Users, ready: false },
   { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
