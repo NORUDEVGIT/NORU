@@ -203,9 +203,14 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
                   </span>
                   <span className="text-sm font-medium tabular-nums">{formatPrice(order.total)}</span>
                   <OrderStatusBadge status={order.status} />
-                  <Button asChild size="sm" variant="ghost" className="ml-auto">
-                    <Link to="/restaurant/kitchen">View in Kitchen</Link>
-                  </Button>
+                  <span className="ml-auto flex items-center gap-1">
+                    <Button asChild size="sm" variant="ghost">
+                      <Link to="/restaurant/orders/$orderId" params={{ orderId: order.id }}>View Order</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="ghost">
+                      <Link to="/restaurant/kitchen">Open Kitchen</Link>
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -271,7 +276,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
                         <td className="py-2.5 pr-3 text-muted-foreground">{timeOf(o.createdAt)}</td>
                         <td className="py-2.5 text-right">
                           <Button asChild size="sm" variant="ghost">
-                            <Link to="/restaurant/kitchen">View Kitchen</Link>
+                            <Link to="/restaurant/orders/$orderId" params={{ orderId: o.id }}>View Order</Link>
                           </Button>
                         </td>
                       </tr>
@@ -377,7 +382,9 @@ function MobileOrderCard({ order }: { order: DashboardOrder }) {
       </p>
       <div className="mt-2 flex items-center justify-between">
         <span className="text-sm font-medium tabular-nums">{formatPrice(order.total)}</span>
-        <Button asChild size="sm" variant="ghost"><Link to="/restaurant/kitchen">View Kitchen</Link></Button>
+        <Button asChild size="sm" variant="ghost">
+          <Link to="/restaurant/orders/$orderId" params={{ orderId: order.id }}>View Order</Link>
+        </Button>
       </div>
     </li>
   );
