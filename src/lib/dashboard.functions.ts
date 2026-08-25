@@ -29,8 +29,12 @@ export interface DashboardOrder {
 export interface RestaurantDashboard {
   today: {
     orders: number;
+    /** Non-cancelled orders only — the denominator for average order value. */
+    validOrders: number;
     /** Sum of orders.total for today's orders, excluding cancelled. Order value, not payments. */
     revenue: number;
+    /** revenue / validOrders, or 0 when there are no valid orders. */
+    averageOrderValue: number;
   };
   counts: {
     active: number;
@@ -43,7 +47,6 @@ export interface RestaurantDashboard {
   menu: { total: number; available: number; unavailable: number; unavailableItems: string[] };
   liveOrders: DashboardOrder[];
   recentOrders: DashboardOrder[];
-  ordersLast7Days: { date: string; label: string; orders: number }[];
 }
 
 function startOfLocalDay(offsetMinutes: number, daysAgo = 0): Date {
@@ -95,9 +98,8 @@ export const getRestaurantDashboard = createServerFn({ method: "GET" })
     if (!membership) throw new Error("You don't have access to this restaurant.");
 
     const dayStart = startOfLocalDay(data.tzOffsetMinutes).toISOString();
-    const weekStart = startOfLocalDay(data.tzOffsetMinutes, 6).toISOString();
 
-    const [todayRes, activeRes, recentRes, tablesRes, menuRes, weekRes] = await Promise.all([
+    const [todayRes, activeRes, recentRes, tablesRes, menuRes] = await Promise.all([
       // Light projection: no joins, only what the aggregates need.
       supabase
         .from("orders")
@@ -126,24 +128,18 @@ export const getRestaurantDashboard = createServerFn({ method: "GET" })
         .from("menu_items")
         .select("name, available")
         .eq("restaurant_id", data.restaurantId),
-      supabase
-        .from("orders")
-        .select("created_at, status")
-        .eq("restaurant_id", data.restaurantId)
-        .gte("created_at", weekStart),
     ]);
 
     const firstError =
-      todayRes.error ?? activeRes.error ?? recentRes.error ?? tablesRes.error ?? menuRes.error ?? weekRes.error;
+      todayRes.error ?? activeRes.error ?? recentRes.error ?? tablesRes.error ?? menuRes.error;
     if (firstError) {
       console.error("[getRestaurantDashboard]", firstError.message);
       throw new Error("We couldn't load your dashboard data right now.");
     }
 
     const todayRows = todayRes.data ?? [];
-    const revenue = todayRows
-      .filter((o) => o.status !== "cancelled")
-      .reduce((sum, o) => sum + Number(o.total), 0);
+    const validToday = todayRows.filter((o) => o.status !== "cancelled");
+    const revenue = validToday.reduce((sum, o) => sum + Number(o.total), 0);
 
     const activeOrders = (activeRes.data ?? []) as RawOrder[];
     const statusCount = (status: string) => activeOrders.filter((o) => o.status === status).length;
@@ -152,24 +148,13 @@ export const getRestaurantDashboard = createServerFn({ method: "GET" })
     const menuItems = menuRes.data ?? [];
     const unavailable = menuItems.filter((i) => !i.available);
 
-    const buckets = new Map<string, number>();
-    for (let i = 6; i >= 0; i -= 1) {
-      const d = startOfLocalDay(data.tzOffsetMinutes, i);
-      buckets.set(
-        new Date(d.getTime() - data.tzOffsetMinutes * 60_000).toISOString().slice(0, 10),
-        0,
-      );
-    }
-    for (const row of weekRes.data ?? []) {
-      if (row.status === "cancelled") continue;
-      const key = new Date(new Date(row.created_at).getTime() - data.tzOffsetMinutes * 60_000)
-        .toISOString()
-        .slice(0, 10);
-      if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
-    }
-
     return {
-      today: { orders: todayRows.length, revenue: Number(revenue.toFixed(2)) },
+      today: {
+        orders: todayRows.length,
+        validOrders: validToday.length,
+        revenue: Number(revenue.toFixed(2)),
+        averageOrderValue: validToday.length > 0 ? Number((revenue / validToday.length).toFixed(2)) : 0,
+      },
       counts: {
         active: activeOrders.length,
         new: statusCount("new") + statusCount("placed"),
@@ -195,10 +180,5 @@ export const getRestaurantDashboard = createServerFn({ method: "GET" })
       },
       liveOrders: activeOrders.map(mapOrder),
       recentOrders: ((recentRes.data ?? []) as RawOrder[]).map(mapOrder),
-      ordersLast7Days: Array.from(buckets.entries()).map(([date, orders]) => ({
-        date,
-        label: new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short" }),
-        orders,
-      })),
     };
   });
