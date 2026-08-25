@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { RestaurantShell } from "@/components/restaurant-shell";
+import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +90,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
       .channel(`dashboard-orders-${restaurantId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter }, () => {
         void queryClient.invalidateQueries({ queryKey: ["restaurant-dashboard", restaurantId] });
+        void queryClient.invalidateQueries({ queryKey: ["restaurant-analytics", restaurantId] });
       })
       .subscribe();
     return () => {
@@ -148,15 +150,32 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
         </div>
       ) : null}
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <Metric label="Today's Orders" value={d ? String(d.today.orders) : null} loading={query.isLoading} />
+      {/* Primary KPIs */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Today's Order Value" value={d ? formatPrice(d.today.revenue) : null} loading={query.isLoading} />
+        <Metric label="Today's Orders" value={d ? String(d.today.orders) : null} loading={query.isLoading} />
         <Metric label="Active Orders" value={d ? String(d.counts.active) : null} loading={query.isLoading} />
-        <Metric label="Preparing" value={d ? String(d.counts.preparing) : null} loading={query.isLoading} />
-        <Metric label="Ready" value={d ? String(d.counts.ready) : null} loading={query.isLoading} />
-        <Metric label="Active Tables" value={d ? String(d.tables.active) : null} loading={query.isLoading} />
+        <Metric
+          label="Average Order Value"
+          value={d ? formatPrice(d.today.averageOrderValue) : null}
+          loading={query.isLoading}
+        />
       </div>
+
+      {/* Secondary operational metrics */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SmallMetric label="Preparing" value={d ? String(d.counts.preparing) : null} loading={query.isLoading} />
+        <SmallMetric label="Ready" value={d ? String(d.counts.ready) : null} loading={query.isLoading} />
+        <SmallMetric label="Active Tables" value={d ? String(d.tables.active) : null} loading={query.isLoading} />
+        <SmallMetric
+          label="Unavailable Items"
+          value={d ? String(d.menu.unavailable) : null}
+          loading={query.isLoading}
+        />
+      </div>
+
+      {/* Analytics: revenue, order status, order volume */}
+      <DashboardAnalytics restaurantId={restaurantId} />
 
       <div className="grid gap-4 xl:grid-cols-3">
         {/* Live orders */}
@@ -341,13 +360,6 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
           </Panel>
         </div>
       </div>
-
-      {/* Orders last 7 days — rendered only when there is real data. */}
-      {d && d.ordersLast7Days.some((day) => day.orders > 0) ? (
-        <Panel title="Orders — Last 7 Days">
-          <WeekChart data={d.ordersLast7Days} />
-        </Panel>
-      ) : null}
     </div>
   );
 }
@@ -371,24 +383,6 @@ function MobileOrderCard({ order }: { order: DashboardOrder }) {
   );
 }
 
-function WeekChart({ data }: { data: { date: string; label: string; orders: number }[] }) {
-  const max = Math.max(...data.map((d) => d.orders), 1);
-  return (
-    <div className="flex h-40 items-end gap-3">
-      {data.map((day) => (
-        <div key={day.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-          <span className="text-xs tabular-nums text-muted-foreground">{day.orders}</span>
-          <div
-            className="w-full rounded-t-md bg-primary/80"
-            style={{ height: `${Math.max((day.orders / max) * 100, 2)}%` }}
-          />
-          <span className="text-xs text-muted-foreground">{day.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function Metric({ label, value, loading }: { label: string; value: string | null; loading: boolean }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
@@ -397,6 +391,19 @@ function Metric({ label, value, loading }: { label: string; value: string | null
         <div className="mt-2 h-7 w-16 animate-pulse rounded bg-muted" />
       ) : (
         <p className="mt-1 font-display text-2xl tabular-nums">{value}</p>
+      )}
+    </div>
+  );
+}
+
+function SmallMetric({ label, value, loading }: { label: string; value: string | null; loading: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-card px-4 py-3">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      {loading || value === null ? (
+        <div className="mt-1.5 h-5 w-10 animate-pulse rounded bg-muted" />
+      ) : (
+        <p className="mt-0.5 text-lg font-semibold tabular-nums">{value}</p>
       )}
     </div>
   );
