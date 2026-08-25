@@ -180,7 +180,12 @@ export const getRestaurantDashboard = createServerFn({ method: "GET" })
       tables: {
         total: tables.length,
         active: tables.filter((t) => t.active).length,
-        labels: tables.slice(0, 24).map((t) => ({ tableNumber: t.table_number, active: t.active })),
+        labels: [...tables]
+          .sort((a, b) =>
+            a.table_number.localeCompare(b.table_number, undefined, { numeric: true, sensitivity: "base" }),
+          )
+          .slice(0, 24)
+          .map((t) => ({ tableNumber: t.table_number, active: t.active })),
       },
       menu: {
         total: menuItems.length,
