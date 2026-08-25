@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Camera, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { parseRestaurantTableQrValue } from "@/lib/restaurant-table-qr";
 
 export const Route = createFileRoute("/scan")({
   head: () => ({
@@ -23,42 +24,6 @@ export const Route = createFileRoute("/scan")({
   }),
   component: ScanPage,
 });
-
-const SEGMENT = /^[A-Za-z0-9_-]+$/;
-
-/** Accept only this platform's table route, same-origin or absolute. */
-function parseTableRoute(raw: string): { restaurantSlug: string; qrToken: string } | null {
-  const value = raw.trim();
-  if (!value) return null;
-
-  let pathname: string;
-  try {
-    if (/^https?:\/\//i.test(value)) {
-      const url = new URL(value);
-      const host = url.hostname.toLowerCase();
-      const trusted =
-        host === window.location.hostname.toLowerCase() ||
-        host === "elegant-eat-app.lovable.app" ||
-        host.endsWith(".lovable.app");
-      if (!trusted) return null;
-      pathname = url.pathname;
-    } else if (value.startsWith("/")) {
-      pathname = value;
-    } else {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  const parts = pathname.split("/").filter(Boolean);
-  if (parts.length !== 4 || parts[0] !== "r" || parts[2] !== "t") return null;
-  const restaurantSlug = parts[1] ?? "";
-  const qrToken = parts[3] ?? "";
-  if (!SEGMENT.test(restaurantSlug) || !SEGMENT.test(qrToken)) return null;
-  return { restaurantSlug, qrToken };
-}
-
 
 function ScanPage() {
   const navigate = useNavigate();
@@ -88,15 +53,25 @@ function ScanPage() {
       const scanner = new QrScanner(
         video,
         (result: { data: string }) => {
-          const match = parseTableRoute(result.data);
-          if (!match) {
+          const parsed = parseRestaurantTableQrValue(result.data);
+          if (import.meta.env.DEV) {
+            // Token-bearing values are intentionally omitted; route diagnostics
+            // are sufficient to debug origin and path mismatches safely.
+            console.debug("Table QR scan", {
+              hostname: parsed.hostname,
+              pathname: parsed.pathname?.replace(/(\/t\/)[^/]+/, "$1[redacted]"),
+              accepted: parsed.ok,
+              reason: parsed.ok ? null : parsed.reason,
+            });
+          }
+          if (!parsed.ok) {
             setRejected(true);
             return;
           }
           scanner.stop();
           void navigate({
             to: "/r/$restaurantSlug/t/$qrToken",
-            params: match,
+            params: parsed.route,
             replace: true,
           });
         },

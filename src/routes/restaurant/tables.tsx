@@ -21,6 +21,7 @@ import {
   setTableActive,
   type ManagedTable,
 } from "@/lib/tables.functions";
+import { buildRestaurantTableQrUrl } from "@/lib/restaurant-table-qr";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 
 /** Editing tables is limited to owners and managers; other staff read only. */
@@ -53,11 +54,6 @@ export const Route = createFileRoute("/restaurant/tables")({
 
 function TablesPage() {
   return <RestaurantShell active="Tables & QR">{(m) => <TablesManager membership={m} />}</RestaurantShell>;
-}
-
-function tableUrl(slug: string, token: string) {
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}/r/${slug}/t/${token}`;
 }
 
 function TablesManager({ membership }: { membership: RestaurantMembership }) {
@@ -301,7 +297,7 @@ function QrDialog({
   slug: string;
   onClose: () => void;
 }) {
-  const url = tableUrl(slug, table.qrToken);
+  const url = buildRestaurantTableQrUrl({ restaurantSlug: slug, qrToken: table.qrToken });
   const [dataUrl, setDataUrl] = useState<string>("");
 
   // The QR is rendered locally so the capability token never leaves the app.
