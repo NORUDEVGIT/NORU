@@ -46,6 +46,7 @@ import { Route as RRestaurantSlugConfirmationRouteImport } from './routes/r/$res
 import { Route as RRestaurantSlugReviewRouteImport } from './routes/r/$restaurantSlug/review'
 import { Route as RRestaurantSlugStatusRouteImport } from './routes/r/$restaurantSlug/status'
 import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
+import { Route as RestaurantOrdersIndexRouteImport } from './routes/restaurant/orders/index'
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
 
@@ -236,6 +237,11 @@ const RRestaurantSlugTableRoute = RRestaurantSlugTableRouteImport.update({
   path: '/table',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RestaurantOrdersIndexRoute = RestaurantOrdersIndexRouteImport.update({
+  id: '/restaurant/orders/',
+  path: '/restaurant/orders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RRestaurantSlugOrderOrderIdRoute =
   RRestaurantSlugOrderOrderIdRouteImport.update({
     id: '/order/$orderId',
@@ -286,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
 }
@@ -325,6 +332,7 @@ export interface FileRoutesByTo {
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
+  '/restaurant/orders': typeof RestaurantOrdersIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
 }
@@ -367,6 +375,7 @@ export interface FileRoutesById {
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
 }
@@ -410,6 +419,7 @@ export interface FileRouteTypes {
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/restaurant/orders/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
   fileRoutesByTo: FileRoutesByTo
@@ -449,6 +459,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
+    | '/restaurant/orders'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
   id:
@@ -490,6 +501,7 @@ export interface FileRouteTypes {
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/restaurant/orders/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
   fileRoutesById: FileRoutesById
@@ -523,6 +535,7 @@ export interface RootRouteChildren {
   KitchenIndexRoute: typeof KitchenIndexRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
+  RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -786,6 +799,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRestaurantSlugTableRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
     }
+    '/restaurant/orders/': {
+      id: '/restaurant/orders/'
+      path: '/restaurant/orders'
+      fullPath: '/restaurant/orders/'
+      preLoaderRoute: typeof RestaurantOrdersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/$restaurantSlug/order/$orderId': {
       id: '/r/$restaurantSlug/order/$orderId'
       path: '/order/$orderId'
@@ -873,6 +893,7 @@ const rootRouteChildren: RootRouteChildren = {
   KitchenIndexRoute: KitchenIndexRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
+  RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
