@@ -20,8 +20,8 @@ const TABLE_QR_PATH = /^\/r\/([^/]+)\/t\/([^/]+)\/?$/;
 // custom domain should set VITE_PUBLIC_APP_URL; preview builds can set
 // VITE_PUBLIC_PREVIEW_URL. The fallback preserves already printed codes.
 const configuredOrigins = [
-  import.meta.env.VITE_PUBLIC_APP_URL,
-  import.meta.env.VITE_PUBLIC_PREVIEW_URL,
+  import.meta.env["VITE_PUBLIC_APP_URL"],
+  import.meta.env["VITE_PUBLIC_PREVIEW_URL"],
   "https://elegant-eat-app.lovable.app",
   "https://id-preview--9c601da0-c98a-448e-8c17-94c1dff00906.lovable.app",
   "https://9c601da0-c98a-448e-8c17-94c1dff00906.lovableproject.com",
@@ -38,7 +38,7 @@ function normalizeOrigin(value: string | undefined): string | null {
 }
 
 export function getRestaurantTableQrOrigin(): string {
-  const configured = normalizeOrigin(import.meta.env.VITE_PUBLIC_APP_URL);
+  const configured = normalizeOrigin(import.meta.env["VITE_PUBLIC_APP_URL"]);
   if (configured) return configured;
   if (typeof window !== "undefined") return window.location.origin;
   return "";
