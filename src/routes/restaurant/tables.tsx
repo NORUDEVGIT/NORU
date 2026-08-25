@@ -52,7 +52,7 @@ export const Route = createFileRoute("/restaurant/tables")({
 });
 
 function TablesPage() {
-  return <RestaurantShell active="Tables & QR Codes">{(m) => <TablesManager membership={m} />}</RestaurantShell>;
+  return <RestaurantShell active="Tables & QR">{(m) => <TablesManager membership={m} />}</RestaurantShell>;
 }
 
 function tableUrl(slug: string, token: string) {
