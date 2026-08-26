@@ -184,7 +184,7 @@ export const listStaff = createServerFn({ method: "POST" })
           .select("id, first_name, last_name, email")
           .in("id", [...ids]);
         for (const p of profileRows ?? []) {
-          profiles.set(p.id, { name: displayName(p), email: p.email });
+          profiles.set(p.id, { name: displayName(p) ?? p.email, email: p.email });
         }
       }
 
