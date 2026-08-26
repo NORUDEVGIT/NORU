@@ -35,6 +35,7 @@ import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantMenuRouteImport } from './routes/restaurant/menu'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
 import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/settings'
+import { Route as RestaurantStaffRouteImport } from './routes/restaurant/staff'
 import { Route as RestaurantTablesRouteImport } from './routes/restaurant/tables'
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
 import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
@@ -181,6 +182,11 @@ const RestaurantSettingsRoute = RestaurantSettingsRouteImport.update({
   path: '/restaurant/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantStaffRoute = RestaurantStaffRouteImport.update({
+  id: '/restaurant/staff',
+  path: '/restaurant/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantTablesRoute = RestaurantTablesRouteImport.update({
   id: '/restaurant/tables',
   path: '/restaurant/tables',
@@ -284,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
+  '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
@@ -325,6 +332,7 @@ export interface FileRoutesByTo {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
+  '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
   '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
+  '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
@@ -414,6 +423,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/settings'
+    | '/restaurant/staff'
     | '/restaurant/tables'
     | '/account/'
     | '/admin/'
@@ -455,6 +465,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/settings'
+    | '/restaurant/staff'
     | '/restaurant/tables'
     | '/account'
     | '/admin'
@@ -498,6 +509,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/settings'
+    | '/restaurant/staff'
     | '/restaurant/tables'
     | '/account/'
     | '/admin/'
@@ -542,6 +554,7 @@ export interface RootRouteChildren {
   RestaurantMenuRoute: typeof RestaurantMenuRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
+  RestaurantStaffRoute: typeof RestaurantStaffRoute
   RestaurantTablesRoute: typeof RestaurantTablesRoute
   AdminIndexRoute: typeof AdminIndexRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
@@ -735,6 +748,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/staff': {
+      id: '/restaurant/staff'
+      path: '/restaurant/staff'
+      fullPath: '/restaurant/staff'
+      preLoaderRoute: typeof RestaurantStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/tables': {
       id: '/restaurant/tables'
       path: '/restaurant/tables'
@@ -908,6 +928,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantMenuRoute: RestaurantMenuRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
   RestaurantSettingsRoute: RestaurantSettingsRoute,
+  RestaurantStaffRoute: RestaurantStaffRoute,
   RestaurantTablesRoute: RestaurantTablesRoute,
   AdminIndexRoute: AdminIndexRoute,
   KitchenIndexRoute: KitchenIndexRoute,

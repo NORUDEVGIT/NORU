@@ -12,7 +12,9 @@ import {
   ReceiptText,
   RefreshCw,
   Settings,
+  Users,
   UtensilsCrossed,
+
   XCircle,
 } from "lucide-react";
 
@@ -236,7 +238,9 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
               <QuickAction to="/restaurant/menu" icon={UtensilsCrossed} label="Manage Menu" />
               <QuickAction to="/restaurant/kitchen" icon={ChefHat} label="Open Kitchen" />
               <QuickAction to="/restaurant/tables" icon={QrCode} label="Tables & QR" />
+              <QuickAction to="/restaurant/staff" icon={Users} label="Manage Staff" />
               <QuickAction to="/restaurant/settings" icon={Settings} label="Settings" />
+
             </div>
           </Panel>
         </div>
