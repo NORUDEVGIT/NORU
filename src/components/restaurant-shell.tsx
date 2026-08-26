@@ -40,7 +40,7 @@ const NAV: { to: string; label: RestaurantNavLabel; icon: typeof LayoutDashboard
   { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
   { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, ready: true },
   { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, ready: true },
-  { to: "/restaurant/dashboard", label: "Staff", icon: Users, ready: false },
+  { to: "/restaurant/staff", label: "Staff", icon: Users, ready: true },
   { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
   { to: "/restaurant/dashboard", label: "Reports", icon: BarChart3, ready: false },
   { to: "/restaurant/settings", label: "Settings", icon: Settings, ready: true },
