@@ -93,7 +93,31 @@ export const Route = createFileRoute("/restaurant/staff")({
 });
 
 function StaffPage() {
-  return <RestaurantShell active="Staff">{(m) => <StaffManager membership={m} />}</RestaurantShell>;
+  return (
+    <RestaurantShell active="Staff">
+      {(membership) =>
+        membership.role === "owner" || membership.role === "manager" ? (
+          <StaffManager membership={membership} />
+        ) : (
+          <StaffAccessDenied />
+        )
+      }
+    </RestaurantShell>
+  );
+}
+
+function StaffAccessDenied() {
+  return (
+    <div className="max-w-xl rounded-2xl border border-border bg-card p-6">
+      <h1 className="font-display text-2xl">Staff access restricted</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Only restaurant owners and managers can view or manage staff accounts.
+      </p>
+      <Button asChild className="mt-5">
+        <a href="/restaurant/dashboard">Return to dashboard</a>
+      </Button>
+    </div>
+  );
 }
 
 type StatusFilter = "all" | "active" | "inactive";
