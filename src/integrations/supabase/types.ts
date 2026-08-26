@@ -326,6 +326,56 @@ export type Database = {
         }
         Relationships: []
       }
+      restaurant_staff_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          new_active: boolean | null
+          new_role: string | null
+          old_active: boolean | null
+          old_role: string | null
+          restaurant_id: string
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_active?: boolean | null
+          new_role?: string | null
+          old_active?: boolean | null
+          old_role?: string | null
+          restaurant_id: string
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_active?: boolean | null
+          new_role?: string | null
+          old_active?: boolean | null
+          old_role?: string | null
+          restaurant_id?: string
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_staff_audit_log_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_tables: {
         Row: {
           active: boolean
@@ -374,6 +424,7 @@ export type Database = {
           id: string
           restaurant_id: string
           role: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -382,6 +433,7 @@ export type Database = {
           id?: string
           restaurant_id: string
           role: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -390,6 +442,7 @@ export type Database = {
           id?: string
           restaurant_id?: string
           role?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
