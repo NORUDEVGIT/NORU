@@ -186,7 +186,10 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
   const roleMutation = useMutation({
     mutationFn: (input: { membershipId: string; role: StaffRole }) => roleFn({ data: { restaurantId, ...input } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Role updated.");
       setSelected(null);
       void invalidate();
@@ -197,7 +200,10 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
   const activeMutation = useMutation({
     mutationFn: (input: { membershipId: string; active: boolean }) => activeFn({ data: { restaurantId, ...input } }),
     onSuccess: (result, vars) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success(vars.active ? "Staff member reactivated." : "Staff member deactivated.");
       setSelected(null);
       void invalidate();
