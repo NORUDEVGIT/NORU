@@ -27,7 +27,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MyShiftCard } from "@/components/workforce/my-shift-card";
+import { ScheduleTab } from "@/components/workforce/schedule-tab";
+import { AttendanceTab } from "@/components/workforce/attendance-tab";
+import { ReportsTab } from "@/components/workforce/reports-tab";
 import { supabase } from "@/integrations/supabase/client";
+
 import {
   changeStaffRole,
   createStaff,
