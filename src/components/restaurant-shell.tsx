@@ -88,9 +88,8 @@ export function RestaurantShell({
       </Link>
       <nav className="min-h-0 flex-1 overflow-y-auto">
         <ul className="space-y-1">
-          {NAV.filter(
-            (item) => item.label !== "Staff" || membership?.role === "owner" || membership?.role === "manager",
-          ).map((item) => (
+          {NAV.map((item) => (
+
             <li key={item.label}>
               {item.ready ? (
                 <Link
