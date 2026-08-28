@@ -7,8 +7,10 @@
  * table, target staff member) is re-checked against that same restaurant.
  */
 
-/** Minutes after shift start still counted as on time. Not restaurant-configurable yet. */
-export const LATE_GRACE_MINUTES = 10;
+/** Lateness rule lives in a client-safe module so the UI shares the same definition. */
+export { LATE_GRACE_MINUTES, isLate, shiftMoment } from "./workforce-rules";
+import { shiftMoment } from "./workforce-rules";
+
 
 export const MANAGE_ROLES = ["owner", "manager"] as const;
 /** Roles that may be assigned to a table for operational coverage. */
