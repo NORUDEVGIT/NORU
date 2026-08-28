@@ -34,13 +34,20 @@ export type RestaurantNavLabel =
   | "Reports"
   | "Settings";
 
-const NAV: { to: string; label: RestaurantNavLabel; icon: typeof LayoutDashboard; ready: boolean }[] = [
+const NAV: {
+  to: string;
+  label: RestaurantNavLabel;
+  display?: string;
+  icon: typeof LayoutDashboard;
+  ready: boolean;
+}[] = [
   { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, ready: true },
   { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
   { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, ready: true },
   { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, ready: true },
-  { to: "/restaurant/staff", label: "Staff", icon: Users, ready: true },
+  { to: "/restaurant/staff", label: "Staff", display: "Staff & Shifts", icon: Users, ready: true },
+
   { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
   { to: "/restaurant/dashboard", label: "Reports", icon: BarChart3, ready: false },
   { to: "/restaurant/settings", label: "Settings", icon: Settings, ready: true },
