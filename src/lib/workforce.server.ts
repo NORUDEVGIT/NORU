@@ -7,8 +7,10 @@
  * table, target staff member) is re-checked against that same restaurant.
  */
 
-/** Minutes after shift start still counted as on time. Not restaurant-configurable yet. */
-export const LATE_GRACE_MINUTES = 10;
+/** Lateness rule lives in a client-safe module so the UI shares the same definition. */
+export { LATE_GRACE_MINUTES, isLate, shiftMoment } from "./workforce-rules";
+import { shiftMoment } from "./workforce-rules";
+
 
 export const MANAGE_ROLES = ["owner", "manager"] as const;
 /** Roles that may be assigned to a table for operational coverage. */
@@ -108,15 +110,8 @@ export async function audit(
   });
 }
 
-/** Combines a shift date + local time string into a Date (UTC-based, matching stored timestamps). */
-export function shiftMoment(shiftDate: string, time: string): Date {
-  const [h = "0", m = "0", s = "0"] = time.split(":");
-  return new Date(`${shiftDate}T${h.padStart(2, "0")}:${m.padStart(2, "0")}:${s.padStart(2, "0")}Z`);
-}
 
-export function isLate(shiftDate: string, startTime: string, checkInAt: Date): boolean {
-  return checkInAt.getTime() > shiftMoment(shiftDate, startTime).getTime() + LATE_GRACE_MINUTES * 60_000;
-}
+
 
 export function hoursBetween(from: string | null, to: string | null): number {
   if (!from || !to) return 0;

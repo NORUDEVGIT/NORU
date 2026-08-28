@@ -34,13 +34,20 @@ export type RestaurantNavLabel =
   | "Reports"
   | "Settings";
 
-const NAV: { to: string; label: RestaurantNavLabel; icon: typeof LayoutDashboard; ready: boolean }[] = [
+const NAV: {
+  to: string;
+  label: RestaurantNavLabel;
+  display?: string;
+  icon: typeof LayoutDashboard;
+  ready: boolean;
+}[] = [
   { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, ready: true },
   { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
   { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, ready: true },
   { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, ready: true },
-  { to: "/restaurant/staff", label: "Staff", icon: Users, ready: true },
+  { to: "/restaurant/staff", label: "Staff", display: "Staff & Shifts", icon: Users, ready: true },
+
   { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
   { to: "/restaurant/dashboard", label: "Reports", icon: BarChart3, ready: false },
   { to: "/restaurant/settings", label: "Settings", icon: Settings, ready: true },
@@ -88,9 +95,8 @@ export function RestaurantShell({
       </Link>
       <nav className="min-h-0 flex-1 overflow-y-auto">
         <ul className="space-y-1">
-          {NAV.filter(
-            (item) => item.label !== "Staff" || membership?.role === "owner" || membership?.role === "manager",
-          ).map((item) => (
+          {NAV.map((item) => (
+
             <li key={item.label}>
               {item.ready ? (
                 <Link
@@ -103,11 +109,11 @@ export function RestaurantShell({
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  <item.icon className="size-4 shrink-0" /> {item.label}
+                  <item.icon className="size-4 shrink-0" /> {item.display ?? item.label}
                 </Link>
               ) : (
                 <span className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground/60">
-                  <item.icon className="size-4 shrink-0" /> {item.label}
+                  <item.icon className="size-4 shrink-0" /> {item.display ?? item.label}
                   <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                     Soon
                   </span>
