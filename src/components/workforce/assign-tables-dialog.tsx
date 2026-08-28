@@ -56,7 +56,10 @@ export function AssignTablesDialog({
     mutationFn: (restaurantTableId: string) =>
       assignFn({ data: { restaurantId, shiftId: shift!.id, restaurantTableId } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -65,7 +68,10 @@ export function AssignTablesDialog({
   const removeMutation = useMutation({
     mutationFn: (assignmentId: string) => removeFn({ data: { restaurantId, assignmentId } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),

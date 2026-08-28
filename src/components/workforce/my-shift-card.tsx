@@ -46,7 +46,10 @@ export function MyShiftCard({ restaurantId }: { restaurantId: string }) {
   const checkInMutation = useMutation({
     mutationFn: () => doCheckIn({ data: { restaurantId, shiftId: shift!.id } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Checked in.");
       invalidate();
     },
@@ -56,7 +59,10 @@ export function MyShiftCard({ restaurantId }: { restaurantId: string }) {
   const checkOutMutation = useMutation({
     mutationFn: () => doCheckOut({ data: { restaurantId, shiftId: shift!.id } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success(`Checked out — ${result.workedHours}h worked.`);
       invalidate();
     },

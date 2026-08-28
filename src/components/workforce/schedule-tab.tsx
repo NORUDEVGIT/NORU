@@ -68,7 +68,10 @@ export function ScheduleTab({ restaurantId, canManage }: { restaurantId: string;
   const createMutation = useMutation({
     mutationFn: () => createFn({ data: { restaurantId, staffMembershipId, shiftDate: date, startTime, endTime } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Shift added.");
       void invalidate();
     },
