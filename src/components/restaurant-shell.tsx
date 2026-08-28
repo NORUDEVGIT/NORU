@@ -109,11 +109,11 @@ export function RestaurantShell({
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  <item.icon className="size-4 shrink-0" /> {item.label}
+                  <item.icon className="size-4 shrink-0" /> {item.display ?? item.label}
                 </Link>
               ) : (
                 <span className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground/60">
-                  <item.icon className="size-4 shrink-0" /> {item.label}
+                  <item.icon className="size-4 shrink-0" /> {item.display ?? item.label}
                   <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                     Soon
                   </span>
