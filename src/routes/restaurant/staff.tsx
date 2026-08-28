@@ -95,30 +95,57 @@ export const Route = createFileRoute("/restaurant/staff")({
 function StaffPage() {
   return (
     <RestaurantShell active="Staff">
-      {(membership) =>
-        membership.role === "owner" || membership.role === "manager" ? (
-          <StaffManager membership={membership} />
-        ) : (
-          <StaffAccessDenied />
-        )
-      }
+      {(membership) => <WorkforceTabs membership={membership} />}
     </RestaurantShell>
   );
 }
 
-function StaffAccessDenied() {
+/**
+ * One page, four tabs. Kitchen/waiter only ever see their own schedule plus the
+ * My Shift card — the server functions enforce the same rules regardless.
+ */
+function WorkforceTabs({ membership }: { membership: RestaurantMembership }) {
+  const canManage = membership.role === "owner" || membership.role === "manager";
+  const [tab, setTab] = useState(canManage ? "staff" : "schedule");
+
   return (
-    <div className="max-w-xl rounded-2xl border border-border bg-card p-6">
-      <h1 className="font-display text-2xl">Staff access restricted</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Only restaurant owners and managers can view or manage staff accounts.
-      </p>
-      <Button asChild className="mt-5">
-        <a href="/restaurant/dashboard">Return to dashboard</a>
-      </Button>
+    <div className="space-y-6">
+      <MyShiftCard restaurantId={membership.restaurantId} />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="w-full justify-start overflow-x-auto">
+          {canManage ? <TabsTrigger value="staff">Staff</TabsTrigger> : null}
+          <TabsTrigger value="schedule">{canManage ? "Schedule" : "My schedule"}</TabsTrigger>
+          {canManage ? <TabsTrigger value="attendance">Attendance</TabsTrigger> : null}
+          {canManage ? <TabsTrigger value="reports">Reports</TabsTrigger> : null}
+        </TabsList>
+
+        {canManage ? (
+          <TabsContent value="staff" className="mt-6">
+            <StaffManager membership={membership} />
+          </TabsContent>
+        ) : null}
+
+        <TabsContent value="schedule" className="mt-6">
+          <ScheduleTab restaurantId={membership.restaurantId} canManage={canManage} />
+        </TabsContent>
+
+        {canManage ? (
+          <TabsContent value="attendance" className="mt-6">
+            <AttendanceTab restaurantId={membership.restaurantId} />
+          </TabsContent>
+        ) : null}
+
+        {canManage ? (
+          <TabsContent value="reports" className="mt-6">
+            <ReportsTab restaurantId={membership.restaurantId} />
+          </TabsContent>
+        ) : null}
+      </Tabs>
     </div>
   );
 }
+
 
 type StatusFilter = "all" | "active" | "inactive";
 type RoleFilter = "all" | StaffRole;
