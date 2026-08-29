@@ -22,6 +22,8 @@ type KitchenOrder = {
   status: OrderStatus;
   total: number;
   created_at: string;
+  assigned_waiter_name_snapshot: string | null;
+  order_source: string | null;
   items: OrderItem[];
 };
 
@@ -32,7 +34,7 @@ const COLUMNS: { status: Exclude<OrderStatus, "served">; label: string; next: Or
 ];
 
 const ORDER_SELECT =
-  "id, order_number, table_number, status, total, created_at, order_items(id, item_name, quantity, price, special_instructions)";
+  "id, order_number, table_number, status, total, created_at, assigned_waiter_name_snapshot, order_source, order_items(id, item_name, quantity, price, special_instructions)";
 
 function money(value: number) {
   return `£${Number(value).toFixed(2)}`;
@@ -117,6 +119,8 @@ export function KitchenBoard({
         status: data.status as OrderStatus,
         total: Number(data.total),
         created_at: data.created_at,
+        assigned_waiter_name_snapshot: data.assigned_waiter_name_snapshot ?? null,
+        order_source: data.order_source ?? null,
         items: (data.order_items ?? []) as OrderItem[],
       });
     },
@@ -147,6 +151,8 @@ export function KitchenBoard({
           status: o.status as OrderStatus,
           total: Number(o.total),
           created_at: o.created_at,
+          assigned_waiter_name_snapshot: o.assigned_waiter_name_snapshot ?? null,
+          order_source: o.order_source ?? null,
           items: (o.order_items ?? []) as OrderItem[],
         })),
       );
@@ -341,6 +347,9 @@ function OrderCard({
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <Clock className="size-4" /> {timeOf(order.created_at)}
           </p>
+          {order.assigned_waiter_name_snapshot ? (
+            <p className="text-sm text-muted-foreground">Waiter: {order.assigned_waiter_name_snapshot}</p>
+          ) : null}
         </div>
         <div className="rounded-lg bg-foreground px-4 py-2 text-center text-background">
           <p className="text-xs font-bold uppercase tracking-widest">Table</p>

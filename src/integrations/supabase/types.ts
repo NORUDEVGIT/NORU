@@ -238,11 +238,16 @@ export type Database = {
       }
       orders: {
         Row: {
+          assigned_waiter_membership_id: string | null
+          assigned_waiter_name_snapshot: string | null
           created_at: string
+          created_by_staff_membership_id: string | null
+          created_by_staff_name_snapshot: string | null
           customer_id: string | null
           guest_token_hash: string | null
           id: string
           order_number: number
+          order_source: string
           restaurant_id: string | null
           restaurant_table_id: string | null
           status: string
@@ -251,11 +256,16 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_waiter_membership_id?: string | null
+          assigned_waiter_name_snapshot?: string | null
           created_at?: string
+          created_by_staff_membership_id?: string | null
+          created_by_staff_name_snapshot?: string | null
           customer_id?: string | null
           guest_token_hash?: string | null
           id?: string
           order_number?: number
+          order_source?: string
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           status?: string
@@ -264,11 +274,16 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_waiter_membership_id?: string | null
+          assigned_waiter_name_snapshot?: string | null
           created_at?: string
+          created_by_staff_membership_id?: string | null
+          created_by_staff_name_snapshot?: string | null
           customer_id?: string | null
           guest_token_hash?: string | null
           id?: string
           order_number?: number
+          order_source?: string
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           status?: string
@@ -277,6 +292,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_assigned_waiter_membership_id_fkey"
+            columns: ["assigned_waiter_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_restaurant_id_fkey"
             columns: ["restaurant_id"]

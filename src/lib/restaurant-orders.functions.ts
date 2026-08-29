@@ -48,6 +48,10 @@ export interface OrderListRow {
   status: string;
   total: number;
   createdAt: string;
+  /** "customer_qr" | "waiter_assisted" */
+  source: string;
+  /** Snapshot of the waiter responsible for the table, if any. */
+  waiterName: string | null;
   itemCount: number;
   isGuest: boolean;
 }
@@ -80,6 +84,9 @@ export interface OrderDetail {
   createdAt: string;
   updatedAt: string;
   isGuest: boolean;
+  source: string;
+  waiterName: string | null;
+  createdByStaffName: string | null;
   items: {
     id: string;
     name: string;
@@ -190,7 +197,7 @@ export const listRestaurantOrders = createServerFn({ method: "GET" })
         scoped(
           supabase
             .from("orders")
-            .select("id, order_number, table_number, status, total, created_at, customer_id, order_items(id)", {
+            .select("id, order_number, table_number, status, total, created_at, customer_id, order_source, assigned_waiter_name_snapshot, order_items(id)", {
               count: "exact",
             }),
         ),
@@ -252,6 +259,8 @@ export const listRestaurantOrders = createServerFn({ method: "GET" })
         status: o.status,
         total: Number(o.total),
         createdAt: o.created_at,
+        source: o.order_source ?? "customer_qr",
+        waiterName: o.assigned_waiter_name_snapshot ?? null,
         itemCount: (o.order_items ?? []).length,
         // Only the boolean is exposed — never the customer UUID.
         isGuest: !o.customer_id,
@@ -273,7 +282,7 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
 
     const { data: order, error } = await supabase
       .from("orders")
-      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id")
+      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id, order_source, assigned_waiter_name_snapshot, created_by_staff_name_snapshot")
       .eq("id", data.orderId)
       // Tenant boundary: an order from another restaurant simply doesn't exist.
       .eq("restaurant_id", data.restaurantId)
@@ -312,6 +321,10 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
       createdAt: order.created_at,
       updatedAt: order.updated_at,
       isGuest: !order.customer_id,
+      source: (order as any).order_source ?? "customer_qr",
+      // Prefer the snapshot taken at order time; never expose UUIDs.
+      waiterName: (order as any).assigned_waiter_name_snapshot ?? null,
+      createdByStaffName: (order as any).created_by_staff_name_snapshot ?? null,
       items: (itemsRes.data ?? []).map((i) => ({
         id: i.id,
         // Snapshot values as stored at order time — never current menu pricing.
