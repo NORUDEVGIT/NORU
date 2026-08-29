@@ -10,8 +10,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-import { callerMembership, MANAGE_ROLES } from "./workforce.server";
-import { shiftMoment, todayIso, addDaysIso } from "./workforce-rules";
+import { callerMembership, MANAGE_ROLES, getRestaurantSettings, resolveCurrentShift } from "./workforce.server";
+import { shiftStateMessage, type ShiftState } from "./workforce-rules";
 
 const idSchema = z.string().uuid();
 
@@ -33,47 +33,21 @@ export interface WaiterContext {
   canOrder: boolean;
   /** Why ordering is blocked, in plain language. */
   blockedReason: string | null;
-  shift: { id: string; startTime: string; endTime: string; checkedInAt: string | null } | null;
+  shift: {
+    id: string;
+    shiftDate: string;
+    startTime: string;
+    endTime: string;
+    checkedInAt: string | null;
+    checkedOutAt: string | null;
+  } | null;
+  /** Friendly state of the staff member's shift right now. */
+  shiftState: ShiftState;
+  shiftMessage: string;
+  timezone: string;
+  currencyCode: string;
   tables: WaiterTableOption[];
   menu: { id: string; name: string; price: number; category: string }[];
-}
-
-/** The waiter's current shift (scheduled and covering right now), if any. */
-async function currentShift(admin: any, restaurantId: string, membershipId: string, now: Date) {
-  const today = todayIso();
-  const { data } = await admin
-    .from("staff_shifts")
-    .select("id, shift_date, start_time, end_time, status")
-    .eq("restaurant_id", restaurantId)
-    .eq("staff_membership_id", membershipId)
-    .eq("status", "scheduled")
-    .gte("shift_date", addDaysIso(today, -1))
-    .lte("shift_date", addDaysIso(today, 1));
-
-  const rows = (data ?? []) as {
-    id: string;
-    shift_date: string;
-    start_time: string;
-    end_time: string;
-  }[];
-  return (
-    rows.find((s) => {
-      const t = now.getTime();
-      return (
-        t >= shiftMoment(s.shift_date, s.start_time).getTime() &&
-        t <= shiftMoment(s.shift_date, s.end_time).getTime()
-      );
-    }) ?? null
-  );
-}
-
-async function attendanceFor(admin: any, shiftId: string) {
-  const { data } = await admin
-    .from("staff_attendance")
-    .select("check_in_at, check_out_at, status")
-    .eq("shift_id", shiftId)
-    .maybeSingle();
-  return (data as { check_in_at: string | null; check_out_at: string | null } | null) ?? null;
 }
 
 /**
