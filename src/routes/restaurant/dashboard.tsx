@@ -68,10 +68,6 @@ function greeting() {
   return "Good evening";
 }
 
-function clock.time(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
 function DashboardBody({ membership }: { membership: RestaurantMembership }) {
   const clock = useRestaurantTime();
   const money = useMoney();

@@ -108,14 +108,6 @@ function RestaurantOrdersRoute() {
   );
 }
 
-function clock.dateTime(iso: string) {
-  const d = new Date(iso);
-  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} · ${d.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
-}
-
 function OrdersBody({ membership }: { membership: RestaurantMembership }) {
   const clock = useRestaurantTime();
   const money = useMoney();

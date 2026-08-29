@@ -41,10 +41,6 @@ function money(value: number) {
   return `£${Number(value).toFixed(2)}`;
 }
 
-function clock.time(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
 function playChime() {
   try {
     const Ctx =
@@ -316,7 +312,6 @@ export function KitchenBoard({
 }
 
 function OrderCard({
-  const clock = useRestaurantTime();
   order,
   actionLabel,
   isNew,
