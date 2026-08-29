@@ -22,6 +22,8 @@ type KitchenOrder = {
   status: OrderStatus;
   total: number;
   created_at: string;
+  assigned_waiter_name_snapshot: string | null;
+  order_source: string | null;
   items: OrderItem[];
 };
 
@@ -32,7 +34,7 @@ const COLUMNS: { status: Exclude<OrderStatus, "served">; label: string; next: Or
 ];
 
 const ORDER_SELECT =
-  "id, order_number, table_number, status, total, created_at, order_items(id, item_name, quantity, price, special_instructions)";
+  "id, order_number, table_number, status, total, created_at, assigned_waiter_name_snapshot, order_source, order_items(id, item_name, quantity, price, special_instructions)";
 
 function money(value: number) {
   return `£${Number(value).toFixed(2)}`;
