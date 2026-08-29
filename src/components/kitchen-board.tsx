@@ -119,6 +119,8 @@ export function KitchenBoard({
         status: data.status as OrderStatus,
         total: Number(data.total),
         created_at: data.created_at,
+        assigned_waiter_name_snapshot: data.assigned_waiter_name_snapshot ?? null,
+        order_source: data.order_source ?? null,
         items: (data.order_items ?? []) as OrderItem[],
       });
     },
@@ -149,6 +151,8 @@ export function KitchenBoard({
           status: o.status as OrderStatus,
           total: Number(o.total),
           created_at: o.created_at,
+          assigned_waiter_name_snapshot: o.assigned_waiter_name_snapshot ?? null,
+          order_source: o.order_source ?? null,
           items: (o.order_items ?? []) as OrderItem[],
         })),
       );
