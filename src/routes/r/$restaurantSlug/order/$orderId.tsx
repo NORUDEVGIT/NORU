@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { formatPrice } from "@/data/menu";
 import { getTrackedOrder } from "@/lib/order-tracking.functions";
 import { CUSTOMER_STATUS_FLOW, normaliseStatus, statusLabel } from "@/lib/order-status";
 import { useOrder } from "@/state/order-store";
+import { useMoney } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/r/$restaurantSlug/order/$orderId")({
   head: () => ({
@@ -33,6 +33,7 @@ const STEP_HINTS: Record<string, string> = {
 };
 
 function OrderStatusPage() {
+  const money = useMoney();
   const { restaurantSlug, orderId } = Route.useParams();
   const { order: sessionOrder } = useOrder();
   const track = useServerFn(getTrackedOrder);
@@ -100,7 +101,7 @@ function OrderStatusPage() {
         <p className="text-sm text-muted-foreground">{order.restaurantName}</p>
         <h1 className="mt-1 font-display text-3xl">Order #{order.orderNumber}</h1>
         <p className="mt-1 text-muted-foreground">
-          Table {order.tableNumber} · {formatPrice(order.total)}
+          Table {order.tableNumber} · {money(order.total)}
         </p>
 
         <div className="mt-6 rounded-3xl border border-border/70 bg-card p-6">
@@ -160,7 +161,7 @@ function OrderStatusPage() {
                   ) : null}
                 </div>
                 <span className="shrink-0 font-semibold tabular-nums">
-                  {formatPrice(item.lineTotal)}
+                  {money(item.lineTotal)}
                 </span>
               </li>
             ))}

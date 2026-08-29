@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { formatPrice } from "@/data/menu";
 import {
   createMenuImageUpload,
   deleteCategory,
@@ -35,6 +34,7 @@ import {
   type ManagedItem,
 } from "@/lib/menu.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useMoney } from "@/state/restaurant-context";
 
 /** Menu editing is limited to owners and managers. Kitchen/waiter cannot edit. */
 const MANAGE_ROLES = ["owner", "manager"];
@@ -85,6 +85,7 @@ function MenuManagementPage() {
 }
 
 function MenuManager({ membership }: { membership: RestaurantMembership }) {
+  const money = useMoney();
   const restaurantId = membership.restaurantId;
   const queryClient = useQueryClient();
   const load = useServerFn(getManagedMenu);
@@ -263,7 +264,7 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
                   <p className="font-medium">{item.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {categoryById.get(item.categoryId ?? "")?.name ?? "Uncategorised"} ·{" "}
-                    {formatPrice(item.price)}
+                    {money(item.price)}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

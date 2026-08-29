@@ -23,7 +23,6 @@ import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { formatPrice } from "@/data/menu";
 import { cn } from "@/lib/utils";
 import {
   getRestaurantDashboard,
@@ -31,6 +30,7 @@ import {
   type RestaurantDashboard,
 } from "@/lib/dashboard.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useMoney } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/dashboard")({
   ssr: false,
@@ -72,6 +72,7 @@ function timeOf(iso: string) {
 }
 
 function DashboardBody({ membership }: { membership: RestaurantMembership }) {
+  const money = useMoney();
   const restaurant = membership.restaurant;
   const restaurantId = membership.restaurantId;
   const fetchDashboard = useServerFn(getRestaurantDashboard);
@@ -154,12 +155,12 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
 
       {/* Primary KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Today's Order Value" value={d ? formatPrice(d.today.revenue) : null} loading={query.isLoading} />
+        <Metric label="Today's Order Value" value={d ? money(d.today.revenue) : null} loading={query.isLoading} />
         <Metric label="Today's Orders" value={d ? String(d.today.orders) : null} loading={query.isLoading} />
         <Metric label="Active Orders" value={d ? String(d.counts.active) : null} loading={query.isLoading} />
         <Metric
           label="Average Order Value"
-          value={d ? formatPrice(d.today.averageOrderValue) : null}
+          value={d ? money(d.today.averageOrderValue) : null}
           loading={query.isLoading}
         />
       </div>
@@ -203,7 +204,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
                   <span className="text-sm text-muted-foreground">
                     {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
                   </span>
-                  <span className="text-sm font-medium tabular-nums">{formatPrice(order.total)}</span>
+                  <span className="text-sm font-medium tabular-nums">{money(order.total)}</span>
                   <OrderStatusBadge status={order.status} />
                   <span className="ml-auto flex items-center gap-1">
                     <Button asChild size="sm" variant="ghost">
@@ -275,7 +276,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
                         <td className="py-2.5 pr-3 font-semibold tabular-nums">#{o.orderNumber}</td>
                         <td className="py-2.5 pr-3">{o.tableNumber}</td>
                         <td className="py-2.5 pr-3 tabular-nums">{o.itemCount}</td>
-                        <td className="py-2.5 pr-3 tabular-nums">{formatPrice(o.total)}</td>
+                        <td className="py-2.5 pr-3 tabular-nums">{money(o.total)}</td>
                         <td className="py-2.5 pr-3"><OrderStatusBadge status={o.status} /></td>
                         <td className="py-2.5 pr-3 text-muted-foreground">{timeOf(o.createdAt)}</td>
                         <td className="py-2.5 text-right">
@@ -374,6 +375,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
 }
 
 function MobileOrderCard({ order }: { order: DashboardOrder }) {
+  const money = useMoney();
   return (
     <li className="rounded-xl border border-border p-3">
       <div className="flex items-center justify-between gap-2">
@@ -385,7 +387,7 @@ function MobileOrderCard({ order }: { order: DashboardOrder }) {
         {timeOf(order.createdAt)}
       </p>
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-sm font-medium tabular-nums">{formatPrice(order.total)}</span>
+        <span className="text-sm font-medium tabular-nums">{money(order.total)}</span>
         <Button asChild size="sm" variant="ghost">
           <Link to="/restaurant/orders/$orderId" params={{ orderId: order.id }}>View Order</Link>
         </Button>

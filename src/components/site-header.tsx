@@ -10,10 +10,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { formatPrice } from "@/data/menu";
 import { MenuLink, OrderLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 import { useAuth } from "@/state/auth-store";
+import { useMoney } from "@/state/restaurant-context";
 
 interface SiteHeaderProps {
   /** Category names come from the restaurant's database menu. */
@@ -25,6 +25,7 @@ interface SiteHeaderProps {
 }
 
 export function SiteHeader({ categories = [], restaurantName = "Order to your table", search, onSearchChange, onSelectCategory }: SiteHeaderProps) {
+  const money = useMoney();
   const { itemCount, total } = useOrder();
   const { user, loading: authLoading } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -115,7 +116,7 @@ export function SiteHeader({ categories = [], restaurantName = "Order to your ta
               <ShoppingBag className="size-5" />
               <span className="ml-1 text-sm font-semibold tabular-nums">{itemCount}</span>
               <span className="ml-2 hidden text-sm font-semibold tabular-nums sm:inline">
-                {formatPrice(total)}
+                {money(total)}
               </span>
             </OrderLink>
           </Button>

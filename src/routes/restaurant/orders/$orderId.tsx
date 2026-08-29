@@ -8,7 +8,6 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { formatPrice } from "@/data/menu";
 import {
   ACTIVE_ORDER_STATUSES,
   getRestaurantOrderDetail,
@@ -16,6 +15,7 @@ import {
 } from "@/lib/restaurant-orders.functions";
 import { statusLabel } from "@/lib/order-status";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useMoney } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/orders/$orderId")({
   ssr: false,
@@ -58,6 +58,7 @@ function dateTimeOf(iso: string) {
 }
 
 function DetailBody({ membership }: { membership: RestaurantMembership }) {
+  const money = useMoney();
   const { orderId } = Route.useParams();
   const restaurantId = membership.restaurantId;
   const fetchDetail = useServerFn(getRestaurantOrderDetail);
@@ -160,7 +161,7 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
               <Field label="Status" value={statusLabel(order.status)} />
               <Field label="Created" value={dateTimeOf(order.createdAt)} />
               <Field label="Last updated" value={dateTimeOf(order.updatedAt)} />
-              <Field label="Order value" value={formatPrice(order.total)} />
+              <Field label="Order value" value={money(order.total)} />
             </dl>
           </div>
 
@@ -173,24 +174,24 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground tabular-nums">
-                      {formatPrice(item.price)} each
+                      {money(item.price)} each
                     </p>
                     {item.specialInstructions ? (
                       <p className="mt-1 text-sm text-muted-foreground">Note: {item.specialInstructions}</p>
                     ) : null}
                   </div>
-                  <span className="shrink-0 font-semibold tabular-nums">{formatPrice(item.lineTotal)}</span>
+                  <span className="shrink-0 font-semibold tabular-nums">{money(item.lineTotal)}</span>
                 </li>
               ))}
             </ul>
             <div className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
-                <span className="tabular-nums">{formatPrice(subtotal)}</span>
+                <span className="tabular-nums">{money(subtotal)}</span>
               </div>
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
-                <span className="tabular-nums">{formatPrice(order.total)}</span>
+                <span className="tabular-nums">{money(order.total)}</span>
               </div>
             </div>
           </div>

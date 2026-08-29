@@ -5,9 +5,9 @@ import { ArrowLeft, Utensils } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatPrice } from "@/data/menu";
 import { resolveManualTable } from "@/lib/tables.functions";
 import { useOrder } from "@/state/order-store";
+import { useMoney } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/r/$restaurantSlug/table")({
   head: () => ({
@@ -22,6 +22,7 @@ export const Route = createFileRoute("/r/$restaurantSlug/table")({
 });
 
 function TablePage() {
+  const money = useMoney();
   const { restaurantSlug } = Route.useParams();
   const navigate = useNavigate();
   const { lines, tableNumber, setTableNumber, setTableContext, total } = useOrder();
@@ -115,7 +116,7 @@ function TablePage() {
           />
           {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
           <Button type="submit" size="lg" disabled={checking} className="h-14 w-full rounded-full text-base">
-            {checking ? "Checking your table…" : `Continue · ${formatPrice(total)}`}
+            {checking ? "Checking your table…" : `Continue · ${money(total)}`}
           </Button>
         </form>
       </main>

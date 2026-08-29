@@ -6,8 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { TableContextBar } from "@/components/table-context-bar";
 import { OrderLines } from "@/components/order-lines";
-import { formatPrice } from "@/data/menu";
-import { useRestaurant } from "@/state/restaurant-context";
+import { useRestaurant, useMoney } from "@/state/restaurant-context";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/review")({
@@ -23,6 +22,7 @@ export const Route = createFileRoute("/r/$restaurantSlug/review")({
 });
 
 function ReviewPage() {
+  const money = useMoney();
   const { restaurantSlug } = Route.useParams();
   const navigate = useNavigate();
   const restaurant = useRestaurant();
@@ -107,11 +107,11 @@ function ReviewPage() {
         <div className="mt-4 rounded-3xl border border-border/70 bg-card p-5">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal</span>
-            <span className="tabular-nums">{formatPrice(subtotal)}</span>
+            <span className="tabular-nums">{money(subtotal)}</span>
           </div>
           <div className="mt-3 flex justify-between text-xl font-semibold">
             <span>Total</span>
-            <span className="tabular-nums">{formatPrice(total)}</span>
+            <span className="tabular-nums">{money(total)}</span>
           </div>
         </div>
       </main>
@@ -138,7 +138,7 @@ function ReviewPage() {
             }
           }}
         >
-          {submitting ? "Sending to the kitchen…" : `Place order · ${formatPrice(total)}`}
+          {submitting ? "Sending to the kitchen…" : `Place order · ${money(total)}`}
         </Button>
       </div>
     </div>

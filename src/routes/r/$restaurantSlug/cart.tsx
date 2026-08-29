@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TableContextBar } from "@/components/table-context-bar";
 import { QuantityStepper } from "@/components/quantity-stepper";
-import { formatPrice } from "@/data/menu";
-import { useRestaurant } from "@/state/restaurant-context";
+import { useRestaurant, useMoney } from "@/state/restaurant-context";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/cart")({
@@ -22,6 +21,7 @@ export const Route = createFileRoute("/r/$restaurantSlug/cart")({
 });
 
 function CartPage() {
+  const money = useMoney();
   const { restaurantSlug } = Route.useParams();
   const restaurant = useRestaurant();
   const {
@@ -100,7 +100,7 @@ function CartPage() {
                         </Button>
                       </div>
                       <p className="text-sm text-muted-foreground tabular-nums">
-                        {formatPrice(line.item.price)} each
+                        {money(line.item.price)} each
                       </p>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                         <QuantityStepper
@@ -110,7 +110,7 @@ function CartPage() {
                           onChange={(value) => setQuantity(line.lineId, value)}
                         />
                         <span className="text-lg font-semibold tabular-nums">
-                          {formatPrice(line.item.price * line.quantity)}
+                          {money(line.item.price * line.quantity)}
                         </span>
                       </div>
                     </div>
@@ -128,11 +128,11 @@ function CartPage() {
             <div className="mt-6 rounded-3xl border border-border/70 bg-card p-5">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
-                <span className="tabular-nums">{formatPrice(subtotal)}</span>
+                <span className="tabular-nums">{money(subtotal)}</span>
               </div>
               <div className="mt-3 flex justify-between text-xl font-semibold">
                 <span>Total</span>
-                <span className="tabular-nums">{formatPrice(total)}</span>
+                <span className="tabular-nums">{money(total)}</span>
               </div>
             </div>
           </>
@@ -146,7 +146,7 @@ function CartPage() {
               to={hasTable ? "/r/$restaurantSlug/review" : "/r/$restaurantSlug/table"}
               params={{ restaurantSlug }}
             >
-              {hasTable ? `Continue to order · ${formatPrice(total)}` : "Select your table"}
+              {hasTable ? `Continue to order · ${money(total)}` : "Select your table"}
             </Link>
           </Button>
         </div>
