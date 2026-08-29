@@ -149,6 +149,14 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
               <Field label="Table" value={`Table ${order.tableNumber}`} />
               <Field label="Customer Type" value={order.isGuest ? "Guest" : "Registered Customer"} />
+              <Field
+                label="Order source"
+                value={order.source === "waiter_assisted" ? "Waiter-assisted" : "Customer QR"}
+              />
+              <Field label="Waiter" value={order.waiterName ?? "Unassigned"} />
+              {order.createdByStaffName ? (
+                <Field label="Taken by" value={order.createdByStaffName} />
+              ) : null}
               <Field label="Status" value={statusLabel(order.status)} />
               <Field label="Created" value={dateTimeOf(order.createdAt)} />
               <Field label="Last updated" value={dateTimeOf(order.updatedAt)} />

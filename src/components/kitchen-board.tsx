@@ -343,6 +343,9 @@ function OrderCard({
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <Clock className="size-4" /> {timeOf(order.created_at)}
           </p>
+          {order.assigned_waiter_name_snapshot ? (
+            <p className="text-sm text-muted-foreground">Waiter: {order.assigned_waiter_name_snapshot}</p>
+          ) : null}
         </div>
         <div className="rounded-lg bg-foreground px-4 py-2 text-center text-background">
           <p className="text-xs font-bold uppercase tracking-widest">Table</p>

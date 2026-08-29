@@ -389,7 +389,8 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
                       <td className="px-4 py-3 tabular-nums">{formatPrice(o.total)}</td>
                       <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {o.isGuest ? "Guest" : "Registered Customer"}
+                        {o.source === "waiter_assisted" ? "Waiter-assisted" : o.isGuest ? "Guest" : "Registered Customer"}
+                        {o.waiterName ? <span className="block text-xs">Waiter: {o.waiterName}</span> : null}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button asChild size="sm" variant="ghost">
@@ -452,7 +453,8 @@ function MobileCard({ order }: { order: OrderListRow }) {
       </p>
       <p className="text-sm text-muted-foreground">
         {order.itemCount} {order.itemCount === 1 ? "item" : "items"} ·{" "}
-        {order.isGuest ? "Guest" : "Registered Customer"}
+        {order.source === "waiter_assisted" ? "Waiter-assisted" : order.isGuest ? "Guest" : "Registered Customer"}
+        {order.waiterName ? ` · ${order.waiterName}` : ""}
       </p>
       <div className="mt-2 flex items-center justify-between">
         <span className="font-medium tabular-nums">{formatPrice(order.total)}</span>
