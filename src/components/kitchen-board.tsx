@@ -4,7 +4,7 @@ import { Bell, BellOff, Clock, LogOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 
 type OrderStatus = "new" | "preparing" | "ready" | "served";
 
@@ -319,6 +319,7 @@ function OrderCard({
   onAdvance: () => void;
 }) {
   const clock = useRestaurantTime();
+  const money = useMoney();
   const notes = order.items
     .filter((i) => i.special_instructions)
     .map((i) => `${i.item_name}: ${i.special_instructions}`);
