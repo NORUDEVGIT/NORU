@@ -9,7 +9,6 @@ import type { MenuItem } from "@/data/menu";
 import { useMoney } from "@/state/restaurant-context";
 
 export function ItemDetailDialog({
-  const money = useMoney();
   item,
   open,
   onOpenChange,
@@ -20,6 +19,7 @@ export function ItemDetailDialog({
   onOpenChange: (open: boolean) => void;
   onAdd: (item: MenuItem, quantity: number, notes: string) => void;
 }) {
+  const money = useMoney();
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
 

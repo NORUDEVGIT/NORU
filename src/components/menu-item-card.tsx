@@ -5,7 +5,6 @@ import type { MenuItem } from "@/data/menu";
 import { useMoney } from "@/state/restaurant-context";
 
 export function MenuItemCard({
-  const money = useMoney();
   item,
   onOpen,
   onAdd,
@@ -14,6 +13,7 @@ export function MenuItemCard({
   onOpen: (item: MenuItem) => void;
   onAdd: (item: MenuItem) => void;
 }) {
+  const money = useMoney();
   return (
     <article className="group overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
       <button
