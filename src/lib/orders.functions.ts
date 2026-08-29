@@ -66,9 +66,9 @@ export const placeOrder = createServerFn({ method: "POST" })
     const restaurant = restaurantResult.restaurant;
 
     const tableResult = await core.resolveRestaurantTable(supabase, restaurant.id, {
-      restaurantTableId: data.restaurantTableId,
+      tableId: data.restaurantTableId ?? null,
       tableLabel: data.tableNumber,
-    } as never);
+    });
     if (!tableResult.ok) return { ok: false as const, message: tableResult.message };
 
     const { resolved } = await resolveOrderLines(data.lines, restaurant.id);
