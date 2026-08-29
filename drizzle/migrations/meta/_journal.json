@@ -15,6 +15,13 @@
       "when": 1787912418575,
       "tag": "0001_create_workforce_core",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787999671916,
+      "tag": "0002_order_waiter_attribution",
+      "breakpoints": true
     }
   ]
 }
