@@ -31,6 +31,7 @@ import {
 } from "@/lib/dashboard.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney } from "@/state/restaurant-context";
+import { useRestaurantTime } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/dashboard")({
   ssr: false,
@@ -67,11 +68,12 @@ function greeting() {
   return "Good evening";
 }
 
-function timeOf(iso: string) {
+function clock.time(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function DashboardBody({ membership }: { membership: RestaurantMembership }) {
+  const clock = useRestaurantTime();
   const money = useMoney();
   const restaurant = membership.restaurant;
   const restaurantId = membership.restaurantId;
@@ -200,7 +202,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
                 <li key={order.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                   <span className="font-semibold tabular-nums">#{order.orderNumber}</span>
                   <span className="text-sm">Table {order.tableNumber}</span>
-                  <span className="text-sm text-muted-foreground">{timeOf(order.createdAt)}</span>
+                  <span className="text-sm text-muted-foreground">{clock.time(order.createdAt)}</span>
                   <span className="text-sm text-muted-foreground">
                     {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
                   </span>
@@ -278,7 +280,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
                         <td className="py-2.5 pr-3 tabular-nums">{o.itemCount}</td>
                         <td className="py-2.5 pr-3 tabular-nums">{money(o.total)}</td>
                         <td className="py-2.5 pr-3"><OrderStatusBadge status={o.status} /></td>
-                        <td className="py-2.5 pr-3 text-muted-foreground">{timeOf(o.createdAt)}</td>
+                        <td className="py-2.5 pr-3 text-muted-foreground">{clock.time(o.createdAt)}</td>
                         <td className="py-2.5 text-right">
                           <Button asChild size="sm" variant="ghost">
                             <Link to="/restaurant/orders/$orderId" params={{ orderId: o.id }}>View Order</Link>
@@ -375,6 +377,7 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
 }
 
 function MobileOrderCard({ order }: { order: DashboardOrder }) {
+  const clock = useRestaurantTime();
   const money = useMoney();
   return (
     <li className="rounded-xl border border-border p-3">
@@ -384,7 +387,7 @@ function MobileOrderCard({ order }: { order: DashboardOrder }) {
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Table {order.tableNumber} · {order.itemCount} {order.itemCount === 1 ? "item" : "items"} ·{" "}
-        {timeOf(order.createdAt)}
+        {clock.time(order.createdAt)}
       </p>
       <div className="mt-2 flex items-center justify-between">
         <span className="text-sm font-medium tabular-nums">{money(order.total)}</span>

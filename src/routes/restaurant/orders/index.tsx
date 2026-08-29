@@ -19,6 +19,7 @@ import {
 } from "@/lib/restaurant-orders.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney } from "@/state/restaurant-context";
+import { useRestaurantTime } from "@/state/restaurant-context";
 
 const STATUS_TABS = [
   { value: "all", label: "All" },
@@ -107,7 +108,7 @@ function RestaurantOrdersRoute() {
   );
 }
 
-function dateTimeOf(iso: string) {
+function clock.dateTime(iso: string) {
   const d = new Date(iso);
   return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} · ${d.toLocaleTimeString([], {
     hour: "2-digit",
@@ -116,6 +117,7 @@ function dateTimeOf(iso: string) {
 }
 
 function OrdersBody({ membership }: { membership: RestaurantMembership }) {
+  const clock = useRestaurantTime();
   const money = useMoney();
   const restaurantId = membership.restaurantId;
   const search = Route.useSearch();
@@ -382,7 +384,7 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
                   {d.rows.map((o) => (
                     <tr key={o.id} className="hover:bg-muted/40">
                       <td className="px-4 py-3 font-semibold tabular-nums">#{o.orderNumber}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{dateTimeOf(o.createdAt)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{clock.dateTime(o.createdAt)}</td>
                       <td className="px-4 py-3">Table {o.tableNumber}</td>
                       <td className="px-4 py-3 tabular-nums">
                         {o.itemCount} {o.itemCount === 1 ? "item" : "items"}
@@ -443,6 +445,7 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
 }
 
 function MobileCard({ order }: { order: OrderListRow }) {
+  const clock = useRestaurantTime();
   const money = useMoney();
   return (
     <li className="p-4">
@@ -451,7 +454,7 @@ function MobileCard({ order }: { order: OrderListRow }) {
         <OrderStatusBadge status={order.status} />
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        {dateTimeOf(order.createdAt)} · Table {order.tableNumber}
+        {clock.dateTime(order.createdAt)} · Table {order.tableNumber}
       </p>
       <p className="text-sm text-muted-foreground">
         {order.itemCount} {order.itemCount === 1 ? "item" : "items"} ·{" "}

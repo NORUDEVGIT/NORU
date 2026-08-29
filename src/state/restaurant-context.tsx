@@ -1,6 +1,13 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { PublicRestaurant } from "@/lib/public-restaurant.functions";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, formatMoney } from "@/lib/restaurant-time";
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_TIMEZONE,
+  formatClockInZone,
+  formatDateInZone,
+  formatDateTimeInZone,
+  formatMoney,
+} from "@/lib/restaurant-time";
 
 const RestaurantContext = createContext<PublicRestaurant | null>(null);
 
@@ -71,4 +78,23 @@ export function useRestaurantTimezone(): string {
 export function useMoney(): (value: number) => string {
   const { currencyCode } = useContext(RestaurantSettingsContext);
   return useMemo(() => (value: number) => formatMoney(value, currencyCode), [currencyCode]);
+}
+
+/** Clock/date formatters bound to the active restaurant's timezone. */
+export function useRestaurantTime(): {
+  time: (iso: string | null | undefined) => string;
+  dateTime: (iso: string | null | undefined) => string;
+  date: (iso: string | null | undefined) => string;
+  timezone: string;
+} {
+  const { timezone } = useContext(RestaurantSettingsContext);
+  return useMemo(
+    () => ({
+      time: (iso) => formatClockInZone(iso, timezone),
+      dateTime: (iso) => formatDateTimeInZone(iso, timezone),
+      date: (iso) => formatDateInZone(iso, timezone),
+      timezone,
+    }),
+    [timezone],
+  );
 }

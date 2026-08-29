@@ -4,6 +4,7 @@ import { Bell, BellOff, Clock, LogOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useRestaurantTime } from "@/state/restaurant-context";
 
 type OrderStatus = "new" | "preparing" | "ready" | "served";
 
@@ -40,7 +41,7 @@ function money(value: number) {
   return `£${Number(value).toFixed(2)}`;
 }
 
-function timeOf(iso: string) {
+function clock.time(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -315,6 +316,7 @@ export function KitchenBoard({
 }
 
 function OrderCard({
+  const clock = useRestaurantTime();
   order,
   actionLabel,
   isNew,
@@ -345,7 +347,7 @@ function OrderCard({
         <div>
           <p className="text-2xl font-bold text-foreground">#{order.order_number}</p>
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Clock className="size-4" /> {timeOf(order.created_at)}
+            <Clock className="size-4" /> {clock.time(order.created_at)}
           </p>
           {order.assigned_waiter_name_snapshot ? (
             <p className="text-sm text-muted-foreground">Waiter: {order.assigned_waiter_name_snapshot}</p>

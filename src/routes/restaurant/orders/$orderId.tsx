@@ -16,6 +16,7 @@ import {
 import { statusLabel } from "@/lib/order-status";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney } from "@/state/restaurant-context";
+import { useRestaurantTime } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/orders/$orderId")({
   ssr: false,
@@ -48,16 +49,17 @@ function OrderDetailRoute() {
   );
 }
 
-function timeOf(iso: string) {
+function clock.time(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function dateTimeOf(iso: string) {
+function clock.dateTime(iso: string) {
   const d = new Date(iso);
-  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · ${timeOf(iso)}`;
+  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · ${clock.time(iso)}`;
 }
 
 function DetailBody({ membership }: { membership: RestaurantMembership }) {
+  const clock = useRestaurantTime();
   const money = useMoney();
   const { orderId } = Route.useParams();
   const restaurantId = membership.restaurantId;
@@ -121,7 +123,7 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
             <h1 className="font-display text-xl leading-tight tabular-nums">Order #{order.orderNumber}</h1>
             <OrderStatusBadge status={order.status} />
           </div>
-          <p className="text-sm text-muted-foreground">{dateTimeOf(order.createdAt)}</p>
+          <p className="text-sm text-muted-foreground">{clock.dateTime(order.createdAt)}</p>
         </div>
         <div className="flex gap-2">
           <Button asChild size="sm" variant="outline">
@@ -159,8 +161,8 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
                 <Field label="Taken by" value={order.createdByStaffName} />
               ) : null}
               <Field label="Status" value={statusLabel(order.status)} />
-              <Field label="Created" value={dateTimeOf(order.createdAt)} />
-              <Field label="Last updated" value={dateTimeOf(order.updatedAt)} />
+              <Field label="Created" value={clock.dateTime(order.createdAt)} />
+              <Field label="Last updated" value={clock.dateTime(order.updatedAt)} />
               <Field label="Order value" value={money(order.total)} />
             </dl>
           </div>
@@ -213,7 +215,7 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
                   </div>
                   <div className="pb-1">
                     <p className="text-sm font-medium">{statusLabel(entry.status)}</p>
-                    <p className="text-xs text-muted-foreground">{timeOf(entry.createdAt)}</p>
+                    <p className="text-xs text-muted-foreground">{clock.time(entry.createdAt)}</p>
                   </div>
                 </li>
               ))}
