@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateMyRestaurant, type RestaurantMembership } from "@/lib/restaurant.functions";
+import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/lib/restaurant-time";
 
 export const Route = createFileRoute("/restaurant/settings")({
   ssr: false,
@@ -53,6 +55,8 @@ function SettingsForm({ membership }: { membership: RestaurantMembership }) {
     postcode: r.postcode ?? "",
     country: r.country ?? "",
     logoUrl: r.logoUrl ?? "",
+    timezone: r.timezone,
+    currencyCode: r.currencyCode,
   });
 
   useEffect(() => {
@@ -65,6 +69,8 @@ function SettingsForm({ membership }: { membership: RestaurantMembership }) {
       postcode: r.postcode ?? "",
       country: r.country ?? "",
       logoUrl: r.logoUrl ?? "",
+      timezone: r.timezone,
+      currencyCode: r.currencyCode,
     });
   }, [r]);
 
@@ -90,6 +96,8 @@ function SettingsForm({ membership }: { membership: RestaurantMembership }) {
           postcode: form.postcode || null,
           country: form.country || null,
           logoUrl: form.logoUrl || null,
+          timezone: form.timezone,
+          currencyCode: form.currencyCode,
         },
       });
       await queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
@@ -123,6 +131,42 @@ function SettingsForm({ membership }: { membership: RestaurantMembership }) {
           <Field id="country" label="Country" value={form.country} onChange={set("country")} disabled={!canEdit} />
         </div>
         <Field id="logoUrl" label="Logo URL (optional)" value={form.logoUrl} onChange={set("logoUrl")} disabled={!canEdit} />
+
+        <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="timezone">Timezone</Label>
+            <Select value={form.timezone} onValueChange={set("timezone")} disabled={!canEdit}>
+              <SelectTrigger id="timezone" className="h-12 rounded-xl text-base">
+                <SelectValue placeholder="Choose a timezone" />
+              </SelectTrigger>
+              <SelectContent>
+                {COMMON_TIMEZONES.map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {tz.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Shift times, check-ins and order times are shown in this timezone.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="currencyCode">Currency</Label>
+            <Select value={form.currencyCode} onValueChange={set("currencyCode")} disabled={!canEdit}>
+              <SelectTrigger id="currencyCode" className="h-12 rounded-xl text-base">
+                <SelectValue placeholder="Choose a currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {COMMON_CURRENCIES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         <p className="text-xs text-muted-foreground">
           Approval status, visibility and your web address are managed by the platform and can't be changed here.
