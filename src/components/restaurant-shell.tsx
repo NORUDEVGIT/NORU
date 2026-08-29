@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
+import { RestaurantSettingsProvider } from "@/state/restaurant-context";
 
 export type RestaurantNavLabel =
   | "Dashboard"
@@ -226,7 +227,12 @@ export function RestaurantShell({
                 </div>
               </div>
             ) : (
-              children(membership)
+              <RestaurantSettingsProvider
+                timezone={membership.restaurant.timezone}
+                currencyCode={membership.restaurant.currencyCode}
+              >
+                {children(membership)}
+              </RestaurantSettingsProvider>
             )}
           </main>
         </div>
