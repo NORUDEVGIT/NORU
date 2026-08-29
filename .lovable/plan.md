@@ -30,10 +30,18 @@ resolveRestaurant(slug|id)        -> approved + active restaurant row
 resolveRestaurantTable(...)       -> table row belonging to that restaurant
 resolveAndValidateOrderLines(...) -> existing resolveOrderLines (authoritative name/price/total)
 resolveAssignedWaiter(...)        -> current waiter for this table, or null
-createValidatedOrder(...)         -> orders insert + order_items insert
+createValidatedOrder()
+   ├── insert orders
+   ├── insert order_items
+   └── return the created order
 ```
 
-`createValidatedOrder` accepts only already-authorized, already-validated context: restaurant id, table id and table-number snapshot, customer id, order_source, attribution ids and name snapshots, and the resolved lines with their authoritative prices. It computes the total from the resolved lines and never reads a browser-supplied price, name or total.
+`createValidatedOrder` owns the complete write — the `orders` row, its `order_items` rows, and the returned order — and accepts only already-authorized, already-validated context: restaurant id, table id and table-number snapshot, identity fields, order_source, attribution ids and name snapshots, and the resolved lines with their authoritative prices. It computes the total from those lines and never reads a browser-supplied price, name or total. If the items insert fails the just-created order is removed, so a half-written order is never left behind.
+
+**No identity field is ever accepted from the browser.** Each wrapper derives them server-side and the core takes only what the wrapper derived:
+
+- Customer QR: `customer_id` = the uid from the verified bearer token, or NULL for guests; `created_by_staff_membership_id` = NULL
+- Waiter-assisted: `customer_id` = NULL; `created_by_staff_membership_id` = the caller's own re-derived active membership
 
 Entry wrappers:
 
@@ -42,7 +50,8 @@ Entry wrappers:
 
 ## 3. Assigned-waiter resolver
 
-One server-only helper in the workforce server module. Given restaurant, table and the server's current time, it finds assignments where: the assignment, table, shift and membership all belong to that restaurant; the membership is active with an assignable role (waiter/manager/owner, matching the existing `ASSIGNABLE_TABLE_ROLES` rule); the shift is `scheduled`, not cancelled, and covers the current moment; and the assignment belongs to that shift. Returns `{ membershipId, name }` or null. The browser never supplies a waiter id.
+One server-only helper in the workforce server module. Its only inputs are the restaurant, the table and the server's current time — it never accepts a waiter id, membership id or assignment id from the request. It derives the waiter from `staff_table_assignments` joined to the covering shift, requiring that the assignment, table, shift and membership all belong to that restaurant; the membership is active with an assignable role (waiter/manager/owner, matching the existing `ASSIGNABLE_TABLE_ROLES` rule); the shift is `scheduled`, not cancelled, and covers the current moment; and the assignment belongs to that shift. Returns `{ membershipId, name }`, or null when no assignment exists.
+
 
 Time handling reuses the existing workforce `shiftMoment` convention — no second timezone algorithm. Per-restaurant timezones remain a documented future improvement.
 
