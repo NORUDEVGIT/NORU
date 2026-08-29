@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { getWaiterOrderContext, placeWaiterAssistedOrder } from "@/lib/waiter-orders.functions";
 import { formatShiftTime } from "@/lib/workforce-rules";
 import { cn } from "@/lib/utils";
+import { useMoney } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/waiter")({
   head: () => ({
@@ -36,10 +37,6 @@ export const Route = createFileRoute("/restaurant/waiter")({
 
 type CartLine = { menuItemId: string; name: string; price: number; quantity: number; note: string };
 
-function money(value: number) {
-  return `£${value.toFixed(2)}`;
-}
-
 function WaiterOrderPage() {
   return (
     <RestaurantShell active="Take Order">
@@ -53,6 +50,7 @@ function WaiterOrder({ restaurantId }: { restaurantId: string }) {
   const loadContext = useServerFn(getWaiterOrderContext);
   const submitOrder = useServerFn(placeWaiterAssistedOrder);
 
+  const money = useMoney();
   const [tableId, setTableId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [search, setSearch] = useState("");
@@ -168,10 +166,10 @@ function WaiterOrder({ restaurantId }: { restaurantId: string }) {
         <h1 className="font-display text-2xl">Take an order</h1>
         <p className="text-sm text-muted-foreground">
           {data?.shift
-            ? `Shift ${formatShiftTime(data.shift.startTime)}–${formatShiftTime(data.shift.endTime)}`
+            ? `Shift ${formatShiftTime(data.shift.startTime)}–${formatShiftTime(data.shift.endTime)} · ${data.shiftMessage}`
             : data?.isManager
               ? "Manager access — any active table"
-              : "No shift running"}
+              : (data?.shiftMessage ?? "No shift scheduled today")}
         </p>
       </header>
 
