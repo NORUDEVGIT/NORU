@@ -37,10 +37,6 @@ const COLUMNS: { status: Exclude<OrderStatus, "served">; label: string; next: Or
 const ORDER_SELECT =
   "id, order_number, table_number, status, total, created_at, assigned_waiter_name_snapshot, order_source, order_items(id, item_name, quantity, price, special_instructions)";
 
-function money(value: number) {
-  return `£${Number(value).toFixed(2)}`;
-}
-
 function playChime() {
   try {
     const Ctx =
@@ -322,6 +318,7 @@ function OrderCard({
   isNew: boolean;
   onAdvance: () => void;
 }) {
+  const clock = useRestaurantTime();
   const notes = order.items
     .filter((i) => i.special_instructions)
     .map((i) => `${i.item_name}: ${i.special_instructions}`);
