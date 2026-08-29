@@ -34,14 +34,22 @@ import { AssignTablesDialog } from "./assign-tables-dialog";
  * Schedule tab. Owners/managers get the full controls; kitchen/waiter get a
  * read-only "My schedule" — listShifts already re-scopes non-managers server-side.
  */
-export function ScheduleTab({ restaurantId, canManage }: { restaurantId: string; canManage: boolean }) {
+export function ScheduleTab({
+  restaurantId,
+  canManage,
+  timezone,
+}: {
+  restaurantId: string;
+  canManage: boolean;
+  timezone: string;
+}) {
   const queryClient = useQueryClient();
   const fetchShifts = useServerFn(listShifts);
   const fetchStaff = useServerFn(listStaff);
   const createFn = useServerFn(createShift);
   const cancelFn = useServerFn(cancelShift);
 
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(todayIso(timezone));
   const [rangeDays, setRangeDays] = useState("0");
   const [staffMembershipId, setStaffMembershipId] = useState("");
   const [startTime, setStartTime] = useState("09:00");
@@ -261,7 +269,7 @@ function ShiftRow({
   });
 
   const tables = (assignments ?? []).map((a) => a.tableLabel).join(", ");
-  const late = wasLate(shift.shiftDate, shift.startTime, shift.checkInAt);
+  const late = wasLate(shift.shiftDate, shift.startTime, shift.checkInAt, timezone);
 
   return (
     <li className="rounded-2xl border border-border bg-card p-4">

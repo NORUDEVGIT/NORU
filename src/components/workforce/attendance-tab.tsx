@@ -8,8 +8,8 @@ import { formatClock, formatShiftTime, todayIso, wasLate } from "@/lib/workforce
 import { cn } from "@/lib/utils";
 
 /** Read-only attendance for today. No manual correction in this batch. */
-export function AttendanceTab({ restaurantId }: { restaurantId: string }) {
-  const today = todayIso();
+export function AttendanceTab({ restaurantId, timezone }: { restaurantId: string; timezone: string }) {
+  const today = todayIso(timezone);
   const fetchShifts = useServerFn(listShifts);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -66,10 +66,10 @@ export function AttendanceTab({ restaurantId }: { restaurantId: string }) {
                     <td className="px-4 py-3 text-muted-foreground">
                       {formatShiftTime(shift.startTime)}–{formatShiftTime(shift.endTime)}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatClock(shift.checkInAt)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatClock(shift.checkOutAt)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{formatClock(shift.checkInAt, timezone)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{formatClock(shift.checkOutAt, timezone)}</td>
                     <td className="px-4 py-3">
-                      <AttendanceState shift={shift} />
+                      <AttendanceState shift={shift} timezone={timezone} />
                     </td>
                   </tr>
                 ))}
@@ -86,14 +86,14 @@ export function AttendanceTab({ restaurantId }: { restaurantId: string }) {
                     <p className="text-xs capitalize text-muted-foreground">{shift.role}</p>
                   </div>
                   <div className="ml-auto">
-                    <AttendanceState shift={shift} />
+                    <AttendanceState shift={shift} timezone={timezone} />
                   </div>
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">
                   Shift {formatShiftTime(shift.startTime)}–{formatShiftTime(shift.endTime)}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  In {formatClock(shift.checkInAt)} · Out {formatClock(shift.checkOutAt)}
+                  In {formatClock(shift.checkInAt, timezone)} · Out {formatClock(shift.checkOutAt, timezone)}
                 </p>
               </div>
             ))}
@@ -104,8 +104,8 @@ export function AttendanceTab({ restaurantId }: { restaurantId: string }) {
   );
 }
 
-function AttendanceState({ shift }: { shift: ShiftRecord }) {
-  const late = wasLate(shift.shiftDate, shift.startTime, shift.checkInAt);
+function AttendanceState({ shift, timezone }: { shift: ShiftRecord; timezone: string }) {
+  const late = wasLate(shift.shiftDate, shift.startTime, shift.checkInAt, timezone);
   const label = !shift.checkInAt
     ? "Not checked in"
     : shift.checkOutAt
