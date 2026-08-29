@@ -25,6 +25,12 @@ const placeOrderSchema = z.object({
   lines: z.array(lineSchema).min(1).max(50),
 });
 
+/**
+ * Customer (QR) ordering. A thin wrapper over the shared order pipeline in
+ * `order-core.server`: it derives the customer identity from the verified
+ * bearer token, never writes staff attribution, and stays resilient when the
+ * restaurant has no usable waiter staffing data.
+ */
 export const placeOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => placeOrderSchema.parse(input))
   .handler(async ({ data }) => {
@@ -34,6 +40,7 @@ export const placeOrder = createServerFn({ method: "POST" })
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
     // Prices/names come from the authoritative catalog, never from the browser.
     const { resolveOrderLines } = await import("./order-pricing.server");
+    const core = await import("./order-core.server");
 
     // The customer identity comes ONLY from the verified bearer token on the
     // request — never from anything the browser puts in the payload. Anonymous
@@ -51,70 +58,34 @@ export const placeOrder = createServerFn({ method: "POST" })
       console.error("[placeOrder] could not verify customer session", error);
     }
 
-    // Tenant context comes from the public /r/:restaurantSlug route as a slug,
-    // never as a restaurant id chosen by the browser: the slug is re-resolved
-    // here and the record's own approval flags decide whether ordering is
-    // allowed. There is no default restaurant.
-    const slug = data.restaurantSlug.toLowerCase();
-    const { data: restaurant } = await supabase
-      .from("restaurants")
-      .select("id, approved, active")
-      .eq("slug", slug)
-      .maybeSingle();
+    // Tenant context arrives as a slug from the public /r/:restaurantSlug route
+    // and is re-resolved here; the record's own approval flags decide whether
+    // ordering is allowed. Expected business states are returned as data.
+    const restaurantResult = await core.resolveRestaurant(supabase, { slug: data.restaurantSlug });
+    if (!restaurantResult.ok) return { ok: false as const, message: restaurantResult.message };
+    const restaurant = restaurantResult.restaurant;
 
-    // Approval gating is enforced here, server-side: a stale page or QR link
-    // can never place an order at a pending, rejected or suspended restaurant.
-    // This is an expected business state, not a crash — return it as data so it
-    // surfaces as a message in the UI instead of an unhandled server error.
-    if (!restaurant || !restaurant.approved || !restaurant.active) {
-      return {
-        ok: false as const,
-        message: "This restaurant isn't accepting orders right now. Please ask a member of staff.",
-      };
-    }
+    const tableResult = await core.resolveRestaurantTable(supabase, restaurant.id, {
+      restaurantTableId: data.restaurantTableId,
+      tableLabel: data.tableNumber,
+    } as never);
+    if (!tableResult.ok) return { ok: false as const, message: tableResult.message };
 
-    // Table identity is resolved server-side. A browser-supplied
-    // restaurant_table_id is only ever a lookup key: it must belong to THIS
-    // restaurant and be active, otherwise the order is refused. The stored
-    // table_number is the database's own label, never the typed text.
-    let tableId: string | null = null;
-    let tableLabel = data.tableNumber.trim();
+    const { resolved } = await resolveOrderLines(data.lines, restaurant.id);
 
-    const { data: activeTables } = await supabase
-      .from("restaurant_tables")
-      .select("id, table_number")
-      .eq("restaurant_id", restaurant.id)
-      .eq("active", true);
-    const tables = activeTables ?? [];
-
-    if (data.restaurantTableId) {
-      const match = tables.find((t) => t.id === data.restaurantTableId);
-      if (!match) {
-        return {
-          ok: false as const,
-          message: "That table is no longer available. Please scan the QR code on your table again.",
-        };
+    // Attribution is best-effort for customer ordering: missing staffing,
+    // missing attendance or conflicting assignments must never block a guest.
+    let waiterMembershipId: string | null = null;
+    let waiterName: string | null = null;
+    try {
+      const waiter = await core.resolveAssignedWaiter(supabase, restaurant.id, tableResult.tableId);
+      if (waiter.status === "ok") {
+        waiterMembershipId = waiter.membershipId;
+        waiterName = waiter.name;
       }
-      tableId = match.id;
-      tableLabel = match.table_number;
-    } else if (tables.length > 0) {
-      const match = tables.find(
-        (t) => t.table_number.toLowerCase() === tableLabel.toLowerCase(),
-      );
-      if (!match) {
-        return {
-          ok: false as const,
-          message: "Table not found. Please check your table number.",
-        };
-      }
-      tableId = match.id;
-      tableLabel = match.table_number;
-    } else if (!tableLabel) {
-      // Legacy restaurants without configured tables still need a label.
-      return { ok: false as const, message: "Please enter your table number." };
+    } catch (error) {
+      console.error("[placeOrder] waiter attribution skipped", error);
     }
-
-    const { resolved, total } = await resolveOrderLines(data.lines, restaurant.id);
 
     // Guest tracking: a 256-bit random token is minted per order and only its
     // SHA-256 hash is stored. The raw token is returned once, to this browser,
@@ -122,44 +93,26 @@ export const placeOrder = createServerFn({ method: "POST" })
     const { newTrackingToken, hashTrackingToken } = await import("./guest-order.server");
     const trackingToken = newTrackingToken();
 
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        // Historical snapshot of the table label at ordering time.
-        table_number: tableLabel,
-        status: "new",
-        total,
-        restaurant_id: restaurant.id,
-        restaurant_table_id: tableId,
-        customer_id: customerId,
-        guest_token_hash: await hashTrackingToken(trackingToken),
-      })
-      .select("id, order_number, table_number, total, status, created_at")
-      .single();
-
-    if (orderError || !order) {
-      throw new Error(orderError?.message ?? "Could not create the order.");
-    }
-
-    const { error: itemsError } = await supabase.from("order_items").insert(
-      resolved.map((line) => ({
-        order_id: order.id,
-        ...line,
-        line_total: Number((line.price * line.quantity).toFixed(2)),
-      })),
-    );
-
-    if (itemsError) {
-      throw new Error(itemsError.message);
-    }
+    const order = await core.createValidatedOrder(supabase, {
+      restaurantId: restaurant.id,
+      restaurantTableId: tableResult.tableId,
+      tableLabel: tableResult.tableLabel,
+      customerId,
+      orderSource: "customer_qr",
+      assignedWaiterMembershipId: waiterMembershipId,
+      assignedWaiterName: waiterName,
+      createdByStaffMembershipId: null,
+      createdByStaffName: null,
+      guestTokenHash: await hashTrackingToken(trackingToken),
+      lines: resolved,
+    });
 
     return {
       ok: true as const,
       id: order.id,
-      orderNumber: order.order_number,
-      tableNumber: order.table_number,
-      total: Number(order.total),
+      orderNumber: order.orderNumber,
+      tableNumber: order.tableNumber,
+      total: order.total,
       trackingToken,
     };
   });
-
