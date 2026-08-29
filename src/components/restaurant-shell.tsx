@@ -9,6 +9,7 @@ import {
   ReceiptText,
   QrCode,
   Users,
+  HandPlatter,
   UserRound,
   BarChart3,
   Settings,
@@ -29,6 +30,7 @@ export type RestaurantNavLabel =
   | "Kitchen"
   | "Orders"
   | "Tables & QR"
+  | "Take Order"
   | "Staff"
   | "Customers"
   | "Reports"
@@ -40,12 +42,21 @@ const NAV: {
   display?: string;
   icon: typeof LayoutDashboard;
   ready: boolean;
+  /** When set, only these membership roles see the entry. */
+  roles?: string[];
 }[] = [
   { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, ready: true },
   { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
   { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, ready: true },
   { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, ready: true },
+  {
+    to: "/restaurant/waiter",
+    label: "Take Order",
+    icon: HandPlatter,
+    ready: true,
+    roles: ["owner", "manager", "waiter"],
+  },
   { to: "/restaurant/staff", label: "Staff", display: "Staff & Shifts", icon: Users, ready: true },
 
   { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
@@ -95,7 +106,9 @@ export function RestaurantShell({
       </Link>
       <nav className="min-h-0 flex-1 overflow-y-auto">
         <ul className="space-y-1">
-          {NAV.map((item) => (
+          {NAV.filter(
+            (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
+          ).map((item) => (
 
             <li key={item.label}>
               {item.ready ? (
