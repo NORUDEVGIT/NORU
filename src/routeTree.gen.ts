@@ -37,6 +37,7 @@ import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/regi
 import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/settings'
 import { Route as RestaurantStaffRouteImport } from './routes/restaurant/staff'
 import { Route as RestaurantTablesRouteImport } from './routes/restaurant/tables'
+import { Route as RestaurantWaiterRouteImport } from './routes/restaurant/waiter'
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
 import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
 import { Route as AdminRestaurantsIndexRouteImport } from './routes/admin/restaurants/index'
@@ -192,6 +193,11 @@ const RestaurantTablesRoute = RestaurantTablesRouteImport.update({
   path: '/restaurant/tables',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantWaiterRoute = RestaurantWaiterRouteImport.update({
+  id: '/restaurant/waiter',
+  path: '/restaurant/waiter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountOrdersIndexRoute = AccountOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
@@ -292,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
+  '/restaurant/waiter': typeof RestaurantWaiterRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
@@ -334,6 +341,7 @@ export interface FileRoutesByTo {
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
+  '/restaurant/waiter': typeof RestaurantWaiterRoute
   '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
   '/kitchen': typeof KitchenIndexRoute
@@ -379,6 +387,7 @@ export interface FileRoutesById {
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
+  '/restaurant/waiter': typeof RestaurantWaiterRoute
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
@@ -425,6 +434,7 @@ export interface FileRouteTypes {
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
+    | '/restaurant/waiter'
     | '/account/'
     | '/admin/'
     | '/kitchen/'
@@ -467,6 +477,7 @@ export interface FileRouteTypes {
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
+    | '/restaurant/waiter'
     | '/account'
     | '/admin'
     | '/kitchen'
@@ -511,6 +522,7 @@ export interface FileRouteTypes {
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
+    | '/restaurant/waiter'
     | '/account/'
     | '/admin/'
     | '/kitchen/'
@@ -556,6 +568,7 @@ export interface RootRouteChildren {
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
   RestaurantStaffRoute: typeof RestaurantStaffRoute
   RestaurantTablesRoute: typeof RestaurantTablesRoute
+  RestaurantWaiterRoute: typeof RestaurantWaiterRoute
   AdminIndexRoute: typeof AdminIndexRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
@@ -762,6 +775,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantTablesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/waiter': {
+      id: '/restaurant/waiter'
+      path: '/restaurant/waiter'
+      fullPath: '/restaurant/waiter'
+      preLoaderRoute: typeof RestaurantWaiterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account/orders/': {
       id: '/account/orders/'
       path: '/orders'
@@ -930,6 +950,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantSettingsRoute: RestaurantSettingsRoute,
   RestaurantStaffRoute: RestaurantStaffRoute,
   RestaurantTablesRoute: RestaurantTablesRoute,
+  RestaurantWaiterRoute: RestaurantWaiterRoute,
   AdminIndexRoute: AdminIndexRoute,
   KitchenIndexRoute: KitchenIndexRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
