@@ -121,10 +121,126 @@ export function hoursBetween(from: string | null, to: string | null): number {
   return ms > 0 ? ms / 3_600_000 : 0;
 }
 
-export function scheduledHours(shiftDate: string, startTime: string, endTime: string): number {
-  const ms = shiftMoment(shiftDate, endTime).getTime() - shiftMoment(shiftDate, startTime).getTime();
+export function scheduledHours(
+  shiftDate: string,
+  startTime: string,
+  endTime: string,
+  timeZone: string | null | undefined,
+): number {
+  const ms =
+    shiftMoment(shiftDate, endTime, timeZone).getTime() - shiftMoment(shiftDate, startTime, timeZone).getTime();
   return ms > 0 ? ms / 3_600_000 : 0;
 }
+
+export interface RestaurantTimeSettings {
+  timezone: string;
+  currencyCode: string;
+}
+
+/**
+ * The restaurant's configured timezone/currency. Single source of truth for
+ * every server-side interpretation of shift clock times.
+ */
+export async function getRestaurantSettings(admin: any, restaurantId: string): Promise<RestaurantTimeSettings> {
+  const { data } = await admin
+    .from("restaurants")
+    .select("timezone, currency_code")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  return {
+    timezone: (data?.timezone as string) || DEFAULT_TIMEZONE,
+    currencyCode: (data?.currency_code as string) || DEFAULT_CURRENCY,
+  };
+}
+
+export interface ResolvedShift {
+  shift: {
+    id: string;
+    shift_date: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+  } | null;
+  attendance: { check_in_at: string | null; check_out_at: string | null; status?: string } | null;
+  state: ReturnType<typeof shiftState>;
+  /** True when this member of staff may act as on-shift right now. */
+  isActive: boolean;
+}
+
+/**
+ * THE shared current-shift resolver. Every caller (waiter ordering, waiter
+ * authorization, assigned-waiter resolution, shift UI) goes through this so
+ * check-in and "is a shift running" can never disagree again.
+ */
+export async function resolveCurrentShift(
+  admin: any,
+  restaurantId: string,
+  membershipId: string,
+  timeZone: string,
+  now: Date = new Date(),
+): Promise<ResolvedShift> {
+  const today = todayIso(timeZone);
+  const { data } = await admin
+    .from("staff_shifts")
+    .select("id, shift_date, start_time, end_time, status")
+    .eq("restaurant_id", restaurantId)
+    .eq("staff_membership_id", membershipId)
+    .eq("status", "scheduled")
+    .gte("shift_date", addDaysIso(today, -1))
+    .lte("shift_date", addDaysIso(today, 1))
+    .order("shift_date", { ascending: true })
+    .order("start_time", { ascending: true });
+
+  const rows = (data ?? []) as {
+    id: string;
+    shift_date: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+  }[];
+  if (rows.length === 0) return { shift: null, attendance: null, state: "none", isActive: false };
+
+  const shiftIds = rows.map((r) => r.id);
+  const { data: attendanceRows } = await admin
+    .from("staff_attendance")
+    .select("shift_id, check_in_at, check_out_at, status")
+    .in("shift_id", shiftIds);
+  const byShift = new Map(
+    ((attendanceRows ?? []) as any[]).map((a) => [a.shift_id as string, a as ResolvedShift["attendance"]]),
+  );
+
+  const evaluated = rows.map((shift) => {
+    const attendance = byShift.get(shift.id) ?? null;
+    const state = shiftState(
+      {
+        shiftDate: shift.shift_date,
+        startTime: shift.start_time,
+        endTime: shift.end_time,
+        status: shift.status,
+        checkInAt: attendance?.check_in_at ?? null,
+        checkOutAt: attendance?.check_out_at ?? null,
+      },
+      timeZone,
+      now,
+    );
+    return { shift, attendance, state, isActive: state === "active" };
+  });
+
+  // Prefer a genuinely running shift, then one waiting for check-in today,
+  // then the nearest upcoming one, so the UI can explain what happens next.
+  const rank: Record<string, number> = {
+    active: 0,
+    awaiting_check_in: 1,
+    upcoming: 2,
+    ended_checked_in: 3,
+    completed: 4,
+    ended_without_check_in: 5,
+    none: 6,
+  };
+  evaluated.sort((a, b) => (rank[a.state] ?? 9) - (rank[b.state] ?? 9));
+  return evaluated[0] as ResolvedShift;
+}
+
 
 export function round2(value: number): number {
   return Math.round(value * 100) / 100;
