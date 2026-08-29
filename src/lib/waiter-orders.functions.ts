@@ -209,20 +209,23 @@ export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
 
     // Waiters must be on a running shift, checked in, and assigned this table.
     if (!isManager) {
-      const shift = await currentShift(supabaseAdmin, data.restaurantId, me.id, now);
-      if (!shift) return { ok: false as const, message: "You don't have a shift running right now." };
-      const attendance = await attendanceFor(supabaseAdmin, shift.id);
-      if (!attendance?.check_in_at) {
+      const { timezone } = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
+      const resolved = await resolveCurrentShift(supabaseAdmin, data.restaurantId, me.id, timezone, now);
+      if (!resolved.shift) return { ok: false as const, message: "No shift is scheduled for you today." };
+      if (resolved.state === "awaiting_check_in") {
         return { ok: false as const, message: "Check in for your shift before taking orders." };
       }
-      if (attendance.check_out_at) {
+      if (resolved.state === "completed") {
         return { ok: false as const, message: "You've checked out of this shift." };
+      }
+      if (!resolved.isActive) {
+        return { ok: false as const, message: shiftStateMessage(resolved.state, null) };
       }
       const { data: assignment } = await supabaseAdmin
         .from("staff_table_assignments")
         .select("id")
         .eq("restaurant_id", data.restaurantId)
-        .eq("shift_id", shift.id)
+        .eq("shift_id", resolved.shift.id)
         .eq("staff_membership_id", me.id)
         .eq("restaurant_table_id", data.restaurantTableId)
         .maybeSingle();
@@ -230,6 +233,7 @@ export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
         return { ok: false as const, message: "That table isn't assigned to your shift." };
       }
     }
+
 
     const { resolved } = await resolveOrderLines(data.lines, data.restaurantId);
 
