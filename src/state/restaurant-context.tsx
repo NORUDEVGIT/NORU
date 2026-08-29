@@ -1,8 +1,37 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { PublicRestaurant } from "@/lib/public-restaurant.functions";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/lib/restaurant-time";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, formatMoney } from "@/lib/restaurant-time";
 
 const RestaurantContext = createContext<PublicRestaurant | null>(null);
+
+export interface RestaurantSettings {
+  timezone: string;
+  currencyCode: string;
+}
+
+/**
+ * Locale settings for whichever restaurant the current screen belongs to.
+ * Customer routes fill it from the tenant in the URL; restaurant staff routes
+ * fill it from the signed-in membership. Everything money/time formats through
+ * it so one restaurant is never rendered with another's conventions.
+ */
+const RestaurantSettingsContext = createContext<RestaurantSettings>({
+  timezone: DEFAULT_TIMEZONE,
+  currencyCode: DEFAULT_CURRENCY,
+});
+
+export function RestaurantSettingsProvider({
+  timezone,
+  currencyCode,
+  children,
+}: {
+  timezone: string;
+  currencyCode: string;
+  children: ReactNode;
+}) {
+  const value = useMemo(() => ({ timezone, currencyCode }), [timezone, currencyCode]);
+  return <RestaurantSettingsContext.Provider value={value}>{children}</RestaurantSettingsContext.Provider>;
+}
 
 export function RestaurantProvider({
   restaurant,
@@ -12,7 +41,11 @@ export function RestaurantProvider({
   children: ReactNode;
 }) {
   return (
-    <RestaurantContext.Provider value={restaurant}>{children}</RestaurantContext.Provider>
+    <RestaurantContext.Provider value={restaurant}>
+      <RestaurantSettingsProvider timezone={restaurant.timezone} currencyCode={restaurant.currencyCode}>
+        {children}
+      </RestaurantSettingsProvider>
+    </RestaurantContext.Provider>
   );
 }
 
@@ -25,17 +58,17 @@ export function useRestaurant(): PublicRestaurant {
   return restaurant;
 }
 
-/** Tenant when inside /r/$restaurantSlug, otherwise null (shared components). */
-export function useOptionalRestaurant(): PublicRestaurant | null {
-  return useContext(RestaurantContext);
+export function useRestaurantSettings(): RestaurantSettings {
+  return useContext(RestaurantSettingsContext);
 }
 
-/** The tenant's configured currency, falling back to the platform default. */
-export function useCurrencyCode(): string {
-  return useContext(RestaurantContext)?.currencyCode ?? DEFAULT_CURRENCY;
-}
-
-/** The tenant's configured timezone, falling back to the platform default. */
+/** The active restaurant's timezone, falling back to the platform default. */
 export function useRestaurantTimezone(): string {
-  return useContext(RestaurantContext)?.timezone ?? DEFAULT_TIMEZONE;
+  return useContext(RestaurantSettingsContext).timezone;
+}
+
+/** A money formatter bound to the active restaurant's currency. */
+export function useMoney(): (value: number) => string {
+  const { currencyCode } = useContext(RestaurantSettingsContext);
+  return useMemo(() => (value: number) => formatMoney(value, currencyCode), [currencyCode]);
 }
