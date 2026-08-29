@@ -9,7 +9,6 @@ import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { formatPrice } from "@/data/menu";
 import { cn } from "@/lib/utils";
 import {
   listRestaurantOrders,
@@ -19,6 +18,8 @@ import {
   type OrderListRow,
 } from "@/lib/restaurant-orders.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useMoney } from "@/state/restaurant-context";
+import { useRestaurantTime } from "@/state/restaurant-context";
 
 const STATUS_TABS = [
   { value: "all", label: "All" },
@@ -107,15 +108,9 @@ function RestaurantOrdersRoute() {
   );
 }
 
-function dateTimeOf(iso: string) {
-  const d = new Date(iso);
-  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} · ${d.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
-}
-
 function OrdersBody({ membership }: { membership: RestaurantMembership }) {
+  const clock = useRestaurantTime();
+  const money = useMoney();
   const restaurantId = membership.restaurantId;
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -256,7 +251,7 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
         <Stat label="Ready" value={s ? String(s.ready) : null} loading={loading} />
         <Stat label="Completed" value={s ? String(s.completed) : null} loading={loading} />
         <Stat label="Cancelled" value={s ? String(s.cancelled) : null} loading={loading} />
-        <Stat label="Order Value" value={s ? formatPrice(s.orderValue) : null} loading={loading} />
+        <Stat label="Order Value" value={s ? money(s.orderValue) : null} loading={loading} />
       </div>
 
       {/* Filters */}
@@ -381,12 +376,12 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
                   {d.rows.map((o) => (
                     <tr key={o.id} className="hover:bg-muted/40">
                       <td className="px-4 py-3 font-semibold tabular-nums">#{o.orderNumber}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{dateTimeOf(o.createdAt)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{clock.dateTime(o.createdAt)}</td>
                       <td className="px-4 py-3">Table {o.tableNumber}</td>
                       <td className="px-4 py-3 tabular-nums">
                         {o.itemCount} {o.itemCount === 1 ? "item" : "items"}
                       </td>
-                      <td className="px-4 py-3 tabular-nums">{formatPrice(o.total)}</td>
+                      <td className="px-4 py-3 tabular-nums">{money(o.total)}</td>
                       <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {o.source === "waiter_assisted" ? "Waiter-assisted" : o.isGuest ? "Guest" : "Registered Customer"}
@@ -442,6 +437,8 @@ function OrdersBody({ membership }: { membership: RestaurantMembership }) {
 }
 
 function MobileCard({ order }: { order: OrderListRow }) {
+  const clock = useRestaurantTime();
+  const money = useMoney();
   return (
     <li className="p-4">
       <div className="flex items-center justify-between gap-2">
@@ -449,7 +446,7 @@ function MobileCard({ order }: { order: OrderListRow }) {
         <OrderStatusBadge status={order.status} />
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        {dateTimeOf(order.createdAt)} · Table {order.tableNumber}
+        {clock.dateTime(order.createdAt)} · Table {order.tableNumber}
       </p>
       <p className="text-sm text-muted-foreground">
         {order.itemCount} {order.itemCount === 1 ? "item" : "items"} ·{" "}
@@ -457,7 +454,7 @@ function MobileCard({ order }: { order: OrderListRow }) {
         {order.waiterName ? ` · ${order.waiterName}` : ""}
       </p>
       <div className="mt-2 flex items-center justify-between">
-        <span className="font-medium tabular-nums">{formatPrice(order.total)}</span>
+        <span className="font-medium tabular-nums">{money(order.total)}</span>
         <Button asChild size="sm" variant="outline">
           <Link to="/restaurant/orders/$orderId" params={{ orderId: order.id }}>View Order</Link>
         </Button>

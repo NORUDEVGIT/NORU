@@ -116,7 +116,7 @@ function WorkforceTabs({ membership }: { membership: RestaurantMembership }) {
 
   return (
     <div className="space-y-6">
-      <MyShiftCard restaurantId={membership.restaurantId} />
+      <MyShiftCard restaurantId={membership.restaurantId} timezone={membership.restaurant.timezone} />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
@@ -133,18 +133,18 @@ function WorkforceTabs({ membership }: { membership: RestaurantMembership }) {
         ) : null}
 
         <TabsContent value="schedule" className="mt-6">
-          <ScheduleTab restaurantId={membership.restaurantId} canManage={canManage} />
+          <ScheduleTab restaurantId={membership.restaurantId} canManage={canManage} timezone={membership.restaurant.timezone} />
         </TabsContent>
 
         {canManage ? (
           <TabsContent value="attendance" className="mt-6">
-            <AttendanceTab restaurantId={membership.restaurantId} />
+            <AttendanceTab restaurantId={membership.restaurantId} timezone={membership.restaurant.timezone} />
           </TabsContent>
         ) : null}
 
         {canManage ? (
           <TabsContent value="reports" className="mt-6">
-            <ReportsTab restaurantId={membership.restaurantId} />
+            <ReportsTab restaurantId={membership.restaurantId} timezone={membership.restaurant.timezone} />
           </TabsContent>
         ) : null}
       </Tabs>

@@ -1,0 +1,1 @@
+GRANT SELECT (timezone, currency_code) ON public.restaurants TO anon, authenticated;

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "./restaurant-time";
 
 const slugSchema = z.object({
   slug: z
@@ -16,6 +17,8 @@ export interface PublicRestaurant {
   slug: string;
   city: string | null;
   logo_url: string | null;
+  timezone: string;
+  currencyCode: string;
 }
 
 /**
@@ -29,7 +32,7 @@ export const getPublicRestaurant = createServerFn({ method: "GET" })
     const { publicServerClient } = await import("./order-pricing.server");
     const { data: row, error } = await publicServerClient()
       .from("restaurants")
-      .select("id, name, slug, city, logo_url, approved, active")
+      .select("id, name, slug, city, logo_url, timezone, currency_code, approved, active")
       .eq("slug", data.slug.toLowerCase())
       .maybeSingle();
 
@@ -40,5 +43,7 @@ export const getPublicRestaurant = createServerFn({ method: "GET" })
       slug: row.slug,
       city: row.city ?? null,
       logo_url: row.logo_url ?? null,
+      timezone: row.timezone ?? DEFAULT_TIMEZONE,
+      currencyCode: row.currency_code ?? DEFAULT_CURRENCY,
     };
   });

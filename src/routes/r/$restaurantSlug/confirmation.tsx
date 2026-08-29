@@ -3,8 +3,7 @@ import { CheckCircle2, Clock } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { OrderLines } from "@/components/order-lines";
-import { formatPrice } from "@/data/menu";
-import { useRestaurant } from "@/state/restaurant-context";
+import { useRestaurant, useMoney } from "@/state/restaurant-context";
 import { useOrder } from "@/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/confirmation")({
@@ -20,6 +19,7 @@ export const Route = createFileRoute("/r/$restaurantSlug/confirmation")({
 });
 
 function ConfirmationPage() {
+  const money = useMoney();
   const { restaurantSlug } = Route.useParams();
   const restaurant = useRestaurant();
   const { order, resetOrder } = useOrder();
@@ -80,7 +80,7 @@ function ConfirmationPage() {
 
         <div className="mt-3 flex justify-between rounded-3xl border border-border/70 bg-card p-5 text-xl font-semibold">
           <span>Total</span>
-          <span className="tabular-nums">{formatPrice(order.total)}</span>
+          <span className="tabular-nums">{money(order.total)}</span>
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">

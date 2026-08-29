@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { DietaryBadges } from "@/components/dietary-badges";
-import { formatPrice, type MenuItem } from "@/data/menu";
+import type { MenuItem } from "@/data/menu";
+import { useMoney } from "@/state/restaurant-context";
 
 export function ItemDetailDialog({
   item,
@@ -18,6 +19,7 @@ export function ItemDetailDialog({
   onOpenChange: (open: boolean) => void;
   onAdd: (item: MenuItem, quantity: number, notes: string) => void;
 }) {
+  const money = useMoney();
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
 
@@ -47,7 +49,7 @@ export function ItemDetailDialog({
               {item.description}
             </DialogDescription>
             <DietaryBadges tags={item.dietaryTags} />
-            <p className="pt-1 text-xl font-semibold tabular-nums">{formatPrice(item.price)}</p>
+            <p className="pt-1 text-xl font-semibold tabular-nums">{money(item.price)}</p>
           </div>
 
           <div className="space-y-2">
@@ -73,7 +75,7 @@ export function ItemDetailDialog({
                 onOpenChange(false);
               }}
             >
-              Add to order · {formatPrice(item.price * quantity)}
+              Add to order · {money(item.price * quantity)}
             </Button>
           </div>
         </div>

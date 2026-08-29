@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 type Preset = "today" | "7" | "30" | "custom";
 
 /** Owner/manager attendance summary. No charts, no payroll. */
-export function ReportsTab({ restaurantId }: { restaurantId: string }) {
-  const today = todayIso();
+export function ReportsTab({ restaurantId, timezone }: { restaurantId: string; timezone: string }) {
+  const today = todayIso(timezone);
   const [preset, setPreset] = useState<Preset>("7");
   const [customFrom, setCustomFrom] = useState(addDaysIso(today, -6));
   const [customTo, setCustomTo] = useState(today);

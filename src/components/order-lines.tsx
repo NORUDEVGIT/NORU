@@ -1,7 +1,8 @@
-import { formatPrice } from "@/data/menu";
 import type { CartLine } from "@/state/order-store";
+import { useMoney } from "@/state/restaurant-context";
 
 export function OrderLines({ lines }: { lines: CartLine[] }) {
+  const money = useMoney();
   return (
     <ul className="divide-y divide-border">
       {lines.map((line) => (
@@ -23,7 +24,7 @@ export function OrderLines({ lines }: { lines: CartLine[] }) {
             ) : null}
           </div>
           <span className="shrink-0 font-semibold tabular-nums">
-            {formatPrice(line.item.price * line.quantity)}
+            {money(line.item.price * line.quantity)}
           </span>
         </li>
       ))}

@@ -18,8 +18,8 @@ import {
 } from "recharts";
 
 import { Button } from "@/components/ui/button";
-import { formatPrice } from "@/data/menu";
 import { cn } from "@/lib/utils";
+import { useMoney } from "@/state/restaurant-context";
 import {
   ANALYTICS_PERIODS,
   getRestaurantAnalytics,
@@ -46,6 +46,7 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 const AXIS = { stroke: "var(--muted-foreground)", fontSize: 11 };
 
 export function DashboardAnalytics({ restaurantId }: { restaurantId: string }) {
+  const money = useMoney();
   const [period, setPeriod] = useState<AnalyticsPeriod>("today");
   const fetchAnalytics = useServerFn(getRestaurantAnalytics);
   const tzOffsetMinutes = useMemo(() => new Date().getTimezoneOffset(), []);
@@ -95,7 +96,7 @@ export function DashboardAnalytics({ restaurantId }: { restaurantId: string }) {
           right={
             loading || !a ? null : (
               <div className="text-right">
-                <p className="font-display text-xl tabular-nums">{formatPrice(a.totals.orderValue)}</p>
+                <p className="font-display text-xl tabular-nums">{money(a.totals.orderValue)}</p>
                 <Comparison pct={a.comparison.orderValuePct} label={a.comparison.label} />
               </div>
             )
@@ -117,7 +118,7 @@ export function DashboardAnalytics({ restaurantId }: { restaurantId: string }) {
                     tickLine={false}
                     axisLine={false}
                     width={52}
-                    tickFormatter={(v: number) => formatPrice(v)}
+                    tickFormatter={(v: number) => money(v)}
                     {...AXIS}
                   />
                   <Tooltip content={<PointTooltip />} />
@@ -239,13 +240,14 @@ interface TooltipPayload {
 }
 
 function PointTooltip({ active, payload }: TooltipPayload) {
+  const money = useMoney();
   const point = payload?.[0]?.payload;
   if (!active || !point) return null;
   return (
     <div className="rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-md">
       <p className="font-semibold">{point.fullLabel}</p>
       <p className="mt-1 text-muted-foreground">
-        Order Value: <span className="font-medium text-foreground tabular-nums">{formatPrice(point.value)}</span>
+        Order Value: <span className="font-medium text-foreground tabular-nums">{money(point.value)}</span>
       </p>
       <p className="text-muted-foreground">
         Orders: <span className="font-medium text-foreground tabular-nums">{point.orders}</span>

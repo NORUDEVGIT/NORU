@@ -10,8 +10,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-import { callerMembership, MANAGE_ROLES } from "./workforce.server";
-import { shiftMoment, todayIso, addDaysIso } from "./workforce-rules";
+import { callerMembership, MANAGE_ROLES, getRestaurantSettings, resolveCurrentShift } from "./workforce.server";
+import { shiftStateMessage, type ShiftState } from "./workforce-rules";
 
 const idSchema = z.string().uuid();
 
@@ -33,47 +33,21 @@ export interface WaiterContext {
   canOrder: boolean;
   /** Why ordering is blocked, in plain language. */
   blockedReason: string | null;
-  shift: { id: string; startTime: string; endTime: string; checkedInAt: string | null } | null;
+  shift: {
+    id: string;
+    shiftDate: string;
+    startTime: string;
+    endTime: string;
+    checkedInAt: string | null;
+    checkedOutAt: string | null;
+  } | null;
+  /** Friendly state of the staff member's shift right now. */
+  shiftState: ShiftState;
+  shiftMessage: string;
+  timezone: string;
+  currencyCode: string;
   tables: WaiterTableOption[];
   menu: { id: string; name: string; price: number; category: string }[];
-}
-
-/** The waiter's current shift (scheduled and covering right now), if any. */
-async function currentShift(admin: any, restaurantId: string, membershipId: string, now: Date) {
-  const today = todayIso();
-  const { data } = await admin
-    .from("staff_shifts")
-    .select("id, shift_date, start_time, end_time, status")
-    .eq("restaurant_id", restaurantId)
-    .eq("staff_membership_id", membershipId)
-    .eq("status", "scheduled")
-    .gte("shift_date", addDaysIso(today, -1))
-    .lte("shift_date", addDaysIso(today, 1));
-
-  const rows = (data ?? []) as {
-    id: string;
-    shift_date: string;
-    start_time: string;
-    end_time: string;
-  }[];
-  return (
-    rows.find((s) => {
-      const t = now.getTime();
-      return (
-        t >= shiftMoment(s.shift_date, s.start_time).getTime() &&
-        t <= shiftMoment(s.shift_date, s.end_time).getTime()
-      );
-    }) ?? null
-  );
-}
-
-async function attendanceFor(admin: any, shiftId: string) {
-  const { data } = await admin
-    .from("staff_attendance")
-    .select("check_in_at, check_out_at, status")
-    .eq("shift_id", shiftId)
-    .maybeSingle();
-  return (data as { check_in_at: string | null; check_out_at: string | null } | null) ?? null;
 }
 
 /**
@@ -92,6 +66,7 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = new Date();
+    const settings = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
 
     const { data: menuRows } = await supabaseAdmin
       .from("menu_items")
@@ -107,6 +82,14 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
       category: (m.category as string) ?? "Menu",
     }));
 
+    const base = {
+      role: me.role,
+      isManager,
+      timezone: settings.timezone,
+      currencyCode: settings.currencyCode,
+      menu,
+    };
+
     if (isManager) {
       const { data: tables } = await supabaseAdmin
         .from("restaurant_tables")
@@ -115,60 +98,48 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
         .eq("active", true)
         .order("table_number", { ascending: true });
       return {
-        role: me.role,
-        isManager,
+        ...base,
         canOrder: (tables ?? []).length > 0,
         blockedReason: (tables ?? []).length > 0 ? null : "No active tables have been set up yet.",
         shift: null,
+        shiftState: "none",
+        shiftMessage: "Managers can take orders for any active table.",
         tables: (tables ?? []).map((t: any) => ({
           id: t.id as string,
           label: t.name ? `${t.table_number} · ${t.name}` : (t.table_number as string),
         })),
-        menu,
       };
     }
 
-    const shift = await currentShift(supabaseAdmin, data.restaurantId, me.id, now);
-    if (!shift) {
-      return {
-        role: me.role,
-        isManager,
-        canOrder: false,
-        blockedReason: "You don't have a shift running right now.",
-        shift: null,
-        tables: [],
-        menu,
-      };
-    }
+    // One shared resolver: the same rule check-in uses, so a checked-in waiter
+    // is always recognised as on shift.
+    const resolved = await resolveCurrentShift(supabaseAdmin, data.restaurantId, me.id, settings.timezone, now);
+    const shiftInfo = resolved.shift
+      ? {
+          id: resolved.shift.id,
+          shiftDate: resolved.shift.shift_date,
+          startTime: resolved.shift.start_time,
+          endTime: resolved.shift.end_time,
+          checkedInAt: resolved.attendance?.check_in_at ?? null,
+          checkedOutAt: resolved.attendance?.check_out_at ?? null,
+        }
+      : null;
+    const shiftMessage = shiftStateMessage(resolved.state, shiftInfo);
 
-    const attendance = await attendanceFor(supabaseAdmin, shift.id);
-    const shiftInfo = {
-      id: shift.id,
-      startTime: shift.start_time,
-      endTime: shift.end_time,
-      checkedInAt: attendance?.check_in_at ?? null,
-    };
-
-    if (!attendance?.check_in_at) {
+    if (!resolved.isActive || !resolved.shift) {
       return {
-        role: me.role,
-        isManager,
+        ...base,
         canOrder: false,
-        blockedReason: "Check in for your shift before taking orders.",
+        blockedReason:
+          resolved.state === "awaiting_check_in"
+            ? "Check in for your shift before taking orders."
+            : resolved.state === "completed"
+              ? "You've checked out of this shift."
+              : shiftMessage,
         shift: shiftInfo,
+        shiftState: resolved.state,
+        shiftMessage,
         tables: [],
-        menu,
-      };
-    }
-    if (attendance.check_out_at) {
-      return {
-        role: me.role,
-        isManager,
-        canOrder: false,
-        blockedReason: "You've checked out of this shift.",
-        shift: shiftInfo,
-        tables: [],
-        menu,
       };
     }
 
@@ -176,7 +147,7 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
       .from("staff_table_assignments")
       .select("restaurant_table_id")
       .eq("restaurant_id", data.restaurantId)
-      .eq("shift_id", shift.id)
+      .eq("shift_id", resolved.shift.id)
       .eq("staff_membership_id", me.id);
 
     const tableIds = (assignments ?? []).map((a: any) => a.restaurant_table_id as string);
@@ -191,18 +162,19 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
       : { data: [] as any[] };
 
     return {
-      role: me.role,
-      isManager,
+      ...base,
       canOrder: (tables ?? []).length > 0,
       blockedReason: (tables ?? []).length > 0 ? null : "No tables are assigned to your shift yet.",
       shift: shiftInfo,
+      shiftState: resolved.state,
+      shiftMessage,
       tables: (tables ?? []).map((t: any) => ({
         id: t.id as string,
         label: t.name ? `${t.table_number} · ${t.name}` : (t.table_number as string),
       })),
-      menu,
     };
   });
+
 
 export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -237,20 +209,23 @@ export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
 
     // Waiters must be on a running shift, checked in, and assigned this table.
     if (!isManager) {
-      const shift = await currentShift(supabaseAdmin, data.restaurantId, me.id, now);
-      if (!shift) return { ok: false as const, message: "You don't have a shift running right now." };
-      const attendance = await attendanceFor(supabaseAdmin, shift.id);
-      if (!attendance?.check_in_at) {
+      const { timezone } = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
+      const resolved = await resolveCurrentShift(supabaseAdmin, data.restaurantId, me.id, timezone, now);
+      if (!resolved.shift) return { ok: false as const, message: "No shift is scheduled for you today." };
+      if (resolved.state === "awaiting_check_in") {
         return { ok: false as const, message: "Check in for your shift before taking orders." };
       }
-      if (attendance.check_out_at) {
+      if (resolved.state === "completed") {
         return { ok: false as const, message: "You've checked out of this shift." };
+      }
+      if (!resolved.isActive) {
+        return { ok: false as const, message: shiftStateMessage(resolved.state, null) };
       }
       const { data: assignment } = await supabaseAdmin
         .from("staff_table_assignments")
         .select("id")
         .eq("restaurant_id", data.restaurantId)
-        .eq("shift_id", shift.id)
+        .eq("shift_id", resolved.shift.id)
         .eq("staff_membership_id", me.id)
         .eq("restaurant_table_id", data.restaurantTableId)
         .maybeSingle();
@@ -258,6 +233,7 @@ export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
         return { ok: false as const, message: "That table isn't assigned to your shift." };
       }
     }
+
 
     const { resolved } = await resolveOrderLines(data.lines, data.restaurantId);
 

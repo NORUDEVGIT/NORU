@@ -16,6 +16,7 @@ import {
   round2,
   scheduledHours,
   shiftMoment,
+  getRestaurantSettings,
 } from "./workforce.server";
 
 /**
@@ -163,10 +164,11 @@ export const listShifts = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ role: string; canManage: boolean; shifts: ShiftRecord[] }> => {
+  .handler(async ({ data, context }): Promise<{ role: string; canManage: boolean; timezone: string; currencyCode: string; shifts: ShiftRecord[] }> => {
     const me = await callerMembership(context, data.restaurantId);
     const canManage = (MANAGE_ROLES as readonly string[]).includes(me.role);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const settings = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
 
     let query = supabaseAdmin
       .from("staff_shifts")
@@ -212,6 +214,8 @@ export const listShifts = createServerFn({ method: "POST" })
     return {
       role: me.role,
       canManage,
+      timezone: settings.timezone,
+      currencyCode: settings.currencyCode,
       shifts: shifts.map((s) => {
         const a = byShift.get(s.id);
         return {
@@ -395,7 +399,8 @@ export const checkIn = createServerFn({ method: "POST" })
 
     // Server time only — a browser-supplied timestamp is never accepted.
     const now = new Date();
-    const status = isLate(shift.shift_date, shift.start_time, now) ? "late" : "checked_in";
+    const { timezone } = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
+    const status = isLate(shift.shift_date, shift.start_time, now, timezone) ? "late" : "checked_in";
 
     const { error } = await supabaseAdmin.from("staff_attendance").upsert(
       {
@@ -497,6 +502,7 @@ export const getStaffAttendanceSummary = createServerFn({ method: "POST" })
       for (const m of members ?? []) meta.set(m.id, { name: byUser.get(m.user_id) ?? null, role: m.role });
     }
 
+    const { timezone } = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
     const now = Date.now();
     const summary = new Map<string, AttendanceSummaryRow>();
     for (const shift of shifts) {
@@ -517,10 +523,10 @@ export const getStaffAttendanceSummary = createServerFn({ method: "POST" })
         } satisfies AttendanceSummaryRow);
 
       row.scheduledShifts += 1;
-      row.scheduledHours += scheduledHours(shift.shift_date, shift.start_time, shift.end_time);
+      row.scheduledHours += scheduledHours(shift.shift_date, shift.start_time, shift.end_time, timezone);
 
       const attendance = byShift.get(shift.id);
-      const shiftEnded = shiftMoment(shift.shift_date, shift.end_time).getTime() < now;
+      const shiftEnded = shiftMoment(shift.shift_date, shift.end_time, timezone).getTime() < now;
 
       if (!attendance?.check_in_at) {
         // Missed is derived, never written as a row.

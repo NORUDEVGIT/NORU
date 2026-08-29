@@ -22,6 +22,20 @@
       "when": 1787999671916,
       "tag": "0002_order_waiter_attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788002313364,
+      "tag": "0003_restaurant_settings_timezone",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788002347805,
+      "tag": "0004_grant_restaurant_settings_columns",
+      "breakpoints": true
     }
   ]
 }

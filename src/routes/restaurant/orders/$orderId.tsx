@@ -8,7 +8,6 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { formatPrice } from "@/data/menu";
 import {
   ACTIVE_ORDER_STATUSES,
   getRestaurantOrderDetail,
@@ -16,6 +15,8 @@ import {
 } from "@/lib/restaurant-orders.functions";
 import { statusLabel } from "@/lib/order-status";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useMoney } from "@/state/restaurant-context";
+import { useRestaurantTime } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/orders/$orderId")({
   ssr: false,
@@ -48,16 +49,9 @@ function OrderDetailRoute() {
   );
 }
 
-function timeOf(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function dateTimeOf(iso: string) {
-  const d = new Date(iso);
-  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · ${timeOf(iso)}`;
-}
-
 function DetailBody({ membership }: { membership: RestaurantMembership }) {
+  const clock = useRestaurantTime();
+  const money = useMoney();
   const { orderId } = Route.useParams();
   const restaurantId = membership.restaurantId;
   const fetchDetail = useServerFn(getRestaurantOrderDetail);
@@ -120,7 +114,7 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
             <h1 className="font-display text-xl leading-tight tabular-nums">Order #{order.orderNumber}</h1>
             <OrderStatusBadge status={order.status} />
           </div>
-          <p className="text-sm text-muted-foreground">{dateTimeOf(order.createdAt)}</p>
+          <p className="text-sm text-muted-foreground">{clock.dateTime(order.createdAt)}</p>
         </div>
         <div className="flex gap-2">
           <Button asChild size="sm" variant="outline">
@@ -158,9 +152,9 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
                 <Field label="Taken by" value={order.createdByStaffName} />
               ) : null}
               <Field label="Status" value={statusLabel(order.status)} />
-              <Field label="Created" value={dateTimeOf(order.createdAt)} />
-              <Field label="Last updated" value={dateTimeOf(order.updatedAt)} />
-              <Field label="Order value" value={formatPrice(order.total)} />
+              <Field label="Created" value={clock.dateTime(order.createdAt)} />
+              <Field label="Last updated" value={clock.dateTime(order.updatedAt)} />
+              <Field label="Order value" value={money(order.total)} />
             </dl>
           </div>
 
@@ -173,24 +167,24 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground tabular-nums">
-                      {formatPrice(item.price)} each
+                      {money(item.price)} each
                     </p>
                     {item.specialInstructions ? (
                       <p className="mt-1 text-sm text-muted-foreground">Note: {item.specialInstructions}</p>
                     ) : null}
                   </div>
-                  <span className="shrink-0 font-semibold tabular-nums">{formatPrice(item.lineTotal)}</span>
+                  <span className="shrink-0 font-semibold tabular-nums">{money(item.lineTotal)}</span>
                 </li>
               ))}
             </ul>
             <div className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
-                <span className="tabular-nums">{formatPrice(subtotal)}</span>
+                <span className="tabular-nums">{money(subtotal)}</span>
               </div>
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
-                <span className="tabular-nums">{formatPrice(order.total)}</span>
+                <span className="tabular-nums">{money(order.total)}</span>
               </div>
             </div>
           </div>
@@ -212,7 +206,7 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
                   </div>
                   <div className="pb-1">
                     <p className="text-sm font-medium">{statusLabel(entry.status)}</p>
-                    <p className="text-xs text-muted-foreground">{timeOf(entry.createdAt)}</p>
+                    <p className="text-xs text-muted-foreground">{clock.time(entry.createdAt)}</p>
                   </div>
                 </li>
               ))}

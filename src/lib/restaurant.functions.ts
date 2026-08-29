@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { deriveStatus } from "./restaurant-status";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, isValidTimeZone } from "./restaurant-time";
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -27,6 +28,8 @@ const settingsSchema = z.object({
   postcode: z.string().trim().max(20).optional().nullable(),
   country: z.string().trim().max(80).optional().nullable(),
   logoUrl: z.string().trim().url().max(500).optional().nullable().or(z.literal("")),
+  timezone: z.string().trim().min(1).max(64).refine(isValidTimeZone, "Please choose a valid timezone."),
+  currencyCode: z.string().trim().length(3).regex(/^[A-Za-z]{3}$/),
 });
 
 function slugify(value: string): string {
@@ -172,6 +175,8 @@ export interface RestaurantMembership {
     postcode: string | null;
     country: string | null;
     logoUrl: string | null;
+    timezone: string;
+    currencyCode: string;
     approved: boolean;
     active: boolean;
     status: "pending" | "approved" | "suspended" | "rejected";
@@ -191,7 +196,7 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("restaurant_users")
       .select(
-        "restaurant_id, role, active, restaurants(id, name, slug, address, city, postcode, country, logo_url, approved, active, rejection_reason, suspension_reason)",
+        "restaurant_id, role, active, restaurants(id, name, slug, address, city, postcode, country, logo_url, timezone, currency_code, approved, active, rejection_reason, suspension_reason)",
       )
       .eq("user_id", context.userId)
       .eq("active", true);
@@ -239,6 +244,8 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
             postcode: r.postcode,
             country: r.country,
             logoUrl: r.logo_url,
+            timezone: r.timezone ?? DEFAULT_TIMEZONE,
+            currencyCode: r.currency_code ?? DEFAULT_CURRENCY,
             approved: r.approved,
             active: r.active,
             status: deriveStatus(r.approved, r.active),
@@ -281,6 +288,8 @@ export const updateMyRestaurant = createServerFn({ method: "POST" })
         postcode: data.postcode?.trim() || null,
         country: data.country?.trim() || null,
         logo_url: data.logoUrl?.trim() || null,
+        timezone: data.timezone,
+        currency_code: data.currencyCode.toUpperCase(),
       })
       .eq("id", data.restaurantId);
 

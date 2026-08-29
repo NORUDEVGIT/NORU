@@ -17,8 +17,8 @@ import { formatClock, formatShiftTime, todayIso, wasLate } from "@/lib/workforce
  * "My Shift" — visible to any active staff member (all roles) with a shift today.
  * Uses only the existing checkIn/checkOut server functions.
  */
-export function MyShiftCard({ restaurantId }: { restaurantId: string }) {
-  const today = todayIso();
+export function MyShiftCard({ restaurantId, timezone }: { restaurantId: string; timezone: string }) {
+  const today = todayIso(timezone);
   const queryClient = useQueryClient();
   const fetchShifts = useServerFn(listShifts);
   const fetchAssignments = useServerFn(listShiftTableAssignments);
@@ -84,7 +84,7 @@ export function MyShiftCard({ restaurantId }: { restaurantId: string }) {
   }
   if (!shift) return null;
 
-  const late = wasLate(shift.shiftDate, shift.startTime, shift.checkInAt);
+  const late = wasLate(shift.shiftDate, shift.startTime, shift.checkInAt, timezone);
   const tables = (assignments ?? []).map((a) => a.tableLabel).join(", ");
 
   return (
@@ -119,7 +119,7 @@ export function MyShiftCard({ restaurantId }: { restaurantId: string }) {
           </Button>
         ) : !shift.checkOutAt ? (
           <>
-            <p className="text-sm">Checked in at {formatClock(shift.checkInAt)}</p>
+            <p className="text-sm">Checked in at {formatClock(shift.checkInAt, timezone)}</p>
             <Button
               variant="outline"
               className="h-12 w-full text-base sm:w-auto sm:px-8"
@@ -131,7 +131,7 @@ export function MyShiftCard({ restaurantId }: { restaurantId: string }) {
           </>
         ) : (
           <p className="text-sm font-medium">
-            Completed · {formatClock(shift.checkInAt)}–{formatClock(shift.checkOutAt)}
+            Completed · {formatClock(shift.checkInAt, timezone)}–{formatClock(shift.checkOutAt, timezone)}
           </p>
         )}
       </div>

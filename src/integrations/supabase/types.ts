@@ -355,6 +355,47 @@ export type Database = {
         }
         Relationships: []
       }
+      restaurant_opening_hours: {
+        Row: {
+          close_time: string
+          created_at: string
+          day_of_week: number
+          id: string
+          is_closed: boolean
+          open_time: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          close_time?: string
+          created_at?: string
+          day_of_week: number
+          id?: string
+          is_closed?: boolean
+          open_time?: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          close_time?: string
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          is_closed?: boolean
+          open_time?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_opening_hours_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_staff_audit_log: {
         Row: {
           action: string
@@ -494,6 +535,7 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
+          currency_code: string
           email: string | null
           id: string
           logo_url: string | null
@@ -504,6 +546,7 @@ export type Database = {
           slug: string
           status_updated_at: string | null
           suspension_reason: string | null
+          timezone: string
           updated_at: string
         }
         Insert: {
@@ -515,6 +558,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          currency_code?: string
           email?: string | null
           id?: string
           logo_url?: string | null
@@ -525,6 +569,7 @@ export type Database = {
           slug: string
           status_updated_at?: string | null
           suspension_reason?: string | null
+          timezone?: string
           updated_at?: string
         }
         Update: {
@@ -536,6 +581,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          currency_code?: string
           email?: string | null
           id?: string
           logo_url?: string | null
@@ -546,6 +592,7 @@ export type Database = {
           slug?: string
           status_updated_at?: string | null
           suspension_reason?: string | null
+          timezone?: string
           updated_at?: string
         }
         Relationships: []

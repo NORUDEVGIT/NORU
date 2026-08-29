@@ -1,7 +1,8 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DietaryBadges } from "@/components/dietary-badges";
-import { formatPrice, type MenuItem } from "@/data/menu";
+import type { MenuItem } from "@/data/menu";
+import { useMoney } from "@/state/restaurant-context";
 
 export function MenuItemCard({
   item,
@@ -12,6 +13,7 @@ export function MenuItemCard({
   onOpen: (item: MenuItem) => void;
   onAdd: (item: MenuItem) => void;
 }) {
+  const money = useMoney();
   return (
     <article className="group overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
       <button
@@ -37,7 +39,7 @@ export function MenuItemCard({
         </div>
       </button>
       <div className="flex items-center justify-between gap-3 px-4 pb-4">
-        <span className="text-lg font-semibold tabular-nums">{formatPrice(item.price)}</span>
+        <span className="text-lg font-semibold tabular-nums">{money(item.price)}</span>
         <Button
           size="lg"
           className="h-12 rounded-full px-5 text-base"

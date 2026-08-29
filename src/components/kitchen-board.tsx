@@ -4,6 +4,7 @@ import { Bell, BellOff, Clock, LogOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 
 type OrderStatus = "new" | "preparing" | "ready" | "served";
 
@@ -35,14 +36,6 @@ const COLUMNS: { status: Exclude<OrderStatus, "served">; label: string; next: Or
 
 const ORDER_SELECT =
   "id, order_number, table_number, status, total, created_at, assigned_waiter_name_snapshot, order_source, order_items(id, item_name, quantity, price, special_instructions)";
-
-function money(value: number) {
-  return `£${Number(value).toFixed(2)}`;
-}
-
-function timeOf(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
 
 function playChime() {
   try {
@@ -325,6 +318,8 @@ function OrderCard({
   isNew: boolean;
   onAdvance: () => void;
 }) {
+  const clock = useRestaurantTime();
+  const money = useMoney();
   const notes = order.items
     .filter((i) => i.special_instructions)
     .map((i) => `${i.item_name}: ${i.special_instructions}`);
@@ -345,7 +340,7 @@ function OrderCard({
         <div>
           <p className="text-2xl font-bold text-foreground">#{order.order_number}</p>
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Clock className="size-4" /> {timeOf(order.created_at)}
+            <Clock className="size-4" /> {clock.time(order.created_at)}
           </p>
           {order.assigned_waiter_name_snapshot ? (
             <p className="text-sm text-muted-foreground">Waiter: {order.assigned_waiter_name_snapshot}</p>

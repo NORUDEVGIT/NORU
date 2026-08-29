@@ -10,6 +10,7 @@
  * assigned waiter is resolved from workforce data, never from request input.
  */
 import { shiftMoment } from "./workforce-rules";
+import { getRestaurantSettings } from "./workforce.server";
 import { displayName } from "./workforce.server";
 import type { ResolvedLine } from "./order-pricing.server";
 
@@ -99,6 +100,9 @@ export async function resolveAssignedWaiter(
 ): Promise<AssignedWaiter> {
   if (!tableId) return { status: "none" };
 
+  // Shift clock times are restaurant-local; one timezone source for all of them.
+  const { timezone } = await getRestaurantSettings(admin, restaurantId);
+
   const { data } = await admin
     .from("staff_table_assignments")
     .select(
@@ -127,8 +131,8 @@ export async function resolveAssignedWaiter(
     if (!shift || shift.restaurant_id !== restaurantId) return false;
     if (shift.status !== "scheduled") return false;
     if (row.shift_id !== shift.id) return false;
-    const start = shiftMoment(shift.shift_date, shift.start_time).getTime();
-    const end = shiftMoment(shift.shift_date, shift.end_time).getTime();
+    const start = shiftMoment(shift.shift_date, shift.start_time, timezone).getTime();
+    const end = shiftMoment(shift.shift_date, shift.end_time, timezone).getTime();
     const t = now.getTime();
     return t >= start && t <= end;
   });

@@ -9,9 +9,9 @@ import { TableContextBar } from "@/components/table-context-bar";
 import { MenuItemCard } from "@/components/menu-item-card";
 import { ItemDetailDialog } from "@/components/item-detail-dialog";
 import { Button } from "@/components/ui/button";
-import { formatPrice, type MenuItem } from "@/data/menu";
+import type { MenuItem } from "@/data/menu";
 import { getPublicMenu } from "@/lib/menu.functions";
-import { useRestaurant } from "@/state/restaurant-context";
+import { useRestaurant, useMoney } from "@/state/restaurant-context";
 import { useOrder } from "@/state/order-store";
 import heroImage from "@/assets/hero.jpg";
 
@@ -34,6 +34,7 @@ export const Route = createFileRoute("/r/$restaurantSlug/")({
 });
 
 function RestaurantMenuPage() {
+  const money = useMoney();
   const { restaurantSlug } = Route.useParams();
   const restaurant = useRestaurant();
   const { addItem, itemCount, total } = useOrder();
@@ -183,7 +184,7 @@ function RestaurantMenuPage() {
             <Link to="/r/$restaurantSlug/cart" params={{ restaurantSlug }}>
               <ShoppingBag className="size-5" />
               View order · {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
-              {formatPrice(total)}
+              {money(total)}
             </Link>
           </Button>
         </div>
