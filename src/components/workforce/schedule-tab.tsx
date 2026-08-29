@@ -218,6 +218,7 @@ export function ScheduleTab({
               restaurantId={restaurantId}
               shift={shift}
               canManage={canManage}
+              timezone={timezone}
               onAssign={() => setAssignShift(shift)}
               onCancel={() => setCancelTarget(shift)}
             />
@@ -253,11 +254,13 @@ function ShiftRow({
   restaurantId,
   shift,
   canManage,
+  timezone,
   onAssign,
   onCancel,
 }: {
   restaurantId: string;
   shift: ShiftRecord;
+  timezone: string;
   canManage: boolean;
   onAssign: () => void;
   onCancel: () => void;
