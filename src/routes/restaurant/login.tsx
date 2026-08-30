@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,6 +75,7 @@ function RestaurantLogin() {
   return (
     <div className="min-h-dvh bg-muted/30">
       <main className="mx-auto w-full max-w-md px-4 py-12">
+        <NoruLogo size="lg" className="mb-8" />
         <h1 className="font-display text-3xl">Restaurant log in</h1>
         <p className="mt-2 text-sm text-muted-foreground">Manage your restaurant on the NORU platform.</p>
 
