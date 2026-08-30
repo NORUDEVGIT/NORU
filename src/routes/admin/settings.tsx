@@ -10,9 +10,9 @@ export const Route = createFileRoute("/admin/settings")({
   },
   head: () => ({
     meta: [
-      { title: "Admin Settings — Garden Table Platform" },
+      { title: "Admin Settings — NORU" },
       { name: "description", content: "Platform administration settings and provisioning notes." },
-      { property: "og:title", content: "Admin Settings — Garden Table Platform" },
+      { property: "og:title", content: "Admin Settings — NORU" },
       { property: "og:description", content: "Platform administration settings." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

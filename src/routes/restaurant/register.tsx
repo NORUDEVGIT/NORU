@@ -10,9 +10,9 @@ export const Route = createFileRoute("/restaurant/register")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Register Your Restaurant — Garden Table Platform" },
-      { name: "description", content: "Create a restaurant account and start taking table orders on the Garden Table platform." },
-      { property: "og:title", content: "Register Your Restaurant — Garden Table Platform" },
+      { title: "Register Your Restaurant — NORU" },
+      { name: "description", content: "Create a restaurant account and start taking table orders on the NORU platform." },
+      { property: "og:title", content: "Register Your Restaurant — NORU" },
       { property: "og:description", content: "Create a restaurant account and start taking table orders." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

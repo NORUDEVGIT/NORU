@@ -12,9 +12,9 @@ export const Route = createFileRoute("/login")({
   validateSearch: z.object({ redirect: z.string().optional() }),
   head: () => ({
     meta: [
-      { title: "Log In — The Garden Table" },
-      { name: "description", content: "Log in to your Garden Table account to order and view your order history." },
-      { property: "og:title", content: "Log In — The Garden Table" },
+      { title: "Log In — NORU" },
+      { name: "description", content: "Log in to your NORU account to order and view your order history." },
+      { property: "og:title", content: "Log In — NORU" },
       { property: "og:description", content: "Log in to order faster and track your orders." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

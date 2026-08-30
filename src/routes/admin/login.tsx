@@ -9,9 +9,9 @@ export const Route = createFileRoute("/admin/login")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Administrator Sign In — Garden Table Platform" },
-      { name: "description", content: "Internal platform administration sign in for the Garden Table ordering platform." },
-      { property: "og:title", content: "Administrator Sign In — Garden Table Platform" },
+      { title: "Administrator Sign In — NORU" },
+      { name: "description", content: "Internal platform administration sign in for the NORU ordering platform." },
+      { property: "og:title", content: "Administrator Sign In — NORU" },
       { property: "og:description", content: "Internal platform administration access." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

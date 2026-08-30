@@ -83,12 +83,12 @@ export const Route = createFileRoute("/restaurant/staff")({
   },
   head: () => ({
     meta: [
-      { title: "Staff & Roles — Garden Table Platform" },
+      { title: "Staff & Roles — NORU" },
       {
         name: "description",
         content: "Add restaurant staff, set their roles and manage access to your dashboard, kitchen and orders.",
       },
-      { property: "og:title", content: "Staff & Roles — Garden Table Platform" },
+      { property: "og:title", content: "Staff & Roles — NORU" },
       { property: "og:description", content: "Create staff accounts and manage restaurant roles securely." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

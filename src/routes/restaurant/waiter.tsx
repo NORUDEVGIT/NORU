@@ -17,7 +17,7 @@ import { useMoney } from "@/state/restaurant-context";
 export const Route = createFileRoute("/restaurant/waiter")({
   head: () => ({
     meta: [
-      { title: "Take an Order | The Garden Table Restaurant Portal" },
+      { title: "Take an Order | NORU Restaurant Portal" },
       {
         name: "description",
         content:

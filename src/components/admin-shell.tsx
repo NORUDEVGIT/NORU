@@ -43,7 +43,7 @@ export function AdminShell({ active, children }: { active: AdminNav; children: R
   const checking = loading || (!!session && isLoading);
 
   return (
-    <div className="min-h-dvh bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-dvh bg-muted/30">
       <header className="sticky top-0 z-40 border-b border-border bg-background">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <span className="flex items-center gap-3 font-semibold tracking-tight">

@@ -10,9 +10,9 @@ export const Route = createFileRoute("/forgot-password")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Reset Your Password — The Garden Table" },
-      { name: "description", content: "Request a password reset link for your Garden Table customer account." },
-      { property: "og:title", content: "Reset Your Password — The Garden Table" },
+      { title: "Reset Your Password — NORU" },
+      { name: "description", content: "Request a password reset link for your NORU customer account." },
+      { property: "og:title", content: "Reset Your Password — NORU" },
       { property: "og:description", content: "We'll email you a link to set a new password." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

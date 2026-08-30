@@ -7,7 +7,7 @@ import { parseRestaurantTableQrValue } from "@/lib/restaurant-table-qr";
 export const Route = createFileRoute("/scan")({
   head: () => ({
     meta: [
-      { title: "Scan Your Table QR Code — Garden Table Platform" },
+      { title: "Scan Your Table QR Code — NORU" },
       {
         name: "description",
         content: "Scan the QR code on your restaurant table to open the menu and order as a guest.",
