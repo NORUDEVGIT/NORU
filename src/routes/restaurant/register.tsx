@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +105,7 @@ function RestaurantRegister() {
   return (
     <div className="min-h-dvh bg-muted/30">
       <main className="mx-auto w-full max-w-xl px-4 py-10">
+        <NoruLogo size="lg" className="mb-8" />
         <h1 className="font-display text-3xl">Register your restaurant</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Create your owner account. Your restaurant starts as pending approval and goes live once our team reviews it.
