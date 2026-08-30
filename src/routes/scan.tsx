@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Camera, X } from "lucide-react";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { parseRestaurantTableQrValue } from "@/lib/restaurant-table-qr";
 
 export const Route = createFileRoute("/scan")({
   head: () => ({
     meta: [
-      { title: "Scan Your Table QR Code — Garden Table Platform" },
+      { title: "Scan Your Table QR Code — NORU" },
       {
         name: "description",
         content: "Scan the QR code on your restaurant table to open the menu and order as a guest.",
@@ -98,6 +99,7 @@ function ScanPage() {
   return (
     <div className="min-h-dvh bg-background">
       <main className="mx-auto flex max-w-md flex-col px-4 py-8">
+        <NoruLogo size="md" className="mb-6" />
         <h1 className="font-display text-3xl">Scan your table QR code</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Point your camera at the QR code on your restaurant table.

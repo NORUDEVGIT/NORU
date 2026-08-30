@@ -6,7 +6,7 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   placed: { label: "New", className: "bg-primary/10 text-primary" },
   accepted: { label: "Accepted", className: "bg-sky-500/15 text-sky-700 dark:text-sky-400" },
   preparing: { label: "Preparing", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
-  ready: { label: "Ready", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  ready: { label: "Ready", className: "bg-success/15 text-success" },
   served: { label: "Served", className: "bg-muted text-muted-foreground" },
   cancelled: { label: "Cancelled", className: "bg-destructive/10 text-destructive" },
 };

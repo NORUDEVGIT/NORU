@@ -49,13 +49,13 @@ export const Route = createFileRoute("/restaurant/menu")({
   },
   head: () => ({
     meta: [
-      { title: "Menu Management — Garden Table Platform" },
+      { title: "Menu Management — NORU" },
       {
         name: "description",
         content:
           "Create categories, add dishes, set prices and mark items out of stock for your restaurant menu.",
       },
-      { property: "og:title", content: "Menu Management — Garden Table Platform" },
+      { property: "og:title", content: "Menu Management — NORU" },
       { property: "og:description", content: "Manage your restaurant's categories, dishes and availability." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

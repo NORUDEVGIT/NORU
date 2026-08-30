@@ -85,12 +85,12 @@ export const Route = createFileRoute("/restaurant/orders/")({
   },
   head: () => ({
     meta: [
-      { title: "Orders — Garden Table Platform" },
+      { title: "Orders — NORU" },
       {
         name: "description",
         content: "Search, review and manage your restaurant's order history with status, date and table filters.",
       },
-      { property: "og:title", content: "Orders — Garden Table Platform" },
+      { property: "og:title", content: "Orders — NORU" },
       { property: "og:description", content: "Searchable restaurant order history and order detail." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

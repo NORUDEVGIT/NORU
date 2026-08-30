@@ -25,9 +25,9 @@ export const Route = createFileRoute("/admin/restaurants/")({
   },
   head: () => ({
     meta: [
-      { title: "Restaurants — Garden Table Platform Admin" },
+      { title: "Restaurants — NORU Admin" },
       { name: "description", content: "Review, approve, reject and suspend restaurants registered on the platform." },
-      { property: "og:title", content: "Restaurants — Garden Table Platform Admin" },
+      { property: "og:title", content: "Restaurants — NORU Admin" },
       { property: "og:description", content: "Restaurant applications and approvals." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

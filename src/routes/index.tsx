@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { UtensilsCrossed, Store, ShieldCheck, Leaf, QrCode } from "lucide-react";
+import { UtensilsCrossed, Store, ShieldCheck, QrCode } from "lucide-react";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/state/auth-store";
 import { getMyRestaurants } from "@/lib/restaurant.functions";
@@ -9,13 +10,13 @@ import { amIPlatformAdmin } from "@/lib/admin.functions";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Order. Manage. Serve. — Restaurant Ordering Platform" },
+      { title: "NORU — Order. Manage. Serve." },
       {
         name: "description",
         content:
-          "One platform connecting customers and restaurants: order to your table, manage your restaurant, and run the kitchen.",
+          "NORU connects customers and restaurants: order to your table, manage your restaurant, and run the kitchen.",
       },
-      { property: "og:title", content: "Order. Manage. Serve." },
+      { property: "og:title", content: "NORU — Order. Manage. Serve." },
       {
         property: "og:description",
         content: "One platform connecting customers and restaurants.",
@@ -52,8 +53,7 @@ function PlatformHome() {
   return (
     <div className="min-h-dvh bg-background">
       <header className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-5">
-        <Leaf className="size-5 text-accent" />
-        <span className="font-display text-lg font-semibold">Garden Table Platform</span>
+        <NoruLogo size="sm" />
       </header>
 
       <main className="mx-auto max-w-5xl px-4 pb-20">

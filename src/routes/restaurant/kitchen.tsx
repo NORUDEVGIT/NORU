@@ -20,9 +20,9 @@ export const Route = createFileRoute("/restaurant/kitchen")({
   },
   head: () => ({
     meta: [
-      { title: "Kitchen Orders — Garden Table Platform" },
+      { title: "Kitchen Orders — NORU" },
       { name: "description", content: "Live kitchen display for your restaurant: incoming orders, table numbers and preparation status in real time." },
-      { property: "og:title", content: "Kitchen Orders — Garden Table Platform" },
+      { property: "og:title", content: "Kitchen Orders — NORU" },
       { property: "og:description", content: "Live kitchen display for your restaurant's incoming orders." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

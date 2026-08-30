@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,9 +11,9 @@ export const Route = createFileRoute("/restaurant/register")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Register Your Restaurant — Garden Table Platform" },
-      { name: "description", content: "Create a restaurant account and start taking table orders on the Garden Table platform." },
-      { property: "og:title", content: "Register Your Restaurant — Garden Table Platform" },
+      { title: "Register Your Restaurant — NORU" },
+      { name: "description", content: "Create a restaurant account and start taking table orders on the NORU platform." },
+      { property: "og:title", content: "Register Your Restaurant — NORU" },
       { property: "og:description", content: "Create a restaurant account and start taking table orders." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -104,6 +105,7 @@ function RestaurantRegister() {
   return (
     <div className="min-h-dvh bg-muted/30">
       <main className="mx-auto w-full max-w-xl px-4 py-10">
+        <NoruLogo size="lg" className="mb-8" />
         <h1 className="font-display text-3xl">Register your restaurant</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Create your owner account. Your restaurant starts as pending approval and goes live once our team reviews it.

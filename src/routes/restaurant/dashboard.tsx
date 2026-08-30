@@ -41,9 +41,9 @@ export const Route = createFileRoute("/restaurant/dashboard")({
   },
   head: () => ({
     meta: [
-      { title: "Restaurant Dashboard — Garden Table Platform" },
+      { title: "Restaurant Dashboard — NORU" },
       { name: "description", content: "Live restaurant operations overview: today's orders, revenue, kitchen status, tables and menu availability." },
-      { property: "og:title", content: "Restaurant Dashboard — Garden Table Platform" },
+      { property: "og:title", content: "Restaurant Dashboard — NORU" },
       { property: "og:description", content: "Live restaurant operations overview for your venue." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

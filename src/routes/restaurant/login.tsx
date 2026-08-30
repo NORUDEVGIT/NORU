@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +16,9 @@ export const Route = createFileRoute("/restaurant/login")({
   },
   head: () => ({
     meta: [
-      { title: "Restaurant Log In — Garden Table Platform" },
-      { name: "description", content: "Restaurant owners and managers: sign in to manage your restaurant on the Garden Table platform." },
-      { property: "og:title", content: "Restaurant Log In — Garden Table Platform" },
+      { title: "Restaurant Log In — NORU" },
+      { name: "description", content: "Restaurant owners and managers: sign in to manage your restaurant on the NORU platform." },
+      { property: "og:title", content: "Restaurant Log In — NORU" },
       { property: "og:description", content: "Sign in to your restaurant portal." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -74,8 +75,9 @@ function RestaurantLogin() {
   return (
     <div className="min-h-dvh bg-muted/30">
       <main className="mx-auto w-full max-w-md px-4 py-12">
+        <NoruLogo size="lg" className="mb-8" />
         <h1 className="font-display text-3xl">Restaurant log in</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Manage your restaurant on the Garden Table platform.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Manage your restaurant on the NORU platform.</p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-5">
           <div className="space-y-2">

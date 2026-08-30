@@ -2,7 +2,8 @@ import { type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LayoutDashboard, Store, Users, Settings, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Store, Users, Settings, LogOut } from "lucide-react";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { amIPlatformAdmin } from "@/lib/admin.functions";
@@ -42,12 +43,14 @@ export function AdminShell({ active, children }: { active: AdminNav; children: R
   const checking = loading || (!!session && isLoading);
 
   return (
-    <div className="min-h-dvh bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-dvh bg-muted/30">
       <header className="sticky top-0 z-40 border-b border-border bg-background">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
-          <span className="flex items-center gap-2 font-semibold tracking-tight">
-            <ShieldCheck className="size-5 text-primary" />
-            Platform Admin
+          <span className="flex items-center gap-3 font-semibold tracking-tight">
+            <NoruLogo size="sm" />
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Platform Admin
+            </span>
           </span>
           <Button variant="ghost" size="sm" onClick={() => void signOut()}>
             <LogOut className="mr-2 size-4" /> Sign out
@@ -97,7 +100,7 @@ export function AdminShell({ active, children }: { active: AdminNav; children: R
 export function StatusBadge({ status }: { status: "pending" | "approved" | "suspended" | "rejected" }) {
   const styles: Record<string, string> = {
     pending: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-    approved: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+    approved: "bg-success/15 text-success",
     suspended: "bg-orange-600/15 text-orange-700 dark:text-orange-400",
     rejected: "bg-destructive/10 text-destructive",
   };

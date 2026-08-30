@@ -13,10 +13,10 @@ import { useAuth } from "@/state/auth-store";
 export const Route = createFileRoute("/account/")({
   head: () => ({
     meta: [
-      { title: "Your Account — The Garden Table" },
-      { name: "description", content: "Manage your name, phone number and account details at The Garden Table." },
-      { property: "og:title", content: "Your Account — The Garden Table" },
-      { property: "og:description", content: "Manage your Garden Table customer account." },
+      { title: "Your Account — NORU" },
+      { name: "description", content: "Manage your name, phone number and account details at NORU." },
+      { property: "og:title", content: "Your Account — NORU" },
+      { property: "og:description", content: "Manage your NORU customer account." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },

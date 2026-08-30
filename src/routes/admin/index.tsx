@@ -13,9 +13,9 @@ export const Route = createFileRoute("/admin/")({
   },
   head: () => ({
     meta: [
-      { title: "Admin Dashboard — Garden Table Platform" },
+      { title: "Admin Dashboard — NORU" },
       { name: "description", content: "Platform operations overview: restaurants, approvals and customer totals." },
-      { property: "og:title", content: "Admin Dashboard — Garden Table Platform" },
+      { property: "og:title", content: "Admin Dashboard — NORU" },
       { property: "og:description", content: "Platform operations overview." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

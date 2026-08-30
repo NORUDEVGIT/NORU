@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,9 +10,9 @@ export const Route = createFileRoute("/admin/login")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Administrator Sign In — Garden Table Platform" },
-      { name: "description", content: "Internal platform administration sign in for the Garden Table ordering platform." },
-      { property: "og:title", content: "Administrator Sign In — Garden Table Platform" },
+      { title: "Administrator Sign In — NORU" },
+      { name: "description", content: "Internal platform administration sign in for the NORU ordering platform." },
+      { property: "og:title", content: "Administrator Sign In — NORU" },
       { property: "og:description", content: "Internal platform administration access." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -62,8 +63,9 @@ function AdminLogin() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-slate-100 px-4 dark:bg-slate-950">
+    <div className="flex min-h-dvh items-center justify-center bg-muted/30 px-4">
       <main className="w-full max-w-sm">
+        <NoruLogo size="md" className="mb-6" />
         <h1 className="text-2xl font-semibold tracking-tight">Platform administration</h1>
         <p className="mt-1 text-sm text-muted-foreground">Authorized personnel only.</p>
         <form onSubmit={onSubmit} className="mt-6 space-y-4 rounded-xl border border-border bg-card p-5">

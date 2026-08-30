@@ -11,10 +11,10 @@ export const Route = createFileRoute("/register")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Create Your Account — The Garden Table" },
-      { name: "description", content: "Create a free account to order faster and keep your order history at The Garden Table." },
-      { property: "og:title", content: "Create Your Account — The Garden Table" },
-      { property: "og:description", content: "Order faster and track every order with a Garden Table account." },
+      { title: "Create Your Account — NORU" },
+      { name: "description", content: "Create a free account to order faster and keep your order history at NORU." },
+      { property: "og:title", content: "Create Your Account — NORU" },
+      { property: "og:description", content: "Order faster and track every order with a NORU account." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
