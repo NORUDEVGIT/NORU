@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Leaf, Search, ShoppingBag, Menu, X } from "lucide-react";
+import { Search, ShoppingBag, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -90,7 +90,6 @@ export function SiteHeader({ categories = [], restaurantName = "Order to your ta
         </Sheet>
 
         <MenuLink className="flex min-w-0 items-center justify-center gap-2">
-          <Leaf className="size-5 shrink-0 text-accent" />
           <span className="truncate font-display text-lg font-semibold sm:text-xl">
             {restaurantName}
           </span>
