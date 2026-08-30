@@ -164,7 +164,7 @@ export function RestaurantShell({
               <button
                 type="button"
                 aria-label="Close navigation"
-                className="absolute right-3 top-3 rounded-lg p-1 hover:bg-muted"
+                className="absolute right-3 top-3 rounded-lg p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent"
                 onClick={() => setNavOpen(false)}
               >
                 <X className="size-4" />
@@ -248,7 +248,7 @@ export function RestaurantShell({
 
 function StatusPill({ status }: { status: RestaurantMembership["restaurant"]["status"] }) {
   const map = {
-    approved: { label: "Active", className: "bg-primary/10 text-primary" },
+    approved: { label: "Active", className: "bg-success/15 text-success" },
     pending: { label: "Pending approval", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
     suspended: { label: "Suspended", className: "bg-orange-500/15 text-orange-700 dark:text-orange-400" },
     rejected: { label: "Not approved", className: "bg-destructive/10 text-destructive" },
