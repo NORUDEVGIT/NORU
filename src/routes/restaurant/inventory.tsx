@@ -5,19 +5,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   AlertTriangle,
-  Armchair,
-  Boxes,
   History,
   Minus,
   MoreHorizontal,
-  PackageX,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   SlidersHorizontal,
   Trash2,
-  Wrench,
 } from "lucide-react";
 
 
@@ -35,7 +31,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   ItemFormDialog,
-  MOVEMENT_LABEL,
   MovementDialog,
   MovementHistoryDialog,
   type ItemFormValues,
@@ -43,7 +38,6 @@ import {
 import {
   createInventoryItem,
   createInventoryMovement,
-  getInventoryOverview,
   listInventoryItems,
   listInventoryMovements,
   listInventoryUnits,
@@ -52,7 +46,7 @@ import {
 } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { AssetsTab } from "@/components/inventory/assets-tab";
-import { getAssetOverview } from "@/lib/assets.functions";
+import { InventoryOverviewDashboard } from "@/components/inventory/overview-dashboard";
 
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
@@ -107,9 +101,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
 
   const fetchItems = useServerFn(listInventoryItems);
   const fetchUnits = useServerFn(listInventoryUnits);
-  const fetchOverview = useServerFn(getInventoryOverview);
   const fetchMovements = useServerFn(listInventoryMovements);
-  const fetchAssetOverview = useServerFn(getAssetOverview);
 
   const saveItem = useServerFn(createInventoryItem);
   const editItem = useServerFn(updateInventoryItem);
@@ -131,19 +123,6 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     queryFn: () => fetchItems({ data: { restaurantId, includeInactive: showInactive } }),
   });
   const unitsQuery = useQuery({ queryKey: ["inventory-units"], queryFn: () => fetchUnits() });
-  const overviewQuery = useQuery({
-    queryKey: ["inventory-overview", restaurantId],
-    queryFn: () => fetchOverview({ data: { restaurantId } }),
-  });
-  const assetOverviewQuery = useQuery({
-    queryKey: ["restaurant-asset-overview", restaurantId],
-    queryFn: () => fetchAssetOverview({ data: { restaurantId } }),
-  });
-
-  const recentQuery = useQuery({
-    queryKey: ["inventory-recent", restaurantId],
-    queryFn: () => fetchMovements({ data: { restaurantId, limit: 12 } }),
-  });
   const historyQuery = useQuery({
     queryKey: ["inventory-history", restaurantId, historyItem?.id],
     queryFn: () => fetchMovements({ data: { restaurantId, itemId: historyItem!.id, limit: 200 } }),
@@ -155,13 +134,21 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["inventory-items", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["inventory-overview", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["inventory-recent", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["inventory-history", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["restaurant-asset-overview", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["restaurant-assets", restaurantId] });
-
+    // Reporting queries backing the Overview dashboard.
+    for (const key of [
+      "inventory-dashboard",
+      "inventory-trend",
+      "inventory-waste",
+      "inventory-attention",
+      "inventory-asset-analytics",
+      "inventory-activity",
+    ]) {
+      void queryClient.invalidateQueries({ queryKey: [key, restaurantId] });
+    }
   }
+
 
   const createMutation = useMutation({
     mutationFn: (values: ItemFormValues) =>
@@ -242,8 +229,6 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     return allItems.filter((i) => (q ? i.name.toLowerCase().includes(q) : true));
   }, [allItems, search]);
 
-  const overview = overviewQuery.data;
-  const assetOverview = assetOverviewQuery.data;
 
 
   return (
@@ -285,67 +270,9 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Total items" value={overview?.totalItems ?? "—"} icon={Boxes} />
-            <StatCard label="Low stock" value={overview?.lowStock ?? "—"} icon={AlertTriangle} tone="warning" />
-            <StatCard label="Out of stock" value={overview?.outOfStock ?? "—"} icon={PackageX} tone="danger" />
-            <StatCard
-              label="Estimated value"
-              value={overview ? money(overview.estimatedValue) : "—"}
-              icon={SlidersHorizontal}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Operating assets" value={assetOverview?.operatingAssets ?? "—"} icon={Armchair} />
-            <StatCard label="Equipment" value={assetOverview?.equipment ?? "—"} icon={Wrench} />
-            <StatCard
-              label="Under maintenance"
-              value={assetOverview?.underMaintenance ?? "—"}
-              icon={Wrench}
-              tone="warning"
-            />
-            <StatCard
-              label="Out of service"
-              value={assetOverview?.outOfService ?? "—"}
-              icon={PackageX}
-              tone="danger"
-            />
-          </div>
-
-
-
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <h2 className="font-display text-lg">Recent stock movements</h2>
-            {recentQuery.isLoading ? (
-              <p className="mt-3 text-sm text-muted-foreground">Loading movements…</p>
-            ) : (recentQuery.data ?? []).length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">No stock movements recorded yet.</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-border">
-                {(recentQuery.data ?? []).map((m) => (
-                  <li key={m.id} className="flex items-start gap-3 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{m.itemName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {MOVEMENT_LABEL[m.movementType]} · {dateTime(m.createdAt)} · {m.recordedBy ?? "Unknown"}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "text-sm font-semibold tabular-nums",
-                        m.quantity >= 0 ? "text-success" : "text-destructive",
-                      )}
-                    >
-                      {m.quantity > 0 ? "+" : ""}
-                      {m.quantity} {m.unitCode}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <InventoryOverviewDashboard restaurantId={restaurantId} />
         </TabsContent>
+
 
         {(["ingredient", "consumable"] as const).map((type) => (
           <TabsContent key={type} value={type} className="mt-4 space-y-4">
@@ -443,33 +370,6 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         loading={historyQuery.isLoading}
         onClose={() => setHistoryItem(null)}
       />
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  icon: typeof Boxes;
-  tone?: "warning" | "danger";
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Icon
-          className={cn(
-            "size-4",
-            tone === "warning" ? "text-amber-600" : tone === "danger" ? "text-destructive" : "text-primary",
-          )}
-        />
-        {label}
-      </div>
-      <p className="mt-2 font-display text-2xl tabular-nums">{value}</p>
     </div>
   );
 }
