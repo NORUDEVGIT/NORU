@@ -133,9 +133,12 @@ export type Database = {
           id: string
           inventory_item_id: string
           movement_type: string
+          purchase_order_id: string | null
+          purchase_order_item_id: string | null
           quantity: number
           reason: string | null
           restaurant_id: string
+          supplier_id: string | null
           unit_cost: number | null
           unit_id: string
         }
@@ -146,9 +149,12 @@ export type Database = {
           id?: string
           inventory_item_id: string
           movement_type: string
+          purchase_order_id?: string | null
+          purchase_order_item_id?: string | null
           quantity: number
           reason?: string | null
           restaurant_id: string
+          supplier_id?: string | null
           unit_cost?: number | null
           unit_id: string
         }
@@ -159,9 +165,12 @@ export type Database = {
           id?: string
           inventory_item_id?: string
           movement_type?: string
+          purchase_order_id?: string | null
+          purchase_order_item_id?: string | null
           quantity?: number
           reason?: string | null
           restaurant_id?: string
+          supplier_id?: string | null
           unit_cost?: number | null
           unit_id?: string
         }
@@ -181,10 +190,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "inventory_stock_movements_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_stock_movements_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "inventory_stock_movements_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_stock_movements_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_suppliers"
             referencedColumns: ["id"]
           },
           {
@@ -523,6 +553,218 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_order_history: {
+        Row: {
+          created_at: string
+          created_by_staff_membership_id: string | null
+          event_type: string
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          purchase_order_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          event_type: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          purchase_order_id: string
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          event_type?: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          purchase_order_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_history_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_history_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string
+          item_name_snapshot: string
+          line_total: number
+          ordered_quantity: number
+          purchase_order_id: string
+          received_quantity: number
+          restaurant_id: string
+          unit_cost: number
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          item_name_snapshot: string
+          line_total?: number
+          ordered_quantity: number
+          purchase_order_id: string
+          received_quantity?: number
+          restaurant_id: string
+          unit_cost?: number
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          item_name_snapshot?: string
+          line_total?: number
+          ordered_quantity?: number
+          purchase_order_id?: string
+          received_quantity?: number
+          restaurant_id?: string
+          unit_cost?: number
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          created_at: string
+          created_by_staff_membership_id: string | null
+          expected_delivery_date: string | null
+          id: string
+          notes: string | null
+          order_date: string
+          ordered_by_staff_membership_id: string | null
+          po_number: string
+          restaurant_id: string
+          status: string
+          subtotal: number
+          supplier_id: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          ordered_by_staff_membership_id?: string | null
+          po_number: string
+          restaurant_id: string
+          status?: string
+          subtotal?: number
+          supplier_id: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          ordered_by_staff_membership_id?: string | null
+          po_number?: string
+          restaurant_id?: string
+          status?: string
+          subtotal?: number
+          supplier_id?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_ordered_by_staff_membership_id_fkey"
+            columns: ["ordered_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_asset_history: {
         Row: {
           asset_id: string
@@ -740,6 +982,69 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "restaurant_staff_audit_log_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_suppliers: {
+        Row: {
+          active: boolean
+          address: string | null
+          contact_name: string | null
+          created_at: string
+          created_by_staff_membership_id: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          restaurant_id: string
+          tax_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          restaurant_id: string
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          restaurant_id?: string
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_suppliers_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_suppliers_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -1131,6 +1436,16 @@ export type Database = {
       is_restaurant_member: {
         Args: { _restaurant_id: string }
         Returns: boolean
+      }
+      receive_purchase_order_goods: {
+        Args: {
+          _lines: Json
+          _membership_id: string
+          _notes?: string
+          _purchase_order_id: string
+          _restaurant_id: string
+        }
+        Returns: string
       }
     }
     Enums: {
