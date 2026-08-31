@@ -523,6 +523,139 @@ export type Database = {
         }
         Relationships: []
       }
+      restaurant_asset_history: {
+        Row: {
+          asset_id: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          event_type: string
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          restaurant_id: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          event_type: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          event_type?: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_asset_history_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_asset_history_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_asset_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_assets: {
+        Row: {
+          asset_code: string | null
+          asset_type: string
+          condition: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          purchase_cost: number | null
+          purchase_date: string | null
+          quantity: number
+          restaurant_id: string
+          serial_number: string | null
+          status: string
+          updated_at: string
+          warranty_expiry: string | null
+        }
+        Insert: {
+          asset_code?: string | null
+          asset_type: string
+          condition?: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          purchase_cost?: number | null
+          purchase_date?: string | null
+          quantity?: number
+          restaurant_id: string
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+          warranty_expiry?: string | null
+        }
+        Update: {
+          asset_code?: string | null
+          asset_type?: string
+          condition?: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          purchase_cost?: number | null
+          purchase_date?: string | null
+          quantity?: number
+          restaurant_id?: string
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+          warranty_expiry?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_assets_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_assets_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_opening_hours: {
         Row: {
           close_time: string
