@@ -57,6 +57,13 @@
       "when": 1788175019274,
       "tag": "0007_restrict_opening_hours_public_read",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788176124018,
+      "tag": "0008_create_purchasing_core",
+      "breakpoints": true
     }
   ]
 }
