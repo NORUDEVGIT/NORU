@@ -53,6 +53,7 @@ import {
 import type { MovementType } from "@/lib/inventory.server";
 import { AssetsTab } from "@/components/inventory/assets-tab";
 import { getAssetOverview } from "@/lib/assets.functions";
+import { InventoryOverviewDashboard } from "@/components/inventory/overview-dashboard";
 
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
