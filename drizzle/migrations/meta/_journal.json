@@ -43,6 +43,13 @@
       "when": 1788170958164,
       "tag": "0005_create_inventory_core",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788172718147,
+      "tag": "0006_create_restaurant_assets",
+      "breakpoints": true
     }
   ]
 }

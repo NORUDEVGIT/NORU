@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  Armchair,
   Boxes,
   History,
   Minus,
@@ -16,7 +17,9 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
+  Wrench,
 } from "lucide-react";
+
 
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
@@ -48,6 +51,9 @@ import {
   type InventoryItem,
 } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
+import { AssetsTab } from "@/components/inventory/assets-tab";
+import { getAssetOverview } from "@/lib/assets.functions";
+
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { cn } from "@/lib/utils";
@@ -103,11 +109,16 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const fetchUnits = useServerFn(listInventoryUnits);
   const fetchOverview = useServerFn(getInventoryOverview);
   const fetchMovements = useServerFn(listInventoryMovements);
+  const fetchAssetOverview = useServerFn(getAssetOverview);
+
   const saveItem = useServerFn(createInventoryItem);
   const editItem = useServerFn(updateInventoryItem);
   const recordMovement = useServerFn(createInventoryMovement);
 
-  const [tab, setTab] = useState<"overview" | "ingredient" | "consumable">("overview");
+  const [tab, setTab] = useState<
+    "overview" | "ingredient" | "consumable" | "operating_asset" | "equipment"
+  >("overview");
+
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -124,6 +135,11 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     queryKey: ["inventory-overview", restaurantId],
     queryFn: () => fetchOverview({ data: { restaurantId } }),
   });
+  const assetOverviewQuery = useQuery({
+    queryKey: ["restaurant-asset-overview", restaurantId],
+    queryFn: () => fetchAssetOverview({ data: { restaurantId } }),
+  });
+
   const recentQuery = useQuery({
     queryKey: ["inventory-recent", restaurantId],
     queryFn: () => fetchMovements({ data: { restaurantId, limit: 12 } }),
@@ -142,6 +158,9 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     void queryClient.invalidateQueries({ queryKey: ["inventory-overview", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["inventory-recent", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["inventory-history", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["restaurant-asset-overview", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["restaurant-assets", restaurantId] });
+
   }
 
   const createMutation = useMutation({
@@ -224,6 +243,8 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   }, [allItems, search]);
 
   const overview = overviewQuery.data;
+  const assetOverview = assetOverviewQuery.data;
+
 
   return (
     <div className="space-y-6">
@@ -239,7 +260,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
             <RefreshCw className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
-          {canManage ? (
+          {canManage && (tab === "overview" || tab === "ingredient" || tab === "consumable") ? (
             <Button
               size="sm"
               onClick={() => {
@@ -259,6 +280,8 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="ingredient">Ingredients</TabsTrigger>
           <TabsTrigger value="consumable">Consumables</TabsTrigger>
+          <TabsTrigger value="operating_asset">Operating Assets</TabsTrigger>
+          <TabsTrigger value="equipment">Equipment</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -272,6 +295,25 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
               icon={SlidersHorizontal}
             />
           </div>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Operating assets" value={assetOverview?.operatingAssets ?? "—"} icon={Armchair} />
+            <StatCard label="Equipment" value={assetOverview?.equipment ?? "—"} icon={Wrench} />
+            <StatCard
+              label="Under maintenance"
+              value={assetOverview?.underMaintenance ?? "—"}
+              icon={Wrench}
+              tone="warning"
+            />
+            <StatCard
+              label="Out of service"
+              value={assetOverview?.outOfService ?? "—"}
+              icon={PackageX}
+              tone="danger"
+            />
+          </div>
+
+
 
           <div className="rounded-2xl border border-border bg-card p-4">
             <h2 className="font-display text-lg">Recent stock movements</h2>
@@ -349,6 +391,14 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
             )}
           </TabsContent>
         ))}
+
+        <TabsContent value="operating_asset" className="mt-4">
+          <AssetsTab restaurantId={restaurantId} assetType="operating_asset" />
+        </TabsContent>
+        <TabsContent value="equipment" className="mt-4">
+          <AssetsTab restaurantId={restaurantId} assetType="equipment" />
+        </TabsContent>
+
       </Tabs>
 
       <ItemFormDialog
