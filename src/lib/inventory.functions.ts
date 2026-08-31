@@ -398,7 +398,7 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
 
     const { error } = await supabaseAdmin
       .from("inventory_items")
-      .update(patch)
+      .update(patch as never)
       .eq("id", data.itemId)
       .eq("restaurant_id", data.restaurantId);
     if (error) {
