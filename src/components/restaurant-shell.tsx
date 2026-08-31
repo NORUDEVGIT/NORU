@@ -7,6 +7,8 @@ import {
   UtensilsCrossed,
   ChefHat,
   ReceiptText,
+  Boxes,
+
   QrCode,
   Users,
   HandPlatter,
@@ -32,10 +34,12 @@ export type RestaurantNavLabel =
   | "Orders"
   | "Tables & QR"
   | "Take Order"
+  | "Inventory"
   | "Staff"
   | "Customers"
   | "Reports"
   | "Settings";
+
 
 const NAV: {
   to: string;
@@ -58,7 +62,15 @@ const NAV: {
     ready: true,
     roles: ["owner", "manager", "waiter"],
   },
+  {
+    to: "/restaurant/inventory",
+    label: "Inventory",
+    icon: Boxes,
+    ready: true,
+    roles: ["owner", "manager", "kitchen"],
+  },
   { to: "/restaurant/staff", label: "Staff", display: "Staff & Shifts", icon: Users, ready: true },
+
 
   { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
   { to: "/restaurant/dashboard", label: "Reports", icon: BarChart3, ready: false },

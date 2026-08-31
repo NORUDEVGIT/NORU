@@ -231,8 +231,8 @@ async function loadMovements(
       .select("id, name")
       .in("id", [...new Set(movements.map((m) => m.inventory_item_id))]),
   ]);
-  const unitCode = new Map((units ?? []).map((u: any) => [u.id, u.code]));
-  const itemName = new Map((items ?? []).map((i: any) => [i.id, i.name]));
+  const unitCode = new Map<string, string>((units ?? []).map((u: any) => [u.id, u.code]));
+  const itemName = new Map<string, string>((items ?? []).map((i: any) => [i.id, i.name]));
 
   const membershipIds = [...new Set(movements.map((m) => m.created_by_staff_membership_id).filter(Boolean))];
   const recorder = new Map<string, string | null>();
@@ -245,7 +245,7 @@ async function loadMovements(
     const { data: profiles } = userIds.length
       ? await admin.from("profiles").select("id, first_name, last_name, email").in("id", userIds)
       : { data: [] as any[] };
-    const byUser = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+    const byUser = new Map<string, any>((profiles ?? []).map((p: any) => [p.id, p]));
     for (const m of members ?? []) {
       const p = byUser.get(m.user_id);
       recorder.set(m.id, displayName(p) ?? p?.email ?? null);
@@ -350,7 +350,7 @@ export const createInventoryItem = createServerFn({ method: "POST" })
         _item_id: item.id,
         _movement_type: "opening_balance",
         _signed_quantity: data.openingQuantity,
-        _unit_cost: data.unitCost ?? null,
+        _unit_cost: (data.unitCost ?? null) as unknown as number,
         _reason: "Opening balance",
         _membership_id: me.id,
         _allow_negative: false,
@@ -388,7 +388,7 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
     await loadInventoryItem(supabaseAdmin, data.restaurantId, data.itemId);
 
     // Quantity is deliberately absent: stock only moves through the ledger.
-    const patch: Record<string, unknown> = {};
+    const patch: Record<string, any> = {};
     if (data.name !== undefined) patch['name'] = data.name;
     if (data.minimumStockLevel !== undefined) patch['minimum_stock_level'] = data.minimumStockLevel;
     if (data.unitCost !== undefined) patch['unit_cost'] = data.unitCost;
@@ -398,7 +398,7 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
 
     const { error } = await supabaseAdmin
       .from("inventory_items")
-      .update(patch)
+      .update(patch as never)
       .eq("id", data.itemId)
       .eq("restaurant_id", data.restaurantId);
     if (error) {
@@ -453,8 +453,8 @@ export const createInventoryMovement = createServerFn({ method: "POST" })
       _item_id: item.id,
       _movement_type: type,
       _signed_quantity: signed,
-      _unit_cost: unitCost,
-      _reason: data.reason?.trim() || null,
+      _unit_cost: unitCost as unknown as number,
+      _reason: (data.reason?.trim() || null) as unknown as string,
       _membership_id: me.id,
       _allow_negative: allowsNegative(type, me.role),
     });
