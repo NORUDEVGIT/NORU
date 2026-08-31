@@ -32,10 +32,12 @@ export type RestaurantNavLabel =
   | "Orders"
   | "Tables & QR"
   | "Take Order"
+  | "Inventory"
   | "Staff"
   | "Customers"
   | "Reports"
   | "Settings";
+
 
 const NAV: {
   to: string;
