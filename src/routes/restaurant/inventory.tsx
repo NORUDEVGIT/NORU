@@ -374,33 +374,6 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  icon: typeof Boxes;
-  tone?: "warning" | "danger";
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Icon
-          className={cn(
-            "size-4",
-            tone === "warning" ? "text-amber-600" : tone === "danger" ? "text-destructive" : "text-primary",
-          )}
-        />
-        {label}
-      </div>
-      <p className="mt-2 font-display text-2xl tabular-nums">{value}</p>
-    </div>
-  );
-}
-
 type ItemAction = MovementType | "history" | "edit";
 
 function ItemList({
