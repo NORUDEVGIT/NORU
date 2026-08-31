@@ -285,67 +285,9 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Total items" value={overview?.totalItems ?? "—"} icon={Boxes} />
-            <StatCard label="Low stock" value={overview?.lowStock ?? "—"} icon={AlertTriangle} tone="warning" />
-            <StatCard label="Out of stock" value={overview?.outOfStock ?? "—"} icon={PackageX} tone="danger" />
-            <StatCard
-              label="Estimated value"
-              value={overview ? money(overview.estimatedValue) : "—"}
-              icon={SlidersHorizontal}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Operating assets" value={assetOverview?.operatingAssets ?? "—"} icon={Armchair} />
-            <StatCard label="Equipment" value={assetOverview?.equipment ?? "—"} icon={Wrench} />
-            <StatCard
-              label="Under maintenance"
-              value={assetOverview?.underMaintenance ?? "—"}
-              icon={Wrench}
-              tone="warning"
-            />
-            <StatCard
-              label="Out of service"
-              value={assetOverview?.outOfService ?? "—"}
-              icon={PackageX}
-              tone="danger"
-            />
-          </div>
-
-
-
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <h2 className="font-display text-lg">Recent stock movements</h2>
-            {recentQuery.isLoading ? (
-              <p className="mt-3 text-sm text-muted-foreground">Loading movements…</p>
-            ) : (recentQuery.data ?? []).length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">No stock movements recorded yet.</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-border">
-                {(recentQuery.data ?? []).map((m) => (
-                  <li key={m.id} className="flex items-start gap-3 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{m.itemName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {MOVEMENT_LABEL[m.movementType]} · {dateTime(m.createdAt)} · {m.recordedBy ?? "Unknown"}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "text-sm font-semibold tabular-nums",
-                        m.quantity >= 0 ? "text-success" : "text-destructive",
-                      )}
-                    >
-                      {m.quantity > 0 ? "+" : ""}
-                      {m.quantity} {m.unitCode}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <InventoryOverviewDashboard restaurantId={restaurantId} />
         </TabsContent>
+
 
         {(["ingredient", "consumable"] as const).map((type) => (
           <TabsContent key={type} value={type} className="mt-4 space-y-4">
