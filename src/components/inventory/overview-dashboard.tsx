@@ -58,10 +58,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  active: "hsl(var(--success))",
-  under_maintenance: "hsl(var(--warning, 38 92% 50%))",
-  out_of_service: "hsl(var(--destructive))",
-  disposed: "hsl(var(--muted-foreground))",
+  active: "var(--success)",
+  under_maintenance: "var(--chart-4)",
+  out_of_service: "var(--destructive)",
+  disposed: "var(--muted-foreground)",
 };
 
 export function InventoryOverviewDashboard({ restaurantId }: { restaurantId: string }) {
@@ -226,33 +226,33 @@ export function InventoryOverviewDashboard({ restaurantId }: { restaurantId: str
                   <YAxis tickLine={false} axisLine={false} fontSize={12} width={48} />
                   <Tooltip
                     formatter={(value: any) => (useValueTrend ? money(Number(value)) : String(value))}
-                    contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))" }}
+                    contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--card-foreground)" }}
                   />
                   <Legend />
                   <Bar
                     stackId="a"
                     name="Received"
                     dataKey={useValueTrend ? "stockInValue" : "stockInCount"}
-                    fill="hsl(var(--success))"
+                    fill="var(--success)"
                     radius={[0, 0, 0, 0]}
                   />
                   <Bar
                     stackId="a"
                     name="Usage"
                     dataKey={useValueTrend ? "usageValue" : "usageCount"}
-                    fill="hsl(var(--primary))"
+                    fill="var(--chart-1)"
                   />
                   <Bar
                     stackId="a"
                     name="Waste"
                     dataKey={useValueTrend ? "wasteValue" : "wasteCount"}
-                    fill="hsl(38 92% 50%)"
+                    fill="var(--chart-4)"
                   />
                   <Bar
                     stackId="a"
                     name="Loss"
                     dataKey={useValueTrend ? "lossValue" : "lossCount"}
-                    fill="hsl(var(--destructive))"
+                    fill="var(--destructive)"
                     radius={[6, 6, 0, 0]}
                   />
                 </BarChart>
@@ -281,7 +281,7 @@ export function InventoryOverviewDashboard({ restaurantId }: { restaurantId: str
                       <Cell key={d.status} fill={STATUS_COLOR[d.status] ?? "hsl(var(--muted-foreground))"} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))" }} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--card-foreground)" }} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
