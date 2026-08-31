@@ -30,6 +30,7 @@ import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
 import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
 import { Route as RRestaurantSlugRouteRouteImport } from './routes/r/$restaurantSlug/route'
 import { Route as RestaurantDashboardRouteImport } from './routes/restaurant/dashboard'
+import { Route as RestaurantInventoryRouteImport } from './routes/restaurant/inventory'
 import { Route as RestaurantKitchenRouteImport } from './routes/restaurant/kitchen'
 import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantMenuRouteImport } from './routes/restaurant/menu'
@@ -156,6 +157,11 @@ const RRestaurantSlugRouteRoute = RRestaurantSlugRouteRouteImport.update({
 const RestaurantDashboardRoute = RestaurantDashboardRouteImport.update({
   id: '/restaurant/dashboard',
   path: '/restaurant/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantInventoryRoute = RestaurantInventoryRouteImport.update({
+  id: '/restaurant/inventory',
+  path: '/restaurant/inventory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RestaurantKitchenRoute = RestaurantKitchenRouteImport.update({
@@ -291,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/inventory': typeof RestaurantInventoryRoute
   '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/menu': typeof RestaurantMenuRoute
@@ -334,6 +341,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/inventory': typeof RestaurantInventoryRoute
   '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/menu': typeof RestaurantMenuRoute
@@ -380,6 +388,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/inventory': typeof RestaurantInventoryRoute
   '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/menu': typeof RestaurantMenuRoute
@@ -427,6 +436,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/kitchen/login'
     | '/restaurant/dashboard'
+    | '/restaurant/inventory'
     | '/restaurant/kitchen'
     | '/restaurant/login'
     | '/restaurant/menu'
@@ -470,6 +480,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/kitchen/login'
     | '/restaurant/dashboard'
+    | '/restaurant/inventory'
     | '/restaurant/kitchen'
     | '/restaurant/login'
     | '/restaurant/menu'
@@ -515,6 +526,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/kitchen/login'
     | '/restaurant/dashboard'
+    | '/restaurant/inventory'
     | '/restaurant/kitchen'
     | '/restaurant/login'
     | '/restaurant/menu'
@@ -561,6 +573,7 @@ export interface RootRouteChildren {
   AdminSettingsRoute: typeof AdminSettingsRoute
   KitchenLoginRoute: typeof KitchenLoginRoute
   RestaurantDashboardRoute: typeof RestaurantDashboardRoute
+  RestaurantInventoryRoute: typeof RestaurantInventoryRoute
   RestaurantKitchenRoute: typeof RestaurantKitchenRoute
   RestaurantLoginRoute: typeof RestaurantLoginRoute
   RestaurantMenuRoute: typeof RestaurantMenuRoute
@@ -724,6 +737,13 @@ declare module '@tanstack/react-router' {
       path: '/restaurant/dashboard'
       fullPath: '/restaurant/dashboard'
       preLoaderRoute: typeof RestaurantDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/inventory': {
+      id: '/restaurant/inventory'
+      path: '/restaurant/inventory'
+      fullPath: '/restaurant/inventory'
+      preLoaderRoute: typeof RestaurantInventoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/kitchen': {
@@ -943,6 +963,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSettingsRoute: AdminSettingsRoute,
   KitchenLoginRoute: KitchenLoginRoute,
   RestaurantDashboardRoute: RestaurantDashboardRoute,
+  RestaurantInventoryRoute: RestaurantInventoryRoute,
   RestaurantKitchenRoute: RestaurantKitchenRoute,
   RestaurantLoginRoute: RestaurantLoginRoute,
   RestaurantMenuRoute: RestaurantMenuRoute,
