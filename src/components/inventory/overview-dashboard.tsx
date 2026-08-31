@@ -279,7 +279,7 @@ export function InventoryOverviewDashboard({ restaurantId }: { restaurantId: str
                 <PieChart>
                   <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2}>
                     {statusData.map((d) => (
-                      <Cell key={d.status} fill={STATUS_COLOR[d.status] ?? "hsl(var(--muted-foreground))"} />
+                      <Cell key={d.status} fill={STATUS_COLOR[d.status] ?? "#9A9186"} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--card-foreground)" }} />
