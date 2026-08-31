@@ -54,7 +54,7 @@ import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/restaurant/inventory")({
+export const Route = createFileRoute("/restaurant/inventory/")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
