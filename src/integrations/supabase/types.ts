@@ -55,6 +55,174 @@ export type Database = {
           },
         ]
       }
+      inventory_items: {
+        Row: {
+          active: boolean
+          base_unit_id: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          current_quantity: number
+          id: string
+          inventory_type: string
+          minimum_stock_level: number
+          name: string
+          notes: string | null
+          restaurant_id: string
+          unit_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          base_unit_id: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          current_quantity?: number
+          id?: string
+          inventory_type: string
+          minimum_stock_level?: number
+          name: string
+          notes?: string | null
+          restaurant_id: string
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          base_unit_id?: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          current_quantity?: number
+          id?: string
+          inventory_type?: string
+          minimum_stock_level?: number
+          name?: string
+          notes?: string | null
+          restaurant_id?: string
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_base_unit_id_fkey"
+            columns: ["base_unit_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_stock_movements: {
+        Row: {
+          balance_after: number | null
+          created_at: string
+          created_by_staff_membership_id: string | null
+          id: string
+          inventory_item_id: string
+          movement_type: string
+          quantity: number
+          reason: string | null
+          restaurant_id: string
+          unit_cost: number | null
+          unit_id: string
+        }
+        Insert: {
+          balance_after?: number | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          id?: string
+          inventory_item_id: string
+          movement_type: string
+          quantity: number
+          reason?: string | null
+          restaurant_id: string
+          unit_cost?: number | null
+          unit_id: string
+        }
+        Update: {
+          balance_after?: number | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          id?: string
+          inventory_item_id?: string
+          movement_type?: string
+          quantity?: number
+          reason?: string | null
+          restaurant_id?: string
+          unit_cost?: number | null
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_stock_movements_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_stock_movements_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_stock_movements_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_stock_movements_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_units: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          unit_type: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          unit_type: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          unit_type?: string
+        }
+        Relationships: []
+      }
       menu_categories: {
         Row: {
           active: boolean
@@ -803,6 +971,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_inventory_movement: {
+        Args: {
+          _allow_negative?: boolean
+          _item_id: string
+          _membership_id: string
+          _movement_type: string
+          _reason: string
+          _restaurant_id: string
+          _signed_quantity: number
+          _unit_cost: number
+        }
+        Returns: number
+      }
       can_manage_restaurant_storage: {
         Args: { _path: string }
         Returns: boolean
