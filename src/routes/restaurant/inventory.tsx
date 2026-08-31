@@ -5,19 +5,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   AlertTriangle,
-  Armchair,
-  Boxes,
   History,
   Minus,
   MoreHorizontal,
-  PackageX,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   SlidersHorizontal,
   Trash2,
-  Wrench,
 } from "lucide-react";
 
 
@@ -35,7 +31,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   ItemFormDialog,
-  MOVEMENT_LABEL,
   MovementDialog,
   MovementHistoryDialog,
   type ItemFormValues,
@@ -43,7 +38,6 @@ import {
 import {
   createInventoryItem,
   createInventoryMovement,
-  getInventoryOverview,
   listInventoryItems,
   listInventoryMovements,
   listInventoryUnits,
@@ -52,7 +46,6 @@ import {
 } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { AssetsTab } from "@/components/inventory/assets-tab";
-import { getAssetOverview } from "@/lib/assets.functions";
 import { InventoryOverviewDashboard } from "@/components/inventory/overview-dashboard";
 
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
@@ -108,9 +101,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
 
   const fetchItems = useServerFn(listInventoryItems);
   const fetchUnits = useServerFn(listInventoryUnits);
-  const fetchOverview = useServerFn(getInventoryOverview);
   const fetchMovements = useServerFn(listInventoryMovements);
-  const fetchAssetOverview = useServerFn(getAssetOverview);
 
   const saveItem = useServerFn(createInventoryItem);
   const editItem = useServerFn(updateInventoryItem);
@@ -238,8 +229,6 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     return allItems.filter((i) => (q ? i.name.toLowerCase().includes(q) : true));
   }, [allItems, search]);
 
-  const overview = overviewQuery.data;
-  const assetOverview = assetOverviewQuery.data;
 
 
   return (
