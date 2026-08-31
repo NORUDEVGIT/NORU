@@ -88,7 +88,10 @@ export function PurchasingTab({ restaurantId }: { restaurantId: string }) {
         },
       }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Draft purchase order created.");
       setFormOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["purchase-orders", restaurantId] });
@@ -108,7 +111,7 @@ export function PurchasingTab({ restaurantId }: { restaurantId: string }) {
         <Kpi
           label="Received this period"
           value={kpis?.receivedInPeriod ?? 0}
-          hint={kpis ? money(kpis.valueInPeriod) : undefined}
+          {...(kpis ? { hint: money(kpis.valueInPeriod) } : {})}
         />
       </div>
 
@@ -264,7 +267,7 @@ export function PurchasingTab({ restaurantId }: { restaurantId: string }) {
   );
 }
 
-function Kpi({ label, value, hint }: { label: string; value: number; hint?: string }) {
+function Kpi({ label, value, hint }: { label: string; value: number; hint?: string | undefined }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>

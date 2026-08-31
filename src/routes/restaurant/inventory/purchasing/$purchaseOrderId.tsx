@@ -129,7 +129,10 @@ function PurchaseOrderPage({
         },
       }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Purchase order updated.");
       setEditOpen(false);
       refresh();
@@ -141,7 +144,10 @@ function PurchaseOrderPage({
     mutationFn: (action: "order" | "cancel") =>
       changeStatus({ data: { restaurantId, purchaseOrderId, action } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Purchase order updated.");
       refresh();
     },
@@ -154,7 +160,10 @@ function PurchaseOrderPage({
         data: { restaurantId, purchaseOrderId, notes: values.notes || null, lines: values.lines },
       }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success(
         result.status === "received" ? "All goods received — order complete." : "Goods received.",
       );

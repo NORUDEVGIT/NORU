@@ -64,7 +64,10 @@ export function SuppliersTab({ restaurantId }: { restaurantId: string }) {
   const createMutation = useMutation({
     mutationFn: (values: SupplierFormValues) => addSupplier({ data: { restaurantId, ...values } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Supplier created.");
       setFormOpen(false);
       refresh();
@@ -76,7 +79,10 @@ export function SuppliersTab({ restaurantId }: { restaurantId: string }) {
     mutationFn: (input: { supplierId: string } & Partial<SupplierFormValues> & { active?: boolean }) =>
       editSupplier({ data: { restaurantId, ...input } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Supplier updated.");
       setFormOpen(false);
       setEditing(null);
