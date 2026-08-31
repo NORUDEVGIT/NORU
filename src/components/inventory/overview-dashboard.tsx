@@ -58,10 +58,11 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  active: "var(--success)",
-  under_maintenance: "var(--chart-4)",
-  out_of_service: "var(--destructive)",
-  disposed: "var(--muted-foreground)",
+  // SVG presentation attributes can't read CSS vars, so these mirror the NORU palette.
+  active: "#436436",
+  under_maintenance: "#C89933",
+  out_of_service: "#B3261E",
+  disposed: "#9A9186",
 };
 
 export function InventoryOverviewDashboard({ restaurantId }: { restaurantId: string }) {
@@ -233,26 +234,26 @@ export function InventoryOverviewDashboard({ restaurantId }: { restaurantId: str
                     stackId="a"
                     name="Received"
                     dataKey={useValueTrend ? "stockInValue" : "stockInCount"}
-                    fill="var(--success)"
+                    fill="#436436"
                     radius={[0, 0, 0, 0]}
                   />
                   <Bar
                     stackId="a"
                     name="Usage"
                     dataKey={useValueTrend ? "usageValue" : "usageCount"}
-                    fill="var(--chart-1)"
+                    fill="#251605"
                   />
                   <Bar
                     stackId="a"
                     name="Waste"
                     dataKey={useValueTrend ? "wasteValue" : "wasteCount"}
-                    fill="var(--chart-4)"
+                    fill="#C89933"
                   />
                   <Bar
                     stackId="a"
                     name="Loss"
                     dataKey={useValueTrend ? "lossValue" : "lossCount"}
-                    fill="var(--destructive)"
+                    fill="#B3261E"
                     radius={[6, 6, 0, 0]}
                   />
                 </BarChart>
