@@ -46,6 +46,8 @@ import {
 } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { AssetsTab } from "@/components/inventory/assets-tab";
+import { SuppliersTab } from "@/components/inventory/suppliers-tab";
+import { PurchasingTab } from "@/components/inventory/purchasing-tab";
 import { InventoryOverviewDashboard } from "@/components/inventory/overview-dashboard";
 
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
@@ -108,7 +110,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const recordMovement = useServerFn(createInventoryMovement);
 
   const [tab, setTab] = useState<
-    "overview" | "ingredient" | "consumable" | "operating_asset" | "equipment"
+    "overview" | "ingredient" | "consumable" | "operating_asset" | "equipment" | "suppliers" | "purchasing"
   >("overview");
 
   const [search, setSearch] = useState("");
@@ -267,6 +269,8 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
           <TabsTrigger value="consumable">Consumables</TabsTrigger>
           <TabsTrigger value="operating_asset">Operating Assets</TabsTrigger>
           <TabsTrigger value="equipment">Equipment</TabsTrigger>
+          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+          <TabsTrigger value="purchasing">Purchasing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -324,6 +328,12 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         </TabsContent>
         <TabsContent value="equipment" className="mt-4">
           <AssetsTab restaurantId={restaurantId} assetType="equipment" />
+        </TabsContent>
+        <TabsContent value="suppliers" className="mt-4">
+          <SuppliersTab restaurantId={restaurantId} />
+        </TabsContent>
+        <TabsContent value="purchasing" className="mt-4">
+          <PurchasingTab restaurantId={restaurantId} />
         </TabsContent>
 
       </Tabs>
