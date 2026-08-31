@@ -50,6 +50,13 @@
       "when": 1788172718147,
       "tag": "0006_create_restaurant_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788175019274,
+      "tag": "0007_restrict_opening_hours_public_read",
+      "breakpoints": true
     }
   ]
 }
