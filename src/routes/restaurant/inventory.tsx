@@ -132,19 +132,6 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     queryFn: () => fetchItems({ data: { restaurantId, includeInactive: showInactive } }),
   });
   const unitsQuery = useQuery({ queryKey: ["inventory-units"], queryFn: () => fetchUnits() });
-  const overviewQuery = useQuery({
-    queryKey: ["inventory-overview", restaurantId],
-    queryFn: () => fetchOverview({ data: { restaurantId } }),
-  });
-  const assetOverviewQuery = useQuery({
-    queryKey: ["restaurant-asset-overview", restaurantId],
-    queryFn: () => fetchAssetOverview({ data: { restaurantId } }),
-  });
-
-  const recentQuery = useQuery({
-    queryKey: ["inventory-recent", restaurantId],
-    queryFn: () => fetchMovements({ data: { restaurantId, limit: 12 } }),
-  });
   const historyQuery = useQuery({
     queryKey: ["inventory-history", restaurantId, historyItem?.id],
     queryFn: () => fetchMovements({ data: { restaurantId, itemId: historyItem!.id, limit: 200 } }),
@@ -156,13 +143,21 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["inventory-items", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["inventory-overview", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["inventory-recent", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["inventory-history", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["restaurant-asset-overview", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["restaurant-assets", restaurantId] });
-
+    // Reporting queries backing the Overview dashboard.
+    for (const key of [
+      "inventory-dashboard",
+      "inventory-trend",
+      "inventory-waste",
+      "inventory-attention",
+      "inventory-asset-analytics",
+      "inventory-activity",
+    ]) {
+      void queryClient.invalidateQueries({ queryKey: [key, restaurantId] });
+    }
   }
+
 
   const createMutation = useMutation({
     mutationFn: (values: ItemFormValues) =>
