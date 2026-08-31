@@ -7,6 +7,8 @@ import {
   UtensilsCrossed,
   ChefHat,
   ReceiptText,
+  Boxes,
+
   QrCode,
   Users,
   HandPlatter,
