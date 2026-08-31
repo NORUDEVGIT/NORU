@@ -159,7 +159,10 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         },
       }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Inventory item created.");
       setFormOpen(false);
       refresh();
@@ -181,7 +184,10 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         },
       }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Item updated.");
       setFormOpen(false);
       setEditing(null);
@@ -200,7 +206,10 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
       stocktakeDirection: "in" | "out";
     }) => recordMovement({ data: { restaurantId, ...input } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error(result.message);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success(`Stock updated — new balance ${result.balance}.`);
       setMovementTarget(null);
       refresh();
