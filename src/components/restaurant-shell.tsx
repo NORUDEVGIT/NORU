@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -8,14 +8,20 @@ import {
   ChefHat,
   ReceiptText,
   Boxes,
-
+  Carrot,
+  PackageOpen,
+  Wrench,
+  Truck,
+  ShoppingCart,
+  CalendarDays,
+  ClipboardCheck,
   QrCode,
   Users,
   HandPlatter,
-  UserRound,
   BarChart3,
   Settings,
   LogOut,
+  ArrowLeft,
   Menu as MenuIcon,
   X,
 } from "lucide-react";
@@ -28,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { RestaurantSettingsProvider } from "@/state/restaurant-context";
 
 export type RestaurantNavLabel =
+  | "Home"
   | "Dashboard"
   | "Menu"
   | "Kitchen"
@@ -40,42 +47,81 @@ export type RestaurantNavLabel =
   | "Reports"
   | "Settings";
 
+export type WorkspaceModule = "home" | "restaurant" | "stock" | "staff" | "settings";
 
-const NAV: {
+type NavEntry = {
   to: string;
-  label: RestaurantNavLabel;
-  display?: string;
+  /** Optional tab search param for pages that host several tabs. */
+  tab?: string;
+  label: string;
   icon: typeof LayoutDashboard;
-  ready: boolean;
   /** When set, only these membership roles see the entry. */
   roles?: string[];
-}[] = [
-  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
-  { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, ready: true },
-  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
-  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, ready: true },
-  { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, ready: true },
+};
+
+const RESTAURANT_NAV: NavEntry[] = [
+  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed },
+  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat },
+  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText },
+  { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode },
   {
     to: "/restaurant/waiter",
     label: "Take Order",
     icon: HandPlatter,
-    ready: true,
     roles: ["owner", "manager", "waiter"],
   },
-  {
-    to: "/restaurant/inventory",
-    label: "Inventory",
-    icon: Boxes,
-    ready: true,
-    roles: ["owner", "manager", "kitchen"],
-  },
-  { to: "/restaurant/staff", label: "Staff", display: "Staff & Shifts", icon: Users, ready: true },
-
-
-  { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
-  { to: "/restaurant/dashboard", label: "Reports", icon: BarChart3, ready: false },
-  { to: "/restaurant/settings", label: "Settings", icon: Settings, ready: true },
 ];
+
+const STOCK_NAV: NavEntry[] = [
+  { to: "/restaurant/inventory", tab: "overview", label: "Overview", icon: LayoutDashboard },
+  { to: "/restaurant/inventory", tab: "ingredient", label: "Ingredients", icon: Carrot },
+  { to: "/restaurant/inventory", tab: "consumable", label: "Consumables", icon: PackageOpen },
+  { to: "/restaurant/inventory", tab: "operating_asset", label: "Operating Assets", icon: Boxes },
+  { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench },
+  { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck },
+  { to: "/restaurant/inventory", tab: "purchasing", label: "Purchasing", icon: ShoppingCart },
+];
+
+const STAFF_NAV: NavEntry[] = [
+  { to: "/restaurant/staff", tab: "staff", label: "Staff", icon: Users, roles: ["owner", "manager"] },
+  { to: "/restaurant/staff", tab: "schedule", label: "Schedule", icon: CalendarDays },
+  { to: "/restaurant/staff", tab: "attendance", label: "Attendance", icon: ClipboardCheck, roles: ["owner", "manager"] },
+  { to: "/restaurant/staff", tab: "reports", label: "Reports", icon: BarChart3, roles: ["owner", "manager"] },
+];
+
+const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
+  home: [],
+  restaurant: RESTAURANT_NAV,
+  stock: STOCK_NAV,
+  staff: STAFF_NAV,
+  settings: [{ to: "/restaurant/settings", label: "Settings", icon: Settings }],
+};
+
+const MODULE_TITLE: Record<WorkspaceModule, string> = {
+  home: "Property Home",
+  restaurant: "Restaurant Management",
+  stock: "Stock Management",
+  staff: "Staff Management",
+  settings: "Settings",
+};
+
+/** Which workspace a page belongs to, derived from its nav label. */
+const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
+  Home: "home",
+  Dashboard: "restaurant",
+  Menu: "restaurant",
+  Kitchen: "restaurant",
+  Orders: "restaurant",
+  "Tables & QR": "restaurant",
+  "Take Order": "restaurant",
+  Inventory: "stock",
+  Staff: "staff",
+  Customers: "restaurant",
+  Reports: "restaurant",
+  Settings: "settings",
+};
+
 
 export function RestaurantShell({
   active,
@@ -89,6 +135,7 @@ export function RestaurantShell({
   const { session, user } = useAuth();
   const fetchRestaurants = useServerFn(getMyRestaurants);
   const [navOpen, setNavOpen] = useState(false);
+  const search = useSearch({ strict: false }) as { tab?: string };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["my-restaurants", user?.id],
@@ -106,59 +153,83 @@ export function RestaurantShell({
 
   const membership = data?.[0];
   const restaurant = membership?.restaurant;
+  const workspace = LABEL_MODULE[active];
+  const items = MODULE_NAV[workspace].filter(
+    (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
+  );
+  const activeTab = search.tab ?? items.find((i) => i.tab)?.tab;
 
   const sidebar = (
-    <div className="flex h-full flex-col gap-6 p-4">
+    <div className="flex h-full flex-col gap-5 p-4">
       <Link
-        to="/restaurant/dashboard"
+        to="/restaurant/home"
         className="flex items-center gap-2 px-2 font-display text-lg"
         onClick={() => setNavOpen(false)}
-        aria-label="NORU restaurant dashboard"
+        aria-label="NORU property home"
       >
         <NoruLogo size="sm" wordmarkClassName="text-sidebar-foreground" />
       </Link>
+
+      {workspace !== "home" ? (
+        <div className="space-y-2">
+          <Link
+            to="/restaurant/home"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" /> NORU Home
+          </Link>
+          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+            {MODULE_TITLE[workspace]}
+          </p>
+        </div>
+      ) : null}
+
       <nav className="min-h-0 flex-1 overflow-y-auto">
         <ul className="space-y-1">
-          {NAV.filter(
-            (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
-          ).map((item) => (
-
-            <li key={item.label}>
-              {item.ready ? (
+          {items.map((item) => {
+            const isActive = item.tab ? activeTab === item.tab : active === item.label;
+            return (
+              <li key={item.label}>
                 <Link
                   to={item.to}
+                  {...(item.tab ? { search: { tab: item.tab } } : {})}
                   onClick={() => setNavOpen(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                    active === item.label
+                    isActive
                       ? "bg-sidebar-primary text-sidebar-primary-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )}
                 >
-                  <item.icon className="size-4 shrink-0" /> {item.display ?? item.label}
+                  <item.icon className="size-4 shrink-0" /> {item.label}
                 </Link>
-              ) : (
-                <span className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-sm text-sidebar-foreground/45">
-                  <item.icon className="size-4 shrink-0" /> {item.display ?? item.label}
-                  <span className="ml-auto rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/70">
-                    Soon
-                  </span>
-                </span>
-              )}
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       </nav>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="justify-start text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        onClick={() => void signOut()}
-      >
-        <LogOut className="mr-2 size-4" /> Log out
-      </Button>
+
+      <div className="space-y-1">
+        <Link
+          to="/restaurant/settings"
+          onClick={() => setNavOpen(false)}
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <Settings className="size-4 shrink-0" /> Settings
+        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={() => void signOut()}
+        >
+          <LogOut className="mr-2 size-4" /> Log out
+        </Button>
+      </div>
     </div>
   );
+
 
   return (
     <div className="min-h-dvh bg-muted/30">
@@ -202,7 +273,7 @@ export function RestaurantShell({
                 <p className="truncate font-display text-lg leading-tight">
                   {restaurant?.name ?? "Restaurant"}
                 </p>
-                <p className="text-xs text-muted-foreground">Restaurant Dashboard</p>
+                <p className="text-xs text-muted-foreground">{MODULE_TITLE[workspace]}</p>
               </div>
               <div className="ml-auto flex items-center gap-3">
                 <span className="hidden text-xs text-muted-foreground sm:inline">

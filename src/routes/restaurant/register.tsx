@@ -94,7 +94,7 @@ function RestaurantRegister() {
         setNotice("Your restaurant is ready. Please log in.");
         return;
       }
-      void navigate({ to: "/restaurant/dashboard", replace: true });
+      void navigate({ to: "/restaurant/home", replace: true });
     } catch {
       setError("Something went wrong. Please check your connection and try again.");
     } finally {
