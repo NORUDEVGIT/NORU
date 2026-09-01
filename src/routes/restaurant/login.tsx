@@ -69,7 +69,7 @@ function RestaurantLogin() {
       setError("This account isn't linked to a restaurant. Customers can log in from the main site.");
       return;
     }
-    void navigate({ to: redirectTo ?? "/restaurant/dashboard", replace: true });
+    void navigate({ to: redirectTo ?? "/restaurant/home", replace: true });
   }
 
   return (
