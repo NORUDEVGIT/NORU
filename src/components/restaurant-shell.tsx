@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -8,14 +8,20 @@ import {
   ChefHat,
   ReceiptText,
   Boxes,
-
+  Carrot,
+  PackageOpen,
+  Wrench,
+  Truck,
+  ShoppingCart,
+  CalendarDays,
+  ClipboardCheck,
   QrCode,
   Users,
   HandPlatter,
-  UserRound,
   BarChart3,
   Settings,
   LogOut,
+  ArrowLeft,
   Menu as MenuIcon,
   X,
 } from "lucide-react";
@@ -28,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { RestaurantSettingsProvider } from "@/state/restaurant-context";
 
 export type RestaurantNavLabel =
+  | "Home"
   | "Dashboard"
   | "Menu"
   | "Kitchen"
@@ -40,42 +47,81 @@ export type RestaurantNavLabel =
   | "Reports"
   | "Settings";
 
+export type WorkspaceModule = "home" | "restaurant" | "stock" | "staff" | "settings";
 
-const NAV: {
+type NavEntry = {
   to: string;
-  label: RestaurantNavLabel;
-  display?: string;
+  /** Optional tab search param for pages that host several tabs. */
+  tab?: string;
+  label: string;
   icon: typeof LayoutDashboard;
-  ready: boolean;
   /** When set, only these membership roles see the entry. */
   roles?: string[];
-}[] = [
-  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
-  { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, ready: true },
-  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, ready: true },
-  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, ready: true },
-  { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, ready: true },
+};
+
+const RESTAURANT_NAV: NavEntry[] = [
+  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed },
+  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat },
+  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText },
+  { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode },
   {
     to: "/restaurant/waiter",
     label: "Take Order",
     icon: HandPlatter,
-    ready: true,
     roles: ["owner", "manager", "waiter"],
   },
-  {
-    to: "/restaurant/inventory",
-    label: "Inventory",
-    icon: Boxes,
-    ready: true,
-    roles: ["owner", "manager", "kitchen"],
-  },
-  { to: "/restaurant/staff", label: "Staff", display: "Staff & Shifts", icon: Users, ready: true },
-
-
-  { to: "/restaurant/dashboard", label: "Customers", icon: UserRound, ready: false },
-  { to: "/restaurant/dashboard", label: "Reports", icon: BarChart3, ready: false },
-  { to: "/restaurant/settings", label: "Settings", icon: Settings, ready: true },
 ];
+
+const STOCK_NAV: NavEntry[] = [
+  { to: "/restaurant/inventory", tab: "overview", label: "Overview", icon: LayoutDashboard },
+  { to: "/restaurant/inventory", tab: "ingredient", label: "Ingredients", icon: Carrot },
+  { to: "/restaurant/inventory", tab: "consumable", label: "Consumables", icon: PackageOpen },
+  { to: "/restaurant/inventory", tab: "operating_asset", label: "Operating Assets", icon: Boxes },
+  { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench },
+  { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck },
+  { to: "/restaurant/inventory", tab: "purchasing", label: "Purchasing", icon: ShoppingCart },
+];
+
+const STAFF_NAV: NavEntry[] = [
+  { to: "/restaurant/staff", tab: "staff", label: "Staff", icon: Users, roles: ["owner", "manager"] },
+  { to: "/restaurant/staff", tab: "schedule", label: "Schedule", icon: CalendarDays },
+  { to: "/restaurant/staff", tab: "attendance", label: "Attendance", icon: ClipboardCheck, roles: ["owner", "manager"] },
+  { to: "/restaurant/staff", tab: "reports", label: "Reports", icon: BarChart3, roles: ["owner", "manager"] },
+];
+
+const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
+  home: [],
+  restaurant: RESTAURANT_NAV,
+  stock: STOCK_NAV,
+  staff: STAFF_NAV,
+  settings: [{ to: "/restaurant/settings", label: "Settings", icon: Settings }],
+};
+
+const MODULE_TITLE: Record<WorkspaceModule, string> = {
+  home: "Property Home",
+  restaurant: "Restaurant Management",
+  stock: "Stock Management",
+  staff: "Staff Management",
+  settings: "Settings",
+};
+
+/** Which workspace a page belongs to, derived from its nav label. */
+const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
+  Home: "home",
+  Dashboard: "restaurant",
+  Menu: "restaurant",
+  Kitchen: "restaurant",
+  Orders: "restaurant",
+  "Tables & QR": "restaurant",
+  "Take Order": "restaurant",
+  Inventory: "stock",
+  Staff: "staff",
+  Customers: "restaurant",
+  Reports: "restaurant",
+  Settings: "settings",
+};
+
 
 export function RestaurantShell({
   active,
