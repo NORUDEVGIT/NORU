@@ -45,6 +45,8 @@ import {
   type InventoryItem,
 } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
+import { getIngredientUsage } from "@/lib/recipes.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AssetsTab } from "@/components/inventory/assets-tab";
 import { SuppliersTab } from "@/components/inventory/suppliers-tab";
 import { PurchasingTab } from "@/components/inventory/purchasing-tab";
