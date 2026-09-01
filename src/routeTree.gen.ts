@@ -52,6 +52,7 @@ import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurant
 import { Route as RestaurantInventoryIndexRouteImport } from './routes/restaurant/inventory/index'
 import { Route as RestaurantOrdersIndexRouteImport } from './routes/restaurant/orders/index'
 import { Route as RestaurantOrdersOrderIdRouteImport } from './routes/restaurant/orders/$orderId'
+import { Route as RestaurantRoomsIndexRouteImport } from './routes/restaurant/rooms/index'
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
 import { Route as RestaurantInventoryPurchasingPurchaseOrderIdRouteImport } from './routes/restaurant/inventory/purchasing/$purchaseOrderId'
@@ -274,6 +275,11 @@ const RestaurantOrdersOrderIdRoute = RestaurantOrdersOrderIdRouteImport.update({
   path: '/restaurant/orders/$orderId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantRoomsIndexRoute = RestaurantRoomsIndexRouteImport.update({
+  id: '/restaurant/rooms/',
+  path: '/restaurant/rooms/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RRestaurantSlugOrderOrderIdRoute =
   RRestaurantSlugOrderOrderIdRouteImport.update({
     id: '/order/$orderId',
@@ -336,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
+  '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
@@ -382,6 +389,7 @@ export interface FileRoutesByTo {
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
   '/restaurant/inventory': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders': typeof RestaurantOrdersIndexRoute
+  '/restaurant/rooms': typeof RestaurantRoomsIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
@@ -431,6 +439,7 @@ export interface FileRoutesById {
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
+  '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
@@ -481,6 +490,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/'
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
+    | '/restaurant/rooms/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
@@ -527,6 +537,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug'
     | '/restaurant/inventory'
     | '/restaurant/orders'
+    | '/restaurant/rooms'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
@@ -575,6 +586,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/'
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
+    | '/restaurant/rooms/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
@@ -615,6 +627,7 @@ export interface RootRouteChildren {
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
   RestaurantInventoryIndexRoute: typeof RestaurantInventoryIndexRoute
   RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
+  RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
 }
 
@@ -921,6 +934,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantOrdersOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/rooms/': {
+      id: '/restaurant/rooms/'
+      path: '/restaurant/rooms'
+      fullPath: '/restaurant/rooms/'
+      preLoaderRoute: typeof RestaurantRoomsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/$restaurantSlug/order/$orderId': {
       id: '/r/$restaurantSlug/order/$orderId'
       path: '/order/$orderId'
@@ -1021,6 +1041,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
   RestaurantInventoryIndexRoute: RestaurantInventoryIndexRoute,
   RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
+  RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,
   RestaurantInventoryPurchasingPurchaseOrderIdRoute:
     RestaurantInventoryPurchasingPurchaseOrderIdRoute,
 }
