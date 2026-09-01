@@ -78,6 +78,13 @@
       "when": 1788267064948,
       "tag": "0010_create_room_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788268850590,
+      "tag": "0011_scope_inventory_units_read_to_staff",
+      "breakpoints": true
     }
   ]
 }
