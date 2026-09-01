@@ -390,6 +390,29 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         loading={historyQuery.isLoading}
         onClose={() => setHistoryItem(null)}
       />
+
+      <Dialog open={!!usageItem} onOpenChange={(open) => !open && setUsageItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Used in recipes — {usageItem?.name}</DialogTitle>
+          </DialogHeader>
+          {usageQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (usageQuery.data?.menuItems.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              This ingredient isn't used in any menu item recipe yet.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {usageQuery.data?.menuItems.map((m) => (
+                <li key={m.id} className="rounded-lg border border-border/70 px-3 py-2">
+                  {m.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
