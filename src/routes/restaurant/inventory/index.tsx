@@ -417,7 +417,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   );
 }
 
-type ItemAction = MovementType | "history" | "edit";
+type ItemAction = MovementType | "history" | "edit" | "recipes";
 
 function ItemList({
   items,
