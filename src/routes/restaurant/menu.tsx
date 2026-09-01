@@ -34,6 +34,8 @@ import {
   type ManagedItem,
 } from "@/lib/menu.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { getMenuRecipeSummaries } from "@/lib/recipes.functions";
+import { RecipeDialog, RecipeStatusChip } from "@/components/menu/recipe-dialog";
 import { useMoney } from "@/state/restaurant-context";
 
 /** Menu editing is limited to owners and managers. Kitchen/waiter cannot edit. */
