@@ -93,6 +93,18 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
   const load = useServerFn(getManagedMenu);
   const [categoryDraft, setCategoryDraft] = useState<Partial<ManagedCategory> | null>(null);
   const [itemDraft, setItemDraft] = useState<Partial<ManagedItem> | null>(null);
+  const [recipeItemId, setRecipeItemId] = useState<string | null>(null);
+  const loadRecipeSummaries = useServerFn(getMenuRecipeSummaries);
+
+  const recipeSummaries = useQuery({
+    queryKey: ["recipe-summaries", restaurantId],
+    queryFn: () => loadRecipeSummaries({ data: { restaurantId } }),
+    retry: false,
+  });
+  const recipeByItem = useMemo(
+    () => new Map((recipeSummaries.data?.summaries ?? []).map((s) => [s.menuItemId, s] as const)),
+    [recipeSummaries.data],
+  );
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["managed-menu", restaurantId],
