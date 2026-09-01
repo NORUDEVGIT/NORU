@@ -352,6 +352,12 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
           }
         }}
       />
+
+      <RecipeDialog
+        restaurantId={restaurantId}
+        menuItemId={recipeItemId}
+        onClose={() => setRecipeItemId(null)}
+      />
     </div>
   );
 }
