@@ -114,10 +114,27 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const editItem = useServerFn(updateInventoryItem);
   const recordMovement = useServerFn(createInventoryMovement);
 
-  const searchTab = Route.useSearch().tab;
+  const searchTab = (Route.useSearch() as { tab?: string }).tab;
   const [tab, setTab] = useState<
     "overview" | "ingredient" | "consumable" | "operating_asset" | "equipment" | "suppliers" | "purchasing"
   >("overview");
+
+  // The sidebar links to a tab via ?tab=…; keep local state in sync with it.
+  useEffect(() => {
+    const allowed = [
+      "overview",
+      "ingredient",
+      "consumable",
+      "operating_asset",
+      "equipment",
+      "suppliers",
+      "purchasing",
+    ] as const;
+    if (searchTab && (allowed as readonly string[]).includes(searchTab)) {
+      setTab(searchTab as typeof tab);
+    }
+  }, [searchTab]);
+
 
 
   const [search, setSearch] = useState("");
