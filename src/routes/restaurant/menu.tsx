@@ -34,6 +34,8 @@ import {
   type ManagedItem,
 } from "@/lib/menu.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { getMenuRecipeSummaries } from "@/lib/recipes.functions";
+import { RecipeDialog, RecipeStatusChip } from "@/components/menu/recipe-dialog";
 import { useMoney } from "@/state/restaurant-context";
 
 /** Menu editing is limited to owners and managers. Kitchen/waiter cannot edit. */
@@ -91,6 +93,18 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
   const load = useServerFn(getManagedMenu);
   const [categoryDraft, setCategoryDraft] = useState<Partial<ManagedCategory> | null>(null);
   const [itemDraft, setItemDraft] = useState<Partial<ManagedItem> | null>(null);
+  const [recipeItemId, setRecipeItemId] = useState<string | null>(null);
+  const loadRecipeSummaries = useServerFn(getMenuRecipeSummaries);
+
+  const recipeSummaries = useQuery({
+    queryKey: ["recipe-summaries", restaurantId],
+    queryFn: () => loadRecipeSummaries({ data: { restaurantId } }),
+    retry: false,
+  });
+  const recipeByItem = useMemo(
+    () => new Map((recipeSummaries.data?.summaries ?? []).map((s) => [s.menuItemId, s] as const)),
+    [recipeSummaries.data],
+  );
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["managed-menu", restaurantId],
@@ -261,10 +275,16 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
                   ) : null}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{item.name}</p>
+                  <p className="flex items-center gap-2 font-medium">
+                    {item.name}
+                    <RecipeStatusChip status={recipeByItem.get(item.id)?.status ?? "no_recipe"} />
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {categoryById.get(item.categoryId ?? "")?.name ?? "Uncategorised"} ·{" "}
                     {money(item.price)}
+                    {recipeByItem.get(item.id)?.recipeCost != null
+                      ? ` · recipe ${money(recipeByItem.get(item.id)!.recipeCost as number)}`
+                      : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -280,6 +300,9 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
                       {item.available ? "Available" : "Out of stock"}
                     </span>
                   </label>
+                  <Button variant="outline" size="sm" onClick={() => setRecipeItemId(item.id)}>
+                    Recipe
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setItemDraft(item)}>
                     <Pencil className="mr-1 size-4" /> Edit
                   </Button>
@@ -328,6 +351,12 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
             setItemDraft(null);
           }
         }}
+      />
+
+      <RecipeDialog
+        restaurantId={restaurantId}
+        menuItemId={recipeItemId}
+        onClose={() => setRecipeItemId(null)}
       />
     </div>
   );

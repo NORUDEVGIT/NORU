@@ -45,6 +45,8 @@ import {
   type InventoryItem,
 } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
+import { getIngredientUsage } from "@/lib/recipes.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AssetsTab } from "@/components/inventory/assets-tab";
 import { SuppliersTab } from "@/components/inventory/suppliers-tab";
 import { PurchasingTab } from "@/components/inventory/purchasing-tab";
@@ -119,6 +121,13 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [movementTarget, setMovementTarget] = useState<{ item: InventoryItem; type: MovementType } | null>(null);
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [usageItem, setUsageItem] = useState<InventoryItem | null>(null);
+  const fetchUsage = useServerFn(getIngredientUsage);
+  const usageQuery = useQuery({
+    queryKey: ["ingredient-usage", restaurantId, usageItem?.id],
+    queryFn: () => fetchUsage({ data: { restaurantId, inventoryItemId: usageItem!.id } }),
+    enabled: !!usageItem,
+  });
 
   const itemsQuery = useQuery({
     queryKey: ["inventory-items", restaurantId, showInactive],
@@ -311,6 +320,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
                 dateTime={dateTime}
                 onAction={(item, action) => {
                   if (action === "history") return setHistoryItem(item);
+                  if (action === "recipes") return setUsageItem(item);
                   if (action === "edit") {
                     setEditing(item);
                     setFormOpen(true);
@@ -380,11 +390,34 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
         loading={historyQuery.isLoading}
         onClose={() => setHistoryItem(null)}
       />
+
+      <Dialog open={!!usageItem} onOpenChange={(open) => !open && setUsageItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Used in recipes — {usageItem?.name}</DialogTitle>
+          </DialogHeader>
+          {usageQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (usageQuery.data?.menuItems.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              This ingredient isn't used in any menu item recipe yet.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {usageQuery.data?.menuItems.map((m) => (
+                <li key={m.id} className="rounded-lg border border-border/70 px-3 py-2">
+                  {m.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-type ItemAction = MovementType | "history" | "edit";
+type ItemAction = MovementType | "history" | "edit" | "recipes";
 
 function ItemList({
   items,
@@ -530,6 +563,11 @@ function ItemActions({
         <DropdownMenuItem onSelect={() => onAction(item, "history")}>
           <History className="mr-2 size-4" /> View history
         </DropdownMenuItem>
+        {item.inventoryType === "ingredient" ? (
+          <DropdownMenuItem onSelect={() => onAction(item, "recipes")}>
+            Used in recipes
+          </DropdownMenuItem>
+        ) : null}
         {canManage ? (
           <DropdownMenuItem onSelect={() => onAction(item, "edit")}>
             <Pencil className="mr-2 size-4" /> Edit item
