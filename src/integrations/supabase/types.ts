@@ -294,6 +294,81 @@ export type Database = {
           },
         ]
       }
+      menu_item_recipe_components: {
+        Row: {
+          created_at: string
+          created_by_staff_membership_id: string | null
+          display_quantity: number
+          display_unit_id: string
+          id: string
+          inventory_item_id: string
+          menu_item_id: string
+          quantity_base: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          display_quantity: number
+          display_unit_id: string
+          id?: string
+          inventory_item_id: string
+          menu_item_id: string
+          quantity_base: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          display_quantity?: number
+          display_unit_id?: string
+          id?: string
+          inventory_item_id?: string
+          menu_item_id?: string
+          quantity_base?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_recipe_components_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_recipe_components_display_unit_id_fkey"
+            columns: ["display_unit_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_recipe_components_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_recipe_components_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_recipe_components_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           available: boolean

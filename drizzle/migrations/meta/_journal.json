@@ -64,6 +64,13 @@
       "when": 1788176124018,
       "tag": "0008_create_purchasing_core",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788249165181,
+      "tag": "0009_create_recipe_components",
+      "breakpoints": true
     }
   ]
 }
