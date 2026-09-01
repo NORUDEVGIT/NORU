@@ -115,7 +115,15 @@ function StaffPage() {
  */
 function WorkforceTabs({ membership }: { membership: RestaurantMembership }) {
   const canManage = membership.role === "owner" || membership.role === "manager";
+  const searchTab = (Route.useSearch() as { tab?: string }).tab;
   const [tab, setTab] = useState(canManage ? "staff" : "schedule");
+
+  // The sidebar links to a tab via ?tab=…; keep local state in sync with it.
+  useEffect(() => {
+    const allowed = canManage ? ["staff", "schedule", "attendance", "reports"] : ["schedule"];
+    if (searchTab && allowed.includes(searchTab)) setTab(searchTab);
+  }, [searchTab, canManage]);
+
 
   return (
     <div className="space-y-6">
