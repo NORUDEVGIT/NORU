@@ -58,6 +58,9 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/restaurant/inventory/")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) =>
+    typeof search['tab'] === "string" ? { tab: search['tab'] as string } : {},
+
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
