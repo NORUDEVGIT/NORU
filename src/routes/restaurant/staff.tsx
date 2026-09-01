@@ -75,6 +75,9 @@ const PERMISSION_MATRIX: { area: string; owner: string; manager: string; kitchen
 
 export const Route = createFileRoute("/restaurant/staff")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) =>
+    typeof search['tab'] === "string" ? { tab: search['tab'] as string } : {},
+
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
