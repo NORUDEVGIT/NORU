@@ -119,6 +119,13 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [movementTarget, setMovementTarget] = useState<{ item: InventoryItem; type: MovementType } | null>(null);
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [usageItem, setUsageItem] = useState<InventoryItem | null>(null);
+  const fetchUsage = useServerFn(getIngredientUsage);
+  const usageQuery = useQuery({
+    queryKey: ["ingredient-usage", restaurantId, usageItem?.id],
+    queryFn: () => fetchUsage({ data: { restaurantId, inventoryItemId: usageItem!.id } }),
+    enabled: !!usageItem,
+  });
 
   const itemsQuery = useQuery({
     queryKey: ["inventory-items", restaurantId, showInactive],
