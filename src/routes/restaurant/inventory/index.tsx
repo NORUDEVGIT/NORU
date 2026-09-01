@@ -311,6 +311,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
                 dateTime={dateTime}
                 onAction={(item, action) => {
                   if (action === "history") return setHistoryItem(item);
+                  if (action === "recipes") return setUsageItem(item);
                   if (action === "edit") {
                     setEditing(item);
                     setFormOpen(true);
