@@ -300,6 +300,9 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
                       {item.available ? "Available" : "Out of stock"}
                     </span>
                   </label>
+                  <Button variant="outline" size="sm" onClick={() => setRecipeItemId(item.id)}>
+                    Recipe
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setItemDraft(item)}>
                     <Pencil className="mr-1 size-4" /> Edit
                   </Button>
