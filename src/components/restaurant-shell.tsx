@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   LayoutDashboard,
+  BedDouble,
+  DoorOpen,
   UtensilsCrossed,
   ChefHat,
   ReceiptText,
@@ -42,12 +44,13 @@ export type RestaurantNavLabel =
   | "Tables & QR"
   | "Take Order"
   | "Inventory"
+  | "Rooms"
   | "Staff"
   | "Customers"
   | "Reports"
   | "Settings";
 
-export type WorkspaceModule = "home" | "restaurant" | "stock" | "staff" | "settings";
+export type WorkspaceModule = "home" | "restaurant" | "stock" | "staff" | "rooms" | "settings";
 
 type NavEntry = {
   to: string;
@@ -90,11 +93,18 @@ const STAFF_NAV: NavEntry[] = [
   { to: "/restaurant/staff", tab: "reports", label: "Reports", icon: BarChart3, roles: ["owner", "manager"] },
 ];
 
+const ROOMS_NAV: NavEntry[] = [
+  { to: "/restaurant/rooms", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/restaurant/rooms", tab: "room-types", label: "Room Types", icon: BedDouble },
+  { to: "/restaurant/rooms", tab: "rooms", label: "Rooms", icon: DoorOpen },
+];
+
 const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
   home: [],
   restaurant: RESTAURANT_NAV,
   stock: STOCK_NAV,
   staff: STAFF_NAV,
+  rooms: ROOMS_NAV,
   settings: [{ to: "/restaurant/settings", label: "Settings", icon: Settings }],
 };
 
@@ -103,6 +113,7 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
   restaurant: "Restaurant Management",
   stock: "Stock & Procurement",
   staff: "Staff Management",
+  rooms: "Rooms & Front Office",
   settings: "Property Settings & Integrations",
 };
 
@@ -116,6 +127,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "Tables & QR": "restaurant",
   "Take Order": "restaurant",
   Inventory: "stock",
+  Rooms: "rooms",
   Staff: "staff",
   Customers: "restaurant",
   Reports: "restaurant",

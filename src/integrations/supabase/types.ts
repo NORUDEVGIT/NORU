@@ -55,6 +55,82 @@ export type Database = {
           },
         ]
       }
+      hotel_rooms: {
+        Row: {
+          accessible: boolean
+          active: boolean
+          building: string | null
+          created_at: string
+          created_by_staff_membership_id: string | null
+          floor: string | null
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_number: string
+          room_type_id: string
+          smoking: boolean
+          status: string
+          updated_at: string
+          wing: string | null
+        }
+        Insert: {
+          accessible?: boolean
+          active?: boolean
+          building?: string | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          floor?: string | null
+          id?: string
+          notes?: string | null
+          restaurant_id: string
+          room_number: string
+          room_type_id: string
+          smoking?: boolean
+          status?: string
+          updated_at?: string
+          wing?: string | null
+        }
+        Update: {
+          accessible?: boolean
+          active?: boolean
+          building?: string | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          floor?: string | null
+          id?: string
+          notes?: string | null
+          restaurant_id?: string
+          room_number?: string
+          room_type_id?: string
+          smoking?: boolean
+          status?: string
+          updated_at?: string
+          wing?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_rooms_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rooms_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rooms_type_same_property"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       inventory_items: {
         Row: {
           active: boolean
@@ -1277,6 +1353,217 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      room_amenities: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_amenities_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_type_amenities: {
+        Row: {
+          amenity_id: string
+          created_at: string
+          id: string
+          restaurant_id: string
+          room_type_id: string
+        }
+        Insert: {
+          amenity_id: string
+          created_at?: string
+          id?: string
+          restaurant_id: string
+          room_type_id: string
+        }
+        Update: {
+          amenity_id?: string
+          created_at?: string
+          id?: string
+          restaurant_id?: string
+          room_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_type_amenities_amenity_fk"
+            columns: ["amenity_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_amenities"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "room_type_amenities_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_type_amenities_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      room_type_images: {
+        Row: {
+          alt_text: string | null
+          created_at: string
+          display_order: number
+          id: string
+          is_cover: boolean
+          restaurant_id: string
+          room_type_id: string
+          storage_path: string
+          uploaded_by_staff_membership_id: string | null
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_cover?: boolean
+          restaurant_id: string
+          room_type_id: string
+          storage_path: string
+          uploaded_by_staff_membership_id?: string | null
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_cover?: boolean
+          restaurant_id?: string
+          room_type_id?: string
+          storage_path?: string
+          uploaded_by_staff_membership_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_type_images_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_type_images_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "room_type_images_uploaded_by_staff_membership_id_fkey"
+            columns: ["uploaded_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_types: {
+        Row: {
+          active: boolean
+          adult_capacity: number
+          bed_count: number | null
+          bed_type: string | null
+          child_capacity: number
+          code: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          description: string | null
+          id: string
+          max_occupancy: number
+          name: string
+          restaurant_id: string
+          room_size: string | null
+          room_view: string | null
+          sellable: boolean
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          adult_capacity?: number
+          bed_count?: number | null
+          bed_type?: string | null
+          child_capacity?: number
+          code: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          description?: string | null
+          id?: string
+          max_occupancy?: number
+          name: string
+          restaurant_id: string
+          room_size?: string | null
+          room_view?: string | null
+          sellable?: boolean
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          adult_capacity?: number
+          bed_count?: number | null
+          bed_type?: string | null
+          child_capacity?: number
+          code?: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          description?: string | null
+          id?: string
+          max_occupancy?: number
+          name?: string
+          restaurant_id?: string
+          room_size?: string | null
+          room_view?: string | null
+          sellable?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_types_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_types_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff_attendance: {
         Row: {

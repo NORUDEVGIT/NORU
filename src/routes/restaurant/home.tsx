@@ -88,9 +88,12 @@ const MODULES: ModuleCard[] = [
   {
     title: "Rooms & Front Office",
     description:
-      "Rooms, room types, availability, arrivals, check-in, in-house guests, room assignment, departures and housekeeping.",
+      "Room types, rooms, amenities and room imagery. Availability, arrivals and housekeeping follow in a later phase.",
     icon: BedDouble,
-    status: "soon",
+    status: "active",
+    to: "/restaurant/rooms",
+    tab: "dashboard",
+    roles: ["owner", "manager"],
   },
   {
     title: "Booking & Guest Management",

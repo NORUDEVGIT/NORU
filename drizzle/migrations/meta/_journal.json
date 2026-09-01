@@ -71,6 +71,13 @@
       "when": 1788249165181,
       "tag": "0009_create_recipe_components",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788267064948,
+      "tag": "0010_create_room_foundation",
+      "breakpoints": true
     }
   ]
 }
