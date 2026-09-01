@@ -114,9 +114,11 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const editItem = useServerFn(updateInventoryItem);
   const recordMovement = useServerFn(createInventoryMovement);
 
+  const searchTab = Route.useSearch().tab;
   const [tab, setTab] = useState<
     "overview" | "ingredient" | "consumable" | "operating_asset" | "equipment" | "suppliers" | "purchasing"
   >("overview");
+
 
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
