@@ -563,6 +563,11 @@ function ItemActions({
         <DropdownMenuItem onSelect={() => onAction(item, "history")}>
           <History className="mr-2 size-4" /> View history
         </DropdownMenuItem>
+        {item.inventoryType === "ingredient" ? (
+          <DropdownMenuItem onSelect={() => onAction(item, "recipes")}>
+            Used in recipes
+          </DropdownMenuItem>
+        ) : null}
         {canManage ? (
           <DropdownMenuItem onSelect={() => onAction(item, "edit")}>
             <Pencil className="mr-2 size-4" /> Edit item
