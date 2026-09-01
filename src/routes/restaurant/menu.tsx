@@ -275,10 +275,16 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
                   ) : null}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{item.name}</p>
+                  <p className="flex items-center gap-2 font-medium">
+                    {item.name}
+                    <RecipeStatusChip status={recipeByItem.get(item.id)?.status ?? "no_recipe"} />
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {categoryById.get(item.categoryId ?? "")?.name ?? "Uncategorised"} ·{" "}
                     {money(item.price)}
+                    {recipeByItem.get(item.id)?.recipeCost != null
+                      ? ` · recipe ${money(recipeByItem.get(item.id)!.recipeCost as number)}`
+                      : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
