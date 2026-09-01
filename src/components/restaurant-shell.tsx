@@ -101,9 +101,9 @@ const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
 const MODULE_TITLE: Record<WorkspaceModule, string> = {
   home: "Property Home",
   restaurant: "Restaurant Management",
-  stock: "Stock Management",
+  stock: "Stock & Procurement",
   staff: "Staff Management",
-  settings: "Settings",
+  settings: "Property Settings & Integrations",
 };
 
 /** Which workspace a page belongs to, derived from its nav label. */

@@ -155,7 +155,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
 
   const canManageStaff = role === "owner" || role === "manager";
   const canSeeStock = role === "owner" || role === "manager" || role === "kitchen";
-  const today = useMemo(() => localDateInZone(new Date(), timezone), [timezone]);
+  const today = useMemo(() => localDateInZone(timezone), [timezone]);
 
   const dashboard = useQuery({
     queryKey: ["property-home-dashboard", restaurantId],
