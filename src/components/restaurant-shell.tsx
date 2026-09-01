@@ -273,7 +273,7 @@ export function RestaurantShell({
                 <p className="truncate font-display text-lg leading-tight">
                   {restaurant?.name ?? "Restaurant"}
                 </p>
-                <p className="text-xs text-muted-foreground">Restaurant Dashboard</p>
+                <p className="text-xs text-muted-foreground">{MODULE_TITLE[workspace]}</p>
               </div>
               <div className="ml-auto flex items-center gap-3">
                 <span className="hidden text-xs text-muted-foreground sm:inline">
