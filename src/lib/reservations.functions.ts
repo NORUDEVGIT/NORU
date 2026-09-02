@@ -421,6 +421,8 @@ const stayInputSchema = z.object({
   children: z.number().int().min(0).max(20),
   specialRequests: z.string().max(2000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  /** Pricing is re-derived server-side from this plan; browser totals are ignored. */
+  ratePlanId: idSchema.nullable().optional(),
 });
 
 export const createReservation = createServerFn({ method: "POST" })
@@ -433,7 +435,7 @@ export const createReservation = createServerFn({ method: "POST" })
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: created, error } = await supabaseAdmin.rpc("create_hotel_reservation", {
+    const { data: created, error } = await supabaseAdmin.rpc("create_hotel_reservation_priced", {
       _restaurant_id: data.restaurantId,
       _guest_id: data.guestId,
       _room_type_id: data.roomTypeId,
@@ -445,9 +447,10 @@ export const createReservation = createServerFn({ method: "POST" })
       _special_requests: blankToNull(data.specialRequests) as unknown as string,
       _notes: blankToNull(data.notes) as unknown as string,
       _status: data.status ?? "pending",
+      _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
     });
-    if (error) throw reservationError(error.message);
+    if (error) throw rateError(reservationError(error.message).message);
 
     const row = created as unknown as { id: string; confirmation_number: string };
     return { id: row.id, confirmationNumber: row.confirmation_number };
@@ -465,7 +468,7 @@ export const amendReservation = createServerFn({ method: "POST" })
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: updated, error } = await supabaseAdmin.rpc("amend_hotel_reservation", {
+    const { data: updated, error } = await supabaseAdmin.rpc("amend_hotel_reservation_priced", {
       _restaurant_id: data.restaurantId,
       _reservation_id: data.reservationId,
       _room_type_id: data.roomTypeId,
@@ -476,12 +479,14 @@ export const amendReservation = createServerFn({ method: "POST" })
       _children: data.children,
       _special_requests: blankToNull(data.specialRequests) as unknown as string,
       _notes: blankToNull(data.notes) as unknown as string,
+      _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
     });
-    if (error) throw reservationError(error.message);
+    if (error) throw rateError(reservationError(error.message).message);
 
     return { id: (updated as unknown as { id: string }).id };
   });
+
 
 /** Assign or clear a room without touching the rest of the stay. */
 export const assignReservationRoom = createServerFn({ method: "POST" })
