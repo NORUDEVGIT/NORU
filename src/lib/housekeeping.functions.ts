@@ -128,8 +128,8 @@ export interface HousekeepingHistoryEntry {
   roomId: string | null;
   roomNumber: string | null;
   eventType: string;
-  previousValues: Record<string, unknown> | null;
-  newValues: Record<string, unknown> | null;
+  previousValues: string | null;
+  newValues: string | null;
   notes: string | null;
   actorName: string | null;
   createdAt: string;
@@ -958,8 +958,8 @@ export const listHousekeepingHistory = createServerFn({ method: "POST" })
       roomId: r.room_id,
       roomNumber: r.hotel_rooms?.room_number ?? null,
       eventType: r.event_type,
-      previousValues: r.previous_values,
-      newValues: r.new_values,
+      previousValues: r.previous_values ? JSON.stringify(r.previous_values) : null,
+      newValues: r.new_values ? JSON.stringify(r.new_values) : null,
       notes: r.notes,
       actorName: r.actor_membership_id ? (names.get(r.actor_membership_id)?.name ?? null) : null,
       createdAt: r.created_at,

@@ -55,6 +55,7 @@ import { Route as RestaurantBookingsNewRouteImport } from './routes/restaurant/b
 import { Route as RestaurantBookingsReservationsRouteImport } from './routes/restaurant/bookings/reservations'
 import { Route as RestaurantGuestsIndexRouteImport } from './routes/restaurant/guests/index'
 import { Route as RestaurantGuestsGuestIdRouteImport } from './routes/restaurant/guests/$guestId'
+import { Route as RestaurantHousekeepingIndexRouteImport } from './routes/restaurant/housekeeping/index'
 import { Route as RestaurantInventoryIndexRouteImport } from './routes/restaurant/inventory/index'
 import { Route as RestaurantOrdersIndexRouteImport } from './routes/restaurant/orders/index'
 import { Route as RestaurantOrdersOrderIdRouteImport } from './routes/restaurant/orders/$orderId'
@@ -300,6 +301,12 @@ const RestaurantGuestsGuestIdRoute = RestaurantGuestsGuestIdRouteImport.update({
   path: '/restaurant/guests/$guestId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantHousekeepingIndexRoute =
+  RestaurantHousekeepingIndexRouteImport.update({
+    id: '/restaurant/housekeeping/',
+    path: '/restaurant/housekeeping/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantInventoryIndexRoute =
   RestaurantInventoryIndexRouteImport.update({
     id: '/restaurant/inventory/',
@@ -406,6 +413,7 @@ export interface FileRoutesByFullPath {
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
+  '/restaurant/housekeeping/': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
@@ -462,6 +470,7 @@ export interface FileRoutesByTo {
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
   '/restaurant/bookings': typeof RestaurantBookingsIndexRoute
   '/restaurant/guests': typeof RestaurantGuestsIndexRoute
+  '/restaurant/housekeeping': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders': typeof RestaurantOrdersIndexRoute
   '/restaurant/rooms': typeof RestaurantRoomsIndexRoute
@@ -521,6 +530,7 @@ export interface FileRoutesById {
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
+  '/restaurant/housekeeping/': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
@@ -581,6 +591,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/'
     | '/restaurant/bookings/'
     | '/restaurant/guests/'
+    | '/restaurant/housekeeping/'
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
     | '/restaurant/rooms/'
@@ -637,6 +648,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug'
     | '/restaurant/bookings'
     | '/restaurant/guests'
+    | '/restaurant/housekeeping'
     | '/restaurant/inventory'
     | '/restaurant/orders'
     | '/restaurant/rooms'
@@ -695,6 +707,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/'
     | '/restaurant/bookings/'
     | '/restaurant/guests/'
+    | '/restaurant/housekeeping/'
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
     | '/restaurant/rooms/'
@@ -745,6 +758,7 @@ export interface RootRouteChildren {
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
   RestaurantBookingsIndexRoute: typeof RestaurantBookingsIndexRoute
   RestaurantGuestsIndexRoute: typeof RestaurantGuestsIndexRoute
+  RestaurantHousekeepingIndexRoute: typeof RestaurantHousekeepingIndexRoute
   RestaurantInventoryIndexRoute: typeof RestaurantInventoryIndexRoute
   RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
@@ -1075,6 +1089,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantGuestsGuestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/housekeeping/': {
+      id: '/restaurant/housekeeping/'
+      path: '/restaurant/housekeeping'
+      fullPath: '/restaurant/housekeeping/'
+      preLoaderRoute: typeof RestaurantHousekeepingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/inventory/': {
       id: '/restaurant/inventory/'
       path: '/restaurant/inventory'
@@ -1231,6 +1252,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
   RestaurantBookingsIndexRoute: RestaurantBookingsIndexRoute,
   RestaurantGuestsIndexRoute: RestaurantGuestsIndexRoute,
+  RestaurantHousekeepingIndexRoute: RestaurantHousekeepingIndexRoute,
   RestaurantInventoryIndexRoute: RestaurantInventoryIndexRoute,
   RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,

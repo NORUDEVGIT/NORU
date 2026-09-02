@@ -1221,7 +1221,7 @@ export function HousekeepingHistoryTab({ restaurantId }: Props) {
                 <td className="p-3">{h.eventType.replace(/_/g, " ")}</td>
                 <td className="p-3">{h.actorName ?? "System"}</td>
                 <td className="p-3 text-xs text-muted-foreground">
-                  {h.notes ?? (h.newValues ? JSON.stringify(h.newValues) : "—")}
+                  {h.notes ?? h.newValues ?? "—"}
                 </td>
               </tr>
             ))
