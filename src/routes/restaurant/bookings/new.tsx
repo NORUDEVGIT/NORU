@@ -28,7 +28,8 @@ import {
 } from "@/lib/reservations.functions";
 import { nightsBetween } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useRestaurantTimezone } from "@/state/restaurant-context";
+import { quoteStay } from "@/lib/rates.functions";
+import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({
@@ -75,6 +76,8 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitReservation = useServerFn(createReservation);
+  const fetchQuotes = useServerFn(quoteStay);
+  const money = useMoney();
 
   const [guestSearch, setGuestSearch] = useState("");
   const [guest, setGuest] = useState<GuestSummary | null>(null);
@@ -87,6 +90,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [specialRequests, setSpecialRequests] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"pending" | "confirmed">("pending");
+  const [ratePlanId, setRatePlanId] = useState("");
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -119,6 +123,15 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
     enabled: canManage && datesValid && !!roomTypeId,
   });
 
+  const quotesQuery = useQuery({
+    queryKey: ["stay-quotes", restaurantId, roomTypeId, arrival, departure],
+    queryFn: () => fetchQuotes({ data: { restaurantId, roomTypeId, arrival, departure } }),
+    enabled: canManage && datesValid && !!roomTypeId,
+    retry: false,
+  });
+  const quotes = quotesQuery.data ?? [];
+  const selectedQuote = quotes.find((q) => q.plan.id === ratePlanId) ?? null;
+
   const create = useMutation({
     mutationFn: () =>
       submitReservation({
@@ -134,6 +147,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           specialRequests: specialRequests.trim() || null,
           notes: notes.trim() || null,
           status,
+          ratePlanId: ratePlanId || null,
         },
       }),
     onSuccess: (result) => {
@@ -289,6 +303,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
                     onClick={() => {
                       setRoomTypeId(a.roomTypeId);
                       setRoomId(UNASSIGNED);
+                      setRatePlanId("");
                     }}
                     className={cn(
                       "w-full rounded-xl border p-3 text-left transition-colors",
@@ -417,7 +432,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">5. Details</h2>
+        <h2 className="font-display text-lg">6. Details</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="requests">Special requests</Label>
