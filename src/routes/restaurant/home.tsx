@@ -146,9 +146,12 @@ const MODULES: ModuleCard[] = [
   {
     title: "Accounting & Finance",
     description:
-      "Guest folios, restaurant and room revenue, payments, expenses, invoices, reconciliation and night audit.",
+      "Guest folios, charges, payments, deposits, refunds, discounts and cashier shift control.",
     icon: Wallet,
-    status: "soon",
+    status: "active",
+    to: "/restaurant/cashiering",
+    tab: "dashboard",
+    roles: ["owner", "manager"],
   },
   {
     title: "Reports & Analytics",
