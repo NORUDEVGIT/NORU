@@ -29,7 +29,9 @@ export function RoomsDashboardTab({ restaurantId }: { restaurantId: string }) {
     <div className="space-y-6">
       <FrontOfficeSummary restaurantId={restaurantId} />
 
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
+
 
 
           <div key={card.label} className="rounded-2xl border border-border bg-card p-4">
