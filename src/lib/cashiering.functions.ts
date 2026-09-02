@@ -459,8 +459,8 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       _category: categoryForType(data.type),
       _description: description,
       _amount: Math.round(data.amount * 100) / 100,
-      _reference_type: null,
-      _reference_id: null,
+      _reference_type: null as unknown as string,
+      _reference_id: null as unknown as string,
       _membership_id: me.id,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
@@ -566,7 +566,7 @@ export const openCashierShift = createServerFn({ method: "POST" })
       _restaurant_id: data.restaurantId,
       _membership_id: me.id,
       _opening_cash: data.openingCash,
-      _notes: blankToNull(data.notes ?? null),
+      _notes: blankToNull(data.notes ?? null) as unknown as string,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
     return { ok: true, id: (shift as { id: string }).id };
@@ -591,7 +591,7 @@ export const closeCashierShift = createServerFn({ method: "POST" })
       _restaurant_id: data.restaurantId,
       _shift_id: data.shiftId,
       _closing_cash: data.closingCash,
-      _notes: blankToNull(data.notes ?? null),
+      _notes: blankToNull(data.notes ?? null) as unknown as string,
       _membership_id: me.id,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
