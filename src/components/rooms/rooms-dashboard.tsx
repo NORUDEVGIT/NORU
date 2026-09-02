@@ -3,6 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { BedDouble, CheckCircle2, CircleSlash, DoorOpen, Tag, Wrench } from "lucide-react";
 
 import { getRoomsDashboard } from "@/lib/rooms.functions";
+import { FrontOfficeSummary } from "@/components/frontoffice/front-office-summary";
+
 
 export function RoomsDashboardTab({ restaurantId }: { restaurantId: string }) {
   const fetchDashboard = useServerFn(getRoomsDashboard);
