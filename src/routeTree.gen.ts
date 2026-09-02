@@ -66,6 +66,7 @@ import { Route as RestaurantRoomsIndexRouteImport } from './routes/restaurant/ro
 import { Route as RestaurantRoomsArrivalsRouteImport } from './routes/restaurant/rooms/arrivals'
 import { Route as RestaurantRoomsDeparturesRouteImport } from './routes/restaurant/rooms/departures'
 import { Route as RestaurantRoomsInHouseRouteImport } from './routes/restaurant/rooms/in-house'
+import { Route as StayPropertySlugIndexRouteImport } from './routes/stay/$propertySlug/index'
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
 import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/restaurant/cashiering/folios/$folioId'
@@ -367,6 +368,11 @@ const RestaurantRoomsInHouseRoute = RestaurantRoomsInHouseRouteImport.update({
   path: '/restaurant/rooms/in-house',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StayPropertySlugIndexRoute = StayPropertySlugIndexRouteImport.update({
+  id: '/stay/$propertySlug/',
+  path: '/stay/$propertySlug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RRestaurantSlugOrderOrderIdRoute =
   RRestaurantSlugOrderOrderIdRouteImport.update({
     id: '/order/$orderId',
@@ -461,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
+  '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
@@ -524,6 +531,7 @@ export interface FileRoutesByTo {
   '/restaurant/inventory': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders': typeof RestaurantOrdersIndexRoute
   '/restaurant/rooms': typeof RestaurantRoomsIndexRoute
+  '/stay/$propertySlug': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
@@ -590,6 +598,7 @@ export interface FileRoutesById {
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
+  '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
@@ -657,6 +666,7 @@ export interface FileRouteTypes {
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
     | '/restaurant/rooms/'
+    | '/stay/$propertySlug/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/cashiering/folios/$folioId'
@@ -720,6 +730,7 @@ export interface FileRouteTypes {
     | '/restaurant/inventory'
     | '/restaurant/orders'
     | '/restaurant/rooms'
+    | '/stay/$propertySlug'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/cashiering/folios/$folioId'
@@ -785,6 +796,7 @@ export interface FileRouteTypes {
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
     | '/restaurant/rooms/'
+    | '/stay/$propertySlug/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/cashiering/folios/$folioId'
@@ -842,6 +854,7 @@ export interface RootRouteChildren {
   RestaurantInventoryIndexRoute: typeof RestaurantInventoryIndexRoute
   RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
+  StayPropertySlugIndexRoute: typeof StayPropertySlugIndexRoute
   RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
   RestaurantCashieringNightAuditRunIdRoute: typeof RestaurantCashieringNightAuditRunIdRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
@@ -1249,6 +1262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantRoomsInHouseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/stay/$propertySlug/': {
+      id: '/stay/$propertySlug/'
+      path: '/stay/$propertySlug'
+      fullPath: '/stay/$propertySlug/'
+      preLoaderRoute: typeof StayPropertySlugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/$restaurantSlug/order/$orderId': {
       id: '/r/$restaurantSlug/order/$orderId'
       path: '/order/$orderId'
@@ -1384,6 +1404,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantInventoryIndexRoute: RestaurantInventoryIndexRoute,
   RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,
+  StayPropertySlugIndexRoute: StayPropertySlugIndexRoute,
   RestaurantCashieringFoliosFolioIdRoute:
     RestaurantCashieringFoliosFolioIdRoute,
   RestaurantCashieringNightAuditRunIdRoute:
