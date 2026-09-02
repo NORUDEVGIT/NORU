@@ -57,7 +57,7 @@ export function DistributionOverviewTab({ data }: { data: Overview }) {
         <StatCard
           label="Direct booking"
           value={data.settings.enabled ? "On" : "Off"}
-          hint={direct ? `Channel ${direct.status === "active" ? "active" : direct.status}` : undefined}
+          hint={direct ? `Channel ${direct.status === "active" ? "active" : direct.status}` : ""}
         />
       </div>
 
