@@ -619,6 +619,10 @@ function PricingSection({
   const reprice = useMutation({
     mutationFn: () => submitReprice({ data: { restaurantId, reservationId: reservation.id, ratePlanId: planId } }),
     onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success(`Repriced — new stay total ${money(result.subtotal)}.`);
       onRepriced();
     },
