@@ -516,15 +516,23 @@ export const listCashierShifts = createServerFn({ method: "GET" })
     if (list.length > 0) {
       const { data: members } = await supabaseAdmin
         .from("restaurant_users")
-        .select("id, user_id, profiles:profiles!restaurant_users_user_id_fkey(full_name, email)")
+        .select("id, user_id")
         .eq("restaurant_id", data.restaurantId)
         .in("id", Array.from(new Set(list.map((s) => s.membership_id))));
-      for (const m of (members ?? []) as Array<{
-        id: string;
-        profiles: { full_name: string | null; email: string | null } | null;
-      }>) {
-        names.set(m.id, m.profiles?.full_name || m.profiles?.email || "Staff member");
-      }
+      const memberRows = (members ?? []) as Array<{ id: string; user_id: string }>;
+      const { data: profiles } = memberRows.length
+        ? await supabaseAdmin
+            .from("profiles")
+            .select("id, first_name, last_name, email")
+            .in("id", memberRows.map((m) => m.user_id))
+        : { data: [] as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }> };
+      const byUser = new Map(
+        (profiles ?? []).map((p) => [
+          p.id,
+          [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Staff member",
+        ]),
+      );
+      for (const m of memberRows) names.set(m.id, byUser.get(m.user_id) ?? "Staff member");
     }
 
     return list.map((s) => ({
