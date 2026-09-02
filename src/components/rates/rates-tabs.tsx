@@ -387,7 +387,11 @@ function RatePlanDialog({
           active,
         },
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Rate plan saved");
       void queryClient.invalidateQueries({ queryKey: ["rate-plans", restaurantId] });
       onClose();
