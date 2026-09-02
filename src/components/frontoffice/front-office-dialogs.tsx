@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/select";
 import { addDays, formatStayDate } from "@/components/bookings/reservation-bits";
 import { listGuests, type GuestSummary } from "@/lib/guests.functions";
+import { getReservationFolio } from "@/lib/cashiering.functions";
+import { useMoney } from "@/state/restaurant-context";
 import {
   createReservation,
   getRoomTypeAvailability,
@@ -364,6 +366,15 @@ export function CheckOutDialog({
 }) {
   const refresh = useRefresh();
   const checkOut = useServerFn(checkOutReservation);
+  const fetchFolio = useServerFn(getReservationFolio);
+  const money = useMoney();
+
+  const folioQuery = useQuery({
+    queryKey: ["reservation-folio", restaurantId, stay.id],
+    queryFn: () => fetchFolio({ data: { restaurantId, reservationId: stay.id } }),
+    enabled: open,
+    retry: false,
+  });
 
   const mutation = useMutation({
     mutationFn: () => checkOut({ data: { restaurantId, reservationId: stay.id } }),
@@ -375,6 +386,9 @@ export function CheckOutDialog({
     onError: (error) => toast.error(errorText(error)),
   });
 
+  const balance = folioQuery.data?.balance ?? 0;
+  const outstanding = folioQuery.data !== null && folioQuery.data !== undefined && Math.abs(balance) >= 0.01;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -385,9 +399,14 @@ export function CheckOutDialog({
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          The room becomes vacant immediately. Housekeeping status is unchanged — cleaning states arrive with
-          Housekeeping. Billing settlement will be handled in a future Cashiering phase.
+          The room becomes vacant immediately and housekeeping opens a departure cleaning task.
         </p>
+        {outstanding ? (
+          <p className="text-sm text-destructive">
+            Folio {folioQuery.data?.folioNumber} still has a balance of {money(balance)}. You can still check
+            out — settle the folio in Accounting &amp; Finance.
+          </p>
+        ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel

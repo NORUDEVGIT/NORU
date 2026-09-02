@@ -9,6 +9,7 @@ import {
   UtensilsCrossed,
   ChefHat,
   ReceiptText,
+  Wallet,
   Boxes,
   Carrot,
   PackageOpen,
@@ -63,6 +64,10 @@ export type RestaurantNavLabel =
   | "New Reservation"
   | "Rates & Revenue"
   | "Guests"
+  | "Cashiering"
+  | "Folios"
+  | "Payments"
+  | "Cashier Shifts"
   | "Staff"
   | "Customers"
   | "Reports"
@@ -76,6 +81,7 @@ export type WorkspaceModule =
   | "rooms"
   | "housekeeping"
   | "guests"
+  | "cashiering"
   | "settings";
 
 type NavEntry = {
@@ -157,6 +163,37 @@ const GUESTS_NAV: NavEntry[] = [
   { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
 ];
 
+const CASHIERING_NAV: NavEntry[] = [
+  {
+    to: "/restaurant/cashiering",
+    tab: "dashboard",
+    label: "Cashiering",
+    icon: LayoutDashboard,
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/cashiering",
+    tab: "folios",
+    label: "Folios",
+    icon: ReceiptText,
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/cashiering",
+    tab: "payments",
+    label: "Payments",
+    icon: Wallet,
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/cashiering",
+    tab: "shifts",
+    label: "Cashier Shifts",
+    icon: ClipboardCheck,
+    roles: ["owner", "manager"],
+  },
+];
+
 const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
   home: [],
   restaurant: RESTAURANT_NAV,
@@ -165,6 +202,7 @@ const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
   rooms: ROOMS_NAV,
   housekeeping: HOUSEKEEPING_NAV,
   guests: GUESTS_NAV,
+  cashiering: CASHIERING_NAV,
   settings: [{ to: "/restaurant/settings", label: "Settings", icon: Settings }],
 };
 
@@ -176,6 +214,7 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
   rooms: "Rooms & Front Office",
   housekeeping: "Housekeeping",
   guests: "Booking & Guest Management",
+  cashiering: "Accounting & Finance",
   settings: "Property Settings & Integrations",
 };
 
@@ -199,6 +238,10 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "New Reservation": "guests",
   "Rates & Revenue": "guests",
   Guests: "guests",
+  Cashiering: "cashiering",
+  Folios: "cashiering",
+  Payments: "cashiering",
+  "Cashier Shifts": "cashiering",
   Staff: "staff",
   Customers: "restaurant",
   Reports: "restaurant",

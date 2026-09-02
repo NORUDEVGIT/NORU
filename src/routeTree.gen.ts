@@ -54,6 +54,7 @@ import { Route as RestaurantBookingsReservationIdRouteImport } from './routes/re
 import { Route as RestaurantBookingsNewRouteImport } from './routes/restaurant/bookings/new'
 import { Route as RestaurantBookingsRatesRouteImport } from './routes/restaurant/bookings/rates'
 import { Route as RestaurantBookingsReservationsRouteImport } from './routes/restaurant/bookings/reservations'
+import { Route as RestaurantCashieringIndexRouteImport } from './routes/restaurant/cashiering/index'
 import { Route as RestaurantGuestsIndexRouteImport } from './routes/restaurant/guests/index'
 import { Route as RestaurantGuestsGuestIdRouteImport } from './routes/restaurant/guests/$guestId'
 import { Route as RestaurantHousekeepingIndexRouteImport } from './routes/restaurant/housekeeping/index'
@@ -66,6 +67,7 @@ import { Route as RestaurantRoomsDeparturesRouteImport } from './routes/restaura
 import { Route as RestaurantRoomsInHouseRouteImport } from './routes/restaurant/rooms/in-house'
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
+import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/restaurant/cashiering/folios/$folioId'
 import { Route as RestaurantInventoryPurchasingPurchaseOrderIdRouteImport } from './routes/restaurant/inventory/purchasing/$purchaseOrderId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -297,6 +299,12 @@ const RestaurantBookingsReservationsRoute =
     path: '/restaurant/bookings/reservations',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantCashieringIndexRoute =
+  RestaurantCashieringIndexRouteImport.update({
+    id: '/restaurant/cashiering/',
+    path: '/restaurant/cashiering/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantGuestsIndexRoute = RestaurantGuestsIndexRouteImport.update({
   id: '/restaurant/guests/',
   path: '/restaurant/guests/',
@@ -361,6 +369,12 @@ const RRestaurantSlugTQrTokenRoute = RRestaurantSlugTQrTokenRouteImport.update({
   path: '/t/$qrToken',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RestaurantCashieringFoliosFolioIdRoute =
+  RestaurantCashieringFoliosFolioIdRouteImport.update({
+    id: '/restaurant/cashiering/folios/$folioId',
+    path: '/restaurant/cashiering/folios/$folioId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantInventoryPurchasingPurchaseOrderIdRoute =
   RestaurantInventoryPurchasingPurchaseOrderIdRouteImport.update({
     id: '/restaurant/inventory/purchasing/$purchaseOrderId',
@@ -419,6 +433,7 @@ export interface FileRoutesByFullPath {
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
+  '/restaurant/cashiering/': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
   '/restaurant/housekeeping/': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
@@ -426,6 +441,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
 }
 export interface FileRoutesByTo {
@@ -477,6 +493,7 @@ export interface FileRoutesByTo {
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
   '/restaurant/bookings': typeof RestaurantBookingsIndexRoute
+  '/restaurant/cashiering': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests': typeof RestaurantGuestsIndexRoute
   '/restaurant/housekeeping': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory': typeof RestaurantInventoryIndexRoute
@@ -484,6 +501,7 @@ export interface FileRoutesByTo {
   '/restaurant/rooms': typeof RestaurantRoomsIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
 }
 export interface FileRoutesById {
@@ -538,6 +556,7 @@ export interface FileRoutesById {
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
+  '/restaurant/cashiering/': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
   '/restaurant/housekeeping/': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
@@ -545,6 +564,7 @@ export interface FileRoutesById {
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
 }
 export interface FileRouteTypes {
@@ -600,6 +620,7 @@ export interface FileRouteTypes {
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
     | '/restaurant/bookings/'
+    | '/restaurant/cashiering/'
     | '/restaurant/guests/'
     | '/restaurant/housekeeping/'
     | '/restaurant/inventory/'
@@ -607,6 +628,7 @@ export interface FileRouteTypes {
     | '/restaurant/rooms/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -658,6 +680,7 @@ export interface FileRouteTypes {
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
     | '/restaurant/bookings'
+    | '/restaurant/cashiering'
     | '/restaurant/guests'
     | '/restaurant/housekeeping'
     | '/restaurant/inventory'
@@ -665,6 +688,7 @@ export interface FileRouteTypes {
     | '/restaurant/rooms'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
   id:
     | '__root__'
@@ -718,6 +742,7 @@ export interface FileRouteTypes {
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
     | '/restaurant/bookings/'
+    | '/restaurant/cashiering/'
     | '/restaurant/guests/'
     | '/restaurant/housekeeping/'
     | '/restaurant/inventory/'
@@ -725,6 +750,7 @@ export interface FileRouteTypes {
     | '/restaurant/rooms/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
   fileRoutesById: FileRoutesById
 }
@@ -770,11 +796,13 @@ export interface RootRouteChildren {
   RestaurantRoomsInHouseRoute: typeof RestaurantRoomsInHouseRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
   RestaurantBookingsIndexRoute: typeof RestaurantBookingsIndexRoute
+  RestaurantCashieringIndexRoute: typeof RestaurantCashieringIndexRoute
   RestaurantGuestsIndexRoute: typeof RestaurantGuestsIndexRoute
   RestaurantHousekeepingIndexRoute: typeof RestaurantHousekeepingIndexRoute
   RestaurantInventoryIndexRoute: typeof RestaurantInventoryIndexRoute
   RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
+  RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
 }
 
@@ -1095,6 +1123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantBookingsReservationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/cashiering/': {
+      id: '/restaurant/cashiering/'
+      path: '/restaurant/cashiering'
+      fullPath: '/restaurant/cashiering/'
+      preLoaderRoute: typeof RestaurantCashieringIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/guests/': {
       id: '/restaurant/guests/'
       path: '/restaurant/guests'
@@ -1178,6 +1213,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/r/$restaurantSlug/t/$qrToken'
       preLoaderRoute: typeof RRestaurantSlugTQrTokenRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
+    }
+    '/restaurant/cashiering/folios/$folioId': {
+      id: '/restaurant/cashiering/folios/$folioId'
+      path: '/restaurant/cashiering/folios/$folioId'
+      fullPath: '/restaurant/cashiering/folios/$folioId'
+      preLoaderRoute: typeof RestaurantCashieringFoliosFolioIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/restaurant/inventory/purchasing/$purchaseOrderId': {
       id: '/restaurant/inventory/purchasing/$purchaseOrderId'
@@ -1272,11 +1314,14 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantRoomsInHouseRoute: RestaurantRoomsInHouseRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
   RestaurantBookingsIndexRoute: RestaurantBookingsIndexRoute,
+  RestaurantCashieringIndexRoute: RestaurantCashieringIndexRoute,
   RestaurantGuestsIndexRoute: RestaurantGuestsIndexRoute,
   RestaurantHousekeepingIndexRoute: RestaurantHousekeepingIndexRoute,
   RestaurantInventoryIndexRoute: RestaurantInventoryIndexRoute,
   RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,
+  RestaurantCashieringFoliosFolioIdRoute:
+    RestaurantCashieringFoliosFolioIdRoute,
   RestaurantInventoryPurchasingPurchaseOrderIdRoute:
     RestaurantInventoryPurchasingPurchaseOrderIdRoute,
 }
