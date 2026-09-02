@@ -578,29 +578,35 @@ export const repriceReservation = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema }).parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string; subtotal: number }> => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; id: string; subtotal: number } | { ok: false; message: string }> => {
+      const me = await requireRateManager(context as never, data.restaurantId);
 
-    const { data: reservation } = await context.supabase
-      .from("hotel_reservations")
-      .select("id")
-      .eq("id", data.reservationId)
-      .eq("restaurant_id", data.restaurantId)
-      .maybeSingle();
-    if (!reservation) throw new Error("Reservation not found for this property.");
+      const { data: reservation } = await context.supabase
+        .from("hotel_reservations")
+        .select("id")
+        .eq("id", data.reservationId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (!reservation) return { ok: false, message: "Reservation not found for this property." };
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: updated, error } = await supabaseAdmin.rpc("reprice_hotel_reservation", {
-      _restaurant_id: data.restaurantId,
-      _reservation_id: data.reservationId,
-      _rate_plan_id: data.ratePlanId,
-      _membership_id: me.id,
-    });
-    if (error) throw rateError(error.message);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: updated, error } = await supabaseAdmin.rpc("reprice_hotel_reservation", {
+        _restaurant_id: data.restaurantId,
+        _reservation_id: data.reservationId,
+        _rate_plan_id: data.ratePlanId,
+        _membership_id: me.id,
+      });
+      // Restriction / rate-plan rejections are expected outcomes, not server faults.
+      if (error) return { ok: false, message: rateError(error.message).message };
 
-    const row = updated as unknown as { id: string; room_subtotal: number | string };
-    return { id: row.id, subtotal: Number(row.room_subtotal ?? 0) };
-  });
+      const row = updated as unknown as { id: string; room_subtotal: number | string };
+      return { ok: true, id: row.id, subtotal: Number(row.room_subtotal ?? 0) };
+    },
+  );
 
 /* ---------------------------------------------------------------- overview */
 
@@ -611,9 +617,11 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {
     await requireRateManager(context as never, data.restaurantId);
-    if (data.to < data.from) throw new Error("Pick an end date on or after the start date.");
+    // An inverted range is normal mid-edit in the date pickers — normalize instead of failing.
+    const from = data.to < data.from ? data.to : data.from;
+    const to = data.to < data.from ? data.from : data.to;
 
-    const dates = new Set(eachDate(data.from, data.to, 400));
+    const dates = new Set(eachDate(from, to, 400));
     const days = dates.size;
 
     const { data: restaurant } = await context.supabase
@@ -634,8 +642,8 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
       .select("arrival_date, departure_date, room_subtotal, nightly_rate_snapshot")
       .eq("restaurant_id", data.restaurantId)
       .in("status", REVENUE_STATUSES as unknown as string[])
-      .lte("arrival_date", data.to)
-      .gt("departure_date", data.from);
+      .lte("arrival_date", to)
+      .gt("departure_date", from);
     if (error) throw new Error(error.message);
 
     let soldNights = 0;
@@ -660,8 +668,8 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
     return {
-      from: data.from,
-      to: data.to,
+      from,
+      to,
       currency: restaurant?.currency_code ?? "USD",
       availableRoomNights,
       soldRoomNights: soldNights,
