@@ -463,9 +463,12 @@ export type Database = {
           created_at: string
           created_by_staff_membership_id: string | null
           floor: string | null
+          housekeeping_status: string
           id: string
           notes: string | null
           restaurant_id: string
+          restriction_expected_return: string | null
+          restriction_reason: string | null
           room_number: string
           room_type_id: string
           smoking: boolean
@@ -480,9 +483,12 @@ export type Database = {
           created_at?: string
           created_by_staff_membership_id?: string | null
           floor?: string | null
+          housekeeping_status?: string
           id?: string
           notes?: string | null
           restaurant_id: string
+          restriction_expected_return?: string | null
+          restriction_reason?: string | null
           room_number: string
           room_type_id: string
           smoking?: boolean
@@ -497,9 +503,12 @@ export type Database = {
           created_at?: string
           created_by_staff_membership_id?: string | null
           floor?: string | null
+          housekeeping_status?: string
           id?: string
           notes?: string | null
           restaurant_id?: string
+          restriction_expected_return?: string | null
+          restriction_reason?: string | null
           room_number?: string
           room_type_id?: string
           smoking?: boolean
@@ -527,6 +536,354 @@ export type Database = {
             columns: ["room_type_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      housekeeping_discrepancies: {
+        Row: {
+          actual_hk_status: string | null
+          actual_occupancy: string | null
+          created_at: string
+          id: string
+          reason: string | null
+          reported_by_membership_id: string | null
+          reported_hk_status: string | null
+          reported_occupancy: string | null
+          resolved_at: string | null
+          resolved_by_membership_id: string | null
+          restaurant_id: string
+          room_id: string
+          status: string
+        }
+        Insert: {
+          actual_hk_status?: string | null
+          actual_occupancy?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          reported_by_membership_id?: string | null
+          reported_hk_status?: string | null
+          reported_occupancy?: string | null
+          resolved_at?: string | null
+          resolved_by_membership_id?: string | null
+          restaurant_id: string
+          room_id: string
+          status?: string
+        }
+        Update: {
+          actual_hk_status?: string | null
+          actual_occupancy?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          reported_by_membership_id?: string | null
+          reported_hk_status?: string | null
+          reported_occupancy?: string | null
+          resolved_at?: string | null
+          resolved_by_membership_id?: string | null
+          restaurant_id?: string
+          room_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "housekeeping_discrepancies_reported_by_membership_id_fkey"
+            columns: ["reported_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_discrepancies_resolved_by_membership_id_fkey"
+            columns: ["resolved_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_discrepancies_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_discrepancies_room_same_property"
+            columns: ["room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      housekeeping_history: {
+        Row: {
+          actor_membership_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          restaurant_id: string
+          room_id: string | null
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id: string
+          room_id?: string | null
+        }
+        Update: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id?: string
+          room_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "housekeeping_history_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_history_room_same_property"
+            columns: ["room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      housekeeping_inspections: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          inspector_membership_id: string | null
+          notes: string | null
+          restaurant_id: string
+          room_id: string
+          status: string
+          task_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspector_membership_id?: string | null
+          notes?: string | null
+          restaurant_id: string
+          room_id: string
+          status?: string
+          task_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspector_membership_id?: string | null
+          notes?: string | null
+          restaurant_id?: string
+          room_id?: string
+          status?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "housekeeping_inspections_inspector_membership_id_fkey"
+            columns: ["inspector_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_inspections_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_inspections_room_same_property"
+            columns: ["room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "housekeeping_inspections_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "housekeeping_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      housekeeping_maintenance_requests: {
+        Row: {
+          category: string
+          created_at: string
+          created_by_membership_id: string | null
+          description: string
+          id: string
+          priority: string
+          resolved_at: string | null
+          resolved_by_membership_id: string | null
+          restaurant_id: string
+          room_id: string
+          status: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          description: string
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          resolved_by_membership_id?: string | null
+          restaurant_id: string
+          room_id: string
+          status?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          description?: string
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          resolved_by_membership_id?: string | null
+          restaurant_id?: string
+          room_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "housekeeping_maintenance_request_resolved_by_membership_id_fkey"
+            columns: ["resolved_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_maintenance_requests_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_maintenance_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_maintenance_room_same_property"
+            columns: ["room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      housekeeping_tasks: {
+        Row: {
+          assigned_membership_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          id: string
+          notes: string | null
+          priority: string
+          restaurant_id: string
+          room_id: string
+          started_at: string | null
+          status: string
+          task_type: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_membership_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          restaurant_id: string
+          room_id: string
+          started_at?: string | null
+          status?: string
+          task_type: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_membership_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          restaurant_id?: string
+          room_id?: string
+          started_at?: string | null
+          status?: string
+          task_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "housekeeping_tasks_assigned_membership_id_fkey"
+            columns: ["assigned_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_tasks_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_tasks_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "housekeeping_tasks_room_same_property"
+            columns: ["room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
             referencedColumns: ["id", "restaurant_id"]
           },
         ]
@@ -2412,6 +2769,47 @@ export type Database = {
       has_restaurant_role: {
         Args: { _restaurant_id: string; _role: string }
         Returns: boolean
+      }
+      housekeeping_complete_task: {
+        Args: {
+          _membership_id: string
+          _restaurant_id: string
+          _task_id: string
+        }
+        Returns: undefined
+      }
+      housekeeping_create_task: {
+        Args: {
+          _membership_id: string
+          _notes: string
+          _priority: string
+          _restaurant_id: string
+          _room_id: string
+          _task_type: string
+        }
+        Returns: string
+      }
+      housekeeping_inspect_room: {
+        Args: {
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+          _result: string
+          _room_id: string
+          _task_id: string
+        }
+        Returns: string
+      }
+      housekeeping_set_room_restriction: {
+        Args: {
+          _expected_return: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+          _room_id: string
+          _status: string
+        }
+        Returns: undefined
       }
       is_active_staff: { Args: never; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }

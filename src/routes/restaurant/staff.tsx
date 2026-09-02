@@ -51,6 +51,7 @@ const ROLE_LABEL: Record<StaffRole, string> = {
   manager: "Manager",
   kitchen: "Kitchen",
   waiter: "Waiter",
+  housekeeping: "Housekeeping",
 };
 
 const ROLE_BADGE: Record<StaffRole, string> = {
@@ -58,6 +59,7 @@ const ROLE_BADGE: Record<StaffRole, string> = {
   manager: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
   kitchen: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   waiter: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+  housekeeping: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
 };
 
 /** Mirrors the authorization that actually exists in the codebase today. */
