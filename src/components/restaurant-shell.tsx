@@ -9,6 +9,7 @@ import {
   UtensilsCrossed,
   ChefHat,
   ReceiptText,
+  Wallet,
   Boxes,
   Carrot,
   PackageOpen,
