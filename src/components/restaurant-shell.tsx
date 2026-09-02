@@ -197,6 +197,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Bookings: "guests",
   Reservations: "guests",
   "New Reservation": "guests",
+  "Rates & Revenue": "guests",
   Guests: "guests",
   Staff: "staff",
   Customers: "restaurant",
