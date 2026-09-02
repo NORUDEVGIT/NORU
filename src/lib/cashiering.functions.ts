@@ -464,7 +464,20 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       _membership_id: me.id,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
+
+    // Night audit rolls payments up by method, so store the normalized code alongside the ledger row.
+    const normalized = method ? method.trim().toLowerCase().replace(/\s+/g, "_") : null;
+    const allowed = ["cash", "card", "bank_transfer", "mobile_money", "other"];
+    if (normalized && ["payment", "deposit", "refund"].includes(data.type)) {
+      await supabaseAdmin
+        .from("folio_transactions")
+        .update({ payment_method: allowed.includes(normalized) ? normalized : "other" })
+        .eq("id", (txn as { id: string }).id)
+        .eq("restaurant_id", data.restaurantId);
+    }
+
     return { ok: true, id: (txn as { id: string }).id };
+
   });
 
 export const closeFolio = createServerFn({ method: "POST" })
