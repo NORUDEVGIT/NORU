@@ -578,29 +578,35 @@ export const repriceReservation = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema }).parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string; subtotal: number }> => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; id: string; subtotal: number } | { ok: false; message: string }> => {
+      const me = await requireRateManager(context as never, data.restaurantId);
 
-    const { data: reservation } = await context.supabase
-      .from("hotel_reservations")
-      .select("id")
-      .eq("id", data.reservationId)
-      .eq("restaurant_id", data.restaurantId)
-      .maybeSingle();
-    if (!reservation) throw new Error("Reservation not found for this property.");
+      const { data: reservation } = await context.supabase
+        .from("hotel_reservations")
+        .select("id")
+        .eq("id", data.reservationId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (!reservation) return { ok: false, message: "Reservation not found for this property." };
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: updated, error } = await supabaseAdmin.rpc("reprice_hotel_reservation", {
-      _restaurant_id: data.restaurantId,
-      _reservation_id: data.reservationId,
-      _rate_plan_id: data.ratePlanId,
-      _membership_id: me.id,
-    });
-    if (error) throw rateError(error.message);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: updated, error } = await supabaseAdmin.rpc("reprice_hotel_reservation", {
+        _restaurant_id: data.restaurantId,
+        _reservation_id: data.reservationId,
+        _rate_plan_id: data.ratePlanId,
+        _membership_id: me.id,
+      });
+      // Restriction / rate-plan rejections are expected outcomes, not server faults.
+      if (error) return { ok: false, message: rateError(error.message).message };
 
-    const row = updated as unknown as { id: string; room_subtotal: number | string };
-    return { id: row.id, subtotal: Number(row.room_subtotal ?? 0) };
-  });
+      const row = updated as unknown as { id: string; room_subtotal: number | string };
+      return { ok: true, id: row.id, subtotal: Number(row.room_subtotal ?? 0) };
+    },
+  );
 
 /* ---------------------------------------------------------------- overview */
 
