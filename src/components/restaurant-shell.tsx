@@ -16,6 +16,8 @@ import {
   Truck,
   ShoppingCart,
   CalendarDays,
+  CalendarCheck,
+  CalendarPlus,
   ClipboardCheck,
   QrCode,
   Users,
@@ -46,6 +48,9 @@ export type RestaurantNavLabel =
   | "Take Order"
   | "Inventory"
   | "Rooms"
+  | "Bookings"
+  | "Reservations"
+  | "New Reservation"
   | "Guests"
   | "Staff"
   | "Customers"
@@ -109,6 +114,14 @@ const ROOMS_NAV: NavEntry[] = [
 ];
 
 const GUESTS_NAV: NavEntry[] = [
+  { to: "/restaurant/bookings", label: "Bookings", icon: LayoutDashboard, roles: ["owner", "manager"] },
+  {
+    to: "/restaurant/bookings/reservations",
+    label: "Reservations",
+    icon: CalendarCheck,
+    roles: ["owner", "manager"],
+  },
+  { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: ["owner", "manager"] },
   { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
 ];
 
@@ -143,6 +156,9 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "Take Order": "restaurant",
   Inventory: "stock",
   Rooms: "rooms",
+  Bookings: "guests",
+  Reservations: "guests",
+  "New Reservation": "guests",
   Guests: "guests",
   Staff: "staff",
   Customers: "restaurant",

@@ -272,6 +272,189 @@ export type Database = {
           },
         ]
       }
+      hotel_reservation_counters: {
+        Row: {
+          last_number: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_number?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_number?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_counters_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_reservation_history: {
+        Row: {
+          actor_membership_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          reservation_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          reservation_id: string
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          reservation_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_history_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_history_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_reservations: {
+        Row: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          adults?: number
+          arrival_date: string
+          cancellation_reason?: string | null
+          children?: number
+          confirmation_number: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          departure_date: string
+          guest_id: string
+          id?: string
+          notes?: string | null
+          restaurant_id: string
+          room_id?: string | null
+          room_type_id: string
+          source?: string
+          special_requests?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          adults?: number
+          arrival_date?: string
+          cancellation_reason?: string | null
+          children?: number
+          confirmation_number?: string
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          departure_date?: string
+          guest_id?: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string
+          room_id?: string | null
+          room_type_id?: string
+          source?: string
+          special_requests?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservations_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_guest_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_room_same_type"
+            columns: ["room_id", "restaurant_id", "room_type_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id", "restaurant_id", "room_type_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_type_same_property"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       hotel_rooms: {
         Row: {
           accessible: boolean
@@ -1988,6 +2171,47 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      amend_hotel_reservation: {
+        Args: {
+          _adults: number
+          _arrival: string
+          _children: number
+          _departure: string
+          _membership_id: string
+          _notes: string
+          _reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+          _room_type_id: string
+          _special_requests: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       apply_inventory_movement: {
         Args: {
           _allow_negative?: boolean
@@ -2001,9 +2225,76 @@ export type Database = {
         }
         Returns: number
       }
+      assert_reservation_capacity: {
+        Args: {
+          _arrival: string
+          _departure: string
+          _exclude_reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+          _room_type_id: string
+        }
+        Returns: undefined
+      }
       can_manage_restaurant_storage: {
         Args: { _path: string }
         Returns: boolean
+      }
+      count_reserved_rooms: {
+        Args: {
+          _arrival: string
+          _departure: string
+          _exclude_reservation_id?: string
+          _restaurant_id: string
+          _room_type_id: string
+        }
+        Returns: number
+      }
+      count_sellable_rooms: {
+        Args: { _restaurant_id: string; _room_type_id: string }
+        Returns: number
+      }
+      create_hotel_reservation: {
+        Args: {
+          _adults: number
+          _arrival: string
+          _children: number
+          _departure: string
+          _guest_id: string
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+          _room_id: string
+          _room_type_id: string
+          _special_requests: string
+          _status: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       has_kitchen_access: { Args: { _restaurant_id: string }; Returns: boolean }
       has_restaurant_role: {

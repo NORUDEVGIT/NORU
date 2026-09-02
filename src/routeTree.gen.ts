@@ -49,6 +49,8 @@ import { Route as RRestaurantSlugConfirmationRouteImport } from './routes/r/$res
 import { Route as RRestaurantSlugReviewRouteImport } from './routes/r/$restaurantSlug/review'
 import { Route as RRestaurantSlugStatusRouteImport } from './routes/r/$restaurantSlug/status'
 import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
+import { Route as RestaurantBookingsIndexRouteImport } from './routes/restaurant/bookings/index'
+import { Route as RestaurantBookingsReservationsRouteImport } from './routes/restaurant/bookings/reservations'
 import { Route as RestaurantGuestsIndexRouteImport } from './routes/restaurant/guests/index'
 import { Route as RestaurantGuestsGuestIdRouteImport } from './routes/restaurant/guests/$guestId'
 import { Route as RestaurantInventoryIndexRouteImport } from './routes/restaurant/inventory/index'
@@ -261,6 +263,17 @@ const RRestaurantSlugTableRoute = RRestaurantSlugTableRouteImport.update({
   path: '/table',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RestaurantBookingsIndexRoute = RestaurantBookingsIndexRouteImport.update({
+  id: '/restaurant/bookings/',
+  path: '/restaurant/bookings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantBookingsReservationsRoute =
+  RestaurantBookingsReservationsRouteImport.update({
+    id: '/restaurant/bookings/reservations',
+    path: '/restaurant/bookings/reservations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantGuestsIndexRoute = RestaurantGuestsIndexRouteImport.update({
   id: '/restaurant/guests/',
   path: '/restaurant/guests/',
@@ -348,11 +361,13 @@ export interface FileRoutesByFullPath {
   '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
   '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
+  '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
   '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
@@ -397,11 +412,13 @@ export interface FileRoutesByTo {
   '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
   '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
+  '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
   '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
+  '/restaurant/bookings': typeof RestaurantBookingsIndexRoute
   '/restaurant/guests': typeof RestaurantGuestsIndexRoute
   '/restaurant/inventory': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders': typeof RestaurantOrdersIndexRoute
@@ -449,11 +466,13 @@ export interface FileRoutesById {
   '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
   '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
+  '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
   '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
@@ -502,11 +521,13 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/review'
     | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
+    | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
     | '/restaurant/orders/$orderId'
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/restaurant/bookings/'
     | '/restaurant/guests/'
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
@@ -551,11 +572,13 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/review'
     | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
+    | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
     | '/restaurant/orders/$orderId'
     | '/account/orders'
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
+    | '/restaurant/bookings'
     | '/restaurant/guests'
     | '/restaurant/inventory'
     | '/restaurant/orders'
@@ -602,11 +625,13 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/review'
     | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
+    | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
     | '/restaurant/orders/$orderId'
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/restaurant/bookings/'
     | '/restaurant/guests/'
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
@@ -647,9 +672,11 @@ export interface RootRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
+  RestaurantBookingsReservationsRoute: typeof RestaurantBookingsReservationsRoute
   RestaurantGuestsGuestIdRoute: typeof RestaurantGuestsGuestIdRoute
   RestaurantOrdersOrderIdRoute: typeof RestaurantOrdersOrderIdRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
+  RestaurantBookingsIndexRoute: typeof RestaurantBookingsIndexRoute
   RestaurantGuestsIndexRoute: typeof RestaurantGuestsIndexRoute
   RestaurantInventoryIndexRoute: typeof RestaurantInventoryIndexRoute
   RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
@@ -939,6 +966,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRestaurantSlugTableRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
     }
+    '/restaurant/bookings/': {
+      id: '/restaurant/bookings/'
+      path: '/restaurant/bookings'
+      fullPath: '/restaurant/bookings/'
+      preLoaderRoute: typeof RestaurantBookingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/bookings/reservations': {
+      id: '/restaurant/bookings/reservations'
+      path: '/restaurant/bookings/reservations'
+      fullPath: '/restaurant/bookings/reservations'
+      preLoaderRoute: typeof RestaurantBookingsReservationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/guests/': {
       id: '/restaurant/guests/'
       path: '/restaurant/guests'
@@ -1077,9 +1118,11 @@ const rootRouteChildren: RootRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   KitchenIndexRoute: KitchenIndexRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
+  RestaurantBookingsReservationsRoute: RestaurantBookingsReservationsRoute,
   RestaurantGuestsGuestIdRoute: RestaurantGuestsGuestIdRoute,
   RestaurantOrdersOrderIdRoute: RestaurantOrdersOrderIdRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
+  RestaurantBookingsIndexRoute: RestaurantBookingsIndexRoute,
   RestaurantGuestsIndexRoute: RestaurantGuestsIndexRoute,
   RestaurantInventoryIndexRoute: RestaurantInventoryIndexRoute,
   RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
