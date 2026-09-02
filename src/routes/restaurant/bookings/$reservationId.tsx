@@ -321,6 +321,15 @@ function ReservationDetailPage({
         </section>
       </div>
 
+      <PricingSection
+        restaurantId={restaurantId}
+        reservation={reservation}
+        canManage={canManage && !cancelled}
+        onRepriced={invalidate}
+      />
+
+
+
       <section className="rounded-2xl border border-border bg-card p-4">
         <h2 className="font-display text-lg">History</h2>
         {history.length === 0 ? (
