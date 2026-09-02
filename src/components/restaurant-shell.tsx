@@ -37,6 +37,7 @@ import {
   ArrowLeft,
   Menu as MenuIcon,
   X,
+  Globe,
 } from "lucide-react";
 import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ export type RestaurantNavLabel =
   | "Reservations"
   | "New Reservation"
   | "Rates & Revenue"
+  | "Distribution"
   | "Guests"
   | "Cashiering"
   | "Folios"
@@ -162,6 +164,12 @@ const GUESTS_NAV: NavEntry[] = [
     icon: BarChart3,
     roles: ["owner", "manager"],
   },
+  {
+    to: "/restaurant/bookings/distribution",
+    label: "Distribution",
+    icon: Globe,
+    roles: ["owner", "manager"],
+  },
   { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
 ];
 
@@ -245,6 +253,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Reservations: "guests",
   "New Reservation": "guests",
   "Rates & Revenue": "guests",
+  Distribution: "guests",
   Guests: "guests",
   Cashiering: "cashiering",
   Folios: "cashiering",
