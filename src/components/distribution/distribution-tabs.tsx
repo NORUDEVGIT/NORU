@@ -121,7 +121,10 @@ export function DistributionChannelsTab({ data, restaurantId }: { data: Overview
         },
       }),
     onSuccess: (r) => {
-      if (!r.ok) return toast.error(r.message);
+      if (!r.ok) {
+        toast.error(r.message);
+        return;
+      }
       toast.success("Direct booking settings saved");
       void invalidate();
     },
@@ -131,7 +134,10 @@ export function DistributionChannelsTab({ data, restaurantId }: { data: Overview
     mutationFn: (input: { channelId: string; status: "active" | "inactive" }) =>
       setStatus({ data: { restaurantId, ...input } }),
     onSuccess: (r) => {
-      if (!r.ok) return toast.error(r.message);
+      if (!r.ok) {
+        toast.error(r.message);
+        return;
+      }
       void invalidate();
     },
   });
@@ -260,7 +266,10 @@ export function RoomMappingTab({ data, restaurantId }: { data: Overview; restaur
     mutationFn: (input: { roomTypeId: string; externalCode: string; active: boolean }) =>
       save({ data: { restaurantId, channelId: channel!.id, ...input } }),
     onSuccess: (r) => {
-      if (!r.ok) return toast.error(r.message);
+      if (!r.ok) {
+        toast.error(r.message);
+        return;
+      }
       toast.success("Mapping saved");
       void queryClient.invalidateQueries({ queryKey: ["distribution", restaurantId] });
     },
@@ -298,7 +307,10 @@ export function RateMappingTab({ data, restaurantId }: { data: Overview; restaur
     mutationFn: (input: { ratePlanId: string; externalCode: string; active: boolean }) =>
       save({ data: { restaurantId, channelId: channel!.id, ...input } }),
     onSuccess: (r) => {
-      if (!r.ok) return toast.error(r.message);
+      if (!r.ok) {
+        toast.error(r.message);
+        return;
+      }
       toast.success("Mapping saved");
       void queryClient.invalidateQueries({ queryKey: ["distribution", restaurantId] });
     },
