@@ -48,6 +48,11 @@ export interface ReservationDetail extends ReservationSummary {
   notes: string | null;
   cancellationReason: string | null;
   source: string;
+  ratePlanId: string | null;
+  currency: string | null;
+  roomSubtotal: number | null;
+  nightlyRates: { date: string; rate: number }[];
+  pricedAt: string | null;
 }
 
 type JsonValue = string | number | boolean | null;
