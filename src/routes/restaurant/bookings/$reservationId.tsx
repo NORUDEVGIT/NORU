@@ -39,7 +39,8 @@ import {
 } from "@/lib/reservations.functions";
 import { nightsBetween } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useRestaurantTime } from "@/state/restaurant-context";
+import { listRatePlans, repriceReservation } from "@/lib/rates.functions";
+import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/bookings/$reservationId")({
   ssr: false,
@@ -589,5 +590,101 @@ function AmendDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PricingSection({
+  restaurantId,
+  reservation,
+  canManage,
+  onRepriced,
+}: {
+  restaurantId: string;
+  reservation: ReservationDetail;
+  canManage: boolean;
+  onRepriced: () => void;
+}) {
+  const money = useMoney();
+  const fetchPlans = useServerFn(listRatePlans);
+  const submitReprice = useServerFn(repriceReservation);
+  const [planId, setPlanId] = useState(reservation.ratePlanId ?? "");
+
+  const plansQuery = useQuery({
+    queryKey: ["rate-plans", restaurantId, reservation.roomTypeId, true],
+    queryFn: () => fetchPlans({ data: { restaurantId, roomTypeId: reservation.roomTypeId, activeOnly: true } }),
+    enabled: canManage,
+    retry: false,
+  });
+
+  const reprice = useMutation({
+    mutationFn: () => submitReprice({ data: { restaurantId, reservationId: reservation.id, ratePlanId: planId } }),
+    onSuccess: (result) => {
+      toast.success(`Repriced — new stay total ${money(result.subtotal)}.`);
+      onRepriced();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const nightly = reservation.nightlyRates ?? [];
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4">
+      <h2 className="font-display text-lg">Pricing</h2>
+      {nightly.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          No pricing snapshot for this reservation. Existing stays keep their original terms — pick a rate plan below
+          to price it.
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Night</th>
+                <th className="px-3 py-2 text-right">Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nightly.map((n) => (
+                <tr key={n.date} className="border-t border-border">
+                  <td className="px-3 py-2">{formatStayDate(n.date)}</td>
+                  <td className="px-3 py-2 text-right">{money(n.rate)}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-border bg-muted/30 font-medium">
+                <td className="px-3 py-2">Room subtotal</td>
+                <td className="px-3 py-2 text-right">{money(reservation.roomSubtotal ?? 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {canManage ? (
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="min-w-56 space-y-1">
+            <Label>Rate plan</Label>
+            <Select value={planId} onValueChange={setPlanId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select rate plan" />
+              </SelectTrigger>
+              <SelectContent>
+                {(plansQuery.data ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.code} — {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="outline" disabled={!planId || reprice.isPending} onClick={() => reprice.mutate()}>
+            {reprice.isPending ? "Repricing…" : "Reprice stay"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Repricing recalculates every night on the server and records a history entry.
+          </p>
+        </div>
+      ) : null}
+    </section>
   );
 }
