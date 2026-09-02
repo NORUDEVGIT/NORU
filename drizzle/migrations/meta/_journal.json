@@ -127,6 +127,13 @@
       "when": 1788388516004,
       "tag": "0017_create_cashiering",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788389726822,
+      "tag": "0018_night_audit",
+      "breakpoints": true
     }
   ]
 }

@@ -185,6 +185,7 @@ export type Database = {
           description: string
           folio_id: string
           id: string
+          payment_method: string | null
           posted_at: string
           posted_by_membership_id: string | null
           reference_id: string | null
@@ -199,6 +200,7 @@ export type Database = {
           description: string
           folio_id: string
           id?: string
+          payment_method?: string | null
           posted_at?: string
           posted_by_membership_id?: string | null
           reference_id?: string | null
@@ -213,6 +215,7 @@ export type Database = {
           description?: string
           folio_id?: string
           id?: string
+          payment_method?: string | null
           posted_at?: string
           posted_by_membership_id?: string | null
           reference_id?: string | null
@@ -1826,6 +1829,143 @@ export type Database = {
           },
         ]
       }
+      night_audit_exceptions: {
+        Row: {
+          created_at: string
+          exception_type: string
+          id: string
+          message: string
+          night_audit_run_id: string
+          reference_id: string | null
+          reference_type: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by_membership_id: string | null
+          restaurant_id: string
+          severity: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          exception_type: string
+          id?: string
+          message: string
+          night_audit_run_id: string
+          reference_id?: string | null
+          reference_type?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by_membership_id?: string | null
+          restaurant_id: string
+          severity: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          exception_type?: string
+          id?: string
+          message?: string
+          night_audit_run_id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by_membership_id?: string | null
+          restaurant_id?: string
+          severity?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "night_audit_exceptions_night_audit_run_id_fkey"
+            columns: ["night_audit_run_id"]
+            isOneToOne: false
+            referencedRelation: "night_audit_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "night_audit_exceptions_resolved_by_membership_id_fkey"
+            columns: ["resolved_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "night_audit_exceptions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      night_audit_runs: {
+        Row: {
+          business_date: string
+          closed_at: string | null
+          closed_by_membership_id: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          started_at: string
+          started_by_membership_id: string | null
+          status: string
+          summary: Json | null
+          updated_at: string
+        }
+        Insert: {
+          business_date: string
+          closed_at?: string | null
+          closed_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          restaurant_id: string
+          started_at?: string
+          started_by_membership_id?: string | null
+          status?: string
+          summary?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          business_date?: string
+          closed_at?: string | null
+          closed_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string
+          started_at?: string
+          started_by_membership_id?: string | null
+          status?: string
+          summary?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "night_audit_runs_closed_by_membership_id_fkey"
+            columns: ["closed_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "night_audit_runs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "night_audit_runs_started_by_membership_id_fkey"
+            columns: ["started_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           created_at: string
@@ -2613,6 +2753,7 @@ export type Database = {
           approved: boolean
           approved_at: string | null
           approved_by: string | null
+          business_date: string | null
           city: string | null
           country: string | null
           created_at: string
@@ -2636,6 +2777,7 @@ export type Database = {
           approved?: boolean
           approved_at?: string | null
           approved_by?: string | null
+          business_date?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
@@ -2659,6 +2801,7 @@ export type Database = {
           approved?: boolean
           approved_at?: string | null
           approved_by?: string | null
+          business_date?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
@@ -3343,6 +3486,34 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      close_business_date: {
+        Args: {
+          _membership_id: string
+          _restaurant_id: string
+          _run_id: string
+          _summary: Json
+        }
+        Returns: {
+          business_date: string
+          closed_at: string | null
+          closed_by_membership_id: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          started_at: string
+          started_by_membership_id: string | null
+          status: string
+          summary: Json | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "night_audit_runs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       close_cashier_shift: {
         Args: {
           _closing_cash: number
@@ -3710,6 +3881,7 @@ export type Database = {
           description: string
           folio_id: string
           id: string
+          payment_method: string | null
           posted_at: string
           posted_by_membership_id: string | null
           reference_id: string | null

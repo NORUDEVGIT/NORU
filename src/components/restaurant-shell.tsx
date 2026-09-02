@@ -10,6 +10,7 @@ import {
   ChefHat,
   ReceiptText,
   Wallet,
+  MoonStar,
   Boxes,
   Carrot,
   PackageOpen,
@@ -68,6 +69,7 @@ export type RestaurantNavLabel =
   | "Folios"
   | "Payments"
   | "Cashier Shifts"
+  | "Night Audit"
   | "Staff"
   | "Customers"
   | "Reports"
@@ -192,6 +194,12 @@ const CASHIERING_NAV: NavEntry[] = [
     icon: ClipboardCheck,
     roles: ["owner", "manager"],
   },
+  {
+    to: "/restaurant/cashiering/night-audit",
+    label: "Night Audit",
+    icon: MoonStar,
+    roles: ["owner", "manager"],
+  },
 ];
 
 const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
@@ -242,6 +250,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Folios: "cashiering",
   Payments: "cashiering",
   "Cashier Shifts": "cashiering",
+  "Night Audit": "cashiering",
   Staff: "staff",
   Customers: "restaurant",
   Reports: "restaurant",
