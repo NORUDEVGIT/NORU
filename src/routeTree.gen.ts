@@ -51,6 +51,7 @@ import { Route as RRestaurantSlugStatusRouteImport } from './routes/r/$restauran
 import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
 import { Route as RestaurantBookingsIndexRouteImport } from './routes/restaurant/bookings/index'
 import { Route as RestaurantBookingsReservationIdRouteImport } from './routes/restaurant/bookings/$reservationId'
+import { Route as RestaurantBookingsDistributionRouteImport } from './routes/restaurant/bookings/distribution'
 import { Route as RestaurantBookingsNewRouteImport } from './routes/restaurant/bookings/new'
 import { Route as RestaurantBookingsRatesRouteImport } from './routes/restaurant/bookings/rates'
 import { Route as RestaurantBookingsReservationsRouteImport } from './routes/restaurant/bookings/reservations'
@@ -285,6 +286,12 @@ const RestaurantBookingsReservationIdRoute =
     path: '/restaurant/bookings/$reservationId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantBookingsDistributionRoute =
+  RestaurantBookingsDistributionRouteImport.update({
+    id: '/restaurant/bookings/distribution',
+    path: '/restaurant/bookings/distribution',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantBookingsNewRoute = RestaurantBookingsNewRouteImport.update({
   id: '/restaurant/bookings/new',
   path: '/restaurant/bookings/new',
@@ -435,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/restaurant/bookings/$reservationId': typeof RestaurantBookingsReservationIdRoute
+  '/restaurant/bookings/distribution': typeof RestaurantBookingsDistributionRoute
   '/restaurant/bookings/new': typeof RestaurantBookingsNewRoute
   '/restaurant/bookings/rates': typeof RestaurantBookingsRatesRoute
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
@@ -497,6 +505,7 @@ export interface FileRoutesByTo {
   '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/restaurant/bookings/$reservationId': typeof RestaurantBookingsReservationIdRoute
+  '/restaurant/bookings/distribution': typeof RestaurantBookingsDistributionRoute
   '/restaurant/bookings/new': typeof RestaurantBookingsNewRoute
   '/restaurant/bookings/rates': typeof RestaurantBookingsRatesRoute
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
@@ -562,6 +571,7 @@ export interface FileRoutesById {
   '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
   '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
   '/restaurant/bookings/$reservationId': typeof RestaurantBookingsReservationIdRoute
+  '/restaurant/bookings/distribution': typeof RestaurantBookingsDistributionRoute
   '/restaurant/bookings/new': typeof RestaurantBookingsNewRoute
   '/restaurant/bookings/rates': typeof RestaurantBookingsRatesRoute
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
@@ -628,6 +638,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
     | '/restaurant/bookings/$reservationId'
+    | '/restaurant/bookings/distribution'
     | '/restaurant/bookings/new'
     | '/restaurant/bookings/rates'
     | '/restaurant/bookings/reservations'
@@ -690,6 +701,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
     | '/restaurant/bookings/$reservationId'
+    | '/restaurant/bookings/distribution'
     | '/restaurant/bookings/new'
     | '/restaurant/bookings/rates'
     | '/restaurant/bookings/reservations'
@@ -754,6 +766,7 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/status'
     | '/r/$restaurantSlug/table'
     | '/restaurant/bookings/$reservationId'
+    | '/restaurant/bookings/distribution'
     | '/restaurant/bookings/new'
     | '/restaurant/bookings/rates'
     | '/restaurant/bookings/reservations'
@@ -812,6 +825,7 @@ export interface RootRouteChildren {
   KitchenIndexRoute: typeof KitchenIndexRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
   RestaurantBookingsReservationIdRoute: typeof RestaurantBookingsReservationIdRoute
+  RestaurantBookingsDistributionRoute: typeof RestaurantBookingsDistributionRoute
   RestaurantBookingsNewRoute: typeof RestaurantBookingsNewRoute
   RestaurantBookingsRatesRoute: typeof RestaurantBookingsRatesRoute
   RestaurantBookingsReservationsRoute: typeof RestaurantBookingsReservationsRoute
@@ -1130,6 +1144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantBookingsReservationIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/bookings/distribution': {
+      id: '/restaurant/bookings/distribution'
+      path: '/restaurant/bookings/distribution'
+      fullPath: '/restaurant/bookings/distribution'
+      preLoaderRoute: typeof RestaurantBookingsDistributionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/bookings/new': {
       id: '/restaurant/bookings/new'
       path: '/restaurant/bookings/new'
@@ -1346,6 +1367,7 @@ const rootRouteChildren: RootRouteChildren = {
   KitchenIndexRoute: KitchenIndexRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
   RestaurantBookingsReservationIdRoute: RestaurantBookingsReservationIdRoute,
+  RestaurantBookingsDistributionRoute: RestaurantBookingsDistributionRoute,
   RestaurantBookingsNewRoute: RestaurantBookingsNewRoute,
   RestaurantBookingsRatesRoute: RestaurantBookingsRatesRoute,
   RestaurantBookingsReservationsRoute: RestaurantBookingsReservationsRoute,
