@@ -148,6 +148,12 @@ const GUESTS_NAV: NavEntry[] = [
     roles: ["owner", "manager"],
   },
   { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: ["owner", "manager"] },
+  {
+    to: "/restaurant/bookings/rates",
+    label: "Rates & Revenue",
+    icon: BarChart3,
+    roles: ["owner", "manager"],
+  },
   { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
 ];
 
