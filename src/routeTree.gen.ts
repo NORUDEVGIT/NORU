@@ -68,6 +68,7 @@ import { Route as RestaurantRoomsDeparturesRouteImport } from './routes/restaura
 import { Route as RestaurantRoomsInHouseRouteImport } from './routes/restaurant/rooms/in-house'
 import { Route as StayPropertySlugIndexRouteImport } from './routes/stay/$propertySlug/index'
 import { Route as StayPropertySlugBookRouteImport } from './routes/stay/$propertySlug/book'
+import { Route as StayPropertySlugConfirmationRouteImport } from './routes/stay/$propertySlug/confirmation'
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
 import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/restaurant/cashiering/folios/$folioId'
@@ -379,6 +380,12 @@ const StayPropertySlugBookRoute = StayPropertySlugBookRouteImport.update({
   path: '/stay/$propertySlug/book',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StayPropertySlugConfirmationRoute =
+  StayPropertySlugConfirmationRouteImport.update({
+    id: '/stay/$propertySlug/confirmation',
+    path: '/stay/$propertySlug/confirmation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RRestaurantSlugOrderOrderIdRoute =
   RRestaurantSlugOrderOrderIdRouteImport.update({
     id: '/order/$orderId',
@@ -464,6 +471,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
   '/stay/$propertySlug/book': typeof StayPropertySlugBookRoute
+  '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
@@ -529,6 +537,7 @@ export interface FileRoutesByTo {
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
   '/stay/$propertySlug/book': typeof StayPropertySlugBookRoute
+  '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
@@ -597,6 +606,7 @@ export interface FileRoutesById {
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
   '/stay/$propertySlug/book': typeof StayPropertySlugBookRoute
+  '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
@@ -666,6 +676,7 @@ export interface FileRouteTypes {
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
     | '/stay/$propertySlug/book'
+    | '/stay/$propertySlug/confirmation'
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
@@ -731,6 +742,7 @@ export interface FileRouteTypes {
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
     | '/stay/$propertySlug/book'
+    | '/stay/$propertySlug/confirmation'
     | '/account/orders'
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
@@ -798,6 +810,7 @@ export interface FileRouteTypes {
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
     | '/stay/$propertySlug/book'
+    | '/stay/$propertySlug/confirmation'
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
@@ -859,6 +872,7 @@ export interface RootRouteChildren {
   RestaurantRoomsDeparturesRoute: typeof RestaurantRoomsDeparturesRoute
   RestaurantRoomsInHouseRoute: typeof RestaurantRoomsInHouseRoute
   StayPropertySlugBookRoute: typeof StayPropertySlugBookRoute
+  StayPropertySlugConfirmationRoute: typeof StayPropertySlugConfirmationRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
   RestaurantBookingsIndexRoute: typeof RestaurantBookingsIndexRoute
   RestaurantCashieringIndexRoute: typeof RestaurantCashieringIndexRoute
@@ -1289,6 +1303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StayPropertySlugBookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/stay/$propertySlug/confirmation': {
+      id: '/stay/$propertySlug/confirmation'
+      path: '/stay/$propertySlug/confirmation'
+      fullPath: '/stay/$propertySlug/confirmation'
+      preLoaderRoute: typeof StayPropertySlugConfirmationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/$restaurantSlug/order/$orderId': {
       id: '/r/$restaurantSlug/order/$orderId'
       path: '/order/$orderId'
@@ -1417,6 +1438,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantRoomsDeparturesRoute: RestaurantRoomsDeparturesRoute,
   RestaurantRoomsInHouseRoute: RestaurantRoomsInHouseRoute,
   StayPropertySlugBookRoute: StayPropertySlugBookRoute,
+  StayPropertySlugConfirmationRoute: StayPropertySlugConfirmationRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
   RestaurantBookingsIndexRoute: RestaurantBookingsIndexRoute,
   RestaurantCashieringIndexRoute: RestaurantCashieringIndexRoute,
