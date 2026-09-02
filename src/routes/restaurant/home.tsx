@@ -98,9 +98,11 @@ const MODULES: ModuleCard[] = [
   {
     title: "Booking & Guest Management",
     description:
-      "Reservations, availability, guest profiles, companies, groups, rates, loyalty and booking channels.",
+      "Guest profiles, preferences and guest history. Reservations, rates and channels follow in a later phase.",
     icon: CalendarCheck,
-    status: "soon",
+    status: "active",
+    to: "/restaurant/guests",
+    roles: ["owner", "manager"],
   },
   {
     title: "Stock & Procurement",

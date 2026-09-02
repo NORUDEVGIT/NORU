@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   QrCode,
   Users,
+  UserRound,
   HandPlatter,
   BarChart3,
   Settings,
@@ -45,12 +46,20 @@ export type RestaurantNavLabel =
   | "Take Order"
   | "Inventory"
   | "Rooms"
+  | "Guests"
   | "Staff"
   | "Customers"
   | "Reports"
   | "Settings";
 
-export type WorkspaceModule = "home" | "restaurant" | "stock" | "staff" | "rooms" | "settings";
+export type WorkspaceModule =
+  | "home"
+  | "restaurant"
+  | "stock"
+  | "staff"
+  | "rooms"
+  | "guests"
+  | "settings";
 
 type NavEntry = {
   to: string;
@@ -99,12 +108,17 @@ const ROOMS_NAV: NavEntry[] = [
   { to: "/restaurant/rooms", tab: "rooms", label: "Rooms", icon: DoorOpen },
 ];
 
+const GUESTS_NAV: NavEntry[] = [
+  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
+];
+
 const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
   home: [],
   restaurant: RESTAURANT_NAV,
   stock: STOCK_NAV,
   staff: STAFF_NAV,
   rooms: ROOMS_NAV,
+  guests: GUESTS_NAV,
   settings: [{ to: "/restaurant/settings", label: "Settings", icon: Settings }],
 };
 
@@ -114,6 +128,7 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
   stock: "Stock & Procurement",
   staff: "Staff Management",
   rooms: "Rooms & Front Office",
+  guests: "Booking & Guest Management",
   settings: "Property Settings & Integrations",
 };
 
@@ -128,6 +143,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "Take Order": "restaurant",
   Inventory: "stock",
   Rooms: "rooms",
+  Guests: "guests",
   Staff: "staff",
   Customers: "restaurant",
   Reports: "restaurant",

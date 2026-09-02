@@ -55,6 +55,223 @@ export type Database = {
           },
         ]
       }
+      guest_preferences: {
+        Row: {
+          accessibility_requirements: string | null
+          bed_preference: string | null
+          communication_preference: string | null
+          created_at: string
+          floor_preference: string | null
+          food_preference: string | null
+          guest_id: string
+          id: string
+          restaurant_id: string
+          room_preference: string | null
+          special_requests: string | null
+          updated_at: string
+          view_preference: string | null
+        }
+        Insert: {
+          accessibility_requirements?: string | null
+          bed_preference?: string | null
+          communication_preference?: string | null
+          created_at?: string
+          floor_preference?: string | null
+          food_preference?: string | null
+          guest_id: string
+          id?: string
+          restaurant_id: string
+          room_preference?: string | null
+          special_requests?: string | null
+          updated_at?: string
+          view_preference?: string | null
+        }
+        Update: {
+          accessibility_requirements?: string | null
+          bed_preference?: string | null
+          communication_preference?: string | null
+          created_at?: string
+          floor_preference?: string | null
+          food_preference?: string | null
+          guest_id?: string
+          id?: string
+          restaurant_id?: string
+          room_preference?: string | null
+          special_requests?: string | null
+          updated_at?: string
+          view_preference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_preferences_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_preferences_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      guest_profile_history: {
+        Row: {
+          actor_membership_id: string | null
+          created_at: string
+          event_type: string
+          guest_id: string
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type: string
+          guest_id: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type?: string
+          guest_id?: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_profile_history_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_profile_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_profile_history_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      guest_profiles: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          created_by_staff_membership_id: string | null
+          date_of_birth: string | null
+          email: string | null
+          email_normalized: string | null
+          first_name: string
+          guest_status: string
+          id: string
+          language: string | null
+          last_name: string | null
+          linked_customer_user_id: string | null
+          nationality: string | null
+          notes: string | null
+          phone: string | null
+          phone_normalized: string | null
+          postal_code: string | null
+          region: string | null
+          restaurant_id: string
+          updated_at: string
+          vip_status: boolean
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          email_normalized?: string | null
+          first_name: string
+          guest_status?: string
+          id?: string
+          language?: string | null
+          last_name?: string | null
+          linked_customer_user_id?: string | null
+          nationality?: string | null
+          notes?: string | null
+          phone?: string | null
+          phone_normalized?: string | null
+          postal_code?: string | null
+          region?: string | null
+          restaurant_id: string
+          updated_at?: string
+          vip_status?: boolean
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          created_by_staff_membership_id?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          email_normalized?: string | null
+          first_name?: string
+          guest_status?: string
+          id?: string
+          language?: string | null
+          last_name?: string | null
+          linked_customer_user_id?: string | null
+          nationality?: string | null
+          notes?: string | null
+          phone?: string | null
+          phone_normalized?: string | null
+          postal_code?: string | null
+          region?: string | null
+          restaurant_id?: string
+          updated_at?: string
+          vip_status?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_profiles_created_by_staff_membership_id_fkey"
+            columns: ["created_by_staff_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_profiles_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_rooms: {
         Row: {
           accessible: boolean
