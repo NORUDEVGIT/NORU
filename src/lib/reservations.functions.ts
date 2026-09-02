@@ -122,6 +122,11 @@ type ReservationRow = {
   special_requests: string | null;
   notes: string | null;
   cancellation_reason: string | null;
+  rate_plan_id: string | null;
+  currency: string | null;
+  room_subtotal: number | string | null;
+  nightly_rate_snapshot: unknown;
+  priced_at: string | null;
   created_at: string;
   updated_at: string;
   guest_profiles: {
