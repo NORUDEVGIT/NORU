@@ -617,9 +617,11 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {
     await requireRateManager(context as never, data.restaurantId);
-    if (data.to < data.from) throw new Error("Pick an end date on or after the start date.");
+    // An inverted range is normal mid-edit in the date pickers — normalize instead of failing.
+    const from = data.to < data.from ? data.to : data.from;
+    const to = data.to < data.from ? data.from : data.to;
 
-    const dates = new Set(eachDate(data.from, data.to, 400));
+    const dates = new Set(eachDate(from, to, 400));
     const days = dates.size;
 
     const { data: restaurant } = await context.supabase
@@ -640,8 +642,8 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
       .select("arrival_date, departure_date, room_subtotal, nightly_rate_snapshot")
       .eq("restaurant_id", data.restaurantId)
       .in("status", REVENUE_STATUSES as unknown as string[])
-      .lte("arrival_date", data.to)
-      .gt("departure_date", data.from);
+      .lte("arrival_date", to)
+      .gt("departure_date", from);
     if (error) throw new Error(error.message);
 
     let soldNights = 0;
@@ -666,8 +668,8 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
     return {
-      from: data.from,
-      to: data.to,
+      from,
+      to,
       currency: restaurant?.currency_code ?? "USD",
       availableRoomNights,
       soldRoomNights: soldNights,
