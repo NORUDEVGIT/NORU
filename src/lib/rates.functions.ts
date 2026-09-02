@@ -288,8 +288,8 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       .insert({ ...payload, created_by_membership_id: me.id })
       .select("id")
       .single();
-    if (error) throw rateError(error.message);
-    return { id: created.id };
+    if (error) return { ok: false, message: rateError(error.message).message };
+    return { ok: true, id: created.id };
   });
 
 export const setRatePlanActive = createServerFn({ method: "POST" })
