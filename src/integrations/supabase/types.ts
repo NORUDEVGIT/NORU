@@ -55,6 +55,295 @@ export type Database = {
           },
         ]
       }
+      cashier_shifts: {
+        Row: {
+          closed_at: string | null
+          closing_cash: number | null
+          created_at: string
+          id: string
+          membership_id: string
+          notes: string | null
+          opened_at: string
+          opening_cash: number | null
+          restaurant_id: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closing_cash?: number | null
+          created_at?: string
+          id?: string
+          membership_id: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash?: number | null
+          restaurant_id: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closing_cash?: number | null
+          created_at?: string
+          id?: string
+          membership_id?: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash?: number | null
+          restaurant_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashier_shifts_membership_same_property"
+            columns: ["membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "cashier_shifts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      folio_history: {
+        Row: {
+          actor_membership_id: string | null
+          cashier_shift_id: string | null
+          created_at: string
+          event_type: string
+          folio_id: string | null
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          cashier_shift_id?: string | null
+          created_at?: string
+          event_type: string
+          folio_id?: string | null
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          cashier_shift_id?: string | null
+          created_at?: string
+          event_type?: string
+          folio_id?: string | null
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folio_history_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "folio_history_folio_same_property"
+            columns: ["folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "folio_history_shift_same_property"
+            columns: ["cashier_shift_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "cashier_shifts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      folio_transactions: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          description: string
+          folio_id: string
+          id: string
+          posted_at: string
+          posted_by_membership_id: string | null
+          reference_id: string | null
+          reference_type: string | null
+          restaurant_id: string
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string
+          description: string
+          folio_id: string
+          id?: string
+          posted_at?: string
+          posted_by_membership_id?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          restaurant_id: string
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string
+          folio_id?: string
+          id?: string
+          posted_at?: string
+          posted_by_membership_id?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          restaurant_id?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folio_transactions_folio_same_property"
+            columns: ["folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_transactions_posted_by_membership_id_fkey"
+            columns: ["posted_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "folio_transactions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_folio_counters: {
+        Row: {
+          last_number: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_number?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_number?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_folio_counters_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_folios: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          currency: string
+          folio_number: string
+          guest_id: string
+          id: string
+          opened_at: string
+          reservation_id: string | null
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          currency: string
+          folio_number: string
+          guest_id: string
+          id?: string
+          opened_at?: string
+          reservation_id?: string | null
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          currency?: string
+          folio_number?: string
+          guest_id?: string
+          id?: string
+          opened_at?: string
+          reservation_id?: string | null
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_folios_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_folios_guest_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_folios_reservation_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_folios_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_preferences: {
         Row: {
           accessibility_requirements: string | null
@@ -3054,6 +3343,60 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      close_cashier_shift: {
+        Args: {
+          _closing_cash: number
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+          _shift_id: string
+        }
+        Returns: {
+          closed_at: string | null
+          closing_cash: number | null
+          created_at: string
+          id: string
+          membership_id: string
+          notes: string | null
+          opened_at: string
+          opening_cash: number | null
+          restaurant_id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cashier_shifts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      close_guest_folio: {
+        Args: {
+          _folio_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          currency: string
+          folio_number: string
+          guest_id: string
+          id: string
+          opened_at: string
+          reservation_id: string | null
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_folios"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       count_reserved_rooms: {
         Args: {
           _arrival: string
@@ -3163,6 +3506,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      folio_balance: { Args: { _folio_id: string }; Returns: number }
       has_kitchen_access: { Args: { _restaurant_id: string }; Returns: boolean }
       has_restaurant_role: {
         Args: { _restaurant_id: string; _role: string }
@@ -3290,6 +3634,92 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      open_cashier_shift: {
+        Args: {
+          _membership_id: string
+          _notes: string
+          _opening_cash: number
+          _restaurant_id: string
+        }
+        Returns: {
+          closed_at: string | null
+          closing_cash: number | null
+          created_at: string
+          id: string
+          membership_id: string
+          notes: string | null
+          opened_at: string
+          opening_cash: number | null
+          restaurant_id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cashier_shifts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      open_folio_for_reservation: {
+        Args: {
+          _membership_id: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          currency: string
+          folio_number: string
+          guest_id: string
+          id: string
+          opened_at: string
+          reservation_id: string | null
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_folios"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      post_folio_transaction: {
+        Args: {
+          _amount: number
+          _category: string
+          _description: string
+          _folio_id: string
+          _membership_id: string
+          _reference_id: string
+          _reference_type: string
+          _restaurant_id: string
+          _type: string
+        }
+        Returns: {
+          amount: number
+          category: string
+          created_at: string
+          description: string
+          folio_id: string
+          id: string
+          posted_at: string
+          posted_by_membership_id: string | null
+          reference_id: string | null
+          reference_type: string | null
+          restaurant_id: string
+          transaction_type: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "folio_transactions"
           isOneToOne: true
           isSetofReturn: false
         }
