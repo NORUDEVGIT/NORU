@@ -99,6 +99,13 @@
       "when": 1788345890853,
       "tag": "0013_create_hotel_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788348091210,
+      "tag": "0014_front_office_operations",
+      "breakpoints": true
     }
   ]
 }

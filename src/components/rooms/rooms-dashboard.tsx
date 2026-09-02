@@ -3,6 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { BedDouble, CheckCircle2, CircleSlash, DoorOpen, Tag, Wrench } from "lucide-react";
 
 import { getRoomsDashboard } from "@/lib/rooms.functions";
+import { FrontOfficeSummary } from "@/components/frontoffice/front-office-summary";
+
 
 export function RoomsDashboardTab({ restaurantId }: { restaurantId: string }) {
   const fetchDashboard = useServerFn(getRoomsDashboard);
@@ -25,8 +27,13 @@ export function RoomsDashboardTab({ restaurantId }: { restaurantId: string }) {
 
   return (
     <div className="space-y-6">
+      <FrontOfficeSummary restaurantId={restaurantId} />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
+
+
+
           <div key={card.label} className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{card.label}</p>

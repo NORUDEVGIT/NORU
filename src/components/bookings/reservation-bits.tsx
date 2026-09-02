@@ -7,7 +7,11 @@ const STATUS_STYLES: Record<ReservationStatus, { label: string; className: strin
   pending: { label: "Pending", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
   confirmed: { label: "Confirmed", className: "bg-success/15 text-success" },
   cancelled: { label: "Cancelled", className: "bg-destructive/10 text-destructive" },
+  checked_in: { label: "In-House", className: "bg-primary/15 text-primary" },
+  checked_out: { label: "Checked Out", className: "bg-muted text-muted-foreground" },
+  no_show: { label: "No-Show", className: "bg-destructive/10 text-destructive" },
 };
+
 
 export function ReservationStatusBadge({ status }: { status: ReservationStatus }) {
   const map = STATUS_STYLES[status];

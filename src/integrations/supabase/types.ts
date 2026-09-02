@@ -2236,9 +2236,121 @@ export type Database = {
         }
         Returns: undefined
       }
+      assert_room_assignable: {
+        Args: {
+          _arrival: string
+          _departure: string
+          _exclude_reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+          _room_type_id: string
+        }
+        Returns: undefined
+      }
       can_manage_restaurant_storage: {
         Args: { _path: string }
         Returns: boolean
+      }
+      change_hotel_stay_dates: {
+        Args: {
+          _departure: string
+          _membership_id: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      check_in_hotel_reservation: {
+        Args: {
+          _membership_id: string
+          _reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      check_out_hotel_reservation: {
+        Args: {
+          _membership_id: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       count_reserved_rooms: {
         Args: {
@@ -2306,6 +2418,75 @@ export type Database = {
       is_restaurant_member: {
         Args: { _restaurant_id: string }
         Returns: boolean
+      }
+      mark_hotel_reservation_no_show: {
+        Args: {
+          _business_date: string
+          _membership_id: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      move_hotel_reservation_room: {
+        Args: {
+          _membership_id: string
+          _reason: string
+          _reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       receive_purchase_order_goods: {
         Args: {
