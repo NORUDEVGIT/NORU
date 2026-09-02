@@ -134,6 +134,13 @@
       "when": 1788389726822,
       "tag": "0018_night_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788390841901,
+      "tag": "0019_direct_booking_distribution",
+      "breakpoints": true
     }
   ]
 }
