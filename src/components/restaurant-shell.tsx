@@ -26,6 +26,8 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  LogIn,
+  Hotel,
   ArrowLeft,
   Menu as MenuIcon,
   X,
@@ -48,6 +50,9 @@ export type RestaurantNavLabel =
   | "Take Order"
   | "Inventory"
   | "Rooms"
+  | "Arrivals"
+  | "In-House"
+  | "Departures"
   | "Bookings"
   | "Reservations"
   | "New Reservation"
@@ -111,6 +116,9 @@ const ROOMS_NAV: NavEntry[] = [
   { to: "/restaurant/rooms", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/restaurant/rooms", tab: "room-types", label: "Room Types", icon: BedDouble },
   { to: "/restaurant/rooms", tab: "rooms", label: "Rooms", icon: DoorOpen },
+  { to: "/restaurant/rooms/arrivals", label: "Arrivals", icon: LogIn, roles: ["owner", "manager"] },
+  { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: ["owner", "manager"] },
+  { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: ["owner", "manager"] },
 ];
 
 const GUESTS_NAV: NavEntry[] = [
@@ -156,6 +164,9 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "Take Order": "restaurant",
   Inventory: "stock",
   Rooms: "rooms",
+  Arrivals: "rooms",
+  "In-House": "rooms",
+  Departures: "rooms",
   Bookings: "guests",
   Reservations: "guests",
   "New Reservation": "guests",

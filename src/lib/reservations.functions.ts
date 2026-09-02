@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
+  MANUAL_RESERVATION_STATUSES,
   RESERVATION_STATUSES,
   assertStayDates,
   blankToNull,
@@ -255,7 +256,7 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
       .from("hotel_reservations")
       .select("room_id")
       .eq("restaurant_id", data.restaurantId)
-      .in("status", ["pending", "confirmed"])
+      .in("status", ["pending", "confirmed", "checked_in"])
       .not("room_id", "is", null)
       .lt("arrival_date", departure)
       .gt("departure_date", arrival);
@@ -488,7 +489,9 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
       .maybeSingle();
     if (readError) throw new Error(readError.message);
     if (!existing) throw new Error("Reservation not found for this property.");
-    if (existing.status === "cancelled") throw new Error("This reservation is cancelled.");
+    if (!["pending", "confirmed"].includes(existing.status)) {
+      throw new Error("Rooms can only be assigned before check-in.");
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("amend_hotel_reservation", {
@@ -517,7 +520,7 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         reservationId: idSchema,
-        status: z.enum(RESERVATION_STATUSES),
+        status: z.enum(MANUAL_RESERVATION_STATUSES),
         reason: z.string().max(500).nullable().optional(),
       })
       .parse(input),
@@ -596,8 +599,8 @@ export const getBookingsDashboard = createServerFn({ method: "POST" })
 
     const [arrivals, departures, staying, pending, upcoming, cancelled] = await Promise.all([
       base().in("status", ["pending", "confirmed"]).eq("arrival_date", today),
-      base().in("status", ["pending", "confirmed"]).eq("departure_date", today),
-      base().in("status", ["pending", "confirmed"]).lte("arrival_date", today).gt("departure_date", today),
+      base().in("status", ["confirmed", "checked_in"]).eq("departure_date", today),
+      base().in("status", ["pending", "confirmed", "checked_in"]).lte("arrival_date", today).gt("departure_date", today),
       base().eq("status", "pending"),
       base().in("status", ["pending", "confirmed"]).gt("arrival_date", today),
       base().eq("status", "cancelled").gte("arrival_date", monthStart),

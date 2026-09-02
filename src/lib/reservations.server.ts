@@ -9,7 +9,12 @@ import { callerMembership, type AuthedCtx, type Membership } from "./workforce.s
 
 export const RESERVATION_MANAGE_ROLES = ["owner", "manager"] as const;
 
-export { RESERVATION_STATUSES, nightsBetween, propertyToday } from "./reservation-dates";
+export {
+  RESERVATION_STATUSES,
+  MANUAL_RESERVATION_STATUSES,
+  nightsBetween,
+  propertyToday,
+} from "./reservation-dates";
 export type { ReservationStatus } from "./reservation-dates";
 
 export const RESERVATION_EVENT_TYPES = [
@@ -20,6 +25,12 @@ export const RESERVATION_EVENT_TYPES = [
   "room_assigned",
   "room_changed",
   "status_changed",
+  "check_in",
+  "check_out",
+  "room_moved",
+  "stay_extended",
+  "stay_shortened",
+  "no_show",
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
 
@@ -66,12 +77,19 @@ export function assertStayDates(arrival: string, departure: string): { arrival: 
 const DB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_DATES: "Departure must be after arrival.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",
-  ROOM_NOT_ASSIGNABLE: "That room can't be assigned — check it is active, available and of the selected type.",
-  ROOM_ALREADY_BOOKED: "That room is already booked for part of those dates.",
+  ROOM_NOT_ASSIGNABLE: "That room can't be used — check it is active, available and of the reserved type.",
+  ROOM_ALREADY_BOOKED: "That room is already booked or occupied for part of those dates.",
   RESERVATION_NOT_FOUND: "Reservation not found for this property.",
   RESERVATION_CANCELLED: "This reservation is cancelled. Restore it before amending.",
   INVALID_STATUS: "Invalid reservation status.",
+  INVALID_TRANSITION: "That action isn't allowed for this reservation's current status.",
+  ROOM_REQUIRED: "Assign a room before completing check-in.",
+  REASON_REQUIRED: "A reason is required for a room move.",
+  SAME_ROOM: "The guest is already in that room.",
+  DATES_UNCHANGED: "Pick a different departure date.",
+  NOT_PAST_DUE: "Only past-due arrivals can be marked as a no-show.",
 };
+
 
 /** Turn RAISE EXCEPTION codes from the reservation functions into user-facing text. */
 export function reservationError(message: string): Error {
