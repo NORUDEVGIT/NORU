@@ -28,6 +28,10 @@ import {
   LogOut,
   LogIn,
   Hotel,
+  Sparkles,
+  AlertTriangle,
+  Ban,
+  History,
   ArrowLeft,
   Menu as MenuIcon,
   X,
@@ -53,6 +57,7 @@ export type RestaurantNavLabel =
   | "Arrivals"
   | "In-House"
   | "Departures"
+  | "Housekeeping"
   | "Bookings"
   | "Reservations"
   | "New Reservation"
@@ -68,6 +73,7 @@ export type WorkspaceModule =
   | "stock"
   | "staff"
   | "rooms"
+  | "housekeeping"
   | "guests"
   | "settings";
 
@@ -121,6 +127,17 @@ const ROOMS_NAV: NavEntry[] = [
   { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: ["owner", "manager"] },
 ];
 
+const HOUSEKEEPING_NAV: NavEntry[] = [
+  { to: "/restaurant/housekeeping", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/restaurant/housekeeping", tab: "rack", label: "Room Rack", icon: DoorOpen },
+  { to: "/restaurant/housekeeping", tab: "board", label: "Cleaning Board", icon: Sparkles },
+  { to: "/restaurant/housekeeping", tab: "inspections", label: "Inspections", icon: ClipboardCheck },
+  { to: "/restaurant/housekeeping", tab: "discrepancies", label: "Discrepancies", icon: AlertTriangle },
+  { to: "/restaurant/housekeeping", tab: "restrictions", label: "Room Restrictions", icon: Ban },
+  { to: "/restaurant/housekeeping", tab: "maintenance", label: "Maintenance", icon: Wrench },
+  { to: "/restaurant/housekeeping", tab: "history", label: "History", icon: History },
+];
+
 const GUESTS_NAV: NavEntry[] = [
   { to: "/restaurant/bookings", label: "Bookings", icon: LayoutDashboard, roles: ["owner", "manager"] },
   {
@@ -139,6 +156,7 @@ const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
   stock: STOCK_NAV,
   staff: STAFF_NAV,
   rooms: ROOMS_NAV,
+  housekeeping: HOUSEKEEPING_NAV,
   guests: GUESTS_NAV,
   settings: [{ to: "/restaurant/settings", label: "Settings", icon: Settings }],
 };
@@ -149,6 +167,7 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
   stock: "Stock & Procurement",
   staff: "Staff Management",
   rooms: "Rooms & Front Office",
+  housekeeping: "Housekeeping",
   guests: "Booking & Guest Management",
   settings: "Property Settings & Integrations",
 };
@@ -167,6 +186,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Arrivals: "rooms",
   "In-House": "rooms",
   Departures: "rooms",
+  Housekeeping: "housekeeping",
   Bookings: "guests",
   Reservations: "guests",
   "New Reservation": "guests",
