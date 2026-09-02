@@ -47,6 +47,11 @@ const RATE_ERRORS: Record<string, string> = {
 
 /** Map RAISE EXCEPTION codes from the pricing functions to user-facing text. */
 export function rateError(message: string): Error {
+  if (/duplicate key value/i.test(message)) {
+    if (message.includes("hotel_rate_categories")) return new Error("A rate category with that code already exists.");
+    if (message.includes("hotel_rate_plans")) return new Error("A rate plan with that code already exists.");
+    return new Error("That record already exists.");
+  }
   const min = /MIN_STAY_(\d+)/.exec(message);
   if (min) return new Error(`This rate plan needs a minimum stay of ${min[1]} night(s).`);
   const max = /MAX_STAY_(\d+)/.exec(message);

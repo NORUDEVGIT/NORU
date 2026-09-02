@@ -15,6 +15,8 @@ import {
 import { callerMembership } from "./workforce.server";
 
 const idSchema = z.string().uuid();
+
+export type SaveResult = { ok: true; id: string } | { ok: false; message: string };
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 
 /* ------------------------------------------------------------------- types */
@@ -120,7 +122,7 @@ export const saveRateCategory = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string }> => {
+  .handler(async ({ data, context }): Promise<SaveResult> => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const payload = {
       restaurant_id: data.restaurantId,
@@ -136,8 +138,8 @@ export const saveRateCategory = createServerFn({ method: "POST" })
         .update(payload)
         .eq("id", data.categoryId)
         .eq("restaurant_id", data.restaurantId);
-      if (error) throw rateError(error.message);
-      return { id: data.categoryId };
+      if (error) return { ok: false, message: rateError(error.message).message };
+      return { ok: true, id: data.categoryId };
     }
 
     const { data: created, error } = await context.supabase
@@ -145,8 +147,8 @@ export const saveRateCategory = createServerFn({ method: "POST" })
       .insert({ ...payload, created_by_membership_id: me.id })
       .select("id")
       .single();
-    if (error) throw rateError(error.message);
-    return { id: created.id };
+    if (error) return { ok: false, message: rateError(error.message).message };
+    return { ok: true, id: created.id };
   });
 
 /* ------------------------------------------------------------------- plans */
@@ -237,7 +239,7 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string }> => {
+  .handler(async ({ data, context }): Promise<SaveResult> => {
     const me = await requireRateManager(context as never, data.restaurantId);
 
     // Category and room type must both belong to this property.
@@ -256,8 +258,8 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         .maybeSingle(),
       context.supabase.from("restaurants").select("currency_code").eq("id", data.restaurantId).maybeSingle(),
     ]);
-    if (!category) throw new Error("That rate category doesn't belong to this property.");
-    if (!roomType) throw new Error("That room type doesn't belong to this property.");
+    if (!category) return { ok: false, message: "That rate category doesn't belong to this property." };
+    if (!roomType) return { ok: false, message: "That room type doesn't belong to this property." };
 
     const payload = {
       restaurant_id: data.restaurantId,
@@ -279,8 +281,8 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         .update(payload)
         .eq("id", data.ratePlanId)
         .eq("restaurant_id", data.restaurantId);
-      if (error) throw rateError(error.message);
-      return { id: data.ratePlanId };
+      if (error) return { ok: false, message: rateError(error.message).message };
+      return { ok: true, id: data.ratePlanId };
     }
 
     const { data: created, error } = await context.supabase
@@ -288,8 +290,8 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       .insert({ ...payload, created_by_membership_id: me.id })
       .select("id")
       .single();
-    if (error) throw rateError(error.message);
-    return { id: created.id };
+    if (error) return { ok: false, message: rateError(error.message).message };
+    return { ok: true, id: created.id };
   });
 
 export const setRatePlanActive = createServerFn({ method: "POST" })
