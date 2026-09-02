@@ -61,6 +61,7 @@ export type RestaurantNavLabel =
   | "Bookings"
   | "Reservations"
   | "New Reservation"
+  | "Rates & Revenue"
   | "Guests"
   | "Staff"
   | "Customers"
