@@ -120,6 +120,13 @@
       "when": 1788382468229,
       "tag": "0016_create_hotel_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788388516004,
+      "tag": "0017_create_cashiering",
+      "breakpoints": true
     }
   ]
 }
