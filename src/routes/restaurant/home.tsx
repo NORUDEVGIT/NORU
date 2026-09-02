@@ -109,10 +109,20 @@ const MODULES: ModuleCard[] = [
   {
     title: "Booking & Guest Management",
     description:
-      "Reservations, availability, guest profiles, preferences and guest history. Rates and channels follow in a later phase.",
+      "Reservations, availability, guest profiles, rate plans, daily rates, stay restrictions and revenue KPIs.",
     icon: CalendarCheck,
     status: "active",
     to: "/restaurant/bookings",
+    roles: ["owner", "manager"],
+  },
+  {
+    title: "Rates & Revenue",
+    description:
+      "Rate categories and plans, daily rate overrides, stay restrictions plus occupancy, ADR and RevPAR performance.",
+    icon: BarChart3,
+    status: "active",
+    to: "/restaurant/bookings/rates",
+    tab: "overview",
     roles: ["owner", "manager"],
   },
   {
