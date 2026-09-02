@@ -314,7 +314,85 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">4. Room assignment (optional)</h2>
+        <h2 className="font-display text-lg">4. Rate plan</h2>
+        {!roomTypeId || !datesValid ? (
+          <p className="mt-3 text-sm text-muted-foreground">Pick dates and a room type to see rates.</p>
+        ) : quotesQuery.isLoading ? (
+          <p className="mt-3 text-sm text-muted-foreground">Pricing the stay…</p>
+        ) : quotes.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No rate plans for this room type yet — the stay can be booked without pricing.
+          </p>
+        ) : (
+          <ul className="mt-3 grid gap-3 md:grid-cols-2">
+            {quotes.map((q) => {
+              const selected = q.plan.id === ratePlanId;
+              const disabled = !q.quote;
+              return (
+                <li key={q.plan.id}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setRatePlanId(selected ? "" : q.plan.id)}
+                    className={cn(
+                      "w-full rounded-xl border p-3 text-left transition-colors",
+                      selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
+                      disabled && "cursor-not-allowed opacity-60",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{q.plan.name}</span>
+                      <span className="text-xs text-muted-foreground">{q.plan.code}</span>
+                      {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
+                    </div>
+                    {q.quote ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        From {money(Math.min(...q.quote.nightly.map((n) => n.rate)))} / night · total{" "}
+                        <span className="font-medium text-foreground">{money(q.quote.subtotal)}</span> for{" "}
+                        {q.quote.nights} night{q.quote.nights === 1 ? "" : "s"}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-destructive">{q.unavailableReason}</p>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {selectedQuote?.quote ? (
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Night</th>
+                  <th className="px-3 py-2 text-right">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedQuote.quote.nightly.map((n) => (
+                  <tr key={n.date} className="border-t border-border">
+                    <td className="px-3 py-2">{formatStayDate(n.date)}</td>
+                    <td className="px-3 py-2 text-right">{money(n.rate)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-border bg-muted/30 font-medium">
+                  <td className="px-3 py-2">Stay total</td>
+                  <td className="px-3 py-2 text-right">{money(selectedQuote.quote.subtotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              Pricing is calculated and re-checked on the server when the reservation is created.
+            </p>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-4">
+        <h2 className="font-display text-lg">5. Room assignment (optional)</h2>
+
         <div className="mt-3 max-w-sm">
           <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId}>
             <SelectTrigger>
