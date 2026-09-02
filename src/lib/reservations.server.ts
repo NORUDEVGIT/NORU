@@ -31,6 +31,7 @@ export const RESERVATION_EVENT_TYPES = [
   "stay_extended",
   "stay_shortened",
   "no_show",
+  "repriced",
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
 

@@ -14,6 +14,7 @@ import {
   type ReservationEventType,
   type ReservationStatus,
 } from "./reservations.server";
+import { parseSnapshot, rateError } from "./rates.server";
 import { callerMembership } from "./workforce.server";
 
 const idSchema = z.string().uuid();
@@ -48,6 +49,11 @@ export interface ReservationDetail extends ReservationSummary {
   notes: string | null;
   cancellationReason: string | null;
   source: string;
+  ratePlanId: string | null;
+  currency: string | null;
+  roomSubtotal: number | null;
+  nightlyRates: { date: string; rate: number }[];
+  pricedAt: string | null;
 }
 
 type JsonValue = string | number | boolean | null;
@@ -95,6 +101,7 @@ export interface BookingsDashboard {
 const RESERVATION_SELECT = `
   id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
   adults, children, status, source, special_requests, notes, cancellation_reason,
+  rate_plan_id, currency, room_subtotal, nightly_rate_snapshot, priced_at,
   created_at, updated_at,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
   room_types!hotel_reservations_type_same_property ( name ),
@@ -116,6 +123,11 @@ type ReservationRow = {
   special_requests: string | null;
   notes: string | null;
   cancellation_reason: string | null;
+  rate_plan_id: string | null;
+  currency: string | null;
+  room_subtotal: number | string | null;
+  nightly_rate_snapshot: unknown;
+  priced_at: string | null;
   created_at: string;
   updated_at: string;
   guest_profiles: {
@@ -153,6 +165,11 @@ function toDetail(row: ReservationRow): ReservationDetail {
     specialRequests: row.special_requests,
     notes: row.notes,
     cancellationReason: row.cancellation_reason,
+    ratePlanId: row.rate_plan_id,
+    currency: row.currency,
+    roomSubtotal: row.room_subtotal === null || row.room_subtotal === undefined ? null : Number(row.room_subtotal),
+    nightlyRates: parseSnapshot(row.nightly_rate_snapshot),
+    pricedAt: row.priced_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -404,6 +421,8 @@ const stayInputSchema = z.object({
   children: z.number().int().min(0).max(20),
   specialRequests: z.string().max(2000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  /** Pricing is re-derived server-side from this plan; browser totals are ignored. */
+  ratePlanId: idSchema.nullable().optional(),
 });
 
 export const createReservation = createServerFn({ method: "POST" })
@@ -416,7 +435,7 @@ export const createReservation = createServerFn({ method: "POST" })
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: created, error } = await supabaseAdmin.rpc("create_hotel_reservation", {
+    const { data: created, error } = await supabaseAdmin.rpc("create_hotel_reservation_priced", {
       _restaurant_id: data.restaurantId,
       _guest_id: data.guestId,
       _room_type_id: data.roomTypeId,
@@ -428,9 +447,10 @@ export const createReservation = createServerFn({ method: "POST" })
       _special_requests: blankToNull(data.specialRequests) as unknown as string,
       _notes: blankToNull(data.notes) as unknown as string,
       _status: data.status ?? "pending",
+      _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
     });
-    if (error) throw reservationError(error.message);
+    if (error) throw rateError(reservationError(error.message).message);
 
     const row = created as unknown as { id: string; confirmation_number: string };
     return { id: row.id, confirmationNumber: row.confirmation_number };
@@ -448,7 +468,7 @@ export const amendReservation = createServerFn({ method: "POST" })
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: updated, error } = await supabaseAdmin.rpc("amend_hotel_reservation", {
+    const { data: updated, error } = await supabaseAdmin.rpc("amend_hotel_reservation_priced", {
       _restaurant_id: data.restaurantId,
       _reservation_id: data.reservationId,
       _room_type_id: data.roomTypeId,
@@ -459,12 +479,14 @@ export const amendReservation = createServerFn({ method: "POST" })
       _children: data.children,
       _special_requests: blankToNull(data.specialRequests) as unknown as string,
       _notes: blankToNull(data.notes) as unknown as string,
+      _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
     });
-    if (error) throw reservationError(error.message);
+    if (error) throw rateError(reservationError(error.message).message);
 
     return { id: (updated as unknown as { id: string }).id };
   });
+
 
 /** Assign or clear a room without touching the rest of the stay. */
 export const assignReservationRoom = createServerFn({ method: "POST" })

@@ -61,6 +61,7 @@ export type RestaurantNavLabel =
   | "Bookings"
   | "Reservations"
   | "New Reservation"
+  | "Rates & Revenue"
   | "Guests"
   | "Staff"
   | "Customers"
@@ -147,6 +148,12 @@ const GUESTS_NAV: NavEntry[] = [
     roles: ["owner", "manager"],
   },
   { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: ["owner", "manager"] },
+  {
+    to: "/restaurant/bookings/rates",
+    label: "Rates & Revenue",
+    icon: BarChart3,
+    roles: ["owner", "manager"],
+  },
   { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
 ];
 
@@ -190,6 +197,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Bookings: "guests",
   Reservations: "guests",
   "New Reservation": "guests",
+  "Rates & Revenue": "guests",
   Guests: "guests",
   Staff: "staff",
   Customers: "restaurant",
