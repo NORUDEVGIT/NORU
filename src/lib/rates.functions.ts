@@ -15,6 +15,8 @@ import {
 import { callerMembership } from "./workforce.server";
 
 const idSchema = z.string().uuid();
+
+export type SaveResult = { ok: true; id: string } | { ok: false; message: string };
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 
 /* ------------------------------------------------------------------- types */

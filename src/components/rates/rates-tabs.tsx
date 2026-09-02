@@ -278,7 +278,11 @@ function RateCategoryDialog({
 
   const mutation = useMutation({
     mutationFn: () => save({ data: { restaurantId, code, name, description: description || null } }),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Rate category saved");
       void queryClient.invalidateQueries({ queryKey: ["rate-categories", restaurantId] });
       onClose();
