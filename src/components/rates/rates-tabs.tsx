@@ -33,14 +33,14 @@ import {
   setRatePlanActive,
   type RatePlan,
 } from "@/lib/rates.functions";
-import { useRestaurantMoney } from "@/state/restaurant-context";
+import { useMoney } from "@/state/restaurant-context";
 
 const ALL = "all";
 
 /* --------------------------------------------------------------- overview */
 
 export function RevenueOverviewTab({ restaurantId, today }: { restaurantId: string; today: string }) {
-  const money = useRestaurantMoney();
+  const money = useMoney();
   const [from, setFrom] = useState(addDays(today, -29));
   const [to, setTo] = useState(today);
 
@@ -99,7 +99,7 @@ export function RevenueOverviewTab({ restaurantId, today }: { restaurantId: stri
 /* ------------------------------------------------------------- rate plans */
 
 export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
-  const money = useRestaurantMoney();
+  const money = useMoney();
   const queryClient = useQueryClient();
   const [roomTypeFilter, setRoomTypeFilter] = useState<string>(ALL);
   const [activeOnly, setActiveOnly] = useState(false);
@@ -584,7 +584,7 @@ function PlanFilters({
 /* ---------------------------------------------------------- rate calendar */
 
 export function RateCalendarTab({ restaurantId, today }: { restaurantId: string; today: string }) {
-  const money = useRestaurantMoney();
+  const money = useMoney();
   const queryClient = useQueryClient();
   const picker = usePlanPicker(restaurantId);
   const [from, setFrom] = useState(today);
