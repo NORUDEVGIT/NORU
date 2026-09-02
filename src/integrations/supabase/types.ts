@@ -109,6 +109,214 @@ export type Database = {
           },
         ]
       }
+      distribution_channels: {
+        Row: {
+          channel_type: string
+          code: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel_type?: string
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_type?: string
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribution_channels_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      distribution_logs: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          message: string | null
+          payload_summary: Json | null
+          reference_id: string | null
+          reference_type: string | null
+          restaurant_id: string
+          status: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          message?: string | null
+          payload_summary?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          restaurant_id: string
+          status?: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          message?: string | null
+          payload_summary?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          restaurant_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribution_logs_channel_fk"
+            columns: ["channel_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "distribution_channels"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "distribution_logs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      distribution_rate_mappings: {
+        Row: {
+          active: boolean
+          channel_id: string
+          created_at: string
+          external_rate_code: string | null
+          id: string
+          rate_plan_id: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          channel_id: string
+          created_at?: string
+          external_rate_code?: string | null
+          id?: string
+          rate_plan_id: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          channel_id?: string
+          created_at?: string
+          external_rate_code?: string | null
+          id?: string
+          rate_plan_id?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribution_rate_mappings_channel_fk"
+            columns: ["channel_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "distribution_channels"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "distribution_rate_mappings_plan_fk"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "distribution_rate_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      distribution_room_mappings: {
+        Row: {
+          active: boolean
+          channel_id: string
+          created_at: string
+          external_room_code: string | null
+          id: string
+          restaurant_id: string
+          room_type_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          channel_id: string
+          created_at?: string
+          external_room_code?: string | null
+          id?: string
+          restaurant_id: string
+          room_type_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          channel_id?: string
+          created_at?: string
+          external_room_code?: string | null
+          id?: string
+          restaurant_id?: string
+          room_type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribution_room_mappings_channel_fk"
+            columns: ["channel_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "distribution_channels"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "distribution_room_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribution_room_mappings_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       folio_history: {
         Row: {
           actor_membership_id: string | null
@@ -2753,11 +2961,15 @@ export type Database = {
           approved: boolean
           approved_at: string | null
           approved_by: string | null
+          booking_contact_email: string | null
+          booking_contact_phone: string | null
+          booking_message: string | null
           business_date: string | null
           city: string | null
           country: string | null
           created_at: string
           currency_code: string
+          direct_booking_enabled: boolean
           email: string | null
           id: string
           logo_url: string | null
@@ -2777,11 +2989,15 @@ export type Database = {
           approved?: boolean
           approved_at?: string | null
           approved_by?: string | null
+          booking_contact_email?: string | null
+          booking_contact_phone?: string | null
+          booking_message?: string | null
           business_date?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
           currency_code?: string
+          direct_booking_enabled?: boolean
           email?: string | null
           id?: string
           logo_url?: string | null
@@ -2801,11 +3017,15 @@ export type Database = {
           approved?: boolean
           approved_at?: string | null
           approved_by?: string | null
+          booking_contact_email?: string | null
+          booking_contact_phone?: string | null
+          booking_message?: string | null
           business_date?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
           currency_code?: string
+          direct_booking_enabled?: boolean
           email?: string | null
           id?: string
           logo_url?: string | null
@@ -3581,6 +3801,50 @@ export type Database = {
       count_sellable_rooms: {
         Args: { _restaurant_id: string; _room_type_id: string }
         Returns: number
+      }
+      create_direct_booking: {
+        Args: {
+          _adults: number
+          _arrival: string
+          _children: number
+          _departure: string
+          _guest_id: string
+          _rate_plan_id: string
+          _restaurant_id: string
+          _room_type_id: string
+          _special_requests: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          cancellation_reason: string | null
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          currency: string | null
+          departure_date: string
+          guest_id: string
+          id: string
+          nightly_rate_snapshot: Json | null
+          notes: string | null
+          priced_at: string | null
+          rate_plan_id: string | null
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          source: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_hotel_reservation: {
         Args: {
