@@ -85,6 +85,13 @@
       "when": 1788268850590,
       "tag": "0011_scope_inventory_units_read_to_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788344044640,
+      "tag": "0012_create_guest_profiles",
+      "breakpoints": true
     }
   ]
 }
