@@ -68,6 +68,8 @@ import { Route as RestaurantRoomsInHouseRouteImport } from './routes/restaurant/
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
 import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/restaurant/cashiering/folios/$folioId'
+import { Route as RestaurantCashieringNightAuditIndexRouteImport } from './routes/restaurant/cashiering/night-audit/index'
+import { Route as RestaurantCashieringNightAuditRunIdRouteImport } from './routes/restaurant/cashiering/night-audit/$runId'
 import { Route as RestaurantInventoryPurchasingPurchaseOrderIdRouteImport } from './routes/restaurant/inventory/purchasing/$purchaseOrderId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -375,6 +377,18 @@ const RestaurantCashieringFoliosFolioIdRoute =
     path: '/restaurant/cashiering/folios/$folioId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantCashieringNightAuditIndexRoute =
+  RestaurantCashieringNightAuditIndexRouteImport.update({
+    id: '/restaurant/cashiering/night-audit/',
+    path: '/restaurant/cashiering/night-audit/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantCashieringNightAuditRunIdRoute =
+  RestaurantCashieringNightAuditRunIdRouteImport.update({
+    id: '/restaurant/cashiering/night-audit/$runId',
+    path: '/restaurant/cashiering/night-audit/$runId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantInventoryPurchasingPurchaseOrderIdRoute =
   RestaurantInventoryPurchasingPurchaseOrderIdRouteImport.update({
     id: '/restaurant/inventory/purchasing/$purchaseOrderId',
@@ -442,7 +456,9 @@ export interface FileRoutesByFullPath {
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
+  '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -502,7 +518,9 @@ export interface FileRoutesByTo {
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
+  '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  '/restaurant/cashiering/night-audit': typeof RestaurantCashieringNightAuditIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -565,7 +583,9 @@ export interface FileRoutesById {
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
+  '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -629,7 +649,9 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/cashiering/folios/$folioId'
+    | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
+    | '/restaurant/cashiering/night-audit/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -689,7 +711,9 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/cashiering/folios/$folioId'
+    | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
+    | '/restaurant/cashiering/night-audit'
   id:
     | '__root__'
     | '/'
@@ -751,7 +775,9 @@ export interface FileRouteTypes {
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
     | '/restaurant/cashiering/folios/$folioId'
+    | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
+    | '/restaurant/cashiering/night-audit/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -803,7 +829,9 @@ export interface RootRouteChildren {
   RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
   RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
+  RestaurantCashieringNightAuditRunIdRoute: typeof RestaurantCashieringNightAuditRunIdRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  RestaurantCashieringNightAuditIndexRoute: typeof RestaurantCashieringNightAuditIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1221,6 +1249,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantCashieringFoliosFolioIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/cashiering/night-audit/': {
+      id: '/restaurant/cashiering/night-audit/'
+      path: '/restaurant/cashiering/night-audit'
+      fullPath: '/restaurant/cashiering/night-audit/'
+      preLoaderRoute: typeof RestaurantCashieringNightAuditIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/cashiering/night-audit/$runId': {
+      id: '/restaurant/cashiering/night-audit/$runId'
+      path: '/restaurant/cashiering/night-audit/$runId'
+      fullPath: '/restaurant/cashiering/night-audit/$runId'
+      preLoaderRoute: typeof RestaurantCashieringNightAuditRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/inventory/purchasing/$purchaseOrderId': {
       id: '/restaurant/inventory/purchasing/$purchaseOrderId'
       path: '/restaurant/inventory/purchasing/$purchaseOrderId'
@@ -1322,8 +1364,12 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,
   RestaurantCashieringFoliosFolioIdRoute:
     RestaurantCashieringFoliosFolioIdRoute,
+  RestaurantCashieringNightAuditRunIdRoute:
+    RestaurantCashieringNightAuditRunIdRoute,
   RestaurantInventoryPurchasingPurchaseOrderIdRoute:
     RestaurantInventoryPurchasingPurchaseOrderIdRoute,
+  RestaurantCashieringNightAuditIndexRoute:
+    RestaurantCashieringNightAuditIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
