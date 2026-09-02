@@ -100,6 +100,7 @@ export interface BookingsDashboard {
 const RESERVATION_SELECT = `
   id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
   adults, children, status, source, special_requests, notes, cancellation_reason,
+  rate_plan_id, currency, room_subtotal, nightly_rate_snapshot, priced_at,
   created_at, updated_at,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
   room_types!hotel_reservations_type_same_property ( name ),
