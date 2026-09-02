@@ -164,6 +164,11 @@ function toDetail(row: ReservationRow): ReservationDetail {
     specialRequests: row.special_requests,
     notes: row.notes,
     cancellationReason: row.cancellation_reason,
+    ratePlanId: row.rate_plan_id,
+    currency: row.currency,
+    roomSubtotal: row.room_subtotal === null || row.room_subtotal === undefined ? null : Number(row.room_subtotal),
+    nightlyRates: parseSnapshot(row.nightly_rate_snapshot),
+    pricedAt: row.priced_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
