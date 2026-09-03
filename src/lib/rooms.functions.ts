@@ -8,6 +8,8 @@ import {
   ROOM_STATUSES,
   blankToNull,
   canManageRooms,
+  canAccessFrontOffice,
+  requireFrontOfficeAccess,
   requireRoomManager,
   roomTypeImagePath,
   signRoomImages,
@@ -72,8 +74,8 @@ export const getRoomsAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context as never, data.restaurantId);
-    return { role: me.role, canManage: canManageRooms(me.role) };
+    const me = await requireFrontOfficeAccess(context as never, data.restaurantId);
+    return { role: me.role, canManage: canAccessFrontOffice(me.role), canConfigure: canManageRooms(me.role) };
   });
 
 /* ------------------------------------------------------------------ amenities */
