@@ -75,17 +75,21 @@ export type RestaurantNavLabel =
   | "Staff"
   | "Customers"
   | "Reports"
+  | "Configuration"
   | "Settings";
 
 export type WorkspaceModule =
   | "home"
   | "restaurant"
   | "stock"
+  | "procurement"
   | "staff"
   | "rooms"
   | "housekeeping"
   | "guests"
   | "cashiering"
+  | "reports"
+  | "configuration"
   | "settings";
 
 type NavEntry = {
@@ -96,14 +100,14 @@ type NavEntry = {
   icon: typeof LayoutDashboard;
   /** When set, only these membership roles see the entry. */
   roles?: string[];
+  /** Optional group heading, used by the Configuration workspace. */
+  section?: string;
 };
 
 const RESTAURANT_NAV: NavEntry[] = [
   { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed },
   { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat },
   { to: "/restaurant/orders", label: "Orders", icon: ReceiptText },
-  { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode },
   {
     to: "/restaurant/waiter",
     label: "Take Order",
@@ -113,11 +117,14 @@ const RESTAURANT_NAV: NavEntry[] = [
 ];
 
 const STOCK_NAV: NavEntry[] = [
-  { to: "/restaurant/inventory", tab: "overview", label: "Overview", icon: LayoutDashboard },
+  { to: "/restaurant/inventory", tab: "overview", label: "Dashboard", icon: LayoutDashboard },
   { to: "/restaurant/inventory", tab: "ingredient", label: "Ingredients", icon: Carrot },
   { to: "/restaurant/inventory", tab: "consumable", label: "Consumables", icon: PackageOpen },
   { to: "/restaurant/inventory", tab: "operating_asset", label: "Operating Assets", icon: Boxes },
   { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench },
+];
+
+const PROCUREMENT_NAV: NavEntry[] = [
   { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck },
   { to: "/restaurant/inventory", tab: "purchasing", label: "Purchasing", icon: ShoppingCart },
 ];
@@ -131,11 +138,17 @@ const STAFF_NAV: NavEntry[] = [
 
 const ROOMS_NAV: NavEntry[] = [
   { to: "/restaurant/rooms", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/rooms", tab: "room-types", label: "Room Types", icon: BedDouble },
-  { to: "/restaurant/rooms", tab: "rooms", label: "Rooms", icon: DoorOpen },
   { to: "/restaurant/rooms/arrivals", label: "Arrivals", icon: LogIn, roles: ["owner", "manager"] },
   { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: ["owner", "manager"] },
   { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: ["owner", "manager"] },
+  {
+    to: "/restaurant/bookings/reservations",
+    label: "Reservations",
+    icon: CalendarCheck,
+    roles: ["owner", "manager"],
+  },
+  { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: ["owner", "manager"] },
+  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
 ];
 
 const HOUSEKEEPING_NAV: NavEntry[] = [
@@ -149,35 +162,11 @@ const HOUSEKEEPING_NAV: NavEntry[] = [
   { to: "/restaurant/housekeeping", tab: "history", label: "History", icon: History },
 ];
 
-const GUESTS_NAV: NavEntry[] = [
-  { to: "/restaurant/bookings", label: "Bookings", icon: LayoutDashboard, roles: ["owner", "manager"] },
-  {
-    to: "/restaurant/bookings/reservations",
-    label: "Reservations",
-    icon: CalendarCheck,
-    roles: ["owner", "manager"],
-  },
-  { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: ["owner", "manager"] },
-  {
-    to: "/restaurant/bookings/rates",
-    label: "Rates & Revenue",
-    icon: BarChart3,
-    roles: ["owner", "manager"],
-  },
-  {
-    to: "/restaurant/bookings/distribution",
-    label: "Distribution",
-    icon: Globe,
-    roles: ["owner", "manager"],
-  },
-  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
-];
-
 const CASHIERING_NAV: NavEntry[] = [
   {
     to: "/restaurant/cashiering",
     tab: "dashboard",
-    label: "Cashiering",
+    label: "Dashboard",
     icon: LayoutDashboard,
     roles: ["owner", "manager"],
   },
@@ -210,27 +199,90 @@ const CASHIERING_NAV: NavEntry[] = [
   },
 ];
 
+const REPORTS_NAV: NavEntry[] = [
+  { to: "/restaurant/reports", label: "Reports", icon: BarChart3, roles: ["owner", "manager"] },
+];
+
+const CONFIGURATION_NAV: NavEntry[] = [
+  { to: "/restaurant/configuration", label: "Configuration", icon: LayoutDashboard },
+  { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, section: "Food & Beverage" },
+  { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, section: "Food & Beverage" },
+  {
+    to: "/restaurant/rooms",
+    tab: "room-types",
+    label: "Room Types",
+    icon: BedDouble,
+    section: "Rooms",
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/rooms",
+    tab: "rooms",
+    label: "Rooms",
+    icon: DoorOpen,
+    section: "Rooms",
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/bookings/rates",
+    tab: "plans",
+    label: "Rate Plans",
+    icon: BarChart3,
+    section: "Rates & Revenue",
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/bookings/rates",
+    tab: "calendar",
+    label: "Rate Calendar",
+    icon: CalendarDays,
+    section: "Rates & Revenue",
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/bookings/rates",
+    tab: "restrictions",
+    label: "Restrictions",
+    icon: Ban,
+    section: "Rates & Revenue",
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/bookings/distribution",
+    label: "Distribution",
+    icon: Globe,
+    section: "Distribution",
+    roles: ["owner", "manager"],
+  },
+];
+
 const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
   home: [],
   restaurant: RESTAURANT_NAV,
   stock: STOCK_NAV,
+  procurement: PROCUREMENT_NAV,
   staff: STAFF_NAV,
   rooms: ROOMS_NAV,
   housekeeping: HOUSEKEEPING_NAV,
-  guests: GUESTS_NAV,
+  guests: ROOMS_NAV,
   cashiering: CASHIERING_NAV,
+  reports: REPORTS_NAV,
+  configuration: CONFIGURATION_NAV,
   settings: [{ to: "/restaurant/settings", label: "Settings", icon: Settings }],
 };
 
 const MODULE_TITLE: Record<WorkspaceModule, string> = {
   home: "Property Home",
-  restaurant: "Restaurant Management",
-  stock: "Stock & Procurement",
-  staff: "Staff Management",
-  rooms: "Rooms & Front Office",
+  restaurant: "Food & Beverage",
+  stock: "Inventory",
+  procurement: "Procurement",
+  staff: "Human Resources",
+  rooms: "Front Office",
   housekeeping: "Housekeeping",
-  guests: "Booking & Guest Management",
+  guests: "Front Office",
   cashiering: "Accounting & Finance",
+  reports: "Reports & Analytics",
+  configuration: "Configuration",
   settings: "Property Settings & Integrations",
 };
 
@@ -238,10 +290,10 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
 const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Home: "home",
   Dashboard: "restaurant",
-  Menu: "restaurant",
+  Menu: "configuration",
   Kitchen: "restaurant",
   Orders: "restaurant",
-  "Tables & QR": "restaurant",
+  "Tables & QR": "configuration",
   "Take Order": "restaurant",
   Inventory: "stock",
   Rooms: "rooms",
@@ -249,12 +301,12 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "In-House": "rooms",
   Departures: "rooms",
   Housekeeping: "housekeeping",
-  Bookings: "guests",
-  Reservations: "guests",
-  "New Reservation": "guests",
-  "Rates & Revenue": "guests",
-  Distribution: "guests",
-  Guests: "guests",
+  Bookings: "rooms",
+  Reservations: "rooms",
+  "New Reservation": "rooms",
+  "Rates & Revenue": "configuration",
+  Distribution: "configuration",
+  Guests: "rooms",
   Cashiering: "cashiering",
   Folios: "cashiering",
   Payments: "cashiering",
@@ -262,16 +314,21 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "Night Audit": "cashiering",
   Staff: "staff",
   Customers: "restaurant",
-  Reports: "restaurant",
+  Reports: "reports",
+  Configuration: "configuration",
   Settings: "settings",
 };
 
 
+
 export function RestaurantShell({
   active,
+  module,
   children,
 }: {
   active: RestaurantNavLabel;
+  /** Overrides the workspace derived from `active` for pages shared by two modules. */
+  module?: WorkspaceModule;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -297,11 +354,13 @@ export function RestaurantShell({
 
   const membership = data?.[0];
   const restaurant = membership?.restaurant;
-  const workspace = LABEL_MODULE[active];
+  const workspace = module ?? LABEL_MODULE[active];
   const items = MODULE_NAV[workspace].filter(
     (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
   );
-  const activeTab = search.tab ?? items.find((i) => i.tab)?.tab;
+  const activeItem = items.find((i) => i.label === active);
+  const activeTab =
+    search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
 
   const sidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
@@ -331,10 +390,16 @@ export function RestaurantShell({
 
       <nav className="min-h-0 flex-1 overflow-y-auto">
         <ul className="space-y-1">
-          {items.map((item) => {
+          {items.map((item, index) => {
             const isActive = item.tab ? activeTab === item.tab : active === item.label;
+            const showSection = !!item.section && item.section !== items[index - 1]?.section;
             return (
-              <li key={item.label}>
+              <li key={`${item.label}-${item.tab ?? ""}`}>
+                {showSection ? (
+                  <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                    {item.section}
+                  </p>
+                ) : null}
                 <Link
                   to={item.to}
                   {...(item.tab ? { search: { tab: item.tab } } : {})}
