@@ -86,7 +86,7 @@ export function ExceptionsPanel({
                       Ignore
                     </Button>
                   ) : null}
-                  {e.severity === "warning" ? (
+                  {!readOnly && e.severity === "warning" ? (
                     <Button size="sm" variant="secondary" disabled={busy} onClick={() => onUpdate(e.id, "resolve")}>
                       Resolve
                     </Button>
