@@ -113,9 +113,24 @@ export const getOrderBilling = createServerFn({ method: "POST" })
           created_by_staff_membership_id: order.created_by_staff_membership_id,
         });
 
+    // A reversed charge stays on the ledger, and the ledger allows one
+    // restaurant posting per order, so the order can't be charged again.
+    let reversed = false;
+    if (!posted) {
+      const { data: prior } = await supabaseAdmin
+        .from("folio_transactions")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("reference_type", "restaurant_order")
+        .eq("reference_id", order.id)
+        .maybeSingle();
+      reversed = Boolean(prior);
+    }
+
     let blockedReason: string | null = null;
     if (!posted) {
-      if (order.status === "cancelled") blockedReason = "Cancelled orders can't be charged to a room.";
+      if (reversed) blockedReason = "This order's room charge was reversed and can't be charged again.";
+      else if (order.status === "cancelled") blockedReason = "Cancelled orders can't be charged to a room.";
       else if (order.status !== "served") blockedReason = "The order has to be served first.";
       else if (Number(order.total) <= 0) blockedReason = "This order has no chargeable total.";
       else if (!permission.ok) blockedReason = permission.message;
