@@ -42,6 +42,8 @@ import {
   type StaffMember,
   type StaffRole,
 } from "@/lib/staff.functions";
+import { getStaffModuleAccess, setStaffModuleAccess } from "@/lib/module-access.functions";
+import { Switch } from "@/components/ui/switch";
 import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, MODULE_KEYS, MODULE_LABELS, OVERRIDABLE_MODULES, defaultModulesForRole, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
@@ -521,6 +523,11 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
                         </SelectContent>
                       </Select>
                     </div>
+                    <ModuleAccessPanel
+                      restaurantId={restaurantId}
+                      member={selected}
+                      isSelf={selected.isSelf}
+                    />
                     <Button
                       variant={selected.active ? "destructive" : "default"}
                       className="w-full"
@@ -825,4 +832,90 @@ function describeAudit(entry: {
     default:
       return `${actor} updated ${target}`;
   }
+}
+
+
+/** Owner/manager control over which workspaces a staff member can open. */
+function ModuleAccessPanel({
+  restaurantId,
+  member,
+  isSelf,
+}: {
+  restaurantId: string;
+  member: StaffMember;
+  isSelf: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const fetchAccess = useServerFn(getStaffModuleAccess);
+  const saveAccess = useServerFn(setStaffModuleAccess);
+
+  const fixed = member.role === "owner" || member.role === "manager";
+
+  const access = useQuery({
+    queryKey: ["staff-module-access", restaurantId, member.membershipId],
+    queryFn: () => fetchAccess({ data: { restaurantId, membershipId: member.membershipId } }),
+    enabled: !fixed,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (input: { moduleKey: ModuleKey; enabled: boolean | null }) =>
+      saveAccess({ data: { restaurantId, membershipId: member.membershipId, ...input } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["staff-module-access", restaurantId, member.membershipId],
+      });
+      toast.success("Module access updated.");
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof Error ? error.message : "Could not update module access."),
+  });
+
+  if (fixed) {
+    return (
+      <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+        Owners and managers always have access to every module.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>Module access</Label>
+      <p className="text-xs text-muted-foreground">
+        Defaults come from the role. Toggle to grant or remove a workspace for this person.
+      </p>
+      {access.isLoading ? (
+        <p className="text-xs text-muted-foreground">Loading module access…</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-xl border border-border">
+          {(access.data?.rows ?? [])
+            .filter((row) => row.overridable)
+            .map((row) => (
+              <li key={row.moduleKey} className="flex items-center justify-between gap-3 px-3 py-2">
+                <div>
+                  <p className="text-sm">{row.label}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {row.byDefault ? "Included in this role" : "Not part of this role"}
+                    {row.overridden ? " · overridden" : ""}
+                  </p>
+                </div>
+                <Switch
+                  checked={row.enabled}
+                  disabled={isSelf || mutation.isPending}
+                  onCheckedChange={(checked) =>
+                    mutation.mutate({
+                      moduleKey: row.moduleKey,
+                      enabled: checked === row.byDefault ? null : checked,
+                    })
+                  }
+                />
+              </li>
+            ))}
+        </ul>
+      )}
+      {isSelf ? (
+        <p className="text-[11px] text-muted-foreground">You can't change your own module access.</p>
+      ) : null}
+    </div>
+  );
 }
