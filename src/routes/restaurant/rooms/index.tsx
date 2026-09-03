@@ -28,13 +28,13 @@ export const Route = createFileRoute("/restaurant/rooms/")({
   },
   head: () => ({
     meta: [
-      { title: "Rooms & Front Office — NORU" },
+      { title: "Front Office — NORU" },
       {
         name: "description",
-        content: "Set up room types, rooms, amenities and room imagery for your property in NORU.",
+        content: "Manage arrivals, in-house guests, departures and reservations for your property in NORU.",
       },
-      { property: "og:title", content: "Rooms & Front Office — NORU" },
-      { property: "og:description", content: "Room type and room setup for your property." },
+      { property: "og:title", content: "Front Office — NORU" },
+      { property: "og:description", content: "Daily hotel operations: arrivals, in-house guests, departures and reservations." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
