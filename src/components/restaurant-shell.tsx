@@ -75,6 +75,7 @@ export type RestaurantNavLabel =
   | "Staff"
   | "Customers"
   | "Reports"
+  | "Configuration"
   | "Settings";
 
 export type WorkspaceModule =
