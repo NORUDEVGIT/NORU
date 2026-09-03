@@ -390,10 +390,16 @@ export function RestaurantShell({
 
       <nav className="min-h-0 flex-1 overflow-y-auto">
         <ul className="space-y-1">
-          {items.map((item) => {
+          {items.map((item, index) => {
             const isActive = item.tab ? activeTab === item.tab : active === item.label;
+            const showSection = !!item.section && item.section !== items[index - 1]?.section;
             return (
-              <li key={item.label}>
+              <li key={`${item.label}-${item.tab ?? ""}`}>
+                {showSection ? (
+                  <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                    {item.section}
+                  </p>
+                ) : null}
                 <Link
                   to={item.to}
                   {...(item.tab ? { search: { tab: item.tab } } : {})}
