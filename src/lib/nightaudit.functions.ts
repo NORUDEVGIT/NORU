@@ -165,7 +165,7 @@ export const getNightAuditAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context as never, data.restaurantId);
+    const me = await requireCashieringAccess(context as never, data.restaurantId);
     return { canManage: canManageCashiering(me.role), role: me.role };
   });
 
