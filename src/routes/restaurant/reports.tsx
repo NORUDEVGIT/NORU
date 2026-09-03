@@ -5,7 +5,7 @@ import { ArrowRight, BarChart3, Boxes, ReceiptText, Sparkles, Users, Wallet } fr
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { RevenueOverviewTab } from "@/components/rates/rates-tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { getRatesAccess } from "@/lib/rates.functions";
+import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 
@@ -87,10 +87,10 @@ const REPORT_LINKS: ReportLink[] = [
 function ReportsPage({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const today = propertyToday(membership.restaurant.timezone);
-  const fetchAccess = useServerFn(getRatesAccess);
+  const fetchAccess = useServerFn(getMyModuleAccess);
 
   const accessQuery = useQuery({
-    queryKey: ["rates-access", restaurantId],
+    queryKey: ["my-module-access", restaurantId],
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
@@ -106,12 +106,12 @@ function ReportsPage({ membership }: { membership: RestaurantMembership }) {
 
       {accessQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading performance…</p>
-      ) : accessQuery.data?.canManage ? (
+      ) : accessQuery.data?.modules.includes("reports_analytics") ? (
         <RevenueOverviewTab restaurantId={restaurantId} today={today} />
       ) : (
         <div className="rounded-2xl border border-border bg-card p-6">
           <p className="text-sm text-muted-foreground">
-            Only owners and managers can see property revenue performance.
+            You don't have access to Reports & Analytics for this property.
           </p>
         </div>
       )}

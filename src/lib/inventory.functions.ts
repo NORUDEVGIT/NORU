@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { INVENTORY_ROLES } from "./module-access";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership, displayName, getRestaurantSettings } from "./workforce.server";
 import {
@@ -81,11 +82,14 @@ function permissionsFor(role: string): InventoryPermissions {
 }
 
 async function requireInventoryAccess(context: any, restaurantId: string) {
-  const me = await callerMembership(context, restaurantId);
-  if (!canViewInventory(me.role)) {
-    throw new Error("You don't have access to inventory for this restaurant.");
-  }
-  return me;
+  const { requireModuleRole } = await import("./module-access.server");
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "inventory",
+    INVENTORY_ROLES,
+    "You don't have access to inventory for this restaurant.",
+  );
 }
 
 export const listInventoryUnits = createServerFn({ method: "POST" })
@@ -98,7 +102,12 @@ export const listInventoryUnits = createServerFn({ method: "POST" })
       .eq("is_active", true)
       .order("unit_type", { ascending: true })
       .order("code", { ascending: true });
-    return (data ?? []).map((u) => ({ id: u.id, code: u.code, name: u.name, unitType: u.unit_type }));
+    return (data ?? []).map((u) => ({
+      id: u.id,
+      code: u.code,
+      name: u.name,
+      unitType: u.unit_type,
+    }));
   });
 
 export const listInventoryItems = createServerFn({ method: "POST" })
@@ -117,7 +126,12 @@ export const listInventoryItems = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<{ permissions: InventoryPermissions; timezone: string; currencyCode: string; items: InventoryItem[] }> => {
+    }): Promise<{
+      permissions: InventoryPermissions;
+      timezone: string;
+      currencyCode: string;
+      items: InventoryItem[];
+    }> => {
       const me = await requireInventoryAccess(context, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const settings = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
@@ -234,7 +248,9 @@ async function loadMovements(
   const unitCode = new Map<string, string>((units ?? []).map((u: any) => [u.id, u.code]));
   const itemName = new Map<string, string>((items ?? []).map((i: any) => [i.id, i.name]));
 
-  const membershipIds = [...new Set(movements.map((m) => m.created_by_staff_membership_id).filter(Boolean))];
+  const membershipIds = [
+    ...new Set(movements.map((m) => m.created_by_staff_membership_id).filter(Boolean)),
+  ];
   const recorder = new Map<string, string | null>();
   if (membershipIds.length > 0) {
     const { data: members } = await admin
@@ -262,7 +278,9 @@ async function loadMovements(
     unitCost: m.unit_cost === null ? null : Number(m.unit_cost),
     balanceAfter: m.balance_after === null ? null : Number(m.balance_after),
     reason: m.reason,
-    recordedBy: m.created_by_staff_membership_id ? recorder.get(m.created_by_staff_membership_id) ?? null : null,
+    recordedBy: m.created_by_staff_membership_id
+      ? (recorder.get(m.created_by_staff_membership_id) ?? null)
+      : null,
     createdAt: m.created_at,
   }));
 }
@@ -305,9 +323,12 @@ export const createInventoryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireInventoryAccess(context, data.restaurantId);
     if (!isManager(me.role)) {
-      return { ok: false as const, message: "Only owners and managers can create inventory items." };
+      return {
+        ok: false as const,
+        message: "Only owners and managers can create inventory items.",
+      };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -357,7 +378,10 @@ export const createInventoryItem = createServerFn({ method: "POST" })
       });
       if (moveError) {
         console.error("[createInventoryItem/opening]", moveError.message);
-        return { ok: false as const, message: "The item was created but the opening stock could not be recorded." };
+        return {
+          ok: false as const,
+          message: "The item was created but the opening stock could not be recorded.",
+        };
       }
     }
 
@@ -380,7 +404,7 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireInventoryAccess(context, data.restaurantId);
     if (!isManager(me.role)) {
       return { ok: false as const, message: "Only owners and managers can edit inventory items." };
     }
@@ -389,11 +413,11 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
 
     // Quantity is deliberately absent: stock only moves through the ledger.
     const patch: Record<string, any> = {};
-    if (data.name !== undefined) patch['name'] = data.name;
-    if (data.minimumStockLevel !== undefined) patch['minimum_stock_level'] = data.minimumStockLevel;
-    if (data.unitCost !== undefined) patch['unit_cost'] = data.unitCost;
-    if (data.notes !== undefined) patch['notes'] = data.notes;
-    if (data.active !== undefined) patch['active'] = data.active;
+    if (data.name !== undefined) patch["name"] = data.name;
+    if (data.minimumStockLevel !== undefined) patch["minimum_stock_level"] = data.minimumStockLevel;
+    if (data.unitCost !== undefined) patch["unit_cost"] = data.unitCost;
+    if (data.notes !== undefined) patch["notes"] = data.notes;
+    if (data.active !== undefined) patch["active"] = data.active;
     if (Object.keys(patch).length === 0) return { ok: true as const };
 
     const { error } = await supabaseAdmin
@@ -427,20 +451,27 @@ export const createInventoryMovement = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireInventoryAccess(context, data.restaurantId);
     const type = data.movementType as MovementType;
 
     if (type === "opening_balance") {
-      return { ok: false as const, message: "Opening balances are only recorded when an item is created." };
+      return {
+        ok: false as const,
+        message: "Opening balances are only recorded when an item is created.",
+      };
     }
     if (!canRecordMovement(me.role, type)) {
-      return { ok: false as const, message: "You don't have permission to record this stock movement." };
+      return {
+        ok: false as const,
+        message: "You don't have permission to record this stock movement.",
+      };
     }
     if (reasonRequired(type) && !data.reason?.trim()) {
       return { ok: false as const, message: "A reason is required for this movement." };
     }
     // Only owners/managers set cost; kitchen input is ignored rather than trusted.
-    const unitCost = isManager(me.role) && type === "purchase_received" ? data.unitCost ?? null : null;
+    const unitCost =
+      isManager(me.role) && type === "purchase_received" ? (data.unitCost ?? null) : null;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const item = await loadInventoryItem(supabaseAdmin, data.restaurantId, data.itemId);

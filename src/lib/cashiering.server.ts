@@ -6,8 +6,14 @@
  * applies. Money never comes from the browser signed — the database applies the
  * sign convention.
  */
-import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { type AuthedCtx, type Membership } from "./workforce.server";
+import { requireModuleRole } from "./module-access.server";
 
+/** Roles that may open Accounting & Finance and run day-to-day cashiering. */
+export const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
+/** Roles allowed to operate a cash drawer / post payments. */
+export const CASHIER_OPERATE_ROLES = ["owner", "manager", "cashier"] as const;
+/** Sensitive corrections: refunds, adjustments, discounts, folio close, audit. */
 export const CASHIER_MANAGE_ROLES = ["owner", "manager"] as const;
 
 export const TRANSACTION_TYPES = [
@@ -39,15 +45,49 @@ export function canManageCashiering(role: string): boolean {
   return (CASHIER_MANAGE_ROLES as readonly string[]).includes(role);
 }
 
+const NO_ACCESS = "You don't have access to Accounting & Finance for this property.";
+const NO_PERMISSION = "You don't have permission to perform that finance action.";
+
+/** Module entry + read access to folios, payments and shifts. */
+export async function requireCashieringAccess(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "accounting_finance",
+    CASHIER_ACCESS_ROLES,
+    NO_ACCESS,
+  );
+}
+
+/** Cash-handling actions: payments, deposits, own cashier shift. */
+export async function requireCashierOperator(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "accounting_finance",
+    CASHIER_OPERATE_ROLES,
+    NO_PERMISSION,
+  );
+}
+
+/** Sensitive corrections and night audit: owner/manager only. */
 export async function requireCashierManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  const me = await callerMembership(context, restaurantId);
-  if (!canManageCashiering(me.role)) {
-    throw new Error("You don't have access to Accounting & Finance for this property.");
-  }
-  return me;
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "accounting_finance",
+    CASHIER_MANAGE_ROLES,
+    NO_PERMISSION,
+  );
 }
 
 export function blankToNull(value: string | null | undefined): string | null {

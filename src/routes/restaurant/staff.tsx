@@ -9,7 +9,13 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,20 +45,16 @@ import {
   createStaff,
   listStaff,
   setStaffActive,
-  STAFF_ROLES,
   type StaffMember,
   type StaffRole,
 } from "@/lib/staff.functions";
+import { getStaffModuleAccess, setStaffModuleAccess } from "@/lib/module-access.functions";
+import { Switch } from "@/components/ui/switch";
+import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
 
-const ROLE_LABEL: Record<StaffRole, string> = {
-  owner: "Owner",
-  manager: "Manager",
-  kitchen: "Kitchen",
-  waiter: "Waiter",
-  housekeeping: "Housekeeping",
-};
+const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;
 
 const ROLE_BADGE: Record<StaffRole, string> = {
   owner: "bg-primary/10 text-primary",
@@ -60,10 +62,23 @@ const ROLE_BADGE: Record<StaffRole, string> = {
   kitchen: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   waiter: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
   housekeeping: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  housekeeping_supervisor: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  housekeeper: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  receptionist: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+  cashier: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+  accountant: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+  storekeeper: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  maintenance: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
 };
 
 /** Mirrors the authorization that actually exists in the codebase today. */
-const PERMISSION_MATRIX: { area: string; owner: string; manager: string; kitchen: string; waiter: string }[] = [
+const PERMISSION_MATRIX: {
+  area: string;
+  owner: string;
+  manager: string;
+  kitchen: string;
+  waiter: string;
+}[] = [
   { area: "Dashboard & analytics", owner: "Yes", manager: "Yes", kitchen: "Yes", waiter: "Yes" },
   { area: "Menu management", owner: "Yes", manager: "Yes", kitchen: "No", waiter: "No" },
   { area: "Kitchen board", owner: "Yes", manager: "Yes", kitchen: "Yes", waiter: "No" },
@@ -78,7 +93,7 @@ const PERMISSION_MATRIX: { area: string; owner: string; manager: string; kitchen
 export const Route = createFileRoute("/restaurant/staff")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) =>
-    typeof search['tab'] === "string" ? { tab: search['tab'] as string } : {},
+    typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
 
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -91,10 +106,14 @@ export const Route = createFileRoute("/restaurant/staff")({
       { title: "Human Resources — NORU" },
       {
         name: "description",
-        content: "Add restaurant staff, set their roles and manage access to your dashboard, kitchen and orders.",
+        content:
+          "Add restaurant staff, set their roles and manage access to your dashboard, kitchen and orders.",
       },
       { property: "og:title", content: "Staff & Roles — NORU" },
-      { property: "og:description", content: "Create staff accounts and manage restaurant roles securely." },
+      {
+        property: "og:description",
+        content: "Create staff accounts and manage restaurant roles securely.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -126,10 +145,12 @@ function WorkforceTabs({ membership }: { membership: RestaurantMembership }) {
     if (searchTab && allowed.includes(searchTab)) setTab(searchTab);
   }, [searchTab, canManage]);
 
-
   return (
     <div className="space-y-6">
-      <MyShiftCard restaurantId={membership.restaurantId} timezone={membership.restaurant.timezone} />
+      <MyShiftCard
+        restaurantId={membership.restaurantId}
+        timezone={membership.restaurant.timezone}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
@@ -146,25 +167,34 @@ function WorkforceTabs({ membership }: { membership: RestaurantMembership }) {
         ) : null}
 
         <TabsContent value="schedule" className="mt-6">
-          <ScheduleTab restaurantId={membership.restaurantId} canManage={canManage} timezone={membership.restaurant.timezone} />
+          <ScheduleTab
+            restaurantId={membership.restaurantId}
+            canManage={canManage}
+            timezone={membership.restaurant.timezone}
+          />
         </TabsContent>
 
         {canManage ? (
           <TabsContent value="attendance" className="mt-6">
-            <AttendanceTab restaurantId={membership.restaurantId} timezone={membership.restaurant.timezone} />
+            <AttendanceTab
+              restaurantId={membership.restaurantId}
+              timezone={membership.restaurant.timezone}
+            />
           </TabsContent>
         ) : null}
 
         {canManage ? (
           <TabsContent value="reports" className="mt-6">
-            <ReportsTab restaurantId={membership.restaurantId} timezone={membership.restaurant.timezone} />
+            <ReportsTab
+              restaurantId={membership.restaurantId}
+              timezone={membership.restaurant.timezone}
+            />
           </TabsContent>
         ) : null}
       </Tabs>
     </div>
   );
 }
-
 
 type StatusFilter = "all" | "active" | "inactive";
 type RoleFilter = "all" | StaffRole;
@@ -202,7 +232,8 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
     queryFn: () => fetchStaff({ data: { restaurantId } }),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["restaurant-staff", restaurantId] });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["restaurant-staff", restaurantId] });
 
   const staff = useMemo(() => data?.staff ?? [], [data]);
   const canAssign = data?.canAssign ?? [];
@@ -254,7 +285,8 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
   });
 
   const roleMutation = useMutation({
-    mutationFn: (input: { membershipId: string; role: StaffRole }) => roleFn({ data: { restaurantId, ...input } }),
+    mutationFn: (input: { membershipId: string; role: StaffRole }) =>
+      roleFn({ data: { restaurantId, ...input } }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -268,7 +300,8 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
   });
 
   const activeMutation = useMutation({
-    mutationFn: (input: { membershipId: string; active: boolean }) => activeFn({ data: { restaurantId, ...input } }),
+    mutationFn: (input: { membershipId: string; active: boolean }) =>
+      activeFn({ data: { restaurantId, ...input } }),
     onSuccess: (result, vars) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -291,7 +324,8 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
       <div className="rounded-2xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl">Human Resources</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          You don't have permission to manage staff for this restaurant, or we couldn't load the team right now.
+          You don't have permission to manage staff for this restaurant, or we couldn't load the
+          team right now.
         </p>
       </div>
     );
@@ -303,7 +337,8 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
         <div className="min-w-0">
           <h1 className="font-display text-2xl">Staff &amp; roles</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {summary.total} team {summary.total === 1 ? "member" : "members"} · {summary.active} active
+            {summary.total} team {summary.total === 1 ? "member" : "members"} · {summary.active}{" "}
+            active
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -339,7 +374,9 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
               onClick={() => setStatus(s)}
               className={cn(
                 "rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
-                status === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                status === s
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
               )}
             >
               {s}
@@ -352,7 +389,7 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
-            {STAFF_ROLES.map((r) => (
+            {SELECTABLE_STAFF_ROLES.map((r) => (
               <SelectItem key={r} value={r}>
                 {ROLE_LABEL[r]}
               </SelectItem>
@@ -389,7 +426,9 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
               <tr key={member.membershipId} className="border-t border-border">
                 <td className="px-4 py-3 font-medium">
                   {member.name ?? "—"}
-                  {member.isSelf ? <span className="ml-2 text-xs text-muted-foreground">(you)</span> : null}
+                  {member.isSelf ? (
+                    <span className="ml-2 text-xs text-muted-foreground">(you)</span>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{member.email ?? "—"}</td>
                 <td className="px-4 py-3">
@@ -433,7 +472,9 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
               <div className="min-w-0">
                 <p className="truncate font-medium">
                   {member.name ?? "—"}
-                  {member.isSelf ? <span className="ml-2 text-xs text-muted-foreground">(you)</span> : null}
+                  {member.isSelf ? (
+                    <span className="ml-2 text-xs text-muted-foreground">(you)</span>
+                  ) : null}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{member.email ?? "—"}</p>
               </div>
@@ -442,7 +483,9 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
                 <StatusBadge active={member.active} />
               </div>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">Joined {formatDate(member.createdAt)}</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Joined {formatDate(member.createdAt)}
+            </p>
           </button>
         ))}
         {filtered.length === 0 ? (
@@ -496,7 +539,9 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
                   <RoleBadge role={selected.role} />
                   <StatusBadge active={selected.active} />
                 </div>
-                <p className="text-muted-foreground">Member since {formatDate(selected.createdAt)}</p>
+                <p className="text-muted-foreground">
+                  Member since {formatDate(selected.createdAt)}
+                </p>
 
                 {canManageTarget(selected) ? (
                   <>
@@ -505,14 +550,17 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
                       <Select
                         value={selected.role}
                         onValueChange={(v) =>
-                          v !== selected.role && setConfirm({ kind: "role", member: selected, role: v as StaffRole })
+                          v !== selected.role &&
+                          setConfirm({ kind: "role", member: selected, role: v as StaffRole })
                         }
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {STAFF_ROLES.filter((r) => canAssign.includes(r) || r === selected.role).map((r) => (
+                          {SELECTABLE_STAFF_ROLES.filter(
+                            (r) => canAssign.includes(r) || r === selected.role,
+                          ).map((r) => (
                             <SelectItem key={r} value={r}>
                               {ROLE_LABEL[r]}
                             </SelectItem>
@@ -520,10 +568,17 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
                         </SelectContent>
                       </Select>
                     </div>
+                    <ModuleAccessPanel
+                      restaurantId={restaurantId}
+                      member={selected}
+                      isSelf={selected.isSelf}
+                    />
                     <Button
                       variant={selected.active ? "destructive" : "default"}
                       className="w-full"
-                      onClick={() => setConfirm({ kind: "active", member: selected, active: !selected.active })}
+                      onClick={() =>
+                        setConfirm({ kind: "active", member: selected, active: !selected.active })
+                      }
                     >
                       {selected.active ? "Deactivate staff member" : "Reactivate staff member"}
                     </Button>
@@ -563,9 +618,15 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
               onClick={() => {
                 if (!confirm) return;
                 if (confirm.kind === "role") {
-                  roleMutation.mutate({ membershipId: confirm.member.membershipId, role: confirm.role });
+                  roleMutation.mutate({
+                    membershipId: confirm.member.membershipId,
+                    role: confirm.role,
+                  });
                 } else {
-                  activeMutation.mutate({ membershipId: confirm.member.membershipId, active: confirm.active });
+                  activeMutation.mutate({
+                    membershipId: confirm.member.membershipId,
+                    active: confirm.active,
+                  });
                 }
                 setConfirm(null);
               }}
@@ -580,7 +641,9 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>What each role can do</DialogTitle>
-            <DialogDescription>These are the permissions enforced by the platform today.</DialogDescription>
+            <DialogDescription>
+              These are the permissions enforced by the platform today.
+            </DialogDescription>
           </DialogHeader>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -607,7 +670,8 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
             </table>
           </div>
           <p className="text-xs text-muted-foreground">
-            At least one active owner is always required. Managers cannot create, promote, demote or deactivate owners.
+            At least one active owner is always required. Managers cannot create, promote, demote or
+            deactivate owners.
           </p>
         </DialogContent>
       </Dialog>
@@ -630,7 +694,9 @@ function AddStaffDialog({
 }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<StaffRole>(canAssign.includes("waiter") ? "waiter" : (canAssign[0] ?? "waiter"));
+  const [role, setRole] = useState<StaffRole>(
+    canAssign.includes("waiter") ? "waiter" : (canAssign[0] ?? "waiter"),
+  );
 
   return (
     <Dialog
@@ -647,7 +713,8 @@ function AddStaffDialog({
         <DialogHeader>
           <DialogTitle>Add a staff member</DialogTitle>
           <DialogDescription>
-            We create their account securely on the server and give you a one-time password to share.
+            We create their account securely on the server and give you a one-time password to
+            share.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -659,11 +726,23 @@ function AddStaffDialog({
         >
           <div className="space-y-1.5">
             <Label htmlFor="staff-name">Full name</Label>
-            <Input id="staff-name" value={fullName} onChange={(e) => setFullName(e.target.value)} required minLength={2} />
+            <Input
+              id="staff-name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              minLength={2}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="staff-email">Email</Label>
-            <Input id="staff-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input
+              id="staff-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Role</Label>
@@ -694,7 +773,13 @@ function CreatedDialog({
   onClose,
   onAddAnother,
 }: {
-  created: { name: string; email: string; role: StaffRole; tempPassword: string | null; existingAccount: boolean } | null;
+  created: {
+    name: string;
+    email: string;
+    role: StaffRole;
+    tempPassword: string | null;
+    existingAccount: boolean;
+  } | null;
   onClose: () => void;
   onAddAnother: () => void;
 }) {
@@ -737,7 +822,8 @@ function CreatedDialog({
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Share it in person or over a secure channel and ask them to change it right after their first login.
+                  Share it in person or over a secure channel and ask them to change it right after
+                  their first login.
                 </p>
               </div>
             ) : (
@@ -782,7 +868,9 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
 
 function RoleBadge({ role }: { role: StaffRole }) {
   return (
-    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", ROLE_BADGE[role])}>{ROLE_LABEL[role]}</span>
+    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", ROLE_BADGE[role])}>
+      {ROLE_LABEL[role]}
+    </span>
   );
 }
 
@@ -800,7 +888,11 @@ function StatusBadge({ active }: { active: boolean }) {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return new Date(value).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function describeAudit(entry: {
@@ -824,4 +916,91 @@ function describeAudit(entry: {
     default:
       return `${actor} updated ${target}`;
   }
+}
+
+/** Owner/manager control over which workspaces a staff member can open. */
+function ModuleAccessPanel({
+  restaurantId,
+  member,
+  isSelf,
+}: {
+  restaurantId: string;
+  member: StaffMember;
+  isSelf: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const fetchAccess = useServerFn(getStaffModuleAccess);
+  const saveAccess = useServerFn(setStaffModuleAccess);
+
+  const fixed = member.role === "owner" || member.role === "manager";
+
+  const access = useQuery({
+    queryKey: ["staff-module-access", restaurantId, member.membershipId],
+    queryFn: () => fetchAccess({ data: { restaurantId, membershipId: member.membershipId } }),
+    enabled: !fixed,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (input: { moduleKey: ModuleKey; enabled: boolean | null }) =>
+      saveAccess({ data: { restaurantId, membershipId: member.membershipId, ...input } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["staff-module-access", restaurantId, member.membershipId],
+      });
+      toast.success("Module access updated.");
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof Error ? error.message : "Could not update module access."),
+  });
+
+  if (fixed) {
+    return (
+      <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+        Owners and managers always have access to every module.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>Module access</Label>
+      <p className="text-xs text-muted-foreground">
+        Defaults come from the role. Toggle to grant or remove a workspace for this person.
+      </p>
+      {access.isLoading ? (
+        <p className="text-xs text-muted-foreground">Loading module access…</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-xl border border-border">
+          {(access.data?.rows ?? [])
+            .filter((row) => row.overridable)
+            .map((row) => (
+              <li key={row.moduleKey} className="flex items-center justify-between gap-3 px-3 py-2">
+                <div>
+                  <p className="text-sm">{row.label}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {row.byDefault ? "Included in this role" : "Not part of this role"}
+                    {row.overridden ? " · overridden" : ""}
+                  </p>
+                </div>
+                <Switch
+                  checked={row.enabled}
+                  disabled={isSelf || mutation.isPending}
+                  onCheckedChange={(checked) =>
+                    mutation.mutate({
+                      moduleKey: row.moduleKey,
+                      enabled: checked === row.byDefault ? null : checked,
+                    })
+                  }
+                />
+              </li>
+            ))}
+        </ul>
+      )}
+      {isSelf ? (
+        <p className="text-[11px] text-muted-foreground">
+          You can't change your own module access.
+        </p>
+      ) : null}
+    </div>
+  );
 }

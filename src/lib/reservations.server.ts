@@ -5,9 +5,11 @@
  * restaurant id from the browser is only used to select which membership
  * applies. Reservations are owner/manager only in this phase.
  */
-import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { type AuthedCtx, type Membership } from "./workforce.server";
+import { requireModuleRole } from "./module-access.server";
 
-export const RESERVATION_MANAGE_ROLES = ["owner", "manager"] as const;
+/** Front Office operations: owners, managers and receptionists. */
+export const RESERVATION_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 
 export {
   RESERVATION_STATUSES,
@@ -44,11 +46,13 @@ export async function requireReservationManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  const me = await callerMembership(context, restaurantId);
-  if (!canManageReservations(me.role)) {
-    throw new Error("You don't have access to Front Office for this property.");
-  }
-  return me;
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "front_office",
+    RESERVATION_MANAGE_ROLES,
+    "You don't have access to Front Office for this property.",
+  );
 }
 
 export function blankToNull(value: string | null | undefined): string | null {

@@ -5,9 +5,14 @@
  * restaurant id from the browser is never trusted on its own. Room setup is
  * limited to owners and managers.
  */
-import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { type AuthedCtx, type Membership } from "./workforce.server";
+import { requireModuleRole } from "./module-access.server";
+import { FRONT_OFFICE_ROLES } from "./module-access";
 
+/** Room & room-type configuration stays with owners and managers. */
 export const ROOM_MANAGE_ROLES = ["owner", "manager"] as const;
+/** Daily front-office operations also include receptionists. */
+export const ROOM_ACCESS_ROLES = FRONT_OFFICE_ROLES;
 
 export const ROOM_BUCKET = "property-images";
 
@@ -35,13 +40,36 @@ export function canManageRooms(role: string): boolean {
   return (ROOM_MANAGE_ROLES as readonly string[]).includes(role);
 }
 
-/** Owner/manager membership for this restaurant, or a hard failure. */
-export async function requireRoomManager(context: AuthedCtx, restaurantId: string): Promise<Membership> {
-  const me = await callerMembership(context, restaurantId);
-  if (!canManageRooms(me.role)) {
-    throw new Error("You don't have access to the Rooms module for this property.");
-  }
-  return me;
+export function canAccessFrontOffice(role: string): boolean {
+  return (ROOM_ACCESS_ROLES as readonly string[]).includes(role);
+}
+
+/** Room configuration membership (owner/manager), or a hard failure. */
+export async function requireRoomManager(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "configuration",
+    ROOM_MANAGE_ROLES,
+    "You don't have permission to configure rooms for this property.",
+  );
+}
+
+/** Front-office membership (owner/manager/receptionist), or a hard failure. */
+export async function requireFrontOfficeAccess(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "front_office",
+    ROOM_ACCESS_ROLES,
+    "You don't have access to Front Office for this property.",
+  );
 }
 
 /** Storage object path inside this property's own namespace. */

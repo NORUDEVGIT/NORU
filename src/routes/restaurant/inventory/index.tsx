@@ -53,6 +53,7 @@ import { PurchasingTab } from "@/components/inventory/purchasing-tab";
 import { InventoryOverviewDashboard } from "@/components/inventory/overview-dashboard";
 
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +109,12 @@ const STATUS_STYLE = {
 
 function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
+  const fetchModuleAccess = useServerFn(getMyModuleAccess);
+  const moduleAccess = useQuery({
+    queryKey: ["my-module-access", restaurantId],
+    queryFn: () => fetchModuleAccess({ data: { restaurantId } }),
+    retry: false,
+  });
   const queryClient = useQueryClient();
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
@@ -269,7 +276,20 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     return allItems.filter((i) => (q ? i.name.toLowerCase().includes(q) : true));
   }, [allItems, search]);
 
-
+  const moduleKey = procurement ? "procurement" : "inventory";
+  if (moduleAccess.isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
+  }
+  if (!moduleAccess.data?.modules.includes(moduleKey)) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <h1 className="font-display text-2xl">{procurement ? "Procurement" : "Inventory"}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          You don&apos;t have access to this module for this property.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -5,9 +5,28 @@
  * browser's restaurant id only selects which membership applies. Housekeeping
  * is owner/manager only in this phase.
  */
-import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { type AuthedCtx, type Membership } from "./workforce.server";
+import { requireModuleRole } from "./module-access.server";
+import { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope } from "./module-access";
 
-export const HOUSEKEEPING_MANAGE_ROLES = ["owner", "manager"] as const;
+export { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope };
+export type { HousekeepingScope } from "./module-access";
+
+/** Supervisor-level housekeeping (assign, inspect, resolve, restrict). */
+export const HOUSEKEEPING_MANAGE_ROLES = HOUSEKEEPING_SUPERVISOR_ROLES;
+/** Everyone who may open the Housekeeping workspace. */
+export const HOUSEKEEPING_ACCESS_ROLES = [
+  ...HOUSEKEEPING_SUPERVISOR_ROLES,
+  "housekeeper",
+  "maintenance",
+] as const;
+/** Cleaning operators: supervisors plus room attendants (not maintenance). */
+export const HOUSEKEEPING_OPERATOR_ROLES = [
+  ...HOUSEKEEPING_SUPERVISOR_ROLES,
+  "housekeeper",
+] as const;
+/** Maintenance request handlers. */
+export const MAINTENANCE_ROLES = [...HOUSEKEEPING_SUPERVISOR_ROLES, "maintenance"] as const;
 
 export const HK_STATUSES = ["dirty", "clean", "inspected", "pickup"] as const;
 export type HkStatus = (typeof HK_STATUSES)[number];
@@ -24,7 +43,13 @@ export const TASK_TYPES = [
 ] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 
-export const TASK_STATUSES = ["pending", "assigned", "in_progress", "completed", "cancelled"] as const;
+export const TASK_STATUSES = [
+  "pending",
+  "assigned",
+  "in_progress",
+  "completed",
+  "cancelled",
+] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 export const TASK_PRIORITIES = ["normal", "high", "urgent"] as const;
@@ -66,17 +91,67 @@ export function canManageHousekeeping(role: string): boolean {
   return (HOUSEKEEPING_MANAGE_ROLES as readonly string[]).includes(role);
 }
 
-/** Owner/manager membership for this property, or a hard failure. */
-export async function requireHousekeepingManager(
+const NO_HK_ACCESS = "You don't have access to Housekeeping for this property.";
+const NO_HK_PERMISSION = "You don't have permission to perform that housekeeping action.";
+
+/** Module entry for any housekeeping-side role. */
+export async function requireHousekeepingAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  const me = await callerMembership(context, restaurantId);
-  if (!canManageHousekeeping(me.role)) {
-    throw new Error("You don't have access to Housekeeping for this property.");
-  }
-  return me;
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "housekeeping",
+    HOUSEKEEPING_ACCESS_ROLES,
+    NO_HK_ACCESS,
+  );
 }
+
+/** Supervisor actions: assignments, inspections, discrepancies, restrictions. */
+export async function requireHousekeepingSupervisor(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "housekeeping",
+    HOUSEKEEPING_SUPERVISOR_ROLES,
+    NO_HK_PERMISSION,
+  );
+}
+
+/** Cleaning operations (own tasks for attendants, all tasks for supervisors). */
+export async function requireHousekeepingOperator(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "housekeeping",
+    HOUSEKEEPING_OPERATOR_ROLES,
+    NO_HK_PERMISSION,
+  );
+}
+
+/** Maintenance request handling. */
+export async function requireMaintenanceAccess(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "housekeeping",
+    MAINTENANCE_ROLES,
+    NO_HK_PERMISSION,
+  );
+}
+
+/** Backwards-compatible supervisor gate used by existing call sites. */
+export const requireHousekeepingManager = requireHousekeepingSupervisor;
 
 export function blankToNull(value: string | null | undefined): string | null {
   const trimmed = (value ?? "").trim();

@@ -90,16 +90,21 @@ function HousekeepingPage({ membership }: { membership: RestaurantMembership }) 
   if (accessQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading housekeeping…</p>;
   }
-  if (!accessQuery.data?.canManage) {
+  if (!accessQuery.data) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl">Housekeeping</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can access Housekeeping for this property.
+          You don't have access to Housekeeping for this property.
         </p>
       </div>
     );
   }
+
+  const scope = accessQuery.data.scope;
+  const isSupervisor = scope === "supervisor";
+  const canClean = scope === "supervisor" || scope === "housekeeper";
+  const canMaintain = scope === "supervisor" || scope === "maintenance";
 
   const props = { restaurantId, today };
 
@@ -116,12 +121,12 @@ function HousekeepingPage({ membership }: { membership: RestaurantMembership }) 
         <TabsList className="flex-wrap">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="rack">Room Rack</TabsTrigger>
-          <TabsTrigger value="board">Cleaning Board</TabsTrigger>
-          <TabsTrigger value="inspections">Inspections</TabsTrigger>
-          <TabsTrigger value="discrepancies">Discrepancies</TabsTrigger>
-          <TabsTrigger value="restrictions">Room Restrictions</TabsTrigger>
-          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          {canClean ? <TabsTrigger value="board">Cleaning Board</TabsTrigger> : null}
+          {isSupervisor ? <TabsTrigger value="inspections">Inspections</TabsTrigger> : null}
+          {isSupervisor ? <TabsTrigger value="discrepancies">Discrepancies</TabsTrigger> : null}
+          {isSupervisor ? <TabsTrigger value="restrictions">Room Restrictions</TabsTrigger> : null}
+          {canMaintain ? <TabsTrigger value="maintenance">Maintenance</TabsTrigger> : null}
+          {isSupervisor ? <TabsTrigger value="history">History</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-6">

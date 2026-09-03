@@ -92,6 +92,24 @@ export type WorkspaceModule =
   | "configuration"
   | "settings";
 
+const FO = ["owner", "manager", "receptionist"];
+const HK_ALL = [
+  "owner",
+  "manager",
+  "housekeeping",
+  "housekeeping_supervisor",
+  "housekeeper",
+  "maintenance",
+];
+const HK_SUP = ["owner", "manager", "housekeeping", "housekeeping_supervisor"];
+const HK_CLEAN = [...HK_SUP, "housekeeper"];
+const HK_MAINT = [...HK_SUP, "maintenance"];
+const CASH = ["owner", "manager", "cashier", "accountant"];
+const AUDIT = ["owner", "manager", "accountant"];
+const INV = ["owner", "manager", "kitchen", "storekeeper"];
+const PROC = ["owner", "manager", "storekeeper"];
+const FNB = ["owner", "manager", "kitchen", "waiter"];
+
 type NavEntry = {
   to: string;
   /** Optional tab search param for pages that host several tabs. */
@@ -105,9 +123,14 @@ type NavEntry = {
 };
 
 const RESTAURANT_NAV: NavEntry[] = [
-  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat },
-  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText },
+  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: FNB },
+  {
+    to: "/restaurant/kitchen",
+    label: "Kitchen",
+    icon: ChefHat,
+    roles: ["owner", "manager", "kitchen"],
+  },
+  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, roles: FNB },
   {
     to: "/restaurant/waiter",
     label: "Take Order",
@@ -117,49 +140,151 @@ const RESTAURANT_NAV: NavEntry[] = [
 ];
 
 const STOCK_NAV: NavEntry[] = [
-  { to: "/restaurant/inventory", tab: "overview", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/inventory", tab: "ingredient", label: "Ingredients", icon: Carrot },
-  { to: "/restaurant/inventory", tab: "consumable", label: "Consumables", icon: PackageOpen },
-  { to: "/restaurant/inventory", tab: "operating_asset", label: "Operating Assets", icon: Boxes },
-  { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench },
+  {
+    to: "/restaurant/inventory",
+    tab: "overview",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    roles: INV,
+  },
+  {
+    to: "/restaurant/inventory",
+    tab: "ingredient",
+    label: "Ingredients",
+    icon: Carrot,
+    roles: INV,
+  },
+  {
+    to: "/restaurant/inventory",
+    tab: "consumable",
+    label: "Consumables",
+    icon: PackageOpen,
+    roles: INV,
+  },
+  {
+    to: "/restaurant/inventory",
+    tab: "operating_asset",
+    label: "Operating Assets",
+    icon: Boxes,
+    roles: INV,
+  },
+  { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench, roles: INV },
 ];
 
 const PROCUREMENT_NAV: NavEntry[] = [
-  { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck },
-  { to: "/restaurant/inventory", tab: "purchasing", label: "Purchasing", icon: ShoppingCart },
+  { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck, roles: PROC },
+  {
+    to: "/restaurant/inventory",
+    tab: "purchasing",
+    label: "Purchasing",
+    icon: ShoppingCart,
+    roles: PROC,
+  },
 ];
 
 const STAFF_NAV: NavEntry[] = [
-  { to: "/restaurant/staff", tab: "staff", label: "Staff", icon: Users, roles: ["owner", "manager"] },
+  {
+    to: "/restaurant/staff",
+    tab: "staff",
+    label: "Staff",
+    icon: Users,
+    roles: ["owner", "manager"],
+  },
   { to: "/restaurant/staff", tab: "schedule", label: "Schedule", icon: CalendarDays },
-  { to: "/restaurant/staff", tab: "attendance", label: "Attendance", icon: ClipboardCheck, roles: ["owner", "manager"] },
-  { to: "/restaurant/staff", tab: "reports", label: "Reports", icon: BarChart3, roles: ["owner", "manager"] },
+  {
+    to: "/restaurant/staff",
+    tab: "attendance",
+    label: "Attendance",
+    icon: ClipboardCheck,
+    roles: ["owner", "manager"],
+  },
+  {
+    to: "/restaurant/staff",
+    tab: "reports",
+    label: "Reports",
+    icon: BarChart3,
+    roles: ["owner", "manager"],
+  },
 ];
 
 const ROOMS_NAV: NavEntry[] = [
-  { to: "/restaurant/rooms", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/rooms/arrivals", label: "Arrivals", icon: LogIn, roles: ["owner", "manager"] },
-  { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: ["owner", "manager"] },
-  { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: ["owner", "manager"] },
+  {
+    to: "/restaurant/rooms",
+    tab: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    roles: FO,
+  },
+  { to: "/restaurant/rooms/arrivals", label: "Arrivals", icon: LogIn, roles: FO },
+  { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: FO },
+  { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: FO },
   {
     to: "/restaurant/bookings/reservations",
     label: "Reservations",
     icon: CalendarCheck,
-    roles: ["owner", "manager"],
+    roles: FO,
   },
-  { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: ["owner", "manager"] },
-  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
+  { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: FO },
+  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: FO },
 ];
 
 const HOUSEKEEPING_NAV: NavEntry[] = [
-  { to: "/restaurant/housekeeping", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/housekeeping", tab: "rack", label: "Room Rack", icon: DoorOpen },
-  { to: "/restaurant/housekeeping", tab: "board", label: "Cleaning Board", icon: Sparkles },
-  { to: "/restaurant/housekeeping", tab: "inspections", label: "Inspections", icon: ClipboardCheck },
-  { to: "/restaurant/housekeeping", tab: "discrepancies", label: "Discrepancies", icon: AlertTriangle },
-  { to: "/restaurant/housekeeping", tab: "restrictions", label: "Room Restrictions", icon: Ban },
-  { to: "/restaurant/housekeeping", tab: "maintenance", label: "Maintenance", icon: Wrench },
-  { to: "/restaurant/housekeeping", tab: "history", label: "History", icon: History },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    roles: HK_ALL,
+  },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "rack",
+    label: "Room Rack",
+    icon: DoorOpen,
+    roles: HK_ALL,
+  },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "board",
+    label: "Cleaning Board",
+    icon: Sparkles,
+    roles: HK_CLEAN,
+  },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "inspections",
+    label: "Inspections",
+    icon: ClipboardCheck,
+    roles: HK_SUP,
+  },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "discrepancies",
+    label: "Discrepancies",
+    icon: AlertTriangle,
+    roles: HK_SUP,
+  },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "restrictions",
+    label: "Room Restrictions",
+    icon: Ban,
+    roles: HK_SUP,
+  },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "maintenance",
+    label: "Maintenance",
+    icon: Wrench,
+    roles: HK_MAINT,
+  },
+  {
+    to: "/restaurant/housekeeping",
+    tab: "history",
+    label: "History",
+    icon: History,
+    roles: HK_SUP,
+  },
 ];
 
 const CASHIERING_NAV: NavEntry[] = [
@@ -168,39 +293,39 @@ const CASHIERING_NAV: NavEntry[] = [
     tab: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering",
     tab: "folios",
     label: "Folios",
     icon: ReceiptText,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering",
     tab: "payments",
     label: "Payments",
     icon: Wallet,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering",
     tab: "shifts",
     label: "Cashier Shifts",
     icon: ClipboardCheck,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering/night-audit",
     label: "Night Audit",
     icon: MoonStar,
-    roles: ["owner", "manager"],
+    roles: AUDIT,
   },
 ];
 
 const REPORTS_NAV: NavEntry[] = [
-  { to: "/restaurant/reports", label: "Reports", icon: BarChart3, roles: ["owner", "manager"] },
+  { to: "/restaurant/reports", label: "Reports", icon: BarChart3, roles: AUDIT },
 ];
 
 const CONFIGURATION_NAV: NavEntry[] = [
@@ -318,8 +443,6 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Configuration: "configuration",
   Settings: "settings",
 };
-
-
 
 export function RestaurantShell({
   active,
@@ -439,7 +562,6 @@ export function RestaurantShell({
     </div>
   );
 
-
   return (
     <div className="min-h-dvh bg-muted/30">
       <div className="mx-auto flex w-full max-w-[1600px]">
@@ -496,7 +618,9 @@ export function RestaurantShell({
                 {restaurant ? <StatusPill status={restaurant.status} /> : null}
                 <div className="hidden text-right sm:block">
                   <p className="max-w-[180px] truncate text-xs font-medium">{user?.email ?? ""}</p>
-                  <p className="text-[11px] capitalize text-muted-foreground">{membership?.role ?? ""}</p>
+                  <p className="text-[11px] capitalize text-muted-foreground">
+                    {membership?.role ?? ""}
+                  </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => void signOut()}>
                   <LogOut className="size-4 sm:mr-2" />
@@ -510,17 +634,23 @@ export function RestaurantShell({
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading your restaurant…</p>
             ) : isError ? (
-              <p className="text-sm text-destructive">We couldn't load your restaurant. Please try again.</p>
+              <p className="text-sm text-destructive">
+                We couldn't load your restaurant. Please try again.
+              </p>
             ) : !membership ? (
               <div className="rounded-2xl border border-border bg-card p-6">
                 <h1 className="font-display text-2xl">Access denied</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  This account isn't linked to a restaurant. If you're a customer, head back to the menu — or register
-                  your restaurant to get started.
+                  This account isn't linked to a restaurant. If you're a customer, head back to the
+                  menu — or register your restaurant to get started.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <Button asChild><Link to="/restaurant/register">Register a restaurant</Link></Button>
-                  <Button asChild variant="outline"><Link to="/">Back to home</Link></Button>
+                  <Button asChild>
+                    <Link to="/restaurant/register">Register a restaurant</Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link to="/">Back to home</Link>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -541,12 +671,23 @@ export function RestaurantShell({
 function StatusPill({ status }: { status: RestaurantMembership["restaurant"]["status"] }) {
   const map = {
     approved: { label: "Active", className: "bg-success/15 text-success" },
-    pending: { label: "Pending approval", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
-    suspended: { label: "Suspended", className: "bg-orange-500/15 text-orange-700 dark:text-orange-400" },
+    pending: {
+      label: "Pending approval",
+      className: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    },
+    suspended: {
+      label: "Suspended",
+      className: "bg-orange-500/15 text-orange-700 dark:text-orange-400",
+    },
     rejected: { label: "Not approved", className: "bg-destructive/10 text-destructive" },
   }[status];
   return (
-    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap", map.className)}>
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap",
+        map.className,
+      )}
+    >
       {map.label}
     </span>
   );

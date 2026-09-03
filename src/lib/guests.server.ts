@@ -5,9 +5,10 @@
  * restaurant id from the browser is never trusted on its own. Guest data is
  * owner/manager only and never surfaced on public/customer routes.
  */
-import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { type AuthedCtx, type Membership } from "./workforce.server";
+import { requireModuleRole } from "./module-access.server";
 
-export const GUEST_MANAGE_ROLES = ["owner", "manager"] as const;
+export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 
 export const GUEST_STATUSES = ["active", "inactive"] as const;
 export type GuestStatus = (typeof GUEST_STATUSES)[number];
@@ -28,11 +29,13 @@ export function canManageGuests(role: string): boolean {
 
 /** Owner/manager membership for this property, or a hard failure. */
 export async function requireGuestManager(context: AuthedCtx, restaurantId: string): Promise<Membership> {
-  const me = await callerMembership(context, restaurantId);
-  if (!canManageGuests(me.role)) {
-    throw new Error("You don't have access to Guest Management for this property.");
-  }
-  return me;
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "front_office",
+    GUEST_MANAGE_ROLES,
+    "You don't have access to Guest Management for this property.",
+  );
 }
 
 export function blankToNull(value: string | null | undefined): string | null {

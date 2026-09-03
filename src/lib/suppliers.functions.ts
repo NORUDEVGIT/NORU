@@ -38,17 +38,28 @@ export interface SupplierPermissions {
 const idSchema = z.string().uuid();
 
 async function requireSupplierAccess(context: any, restaurantId: string) {
-  const me = await callerMembership(context, restaurantId);
-  if (!canViewPurchasing(me.role)) {
-    throw new Error("You don't have access to purchasing for this restaurant.");
-  }
-  return me;
+  const { requireModuleRole } = await import("./module-access.server");
+  const { PURCHASING_ROLES } = await import("./module-access");
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "procurement",
+    PURCHASING_ROLES,
+    "You don't have access to purchasing for this restaurant.",
+  );
 }
 
 const supplierFields = {
   name: z.string().trim().min(2, "Enter a supplier name.").max(160),
   contactName: z.string().trim().max(160).nullable().optional(),
-  email: z.string().trim().email("Enter a valid email.").max(200).nullable().optional().or(z.literal("")),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email.")
+    .max(200)
+    .nullable()
+    .optional()
+    .or(z.literal("")),
   phone: z.string().trim().max(60).nullable().optional(),
   address: z.string().trim().max(400).nullable().optional(),
   taxId: z.string().trim().max(80).nullable().optional(),
@@ -71,57 +82,62 @@ export const listSuppliers = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ permissions: SupplierPermissions; suppliers: Supplier[] }> => {
-    const me = await requireSupplierAccess(context, data.restaurantId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ permissions: SupplierPermissions; suppliers: Supplier[] }> => {
+      const me = await requireSupplierAccess(context, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    let query = supabaseAdmin
-      .from("restaurant_suppliers")
-      .select("id, name, contact_name, email, phone, address, tax_id, notes, active")
-      .eq("restaurant_id", data.restaurantId)
-      .order("name", { ascending: true });
-    if (!data.includeInactive) query = query.eq("active", true);
-    if (data.search?.trim()) query = query.ilike("name", `%${data.search.trim()}%`);
+      let query = supabaseAdmin
+        .from("restaurant_suppliers")
+        .select("id, name, contact_name, email, phone, address, tax_id, notes, active")
+        .eq("restaurant_id", data.restaurantId)
+        .order("name", { ascending: true });
+      if (!data.includeInactive) query = query.eq("active", true);
+      if (data.search?.trim()) query = query.ilike("name", `%${data.search.trim()}%`);
 
-    const { data: rows, error } = await query;
-    if (error) throw new Error("We couldn't load suppliers right now.");
+      const { data: rows, error } = await query;
+      if (error) throw new Error("We couldn't load suppliers right now.");
 
-    const { data: orders } = await supabaseAdmin
-      .from("purchase_orders")
-      .select("supplier_id, total, order_date, status")
-      .eq("restaurant_id", data.restaurantId);
+      const { data: orders } = await supabaseAdmin
+        .from("purchase_orders")
+        .select("supplier_id, total, order_date, status")
+        .eq("restaurant_id", data.restaurantId);
 
-    const stats = new Map<string, { count: number; value: number; last: string | null }>();
-    for (const o of (orders ?? []) as any[]) {
-      if (o.status === "cancelled") continue;
-      const s = stats.get(o.supplier_id) ?? { count: 0, value: 0, last: null };
-      s.count += 1;
-      s.value += Number(o.total);
-      if (!s.last || o.order_date > s.last) s.last = o.order_date;
-      stats.set(o.supplier_id, s);
-    }
+      const stats = new Map<string, { count: number; value: number; last: string | null }>();
+      for (const o of (orders ?? []) as any[]) {
+        if (o.status === "cancelled") continue;
+        const s = stats.get(o.supplier_id) ?? { count: 0, value: 0, last: null };
+        s.count += 1;
+        s.value += Number(o.total);
+        if (!s.last || o.order_date > s.last) s.last = o.order_date;
+        stats.set(o.supplier_id, s);
+      }
 
-    return {
-      permissions: { role: me.role, canView: true, canManage: canManagePurchasing(me.role) },
-      suppliers: (rows ?? []).map((r) => {
-        const s = stats.get(r.id);
-        return {
-          id: r.id,
-          name: r.name,
-          contactName: r.contact_name,
-          email: r.email,
-          phone: r.phone,
-          address: r.address,
-          taxId: r.tax_id,
-          notes: r.notes,
-          active: r.active,
-          poCount: s?.count ?? 0,
-          totalOrderedValue: Math.round((s?.value ?? 0) * 100) / 100,
-          lastOrderDate: s?.last ?? null,
-        };
-      }),
-    };
-  });
+      return {
+        permissions: { role: me.role, canView: true, canManage: canManagePurchasing(me.role) },
+        suppliers: (rows ?? []).map((r) => {
+          const s = stats.get(r.id);
+          return {
+            id: r.id,
+            name: r.name,
+            contactName: r.contact_name,
+            email: r.email,
+            phone: r.phone,
+            address: r.address,
+            taxId: r.tax_id,
+            notes: r.notes,
+            active: r.active,
+            poCount: s?.count ?? 0,
+            totalOrderedValue: Math.round((s?.value ?? 0) * 100) / 100,
+            lastOrderDate: s?.last ?? null,
+          };
+        }),
+      };
+    },
+  );
 
 export const createSupplier = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -129,7 +145,7 @@ export const createSupplier = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, ...supplierFields }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireSupplierAccess(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
       return { ok: false as const, message: "Only owners and managers can manage suppliers." };
     }
@@ -174,7 +190,7 @@ export const updateSupplier = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireSupplierAccess(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
       return { ok: false as const, message: "Only owners and managers can manage suppliers." };
     }
@@ -182,14 +198,14 @@ export const updateSupplier = createServerFn({ method: "POST" })
     await loadSupplier(supabaseAdmin, data.restaurantId, data.supplierId);
 
     const patch: Record<string, any> = {};
-    if (data.name !== undefined) patch['name'] = data.name;
-    if (data.contactName !== undefined) patch['contact_name'] = blankToNull(data.contactName);
-    if (data.email !== undefined) patch['email'] = blankToNull(data.email);
-    if (data.phone !== undefined) patch['phone'] = blankToNull(data.phone);
-    if (data.address !== undefined) patch['address'] = blankToNull(data.address);
-    if (data.taxId !== undefined) patch['tax_id'] = blankToNull(data.taxId);
-    if (data.notes !== undefined) patch['notes'] = blankToNull(data.notes);
-    if (data.active !== undefined) patch['active'] = data.active;
+    if (data.name !== undefined) patch["name"] = data.name;
+    if (data.contactName !== undefined) patch["contact_name"] = blankToNull(data.contactName);
+    if (data.email !== undefined) patch["email"] = blankToNull(data.email);
+    if (data.phone !== undefined) patch["phone"] = blankToNull(data.phone);
+    if (data.address !== undefined) patch["address"] = blankToNull(data.address);
+    if (data.taxId !== undefined) patch["tax_id"] = blankToNull(data.taxId);
+    if (data.notes !== undefined) patch["notes"] = blankToNull(data.notes);
+    if (data.active !== undefined) patch["active"] = data.active;
     if (Object.keys(patch).length === 0) return { ok: true as const };
 
     const { error } = await supabaseAdmin

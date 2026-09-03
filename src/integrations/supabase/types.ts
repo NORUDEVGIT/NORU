@@ -3349,6 +3349,61 @@ export type Database = {
           },
         ]
       }
+      staff_module_access: {
+        Row: {
+          created_at: string
+          created_by_membership_id: string | null
+          enabled: boolean
+          id: string
+          membership_id: string
+          module_key: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          id?: string
+          membership_id: string
+          module_key: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          id?: string
+          membership_id?: string
+          module_key?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_module_access_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_module_access_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_module_access_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_shifts: {
         Row: {
           created_at: string
@@ -3978,6 +4033,10 @@ export type Database = {
         }
       }
       folio_balance: { Args: { _folio_id: string }; Returns: number }
+      has_any_restaurant_role: {
+        Args: { _restaurant_id: string; _roles: string[] }
+        Returns: boolean
+      }
       has_kitchen_access: { Args: { _restaurant_id: string }; Returns: boolean }
       has_restaurant_role: {
         Args: { _restaurant_id: string; _role: string }

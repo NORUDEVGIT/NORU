@@ -8,7 +8,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { canManageCashiering, requireCashierManager } from "./cashiering.server";
+import {
+  canManageCashiering,
+  requireCashierManager,
+  requireCashieringAccess,
+} from "./cashiering.server";
 import { callerMembership } from "./workforce.server";
 import { propertyToday } from "./reservation-dates";
 import {
@@ -137,7 +141,10 @@ async function staffNames(admin: any, restaurantId: string, membershipIds: strin
   const { data: profiles } = await admin
     .from("profiles")
     .select("id, first_name, last_name, email")
-    .in("id", memberRows.map((m) => m.user_id));
+    .in(
+      "id",
+      memberRows.map((m) => m.user_id),
+    );
   const profileRows = (profiles ?? []) as Array<{
     id: string;
     first_name: string | null;
@@ -158,7 +165,7 @@ export const getNightAuditAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context as never, data.restaurantId);
+    const me = await requireCashieringAccess(context as never, data.restaurantId);
     return { canManage: canManageCashiering(me.role), role: me.role };
   });
 
@@ -232,10 +239,17 @@ export const runNightAudit = createServerFn({ method: "POST" })
         .eq("night_audit_run_id", run.id);
       const existing = (existingRows ?? []) as ExceptionRow[];
       const key = (t: string, r: string | null) => `${t}::${r ?? ""}`;
-      const derivedKeys = new Set(evaluation.exceptions.map((e) => key(e.exceptionType, e.referenceId)));
+      const derivedKeys = new Set(
+        evaluation.exceptions.map((e) => key(e.exceptionType, e.referenceId)),
+      );
 
       const inserts = evaluation.exceptions
-        .filter((e) => !existing.some((x) => key(x.exception_type, x.reference_id) === key(e.exceptionType, e.referenceId)))
+        .filter(
+          (e) =>
+            !existing.some(
+              (x) => key(x.exception_type, x.reference_id) === key(e.exceptionType, e.referenceId),
+            ),
+        )
         .map((e) => ({
           restaurant_id: data.restaurantId,
           night_audit_run_id: run.id,
@@ -249,7 +263,9 @@ export const runNightAudit = createServerFn({ method: "POST" })
 
       // Conditions that no longer hold resolve themselves; never deleted.
       const cleared = existing
-        .filter((x) => x.status === "open" && !derivedKeys.has(key(x.exception_type, x.reference_id)))
+        .filter(
+          (x) => x.status === "open" && !derivedKeys.has(key(x.exception_type, x.reference_id)),
+        )
         .map((x) => x.id);
       if (cleared.length > 0) {
         await supabaseAdmin
@@ -287,13 +303,20 @@ export const runNightAudit = createServerFn({ method: "POST" })
       .order("created_at", { ascending: true });
     const exceptions = ((finalRows ?? []) as ExceptionRow[]).map(toException);
 
-    const blockingCount = exceptions.filter((e) => e.severity === "blocking" && e.status === "open").length;
-    const warningCount = exceptions.filter((e) => e.severity === "warning" && e.status === "open").length;
+    const blockingCount = exceptions.filter(
+      (e) => e.severity === "blocking" && e.status === "open",
+    ).length;
+    const warningCount = exceptions.filter(
+      (e) => e.severity === "warning" && e.status === "open",
+    ).length;
 
     if (run.status !== "closed") {
       const nextStatus = blockingCount === 0 ? "ready" : "open";
       if (nextStatus !== run.status) {
-        await supabaseAdmin.from("night_audit_runs").update({ status: nextStatus }).eq("id", run.id);
+        await supabaseAdmin
+          .from("night_audit_runs")
+          .update({ status: nextStatus })
+          .eq("id", run.id);
         run.status = nextStatus;
       }
     }
@@ -313,8 +336,12 @@ export const runNightAudit = createServerFn({ method: "POST" })
         status: run.status,
         startedAt: run.started_at,
         closedAt: run.closed_at,
-        startedBy: run.started_by_membership_id ? (names.get(run.started_by_membership_id) ?? null) : null,
-        closedBy: run.closed_by_membership_id ? (names.get(run.closed_by_membership_id) ?? null) : null,
+        startedBy: run.started_by_membership_id
+          ? (names.get(run.started_by_membership_id) ?? null)
+          : null,
+        closedBy: run.closed_by_membership_id
+          ? (names.get(run.closed_by_membership_id) ?? null)
+          : null,
         summary: (run.summary as AuditSummary | null) ?? null,
       },
       checks: evaluation.checks,
@@ -334,7 +361,12 @@ export const runNightAudit = createServerFn({ method: "POST" })
 export const updateException = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (d: { restaurantId: string; exceptionId: string; action: "resolve" | "ignore"; note?: string }) =>
+    (d: {
+      restaurantId: string;
+      exceptionId: string;
+      action: "resolve" | "ignore";
+      note?: string;
+    }) =>
       z
         .object({
           restaurantId: idSchema,
@@ -359,7 +391,10 @@ export const updateException = createServerFn({ method: "POST" })
 
     if (data.action === "ignore") {
       if (exception.severity === "blocking" || NON_IGNORABLE_TYPES.has(exception.exception_type)) {
-        return { ok: false, message: "This integrity exception can't be ignored — fix the underlying record." };
+        return {
+          ok: false,
+          message: "This integrity exception can't be ignored — fix the underlying record.",
+        };
       }
     } else if (exception.severity === "blocking") {
       return {
@@ -393,7 +428,10 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<{ ok: true; businessDate: string; nextBusinessDate: string; alreadyClosed: boolean } | { ok: false; message: string }> => {
+    }): Promise<
+      | { ok: true; businessDate: string; nextBusinessDate: string; alreadyClosed: boolean }
+      | { ok: false; message: string }
+    > => {
       const me = await requireCashierManager(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
@@ -426,7 +464,8 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       if (evaluation.exceptions.some((e) => e.severity === "blocking")) {
         return {
           ok: false,
-          message: "Blocking exceptions are still open. Refresh the audit and resolve them before closing.",
+          message:
+            "Blocking exceptions are still open. Refresh the audit and resolve them before closing.",
         };
       }
 
@@ -478,11 +517,13 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditRunRow[]> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows } = await supabaseAdmin
       .from("night_audit_runs")
-      .select("id, business_date, status, started_at, closed_at, started_by_membership_id, closed_by_membership_id, summary")
+      .select(
+        "id, business_date, status, started_at, closed_at, started_by_membership_id, closed_by_membership_id, summary",
+      )
       .eq("restaurant_id", data.restaurantId)
       .order("business_date", { ascending: false })
       .limit(60);
@@ -507,7 +548,9 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
       status: r.status,
       startedAt: r.started_at,
       closedAt: r.closed_at,
-      startedBy: r.started_by_membership_id ? (names.get(r.started_by_membership_id) ?? null) : null,
+      startedBy: r.started_by_membership_id
+        ? (names.get(r.started_by_membership_id) ?? null)
+        : null,
       closedBy: r.closed_by_membership_id ? (names.get(r.closed_by_membership_id) ?? null) : null,
       summary: (r.summary as AuditSummary | null) ?? null,
     }));
@@ -522,13 +565,19 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
     async ({
       data,
       context,
-    }): Promise<{ run: NightAuditRunRow; exceptions: AuditException[]; currency: string } | null> => {
-      await requireCashierManager(context as never, data.restaurantId);
+    }): Promise<{
+      run: NightAuditRunRow;
+      exceptions: AuditException[];
+      currency: string;
+    } | null> => {
+      await requireCashieringAccess(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
       const { data: row } = await supabaseAdmin
         .from("night_audit_runs")
-        .select("id, business_date, status, started_at, closed_at, started_by_membership_id, closed_by_membership_id, summary")
+        .select(
+          "id, business_date, status, started_at, closed_at, started_by_membership_id, closed_by_membership_id, summary",
+        )
         .eq("id", data.runId)
         .eq("restaurant_id", data.restaurantId)
         .maybeSingle();
@@ -560,8 +609,12 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
           status: r.status,
           startedAt: r.started_at,
           closedAt: r.closed_at,
-          startedBy: r.started_by_membership_id ? (names.get(r.started_by_membership_id) ?? null) : null,
-          closedBy: r.closed_by_membership_id ? (names.get(r.closed_by_membership_id) ?? null) : null,
+          startedBy: r.started_by_membership_id
+            ? (names.get(r.started_by_membership_id) ?? null)
+            : null,
+          closedBy: r.closed_by_membership_id
+            ? (names.get(r.closed_by_membership_id) ?? null)
+            : null,
           summary: (r.summary as AuditSummary | null) ?? null,
         },
         exceptions: ((exRows ?? []) as ExceptionRow[]).map(toException),
