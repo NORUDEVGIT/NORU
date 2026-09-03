@@ -249,8 +249,8 @@ export const payPosSale = createServerFn({ method: "POST" })
         _shift_id: shift.id as string,
         _method: data.method,
         _amount: data.amount,
-        _tendered: data.method === "cash" ? (data.tendered ?? null) : null,
-        _reference: data.reference ?? null,
+        _tendered: (data.method === "cash" ? (data.tendered ?? null) : null) as unknown as number,
+        _reference: (data.reference ?? null) as unknown as string,
         _membership_id: me.id,
       });
       if (error) return { ok: false, message: posError(error.message).message };
