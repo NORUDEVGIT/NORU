@@ -17,6 +17,9 @@ import {
   loadRoom,
   recordHousekeepingEvent,
   requireHousekeepingManager,
+  requireHousekeepingAccess,
+  requireHousekeepingOperator,
+  requireMaintenanceAccess,
   MAINTENANCE_CATEGORIES,
   TASK_PRIORITIES,
   TASK_TYPES,
@@ -27,6 +30,7 @@ import {
   type TaskStatus,
   type TaskType,
 } from "./housekeeping.server";
+import { HOUSEKEEPING_ASSIGNABLE_ROLES, housekeepingScope } from "./module-access";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -35,7 +39,9 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD dat
 
 export interface HousekeepingAccess {
   canManage: boolean;
+  scope: "supervisor" | "attendant" | "maintenance" | "none";
   role: string;
+  membershipId: string;
 }
 
 export interface HousekeepingDashboard {
@@ -220,10 +226,16 @@ export const getHousekeepingAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingAccess> => {
-    const { callerMembership } = await import("./workforce.server");
-    const me = await callerMembership(context as never, data.restaurantId);
-    const { canManageHousekeeping } = await import("./housekeeping.server");
-    return { canManage: canManageHousekeeping(me.role), role: me.role };
+    const { requireHousekeepingAccess, canManageHousekeeping, housekeepingScope } = await import(
+      "./housekeeping.server"
+    );
+    const me = await requireHousekeepingAccess(context as never, data.restaurantId);
+    return {
+      canManage: canManageHousekeeping(me.role),
+      scope: housekeepingScope(me.role),
+      role: me.role,
+      membershipId: me.id,
+    };
   });
 
 export const listHousekeepingStaff = createServerFn({ method: "POST" })
@@ -233,7 +245,7 @@ export const listHousekeepingStaff = createServerFn({ method: "POST" })
     await requireHousekeepingManager(context as never, data.restaurantId);
     const names = await staffNames(context.supabase, data.restaurantId);
     return Array.from(names.entries())
-      .filter(([, v]) => v.active)
+      .filter(([, v]) => v.active && (HOUSEKEEPING_ASSIGNABLE_ROLES as readonly string[]).includes(v.role))
       .map(([membershipId, v]) => ({ membershipId, name: v.name, role: v.role }))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
@@ -246,7 +258,7 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingDashboard> => {
-    await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingAccess(context as never, data.restaurantId);
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -294,7 +306,8 @@ export const listRoomRack = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RackRoom[]> => {
-    await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingAccess(context as never, data.restaurantId);
+    const rackScope = housekeepingScope(me.role);
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -330,14 +343,15 @@ export const listRoomRack = createServerFn({ method: "POST" })
       restriction_expected_return: string | null;
     }>).map((room) => {
       const task = openByRoom.get(room.id);
-      const guestName = occupied.get(room.id) ?? null;
+      const guestName = rackScope === "supervisor" ? (occupied.get(room.id) ?? null) : null;
+      const isOccupied = occupied.has(room.id);
       return {
         id: room.id,
         roomNumber: room.room_number,
         roomTypeId: room.room_type_id,
         roomTypeName: room.room_types?.name ?? "Room type",
         floor: room.floor,
-        occupancy: guestName ? ("occupied" as const) : ("vacant" as const),
+        occupancy: isOccupied ? ("occupied" as const) : ("vacant" as const),
         guestName,
         housekeepingStatus: room.housekeeping_status,
         restriction: room.status,
@@ -351,7 +365,7 @@ export const listRoomRack = createServerFn({ method: "POST" })
         ready: isRoomReady({
           active: room.active,
           status: room.status,
-          occupied: Boolean(guestName),
+          occupied: isOccupied,
           housekeepingStatus: room.housekeeping_status,
         }),
       };
@@ -366,9 +380,12 @@ export const listHousekeepingTasks = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingTask[]> => {
-    await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingAccess(context as never, data.restaurantId);
+    const scope = housekeepingScope(me.role);
+    // Maintenance staff work from maintenance requests, not cleaning tasks.
+    if (scope === "maintenance") return [];
 
-    const { data: rows, error } = await context.supabase
+    let query = context.supabase
       .from("housekeeping_tasks")
       .select(
         "id, room_id, task_type, status, priority, assigned_membership_id, notes, created_at, started_at, completed_at, hotel_rooms!inner ( room_number, room_types!inner ( name ) )",
@@ -376,6 +393,9 @@ export const listHousekeepingTasks = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .order("created_at", { ascending: false })
       .limit(500);
+    // Room attendants only ever see their own assignments.
+    if (scope === "attendant") query = query.eq("assigned_membership_id", me.id);
+    const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
 
     const names = await staffNames(context.supabase, data.restaurantId);
@@ -456,7 +476,7 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: TaskStatus }> => {
-    const me = await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: task } = await supabaseAdmin
@@ -470,11 +490,24 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
       throw new Error("That action isn't allowed for this task's current status.");
     }
 
+    const scope = housekeepingScope(me.role);
+    if (scope !== "supervisor") {
+      if (data.action !== "start") {
+        throw new Error("You don't have permission to perform that housekeeping action.");
+      }
+      if (task.assigned_membership_id !== me.id) {
+        throw new Error("You can only work on tasks assigned to you.");
+      }
+    }
+
     if (data.action === "assign") {
       if (!data.assigneeMembershipId) throw new Error("Pick a staff member to assign.");
       const { loadMembership } = await import("./workforce.server");
       const assignee = await loadMembership(supabaseAdmin, data.restaurantId, data.assigneeMembershipId);
       if (!assignee.active) throw new Error("That staff member is inactive.");
+      if (!(HOUSEKEEPING_ASSIGNABLE_ROLES as readonly string[]).includes(assignee.role)) {
+        throw new Error("That staff member can't be assigned housekeeping tasks.");
+      }
 
       if (task.assigned_membership_id === assignee.id && task.status !== "pending") {
         return { id: task.id, status: task.status as TaskStatus };
@@ -539,8 +572,19 @@ export const completeHousekeepingTask = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, taskId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: TaskStatus }> => {
-    const me = await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (housekeepingScope(me.role) !== "supervisor") {
+      const { data: owned } = await supabaseAdmin
+        .from("housekeeping_tasks")
+        .select("id, assigned_membership_id")
+        .eq("id", data.taskId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (!owned || owned.assigned_membership_id !== me.id) {
+        throw new Error("You can only complete tasks assigned to you.");
+      }
+    }
     const { error } = await supabaseAdmin.rpc("housekeeping_complete_task", {
       _restaurant_id: data.restaurantId,
       _task_id: data.taskId,
@@ -714,7 +758,7 @@ export const createDiscrepancy = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
 
@@ -795,7 +839,7 @@ export const listMaintenanceRequests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<MaintenanceRequest[]> => {
-    await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingAccess(context as never, data.restaurantId);
     const { data: rows, error } = await context.supabase
       .from("housekeeping_maintenance_requests")
       .select(
@@ -843,7 +887,7 @@ export const createMaintenanceRequest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireHousekeepingOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
 
@@ -885,7 +929,7 @@ export const updateMaintenanceRequest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: string }> => {
-    const me = await requireHousekeepingManager(context as never, data.restaurantId);
+    const me = await requireMaintenanceAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: row } = await supabaseAdmin

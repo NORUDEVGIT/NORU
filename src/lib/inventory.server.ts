@@ -33,9 +33,9 @@ const DIRECTION: Record<MovementType, 1 | -1 | 0> = {
   stocktake_adjustment: 0,
 };
 
-export const MANAGE_ROLES = ["owner", "manager"] as const;
+export const MANAGE_ROLES = ["owner", "manager", "storekeeper"] as const;
 /** Roles that can see inventory at all. */
-export const VIEW_ROLES = ["owner", "manager", "kitchen"] as const;
+export const VIEW_ROLES = ["owner", "manager", "kitchen", "storekeeper"] as const;
 /** Kitchen may only consume stock. */
 const KITCHEN_MOVEMENTS: MovementType[] = ["usage", "waste", "loss"];
 /** Reason is mandatory for anything that isn't a plain receive/use. */

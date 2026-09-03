@@ -19,7 +19,7 @@ export const PO_STATUS_LABEL: Record<PoStatus, string> = {
   cancelled: "Cancelled",
 };
 
-const MANAGE_ROLES = ["owner", "manager"] as const;
+const MANAGE_ROLES = ["owner", "manager", "storekeeper"] as const;
 
 /** Owners and managers manage suppliers and purchase orders. */
 export function canManagePurchasing(role: string): boolean {

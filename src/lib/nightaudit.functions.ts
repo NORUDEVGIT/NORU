@@ -8,7 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { canManageCashiering, requireCashierManager } from "./cashiering.server";
+import { canManageCashiering, requireCashierManager, requireCashieringAccess } from "./cashiering.server";
 import { callerMembership } from "./workforce.server";
 import { propertyToday } from "./reservation-dates";
 import {
@@ -478,7 +478,7 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditRunRow[]> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows } = await supabaseAdmin
       .from("night_audit_runs")
@@ -523,7 +523,7 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<{ run: NightAuditRunRow; exceptions: AuditException[]; currency: string } | null> => {
-      await requireCashierManager(context as never, data.restaurantId);
+      await requireCashieringAccess(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
       const { data: row } = await supabaseAdmin

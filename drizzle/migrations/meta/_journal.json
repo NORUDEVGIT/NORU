@@ -162,6 +162,13 @@
       "when": 1788422786279,
       "tag": "0022_room_charge_event_names",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788431192027,
+      "tag": "0023_phase_7c_staff_roles_module_access",
+      "breakpoints": true
     }
   ]
 }

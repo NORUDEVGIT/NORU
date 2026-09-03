@@ -8,6 +8,9 @@ import {
   cashierError,
   categoryForType,
   requireCashierManager,
+  requireCashierOperator,
+  requireCashieringAccess,
+  CASHIER_OPERATE_ROLES,
   type FolioStatus,
   type TransactionType,
 } from "./cashiering.server";
@@ -82,8 +85,13 @@ export const getCashieringAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context as never, data.restaurantId);
-    return { canManage: canManageCashiering(me.role), role: me.role, membershipId: me.id };
+    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    return {
+      canManage: canManageCashiering(me.role),
+      canOperate: (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role),
+      role: me.role,
+      membershipId: me.id,
+    };
   });
 
 /* ------------------------------------------------------------------ helpers */
@@ -132,7 +140,7 @@ export const listFolios = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioRow[]> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     let query = supabaseAdmin
@@ -212,7 +220,7 @@ export const getFolio = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioDetail | null> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: row, error } = await supabaseAdmin
@@ -297,7 +305,7 @@ export const getReservationFolio = createServerFn({ method: "GET" })
   )
   .handler(
     async ({ data, context }): Promise<{ id: string; folioNumber: string; balance: number } | null> => {
-      await requireCashierManager(context as never, data.restaurantId);
+      await requireCashieringAccess(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: row } = await supabaseAdmin
         .from("guest_folios")
@@ -325,7 +333,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashieringDashboard> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: restaurant } = await supabaseAdmin
@@ -396,7 +404,7 @@ export const initializeFolio = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requireCashierOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: reservation } = await supabaseAdmin
@@ -439,7 +447,10 @@ export const postFolioEntry = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me =
+      data.type === "payment" || data.type === "deposit"
+        ? await requireCashierOperator(context as never, data.restaurantId)
+        : await requireCashierManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     if (data.type !== "adjustment" && data.amount <= 0) {
@@ -503,7 +514,7 @@ export const listCashierShifts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<CashierShiftRow[]> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: rows, error } = await supabaseAdmin
@@ -573,7 +584,7 @@ export const openCashierShift = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requireCashierOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: shift, error } = await supabaseAdmin.rpc("open_cashier_shift", {
       _restaurant_id: data.restaurantId,
@@ -598,8 +609,22 @@ export const closeCashierShift = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requireCashierOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // A cashier may only close their own drawer; owners/managers may close any.
+    if (!canManageCashiering(me.role)) {
+      const { data: owned } = await supabaseAdmin
+        .from("cashier_shifts")
+        .select("id, membership_id")
+        .eq("id", data.shiftId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (!owned || owned.membership_id !== me.id) {
+        return { ok: false, message: "You can only close your own cashier shift." };
+      }
+    }
+
     const { data: shift, error } = await supabaseAdmin.rpc("close_cashier_shift", {
       _restaurant_id: data.restaurantId,
       _shift_id: data.shiftId,
@@ -622,7 +647,7 @@ export const getShiftSummary = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<{ payments: number; deposits: number; refunds: number; transactions: number }> => {
-      await requireCashierManager(context as never, data.restaurantId);
+      await requireCashieringAccess(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       const { data: shift } = await supabaseAdmin
