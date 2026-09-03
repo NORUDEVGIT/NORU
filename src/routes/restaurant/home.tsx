@@ -7,16 +7,18 @@ import {
   Boxes,
   Users,
   Settings,
-  BedDouble,
   Sparkles,
-  CalendarCheck,
   Wallet,
   BarChart3,
-  ArrowRight,
+  Hotel,
+  Truck,
+  SlidersHorizontal,
+  Monitor,
   TrendingUp,
   ReceiptText,
   PackageOpen,
   UserCheck,
+  BedDouble,
 } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { NoruLogo } from "@/components/noru-logo";
@@ -31,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getRestaurantDashboard } from "@/lib/dashboard.functions";
 import { getInventoryDashboard } from "@/lib/inventory-reporting.functions";
 import { listShifts } from "@/lib/workforce.functions";
+import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
 import { localDateInZone } from "@/lib/restaurant-time";
@@ -50,7 +53,7 @@ export const Route = createFileRoute("/restaurant/home")({
       {
         name: "description",
         content:
-          "Your NORU property home: restaurant, rooms, booking, stock, staff, finance and reporting workspaces in one place.",
+          "Your NORU property home: food & beverage, front office, housekeeping, inventory, procurement, people, finance, reporting and configuration in one place.",
       },
       { property: "og:title", content: "Property Home — NORU" },
       { property: "og:description", content: "One home for every NORU hospitality module." },
@@ -66,31 +69,29 @@ function PropertyHomeRoute() {
   return <RestaurantShell active="Home">{(m) => <PropertyHome membership={m} />}</RestaurantShell>;
 }
 
-type ModuleCard = {
+type ModuleTile = {
   title: string;
-  description: string;
+  subtitle: string;
   icon: typeof UtensilsCrossed;
   status: "active" | "soon";
   to?: string;
   tab?: string;
-  /** When set, only these membership roles see the card. */
+  /** When set, only these membership roles see the tile. */
   roles?: string[];
 };
 
-const MODULES: ModuleCard[] = [
+const MODULES: ModuleTile[] = [
   {
-    title: "Restaurant Management",
-    description:
-      "Manage restaurant performance, menu, kitchen, orders, tables, QR ordering and waiter-assisted service.",
+    title: "Food & Beverage",
+    subtitle: "Service, kitchen and orders",
     icon: UtensilsCrossed,
     status: "active",
     to: "/restaurant/dashboard",
   },
   {
-    title: "Rooms & Front Office",
-    description:
-      "Room types, rooms, amenities and room imagery. Availability, arrivals and housekeeping follow in a later phase.",
-    icon: BedDouble,
+    title: "Front Office",
+    subtitle: "Arrivals, in-house and reservations",
+    icon: Hotel,
     status: "active",
     to: "/restaurant/rooms",
     tab: "dashboard",
@@ -98,8 +99,7 @@ const MODULES: ModuleCard[] = [
   },
   {
     title: "Housekeeping",
-    description:
-      "Room rack, cleaning board, inspections, room restrictions, discrepancies and basic maintenance requests.",
+    subtitle: "Room status, cleaning and inspections",
     icon: Sparkles,
     status: "active",
     to: "/restaurant/housekeeping",
@@ -107,28 +107,14 @@ const MODULES: ModuleCard[] = [
     roles: ["owner", "manager"],
   },
   {
-    title: "Booking & Guest Management",
-    description:
-      "Reservations, availability, guest profiles, rate plans, daily rates, stay restrictions and revenue KPIs.",
-    icon: CalendarCheck,
-    status: "active",
-    to: "/restaurant/bookings",
-    roles: ["owner", "manager"],
+    title: "POS",
+    subtitle: "Point-of-sale for counter sales, payments and receipts",
+    icon: Monitor,
+    status: "soon",
   },
   {
-    title: "Rates & Revenue",
-    description:
-      "Rate categories and plans, daily rate overrides, stay restrictions plus occupancy, ADR and RevPAR performance.",
-    icon: BarChart3,
-    status: "active",
-    to: "/restaurant/bookings/rates",
-    tab: "overview",
-    roles: ["owner", "manager"],
-  },
-  {
-    title: "Stock & Procurement",
-    description:
-      "Ingredients, consumables, assets, equipment, suppliers, purchasing, recipes, waste and inventory reporting.",
+    title: "Inventory",
+    subtitle: "Stock, assets and equipment",
     icon: Boxes,
     status: "active",
     to: "/restaurant/inventory",
@@ -136,8 +122,17 @@ const MODULES: ModuleCard[] = [
     roles: ["owner", "manager", "kitchen"],
   },
   {
-    title: "Staff Management",
-    description: "Staff, schedules, attendance, assignments and workforce reporting.",
+    title: "Procurement",
+    subtitle: "Suppliers and purchasing",
+    icon: Truck,
+    status: "active",
+    to: "/restaurant/inventory",
+    tab: "suppliers",
+    roles: ["owner", "manager", "kitchen"],
+  },
+  {
+    title: "Human Resources",
+    subtitle: "Staff, schedule and attendance",
     icon: Users,
     status: "active",
     to: "/restaurant/staff",
@@ -145,8 +140,7 @@ const MODULES: ModuleCard[] = [
   },
   {
     title: "Accounting & Finance",
-    description:
-      "Guest folios, charges, payments, deposits, refunds, discounts and cashier shift control.",
+    subtitle: "Folios, payments and night audit",
     icon: Wallet,
     status: "active",
     to: "/restaurant/cashiering",
@@ -155,15 +149,23 @@ const MODULES: ModuleCard[] = [
   },
   {
     title: "Reports & Analytics",
-    description:
-      "Property-wide operational, restaurant, booking, occupancy, stock, staff and financial analytics.",
+    subtitle: "Occupancy, ADR, RevPAR and operational reports",
     icon: BarChart3,
-    status: "soon",
+    status: "active",
+    to: "/restaurant/reports",
+    roles: ["owner", "manager"],
+  },
+  {
+    title: "Configuration",
+    subtitle: "Menu, tables, rooms, rates and distribution",
+    icon: SlidersHorizontal,
+    status: "active",
+    to: "/restaurant/configuration",
+    roles: ["owner", "manager"],
   },
   {
     title: "Property Settings & Integrations",
-    description:
-      "Property information, timezone, currency, branding, operational rules and future integrations.",
+    subtitle: "Property details, timezone, currency and branding",
     icon: Settings,
     status: "active",
     to: "/restaurant/settings",
@@ -176,11 +178,12 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const money = useMoney();
   const timezone = useRestaurantTimezone();
   const tzOffsetMinutes = useMemo(() => new Date().getTimezoneOffset(), []);
-  const [soon, setSoon] = useState<ModuleCard | null>(null);
+  const [soon, setSoon] = useState<ModuleTile | null>(null);
 
   const fetchDashboard = useServerFn(getRestaurantDashboard);
   const fetchInventory = useServerFn(getInventoryDashboard);
   const fetchShifts = useServerFn(listShifts);
+  const fetchFrontOffice = useServerFn(getFrontOfficeDashboard);
 
   const canManageStaff = role === "owner" || role === "manager";
   const canSeeStock = role === "owner" || role === "manager" || role === "kitchen";
@@ -203,8 +206,22 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
     enabled: canManageStaff,
   });
 
+  const frontOffice = useQuery({
+    queryKey: ["property-home-front-office", restaurantId, today],
+    queryFn: () => fetchFrontOffice({ data: { restaurantId, today } }),
+    enabled: canManageStaff,
+    retry: false,
+  });
+
   const onShift = shifts.data
     ? shifts.data.shifts.filter((s) => s.attendanceStatus === "checked_in").length
+    : null;
+
+  const occupancy = frontOffice.data
+    ? (() => {
+        const total = frontOffice.data.occupiedRooms + frontOffice.data.availableRooms;
+        return total > 0 ? `${Math.round((frontOffice.data.occupiedRooms / total) * 100)}%` : "0%";
+      })()
     : null;
 
   const modules = MODULES.filter((m) => !m.roles || m.roles.includes(role));
@@ -212,20 +229,20 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <NoruLogo size="sm" />
           <span className="text-muted-foreground">·</span>
           <h1 className="font-display text-2xl sm:text-3xl">{membership.restaurant.name}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Manage every part of your hospitality operation from one place.
+          Your unified hospitality workspace — every part of the property in one place.
         </p>
       </header>
 
-      <section aria-label="Today at a glance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Today at a glance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard
           icon={TrendingUp}
-          label="Today's order value"
+          label="Today's F&B order value"
           value={dashboard.data ? money(dashboard.data.today.revenue) : null}
           loading={dashboard.isLoading}
         />
@@ -234,6 +251,20 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
           label="Active orders"
           value={dashboard.data ? String(dashboard.data.counts.active) : null}
           loading={dashboard.isLoading}
+        />
+        <SummaryCard
+          icon={BedDouble}
+          label="Occupancy"
+          value={canManageStaff ? occupancy : "—"}
+          loading={canManageStaff && frontOffice.isLoading}
+        />
+        <SummaryCard
+          icon={Hotel}
+          label="In-house guests"
+          value={
+            canManageStaff ? (frontOffice.data ? String(frontOffice.data.inHouse) : null) : "—"
+          }
+          loading={canManageStaff && frontOffice.isLoading}
         />
         <SummaryCard
           icon={UserCheck}
@@ -249,39 +280,40 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         />
       </section>
 
-      <section aria-label="Workspaces" className="space-y-3">
-        <h2 className="font-display text-xl">Workspaces</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <section aria-label="Modules" className="space-y-3">
+        <h2 className="font-display text-xl">Modules</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {modules.map((m) =>
             m.status === "active" ? (
               <Link
                 key={m.title}
                 to={m.to!}
                 {...(m.tab ? { search: { tab: m.tab } } : {})}
-                className="group flex min-h-36 flex-col rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/50 hover:bg-accent/40"
+                className="group flex min-h-40 flex-col rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/60 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:bg-secondary"
               >
-                <m.icon className="size-6 text-primary" />
-                <p className="mt-3 font-display text-lg">{m.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>
-                <span className="mt-auto inline-flex items-center gap-1 pt-3 text-sm font-medium text-primary">
-                  Open <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                <span className="inline-flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                  <m.icon className="size-6" />
                 </span>
+                <p className="mt-4 font-display text-lg leading-snug">{m.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{m.subtitle}</p>
               </Link>
             ) : (
               <button
                 key={m.title}
                 type="button"
                 onClick={() => setSoon(m)}
-                className="flex min-h-36 flex-col rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-left transition-colors hover:bg-muted/50"
+                className="flex min-h-40 flex-col rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <div className="flex items-center justify-between">
-                  <m.icon className="size-6 text-muted-foreground" />
+                <div className="flex w-full items-start justify-between gap-2">
+                  <span className="inline-flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                    <m.icon className="size-6" />
+                  </span>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Coming soon
                   </span>
                 </div>
-                <p className="mt-3 font-display text-lg text-muted-foreground">{m.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>
+                <p className="mt-4 font-display text-lg leading-snug text-muted-foreground">{m.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{m.subtitle}</p>
               </button>
             ),
           )}
@@ -292,7 +324,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{soon?.title}</DialogTitle>
-            <DialogDescription>{soon?.description}</DialogDescription>
+            <DialogDescription>{soon?.subtitle}</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             This workspace is part of the NORU roadmap and isn't available yet. Nothing here is live
