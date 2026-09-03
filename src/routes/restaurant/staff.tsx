@@ -42,7 +42,7 @@ import {
   type StaffMember,
   type StaffRole,
 } from "@/lib/staff.functions";
-import { ROLE_LABELS, MODULE_KEYS, MODULE_LABELS, OVERRIDABLE_MODULES, defaultModulesForRole, type ModuleKey } from "@/lib/module-access";
+import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, MODULE_KEYS, MODULE_LABELS, OVERRIDABLE_MODULES, defaultModulesForRole, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
 
@@ -353,7 +353,7 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
-            {STAFF_ROLES.map((r) => (
+            {SELECTABLE_STAFF_ROLES.map((r) => (
               <SelectItem key={r} value={r}>
                 {ROLE_LABEL[r]}
               </SelectItem>
@@ -513,7 +513,7 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {STAFF_ROLES.filter((r) => canAssign.includes(r) || r === selected.role).map((r) => (
+                          {SELECTABLE_STAFF_ROLES.filter((r) => canAssign.includes(r) || r === selected.role).map((r) => (
                             <SelectItem key={r} value={r}>
                               {ROLE_LABEL[r]}
                             </SelectItem>
