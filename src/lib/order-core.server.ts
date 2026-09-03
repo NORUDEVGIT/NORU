@@ -14,7 +14,7 @@ import { getRestaurantSettings } from "./workforce.server";
 import { displayName } from "./workforce.server";
 import type { ResolvedLine } from "./order-pricing.server";
 
-export type OrderSource = "customer_qr" | "waiter_assisted";
+export type OrderSource = "customer_qr" | "waiter_assisted" | "pos_counter";
 
 export interface RestaurantRow {
   id: string;
@@ -203,6 +203,10 @@ export interface CreateValidatedOrderInput {
   createdByStaffMembershipId: string | null;
   createdByStaffName: string | null;
   guestTokenHash?: string | null;
+  /** POS only: counter or takeaway sale. Dine-in orders leave this null. */
+  orderType?: "counter" | "takeaway" | null;
+  /** POS only: the cashier drawer the sale belongs to. */
+  cashierShiftId?: string | null;
   lines: ResolvedLine[];
 }
 
@@ -227,7 +231,7 @@ export async function createValidatedOrder(
   if (input.orderSource === "customer_qr" && input.createdByStaffMembershipId) {
     throw new Error("Invalid order attribution.");
   }
-  if (input.orderSource === "waiter_assisted" && !input.createdByStaffMembershipId) {
+  if (input.orderSource !== "customer_qr" && !input.createdByStaffMembershipId) {
     throw new Error("Invalid order attribution.");
   }
 
@@ -250,6 +254,8 @@ export async function createValidatedOrder(
       assigned_waiter_name_snapshot: input.assignedWaiterName,
       created_by_staff_membership_id: input.createdByStaffMembershipId,
       created_by_staff_name_snapshot: input.createdByStaffName,
+      order_type: input.orderType ?? null,
+      cashier_shift_id: input.cashierShiftId ?? null,
     })
     .select("id, order_number, table_number, total, status, created_at")
     .single();

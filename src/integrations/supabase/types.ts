@@ -2225,6 +2225,80 @@ export type Database = {
           },
         ]
       }
+      order_payments: {
+        Row: {
+          amount: number
+          cashier_shift_id: string | null
+          change_amount: number
+          created_at: string
+          id: string
+          membership_id: string | null
+          method: string
+          order_id: string
+          reference: string | null
+          restaurant_id: string
+          tendered_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          cashier_shift_id?: string | null
+          change_amount?: number
+          created_at?: string
+          id?: string
+          membership_id?: string | null
+          method: string
+          order_id: string
+          reference?: string | null
+          restaurant_id: string
+          tendered_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cashier_shift_id?: string | null
+          change_amount?: number
+          created_at?: string
+          id?: string
+          membership_id?: string | null
+          method?: string
+          order_id?: string
+          reference?: string | null
+          restaurant_id?: string
+          tendered_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_payments_cashier_shift_id_fkey"
+            columns: ["cashier_shift_id"]
+            isOneToOne: false
+            referencedRelation: "cashier_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_history: {
         Row: {
           changed_by: string | null
@@ -2262,6 +2336,7 @@ export type Database = {
           assigned_waiter_membership_id: string | null
           assigned_waiter_name_snapshot: string | null
           billing_method: string | null
+          cashier_shift_id: string | null
           created_at: string
           created_by_staff_membership_id: string | null
           created_by_staff_name_snapshot: string | null
@@ -2270,6 +2345,8 @@ export type Database = {
           id: string
           order_number: number
           order_source: string
+          order_type: string | null
+          paid_at: string | null
           restaurant_id: string | null
           restaurant_table_id: string | null
           room_charge_folio_id: string | null
@@ -2285,6 +2362,7 @@ export type Database = {
           assigned_waiter_membership_id?: string | null
           assigned_waiter_name_snapshot?: string | null
           billing_method?: string | null
+          cashier_shift_id?: string | null
           created_at?: string
           created_by_staff_membership_id?: string | null
           created_by_staff_name_snapshot?: string | null
@@ -2293,6 +2371,8 @@ export type Database = {
           id?: string
           order_number?: number
           order_source?: string
+          order_type?: string | null
+          paid_at?: string | null
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           room_charge_folio_id?: string | null
@@ -2308,6 +2388,7 @@ export type Database = {
           assigned_waiter_membership_id?: string | null
           assigned_waiter_name_snapshot?: string | null
           billing_method?: string | null
+          cashier_shift_id?: string | null
           created_at?: string
           created_by_staff_membership_id?: string | null
           created_by_staff_name_snapshot?: string | null
@@ -2316,6 +2397,8 @@ export type Database = {
           id?: string
           order_number?: number
           order_source?: string
+          order_type?: string | null
+          paid_at?: string | null
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           room_charge_folio_id?: string | null
@@ -2333,6 +2416,13 @@ export type Database = {
             columns: ["assigned_waiter_membership_id"]
             isOneToOne: false
             referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_cashier_shift_id_fkey"
+            columns: ["cashier_shift_id"]
+            isOneToOne: false
+            referencedRelation: "cashier_shifts"
             referencedColumns: ["id"]
           },
           {
@@ -4283,6 +4373,38 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: string
+      }
+      record_pos_order_payment: {
+        Args: {
+          _amount: number
+          _membership_id: string
+          _method: string
+          _order_id: string
+          _reference: string
+          _restaurant_id: string
+          _shift_id: string
+          _tendered: number
+        }
+        Returns: {
+          amount: number
+          cashier_shift_id: string | null
+          change_amount: number
+          created_at: string
+          id: string
+          membership_id: string | null
+          method: string
+          order_id: string
+          reference: string | null
+          restaurant_id: string
+          tendered_amount: number | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "order_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       reprice_hotel_reservation: {
         Args: {

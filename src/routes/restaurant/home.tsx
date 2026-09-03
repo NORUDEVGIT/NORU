@@ -112,9 +112,10 @@ const MODULES: ModuleTile[] = [
   {
     title: "POS",
     moduleKey: "pos",
-    subtitle: "Point-of-sale for counter sales, payments and receipts",
+    subtitle: "Counter and takeaway sales, payments and receipts",
     icon: Monitor,
-    status: "soon",
+    status: "active",
+    to: "/restaurant/pos/new",
   },
   {
     title: "Inventory",

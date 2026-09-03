@@ -90,24 +90,25 @@ export const ROLE_MODULES: Record<StaffRole, ModuleKey[]> = {
   owner: [...ALL_MODULES],
   manager: [...ALL_MODULES],
   kitchen: ["food_and_beverage", "inventory", "procurement"],
-  waiter: ["food_and_beverage"],
+  waiter: ["food_and_beverage", "pos"],
   housekeeping: ["housekeeping"],
   housekeeping_supervisor: ["housekeeping"],
   housekeeper: ["housekeeping"],
   maintenance: ["housekeeping"],
   receptionist: ["front_office"],
-  cashier: ["accounting_finance"],
+  cashier: ["accounting_finance", "pos"],
   accountant: ["accounting_finance", "reports_analytics"],
   storekeeper: ["inventory", "procurement"],
 };
 
 /**
  * Modules an owner/manager may toggle per staff member. Configuration,
- * property settings, HR and POS are never grantable through an override —
- * they stay tied to owner/manager so an override can't escalate privileges.
+ * property settings and HR are never grantable through an override — they stay
+ * tied to owner/manager so an override can't escalate privileges.
  */
 export const OVERRIDABLE_MODULES: ModuleKey[] = [
   "food_and_beverage",
+  "pos",
   "front_office",
   "housekeeping",
   "inventory",
