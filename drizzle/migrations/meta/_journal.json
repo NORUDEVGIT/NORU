@@ -141,6 +141,27 @@
       "when": 1788390841901,
       "tag": "0019_direct_booking_distribution",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788422360827,
+      "tag": "0020_room_charge",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788422751417,
+      "tag": "0021_room_charge_history_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788422786279,
+      "tag": "0022_room_charge_event_names",
+      "breakpoints": true
     }
   ]
 }
