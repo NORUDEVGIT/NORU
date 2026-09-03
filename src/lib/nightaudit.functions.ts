@@ -175,7 +175,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditState> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
 

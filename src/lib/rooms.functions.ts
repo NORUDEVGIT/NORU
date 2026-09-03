@@ -119,7 +119,7 @@ export const listRoomTypes = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, includeInactive: z.boolean().optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomType[]> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
 
     let query = context.supabase
       .from("room_types")
@@ -322,7 +322,7 @@ export const listRooms = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<HotelRoom[]> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
 
     let query = context.supabase
       .from("hotel_rooms")
@@ -648,7 +648,7 @@ export const getRoomsDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomsDashboard> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
 
     const [{ data: rooms }, { data: types }] = await Promise.all([
       context.supabase
