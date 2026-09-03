@@ -180,7 +180,6 @@ const MODULES: ModuleTile[] = [
 
 function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
-  const role = membership.role;
   const money = useMoney();
   const timezone = useRestaurantTimezone();
   const tzOffsetMinutes = useMemo(() => new Date().getTimezoneOffset(), []);
