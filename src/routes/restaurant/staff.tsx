@@ -88,7 +88,7 @@ export const Route = createFileRoute("/restaurant/staff")({
   },
   head: () => ({
     meta: [
-      { title: "Staff & Roles — NORU" },
+      { title: "Human Resources — NORU" },
       {
         name: "description",
         content: "Add restaurant staff, set their roles and manage access to your dashboard, kitchen and orders.",
@@ -289,7 +289,7 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
   if (isError) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Staff management</h1>
+        <h1 className="font-display text-2xl">Human Resources</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           You don't have permission to manage staff for this restaurant, or we couldn't load the team right now.
         </p>

@@ -83,6 +83,9 @@ function DistributionPage({ membership }: { membership: RestaurantMembership }) 
   return (
     <div className="space-y-5">
       <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Configuration · Distribution
+        </p>
         <h1 className="font-display text-2xl">Distribution</h1>
         <p className="text-sm text-muted-foreground">
           Your NORU direct booking page and the channel foundation behind it.

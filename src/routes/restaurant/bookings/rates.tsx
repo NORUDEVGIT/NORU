@@ -82,6 +82,9 @@ function RatesPage({ membership }: { membership: RestaurantMembership }) {
   return (
     <div className="space-y-6">
       <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Configuration · Rates &amp; Revenue
+        </p>
         <h1 className="font-display text-2xl">Rates & Revenue</h1>
         <p className="text-sm text-muted-foreground">
           Rate plans, daily rates, restrictions and revenue performance for {membership.restaurant.name}.

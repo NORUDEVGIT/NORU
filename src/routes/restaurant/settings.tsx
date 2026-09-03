@@ -20,9 +20,9 @@ export const Route = createFileRoute("/restaurant/settings")({
   },
   head: () => ({
     meta: [
-      { title: "Restaurant Settings — NORU" },
+      { title: "Property Settings & Integrations — NORU" },
       { name: "description", content: "Update your restaurant name, contact details and address on the NORU platform." },
-      { property: "og:title", content: "Restaurant Settings — NORU" },
+      { property: "og:title", content: "Property Settings & Integrations — NORU" },
       { property: "og:description", content: "Update your restaurant details." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -112,7 +112,7 @@ function SettingsForm({ membership }: { membership: RestaurantMembership }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl">Settings</h1>
+        <h1 className="font-display text-3xl">Property Settings &amp; Integrations</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Web address: <span className="font-mono">/{r.slug}</span> · Status: {r.approved ? "Approved" : "Pending approval"}
         </p>
