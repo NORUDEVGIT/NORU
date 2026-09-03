@@ -64,6 +64,7 @@ import { Route as RestaurantHousekeepingIndexRouteImport } from './routes/restau
 import { Route as RestaurantInventoryIndexRouteImport } from './routes/restaurant/inventory/index'
 import { Route as RestaurantOrdersIndexRouteImport } from './routes/restaurant/orders/index'
 import { Route as RestaurantOrdersOrderIdRouteImport } from './routes/restaurant/orders/$orderId'
+import { Route as RestaurantPosNewRouteImport } from './routes/restaurant/pos/new'
 import { Route as RestaurantRoomsIndexRouteImport } from './routes/restaurant/rooms/index'
 import { Route as RestaurantRoomsArrivalsRouteImport } from './routes/restaurant/rooms/arrivals'
 import { Route as RestaurantRoomsDeparturesRouteImport } from './routes/restaurant/rooms/departures'
@@ -362,6 +363,11 @@ const RestaurantOrdersOrderIdRoute = RestaurantOrdersOrderIdRouteImport.update({
   path: '/restaurant/orders/$orderId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantPosNewRoute = RestaurantPosNewRouteImport.update({
+  id: '/restaurant/pos/new',
+  path: '/restaurant/pos/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantRoomsIndexRoute = RestaurantRoomsIndexRouteImport.update({
   id: '/restaurant/rooms/',
   path: '/restaurant/rooms/',
@@ -487,6 +493,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
   '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
+  '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
@@ -556,6 +563,7 @@ export interface FileRoutesByTo {
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
   '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
+  '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
@@ -628,6 +636,7 @@ export interface FileRoutesById {
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
   '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
+  '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
@@ -701,6 +710,7 @@ export interface FileRouteTypes {
     | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
     | '/restaurant/orders/$orderId'
+    | '/restaurant/pos/new'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
@@ -770,6 +780,7 @@ export interface FileRouteTypes {
     | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
     | '/restaurant/orders/$orderId'
+    | '/restaurant/pos/new'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
@@ -841,6 +852,7 @@ export interface FileRouteTypes {
     | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
     | '/restaurant/orders/$orderId'
+    | '/restaurant/pos/new'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
@@ -906,6 +918,7 @@ export interface RootRouteChildren {
   RestaurantBookingsReservationsRoute: typeof RestaurantBookingsReservationsRoute
   RestaurantGuestsGuestIdRoute: typeof RestaurantGuestsGuestIdRoute
   RestaurantOrdersOrderIdRoute: typeof RestaurantOrdersOrderIdRoute
+  RestaurantPosNewRoute: typeof RestaurantPosNewRoute
   RestaurantRoomsArrivalsRoute: typeof RestaurantRoomsArrivalsRoute
   RestaurantRoomsDeparturesRoute: typeof RestaurantRoomsDeparturesRoute
   RestaurantRoomsInHouseRoute: typeof RestaurantRoomsInHouseRoute
@@ -1314,6 +1327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantOrdersOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/pos/new': {
+      id: '/restaurant/pos/new'
+      path: '/restaurant/pos/new'
+      fullPath: '/restaurant/pos/new'
+      preLoaderRoute: typeof RestaurantPosNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/rooms/': {
       id: '/restaurant/rooms/'
       path: '/restaurant/rooms'
@@ -1496,6 +1516,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantBookingsReservationsRoute: RestaurantBookingsReservationsRoute,
   RestaurantGuestsGuestIdRoute: RestaurantGuestsGuestIdRoute,
   RestaurantOrdersOrderIdRoute: RestaurantOrdersOrderIdRoute,
+  RestaurantPosNewRoute: RestaurantPosNewRoute,
   RestaurantRoomsArrivalsRoute: RestaurantRoomsArrivalsRoute,
   RestaurantRoomsDeparturesRoute: RestaurantRoomsDeparturesRoute,
   RestaurantRoomsInHouseRoute: RestaurantRoomsInHouseRoute,
