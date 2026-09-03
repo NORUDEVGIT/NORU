@@ -85,7 +85,13 @@ export const Route = createFileRoute("/restaurant/inventory/")({
 });
 
 function InventoryRoute() {
-  return <RestaurantShell active="Inventory">{(m) => <InventoryPage membership={m} />}</RestaurantShell>;
+  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const procurement = searchTab === "suppliers" || searchTab === "purchasing";
+  return (
+    <RestaurantShell active="Inventory" module={procurement ? "procurement" : "stock"}>
+      {(m) => <InventoryPage membership={m} />}
+    </RestaurantShell>
+  );
 }
 
 function statusOf(item: InventoryItem): "out" | "low" | "in" {
