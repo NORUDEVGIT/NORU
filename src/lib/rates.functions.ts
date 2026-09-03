@@ -13,6 +13,8 @@ import {
   type StayQuote,
 } from "./rates.server";
 import { callerMembership } from "./workforce.server";
+import { requireModuleRole } from "./module-access.server";
+import { REPORTS_ROLES } from "./module-access";
 
 const idSchema = z.string().uuid();
 
@@ -618,7 +620,7 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requireModuleRole(context as never, data.restaurantId, "reports_analytics", REPORTS_ROLES, "You don't have access to Reports & Analytics for this property.");
     // An inverted range is normal mid-edit in the date pickers — normalize instead of failing.
     const from = data.to < data.from ? data.to : data.from;
     const to = data.to < data.from ? data.from : data.to;

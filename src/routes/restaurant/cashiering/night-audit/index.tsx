@@ -17,6 +17,7 @@ import {
 import {
   closeBusinessDate,
   listNightAuditRuns,
+  getNightAuditAccess,
   runNightAudit,
   updateException,
 } from "@/lib/nightaudit.functions";
@@ -59,11 +60,19 @@ function NightAuditPage({ membership }: { membership: RestaurantMembership }) {
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
 
+  const fetchAccess = useServerFn(getNightAuditAccess);
   const run = useServerFn(runNightAudit);
   const history = useServerFn(listNightAuditRuns);
   const resolve = useServerFn(updateException);
   const noShow = useServerFn(markNoShow);
   const close = useServerFn(closeBusinessDate);
+
+  const accessQuery = useQuery({
+    queryKey: ["night-audit-access", restaurantId],
+    queryFn: () => fetchAccess({ data: { restaurantId } }),
+    retry: false,
+  });
+  const canManage = accessQuery.data?.canManage === true;
 
   const auditQuery = useQuery({
     queryKey: ["night-audit", restaurantId],
@@ -144,12 +153,14 @@ function NightAuditPage({ membership }: { membership: RestaurantMembership }) {
           <Button variant="outline" disabled={auditQuery.isFetching} onClick={() => refresh()}>
             {auditQuery.isFetching ? "Refreshing…" : "Run / refresh audit"}
           </Button>
+          {canManage ? (
           <Button
             disabled={!state.canClose || busy || closed}
             onClick={() => closeMutation.mutate(state.run.id)}
           >
             Close business date
           </Button>
+          ) : null}
         </div>
       </div>
 
@@ -180,9 +191,10 @@ function NightAuditPage({ membership }: { membership: RestaurantMembership }) {
       <ExceptionsPanel
         exceptions={state.exceptions}
         busy={busy}
+        readOnly={!canManage}
         onUpdate={(exceptionId, action) => exceptionMutation.mutate({ exceptionId, action })}
       />
-      <NoShowPanel state={state} busy={busy} onNoShow={(id) => noShowMutation.mutate(id)} />
+      <NoShowPanel state={state} readOnly={!canManage} busy={busy} onNoShow={(id) => noShowMutation.mutate(id)} />
       <ShiftsPanel state={state} />
       <RevenuePanel state={state} />
 

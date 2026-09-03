@@ -51,10 +51,12 @@ export function ExceptionsPanel({
   exceptions,
   onUpdate,
   busy,
+  readOnly = false,
 }: {
   exceptions: AuditException[];
   onUpdate: (id: string, action: "resolve" | "ignore") => void;
   busy: boolean;
+  readOnly?: boolean;
 }) {
   const open = exceptions.filter((e) => e.status === "open");
   const handled = exceptions.filter((e) => e.status !== "open");
@@ -79,12 +81,12 @@ export function ExceptionsPanel({
                   <p className="mt-1 text-sm">{e.message}</p>
                 </div>
                 <div className="flex gap-2">
-                  {e.canIgnore ? (
+                  {readOnly ? null : e.canIgnore ? (
                     <Button size="sm" variant="outline" disabled={busy} onClick={() => onUpdate(e.id, "ignore")}>
                       Ignore
                     </Button>
                   ) : null}
-                  {e.severity === "warning" ? (
+                  {!readOnly && e.severity === "warning" ? (
                     <Button size="sm" variant="secondary" disabled={busy} onClick={() => onUpdate(e.id, "resolve")}>
                       Resolve
                     </Button>
@@ -119,10 +121,12 @@ export function NoShowPanel({
   state,
   onNoShow,
   busy,
+  readOnly = false,
 }: {
   state: NightAuditState;
   onNoShow: (reservationId: string) => void;
   busy: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-5">
@@ -142,14 +146,16 @@ export function NoShowPanel({
                   {r.roomNumber ? ` · Room ${r.roomNumber}` : ""}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button asChild size="sm" variant="outline">
-                  <Link to="/restaurant/rooms/arrivals">Front Office</Link>
-                </Button>
-                <Button size="sm" disabled={busy} onClick={() => onNoShow(r.id)}>
-                  Mark no-show
-                </Button>
-              </div>
+              {readOnly ? null : (
+                <div className="flex gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/restaurant/rooms/arrivals">Front Office</Link>
+                  </Button>
+                  <Button size="sm" disabled={busy} onClick={() => onNoShow(r.id)}>
+                    Mark no-show
+                  </Button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

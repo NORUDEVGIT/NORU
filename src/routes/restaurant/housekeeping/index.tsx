@@ -133,7 +133,7 @@ function HousekeepingPage({ membership }: { membership: RestaurantMembership }) 
           <HousekeepingDashboardTab {...props} />
         </TabsContent>
         <TabsContent value="rack" className="mt-6">
-          <RoomRackTab {...props} />
+          <RoomRackTab {...props} canCreateTask={canClean} />
         </TabsContent>
         <TabsContent value="board" className="mt-6">
           <CleaningBoardTab {...props} />

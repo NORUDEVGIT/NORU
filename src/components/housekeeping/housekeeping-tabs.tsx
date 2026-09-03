@@ -120,7 +120,7 @@ export function HousekeepingDashboardTab({ restaurantId, today }: Props) {
 
 /* ---------------------------------------------------------------- room rack */
 
-export function RoomRackTab({ restaurantId }: Props) {
+export function RoomRackTab({ restaurantId, canCreateTask = true }: Props & { canCreateTask?: boolean }) {
   const fetch = useServerFn(listRoomRack);
   const q = useQuery({
     queryKey: ["hk-rack", restaurantId],
@@ -240,9 +240,11 @@ export function RoomRackTab({ restaurantId }: Props) {
                     </Badge>
                   </td>
                   <td className="p-3 text-right">
+                    {canCreateTask ? (
                     <Button size="sm" variant="outline" onClick={() => setTaskRoom(r)}>
                       New task
                     </Button>
+                    ) : null}
                   </td>
                 </tr>
               ))
