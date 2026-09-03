@@ -79,7 +79,7 @@ async function callerRole(context: Ctx, restaurantId: string): Promise<StaffRole
 }
 
 function assertCanAssign(actor: StaffRole, role: StaffRole) {
-  if (!CREATABLE[actor].includes(role)) {
+  if (!(CREATABLE[actor] ?? []).includes(role)) {
     throw new Error(
       actor === "manager" && role === "owner"
         ? "Only an owner can create or assign the owner role."
@@ -193,7 +193,7 @@ export const listStaff = createServerFn({ method: "POST" })
 
       return {
         role,
-        canAssign: CREATABLE[role],
+        canAssign: CREATABLE[role] ?? [],
         staff: memberships.map((m) => ({
           membershipId: m.id,
           name: profiles.get(m.user_id)?.name ?? null,

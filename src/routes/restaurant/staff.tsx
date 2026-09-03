@@ -39,20 +39,14 @@ import {
   createStaff,
   listStaff,
   setStaffActive,
-  STAFF_ROLES,
   type StaffMember,
   type StaffRole,
 } from "@/lib/staff.functions";
+import { ROLE_LABELS, MODULE_KEYS, MODULE_LABELS, OVERRIDABLE_MODULES, defaultModulesForRole, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
 
-const ROLE_LABEL: Record<StaffRole, string> = {
-  owner: "Owner",
-  manager: "Manager",
-  kitchen: "Kitchen",
-  waiter: "Waiter",
-  housekeeping: "Housekeeping",
-};
+const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;
 
 const ROLE_BADGE: Record<StaffRole, string> = {
   owner: "bg-primary/10 text-primary",
@@ -60,6 +54,13 @@ const ROLE_BADGE: Record<StaffRole, string> = {
   kitchen: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   waiter: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
   housekeeping: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  housekeeping_supervisor: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  housekeeper: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  receptionist: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+  cashier: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+  accountant: "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+  storekeeper: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  maintenance: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
 };
 
 /** Mirrors the authorization that actually exists in the codebase today. */
