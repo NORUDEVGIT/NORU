@@ -280,7 +280,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
           </h1>
           <p className="text-sm text-muted-foreground">
             {tab === "suppliers" || tab === "purchasing"
-              ? "Manage suppliers and purchasing. Every receipt is recorded in the movement ledger."
+              ? "Manage suppliers and purchasing for your property."
               : "Track ingredients and consumables. Every stock change is recorded in the movement ledger."}
           </p>
         </div>
@@ -289,7 +289,7 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
             <RefreshCw className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
-          {canManage && (tab === "overview" || tab === "ingredient" || tab === "consumable") ? (
+          {canManage && !procurement && tab !== "operating_asset" && tab !== "equipment" ? (
             <Button
               size="sm"
               onClick={() => {
@@ -306,13 +306,20 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="ingredient">Ingredients</TabsTrigger>
-          <TabsTrigger value="consumable">Consumables</TabsTrigger>
-          <TabsTrigger value="operating_asset">Operating Assets</TabsTrigger>
-          <TabsTrigger value="equipment">Equipment</TabsTrigger>
-          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
-          <TabsTrigger value="purchasing">Purchasing</TabsTrigger>
+          {procurement ? (
+            <>
+              <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+              <TabsTrigger value="purchasing">Purchasing</TabsTrigger>
+            </>
+          ) : (
+            <>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="ingredient">Ingredients</TabsTrigger>
+              <TabsTrigger value="consumable">Consumables</TabsTrigger>
+              <TabsTrigger value="operating_asset">Operating Assets</TabsTrigger>
+              <TabsTrigger value="equipment">Equipment</TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
