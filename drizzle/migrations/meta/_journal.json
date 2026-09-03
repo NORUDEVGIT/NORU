@@ -183,6 +183,13 @@
       "when": 1788434506118,
       "tag": "0025_phase_7d_pos_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788475416218,
+      "tag": "0026_harden_definer_functions_and_storage_policies",
+      "breakpoints": true
     }
   ]
 }
