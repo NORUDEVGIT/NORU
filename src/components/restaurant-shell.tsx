@@ -354,11 +354,13 @@ export function RestaurantShell({
 
   const membership = data?.[0];
   const restaurant = membership?.restaurant;
-  const workspace = LABEL_MODULE[active];
+  const workspace = module ?? LABEL_MODULE[active];
   const items = MODULE_NAV[workspace].filter(
     (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
   );
-  const activeTab = search.tab ?? items.find((i) => i.tab)?.tab;
+  const activeItem = items.find((i) => i.label === active);
+  const activeTab =
+    search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
 
   const sidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
