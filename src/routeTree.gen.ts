@@ -35,6 +35,7 @@ import { Route as RestaurantKitchenRouteImport } from './routes/restaurant/kitch
 import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantMenuRouteImport } from './routes/restaurant/menu'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
+import { Route as RestaurantReportsRouteImport } from './routes/restaurant/reports'
 import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/settings'
 import { Route as RestaurantStaffRouteImport } from './routes/restaurant/staff'
 import { Route as RestaurantTablesRouteImport } from './routes/restaurant/tables'
@@ -205,6 +206,11 @@ const RestaurantMenuRoute = RestaurantMenuRouteImport.update({
 const RestaurantRegisterRoute = RestaurantRegisterRouteImport.update({
   id: '/restaurant/register',
   path: '/restaurant/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantReportsRoute = RestaurantReportsRouteImport.update({
+  id: '/restaurant/reports',
+  path: '/restaurant/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RestaurantSettingsRoute = RestaurantSettingsRouteImport.update({
@@ -452,6 +458,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
+  '/restaurant/reports': typeof RestaurantReportsRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
@@ -519,6 +526,7 @@ export interface FileRoutesByTo {
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
+  '/restaurant/reports': typeof RestaurantReportsRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
@@ -589,6 +597,7 @@ export interface FileRoutesById {
   '/restaurant/login': typeof RestaurantLoginRoute
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
+  '/restaurant/reports': typeof RestaurantReportsRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
@@ -660,6 +669,7 @@ export interface FileRouteTypes {
     | '/restaurant/login'
     | '/restaurant/menu'
     | '/restaurant/register'
+    | '/restaurant/reports'
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
@@ -727,6 +737,7 @@ export interface FileRouteTypes {
     | '/restaurant/login'
     | '/restaurant/menu'
     | '/restaurant/register'
+    | '/restaurant/reports'
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
@@ -796,6 +807,7 @@ export interface FileRouteTypes {
     | '/restaurant/login'
     | '/restaurant/menu'
     | '/restaurant/register'
+    | '/restaurant/reports'
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
@@ -866,6 +878,7 @@ export interface RootRouteChildren {
   RestaurantLoginRoute: typeof RestaurantLoginRoute
   RestaurantMenuRoute: typeof RestaurantMenuRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
+  RestaurantReportsRoute: typeof RestaurantReportsRoute
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
   RestaurantStaffRoute: typeof RestaurantStaffRoute
   RestaurantTablesRoute: typeof RestaurantTablesRoute
@@ -1083,6 +1096,13 @@ declare module '@tanstack/react-router' {
       path: '/restaurant/register'
       fullPath: '/restaurant/register'
       preLoaderRoute: typeof RestaurantRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/reports': {
+      id: '/restaurant/reports'
+      path: '/restaurant/reports'
+      fullPath: '/restaurant/reports'
+      preLoaderRoute: typeof RestaurantReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/settings': {
@@ -1440,6 +1460,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantLoginRoute: RestaurantLoginRoute,
   RestaurantMenuRoute: RestaurantMenuRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
+  RestaurantReportsRoute: RestaurantReportsRoute,
   RestaurantSettingsRoute: RestaurantSettingsRoute,
   RestaurantStaffRoute: RestaurantStaffRoute,
   RestaurantTablesRoute: RestaurantTablesRoute,
