@@ -244,6 +244,7 @@ export function RoomRackTab({ restaurantId, canCreateTask = true }: Props & { ca
                     <Button size="sm" variant="outline" onClick={() => setTaskRoom(r)}>
                       New task
                     </Button>
+                    ) : null}
                   </td>
                 </tr>
               ))
