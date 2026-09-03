@@ -64,7 +64,7 @@ const EVENT_LABEL: Record<string, string> = {
 function PurchaseOrderRoute() {
   const { purchaseOrderId } = Route.useParams();
   return (
-    <RestaurantShell active="Inventory">
+    <RestaurantShell active="Inventory" module="procurement">
       {(m) => <PurchaseOrderPage membership={m} purchaseOrderId={purchaseOrderId} />}
     </RestaurantShell>
   );
