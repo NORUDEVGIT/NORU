@@ -42,7 +42,7 @@ export const Route = createFileRoute("/restaurant/bookings/new")({
   },
   head: () => ({
     meta: [
-      { title: "New Reservation — Booking & Guest Management — NORU" },
+      { title: "New Reservation — Front Office — NORU" },
       {
         name: "description",
         content: "Create a hotel reservation: pick the guest, stay dates, room type and optional room assignment.",
@@ -288,7 +288,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           <p className="mt-3 text-sm text-muted-foreground">Checking availability…</p>
         ) : availability.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            No sellable room types yet. Add them in Rooms & Front Office.
+            No sellable room types yet. Add them in Configuration → Rooms.
           </p>
         ) : (
           <ul className="mt-3 grid gap-3 md:grid-cols-2">

@@ -30,7 +30,7 @@ export const Route = createFileRoute("/restaurant/rooms/in-house")({
   },
   head: () => ({
     meta: [
-      { title: "In-House Guests — Rooms & Front Office — NORU" },
+      { title: "In-House Guests — Front Office — NORU" },
       { name: "description", content: "Guests currently in-house with room move, stay change and check-out actions." },
       { property: "og:title", content: "In-House Guests — NORU" },
       { property: "og:description", content: "Every checked-in stay at your property." },

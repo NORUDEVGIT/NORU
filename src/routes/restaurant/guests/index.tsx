@@ -30,7 +30,7 @@ export const Route = createFileRoute("/restaurant/guests/")({
   },
   head: () => ({
     meta: [
-      { title: "Guests — Booking & Guest Management — NORU" },
+      { title: "Guests — Front Office — NORU" },
       {
         name: "description",
         content: "Create and manage guest profiles, contact details, preferences and guest history in NORU.",
@@ -94,7 +94,7 @@ function GuestsPage({ membership }: { membership: RestaurantMembership }) {
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Booking & Guest Management</h1>
+        <h1 className="font-display text-2xl">Front Office</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access guest profiles for this property.
         </p>

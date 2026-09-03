@@ -46,7 +46,7 @@ export async function requireReservationManager(
 ): Promise<Membership> {
   const me = await callerMembership(context, restaurantId);
   if (!canManageReservations(me.role)) {
-    throw new Error("You don't have access to Booking & Guest Management for this property.");
+    throw new Error("You don't have access to Front Office for this property.");
   }
   return me;
 }
