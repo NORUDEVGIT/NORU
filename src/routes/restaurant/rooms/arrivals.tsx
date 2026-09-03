@@ -36,7 +36,7 @@ export const Route = createFileRoute("/restaurant/rooms/arrivals")({
   },
   head: () => ({
     meta: [
-      { title: "Arrivals — Rooms & Front Office — NORU" },
+      { title: "Arrivals — Front Office — NORU" },
       { name: "description", content: "Today's hotel arrivals with room assignment and check-in for your property." },
       { property: "og:title", content: "Arrivals — NORU" },
       { property: "og:description", content: "Front office arrivals list with check-in actions." },

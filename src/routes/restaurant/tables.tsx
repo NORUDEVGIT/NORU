@@ -94,6 +94,9 @@ function TablesManager({ membership }: { membership: RestaurantMembership }) {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Configuration · Food &amp; Beverage
+          </p>
           <h1 className="font-display text-3xl">Tables & QR Codes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Each table gets its own secure QR code. Guests scan it and order straight to that table.

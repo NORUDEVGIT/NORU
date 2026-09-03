@@ -25,7 +25,7 @@ export const Route = createFileRoute("/restaurant/bookings/")({
   },
   head: () => ({
     meta: [
-      { title: "Booking Dashboard — Booking & Guest Management — NORU" },
+      { title: "Booking Dashboard — Front Office — NORU" },
       {
         name: "description",
         content: "Today's arrivals, departures, in-house stays and pending reservations for your property.",
@@ -79,7 +79,7 @@ function BookingsDashboardPage({ membership }: { membership: RestaurantMembershi
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Booking & Guest Management</h1>
+        <h1 className="font-display text-2xl">Front Office</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access reservations for this property.
         </p>

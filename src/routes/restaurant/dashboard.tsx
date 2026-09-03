@@ -106,7 +106,9 @@ function DashboardBody({ membership }: { membership: RestaurantMembership }) {
       {/* Welcome */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{greeting()}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {greeting()} · Food &amp; Beverage
+          </p>
           <h1 className="font-display text-2xl leading-tight">{restaurant.name}</h1>
           <p className="text-sm text-muted-foreground">Here's what's happening at your restaurant today.</p>
         </div>

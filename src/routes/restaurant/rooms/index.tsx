@@ -28,13 +28,13 @@ export const Route = createFileRoute("/restaurant/rooms/")({
   },
   head: () => ({
     meta: [
-      { title: "Rooms & Front Office — NORU" },
+      { title: "Front Office — NORU" },
       {
         name: "description",
-        content: "Set up room types, rooms, amenities and room imagery for your property in NORU.",
+        content: "Manage arrivals, in-house guests, departures and reservations for your property in NORU.",
       },
-      { property: "og:title", content: "Rooms & Front Office — NORU" },
-      { property: "og:description", content: "Room type and room setup for your property." },
+      { property: "og:title", content: "Front Office — NORU" },
+      { property: "og:description", content: "Daily hotel operations: arrivals, in-house guests, departures and reservations." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -69,32 +69,46 @@ function RoomsPage({ membership }: { membership: RestaurantMembership }) {
     retry: false,
   });
 
-  if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading rooms…</p>;
+  if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading front office…</p>;
   if (!accessQuery.data?.canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Rooms & Front Office</h1>
+        <h1 className="font-display text-2xl">Front Office</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can access room setup for this property.
+          Only owners and managers can access front office operations for this property.
         </p>
       </div>
     );
   }
 
+  const configContext = tab === "room-types" || tab === "rooms";
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl">Rooms & Front Office</h1>
+        {configContext ? (
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Configuration · Rooms
+          </p>
+        ) : null}
+        <h1 className="font-display text-2xl">{configContext ? "Room Types & Rooms" : "Front Office"}</h1>
         <p className="text-sm text-muted-foreground">
-          Room types, rooms and imagery for {membership.restaurant.name}.
+          {configContext
+            ? `Room types, rooms and imagery for ${membership.restaurant.name}.`
+            : `Manage arrivals, in-house guests, departures and reservations for ${membership.restaurant.name}.`}
         </p>
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as RoomsTabKey)}>
         <TabsList>
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="room-types">Room Types</TabsTrigger>
-          <TabsTrigger value="rooms">Rooms</TabsTrigger>
+          {configContext ? (
+            <>
+              <TabsTrigger value="room-types">Room Types</TabsTrigger>
+              <TabsTrigger value="rooms">Rooms</TabsTrigger>
+            </>
+          ) : (
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-4">

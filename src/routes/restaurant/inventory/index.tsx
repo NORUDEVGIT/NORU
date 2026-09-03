@@ -274,9 +274,13 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl">Inventory</h1>
+          <h1 className="font-display text-2xl">
+            {tab === "suppliers" || tab === "purchasing" ? "Procurement" : "Inventory"}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Track ingredients and consumables. Every stock change is recorded in the movement ledger.
+            {tab === "suppliers" || tab === "purchasing"
+              ? "Manage suppliers and purchasing. Every receipt is recorded in the movement ledger."
+              : "Track ingredients and consumables. Every stock change is recorded in the movement ledger."}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
