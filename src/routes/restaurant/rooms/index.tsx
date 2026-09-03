@@ -44,7 +44,13 @@ export const Route = createFileRoute("/restaurant/rooms/")({
 });
 
 function RoomsRoute() {
-  return <RestaurantShell active="Rooms">{(m) => <RoomsPage membership={m} />}</RestaurantShell>;
+  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const configTab = searchTab === "room-types" || searchTab === "rooms";
+  return (
+    <RestaurantShell active="Rooms" module={configTab ? "configuration" : "rooms"}>
+      {(m) => <RoomsPage membership={m} />}
+    </RestaurantShell>
+  );
 }
 
 function RoomsPage({ membership }: { membership: RestaurantMembership }) {
