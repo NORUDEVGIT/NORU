@@ -12,23 +12,25 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  * membership, so a tampered restaurantId can never reach another tenant.
  */
 
-export const STAFF_ROLES = ["owner", "manager", "kitchen", "waiter", "housekeeping"] as const;
-export type StaffRole = (typeof STAFF_ROLES)[number];
+export { STAFF_ROLES, SELECTABLE_STAFF_ROLES, ROLE_LABELS } from "./module-access";
+import { STAFF_ROLES, SELECTABLE_STAFF_ROLES, type StaffRole } from "./module-access";
+export type { StaffRole };
 
 /** Who may open the staff module at all. */
 const MANAGE_ROLES: StaffRole[] = ["owner", "manager"];
 
+const NON_PRIVILEGED = SELECTABLE_STAFF_ROLES.filter(
+  (r) => r !== "owner" && r !== "manager",
+) as StaffRole[];
+
 /** Roles each actor role may create / assign. Enforced server-side. */
-const CREATABLE: Record<StaffRole, StaffRole[]> = {
-  owner: ["owner", "manager", "kitchen", "waiter", "housekeeping"],
-  manager: ["manager", "kitchen", "waiter", "housekeeping"],
-  kitchen: [],
-  waiter: [],
-  housekeeping: [],
+const CREATABLE: Record<string, StaffRole[]> = {
+  owner: [...SELECTABLE_STAFF_ROLES] as StaffRole[],
+  manager: ["manager", ...NON_PRIVILEGED],
 };
 
 const idSchema = z.string().uuid();
-const roleSchema = z.enum(STAFF_ROLES);
+const roleSchema = z.enum(STAFF_ROLES as unknown as [string, ...string[]]).transform((r) => r as StaffRole);
 const emailSchema = z.string().trim().toLowerCase().email().max(254);
 
 export interface StaffMember {
