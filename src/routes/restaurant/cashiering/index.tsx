@@ -67,12 +67,12 @@ function CashieringPage({ membership }: { membership: RestaurantMembership }) {
   });
 
   if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading cashiering…</p>;
-  if (!accessQuery.data?.canManage) {
+  if (!accessQuery.data) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl">Cashiering & Folios</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can access Accounting &amp; Finance for this property.
+          You don't have access to Accounting &amp; Finance for this property.
         </p>
       </div>
     );
