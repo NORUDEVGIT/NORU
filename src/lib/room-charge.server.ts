@@ -26,7 +26,7 @@ const ROOM_CHARGE_ERRORS: Record<string, string> = {
 
 export function roomChargeError(message: string): Error {
   if (/duplicate key value/i.test(message) && message.includes("restaurant_order_once")) {
-    return new Error("This order has already been charged to a room.");
+    return new Error("This order has already been charged to a room, or the charge was reversed.");
   }
   for (const [code, text] of Object.entries(ROOM_CHARGE_ERRORS)) {
     if (message.includes(code)) return new Error(text);
