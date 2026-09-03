@@ -38,11 +38,15 @@ export interface SupplierPermissions {
 const idSchema = z.string().uuid();
 
 async function requireSupplierAccess(context: any, restaurantId: string) {
-  const me = await callerMembership(context, restaurantId);
-  if (!canViewPurchasing(me.role)) {
-    throw new Error("You don't have access to purchasing for this restaurant.");
-  }
-  return me;
+  const { requireModuleRole } = await import("./module-access.server");
+  const { PURCHASING_ROLES } = await import("./module-access");
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "procurement",
+    PURCHASING_ROLES,
+    "You don't have access to purchasing for this restaurant.",
+  );
 }
 
 const supplierFields = {

@@ -5,7 +5,8 @@
  * re-derives the caller's membership; a restaurant id from the browser only
  * selects which membership applies.
  */
-import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { type AuthedCtx, type Membership } from "./workforce.server";
+import { requireModuleRole } from "./module-access.server";
 
 export const RATE_MANAGE_ROLES = ["owner", "manager"] as const;
 
@@ -17,11 +18,13 @@ export function canManageRates(role: string): boolean {
 }
 
 export async function requireRateManager(context: AuthedCtx, restaurantId: string): Promise<Membership> {
-  const me = await callerMembership(context, restaurantId);
-  if (!canManageRates(me.role)) {
-    throw new Error("You don't have access to Rates & Revenue for this property.");
-  }
-  return me;
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "configuration",
+    RATE_MANAGE_ROLES,
+    "You don't have access to Rates & Revenue for this property.",
+  );
 }
 
 export function blankToNull(value: string | null | undefined): string | null {

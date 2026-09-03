@@ -183,4 +183,5 @@ export const FRONT_OFFICE_ROLES = ["owner", "manager", "receptionist"] as const;
 export const CASHIERING_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
 export const CASHIERING_MANAGE_ROLES = ["owner", "manager"] as const;
 export const INVENTORY_ROLES = ["owner", "manager", "kitchen", "storekeeper"] as const;
+export const PURCHASING_ROLES = ["owner", "manager", "storekeeper"] as const;
 export const REPORTS_ROLES = ["owner", "manager", "accountant"] as const;

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { INVENTORY_ROLES } from "./module-access";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership, displayName, getRestaurantSettings } from "./workforce.server";
 import {
@@ -81,11 +82,14 @@ function permissionsFor(role: string): InventoryPermissions {
 }
 
 async function requireInventoryAccess(context: any, restaurantId: string) {
-  const me = await callerMembership(context, restaurantId);
-  if (!canViewInventory(me.role)) {
-    throw new Error("You don't have access to inventory for this restaurant.");
-  }
-  return me;
+  const { requireModuleRole } = await import("./module-access.server");
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "inventory",
+    INVENTORY_ROLES,
+    "You don't have access to inventory for this restaurant.",
+  );
 }
 
 export const listInventoryUnits = createServerFn({ method: "POST" })
