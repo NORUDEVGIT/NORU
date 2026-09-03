@@ -323,9 +323,12 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
 
 export function RestaurantShell({
   active,
+  module,
   children,
 }: {
   active: RestaurantNavLabel;
+  /** Overrides the workspace derived from `active` for pages shared by two modules. */
+  module?: WorkspaceModule;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
