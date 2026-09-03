@@ -124,11 +124,17 @@ function permissionsFor(role: string): PurchasingPermissions {
 }
 
 /** Membership id -> readable staff name, for created-by columns. */
-async function staffNames(admin: any, membershipIds: (string | null)[]): Promise<Map<string, string>> {
+async function staffNames(
+  admin: any,
+  membershipIds: (string | null)[],
+): Promise<Map<string, string>> {
   const ids = [...new Set(membershipIds.filter(Boolean))] as string[];
   const names = new Map<string, string>();
   if (ids.length === 0) return names;
-  const { data: members } = await admin.from("restaurant_users").select("id, user_id").in("id", ids);
+  const { data: members } = await admin
+    .from("restaurant_users")
+    .select("id, user_id")
+    .in("id", ids);
   const userIds = (members ?? []).map((m: any) => m.user_id);
   const { data: profiles } = userIds.length
     ? await admin.from("profiles").select("id, first_name, last_name, email").in("id", userIds)
@@ -165,7 +171,13 @@ export const listPurchaseOrders = createServerFn({ method: "POST" })
       timezone: string;
       currencyCode: string;
       orders: PurchaseOrderSummary[];
-      kpis: { open: number; awaitingDelivery: number; partiallyReceived: number; receivedInPeriod: number; valueInPeriod: number };
+      kpis: {
+        open: number;
+        awaitingDelivery: number;
+        partiallyReceived: number;
+        receivedInPeriod: number;
+        valueInPeriod: number;
+      };
     }> => {
       const me = await requirePurchasingAccess(context, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -198,7 +210,10 @@ export const listPurchaseOrders = createServerFn({ method: "POST" })
 
       const poIds = (rows ?? []).map((r) => r.id);
       const { data: lines } = poIds.length
-        ? await supabaseAdmin.from("purchase_order_items").select("purchase_order_id").in("purchase_order_id", poIds)
+        ? await supabaseAdmin
+            .from("purchase_order_items")
+            .select("purchase_order_id")
+            .in("purchase_order_id", poIds)
         : { data: [] as any[] };
       const lineCount = new Map<string, number>();
       for (const l of (lines ?? []) as any[]) {
@@ -222,13 +237,14 @@ export const listPurchaseOrders = createServerFn({ method: "POST" })
           expectedDeliveryDate: r.expected_delivery_date,
           total: Number(r.total),
           createdBy: r.created_by_staff_membership_id
-            ? names.get(r.created_by_staff_membership_id) ?? null
+            ? (names.get(r.created_by_staff_membership_id) ?? null)
             : null,
           lineCount: lineCount.get(r.id) ?? 0,
         }))
         .filter((o) =>
           search
-            ? o.poNumber.toLowerCase().includes(search) || o.supplierName.toLowerCase().includes(search)
+            ? o.poNumber.toLowerCase().includes(search) ||
+              o.supplierName.toLowerCase().includes(search)
             : true,
         );
 
@@ -284,7 +300,9 @@ export const getPurchaseOrder = createServerFn({ method: "POST" })
     const [{ data: lines }, { data: units }, { data: history }] = await Promise.all([
       supabaseAdmin
         .from("purchase_order_items")
-        .select("id, inventory_item_id, item_name_snapshot, unit_id, ordered_quantity, received_quantity, unit_cost, line_total")
+        .select(
+          "id, inventory_item_id, item_name_snapshot, unit_id, ordered_quantity, received_quantity, unit_cost, line_total",
+        )
         .eq("purchase_order_id", po.id)
         .eq("restaurant_id", data.restaurantId)
         .order("created_at", { ascending: true }),
@@ -320,8 +338,12 @@ export const getPurchaseOrder = createServerFn({ method: "POST" })
       notes: po.notes,
       subtotal: Number(po.subtotal),
       total: Number(po.total),
-      createdBy: po.created_by_staff_membership_id ? names.get(po.created_by_staff_membership_id) ?? null : null,
-      orderedBy: po.ordered_by_staff_membership_id ? names.get(po.ordered_by_staff_membership_id) ?? null : null,
+      createdBy: po.created_by_staff_membership_id
+        ? (names.get(po.created_by_staff_membership_id) ?? null)
+        : null,
+      orderedBy: po.ordered_by_staff_membership_id
+        ? (names.get(po.ordered_by_staff_membership_id) ?? null)
+        : null,
       createdAt: po.created_at,
       lines: (lines ?? []).map((l) => {
         const ordered = Number(l.ordered_quantity);
@@ -343,7 +365,9 @@ export const getPurchaseOrder = createServerFn({ method: "POST" })
         id: h.id,
         eventType: h.event_type,
         notes: h.notes,
-        createdBy: h.created_by_staff_membership_id ? names.get(h.created_by_staff_membership_id) ?? null : null,
+        createdBy: h.created_by_staff_membership_id
+          ? (names.get(h.created_by_staff_membership_id) ?? null)
+          : null,
         createdAt: h.created_at,
       })),
     };
@@ -398,7 +422,10 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
-      return { ok: false as const, message: "Only owners and managers can create purchase orders." };
+      return {
+        ok: false as const,
+        message: "Only owners and managers can create purchase orders.",
+      };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
@@ -409,7 +436,11 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
 
     try {
       if (data.purchaseOrderId) {
-        const existing = await loadPurchaseOrder(supabaseAdmin, data.restaurantId, data.purchaseOrderId);
+        const existing = await loadPurchaseOrder(
+          supabaseAdmin,
+          data.restaurantId,
+          data.purchaseOrderId,
+        );
         if (!isEditable(existing.status)) {
           return { ok: false as const, message: "Only draft purchase orders can be edited." };
         }
@@ -419,7 +450,9 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
           .delete()
           .eq("purchase_order_id", existing.id)
           .eq("restaurant_id", data.restaurantId);
-        const { error: lineError } = await supabaseAdmin.from("purchase_order_items").insert(rows as never);
+        const { error: lineError } = await supabaseAdmin
+          .from("purchase_order_items")
+          .insert(rows as never);
         if (lineError) throw new Error(lineError.message);
 
         await supabaseAdmin
@@ -461,7 +494,9 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
       if (error || !created) throw new Error(error?.message ?? "insert failed");
 
       const rows = await buildLineRows(supabaseAdmin, data.restaurantId, created.id, data.lines);
-      const { error: lineError } = await supabaseAdmin.from("purchase_order_items").insert(rows as never);
+      const { error: lineError } = await supabaseAdmin
+        .from("purchase_order_items")
+        .insert(rows as never);
       if (lineError) {
         await supabaseAdmin.from("purchase_orders").delete().eq("id", created.id);
         throw new Error(lineError.message);
@@ -479,7 +514,10 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
       const message = (e as Error).message;
       console.error("[savePurchaseOrder]", message);
       if (/inactive|could not be found/i.test(message)) return { ok: false as const, message };
-      return { ok: false as const, message: "We couldn't save that purchase order. Please try again." };
+      return {
+        ok: false as const,
+        message: "We couldn't save that purchase order. Please try again.",
+      };
     }
   });
 
@@ -498,14 +536,20 @@ export const updatePurchaseOrderStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
-      return { ok: false as const, message: "Only owners and managers can change a purchase order." };
+      return {
+        ok: false as const,
+        message: "Only owners and managers can change a purchase order.",
+      };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const po = await loadPurchaseOrder(supabaseAdmin, data.restaurantId, data.purchaseOrderId);
 
     if (data.action === "order") {
       if (po.status !== "draft") {
-        return { ok: false as const, message: "Only draft purchase orders can be marked as ordered." };
+        return {
+          ok: false as const,
+          message: "Only draft purchase orders can be marked as ordered.",
+        };
       }
       const { data: lines } = await supabaseAdmin
         .from("purchase_order_items")
@@ -538,7 +582,10 @@ export const updatePurchaseOrderStatus = createServerFn({ method: "POST" })
       .select("received_quantity")
       .eq("purchase_order_id", po.id);
     if ((received ?? []).some((l: any) => Number(l.received_quantity) > 0)) {
-      return { ok: false as const, message: "Goods have already been received against this order." };
+      return {
+        ok: false as const,
+        message: "Goods have already been received against this order.",
+      };
     }
     await supabaseAdmin
       .from("purchase_orders")
@@ -566,7 +613,9 @@ export const receiveGoods = createServerFn({ method: "POST" })
         purchaseOrderId: idSchema,
         notes: z.string().trim().max(300).nullable().optional(),
         lines: z
-          .array(z.object({ lineId: idSchema, quantity: z.number().finite().min(0).max(1_000_000) }))
+          .array(
+            z.object({ lineId: idSchema, quantity: z.number().finite().min(0).max(1_000_000) }),
+          )
           .min(1)
           .max(100),
       })

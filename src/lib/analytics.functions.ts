@@ -82,7 +82,20 @@ function hourKey(d: Date): string {
 }
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 function pct(current: number, previous: number): number | null {
   if (previous <= 0) return null;
@@ -219,7 +232,11 @@ export const getRestaurantAnalytics = createServerFn({ method: "GET" })
         previousOrderValue: Number(previousValue.toFixed(2)),
         previousOrders,
         label:
-          data.period === "today" ? "vs yesterday" : data.period === "7d" ? "vs previous 7 days" : "vs previous 30 days",
+          data.period === "today"
+            ? "vs yesterday"
+            : data.period === "7d"
+              ? "vs previous 7 days"
+              : "vs previous 30 days",
       },
       series: [...buckets.values()],
       statuses: STATUS_ORDER.map((status) => ({ status, count: statusCounts.get(status) ?? 0 })),

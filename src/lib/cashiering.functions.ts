@@ -261,7 +261,9 @@ export const getFolio = createServerFn({ method: "GET" })
 
     const { data: txns } = await supabaseAdmin
       .from("folio_transactions")
-      .select("id, folio_id, transaction_type, category, description, amount, posted_at, reference_type")
+      .select(
+        "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type",
+      )
       .eq("restaurant_id", data.restaurantId)
       .eq("folio_id", f.id)
       .order("posted_at", { ascending: true });
@@ -304,7 +306,10 @@ export const getReservationFolio = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(d),
   )
   .handler(
-    async ({ data, context }): Promise<{ id: string; folioNumber: string; balance: number } | null> => {
+    async ({
+      data,
+      context,
+    }): Promise<{ id: string; folioNumber: string; balance: number } | null> => {
       await requireCashieringAccess(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: row } = await supabaseAdmin
@@ -320,7 +325,9 @@ export const getReservationFolio = createServerFn({ method: "GET" })
         .select("amount")
         .eq("restaurant_id", data.restaurantId)
         .eq("folio_id", folio.id);
-      const sums = totals(((txns ?? []) as { amount: number | string }[]).map((t) => ({ amount: Number(t.amount) })));
+      const sums = totals(
+        ((txns ?? []) as { amount: number | string }[]).map((t) => ({ amount: Number(t.amount) })),
+      );
       return { id: folio.id, folioNumber: folio.folio_number, balance: sums.balance };
     },
   );
@@ -328,9 +335,7 @@ export const getReservationFolio = createServerFn({ method: "GET" })
 export const getCashieringDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string; today: string }) =>
-    z
-      .object({ restaurantId: idSchema, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
-      .parse(d),
+    z.object({ restaurantId: idSchema, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashieringDashboard> => {
     const me = await requireCashieringAccess(context as never, data.restaurantId);
@@ -358,7 +363,10 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
         .eq("restaurant_id", data.restaurantId)
         .in("folio_id", openIds);
       outstanding = round2(
-        ((txns ?? []) as { amount: number | string }[]).reduce((sum, t) => sum + Number(t.amount), 0),
+        ((txns ?? []) as { amount: number | string }[]).reduce(
+          (sum, t) => sum + Number(t.amount),
+          0,
+        ),
       );
     }
 
@@ -373,7 +381,8 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
     let todayCharges = 0;
     for (const t of (todayTxns ?? []) as { transaction_type: string; amount: number | string }[]) {
       const amount = Number(t.amount);
-      if (t.transaction_type === "payment" || t.transaction_type === "deposit") todayPayments += -amount;
+      if (t.transaction_type === "payment" || t.transaction_type === "deposit")
+        todayPayments += -amount;
       if (t.transaction_type === "charge") todayCharges += amount;
     }
 
@@ -488,7 +497,6 @@ export const postFolioEntry = createServerFn({ method: "POST" })
     }
 
     return { ok: true, id: (txn as { id: string }).id };
-
   });
 
 export const closeFolio = createServerFn({ method: "POST" })
@@ -548,8 +556,18 @@ export const listCashierShifts = createServerFn({ method: "GET" })
         ? await supabaseAdmin
             .from("profiles")
             .select("id, first_name, last_name, email")
-            .in("id", memberRows.map((m) => m.user_id))
-        : { data: [] as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }> };
+            .in(
+              "id",
+              memberRows.map((m) => m.user_id),
+            )
+        : {
+            data: [] as Array<{
+              id: string;
+              first_name: string | null;
+              last_name: string | null;
+              email: string | null;
+            }>,
+          };
       const byUser = new Map(
         (profiles ?? []).map((p) => [
           p.id,
@@ -598,15 +616,16 @@ export const openCashierShift = createServerFn({ method: "POST" })
 
 export const closeCashierShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; shiftId: string; closingCash: number; notes?: string }) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        shiftId: idSchema,
-        closingCash: z.number().min(0),
-        notes: z.string().max(300).optional(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: { restaurantId: string; shiftId: string; closingCash: number; notes?: string }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          shiftId: idSchema,
+          closingCash: z.number().min(0),
+          notes: z.string().max(300).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
     const me = await requireCashierOperator(context as never, data.restaurantId);

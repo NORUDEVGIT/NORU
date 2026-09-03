@@ -182,8 +182,10 @@ async function occupancyMap(supabase: any, restaurantId: string) {
   }>) {
     if (!row.room_id) continue;
     const name =
-      [row.guest_profiles?.first_name, row.guest_profiles?.last_name].filter(Boolean).join(" ").trim() ||
-      "Guest";
+      [row.guest_profiles?.first_name, row.guest_profiles?.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || "Guest";
     map.set(row.room_id, name);
   }
   return map;
@@ -194,8 +196,14 @@ async function staffNames(supabase: any, restaurantId: string) {
     .from("restaurant_users")
     .select("id, user_id, role, active")
     .eq("restaurant_id", restaurantId);
-  const memberships = (data ?? []) as Array<{ id: string; user_id: string; role: string; active: boolean }>;
-  if (memberships.length === 0) return new Map<string, { name: string; role: string; active: boolean }>();
+  const memberships = (data ?? []) as Array<{
+    id: string;
+    user_id: string;
+    role: string;
+    active: boolean;
+  }>;
+  if (memberships.length === 0)
+    return new Map<string, { name: string; role: string; active: boolean }>();
 
   const { data: profiles } = await supabase
     .from("profiles")
@@ -205,12 +213,14 @@ async function staffNames(supabase: any, restaurantId: string) {
       memberships.map((m) => m.user_id),
     );
   const byUser = new Map(
-    ((profiles ?? []) as Array<{
-      id: string;
-      first_name: string | null;
-      last_name: string | null;
-      email: string | null;
-    }>).map((p) => [
+    (
+      (profiles ?? []) as Array<{
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+      }>
+    ).map((p) => [
       p.id,
       [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Staff member",
     ]),
@@ -230,9 +240,8 @@ export const getHousekeepingAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingAccess> => {
-    const { requireHousekeepingAccess, canManageHousekeeping, housekeepingScope } = await import(
-      "./housekeeping.server"
-    );
+    const { requireHousekeepingAccess, canManageHousekeeping, housekeepingScope } =
+      await import("./housekeeping.server");
     const me = await requireHousekeepingAccess(context as never, data.restaurantId);
     return {
       canManage: canManageHousekeeping(me.role),
@@ -249,7 +258,10 @@ export const listHousekeepingStaff = createServerFn({ method: "POST" })
     await requireHousekeepingManager(context as never, data.restaurantId);
     const names = await staffNames(context.supabase, data.restaurantId);
     return Array.from(names.entries())
-      .filter(([, v]) => v.active && (HOUSEKEEPING_ASSIGNABLE_ROLES as readonly string[]).includes(v.role))
+      .filter(
+        ([, v]) =>
+          v.active && (HOUSEKEEPING_ASSIGNABLE_ROLES as readonly string[]).includes(v.role),
+      )
       .map(([membershipId, v]) => ({ membershipId, name: v.name, role: v.role }))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
@@ -272,7 +284,11 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const occupied = await occupancyMap(context.supabase, data.restaurantId);
-    const list = (rooms ?? []) as Array<{ id: string; status: RoomRestriction; housekeeping_status: HkStatus }>;
+    const list = (rooms ?? []) as Array<{
+      id: string;
+      status: RoomRestriction;
+      housekeeping_status: HkStatus;
+    }>;
 
     const [pendingCleaning, pendingInspection] = await Promise.all([
       context.supabase
@@ -334,18 +350,24 @@ export const listRoomRack = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .in("status", ["pending", "assigned", "in_progress"]);
     const openByRoom = new Map(
-      ((tasks ?? []) as Array<{
-        id: string;
-        room_id: string;
-        status: TaskStatus;
-        assigned_membership_id: string | null;
-      }>).map((t) => [t.room_id, t]),
+      (
+        (tasks ?? []) as Array<{
+          id: string;
+          room_id: string;
+          status: TaskStatus;
+          assigned_membership_id: string | null;
+        }>
+      ).map((t) => [t.room_id, t]),
     );
 
-    return ((rooms ?? []) as unknown as Array<RoomRow & {
-      restriction_reason: string | null;
-      restriction_expected_return: string | null;
-    }>).map((room) => {
+    return (
+      (rooms ?? []) as unknown as Array<
+        RoomRow & {
+          restriction_reason: string | null;
+          restriction_expected_return: string | null;
+        }
+      >
+    ).map((room) => {
       const task = openByRoom.get(room.id);
       const guestName = rackScope === "supervisor" ? (occupied.get(room.id) ?? null) : null;
       const isOccupied = occupied.has(room.id);
@@ -404,19 +426,21 @@ export const listHousekeepingTasks = createServerFn({ method: "POST" })
 
     const names = await staffNames(context.supabase, data.restaurantId);
 
-    return ((rows ?? []) as unknown as Array<{
-      id: string;
-      room_id: string;
-      task_type: TaskType;
-      status: TaskStatus;
-      priority: TaskPriority;
-      assigned_membership_id: string | null;
-      notes: string | null;
-      created_at: string;
-      started_at: string | null;
-      completed_at: string | null;
-      hotel_rooms: { room_number: string; room_types: { name: string } | null } | null;
-    }>).map((t) => ({
+    return (
+      (rows ?? []) as unknown as Array<{
+        id: string;
+        room_id: string;
+        task_type: TaskType;
+        status: TaskStatus;
+        priority: TaskPriority;
+        assigned_membership_id: string | null;
+        notes: string | null;
+        created_at: string;
+        started_at: string | null;
+        completed_at: string | null;
+        hotel_rooms: { room_number: string; room_types: { name: string } | null } | null;
+      }>
+    ).map((t) => ({
       id: t.id,
       roomId: t.room_id,
       roomNumber: t.hotel_rooms?.room_number ?? "—",
@@ -507,7 +531,11 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
     if (data.action === "assign") {
       if (!data.assigneeMembershipId) throw new Error("Pick a staff member to assign.");
       const { loadMembership } = await import("./workforce.server");
-      const assignee = await loadMembership(supabaseAdmin, data.restaurantId, data.assigneeMembershipId);
+      const assignee = await loadMembership(
+        supabaseAdmin,
+        data.restaurantId,
+        data.assigneeMembershipId,
+      );
       if (!assignee.active) throw new Error("That staff member is inactive.");
       if (!(HOUSEKEEPING_ASSIGNABLE_ROLES as readonly string[]).includes(assignee.role)) {
         throw new Error("That staff member can't be assigned housekeeping tasks.");
@@ -528,7 +556,10 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
         restaurantId: data.restaurantId,
         roomId: task.room_id,
         eventType: "task_assigned",
-        previousValues: { status: task.status, assigned_membership_id: task.assigned_membership_id },
+        previousValues: {
+          status: task.status,
+          assigned_membership_id: task.assigned_membership_id,
+        },
         newValues: { status: nextStatus, assigned_membership_id: assignee.id, task_id: task.id },
         actorMembershipId: me.id,
       });
@@ -617,16 +648,18 @@ export const listInspections = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const names = await staffNames(context.supabase, data.restaurantId);
-    return ((rows ?? []) as unknown as Array<{
-      id: string;
-      room_id: string;
-      status: "pending" | "passed" | "failed";
-      notes: string | null;
-      created_at: string;
-      completed_at: string | null;
-      inspector_membership_id: string | null;
-      hotel_rooms: { room_number: string } | null;
-    }>).map((r) => ({
+    return (
+      (rows ?? []) as unknown as Array<{
+        id: string;
+        room_id: string;
+        status: "pending" | "passed" | "failed";
+        notes: string | null;
+        created_at: string;
+        completed_at: string | null;
+        inspector_membership_id: string | null;
+        hotel_rooms: { room_number: string } | null;
+      }>
+    ).map((r) => ({
       id: r.id,
       roomId: r.room_id,
       roomNumber: r.hotel_rooms?.room_number ?? "—",
@@ -719,19 +752,21 @@ export const listDiscrepancies = createServerFn({ method: "POST" })
       .limit(200);
     if (error) throw new Error(error.message);
 
-    return ((rows ?? []) as unknown as Array<{
-      id: string;
-      room_id: string;
-      reported_occupancy: string | null;
-      actual_occupancy: string | null;
-      reported_hk_status: string | null;
-      actual_hk_status: string | null;
-      reason: string | null;
-      status: "open" | "resolved";
-      created_at: string;
-      resolved_at: string | null;
-      hotel_rooms: { room_number: string } | null;
-    }>).map((r) => ({
+    return (
+      (rows ?? []) as unknown as Array<{
+        id: string;
+        room_id: string;
+        reported_occupancy: string | null;
+        actual_occupancy: string | null;
+        reported_hk_status: string | null;
+        actual_hk_status: string | null;
+        reason: string | null;
+        status: "open" | "resolved";
+        created_at: string;
+        resolved_at: string | null;
+        hotel_rooms: { room_number: string } | null;
+      }>
+    ).map((r) => ({
       id: r.id,
       roomId: r.room_id,
       roomNumber: r.hotel_rooms?.room_number ?? "—",
@@ -800,7 +835,13 @@ export const createDiscrepancy = createServerFn({ method: "POST" })
 export const resolveDiscrepancy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, discrepancyId: idSchema, notes: z.string().max(500).optional() }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        discrepancyId: idSchema,
+        notes: z.string().max(500).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireHousekeepingManager(context as never, data.restaurantId);
@@ -854,17 +895,19 @@ export const listMaintenanceRequests = createServerFn({ method: "POST" })
       .limit(200);
     if (error) throw new Error(error.message);
 
-    return ((rows ?? []) as unknown as Array<{
-      id: string;
-      room_id: string;
-      category: MaintenanceCategory;
-      priority: TaskPriority;
-      description: string;
-      status: "open" | "in_progress" | "resolved";
-      created_at: string;
-      resolved_at: string | null;
-      hotel_rooms: { room_number: string } | null;
-    }>).map((r) => ({
+    return (
+      (rows ?? []) as unknown as Array<{
+        id: string;
+        room_id: string;
+        category: MaintenanceCategory;
+        priority: TaskPriority;
+        description: string;
+        status: "open" | "in_progress" | "resolved";
+        created_at: string;
+        resolved_at: string | null;
+        hotel_rooms: { room_number: string } | null;
+      }>
+    ).map((r) => ({
       id: r.id,
       roomId: r.room_id,
       roomNumber: r.hotel_rooms?.room_number ?? "—",
@@ -991,17 +1034,19 @@ export const listHousekeepingHistory = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const names = await staffNames(context.supabase, data.restaurantId);
-    return ((rows ?? []) as unknown as Array<{
-      id: string;
-      room_id: string | null;
-      event_type: string;
-      previous_values: Record<string, unknown> | null;
-      new_values: Record<string, unknown> | null;
-      notes: string | null;
-      actor_membership_id: string | null;
-      created_at: string;
-      hotel_rooms: { room_number: string } | null;
-    }>).map((r) => ({
+    return (
+      (rows ?? []) as unknown as Array<{
+        id: string;
+        room_id: string | null;
+        event_type: string;
+        previous_values: Record<string, unknown> | null;
+        new_values: Record<string, unknown> | null;
+        notes: string | null;
+        actor_membership_id: string | null;
+        created_at: string;
+        hotel_rooms: { room_number: string } | null;
+      }>
+    ).map((r) => ({
       id: r.id,
       roomId: r.room_id,
       roomNumber: r.hotel_rooms?.room_number ?? null,

@@ -53,7 +53,13 @@ export async function requireCashieringAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(context, restaurantId, "accounting_finance", CASHIER_ACCESS_ROLES, NO_ACCESS);
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "accounting_finance",
+    CASHIER_ACCESS_ROLES,
+    NO_ACCESS,
+  );
 }
 
 /** Cash-handling actions: payments, deposits, own cashier shift. */
@@ -61,7 +67,13 @@ export async function requireCashierOperator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(context, restaurantId, "accounting_finance", CASHIER_OPERATE_ROLES, NO_PERMISSION);
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "accounting_finance",
+    CASHIER_OPERATE_ROLES,
+    NO_PERMISSION,
+  );
 }
 
 /** Sensitive corrections and night audit: owner/manager only. */
@@ -69,7 +81,13 @@ export async function requireCashierManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(context, restaurantId, "accounting_finance", CASHIER_MANAGE_ROLES, NO_PERMISSION);
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "accounting_finance",
+    CASHIER_MANAGE_ROLES,
+    NO_PERMISSION,
+  );
 }
 
 export function blankToNull(value: string | null | undefined): string | null {

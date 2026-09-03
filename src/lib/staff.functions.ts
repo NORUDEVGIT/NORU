@@ -30,7 +30,9 @@ const CREATABLE: Record<string, StaffRole[]> = {
 };
 
 const idSchema = z.string().uuid();
-const roleSchema = z.enum(STAFF_ROLES as unknown as [string, ...string[]]).transform((r) => r as StaffRole);
+const roleSchema = z
+  .enum(STAFF_ROLES as unknown as [string, ...string[]])
+  .transform((r) => r as StaffRole);
 const emailSchema = z.string().trim().toLowerCase().email().max(254);
 
 export interface StaffMember {
@@ -154,7 +156,12 @@ export const listStaff = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<{ role: StaffRole; canAssign: StaffRole[]; staff: StaffMember[]; audit: StaffAuditEntry[] }> => {
+    }): Promise<{
+      role: StaffRole;
+      canAssign: StaffRole[];
+      staff: StaffMember[];
+      audit: StaffAuditEntry[];
+    }> => {
       const role = await callerRole(context, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -168,7 +175,9 @@ export const listStaff = createServerFn({ method: "POST" })
       const memberships = rows ?? [];
       const { data: auditRows } = await supabaseAdmin
         .from("restaurant_staff_audit_log")
-        .select("id, action, actor_user_id, target_user_id, old_role, new_role, old_active, new_active, created_at")
+        .select(
+          "id, action, actor_user_id, target_user_id, old_role, new_role, old_active, new_active, created_at",
+        )
         .eq("restaurant_id", data.restaurantId)
         .order("created_at", { ascending: false })
         .limit(15);
@@ -207,8 +216,12 @@ export const listStaff = createServerFn({ method: "POST" })
         audit: (auditRows ?? []).map((a) => ({
           id: a.id,
           action: a.action,
-          actorName: a.actor_user_id ? (profiles.get(a.actor_user_id)?.name ?? "A team member") : null,
-          targetName: a.target_user_id ? (profiles.get(a.target_user_id)?.name ?? "a staff member") : null,
+          actorName: a.actor_user_id
+            ? (profiles.get(a.actor_user_id)?.name ?? "A team member")
+            : null,
+          targetName: a.target_user_id
+            ? (profiles.get(a.target_user_id)?.name ?? "a staff member")
+            : null,
           oldRole: a.old_role,
           newRole: a.new_role,
           oldActive: a.old_active,
@@ -274,11 +287,15 @@ export const createStaff = createServerFn({ method: "POST" })
         if (createError && /already|registered|exists/i.test(createError.message)) {
           return {
             ok: false as const,
-            message: "An account already exists for that email. Ask them to log in once, then add them again.",
+            message:
+              "An account already exists for that email. Ask them to log in once, then add them again.",
           };
         }
         console.error("[createStaff] auth", createError?.message);
-        return { ok: false as const, message: "We couldn't create that staff account. Please try again." };
+        return {
+          ok: false as const,
+          message: "We couldn't create that staff account. Please try again.",
+        };
       }
       userId = created.user.id;
       createdAuthUser = true;
@@ -395,7 +412,11 @@ export const changeStaffRole = createServerFn({ method: "POST" })
     if (target.role === data.role) return { ok: true as const, unchanged: true };
 
     // Last-owner protection covers demotion, including self-demotion.
-    if (target.role === "owner" && target.active && (await countActiveOwners(supabaseAdmin, data.restaurantId)) <= 1) {
+    if (
+      target.role === "owner" &&
+      target.active &&
+      (await countActiveOwners(supabaseAdmin, data.restaurantId)) <= 1
+    ) {
       return { ok: false as const, message: "At least one active owner is required." };
     }
 
@@ -449,7 +470,10 @@ export const setStaffActive = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     if (error) {
       console.error("[setStaffActive]", error.message);
-      return { ok: false as const, message: "We couldn't update that staff member. Please try again." };
+      return {
+        ok: false as const,
+        message: "We couldn't update that staff member. Please try again.",
+      };
     }
 
     await audit(supabaseAdmin, {

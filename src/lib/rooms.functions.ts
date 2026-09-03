@@ -75,7 +75,11 @@ export const getRoomsAccess = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireFrontOfficeAccess(context as never, data.restaurantId);
-    return { role: me.role, canManage: canAccessFrontOffice(me.role), canConfigure: canManageRooms(me.role) };
+    return {
+      role: me.role,
+      canManage: canAccessFrontOffice(me.role),
+      canConfigure: canManageRooms(me.role),
+    };
   });
 
 /* ------------------------------------------------------------------ amenities */
@@ -93,9 +97,9 @@ export const listRoomAmenities = createServerFn({ method: "POST" })
       .order("name");
 
     if (!existing || existing.length === 0) {
-      await context.supabase.from("room_amenities").insert(
-        DEFAULT_AMENITIES.map((name) => ({ restaurant_id: data.restaurantId, name })),
-      );
+      await context.supabase
+        .from("room_amenities")
+        .insert(DEFAULT_AMENITIES.map((name) => ({ restaurant_id: data.restaurantId, name })));
       const { data: seeded } = await context.supabase
         .from("room_amenities")
         .select("id, name, active")
@@ -124,19 +128,24 @@ export const listRoomTypes = createServerFn({ method: "POST" })
       .order("code");
     if (!data.includeInactive) query = query.eq("active", true);
 
-    const [{ data: types }, { data: rooms }, { data: links }, { data: images }] = await Promise.all([
-      query,
-      context.supabase.from("hotel_rooms").select("id, room_type_id").eq("restaurant_id", data.restaurantId),
-      context.supabase
-        .from("room_type_amenities")
-        .select("room_type_id, amenity_id")
-        .eq("restaurant_id", data.restaurantId),
-      context.supabase
-        .from("room_type_images")
-        .select("room_type_id, storage_path, is_cover, display_order")
-        .eq("restaurant_id", data.restaurantId)
-        .order("display_order"),
-    ]);
+    const [{ data: types }, { data: rooms }, { data: links }, { data: images }] = await Promise.all(
+      [
+        query,
+        context.supabase
+          .from("hotel_rooms")
+          .select("id, room_type_id")
+          .eq("restaurant_id", data.restaurantId),
+        context.supabase
+          .from("room_type_amenities")
+          .select("room_type_id, amenity_id")
+          .eq("restaurant_id", data.restaurantId),
+        context.supabase
+          .from("room_type_images")
+          .select("room_type_id, storage_path, is_cover, display_order")
+          .eq("restaurant_id", data.restaurantId)
+          .order("display_order"),
+      ],
+    );
 
     const counts = new Map<string, number>();
     for (const r of rooms ?? []) counts.set(r.room_type_id, (counts.get(r.room_type_id) ?? 0) + 1);
@@ -149,7 +158,8 @@ export const listRoomTypes = createServerFn({ method: "POST" })
     const coverPath = new Map<string, string>();
     for (const img of images ?? []) {
       if (!coverPath.has(img.room_type_id) || img.is_cover) {
-        if (img.is_cover || !coverPath.has(img.room_type_id)) coverPath.set(img.room_type_id, img.storage_path);
+        if (img.is_cover || !coverPath.has(img.room_type_id))
+          coverPath.set(img.room_type_id, img.storage_path);
       }
     }
     const signed = await signRoomImages([...coverPath.values()]);
@@ -224,7 +234,10 @@ export const saveRoomType = createServerFn({ method: "POST" })
       if (error) {
         return {
           ok: false as const,
-          message: error.code === "23505" ? "That room type code is already used." : "Could not save the room type.",
+          message:
+            error.code === "23505"
+              ? "That room type code is already used."
+              : "Could not save the room type.",
         };
       }
     } else {
@@ -236,7 +249,10 @@ export const saveRoomType = createServerFn({ method: "POST" })
       if (error || !created) {
         return {
           ok: false as const,
-          message: error?.code === "23505" ? "That room type code is already used." : "Could not create the room type.",
+          message:
+            error?.code === "23505"
+              ? "That room type code is already used."
+              : "Could not create the room type.",
         };
       }
       roomTypeId = created.id;
@@ -248,7 +264,10 @@ export const saveRoomType = createServerFn({ method: "POST" })
         .from("room_amenities")
         .select("id")
         .eq("restaurant_id", data.restaurantId)
-        .in("id", data.amenityIds.length > 0 ? data.amenityIds : ["00000000-0000-0000-0000-000000000000"]);
+        .in(
+          "id",
+          data.amenityIds.length > 0 ? data.amenityIds : ["00000000-0000-0000-0000-000000000000"],
+        );
       const allowed = (valid ?? []).map((a) => a.id);
 
       await context.supabase
@@ -362,7 +381,8 @@ export const saveRoom = createServerFn({ method: "POST" })
       .eq("id", data.roomTypeId)
       .eq("restaurant_id", data.restaurantId)
       .maybeSingle();
-    if (!type) return { ok: false as const, message: "That room type doesn't belong to this property." };
+    if (!type)
+      return { ok: false as const, message: "That room type doesn't belong to this property." };
 
     const payload = {
       restaurant_id: data.restaurantId,
@@ -391,7 +411,8 @@ export const saveRoom = createServerFn({ method: "POST" })
     if (error) {
       return {
         ok: false as const,
-        message: error.code === "23505" ? "That room number already exists." : "Could not save the room.",
+        message:
+          error.code === "23505" ? "That room number already exists." : "Could not save the room.",
       };
     }
     return { ok: true as const };
@@ -451,7 +472,11 @@ export const createRoomTypeImageUpload = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         roomTypeId: idSchema,
         contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-        size: z.number().int().positive().max(8 * 1024 * 1024),
+        size: z
+          .number()
+          .int()
+          .positive()
+          .max(8 * 1024 * 1024),
       })
       .parse(input),
   )
@@ -463,11 +488,18 @@ export const createRoomTypeImageUpload = createServerFn({ method: "POST" })
       .eq("id", data.roomTypeId)
       .eq("restaurant_id", data.restaurantId)
       .maybeSingle();
-    if (!type) return { ok: false as const, message: "That room type doesn't belong to this property." };
+    if (!type)
+      return { ok: false as const, message: "That room type doesn't belong to this property." };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const path = roomTypeImagePath(data.restaurantId, data.roomTypeId, IMAGE_EXT_BY_TYPE[data.contentType]!);
-    const { data: signed, error } = await supabaseAdmin.storage.from(ROOM_BUCKET).createSignedUploadUrl(path);
+    const path = roomTypeImagePath(
+      data.restaurantId,
+      data.roomTypeId,
+      IMAGE_EXT_BY_TYPE[data.contentType]!,
+    );
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from(ROOM_BUCKET)
+      .createSignedUploadUrl(path);
     if (error || !signed) return { ok: false as const, message: "Could not start the upload." };
     return { ok: true as const, path, token: signed.token };
   });
@@ -591,7 +623,10 @@ export const deleteRoomTypeImage = createServerFn({ method: "POST" })
         .order("display_order")
         .limit(1);
       if (next && next[0]) {
-        await context.supabase.from("room_type_images").update({ is_cover: true }).eq("id", next[0].id);
+        await context.supabase
+          .from("room_type_images")
+          .update({ is_cover: true })
+          .eq("id", next[0].id);
       }
     }
     return { ok: true as const };
@@ -638,6 +673,10 @@ export const getRoomsDashboard = createServerFn({ method: "POST" })
       availableRooms: all.filter((r) => r.active && r.status === "available").length,
       outOfOrder: all.filter((r) => r.status === "out_of_order").length,
       outOfService: all.filter((r) => r.status === "out_of_service").length,
-      byType: (types ?? []).map((t) => ({ name: t.name, code: t.code, count: counts.get(t.id) ?? 0 })),
+      byType: (types ?? []).map((t) => ({
+        name: t.name,
+        code: t.code,
+        count: counts.get(t.id) ?? 0,
+      })),
     };
   });

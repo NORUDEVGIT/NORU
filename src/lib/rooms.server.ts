@@ -45,7 +45,10 @@ export function canAccessFrontOffice(role: string): boolean {
 }
 
 /** Room configuration membership (owner/manager), or a hard failure. */
-export async function requireRoomManager(context: AuthedCtx, restaurantId: string): Promise<Membership> {
+export async function requireRoomManager(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
   return requireModuleRole(
     context,
     restaurantId,

@@ -43,7 +43,13 @@ export const TASK_TYPES = [
 ] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 
-export const TASK_STATUSES = ["pending", "assigned", "in_progress", "completed", "cancelled"] as const;
+export const TASK_STATUSES = [
+  "pending",
+  "assigned",
+  "in_progress",
+  "completed",
+  "cancelled",
+] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 export const TASK_PRIORITIES = ["normal", "high", "urgent"] as const;
@@ -93,7 +99,13 @@ export async function requireHousekeepingAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(context, restaurantId, "housekeeping", HOUSEKEEPING_ACCESS_ROLES, NO_HK_ACCESS);
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "housekeeping",
+    HOUSEKEEPING_ACCESS_ROLES,
+    NO_HK_ACCESS,
+  );
 }
 
 /** Supervisor actions: assignments, inspections, discrepancies, restrictions. */
@@ -129,7 +141,13 @@ export async function requireMaintenanceAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(context, restaurantId, "housekeeping", MAINTENANCE_ROLES, NO_HK_PERMISSION);
+  return requireModuleRole(
+    context,
+    restaurantId,
+    "housekeeping",
+    MAINTENANCE_ROLES,
+    NO_HK_PERMISSION,
+  );
 }
 
 /** Backwards-compatible supervisor gate used by existing call sites. */

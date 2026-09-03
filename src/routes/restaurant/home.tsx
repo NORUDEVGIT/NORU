@@ -285,13 +285,17 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         <SummaryCard
           icon={UserCheck}
           label="Staff on shift"
-          value={allowed.includes("human_resources") ? (onShift === null ? null : String(onShift)) : "—"}
+          value={
+            allowed.includes("human_resources") ? (onShift === null ? null : String(onShift)) : "—"
+          }
           loading={allowed.includes("human_resources") && shifts.isLoading}
         />
         <SummaryCard
           icon={PackageOpen}
           label="Low stock items"
-          value={canSeeStock ? (inventory.data ? String(inventory.data.stock.lowStock) : null) : "—"}
+          value={
+            canSeeStock ? (inventory.data ? String(inventory.data.stock.lowStock) : null) : "—"
+          }
           loading={canSeeStock && inventory.isLoading}
         />
       </section>
@@ -328,7 +332,9 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
                     Coming soon
                   </span>
                 </div>
-                <p className="mt-4 font-display text-lg leading-snug text-muted-foreground">{m.title}</p>
+                <p className="mt-4 font-display text-lg leading-snug text-muted-foreground">
+                  {m.title}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">{m.subtitle}</p>
               </button>
             ),
@@ -368,7 +374,12 @@ function SummaryCard({
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         <Icon className="size-4" /> {label}
       </div>
-      <p className={cn("mt-2 font-display text-2xl", loading && "animate-pulse text-muted-foreground")}>
+      <p
+        className={cn(
+          "mt-2 font-display text-2xl",
+          loading && "animate-pulse text-muted-foreground",
+        )}
+      >
         {loading ? "—" : (value ?? "—")}
       </p>
     </div>

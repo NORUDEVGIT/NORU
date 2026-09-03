@@ -17,7 +17,10 @@ export function canManageRates(role: string): boolean {
   return (RATE_MANAGE_ROLES as readonly string[]).includes(role);
 }
 
-export async function requireRateManager(context: AuthedCtx, restaurantId: string): Promise<Membership> {
+export async function requireRateManager(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
   return requireModuleRole(
     context,
     restaurantId,
@@ -43,7 +46,8 @@ const RATE_ERRORS: Record<string, string> = {
   INVALID_DATES: "Departure must be after arrival.",
   RESERVATION_NOT_FOUND: "Reservation not found for this property.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",
-  ROOM_NOT_ASSIGNABLE: "That room can't be used — check it is active, available and of the reserved type.",
+  ROOM_NOT_ASSIGNABLE:
+    "That room can't be used — check it is active, available and of the reserved type.",
   ROOM_ALREADY_BOOKED: "That room is already booked or occupied for part of those dates.",
   RESERVATION_CANCELLED: "This reservation is cancelled. Restore it before amending.",
 };
@@ -51,8 +55,10 @@ const RATE_ERRORS: Record<string, string> = {
 /** Map RAISE EXCEPTION codes from the pricing functions to user-facing text. */
 export function rateError(message: string): Error {
   if (/duplicate key value/i.test(message)) {
-    if (message.includes("hotel_rate_categories")) return new Error("A rate category with that code already exists.");
-    if (message.includes("hotel_rate_plans")) return new Error("A rate plan with that code already exists.");
+    if (message.includes("hotel_rate_categories"))
+      return new Error("A rate category with that code already exists.");
+    if (message.includes("hotel_rate_plans"))
+      return new Error("A rate plan with that code already exists.");
     return new Error("That record already exists.");
   }
   const min = /MIN_STAY_(\d+)/.exec(message);
@@ -125,7 +131,12 @@ export function eachDate(from: string, to: string, maxDays = 120): string[] {
 }
 
 /** Number of nights that fall inside [from, to) for a stay. */
-export function nightsInRange(arrival: string, departure: string, from: string, to: string): number {
+export function nightsInRange(
+  arrival: string,
+  departure: string,
+  from: string,
+  to: string,
+): number {
   const start = arrival > from ? arrival : from;
   const end = departure < to ? departure : to;
   if (end <= start) return 0;
