@@ -53,6 +53,7 @@ import { PurchasingTab } from "@/components/inventory/purchasing-tab";
 import { InventoryOverviewDashboard } from "@/components/inventory/overview-dashboard";
 
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +109,12 @@ const STATUS_STYLE = {
 
 function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
+  const fetchModuleAccess = useServerFn(getMyModuleAccess);
+  const moduleAccess = useQuery({
+    queryKey: ["my-module-access", restaurantId],
+    queryFn: () => fetchModuleAccess({ data: { restaurantId } }),
+    retry: false,
+  });
   const queryClient = useQueryClient();
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
