@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ChefHat } from "lucide-react";
@@ -14,6 +14,11 @@ import {
   type OrderDetail,
 } from "@/lib/restaurant-orders.functions";
 import { statusLabel } from "@/lib/order-status";
+import { getOrderBilling } from "@/lib/room-charge.functions";
+import {
+  ChargeToRoomDialog,
+  ReverseRoomChargeDialog,
+} from "@/components/orders/charge-to-room-dialog";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney } from "@/state/restaurant-context";
 import { useRestaurantTime } from "@/state/restaurant-context";
@@ -158,6 +163,9 @@ function DetailBody({ membership }: { membership: RestaurantMembership }) {
             </dl>
           </div>
 
+          <BillingSection restaurantId={restaurantId} orderId={order.id} />
+
+
           <div className="rounded-2xl border border-border bg-card p-5">
             <h2 className="font-display text-lg">Items</h2>
             <ul className="mt-2 divide-y divide-border">
@@ -235,6 +243,95 @@ function DetailSkeleton() {
         <div className="h-64 animate-pulse rounded-2xl bg-muted lg:col-span-2" />
         <div className="h-64 animate-pulse rounded-2xl bg-muted" />
       </div>
+    </div>
+  );
+}
+
+/** Billing card: charge this order to a checked-in guest's room, or reverse it. */
+function BillingSection({ restaurantId, orderId }: { restaurantId: string; orderId: string }) {
+  const money = useMoney();
+  const clock = useRestaurantTime();
+  const queryClient = useQueryClient();
+  const [chargeOpen, setChargeOpen] = useState(false);
+  const [reverseOpen, setReverseOpen] = useState(false);
+
+  const fetchBilling = useServerFn(getOrderBilling);
+  const query = useQuery({
+    queryKey: ["order-billing", restaurantId, orderId],
+    queryFn: () => fetchBilling({ data: { restaurantId, orderId } }),
+    retry: false,
+  });
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["order-billing", restaurantId, orderId] });
+    void queryClient.invalidateQueries({ queryKey: ["restaurant-order", restaurantId, orderId] });
+  };
+
+  if (query.isLoading || !query.data) return null;
+  const billing = query.data;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <h2 className="font-display text-lg">Billing</h2>
+      {billing.posted ? (
+        <div className="mt-3 space-y-1 text-sm">
+          <p className="font-medium">Charged to room</p>
+          <p className="text-muted-foreground">
+            {billing.posted.roomNumber ? `Room ${billing.posted.roomNumber} · ` : ""}
+            {billing.posted.guestName} · Folio {billing.posted.folioNumber}
+          </p>
+          <p className="text-muted-foreground">
+            {money(billing.total)} posted {clock.dateTime(billing.posted.postedAt)}
+          </p>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button asChild size="sm" variant="outline">
+              <Link
+                to="/restaurant/cashiering/folios/$folioId"
+                params={{ folioId: billing.posted.folioId }}
+              >
+                View folio
+              </Link>
+            </Button>
+            {billing.canReverse ? (
+              <Button size="sm" variant="ghost" onClick={() => setReverseOpen(true)}>
+                Reverse charge
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2 text-sm">
+          <p className="text-muted-foreground">
+            {billing.billingMethod === "direct"
+              ? "Settled directly with the restaurant."
+              : "Not charged to a room."}
+          </p>
+          {billing.canPost ? (
+            <Button size="sm" onClick={() => setChargeOpen(true)}>
+              Charge to room
+            </Button>
+          ) : billing.blockedReason ? (
+            <p className="text-muted-foreground">{billing.blockedReason}</p>
+          ) : null}
+        </div>
+      )}
+
+      <ChargeToRoomDialog
+        restaurantId={restaurantId}
+        orderId={orderId}
+        orderNumber={billing.orderNumber}
+        orderTotal={billing.total}
+        open={chargeOpen}
+        onClose={() => setChargeOpen(false)}
+        onDone={refresh}
+      />
+      <ReverseRoomChargeDialog
+        restaurantId={restaurantId}
+        orderId={orderId}
+        open={reverseOpen}
+        onClose={() => setReverseOpen(false)}
+        onDone={refresh}
+      />
     </div>
   );
 }

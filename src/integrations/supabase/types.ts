@@ -2261,6 +2261,7 @@ export type Database = {
         Row: {
           assigned_waiter_membership_id: string | null
           assigned_waiter_name_snapshot: string | null
+          billing_method: string | null
           created_at: string
           created_by_staff_membership_id: string | null
           created_by_staff_name_snapshot: string | null
@@ -2271,6 +2272,10 @@ export type Database = {
           order_source: string
           restaurant_id: string | null
           restaurant_table_id: string | null
+          room_charge_folio_id: string | null
+          room_charge_posted_at: string | null
+          room_charge_posted_by_membership_id: string | null
+          room_charge_reservation_id: string | null
           status: string
           table_number: string
           total: number
@@ -2279,6 +2284,7 @@ export type Database = {
         Insert: {
           assigned_waiter_membership_id?: string | null
           assigned_waiter_name_snapshot?: string | null
+          billing_method?: string | null
           created_at?: string
           created_by_staff_membership_id?: string | null
           created_by_staff_name_snapshot?: string | null
@@ -2289,6 +2295,10 @@ export type Database = {
           order_source?: string
           restaurant_id?: string | null
           restaurant_table_id?: string | null
+          room_charge_folio_id?: string | null
+          room_charge_posted_at?: string | null
+          room_charge_posted_by_membership_id?: string | null
+          room_charge_reservation_id?: string | null
           status?: string
           table_number: string
           total?: number
@@ -2297,6 +2307,7 @@ export type Database = {
         Update: {
           assigned_waiter_membership_id?: string | null
           assigned_waiter_name_snapshot?: string | null
+          billing_method?: string | null
           created_at?: string
           created_by_staff_membership_id?: string | null
           created_by_staff_name_snapshot?: string | null
@@ -2307,6 +2318,10 @@ export type Database = {
           order_source?: string
           restaurant_id?: string | null
           restaurant_table_id?: string | null
+          room_charge_folio_id?: string | null
+          room_charge_posted_at?: string | null
+          room_charge_posted_by_membership_id?: string | null
+          room_charge_reservation_id?: string | null
           status?: string
           table_number?: string
           total?: number
@@ -2339,6 +2354,27 @@ export type Database = {
             columns: ["restaurant_table_id"]
             isOneToOne: false
             referencedRelation: "restaurant_tables"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_room_charge_folio_fkey"
+            columns: ["room_charge_folio_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_room_charge_posted_by_membership_id_fkey"
+            columns: ["room_charge_posted_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_room_charge_reservation_fkey"
+            columns: ["room_charge_reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
             referencedColumns: ["id"]
           },
         ]
@@ -4160,6 +4196,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      post_order_room_charge: {
+        Args: {
+          _folio_id: string
+          _membership_id: string
+          _order_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       price_hotel_stay: {
         Args: {
           _arrival: string
@@ -4218,6 +4263,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reverse_order_room_charge: {
+        Args: {
+          _membership_id: string
+          _order_id: string
+          _reason: string
+          _restaurant_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {
