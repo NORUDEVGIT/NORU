@@ -30,7 +30,11 @@ import {
   type TaskStatus,
   type TaskType,
 } from "./housekeeping.server";
-import { HOUSEKEEPING_ASSIGNABLE_ROLES, housekeepingScope } from "./module-access";
+import {
+  HOUSEKEEPING_ASSIGNABLE_ROLES,
+  housekeepingScope,
+  type HousekeepingScope,
+} from "./module-access";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -39,7 +43,7 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD dat
 
 export interface HousekeepingAccess {
   canManage: boolean;
-  scope: "supervisor" | "attendant" | "maintenance" | "none";
+  scope: HousekeepingScope;
   role: string;
   membershipId: string;
 }
@@ -394,7 +398,7 @@ export const listHousekeepingTasks = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(500);
     // Room attendants only ever see their own assignments.
-    if (scope === "attendant") query = query.eq("assigned_membership_id", me.id);
+    if (scope === "housekeeper") query = query.eq("assigned_membership_id", me.id);
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
 
