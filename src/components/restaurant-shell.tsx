@@ -92,6 +92,17 @@ export type WorkspaceModule =
   | "configuration"
   | "settings";
 
+const FO = ["owner", "manager", "receptionist"];
+const HK_ALL = ["owner", "manager", "housekeeping", "housekeeping_supervisor", "housekeeper", "maintenance"];
+const HK_SUP = ["owner", "manager", "housekeeping", "housekeeping_supervisor"];
+const HK_CLEAN = [...HK_SUP, "housekeeper"];
+const HK_MAINT = [...HK_SUP, "maintenance"];
+const CASH = ["owner", "manager", "cashier", "accountant"];
+const AUDIT = ["owner", "manager", "accountant"];
+const INV = ["owner", "manager", "kitchen", "storekeeper"];
+const PROC = ["owner", "manager", "storekeeper"];
+const FNB = ["owner", "manager", "kitchen", "waiter"];
+
 type NavEntry = {
   to: string;
   /** Optional tab search param for pages that host several tabs. */
@@ -105,9 +116,9 @@ type NavEntry = {
 };
 
 const RESTAURANT_NAV: NavEntry[] = [
-  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat },
-  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText },
+  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: FNB },
+  { to: "/restaurant/kitchen", label: "Kitchen", icon: ChefHat, roles: ["owner", "manager", "kitchen"] },
+  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, roles: FNB },
   {
     to: "/restaurant/waiter",
     label: "Take Order",
@@ -117,16 +128,16 @@ const RESTAURANT_NAV: NavEntry[] = [
 ];
 
 const STOCK_NAV: NavEntry[] = [
-  { to: "/restaurant/inventory", tab: "overview", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/inventory", tab: "ingredient", label: "Ingredients", icon: Carrot },
-  { to: "/restaurant/inventory", tab: "consumable", label: "Consumables", icon: PackageOpen },
-  { to: "/restaurant/inventory", tab: "operating_asset", label: "Operating Assets", icon: Boxes },
-  { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench },
+  { to: "/restaurant/inventory", tab: "overview", label: "Dashboard", icon: LayoutDashboard, roles: INV },
+  { to: "/restaurant/inventory", tab: "ingredient", label: "Ingredients", icon: Carrot, roles: INV },
+  { to: "/restaurant/inventory", tab: "consumable", label: "Consumables", icon: PackageOpen, roles: INV },
+  { to: "/restaurant/inventory", tab: "operating_asset", label: "Operating Assets", icon: Boxes, roles: INV },
+  { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench, roles: INV },
 ];
 
 const PROCUREMENT_NAV: NavEntry[] = [
-  { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck },
-  { to: "/restaurant/inventory", tab: "purchasing", label: "Purchasing", icon: ShoppingCart },
+  { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck, roles: PROC },
+  { to: "/restaurant/inventory", tab: "purchasing", label: "Purchasing", icon: ShoppingCart, roles: PROC },
 ];
 
 const STAFF_NAV: NavEntry[] = [
@@ -137,29 +148,29 @@ const STAFF_NAV: NavEntry[] = [
 ];
 
 const ROOMS_NAV: NavEntry[] = [
-  { to: "/restaurant/rooms", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/rooms/arrivals", label: "Arrivals", icon: LogIn, roles: ["owner", "manager"] },
-  { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: ["owner", "manager"] },
-  { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: ["owner", "manager"] },
+  { to: "/restaurant/rooms", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: FO },
+  { to: "/restaurant/rooms/arrivals", label: "Arrivals", icon: LogIn, roles: FO },
+  { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: FO },
+  { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: FO },
   {
     to: "/restaurant/bookings/reservations",
     label: "Reservations",
     icon: CalendarCheck,
-    roles: ["owner", "manager"],
+    roles: FO,
   },
-  { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: ["owner", "manager"] },
-  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: ["owner", "manager"] },
+  { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: FO },
+  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: FO },
 ];
 
 const HOUSEKEEPING_NAV: NavEntry[] = [
-  { to: "/restaurant/housekeeping", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/restaurant/housekeeping", tab: "rack", label: "Room Rack", icon: DoorOpen },
-  { to: "/restaurant/housekeeping", tab: "board", label: "Cleaning Board", icon: Sparkles },
-  { to: "/restaurant/housekeeping", tab: "inspections", label: "Inspections", icon: ClipboardCheck },
-  { to: "/restaurant/housekeeping", tab: "discrepancies", label: "Discrepancies", icon: AlertTriangle },
-  { to: "/restaurant/housekeeping", tab: "restrictions", label: "Room Restrictions", icon: Ban },
-  { to: "/restaurant/housekeeping", tab: "maintenance", label: "Maintenance", icon: Wrench },
-  { to: "/restaurant/housekeeping", tab: "history", label: "History", icon: History },
+  { to: "/restaurant/housekeeping", tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: HK_ALL },
+  { to: "/restaurant/housekeeping", tab: "rack", label: "Room Rack", icon: DoorOpen, roles: HK_ALL },
+  { to: "/restaurant/housekeeping", tab: "board", label: "Cleaning Board", icon: Sparkles, roles: HK_CLEAN },
+  { to: "/restaurant/housekeeping", tab: "inspections", label: "Inspections", icon: ClipboardCheck, roles: HK_SUP },
+  { to: "/restaurant/housekeeping", tab: "discrepancies", label: "Discrepancies", icon: AlertTriangle, roles: HK_SUP },
+  { to: "/restaurant/housekeeping", tab: "restrictions", label: "Room Restrictions", icon: Ban, roles: HK_SUP },
+  { to: "/restaurant/housekeeping", tab: "maintenance", label: "Maintenance", icon: Wrench, roles: HK_MAINT },
+  { to: "/restaurant/housekeeping", tab: "history", label: "History", icon: History, roles: HK_SUP },
 ];
 
 const CASHIERING_NAV: NavEntry[] = [
@@ -168,39 +179,39 @@ const CASHIERING_NAV: NavEntry[] = [
     tab: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering",
     tab: "folios",
     label: "Folios",
     icon: ReceiptText,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering",
     tab: "payments",
     label: "Payments",
     icon: Wallet,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering",
     tab: "shifts",
     label: "Cashier Shifts",
     icon: ClipboardCheck,
-    roles: ["owner", "manager"],
+    roles: CASH,
   },
   {
     to: "/restaurant/cashiering/night-audit",
     label: "Night Audit",
     icon: MoonStar,
-    roles: ["owner", "manager"],
+    roles: AUDIT,
   },
 ];
 
 const REPORTS_NAV: NavEntry[] = [
-  { to: "/restaurant/reports", label: "Reports", icon: BarChart3, roles: ["owner", "manager"] },
+  { to: "/restaurant/reports", label: "Reports", icon: BarChart3, roles: AUDIT },
 ];
 
 const CONFIGURATION_NAV: NavEntry[] = [
