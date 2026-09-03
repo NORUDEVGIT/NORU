@@ -4033,6 +4033,10 @@ export type Database = {
         }
       }
       folio_balance: { Args: { _folio_id: string }; Returns: number }
+      has_any_restaurant_role: {
+        Args: { _restaurant_id: string; _roles: string[] }
+        Returns: boolean
+      }
       has_kitchen_access: { Args: { _restaurant_id: string }; Returns: boolean }
       has_restaurant_role: {
         Args: { _restaurant_id: string; _role: string }

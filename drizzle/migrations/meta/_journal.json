@@ -169,6 +169,13 @@
       "when": 1788431192027,
       "tag": "0023_phase_7c_staff_roles_module_access",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788432371793,
+      "tag": "0024_phase_7c_role_scoped_rls",
+      "breakpoints": true
     }
   ]
 }
