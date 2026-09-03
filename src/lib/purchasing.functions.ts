@@ -420,7 +420,7 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requirePurchasingAccess(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
       return {
         ok: false as const,
@@ -534,7 +534,7 @@ export const updatePurchaseOrderStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requirePurchasingAccess(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
       return {
         ok: false as const,
@@ -622,7 +622,7 @@ export const receiveGoods = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requirePurchasingAccess(context, data.restaurantId);
     if (!canReceiveGoods(me.role)) {
       return { ok: false as const, message: "You don't have permission to receive goods." };
     }

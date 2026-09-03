@@ -145,7 +145,7 @@ export const createSupplier = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, ...supplierFields }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireSupplierAccess(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
       return { ok: false as const, message: "Only owners and managers can manage suppliers." };
     }
@@ -190,7 +190,7 @@ export const updateSupplier = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireSupplierAccess(context, data.restaurantId);
     if (!canManagePurchasing(me.role)) {
       return { ok: false as const, message: "Only owners and managers can manage suppliers." };
     }

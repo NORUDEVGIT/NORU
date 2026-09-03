@@ -323,7 +323,7 @@ export const createInventoryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireInventoryAccess(context, data.restaurantId);
     if (!isManager(me.role)) {
       return {
         ok: false as const,
@@ -404,7 +404,7 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireInventoryAccess(context, data.restaurantId);
     if (!isManager(me.role)) {
       return { ok: false as const, message: "Only owners and managers can edit inventory items." };
     }
@@ -451,7 +451,7 @@ export const createInventoryMovement = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await callerMembership(context, data.restaurantId);
+    const me = await requireInventoryAccess(context, data.restaurantId);
     const type = data.movementType as MovementType;
 
     if (type === "opening_balance") {
