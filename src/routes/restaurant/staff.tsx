@@ -44,7 +44,7 @@ import {
 } from "@/lib/staff.functions";
 import { getStaffModuleAccess, setStaffModuleAccess } from "@/lib/module-access.functions";
 import { Switch } from "@/components/ui/switch";
-import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, MODULE_KEYS, MODULE_LABELS, OVERRIDABLE_MODULES, defaultModulesForRole, type ModuleKey } from "@/lib/module-access";
+import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
 
