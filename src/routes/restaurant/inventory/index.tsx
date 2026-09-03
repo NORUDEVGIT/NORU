@@ -121,9 +121,10 @@ function InventoryPage({ membership }: { membership: RestaurantMembership }) {
   const recordMovement = useServerFn(createInventoryMovement);
 
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const procurement = searchTab === "suppliers" || searchTab === "purchasing";
   const [tab, setTab] = useState<
     "overview" | "ingredient" | "consumable" | "operating_asset" | "equipment" | "suppliers" | "purchasing"
-  >("overview");
+  >(searchTab === "suppliers" || searchTab === "purchasing" ? searchTab : "overview");
 
   // The sidebar links to a tab via ?tab=…; keep local state in sync with it.
   useEffect(() => {
