@@ -37,6 +37,8 @@ import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
 import { localDateInZone } from "@/lib/restaurant-time";
+import { getMyModuleAccess } from "@/lib/module-access.functions";
+import type { ModuleKey } from "@/lib/module-access";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/restaurant/home")({
@@ -76,13 +78,14 @@ type ModuleTile = {
   status: "active" | "soon";
   to?: string;
   tab?: string;
-  /** When set, only these membership roles see the tile. */
-  roles?: string[];
+  /** Module key used by the access resolver. */
+  moduleKey: ModuleKey;
 };
 
 const MODULES: ModuleTile[] = [
   {
     title: "Food & Beverage",
+    moduleKey: "food_and_beverage",
     subtitle: "Service, kitchen and orders",
     icon: UtensilsCrossed,
     status: "active",
@@ -90,48 +93,50 @@ const MODULES: ModuleTile[] = [
   },
   {
     title: "Front Office",
+    moduleKey: "front_office",
     subtitle: "Arrivals, in-house and reservations",
     icon: Hotel,
     status: "active",
     to: "/restaurant/rooms",
     tab: "dashboard",
-    roles: ["owner", "manager"],
   },
   {
     title: "Housekeeping",
+    moduleKey: "housekeeping",
     subtitle: "Room status, cleaning and inspections",
     icon: Sparkles,
     status: "active",
     to: "/restaurant/housekeeping",
     tab: "dashboard",
-    roles: ["owner", "manager"],
   },
   {
     title: "POS",
+    moduleKey: "pos",
     subtitle: "Point-of-sale for counter sales, payments and receipts",
     icon: Monitor,
     status: "soon",
   },
   {
     title: "Inventory",
+    moduleKey: "inventory",
     subtitle: "Stock, assets and equipment",
     icon: Boxes,
     status: "active",
     to: "/restaurant/inventory",
     tab: "overview",
-    roles: ["owner", "manager", "kitchen"],
   },
   {
     title: "Procurement",
+    moduleKey: "procurement",
     subtitle: "Suppliers and purchasing",
     icon: Truck,
     status: "active",
     to: "/restaurant/inventory",
     tab: "suppliers",
-    roles: ["owner", "manager", "kitchen"],
   },
   {
     title: "Human Resources",
+    moduleKey: "human_resources",
     subtitle: "Staff, schedule and attendance",
     icon: Users,
     status: "active",
@@ -140,31 +145,32 @@ const MODULES: ModuleTile[] = [
   },
   {
     title: "Accounting & Finance",
+    moduleKey: "accounting_finance",
     subtitle: "Folios, payments and night audit",
     icon: Wallet,
     status: "active",
     to: "/restaurant/cashiering",
     tab: "dashboard",
-    roles: ["owner", "manager"],
   },
   {
     title: "Reports & Analytics",
+    moduleKey: "reports_analytics",
     subtitle: "Occupancy, ADR, RevPAR and operational reports",
     icon: BarChart3,
     status: "active",
     to: "/restaurant/reports",
-    roles: ["owner", "manager"],
   },
   {
     title: "Configuration",
+    moduleKey: "configuration",
     subtitle: "Menu, tables, rooms, rates and distribution",
     icon: SlidersHorizontal,
     status: "active",
     to: "/restaurant/configuration",
-    roles: ["owner", "manager"],
   },
   {
     title: "Property Settings & Integrations",
+    moduleKey: "property_settings",
     subtitle: "Property details, timezone, currency and branding",
     icon: Settings,
     status: "active",
@@ -184,14 +190,24 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const fetchInventory = useServerFn(getInventoryDashboard);
   const fetchShifts = useServerFn(listShifts);
   const fetchFrontOffice = useServerFn(getFrontOfficeDashboard);
+  const fetchModules = useServerFn(getMyModuleAccess);
 
-  const canManageStaff = role === "owner" || role === "manager";
-  const canSeeStock = role === "owner" || role === "manager" || role === "kitchen";
+  const moduleAccess = useQuery({
+    queryKey: ["property-home-modules", restaurantId],
+    queryFn: () => fetchModules({ data: { restaurantId } }),
+  });
+  const allowed = moduleAccess.data?.modules ?? [];
+
+  const canManageStaff = allowed.includes("front_office");
+  const canSeeStock = allowed.includes("inventory");
+  const canSeeFnB = allowed.includes("food_and_beverage");
   const today = useMemo(() => localDateInZone(timezone), [timezone]);
 
   const dashboard = useQuery({
     queryKey: ["property-home-dashboard", restaurantId],
     queryFn: () => fetchDashboard({ data: { restaurantId, tzOffsetMinutes } }),
+    enabled: canSeeFnB,
+    retry: false,
   });
 
   const inventory = useQuery({
@@ -203,7 +219,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const shifts = useQuery({
     queryKey: ["property-home-shifts", restaurantId, today],
     queryFn: () => fetchShifts({ data: { restaurantId, from: today, to: today } }),
-    enabled: canManageStaff,
+    enabled: allowed.includes("human_resources"),
+    retry: false,
   });
 
   const frontOffice = useQuery({
@@ -224,7 +241,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
       })()
     : null;
 
-  const modules = MODULES.filter((m) => !m.roles || m.roles.includes(role));
+  const modules = MODULES.filter((m) => allowed.includes(m.moduleKey));
 
   return (
     <div className="space-y-8">
@@ -243,14 +260,14 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         <SummaryCard
           icon={TrendingUp}
           label="Today's F&B order value"
-          value={dashboard.data ? money(dashboard.data.today.revenue) : null}
-          loading={dashboard.isLoading}
+          value={canSeeFnB ? (dashboard.data ? money(dashboard.data.today.revenue) : null) : "—"}
+          loading={canSeeFnB && dashboard.isLoading}
         />
         <SummaryCard
           icon={ReceiptText}
           label="Active orders"
-          value={dashboard.data ? String(dashboard.data.counts.active) : null}
-          loading={dashboard.isLoading}
+          value={canSeeFnB ? (dashboard.data ? String(dashboard.data.counts.active) : null) : "—"}
+          loading={canSeeFnB && dashboard.isLoading}
         />
         <SummaryCard
           icon={BedDouble}
@@ -269,8 +286,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         <SummaryCard
           icon={UserCheck}
           label="Staff on shift"
-          value={canManageStaff ? (onShift === null ? null : String(onShift)) : "—"}
-          loading={canManageStaff && shifts.isLoading}
+          value={allowed.includes("human_resources") ? (onShift === null ? null : String(onShift)) : "—"}
+          loading={allowed.includes("human_resources") && shifts.isLoading}
         />
         <SummaryCard
           icon={PackageOpen}
