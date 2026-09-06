@@ -82,6 +82,14 @@ type ModuleTile = {
   moduleKey: ModuleKey;
 };
 
+const HOTEL_KEYS: ModuleKey[] = [
+  "front_office",
+  "housekeeping",
+  "reports_analytics",
+  "configuration",
+];
+
+/** Top-level property domains. Hotel functions live inside PMS. */
 const MODULES: ModuleTile[] = [
   {
     title: "Food & Beverage",
@@ -92,24 +100,6 @@ const MODULES: ModuleTile[] = [
     to: "/restaurant/dashboard",
   },
   {
-    title: "Front Office",
-    moduleKey: "front_office",
-    subtitle: "Arrivals, in-house and reservations",
-    icon: Hotel,
-    status: "active",
-    to: "/restaurant/rooms",
-    tab: "dashboard",
-  },
-  {
-    title: "Housekeeping",
-    moduleKey: "housekeeping",
-    subtitle: "Room status, cleaning and inspections",
-    icon: Sparkles,
-    status: "active",
-    to: "/restaurant/housekeeping",
-    tab: "dashboard",
-  },
-  {
     title: "POS",
     moduleKey: "pos",
     subtitle: "Counter and takeaway sales, payments and receipts",
@@ -118,9 +108,9 @@ const MODULES: ModuleTile[] = [
     to: "/restaurant/pos/new",
   },
   {
-    title: "Inventory",
+    title: "Inventory / Warehouse",
     moduleKey: "inventory",
-    subtitle: "Stock, assets and equipment",
+    subtitle: "Shared stock, assets and equipment across the property",
     icon: Boxes,
     status: "active",
     to: "/restaurant/inventory",
@@ -129,7 +119,7 @@ const MODULES: ModuleTile[] = [
   {
     title: "Procurement",
     moduleKey: "procurement",
-    subtitle: "Suppliers and purchasing",
+    subtitle: "Suppliers and purchasing for hotel and restaurant",
     icon: Truck,
     status: "active",
     to: "/restaurant/inventory",
@@ -138,7 +128,7 @@ const MODULES: ModuleTile[] = [
   {
     title: "Human Resources",
     moduleKey: "human_resources",
-    subtitle: "Staff, schedule and attendance",
+    subtitle: "One property-wide workforce: staff, schedule and attendance",
     icon: Users,
     status: "active",
     to: "/restaurant/staff",
@@ -147,36 +137,34 @@ const MODULES: ModuleTile[] = [
   {
     title: "Accounting & Finance",
     moduleKey: "accounting_finance",
-    subtitle: "Folios, payments and night audit",
+    subtitle: "Property-wide folios, payments and night audit",
     icon: Wallet,
     status: "active",
     to: "/restaurant/cashiering",
     tab: "dashboard",
   },
-  {
-    title: "Reports & Analytics",
-    moduleKey: "reports_analytics",
-    subtitle: "Occupancy, ADR, RevPAR and operational reports",
-    icon: BarChart3,
-    status: "active",
-    to: "/restaurant/reports",
-  },
-  {
-    title: "Configuration",
-    moduleKey: "configuration",
-    subtitle: "Menu, tables, rooms, rates and distribution",
-    icon: SlidersHorizontal,
-    status: "active",
-    to: "/restaurant/configuration",
-  },
+];
+
+/** Secondary links — these move under PMS in a later phase. */
+const SETUP_LINKS: { title: string; moduleKey: ModuleKey; to: string; icon: typeof Settings }[] = [
+  { title: "Reports & Analytics", moduleKey: "reports_analytics", to: "/restaurant/reports", icon: BarChart3 },
+  { title: "Configuration", moduleKey: "configuration", to: "/restaurant/configuration", icon: SlidersHorizontal },
   {
     title: "Property Settings & Integrations",
     moduleKey: "property_settings",
-    subtitle: "Property details, timezone, currency and branding",
-    icon: Settings,
-    status: "active",
     to: "/restaurant/settings",
+    icon: Settings,
   },
+];
+
+const PMS_SUBMODULES = [
+  "Front Office",
+  "Reservations",
+  "Housekeeping",
+  "Cashiering",
+  "Rooms & Rates",
+  "Distribution",
+  "Night Audit",
 ];
 
 function PropertyHome({ membership }: { membership: RestaurantMembership }) {
@@ -242,6 +230,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
     : null;
 
   const modules = MODULES.filter((m) => allowed.includes(m.moduleKey));
+  const showPms = HOTEL_KEYS.some((k) => allowed.includes(k));
+  const setupLinks = SETUP_LINKS.filter((l) => allowed.includes(l.moduleKey));
 
   return (
     <div className="space-y-8">
@@ -301,9 +291,32 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         />
       </section>
 
-      <section aria-label="Modules" className="space-y-3">
-        <h2 className="font-display text-xl">Modules</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+      <section aria-label="Property domains" className="space-y-4">
+        <h2 className="font-display text-xl">Property domains</h2>
+
+        {showPms ? (
+          <Link
+            to="/restaurant/rooms"
+            search={{ tab: "dashboard" }}
+            className="group flex flex-col gap-4 rounded-2xl border border-primary/40 bg-card p-6 transition-colors hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:flex-row sm:items-center"
+          >
+            <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+              <Hotel className="size-7" />
+            </span>
+            <div className="min-w-0 space-y-1">
+              <p className="font-display text-2xl leading-snug">PMS</p>
+              <p className="text-sm text-muted-foreground">
+                Hotel operating system — the home for every rooms-side operation.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {PMS_SUBMODULES.join(" · ")} and more
+              </p>
+            </div>
+          </Link>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
           {modules.map((m) =>
             m.status === "active" ? (
               <Link
@@ -341,7 +354,25 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
             ),
           )}
         </div>
+
+        {setupLinks.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Property setup
+            </span>
+            {setupLinks.map((l) => (
+              <Link
+                key={l.title}
+                to={l.to}
+                className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <l.icon className="size-4" /> {l.title}
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </section>
+
 
       <Dialog open={soon !== null} onOpenChange={(open) => !open && setSoon(null)}>
         <DialogContent>

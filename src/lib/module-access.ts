@@ -53,7 +53,14 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
   maintenance: "Maintenance",
 };
 
+/**
+ * Phase 7D.2A — `pms` is the top-level hotel domain tile on Property Home.
+ * The hotel keys below (front_office, housekeeping, configuration,
+ * reports_analytics, property_settings) remain in use internally for sidebars,
+ * route guards and server checks; they become PMS submodules in 7D.2B.
+ */
 export const MODULE_KEYS = [
+  "pms",
   "food_and_beverage",
   "front_office",
   "housekeeping",
@@ -70,11 +77,12 @@ export const MODULE_KEYS = [
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
+  pms: "PMS",
   food_and_beverage: "Food & Beverage",
   front_office: "Front Office",
   housekeeping: "Housekeeping",
   pos: "POS",
-  inventory: "Inventory",
+  inventory: "Inventory / Warehouse",
   procurement: "Procurement",
   human_resources: "Human Resources",
   accounting_finance: "Accounting & Finance",
