@@ -11,7 +11,7 @@ import {
 } from "@/components/cashiering/cashiering-tabs";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
 
 const TABS = ["dashboard", "folios", "payments", "shifts"] as const;
 type CashieringTabKey = (typeof TABS)[number];
@@ -52,6 +52,11 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
         <p className="text-sm text-muted-foreground">
           Guest folios, charges, payments and cashier shifts for {membership.restaurant.name}.
         </p>
+        <PmsOnly>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Hotel guest billing. Property-wide finance stays in Accounting &amp; Finance.
+          </p>
+        </PmsOnly>
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as CashieringTabKey)}>

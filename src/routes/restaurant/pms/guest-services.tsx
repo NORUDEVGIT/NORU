@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ConciergeBell, UserRound } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
+import { SharedModuleLinks } from "@/components/pms/shared-module-links";
 import { PmsPlaceholder } from "@/components/pms/pms-placeholder";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,7 +32,8 @@ export const Route = createFileRoute("/restaurant/pms/guest-services")({
   }),
   component: () => (
     <RestaurantShell active="PMS" pmsModule="guest-services">
-      {() => (
+      {(m) => (
+        <div className="space-y-8">
         <PmsPlaceholder
           title="Guest Services"
           icon={ConciergeBell}
@@ -49,6 +51,8 @@ export const Route = createFileRoute("/restaurant/pms/guest-services")({
             <UserRound className="size-4" /> Open guest profiles
           </Link>
         </PmsPlaceholder>
+          <SharedModuleLinks restaurantId={m.restaurantId} modules={["inventory"]} />
+        </div>
       )}
     </RestaurantShell>
   ),

@@ -40,3 +40,9 @@ export function NonPmsOnly({ children }: { children: ReactNode }) {
   const heading = useContext(PmsHeadingContext);
   return heading === undefined ? <>{children}</> : null;
 }
+
+/** Renders content only inside a canonical PMS route. */
+export function PmsOnly({ children }: { children: ReactNode }) {
+  const heading = useContext(PmsHeadingContext);
+  return heading === undefined ? null : <>{children}</>;
+}

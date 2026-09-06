@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { HousekeepingWorkspace } from "@/components/workspaces/housekeeping-workspace";
 import { supabase } from "@/integrations/supabase/client";
+import { SharedModuleLinks } from "@/components/pms/shared-module-links";
 
 export const Route = createFileRoute("/restaurant/pms/maintenance")({
   ssr: false,
@@ -34,7 +35,10 @@ function MaintenancePmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Housekeeping" module="housekeeping" pms pmsModule="maintenance">
-      {(m) => <HousekeepingWorkspace membership={m} initialTab={searchTab ?? "maintenance"} />}
+      {(m) => <div className="space-y-8">
+          <HousekeepingWorkspace membership={m} initialTab={searchTab ?? "maintenance"} />
+          <SharedModuleLinks restaurantId={m.restaurantId} modules={["inventory", "procurement"]} />
+        </div>}
     </RestaurantShell>
   );
 }

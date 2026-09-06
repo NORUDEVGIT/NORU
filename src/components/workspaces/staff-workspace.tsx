@@ -50,7 +50,7 @@ import { Switch } from "@/components/ui/switch";
 import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
 
 const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;
 
@@ -298,6 +298,12 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
             {summary.total} team {summary.total === 1 ? "member" : "members"} · {summary.active}{" "}
             active
           </p>
+          <PmsOnly>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Users, roles and module access for this property. Scheduling, attendance and workforce
+              records live in the property-wide Human Resources module.
+            </p>
+          </PmsOnly>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setMatrixOpen(true)}>

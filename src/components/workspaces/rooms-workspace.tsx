@@ -8,7 +8,7 @@ import { RoomTypesTab } from "@/components/rooms/room-types-tab";
 import { RoomsTab } from "@/components/rooms/rooms-tab";
 import { getRoomsAccess } from "@/lib/rooms.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
 
 const TABS = ["dashboard", "room-types", "rooms"] as const;
 type RoomsTabKey = (typeof TABS)[number];
@@ -59,6 +59,14 @@ export function RoomsWorkspace({ membership, initialTab }: { membership: Restaur
             ? `Room types, rooms and imagery for ${membership.restaurant.name}.`
             : `Manage arrivals, in-house guests, departures and reservations for ${membership.restaurant.name}.`}
         </p>
+        {configContext ? (
+          <PmsOnly>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Hotel room inventory only. Physical stock, amenities and equipment live in the
+              property-wide Inventory / Warehouse module.
+            </p>
+          </PmsOnly>
+        ) : null}
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as RoomsTabKey)}>
