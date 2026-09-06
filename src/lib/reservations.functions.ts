@@ -650,3 +650,83 @@ export const getBookingsDashboard = createServerFn({ method: "POST" })
       occupancyPercent: rooms > 0 ? Math.round((stayingToday / rooms) * 100) : 0,
     };
   });
+
+/* -------------------------------------------------------------- amendments */
+
+export interface ReservationAmendmentRow {
+  id: string;
+  reservationId: string;
+  confirmationNumber: string;
+  guestName: string;
+  eventType: ReservationEventType;
+  notes: string | null;
+  createdAt: string;
+}
+
+/**
+ * Phase 7D.2F1 — read-only feed of the reservation change history that is
+ * already recorded by the reservation write paths. No new records are created.
+ */
+export const listReservationAmendments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({ restaurantId: idSchema, limit: z.number().int().min(1).max(200).optional() })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<ReservationAmendmentRow[]> => {
+    await requireReservationManager(context as never, data.restaurantId);
+
+    const { data: events, error } = await context.supabase
+      .from("hotel_reservation_history")
+      .select("id, reservation_id, event_type, notes, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .order("created_at", { ascending: false })
+      .limit(data.limit ?? 100);
+    if (error) throw new Error(error.message);
+
+    const rows = (events ?? []) as {
+      id: string;
+      reservation_id: string;
+      event_type: string;
+      notes: string | null;
+      created_at: string;
+    }[];
+    const ids = [...new Set(rows.map((r) => r.reservation_id))];
+    const meta = new Map<string, { confirmationNumber: string; guestName: string }>();
+
+    if (ids.length > 0) {
+      const { data: reservations } = await context.supabase
+        .from("hotel_reservations")
+        .select(
+          "id, confirmation_number, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", ids);
+
+      for (const r of (reservations ?? []) as unknown as {
+        id: string;
+        confirmation_number: string;
+        guest_profiles: { first_name: string | null; last_name: string | null } | null;
+      }[]) {
+        meta.set(r.id, {
+          confirmationNumber: r.confirmation_number,
+          guestName:
+            [r.guest_profiles?.first_name, r.guest_profiles?.last_name]
+              .filter(Boolean)
+              .join(" ")
+              .trim() || "Guest",
+        });
+      }
+    }
+
+    return rows.map((r) => ({
+      id: r.id,
+      reservationId: r.reservation_id,
+      confirmationNumber: meta.get(r.reservation_id)?.confirmationNumber ?? "—",
+      guestName: meta.get(r.reservation_id)?.guestName ?? "Guest",
+      eventType: r.event_type as ReservationEventType,
+      notes: r.notes,
+      createdAt: r.created_at,
+    }));
+  });
