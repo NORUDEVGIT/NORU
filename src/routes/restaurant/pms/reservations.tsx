@@ -34,7 +34,7 @@ function ReservationsPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Reservations" module="rooms" pms pmsModule="reservations">
-      {(m) => <ReservationsWorkspace membership={m} initialTab={searchTab ?? "list"} />}
+      {(m) => <ReservationsWorkspace membership={m} initialTab={searchTab ?? "individual"} />}
     </RestaurantShell>
   );
 }

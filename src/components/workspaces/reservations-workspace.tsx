@@ -16,13 +16,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReservationStatusBadge, formatStayDate } from "@/components/bookings/reservation-bits";
 import { ReservationAmendmentsTab } from "@/components/bookings/reservation-amendments";
+import { ReservationCancellationsTab } from "@/components/bookings/reservation-cancellations";
+import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { getBookingsAccess, listReservations } from "@/lib/reservations.functions";
 import type { ReservationStatus } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const ALL = "all";
-const TABS = ["list", "amendments"] as const;
+const TABS = ["individual", "group", "corporate", "amendments", "cancellations"] as const;
 type ReservationsTabKey = (typeof TABS)[number];
 const PAGE_SIZE = 25;
 
@@ -44,11 +46,13 @@ export function ReservationsWorkspace({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
-  const [tab, setTab] = useState<ReservationsTabKey>("list");
+  const [tab, setTab] = useState<ReservationsTabKey>("individual");
 
   useEffect(() => {
-    if (initialTab && (TABS as readonly string[]).includes(initialTab)) {
-      setTab(initialTab as ReservationsTabKey);
+    // "list" is the pre-patch tab name; keep old links working.
+    const normalised = initialTab === "list" ? "individual" : initialTab;
+    if (normalised && (TABS as readonly string[]).includes(normalised)) {
+      setTab(normalised as ReservationsTabKey);
     }
   }, [initialTab]);
 
@@ -114,12 +118,15 @@ export function ReservationsWorkspace({
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as ReservationsTabKey)}>
-        <TabsList>
-          <TabsTrigger value="list">Reservations</TabsTrigger>
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="individual">Individual</TabsTrigger>
+          <TabsTrigger value="group">Group</TabsTrigger>
+          <TabsTrigger value="corporate">Corporate</TabsTrigger>
           <TabsTrigger value="amendments">Amendments</TabsTrigger>
+          <TabsTrigger value="cancellations">Cancellations</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list" className="mt-4 space-y-6">
+        <TabsContent value="individual" className="mt-4 space-y-6">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative min-w-56 flex-1">
                   <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -271,8 +278,26 @@ export function ReservationsWorkspace({
               )}
         </TabsContent>
 
+        <TabsContent value="group" className="mt-4">
+          <FoundationPanel
+            title="Group bookings"
+            description="Reservation records don't carry a group or block reference yet, so group blocks can't be listed here. This view stays empty until group blocks are added to the booking record."
+          />
+        </TabsContent>
+
+        <TabsContent value="corporate" className="mt-4">
+          <FoundationPanel
+            title="Corporate bookings"
+            description="Reservations and guest profiles have no company or corporate account link yet, so corporate stays can't be separated here. This view stays empty until company accounts are added."
+          />
+        </TabsContent>
+
         <TabsContent value="amendments" className="mt-4">
           <ReservationAmendmentsTab restaurantId={restaurantId} />
+        </TabsContent>
+
+        <TabsContent value="cancellations" className="mt-4">
+          <ReservationCancellationsTab restaurantId={restaurantId} />
         </TabsContent>
       </Tabs>
     </div>

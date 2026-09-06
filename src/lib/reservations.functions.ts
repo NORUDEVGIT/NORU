@@ -310,7 +310,7 @@ export const listReservations = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(
-    async ({ data, context }): Promise<{ rows: ReservationSummary[]; total: number; page: number; pageSize: number }> => {
+    async ({ data, context }): Promise<{ rows: ReservationDetail[]; total: number; page: number; pageSize: number }> => {
       await requireReservationManager(context as never, data.restaurantId);
 
       const page = data.page ?? 1;
