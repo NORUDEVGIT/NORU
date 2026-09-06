@@ -33,6 +33,7 @@ export const Route = createFileRoute("/restaurant/rooms/")({
 
 function RoomsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const configTab = searchTab === "rooms" || searchTab === "types";
   return (
     <RestaurantShell active="Rooms" module={configTab ? "configuration" : "rooms"}>
       {(m) => <RoomsWorkspace membership={m} initialTab={searchTab} />}
