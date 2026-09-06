@@ -82,6 +82,14 @@ type ModuleTile = {
   moduleKey: ModuleKey;
 };
 
+const HOTEL_KEYS: ModuleKey[] = [
+  "front_office",
+  "housekeeping",
+  "reports_analytics",
+  "configuration",
+];
+
+/** Top-level property domains. Hotel functions live inside PMS. */
 const MODULES: ModuleTile[] = [
   {
     title: "Food & Beverage",
@@ -92,24 +100,6 @@ const MODULES: ModuleTile[] = [
     to: "/restaurant/dashboard",
   },
   {
-    title: "Front Office",
-    moduleKey: "front_office",
-    subtitle: "Arrivals, in-house and reservations",
-    icon: Hotel,
-    status: "active",
-    to: "/restaurant/rooms",
-    tab: "dashboard",
-  },
-  {
-    title: "Housekeeping",
-    moduleKey: "housekeeping",
-    subtitle: "Room status, cleaning and inspections",
-    icon: Sparkles,
-    status: "active",
-    to: "/restaurant/housekeeping",
-    tab: "dashboard",
-  },
-  {
     title: "POS",
     moduleKey: "pos",
     subtitle: "Counter and takeaway sales, payments and receipts",
@@ -118,9 +108,9 @@ const MODULES: ModuleTile[] = [
     to: "/restaurant/pos/new",
   },
   {
-    title: "Inventory",
+    title: "Inventory / Warehouse",
     moduleKey: "inventory",
-    subtitle: "Stock, assets and equipment",
+    subtitle: "Shared stock, assets and equipment across the property",
     icon: Boxes,
     status: "active",
     to: "/restaurant/inventory",
@@ -129,7 +119,7 @@ const MODULES: ModuleTile[] = [
   {
     title: "Procurement",
     moduleKey: "procurement",
-    subtitle: "Suppliers and purchasing",
+    subtitle: "Suppliers and purchasing for hotel and restaurant",
     icon: Truck,
     status: "active",
     to: "/restaurant/inventory",
@@ -138,7 +128,7 @@ const MODULES: ModuleTile[] = [
   {
     title: "Human Resources",
     moduleKey: "human_resources",
-    subtitle: "Staff, schedule and attendance",
+    subtitle: "One property-wide workforce: staff, schedule and attendance",
     icon: Users,
     status: "active",
     to: "/restaurant/staff",
@@ -147,36 +137,34 @@ const MODULES: ModuleTile[] = [
   {
     title: "Accounting & Finance",
     moduleKey: "accounting_finance",
-    subtitle: "Folios, payments and night audit",
+    subtitle: "Property-wide folios, payments and night audit",
     icon: Wallet,
     status: "active",
     to: "/restaurant/cashiering",
     tab: "dashboard",
   },
-  {
-    title: "Reports & Analytics",
-    moduleKey: "reports_analytics",
-    subtitle: "Occupancy, ADR, RevPAR and operational reports",
-    icon: BarChart3,
-    status: "active",
-    to: "/restaurant/reports",
-  },
-  {
-    title: "Configuration",
-    moduleKey: "configuration",
-    subtitle: "Menu, tables, rooms, rates and distribution",
-    icon: SlidersHorizontal,
-    status: "active",
-    to: "/restaurant/configuration",
-  },
+];
+
+/** Secondary links — these move under PMS in a later phase. */
+const SETUP_LINKS: { title: string; moduleKey: ModuleKey; to: string; icon: typeof Settings }[] = [
+  { title: "Reports & Analytics", moduleKey: "reports_analytics", to: "/restaurant/reports", icon: BarChart3 },
+  { title: "Configuration", moduleKey: "configuration", to: "/restaurant/configuration", icon: SlidersHorizontal },
   {
     title: "Property Settings & Integrations",
     moduleKey: "property_settings",
-    subtitle: "Property details, timezone, currency and branding",
-    icon: Settings,
-    status: "active",
     to: "/restaurant/settings",
+    icon: Settings,
   },
+];
+
+const PMS_SUBMODULES = [
+  "Front Office",
+  "Reservations",
+  "Housekeeping",
+  "Cashiering",
+  "Rooms & Rates",
+  "Distribution",
+  "Night Audit",
 ];
 
 function PropertyHome({ membership }: { membership: RestaurantMembership }) {
