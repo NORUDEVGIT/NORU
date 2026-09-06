@@ -75,6 +75,10 @@ export interface CashieringDashboard {
   outstandingBalance: number;
   todayPayments: number;
   todayCharges: number;
+  todayDeposits: number;
+  todayRefunds: number;
+  /** Folio-to-folio transfers are not represented in the ledger yet. */
+  transfersSupported: boolean;
   openShifts: number;
   myOpenShiftId: string | null;
 }
@@ -379,10 +383,14 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
 
     let todayPayments = 0;
     let todayCharges = 0;
+    let todayDeposits = 0;
+    let todayRefunds = 0;
     for (const t of (todayTxns ?? []) as { transaction_type: string; amount: number | string }[]) {
       const amount = Number(t.amount);
       if (t.transaction_type === "payment" || t.transaction_type === "deposit")
         todayPayments += -amount;
+      if (t.transaction_type === "deposit") todayDeposits += -amount;
+      if (t.transaction_type === "refund") todayRefunds += Math.abs(amount);
       if (t.transaction_type === "charge") todayCharges += amount;
     }
 
@@ -399,6 +407,9 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       outstandingBalance: outstanding,
       todayPayments: round2(todayPayments),
       todayCharges: round2(todayCharges),
+      todayDeposits: round2(todayDeposits),
+      todayRefunds: round2(todayRefunds),
+      transfersSupported: false,
       openShifts: openShiftRows.length,
       myOpenShiftId: openShiftRows.find((s) => s.membership_id === me.id)?.id ?? null,
     };
@@ -704,3 +715,118 @@ export const getShiftSummary = createServerFn({ method: "GET" })
       };
     },
   );
+
+/* ------------------------------------------- ledger reads by movement type */
+
+export interface LedgerEntryRow {
+  id: string;
+  folioId: string;
+  folioNumber: string;
+  guestName: string;
+  confirmationNumber: string | null;
+  type: TransactionType;
+  category: string;
+  description: string;
+  amount: number;
+  paymentMethod: string | null;
+  postedAt: string;
+}
+
+/**
+ * Phase 7D.2F1 — read-only view of the existing folio ledger filtered by
+ * movement type (payments, deposits, refunds). This never writes and never
+ * derives a second ledger: every row is one authoritative folio_transactions
+ * record.
+ */
+export const listLedgerEntries = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; types: string[]; search?: string }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        types: z.array(z.enum(TRANSACTION_TYPES)).min(1),
+        search: z.string().max(120).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<LedgerEntryRow[]> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: txns, error } = await supabaseAdmin
+      .from("folio_transactions")
+      .select("id, folio_id, transaction_type, category, description, amount, payment_method, posted_at")
+      .eq("restaurant_id", data.restaurantId)
+      .in("transaction_type", data.types)
+      .order("posted_at", { ascending: false })
+      .limit(200);
+    if (error) throw cashierError(error.message);
+
+    const rows = (txns ?? []) as {
+      id: string;
+      folio_id: string;
+      transaction_type: string;
+      category: string;
+      description: string;
+      amount: number | string;
+      payment_method: string | null;
+      posted_at: string;
+    }[];
+
+    const folioIds = [...new Set(rows.map((r) => r.folio_id))];
+    const folioMeta = new Map<
+      string,
+      { folioNumber: string; guestName: string; confirmationNumber: string | null }
+    >();
+
+    if (folioIds.length > 0) {
+      const { data: folios } = await supabaseAdmin
+        .from("guest_folios")
+        .select(
+          "id, folio_number, guest_profiles!guest_folios_guest_same_property(first_name, last_name), " +
+            "hotel_reservations!guest_folios_reservation_same_property(confirmation_number)",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", folioIds);
+
+      for (const f of (folios ?? []) as unknown as {
+        id: string;
+        folio_number: string;
+        guest_profiles: { first_name: string | null; last_name: string | null } | null;
+        hotel_reservations: { confirmation_number: string } | null;
+      }[]) {
+        folioMeta.set(f.id, {
+          folioNumber: f.folio_number,
+          guestName: guestName(f.guest_profiles),
+          confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
+        });
+      }
+    }
+
+    const term = (data.search ?? "").trim().toLowerCase();
+
+    return rows
+      .map((r) => {
+        const meta = folioMeta.get(r.folio_id);
+        return {
+          id: r.id,
+          folioId: r.folio_id,
+          folioNumber: meta?.folioNumber ?? "—",
+          guestName: meta?.guestName ?? "Guest",
+          confirmationNumber: meta?.confirmationNumber ?? null,
+          type: r.transaction_type as TransactionType,
+          category: r.category,
+          description: r.description,
+          amount: Math.abs(Number(r.amount)),
+          paymentMethod: r.payment_method,
+          postedAt: r.posted_at,
+        };
+      })
+      .filter(
+        (r) =>
+          term === "" ||
+          r.folioNumber.toLowerCase().includes(term) ||
+          r.guestName.toLowerCase().includes(term) ||
+          (r.confirmationNumber ?? "").toLowerCase().includes(term),
+      );
+  });

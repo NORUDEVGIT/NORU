@@ -23,18 +23,33 @@ import { getBookingsAccess } from "@/lib/reservations.functions";
 import { propertyToday } from "@/lib/reservation-dates";
 import { useRestaurantTimezone } from "@/state/restaurant-context";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import { PageHeading } from "@/state/pms-context";
 
 const ALL = "all";
 
-export function ArrivalsWorkspace({ membership }: { membership: RestaurantMembership }) {
+/**
+ * Phase 7D.2F1 — the arrivals list also backs the Check-In and Room Assignment
+ * tabs of the canonical Front Office. Same data, same actions, only the
+ * pre-applied filter differs.
+ */
+export type ArrivalsVariant = "arrivals" | "checkin" | "assignment";
+
+export function ArrivalsWorkspace({
+  membership,
+  variant = "arrivals",
+  embedded = false,
+}: {
+  membership: RestaurantMembership;
+  variant?: ArrivalsVariant;
+  embedded?: boolean;
+}) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
 
   const [date, setDate] = useState(today);
-  const [status, setStatus] = useState(ALL);
-  const [assignment, setAssignment] = useState(ALL);
+  const [status, setStatus] = useState(variant === "checkin" ? "confirmed" : ALL);
+  const [assignment, setAssignment] = useState(variant === "assignment" ? "unassigned" : ALL);
   const [checkIn, setCheckIn] = useState<FrontOfficeStay | null>(null);
   const [assign, setAssign] = useState<FrontOfficeStay | null>(null);
   const [noShow, setNoShow] = useState<FrontOfficeStay | null>(null);
@@ -67,7 +82,11 @@ export function ArrivalsWorkspace({ membership }: { membership: RestaurantMember
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl"><PageHeading fallback="Arrivals" /></h1>
+        {embedded ? null : (
+          <h1 className="font-display text-2xl">
+            <PageHeading fallback="Arrivals" />
+          </h1>
+        )}
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access Front Office for this property.
         </p>
@@ -76,45 +95,67 @@ export function ArrivalsWorkspace({ membership }: { membership: RestaurantMember
   }
 
   const rows = arrivalsQuery.data ?? [];
+  const emptyText =
+    variant === "checkin"
+      ? "No arrivals are waiting to be checked in for this date."
+      : variant === "assignment"
+        ? "Every arrival for this date already has a room."
+        : "No arrivals for this date.";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl"><PageHeading fallback="Arrivals" /></h1>
+      {embedded ? (
         <p className="text-sm text-muted-foreground">
-          Reservations arriving on {formatStayDate(date)} at {membership.restaurant.name}.
+          {variant === "checkin"
+            ? `Confirmed arrivals ready to check in on ${formatStayDate(date)}.`
+            : variant === "assignment"
+              ? `Arrivals still without a room on ${formatStayDate(date)}.`
+              : `Reservations arriving on ${formatStayDate(date)} at ${membership.restaurant.name}.`}
         </p>
-      </div>
+      ) : (
+        <div>
+          <h1 className="font-display text-2xl">
+            <PageHeading fallback="Arrivals" />
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Reservations arriving on {formatStayDate(date)} at {membership.restaurant.name}.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Input type="date" className="w-44" value={date} onChange={(e) => setDate(e.target.value)} />
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All statuses</SelectItem>
-            <SelectItem value="confirmed">Confirmed</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={assignment} onValueChange={setAssignment}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Room assignment" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any assignment</SelectItem>
-            <SelectItem value="assigned">Room assigned</SelectItem>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
-          </SelectContent>
-        </Select>
+        {variant === "checkin" ? null : (
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All statuses</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        {variant === "assignment" ? null : (
+          <Select value={assignment} onValueChange={setAssignment}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Room assignment" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any assignment</SelectItem>
+              <SelectItem value="assigned">Room assigned</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {arrivalsQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading arrivals…</p>
       ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No arrivals for this date.
+          {emptyText}
         </div>
       ) : (
         <ul className="space-y-3">

@@ -1,10 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
-import { ArrivalsWorkspace } from "@/components/workspaces/arrivals-workspace";
+import { FrontOfficeWorkspace } from "@/components/workspaces/front-office-workspace";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/restaurant/pms/front-office")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) =>
+    typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -29,9 +31,10 @@ export const Route = createFileRoute("/restaurant/pms/front-office")({
 });
 
 function FrontOfficePmsRoute() {
+  const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Arrivals" module="rooms" pms pmsModule="front-office">
-      {(m) => <ArrivalsWorkspace membership={m} />}
+      {(m) => <FrontOfficeWorkspace membership={m} initialTab={searchTab ?? "overview"} />}
     </RestaurantShell>
   );
 }
