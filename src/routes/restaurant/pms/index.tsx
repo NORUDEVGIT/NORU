@@ -86,16 +86,15 @@ function PmsHome({ membership }: { membership: RestaurantMembership }) {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((m) => (
                 <Link
-                  key={m.title}
-                  to={m.to}
-                  {...(m.tab ? { search: { tab: m.tab } } : {})}
+                  key={m.key}
+                  to={m.canonicalRoute}
                   className="group flex min-h-36 flex-col rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/60 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <div className="flex w-full items-start justify-between gap-2">
                     <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                       <m.icon className="size-5" />
                     </span>
-                    {m.planned ? (
+                    {m.implementationStatus === "planned" ? (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Planned
                       </span>
