@@ -75,6 +75,10 @@ export interface CashieringDashboard {
   outstandingBalance: number;
   todayPayments: number;
   todayCharges: number;
+  todayDeposits: number;
+  todayRefunds: number;
+  /** Folio-to-folio transfers are not represented in the ledger yet. */
+  transfersSupported: boolean;
   openShifts: number;
   myOpenShiftId: string | null;
 }
@@ -379,10 +383,14 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
 
     let todayPayments = 0;
     let todayCharges = 0;
+    let todayDeposits = 0;
+    let todayRefunds = 0;
     for (const t of (todayTxns ?? []) as { transaction_type: string; amount: number | string }[]) {
       const amount = Number(t.amount);
       if (t.transaction_type === "payment" || t.transaction_type === "deposit")
         todayPayments += -amount;
+      if (t.transaction_type === "deposit") todayDeposits += -amount;
+      if (t.transaction_type === "refund") todayRefunds += Math.abs(amount);
       if (t.transaction_type === "charge") todayCharges += amount;
     }
 
@@ -399,6 +407,9 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       outstandingBalance: outstanding,
       todayPayments: round2(todayPayments),
       todayCharges: round2(todayCharges),
+      todayDeposits: round2(todayDeposits),
+      todayRefunds: round2(todayRefunds),
+      transfersSupported: false,
       openShifts: openShiftRows.length,
       myOpenShiftId: openShiftRows.find((s) => s.membership_id === me.id)?.id ?? null,
     };
