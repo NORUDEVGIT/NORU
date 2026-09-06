@@ -230,6 +230,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
     : null;
 
   const modules = MODULES.filter((m) => allowed.includes(m.moduleKey));
+  const showPms = HOTEL_KEYS.some((k) => allowed.includes(k));
+  const setupLinks = SETUP_LINKS.filter((l) => allowed.includes(l.moduleKey));
 
   return (
     <div className="space-y-8">
