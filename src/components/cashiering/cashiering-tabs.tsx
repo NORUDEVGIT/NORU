@@ -397,7 +397,7 @@ export function LedgerTab({
                 <div>
                   <div className="flex items-center gap-2">
                     <Link
-                      to="/restaurant/cashiering/$folioId"
+                      to="/restaurant/cashiering/folios/$folioId"
                       params={{ folioId: row.folioId }}
                       className="font-medium underline-offset-4 hover:underline"
                     >
