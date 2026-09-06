@@ -6,6 +6,7 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { PMS_GROUPS, PMS_MODULES } from "@/lib/pms-modules";
+import { SharedModuleLinks } from "@/components/pms/shared-module-links";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/pms/")({
@@ -108,6 +109,12 @@ function PmsHome({ membership }: { membership: RestaurantMembership }) {
           </section>
         );
       })}
+
+      <SharedModuleLinks
+        restaurantId={restaurantId}
+        modules={["inventory", "procurement", "human_resources", "accounting_finance"]}
+        intro="PMS uses the property-wide NORU services for stock, purchasing, workforce and finance — it never keeps its own copies. Opening one leaves PMS."
+      />
 
       {!moduleAccess.isLoading && visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">
