@@ -275,3 +275,19 @@ export const PMS_MODULES: PmsModule[] = [
     implementationStatus: "planned",
   },
 ];
+
+/** Lookup by submodule key — used by the shell for PMS context and headings. */
+export function getPmsModule(key: string): PmsModule | undefined {
+  return PMS_MODULES.find((m) => m.key === key);
+}
+
+/**
+ * Phase 7D.2D — the one PMS navigation model, grouped in the approved order.
+ * Every consumer (PMS Home launcher, PMS sidebar) reads this.
+ */
+export const PMS_NAV_GROUPS: { key: PmsGroupKey; title: string; modules: PmsModule[] }[] =
+  PMS_GROUPS.map((g) => ({
+    key: g.key,
+    title: g.title,
+    modules: PMS_MODULES.filter((m) => m.group === g.key),
+  }));
