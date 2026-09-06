@@ -23,9 +23,11 @@ import {
   getCashieringDashboard,
   listCashierShifts,
   listFolios,
+  listLedgerEntries,
   openCashierShift,
   type FolioRow,
 } from "@/lib/cashiering.functions";
+import type { TransactionType } from "@/lib/cashiering.server";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { FolioStatusBadge } from "./folio-bits";
 
@@ -341,5 +343,88 @@ function ShiftDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ ledger */
+
+/**
+ * Phase 7D.2F1 — read-only ledger view. Deposits and refunds are the same
+ * folio transactions the folio detail already shows, filtered by type.
+ */
+export function LedgerTab({
+  restaurantId,
+  types,
+  emptyText,
+}: {
+  restaurantId: string;
+  types: TransactionType[];
+  emptyText: string;
+}) {
+  const money = useMoney();
+  const [search, setSearch] = useState("");
+  const fetchEntries = useServerFn(listLedgerEntries);
+
+  const query = useQuery({
+    queryKey: ["cashiering-ledger", restaurantId, types.join(","), search],
+    queryFn: () =>
+      fetchEntries({ data: { restaurantId, types, ...(search.trim() ? { search: search.trim() } : {}) } }),
+    retry: false,
+  });
+
+  const rows = query.data ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Input
+        className="max-w-sm"
+        placeholder="Search folio, guest or confirmation"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      {query.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading entries…</p>
+      ) : rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          {emptyText}
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {rows.map((row) => (
+            <li key={row.id} className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to="/restaurant/cashiering/$folioId"
+                      params={{ folioId: row.folioId }}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {row.folioNumber}
+                    </Link>
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
+                      {row.type}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm">
+                    {row.guestName}
+                    {row.confirmationNumber ? ` · ${row.confirmationNumber}` : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{row.description}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-display text-lg">{money(row.amount)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.paymentMethod ? `${row.paymentMethod.replace(/_/g, " ")} · ` : ""}
+                    {new Date(row.postedAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

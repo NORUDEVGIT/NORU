@@ -8,12 +8,13 @@ import {
   CashierShiftsTab,
   CashieringDashboardTab,
   FoliosTab,
+  LedgerTab,
 } from "@/components/cashiering/cashiering-tabs";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
 
-const TABS = ["dashboard", "folios", "payments", "shifts"] as const;
+const TABS = ["dashboard", "folios", "payments", "deposits", "refunds", "shifts"] as const;
 type CashieringTabKey = (typeof TABS)[number];
 
 export function CashieringWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
@@ -60,10 +61,12 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as CashieringTabKey)}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="folios">Folios</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="deposits">Deposits</TabsTrigger>
+          <TabsTrigger value="refunds">Refunds</TabsTrigger>
           <TabsTrigger value="shifts">Cashier Shifts</TabsTrigger>
         </TabsList>
 
@@ -74,7 +77,25 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
           <FoliosTab restaurantId={restaurantId} status="all" />
         </TabsContent>
         <TabsContent value="payments" className="mt-4">
-          <FoliosTab restaurantId={restaurantId} status="open" />
+          <LedgerTab
+            restaurantId={restaurantId}
+            types={["payment"]}
+            emptyText="No payments posted yet."
+          />
+        </TabsContent>
+        <TabsContent value="deposits" className="mt-4">
+          <LedgerTab
+            restaurantId={restaurantId}
+            types={["deposit"]}
+            emptyText="No deposits posted yet."
+          />
+        </TabsContent>
+        <TabsContent value="refunds" className="mt-4">
+          <LedgerTab
+            restaurantId={restaurantId}
+            types={["refund"]}
+            emptyText="No refunds posted yet."
+          />
         </TabsContent>
         <TabsContent value="shifts" className="mt-4">
           <CashierShiftsTab restaurantId={restaurantId} />
