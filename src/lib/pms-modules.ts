@@ -27,6 +27,14 @@ import {
 } from "lucide-react";
 import type { ModuleKey } from "./module-access";
 
+/**
+ * Phase 7D.2E — NORU keeps ONE property-wide service per capability
+ * (Inventory / Warehouse, Procurement, Human Resources, Accounting & Finance,
+ * shared reporting). PMS submodules CONSUME those services through
+ * `sharedDependencies`; never create pms_inventory / pms_procurement /
+ * pms_staff / pms_accounting equivalents.
+ */
+
 export type PmsGroupKey = "core" | "commercial" | "intelligence" | "system" | "support";
 
 export const PMS_GROUPS: { key: PmsGroupKey; title: string; description: string }[] = [
@@ -73,6 +81,10 @@ export type PmsModule = {
   /** Older addresses that still work (redirected or retained implementation routes). */
   legacyRoutes: string[];
   implementationStatus: PmsImplementationStatus;
+  /** Owning domain. Every entry here is PMS-owned. */
+  domain: "pms";
+  /** Property-wide services this submodule consumes (never duplicates). */
+  sharedDependencies?: ModuleKey[];
 };
 
 export const PMS_MODULES: PmsModule[] = [
@@ -85,6 +97,7 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "front_office",
     canonicalRoute: "/restaurant/pms/dashboard",
     legacyRoutes: ["/restaurant/rooms?tab=dashboard"],
+    domain: "pms",
     implementationStatus: "existing",
   },
   {
@@ -96,6 +109,7 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "front_office",
     canonicalRoute: "/restaurant/pms/reservations",
     legacyRoutes: ["/restaurant/bookings/reservations"],
+    domain: "pms",
     implementationStatus: "existing",
   },
   {
@@ -107,39 +121,48 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "front_office",
     canonicalRoute: "/restaurant/pms/front-office",
     legacyRoutes: ["/restaurant/rooms/arrivals"],
+    domain: "pms",
     implementationStatus: "existing",
   },
   {
     key: "cashiering",
     title: "Cashiering",
-    description: "Guest folios, postings, payments and cashier shifts.",
+    description:
+      "Guest folios, postings, payments and cashier shifts. Property-wide finance lives in Accounting & Finance.",
     icon: Wallet,
     group: "core",
     moduleKey: "accounting_finance",
     canonicalRoute: "/restaurant/pms/cashiering",
     legacyRoutes: ["/restaurant/cashiering?tab=dashboard"],
+    domain: "pms",
+    sharedDependencies: ["accounting_finance"],
     implementationStatus: "existing",
   },
   {
     key: "housekeeping",
     title: "Housekeeping",
-    description: "Room rack, cleaning board, inspections and discrepancies.",
+    description:
+      "Room rack, cleaning board, inspections and discrepancies. Supplies come from the shared Inventory / Warehouse.",
     icon: Sparkles,
     group: "core",
     moduleKey: "housekeeping",
     canonicalRoute: "/restaurant/pms/housekeeping",
     legacyRoutes: ["/restaurant/housekeeping?tab=dashboard"],
+    domain: "pms",
+    sharedDependencies: ["inventory", "procurement"],
     implementationStatus: "existing",
   },
   {
     key: "room-inventory",
     title: "Room & Inventory",
-    description: "Room types, rooms, availability and out of order / service.",
+    description:
+      "Hotel room inventory: room types, rooms, availability, out of order and out of service. Physical stock lives in Inventory / Warehouse.",
     icon: BedDouble,
     group: "core",
     moduleKey: "configuration",
     canonicalRoute: "/restaurant/pms/room-inventory",
     legacyRoutes: ["/restaurant/rooms?tab=rooms"],
+    domain: "pms",
     implementationStatus: "existing",
   },
   {
@@ -151,6 +174,7 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "configuration",
     canonicalRoute: "/restaurant/pms/rates-revenue",
     legacyRoutes: ["/restaurant/bookings/rates?tab=plans"],
+    domain: "pms",
     implementationStatus: "existing",
   },
   {
@@ -162,6 +186,8 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "accounting_finance",
     canonicalRoute: "/restaurant/pms/night-audit",
     legacyRoutes: ["/restaurant/cashiering/night-audit"],
+    domain: "pms",
+    sharedDependencies: ["accounting_finance"],
     implementationStatus: "existing",
   },
   {
@@ -173,6 +199,8 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "front_office",
     canonicalRoute: "/restaurant/pms/guest-services",
     legacyRoutes: [],
+    domain: "pms",
+    sharedDependencies: ["inventory"],
     implementationStatus: "planned",
   },
   {
@@ -184,6 +212,7 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "configuration",
     canonicalRoute: "/restaurant/pms/sales-events",
     legacyRoutes: [],
+    domain: "pms",
     implementationStatus: "planned",
   },
   {
@@ -195,17 +224,21 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "configuration",
     canonicalRoute: "/restaurant/pms/distribution",
     legacyRoutes: ["/restaurant/bookings/distribution"],
+    domain: "pms",
     implementationStatus: "existing",
   },
   {
     key: "reports",
     title: "Reports & Analytics",
-    description: "Property performance reporting.",
+    description:
+      "Hotel reporting: occupancy, revenue and rooms-side operations.",
     icon: BarChart3,
     group: "intelligence",
     moduleKey: "reports_analytics",
     canonicalRoute: "/restaurant/pms/reports",
     legacyRoutes: ["/restaurant/reports"],
+    domain: "pms",
+    sharedDependencies: ["reports_analytics"],
     implementationStatus: "existing",
   },
   {
@@ -217,17 +250,21 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "configuration",
     canonicalRoute: "/restaurant/pms/property-setup",
     legacyRoutes: ["/restaurant/configuration"],
+    domain: "pms",
     implementationStatus: "existing",
   },
   {
     key: "administration",
     title: "Administration",
-    description: "Staff, roles and module access for the property.",
+    description:
+      "Users, roles and module access for the property. Workforce operations live in Human Resources.",
     icon: ShieldCheck,
     group: "system",
     moduleKey: "human_resources",
     canonicalRoute: "/restaurant/pms/administration",
     legacyRoutes: ["/restaurant/staff?tab=staff"],
+    domain: "pms",
+    sharedDependencies: ["human_resources"],
     implementationStatus: "partial",
   },
   {
@@ -239,17 +276,21 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "property_settings",
     canonicalRoute: "/restaurant/pms/integrations",
     legacyRoutes: ["/restaurant/settings"],
+    domain: "pms",
     implementationStatus: "partial",
   },
   {
     key: "maintenance",
     title: "Maintenance / Engineering",
-    description: "Maintenance requests and room engineering follow-up.",
+    description:
+      "Maintenance requests and room engineering follow-up. Spare parts come from the shared Inventory / Warehouse.",
     icon: Wrench,
     group: "support",
     moduleKey: "housekeeping",
     canonicalRoute: "/restaurant/pms/maintenance",
     legacyRoutes: ["/restaurant/housekeeping?tab=maintenance"],
+    domain: "pms",
+    sharedDependencies: ["inventory", "procurement"],
     implementationStatus: "existing",
   },
   {
@@ -261,6 +302,7 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "property_settings",
     canonicalRoute: "/restaurant/pms/notifications",
     legacyRoutes: [],
+    domain: "pms",
     implementationStatus: "planned",
   },
   {
@@ -272,6 +314,7 @@ export const PMS_MODULES: PmsModule[] = [
     moduleKey: "property_settings",
     canonicalRoute: "/restaurant/pms/security-audit",
     legacyRoutes: [],
+    domain: "pms",
     implementationStatus: "planned",
   },
 ];
