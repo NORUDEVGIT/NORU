@@ -30,7 +30,7 @@ export const Route = createFileRoute("/restaurant/pms/distribution")({
 
 function DistributionPmsRoute() {
   return (
-    <RestaurantShell active="Distribution" module="configuration" pms>
+    <RestaurantShell active="Distribution" module="configuration" pms pmsModule="distribution">
       {(m) => <DistributionWorkspace membership={m} />}
     </RestaurantShell>
   );
