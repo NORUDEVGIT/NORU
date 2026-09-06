@@ -10,6 +10,7 @@ import {
   FoliosTab,
   LedgerTab,
 } from "@/components/cashiering/cashiering-tabs";
+import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
@@ -96,6 +97,12 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
             restaurantId={restaurantId}
             types={["refund"]}
             emptyText="No refunds posted yet."
+          />
+        </TabsContent>
+        <TabsContent value="transfers" className="mt-4">
+          <FoundationPanel
+            title="Folio transfers"
+            description="The guest ledger records charges, payments, deposits, refunds, adjustments and discounts — there is no transfer entry today, so no transfer history can be shown. Folio-to-folio transfers are deferred to a later phase."
           />
         </TabsContent>
         <TabsContent value="shifts" className="mt-4">
