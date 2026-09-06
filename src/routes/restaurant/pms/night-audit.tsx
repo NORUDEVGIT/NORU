@@ -32,10 +32,10 @@ export const Route = createFileRoute("/restaurant/pms/night-audit")({
 function NightAuditPmsRoute() {
   return (
     <RestaurantShell active="Night Audit" module="cashiering" pms pmsModule="night-audit">
-      {(m) => <>
+      {(m) => <div className="space-y-8">
           <NightAuditWorkspace membership={m} />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["accounting_finance"]} />
-        </>}
+        </div>}
     </RestaurantShell>
   );
 }

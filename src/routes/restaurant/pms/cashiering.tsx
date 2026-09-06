@@ -35,10 +35,10 @@ function CashieringPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Cashiering" module="cashiering" pms pmsModule="cashiering">
-      {(m) => <>
+      {(m) => <div className="space-y-8">
           <CashieringWorkspace membership={m} initialTab={searchTab ?? "dashboard"} />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["accounting_finance"]} />
-        </>}
+        </div>}
     </RestaurantShell>
   );
 }

@@ -35,10 +35,10 @@ function HousekeepingPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Housekeeping" module="housekeeping" pms pmsModule="housekeeping">
-      {(m) => <>
+      {(m) => <div className="space-y-8">
           <HousekeepingWorkspace membership={m} initialTab={searchTab ?? "dashboard"} />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["inventory", "procurement"]} />
-        </>}
+        </div>}
     </RestaurantShell>
   );
 }

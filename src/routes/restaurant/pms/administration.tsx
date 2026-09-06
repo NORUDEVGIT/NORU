@@ -35,10 +35,10 @@ function AdministrationPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Staff" module="staff" pms pmsModule="administration">
-      {(m) => <>
+      {(m) => <div className="space-y-8">
           <StaffWorkspace membership={m} initialTab={searchTab ?? "staff"} />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["human_resources"]} />
-        </>}
+        </div>}
     </RestaurantShell>
   );
 }

@@ -32,10 +32,10 @@ export const Route = createFileRoute("/restaurant/pms/reports")({
 function ReportsPmsRoute() {
   return (
     <RestaurantShell active="Reports" module="reports" pms pmsModule="reports">
-      {(m) => <>
+      {(m) => <div className="space-y-8">
           <ReportsWorkspace membership={m} />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["reports_analytics"]} />
-        </>}
+        </div>}
     </RestaurantShell>
   );
 }
