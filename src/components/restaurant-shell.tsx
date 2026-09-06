@@ -596,8 +596,9 @@ export function RestaurantShell({
         </div>
       ) : null}
 
+      {pmsMod ? pmsSidebarNav : null}
 
-      <nav className="min-h-0 flex-1 overflow-y-auto">
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto", pmsMod && "hidden")}>
         <ul className="space-y-1">
           {items.map((item, index) => {
             const isActive = item.tab ? activeTab === item.tab : active === item.label;
