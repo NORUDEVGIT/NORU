@@ -3,40 +3,38 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { RoomsWorkspace } from "@/components/workspaces/rooms-workspace";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/restaurant/rooms/")({
+export const Route = createFileRoute("/restaurant/pms/dashboard")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) =>
     typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
-
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
-      throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/rooms" } });
+      throw redirect({
+        to: "/restaurant/login",
+        search: { redirect: "/restaurant/pms/dashboard" },
+      });
     }
   },
   head: () => ({
     meta: [
-      { title: "Front Office — NORU" },
-      {
-        name: "description",
-        content: "Manage arrivals, in-house guests, departures and reservations for your property in NORU.",
-      },
-      { property: "og:title", content: "Front Office — NORU" },
-      { property: "og:description", content: "Daily hotel operations: arrivals, in-house guests, departures and reservations." },
+      { title: "PMS Dashboard — NORU PMS" },
+      { name: "description", content: "Live occupancy, arrivals, departures and in-house snapshot for your property." },
+      { property: "og:title", content: "PMS Dashboard — NORU PMS" },
+      { property: "og:description", content: "Live occupancy, arrivals, departures and in-house snapshot for your property." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: RoomsRoute,
+  component: DashboardPmsRoute,
 });
 
-function RoomsRoute() {
+function DashboardPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
-  const configTab = searchTab === "rooms" || searchTab === "types";
   return (
-    <RestaurantShell active="Rooms" module={configTab ? "configuration" : "rooms"}>
-      {(m) => <RoomsWorkspace membership={m} initialTab={searchTab ?? undefined} />}
+    <RestaurantShell active="Rooms" module="rooms" pms>
+      {(m) => <RoomsWorkspace membership={m} initialTab={searchTab ?? "dashboard"} />}
     </RestaurantShell>
   );
 }
