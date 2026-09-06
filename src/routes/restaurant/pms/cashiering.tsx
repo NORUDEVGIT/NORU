@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { CashieringWorkspace } from "@/components/workspaces/cashiering-workspace";
 import { supabase } from "@/integrations/supabase/client";
+import { SharedModuleLinks } from "@/components/pms/shared-module-links";
 
 export const Route = createFileRoute("/restaurant/pms/cashiering")({
   ssr: false,
@@ -34,7 +35,10 @@ function CashieringPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Cashiering" module="cashiering" pms pmsModule="cashiering">
-      {(m) => <CashieringWorkspace membership={m} initialTab={searchTab ?? "dashboard"} />}
+      {(m) => <>
+          <CashieringWorkspace membership={m} initialTab={searchTab ?? "dashboard"} />
+          <SharedModuleLinks restaurantId={m.restaurantId} modules={["accounting_finance"]} />
+        </>}
     </RestaurantShell>
   );
 }

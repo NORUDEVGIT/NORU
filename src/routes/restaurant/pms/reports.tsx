@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { ReportsWorkspace } from "@/components/workspaces/reports-workspace";
 import { supabase } from "@/integrations/supabase/client";
+import { SharedModuleLinks } from "@/components/pms/shared-module-links";
 
 export const Route = createFileRoute("/restaurant/pms/reports")({
   ssr: false,
@@ -31,7 +32,10 @@ export const Route = createFileRoute("/restaurant/pms/reports")({
 function ReportsPmsRoute() {
   return (
     <RestaurantShell active="Reports" module="reports" pms pmsModule="reports">
-      {(m) => <ReportsWorkspace membership={m} />}
+      {(m) => <>
+          <ReportsWorkspace membership={m} />
+          <SharedModuleLinks restaurantId={m.restaurantId} modules={["reports_analytics"]} />
+        </>}
     </RestaurantShell>
   );
 }
