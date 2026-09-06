@@ -39,7 +39,7 @@ function StaffPage() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Staff">
-      {(m) => <StaffWorkspace membership={m} initialTab={searchTab} />}
+      {(m) => <StaffWorkspace membership={m} initialTab={searchTab ?? undefined} />}
     </RestaurantShell>
   );
 }

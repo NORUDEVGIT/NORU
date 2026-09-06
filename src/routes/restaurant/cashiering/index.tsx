@@ -34,7 +34,7 @@ function CashieringRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Cashiering">
-      {(m) => <CashieringWorkspace membership={m} initialTab={searchTab} />}
+      {(m) => <CashieringWorkspace membership={m} initialTab={searchTab ?? undefined} />}
     </RestaurantShell>
   );
 }

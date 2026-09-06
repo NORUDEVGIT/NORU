@@ -35,7 +35,7 @@ function HousekeepingRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Housekeeping">
-      {(m) => <HousekeepingWorkspace membership={m} initialTab={searchTab} />}
+      {(m) => <HousekeepingWorkspace membership={m} initialTab={searchTab ?? undefined} />}
     </RestaurantShell>
   );
 }

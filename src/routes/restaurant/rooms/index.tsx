@@ -36,7 +36,7 @@ function RoomsRoute() {
   const configTab = searchTab === "rooms" || searchTab === "types";
   return (
     <RestaurantShell active="Rooms" module={configTab ? "configuration" : "rooms"}>
-      {(m) => <RoomsWorkspace membership={m} initialTab={searchTab} />}
+      {(m) => <RoomsWorkspace membership={m} initialTab={searchTab ?? undefined} />}
     </RestaurantShell>
   );
 }
