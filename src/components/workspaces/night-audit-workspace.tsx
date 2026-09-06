@@ -23,6 +23,7 @@ import { markNoShow } from "@/lib/frontoffice.functions";
 import { formatStayDate } from "@/lib/reservation-dates";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 export function NightAuditWorkspace({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
@@ -113,7 +114,7 @@ export function NightAuditWorkspace({ membership }: { membership: RestaurantMemb
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl">Night Audit</h1>
+          <h1 className="font-display text-2xl"><PageHeading fallback="Night Audit" /></h1>
           <p className="text-sm text-muted-foreground">End-of-day close for {membership.restaurant.name}.</p>
           <p className="mt-2 text-3xl font-semibold">{formatStayDate(state.businessDate)}</p>
           <p className="text-xs text-muted-foreground">Current business date</p>

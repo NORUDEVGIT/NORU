@@ -28,3 +28,15 @@ export function usePageHeading(fallback: string): string {
 export function useIsPmsContext(): boolean {
   return useContext(PmsHeadingContext) !== undefined;
 }
+
+/** Renders the PMS submodule title when in PMS context, else the given fallback. */
+export function PageHeading({ fallback }: { fallback: string }) {
+  const heading = useContext(PmsHeadingContext);
+  return <>{heading ?? fallback}</>;
+}
+
+/** Hides legacy-architecture chrome (eyebrows, parent labels) inside PMS routes. */
+export function NonPmsOnly({ children }: { children: ReactNode }) {
+  const heading = useContext(PmsHeadingContext);
+  return heading === undefined ? <>{children}</> : null;
+}

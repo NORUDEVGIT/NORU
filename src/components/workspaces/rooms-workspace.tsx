@@ -8,6 +8,7 @@ import { RoomTypesTab } from "@/components/rooms/room-types-tab";
 import { RoomsTab } from "@/components/rooms/rooms-tab";
 import { getRoomsAccess } from "@/lib/rooms.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const TABS = ["dashboard", "room-types", "rooms"] as const;
 type RoomsTabKey = (typeof TABS)[number];
@@ -32,7 +33,7 @@ export function RoomsWorkspace({ membership, initialTab }: { membership: Restaur
   if (!accessQuery.data?.canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Front Office</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Front Office" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access front office operations for this property.
         </p>
@@ -46,11 +47,13 @@ export function RoomsWorkspace({ membership, initialTab }: { membership: Restaur
     <div className="space-y-6">
       <div>
         {configContext ? (
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Configuration · Rooms
-          </p>
+          <NonPmsOnly>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Configuration · Rooms
+            </p>
+          </NonPmsOnly>
         ) : null}
-        <h1 className="font-display text-2xl">{configContext ? "Room Types & Rooms" : "Front Office"}</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback={configContext ? "Room Types & Rooms" : "Front Office"} /></h1>
         <p className="text-sm text-muted-foreground">
           {configContext
             ? `Room types, rooms and imagery for ${membership.restaurant.name}.`

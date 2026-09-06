@@ -17,6 +17,7 @@ import { ReservationStatusBadge, formatStayDate } from "@/components/bookings/re
 import { getBookingsAccess, listReservations } from "@/lib/reservations.functions";
 import type { ReservationStatus } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const ALL = "all";
 const PAGE_SIZE = 25;
@@ -66,7 +67,7 @@ export function ReservationsWorkspace({ membership }: { membership: RestaurantMe
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Reservations</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Reservations" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access reservations for this property.
         </p>
@@ -82,7 +83,7 @@ export function ReservationsWorkspace({ membership }: { membership: RestaurantMe
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl">Reservations</h1>
+          <h1 className="font-display text-2xl"><PageHeading fallback="Reservations" /></h1>
           <p className="text-sm text-muted-foreground">
             {total} reservation{total === 1 ? "" : "s"} for {membership.restaurant.name}.
           </p>

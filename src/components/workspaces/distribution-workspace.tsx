@@ -13,6 +13,7 @@ import {
   useDistribution,
 } from "@/components/distribution/distribution-tabs";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const TABS = ["overview", "channels", "rooms", "rates", "logs"] as const;
 type TabKey = (typeof TABS)[number];
@@ -38,7 +39,7 @@ export function DistributionWorkspace({ membership, initialTab }: { membership: 
   if (!accessQuery.data?.canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Distribution</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Distribution" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can manage distribution for this property.
         </p>
@@ -52,7 +53,7 @@ export function DistributionWorkspace({ membership, initialTab }: { membership: 
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Configuration · Distribution
         </p>
-        <h1 className="font-display text-2xl">Distribution</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Distribution" /></h1>
         <p className="text-sm text-muted-foreground">
           Your NORU direct booking page and the channel foundation behind it.
         </p>

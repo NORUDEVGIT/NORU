@@ -12,6 +12,7 @@ import {
 } from "@/components/rates/rates-tabs";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const TABS = ["overview", "plans", "calendar", "restrictions"] as const;
 type RatesTabKey = (typeof TABS)[number];
@@ -37,7 +38,7 @@ export function RatesWorkspace({ membership, initialTab }: { membership: Restaur
   if (!accessQuery.data?.canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Rates & Revenue</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Rates & Revenue" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access rates and revenue for this property.
         </p>
@@ -51,7 +52,7 @@ export function RatesWorkspace({ membership, initialTab }: { membership: Restaur
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Configuration · Rates &amp; Revenue
         </p>
-        <h1 className="font-display text-2xl">Rates & Revenue</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Rates & Revenue" /></h1>
         <p className="text-sm text-muted-foreground">
           Rate plans, daily rates, restrictions and revenue performance for {membership.restaurant.name}.
         </p>
