@@ -745,7 +745,22 @@ export function RestaurantShell({
                 timezone={membership.restaurant.timezone}
                 currencyCode={membership.restaurant.currencyCode}
               >
-                {children(membership)}
+                <PmsHeadingProvider heading={pmsMod?.title}>
+                  {pmsMod ? (
+                    <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
+                      <Link to="/restaurant/home" className="hover:text-foreground">
+                        Property Home
+                      </Link>
+                      <span className="px-1.5">→</span>
+                      <Link to="/restaurant/pms" className="hover:text-foreground">
+                        PMS
+                      </Link>
+                      <span className="px-1.5">→</span>
+                      <span className="text-foreground">{pmsMod.title}</span>
+                    </nav>
+                  ) : null}
+                  {children(membership)}
+                </PmsHeadingProvider>
               </RestaurantSettingsProvider>
             )}
           </main>
