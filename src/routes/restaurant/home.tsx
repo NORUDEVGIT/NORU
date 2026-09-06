@@ -296,8 +296,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
 
         {showPms ? (
           <Link
-            to="/restaurant/rooms"
-            search={{ tab: "dashboard" }}
+            to="/restaurant/pms"
             className="group flex flex-col gap-4 rounded-2xl border border-primary/40 bg-card p-6 transition-colors hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:flex-row sm:items-center"
           >
             <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
