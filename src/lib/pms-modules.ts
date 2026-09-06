@@ -14,7 +14,7 @@ import {
   BedDouble,
   TrendingUp,
   MoonStar,
-  Concierge,
+  ConciergeBell,
   PartyPopper,
   Globe,
   BarChart3,
@@ -143,7 +143,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     title: "Guest Services",
     description: "Guest profiles today; requests and concierge tracking are planned.",
-    icon: Concierge,
+    icon: ConciergeBell,
     group: "commercial",
     moduleKey: "front_office",
     to: "/restaurant/pms/guest-services",
