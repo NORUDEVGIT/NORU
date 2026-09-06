@@ -23,6 +23,7 @@ import { getBookingsAccess } from "@/lib/reservations.functions";
 import { propertyToday } from "@/lib/reservation-dates";
 import { useRestaurantTimezone } from "@/state/restaurant-context";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const ALL = "all";
 
@@ -66,7 +67,7 @@ export function ArrivalsWorkspace({ membership }: { membership: RestaurantMember
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Arrivals</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Arrivals" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access Front Office for this property.
         </p>
@@ -79,7 +80,7 @@ export function ArrivalsWorkspace({ membership }: { membership: RestaurantMember
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl">Arrivals</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Arrivals" /></h1>
         <p className="text-sm text-muted-foreground">
           Reservations arriving on {formatStayDate(date)} at {membership.restaurant.name}.
         </p>

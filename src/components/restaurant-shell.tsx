@@ -43,9 +43,12 @@ import { NoruLogo } from "@/components/noru-logo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
+import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
 import { RestaurantSettingsProvider } from "@/state/restaurant-context";
+import { PmsHeadingProvider } from "@/state/pms-context";
 
 export type RestaurantNavLabel =
   | "Home"
@@ -453,6 +456,7 @@ export function RestaurantShell({
   active,
   module,
   pms,
+  pmsModule,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -460,12 +464,18 @@ export function RestaurantShell({
   module?: WorkspaceModule;
   /** Marks the page as a canonical PMS submodule: adds PMS context and a way back to PMS Home. */
   pms?: boolean;
+  /**
+   * Phase 7D.2D — key from `PMS_MODULES`. When set, the page is presented as a
+   * PMS submodule: PMS sidebar, PMS breadcrumb, PMS heading. Presentation only.
+   */
+  pmsModule?: string;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session, user } = useAuth();
   const fetchRestaurants = useServerFn(getMyRestaurants);
+  const fetchModules = useServerFn(getMyModuleAccess);
   const [navOpen, setNavOpen] = useState(false);
   const search = useSearch({ strict: false }) as { tab?: string };
 
@@ -485,6 +495,16 @@ export function RestaurantShell({
 
   const membership = data?.[0];
   const restaurant = membership?.restaurant;
+  const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
+
+  const moduleAccess = useQuery({
+    queryKey: ["my-module-access", membership?.restaurantId],
+    queryFn: () => fetchModules({ data: { restaurantId: membership!.restaurantId } }),
+    enabled: !!pmsMod && !!membership?.restaurantId,
+    retry: false,
+  });
+  const allowedModules = moduleAccess.data?.modules ?? [];
+
   const workspace = module ?? LABEL_MODULE[active];
   const items = MODULE_NAV[workspace].filter(
     (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
@@ -492,6 +512,46 @@ export function RestaurantShell({
   const activeItem = items.find((i) => i.label === active);
   const activeTab =
     search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
+
+  const contextLabel = pmsMod
+    ? `PMS · ${pmsMod.title}`
+    : pms && workspace !== "pms"
+      ? `PMS · ${MODULE_TITLE[workspace]}`
+      : MODULE_TITLE[workspace];
+
+  const pmsSidebarNav = (
+    <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="PMS navigation">
+      {PMS_NAV_GROUPS.map((group) => {
+        const groupItems = group.modules.filter((m) => allowedModules.includes(m.moduleKey));
+        if (groupItems.length === 0) return null;
+        return (
+          <div key={group.key} className="pb-2">
+            <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+              {group.title}
+            </p>
+            <ul className="space-y-1">
+              {groupItems.map((m) => (
+                <li key={m.key}>
+                  <Link
+                    to={m.canonicalRoute}
+                    onClick={() => setNavOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                      m.key === pmsMod?.key
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    )}
+                  >
+                    <m.icon className="size-4 shrink-0" /> {m.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </nav>
+  );
 
   const sidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
@@ -504,7 +564,24 @@ export function RestaurantShell({
         <NoruLogo size="sm" wordmarkClassName="text-sidebar-foreground" />
       </Link>
 
-      {workspace !== "home" ? (
+      {pmsMod ? (
+        <div className="space-y-1">
+          <Link
+            to="/restaurant/home"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" /> Property Home
+          </Link>
+          <Link
+            to="/restaurant/pms"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Hotel className="size-4 shrink-0" /> PMS Home
+          </Link>
+        </div>
+      ) : workspace !== "home" ? (
         <div className="space-y-2">
           <Link
             to={pms ? "/restaurant/pms" : "/restaurant/home"}
@@ -514,12 +591,14 @@ export function RestaurantShell({
             <ArrowLeft className="size-4 shrink-0" /> {pms ? "PMS Home" : "NORU Home"}
           </Link>
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-            {pms && workspace !== "pms" ? `PMS · ${MODULE_TITLE[workspace]}` : MODULE_TITLE[workspace]}
+            {contextLabel}
           </p>
         </div>
       ) : null}
 
-      <nav className="min-h-0 flex-1 overflow-y-auto">
+      {pmsMod ? pmsSidebarNav : null}
+
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto", pmsMod && "hidden")}>
         <ul className="space-y-1">
           {items.map((item, index) => {
             const isActive = item.tab ? activeTab === item.tab : active === item.label;
@@ -612,11 +691,7 @@ export function RestaurantShell({
                 <p className="truncate font-display text-lg leading-tight">
                   {restaurant?.name ?? "Restaurant"}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {pms && workspace !== "pms"
-                    ? `PMS · ${MODULE_TITLE[workspace]}`
-                    : MODULE_TITLE[workspace]}
-                </p>
+                <p className="text-xs text-muted-foreground">{contextLabel}</p>
               </div>
               <div className="ml-auto flex items-center gap-3">
                 <span className="hidden text-xs text-muted-foreground sm:inline">
@@ -670,7 +745,22 @@ export function RestaurantShell({
                 timezone={membership.restaurant.timezone}
                 currencyCode={membership.restaurant.currencyCode}
               >
-                {children(membership)}
+                <PmsHeadingProvider heading={pmsMod?.title}>
+                  {pmsMod ? (
+                    <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
+                      <Link to="/restaurant/home" className="hover:text-foreground">
+                        Property Home
+                      </Link>
+                      <span className="px-1.5">→</span>
+                      <Link to="/restaurant/pms" className="hover:text-foreground">
+                        PMS
+                      </Link>
+                      <span className="px-1.5">→</span>
+                      <span className="text-foreground">{pmsMod.title}</span>
+                    </nav>
+                  ) : null}
+                  {children(membership)}
+                </PmsHeadingProvider>
               </RestaurantSettingsProvider>
             )}
           </main>

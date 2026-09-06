@@ -30,7 +30,7 @@ export const Route = createFileRoute("/restaurant/pms/sales-events")({
     ],
   }),
   component: () => (
-    <RestaurantShell active="PMS">
+    <RestaurantShell active="PMS" pmsModule="sales-events">
       {() => (
         <PmsPlaceholder
           title="Sales & Events"

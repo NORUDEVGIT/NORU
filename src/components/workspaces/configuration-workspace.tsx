@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BedDouble, CalendarDays, Ban, DoorOpen, Globe, QrCode, UtensilsCrossed, BarChart3 } from "lucide-react";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 type ConfigLink = {
   title: string;
@@ -101,7 +102,7 @@ export function ConfigurationWorkspace({ membership }: { membership: RestaurantM
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-2xl">Configuration</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Configuration" /></h1>
         <p className="text-sm text-muted-foreground">
           Operational master data for {membership.restaurant.name}. Property, regional and account settings live in
           Property Settings & Integrations.

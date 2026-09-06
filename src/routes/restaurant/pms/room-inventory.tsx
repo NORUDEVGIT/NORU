@@ -33,7 +33,7 @@ export const Route = createFileRoute("/restaurant/pms/room-inventory")({
 function RoomInventoryPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
-    <RestaurantShell active="Rooms" module="configuration" pms>
+    <RestaurantShell active="Rooms" module="configuration" pms pmsModule="room-inventory">
       {(m) => <RoomsWorkspace membership={m} initialTab={searchTab ?? "rooms"} />}
     </RestaurantShell>
   );

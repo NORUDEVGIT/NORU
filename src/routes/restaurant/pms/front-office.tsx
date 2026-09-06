@@ -30,7 +30,7 @@ export const Route = createFileRoute("/restaurant/pms/front-office")({
 
 function FrontOfficePmsRoute() {
   return (
-    <RestaurantShell active="Arrivals" module="rooms" pms>
+    <RestaurantShell active="Arrivals" module="rooms" pms pmsModule="front-office">
       {(m) => <ArrivalsWorkspace membership={m} />}
     </RestaurantShell>
   );

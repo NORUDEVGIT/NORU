@@ -6,6 +6,7 @@ import { RevenueOverviewTab } from "@/components/rates/rates-tabs";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 type ReportLink = {
   title: string;
@@ -66,7 +67,7 @@ export function ReportsWorkspace({ membership }: { membership: RestaurantMembers
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl">Reports & Analytics</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Reports & Analytics" /></h1>
         <p className="text-sm text-muted-foreground">
           Property performance for {membership.restaurant.name}, using your existing operational data.
         </p>

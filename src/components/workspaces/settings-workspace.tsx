@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateMyRestaurant, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/lib/restaurant-time";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 export function SettingsWorkspace({ membership }: { membership: RestaurantMembership }) {
   const r = membership.restaurant;
@@ -81,7 +82,7 @@ export function SettingsWorkspace({ membership }: { membership: RestaurantMember
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl">Property Settings &amp; Integrations</h1>
+        <h1 className="font-display text-3xl"><PageHeading fallback="Property Settings &amp; Integrations" /></h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Web address: <span className="font-mono">/{r.slug}</span> · Status: {r.approved ? "Approved" : "Pending approval"}
         </p>

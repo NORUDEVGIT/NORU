@@ -30,7 +30,7 @@ export const Route = createFileRoute("/restaurant/pms/property-setup")({
 
 function PropertySetupPmsRoute() {
   return (
-    <RestaurantShell active="Configuration" module="configuration" pms>
+    <RestaurantShell active="Configuration" module="configuration" pms pmsModule="property-setup">
       {(m) => <ConfigurationWorkspace membership={m} />}
     </RestaurantShell>
   );

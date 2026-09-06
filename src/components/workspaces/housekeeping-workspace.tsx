@@ -17,6 +17,7 @@ import {
 import { useRestaurantTimezone } from "@/state/restaurant-context";
 import { localDateInZone } from "@/lib/restaurant-time";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const TABS = [
   "dashboard",
@@ -54,7 +55,7 @@ export function HousekeepingWorkspace({ membership, initialTab }: { membership: 
   if (!accessQuery.data) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Housekeeping</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Housekeeping" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           You don't have access to Housekeeping for this property.
         </p>
@@ -72,7 +73,7 @@ export function HousekeepingWorkspace({ membership, initialTab }: { membership: 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl">Housekeeping</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Housekeeping" /></h1>
         <p className="text-sm text-muted-foreground">
           Daily room status, cleaning and inspections for {membership.restaurant.name}.
         </p>

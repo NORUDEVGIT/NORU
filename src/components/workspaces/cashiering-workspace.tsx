@@ -11,6 +11,7 @@ import {
 } from "@/components/cashiering/cashiering-tabs";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const TABS = ["dashboard", "folios", "payments", "shifts"] as const;
 type CashieringTabKey = (typeof TABS)[number];
@@ -36,7 +37,7 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
   if (!accessQuery.data) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Cashiering & Folios</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Cashiering & Folios" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           You don't have access to Accounting &amp; Finance for this property.
         </p>
@@ -47,7 +48,7 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl">Cashiering &amp; Folios</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Cashiering &amp; Folios" /></h1>
         <p className="text-sm text-muted-foreground">
           Guest folios, charges, payments and cashier shifts for {membership.restaurant.name}.
         </p>

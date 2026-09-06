@@ -33,7 +33,7 @@ export const Route = createFileRoute("/restaurant/pms/administration")({
 function AdministrationPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
-    <RestaurantShell active="Staff" module="staff" pms>
+    <RestaurantShell active="Staff" module="staff" pms pmsModule="administration">
       {(m) => <StaffWorkspace membership={m} initialTab={searchTab ?? "staff"} />}
     </RestaurantShell>
   );

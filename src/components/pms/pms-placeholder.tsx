@@ -22,17 +22,6 @@ export function PmsPlaceholder({
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
-          <Link to="/restaurant/home" className="hover:text-foreground">
-            Property Home
-          </Link>
-          <span className="px-1.5">→</span>
-          <Link to="/restaurant/pms" className="hover:text-foreground">
-            PMS
-          </Link>
-          <span className="px-1.5">→</span>
-          <span className="text-foreground">{title}</span>
-        </nav>
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex size-12 items-center justify-center rounded-xl bg-accent/15 text-accent">
             <Icon className="size-6" />

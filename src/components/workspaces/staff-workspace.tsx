@@ -50,6 +50,7 @@ import { Switch } from "@/components/ui/switch";
 import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;
 
@@ -279,7 +280,7 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
   if (isError) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Human Resources</h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Human Resources" /></h1>
         <p className="mt-2 text-sm text-muted-foreground">
           You don't have permission to manage staff for this restaurant, or we couldn't load the
           team right now.
@@ -292,7 +293,7 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
     <div className="space-y-6">
       <header className="flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl">Staff &amp; roles</h1>
+          <h1 className="font-display text-2xl"><PageHeading fallback="Staff &amp; roles" /></h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {summary.total} team {summary.total === 1 ? "member" : "members"} · {summary.active}{" "}
             active
