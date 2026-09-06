@@ -354,7 +354,25 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
             ),
           )}
         </div>
+
+        {setupLinks.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Property setup
+            </span>
+            {setupLinks.map((l) => (
+              <Link
+                key={l.title}
+                to={l.to}
+                className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <l.icon className="size-4" /> {l.title}
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </section>
+
 
       <Dialog open={soon !== null} onOpenChange={(open) => !open && setSoon(null)}>
         <DialogContent>
