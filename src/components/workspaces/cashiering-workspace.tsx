@@ -14,7 +14,7 @@ import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
 
-const TABS = ["dashboard", "folios", "payments", "deposits", "refunds", "shifts"] as const;
+const TABS = ["dashboard", "folios", "payments", "deposits", "refunds", "transfers", "shifts"] as const;
 type CashieringTabKey = (typeof TABS)[number];
 
 export function CashieringWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
@@ -67,6 +67,7 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="deposits">Deposits</TabsTrigger>
           <TabsTrigger value="refunds">Refunds</TabsTrigger>
+          <TabsTrigger value="transfers">Transfers</TabsTrigger>
           <TabsTrigger value="shifts">Cashier Shifts</TabsTrigger>
         </TabsList>
 

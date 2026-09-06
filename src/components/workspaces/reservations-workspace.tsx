@@ -278,8 +278,26 @@ export function ReservationsWorkspace({
               )}
         </TabsContent>
 
+        <TabsContent value="group" className="mt-4">
+          <FoundationPanel
+            title="Group bookings"
+            description="Reservation records don't carry a group or block reference yet, so group blocks can't be listed here. This view stays empty until group blocks are added to the booking record."
+          />
+        </TabsContent>
+
+        <TabsContent value="corporate" className="mt-4">
+          <FoundationPanel
+            title="Corporate bookings"
+            description="Reservations and guest profiles have no company or corporate account link yet, so corporate stays can't be separated here. This view stays empty until company accounts are added."
+          />
+        </TabsContent>
+
         <TabsContent value="amendments" className="mt-4">
           <ReservationAmendmentsTab restaurantId={restaurantId} />
+        </TabsContent>
+
+        <TabsContent value="cancellations" className="mt-4">
+          <ReservationCancellationsTab restaurantId={restaurantId} />
         </TabsContent>
       </Tabs>
     </div>
