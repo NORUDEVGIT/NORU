@@ -217,11 +217,11 @@ const ROOMS_NAV: NavEntry[] = [
     icon: LayoutDashboard,
     roles: FO,
   },
-  { to: "/restaurant/rooms/arrivals", label: "Arrivals", icon: LogIn, roles: FO },
+  { to: "/restaurant/pms/front-office", label: "Arrivals", icon: LogIn, roles: FO },
   { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: FO },
   { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: FO },
   {
-    to: "/restaurant/bookings/reservations",
+    to: "/restaurant/pms/reservations",
     label: "Reservations",
     icon: CalendarCheck,
     roles: FO,
@@ -319,7 +319,7 @@ const CASHIERING_NAV: NavEntry[] = [
     roles: CASH,
   },
   {
-    to: "/restaurant/cashiering/night-audit",
+    to: "/restaurant/pms/night-audit",
     label: "Night Audit",
     icon: MoonStar,
     roles: AUDIT,
@@ -351,7 +351,7 @@ const CONFIGURATION_NAV: NavEntry[] = [
     roles: ["owner", "manager"],
   },
   {
-    to: "/restaurant/bookings/rates",
+    to: "/restaurant/pms/rates-revenue",
     tab: "plans",
     label: "Rate Plans",
     icon: BarChart3,
@@ -359,7 +359,7 @@ const CONFIGURATION_NAV: NavEntry[] = [
     roles: ["owner", "manager"],
   },
   {
-    to: "/restaurant/bookings/rates",
+    to: "/restaurant/pms/rates-revenue",
     tab: "calendar",
     label: "Rate Calendar",
     icon: CalendarDays,
@@ -367,7 +367,7 @@ const CONFIGURATION_NAV: NavEntry[] = [
     roles: ["owner", "manager"],
   },
   {
-    to: "/restaurant/bookings/rates",
+    to: "/restaurant/pms/rates-revenue",
     tab: "restrictions",
     label: "Restrictions",
     icon: Ban,
@@ -375,7 +375,7 @@ const CONFIGURATION_NAV: NavEntry[] = [
     roles: ["owner", "manager"],
   },
   {
-    to: "/restaurant/bookings/distribution",
+    to: "/restaurant/pms/distribution",
     label: "Distribution",
     icon: Globe,
     section: "Distribution",
@@ -452,11 +452,14 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
 export function RestaurantShell({
   active,
   module,
+  pms,
   children,
 }: {
   active: RestaurantNavLabel;
   /** Overrides the workspace derived from `active` for pages shared by two modules. */
   module?: WorkspaceModule;
+  /** Marks the page as a canonical PMS submodule: adds PMS context and a way back to PMS Home. */
+  pms?: boolean;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -504,14 +507,14 @@ export function RestaurantShell({
       {workspace !== "home" ? (
         <div className="space-y-2">
           <Link
-            to="/restaurant/home"
+            to={pms ? "/restaurant/pms" : "/restaurant/home"}
             onClick={() => setNavOpen(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <ArrowLeft className="size-4 shrink-0" /> NORU Home
+            <ArrowLeft className="size-4 shrink-0" /> {pms ? "PMS Home" : "NORU Home"}
           </Link>
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-            {MODULE_TITLE[workspace]}
+            {pms && workspace !== "pms" ? `PMS · ${MODULE_TITLE[workspace]}` : MODULE_TITLE[workspace]}
           </p>
         </div>
       ) : null}
@@ -609,7 +612,11 @@ export function RestaurantShell({
                 <p className="truncate font-display text-lg leading-tight">
                   {restaurant?.name ?? "Restaurant"}
                 </p>
-                <p className="text-xs text-muted-foreground">{MODULE_TITLE[workspace]}</p>
+                <p className="text-xs text-muted-foreground">
+                  {pms && workspace !== "pms"
+                    ? `PMS · ${MODULE_TITLE[workspace]}`
+                    : MODULE_TITLE[workspace]}
+                </p>
               </div>
               <div className="ml-auto flex items-center gap-3">
                 <span className="hidden text-xs text-muted-foreground sm:inline">
