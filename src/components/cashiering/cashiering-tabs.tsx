@@ -26,8 +26,8 @@ import {
   listLedgerEntries,
   openCashierShift,
   type FolioRow,
+  type LedgerEntryRow,
 } from "@/lib/cashiering.functions";
-import type { TransactionType } from "@/lib/cashiering.server";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { FolioStatusBadge } from "./folio-bits";
 
@@ -358,7 +358,7 @@ export function LedgerTab({
   emptyText,
 }: {
   restaurantId: string;
-  types: TransactionType[];
+  types: LedgerEntryRow["type"][];
   emptyText: string;
 }) {
   const money = useMoney();
