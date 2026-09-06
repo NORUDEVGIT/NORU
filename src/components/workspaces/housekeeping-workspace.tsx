@@ -30,7 +30,7 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number];
 
-export function HousekeepingWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function HousekeepingWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = useMemo(() => localDateInZone(timezone), [timezone]);

@@ -12,7 +12,7 @@ import type { RestaurantMembership } from "@/lib/restaurant.functions";
 const TABS = ["dashboard", "room-types", "rooms"] as const;
 type RoomsTabKey = (typeof TABS)[number];
 
-export function RoomsWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function RoomsWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
   const restaurantId = membership.restaurant.id;
   const searchTab = initialTab;
   const [tab, setTab] = useState<RoomsTabKey>("dashboard");

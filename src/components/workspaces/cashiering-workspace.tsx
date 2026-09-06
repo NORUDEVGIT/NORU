@@ -15,7 +15,7 @@ import type { RestaurantMembership } from "@/lib/restaurant.functions";
 const TABS = ["dashboard", "folios", "payments", "shifts"] as const;
 type CashieringTabKey = (typeof TABS)[number];
 
-export function CashieringWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function CashieringWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
   const restaurantId = membership.restaurant.id;
   const today = propertyToday(membership.restaurant.timezone);
   const searchTab = initialTab;

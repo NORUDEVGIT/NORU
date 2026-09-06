@@ -91,7 +91,7 @@ const PERMISSION_MATRIX: {
  * One page, four tabs. Kitchen/waiter only ever see their own schedule plus the
  * My Shift card — the server functions enforce the same rules regardless.
  */
-export function StaffWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function StaffWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
   const canManage = membership.role === "owner" || membership.role === "manager";
   const searchTab = initialTab;
   const [tab, setTab] = useState(canManage ? "staff" : "schedule");

@@ -16,7 +16,7 @@ import type { RestaurantMembership } from "@/lib/restaurant.functions";
 const TABS = ["overview", "plans", "calendar", "restrictions"] as const;
 type RatesTabKey = (typeof TABS)[number];
 
-export function RatesWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function RatesWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
   const restaurantId = membership.restaurant.id;
   const today = propertyToday(membership.restaurant.timezone);
   const searchTab = initialTab;

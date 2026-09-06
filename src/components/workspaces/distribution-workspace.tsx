@@ -17,7 +17,7 @@ import type { RestaurantMembership } from "@/lib/restaurant.functions";
 const TABS = ["overview", "channels", "rooms", "rates", "logs"] as const;
 type TabKey = (typeof TABS)[number];
 
-export function DistributionWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function DistributionWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
   const restaurantId = membership.restaurant.id;
   const searchTab = initialTab;
   const [tab, setTab] = useState<TabKey>("overview");
