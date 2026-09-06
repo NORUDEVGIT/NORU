@@ -16,13 +16,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReservationStatusBadge, formatStayDate } from "@/components/bookings/reservation-bits";
 import { ReservationAmendmentsTab } from "@/components/bookings/reservation-amendments";
+import { ReservationCancellationsTab } from "@/components/bookings/reservation-cancellations";
+import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { getBookingsAccess, listReservations } from "@/lib/reservations.functions";
 import type { ReservationStatus } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 const ALL = "all";
-const TABS = ["list", "amendments"] as const;
+const TABS = ["individual", "group", "corporate", "amendments", "cancellations"] as const;
 type ReservationsTabKey = (typeof TABS)[number];
 const PAGE_SIZE = 25;
 
