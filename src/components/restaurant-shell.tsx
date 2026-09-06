@@ -49,6 +49,7 @@ import { RestaurantSettingsProvider } from "@/state/restaurant-context";
 
 export type RestaurantNavLabel =
   | "Home"
+  | "PMS"
   | "Dashboard"
   | "Menu"
   | "Kitchen"
@@ -80,6 +81,7 @@ export type RestaurantNavLabel =
 
 export type WorkspaceModule =
   | "home"
+  | "pms"
   | "restaurant"
   | "stock"
   | "procurement"
@@ -383,6 +385,7 @@ const CONFIGURATION_NAV: NavEntry[] = [
 
 const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
   home: [],
+  pms: [],
   restaurant: RESTAURANT_NAV,
   stock: STOCK_NAV,
   procurement: PROCUREMENT_NAV,
@@ -398,6 +401,7 @@ const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
 
 const MODULE_TITLE: Record<WorkspaceModule, string> = {
   home: "Property Home",
+  pms: "PMS",
   restaurant: "Food & Beverage",
   stock: "Inventory / Warehouse",
   procurement: "Procurement",
@@ -414,6 +418,7 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
 /** Which workspace a page belongs to, derived from its nav label. */
 const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Home: "home",
+  PMS: "pms",
   Dashboard: "restaurant",
   Menu: "configuration",
   Kitchen: "restaurant",

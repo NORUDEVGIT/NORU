@@ -68,6 +68,7 @@ import { Route as RestaurantPmsIndexRouteImport } from './routes/restaurant/pms/
 import { Route as RestaurantPmsGuestServicesRouteImport } from './routes/restaurant/pms/guest-services'
 import { Route as RestaurantPmsNotificationsRouteImport } from './routes/restaurant/pms/notifications'
 import { Route as RestaurantPmsSalesEventsRouteImport } from './routes/restaurant/pms/sales-events'
+import { Route as RestaurantPmsSecurityAuditRouteImport } from './routes/restaurant/pms/security-audit'
 import { Route as RestaurantPosNewRouteImport } from './routes/restaurant/pos/new'
 import { Route as RestaurantRoomsIndexRouteImport } from './routes/restaurant/rooms/index'
 import { Route as RestaurantRoomsArrivalsRouteImport } from './routes/restaurant/rooms/arrivals'
@@ -390,6 +391,12 @@ const RestaurantPmsSalesEventsRoute =
     path: '/restaurant/pms/sales-events',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantPmsSecurityAuditRoute =
+  RestaurantPmsSecurityAuditRouteImport.update({
+    id: '/restaurant/pms/security-audit',
+    path: '/restaurant/pms/security-audit',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantPosNewRoute = RestaurantPosNewRouteImport.update({
   id: '/restaurant/pos/new',
   path: '/restaurant/pos/new',
@@ -523,6 +530,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/pms/guest-services': typeof RestaurantPmsGuestServicesRoute
   '/restaurant/pms/notifications': typeof RestaurantPmsNotificationsRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
+  '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
@@ -597,6 +605,7 @@ export interface FileRoutesByTo {
   '/restaurant/pms/guest-services': typeof RestaurantPmsGuestServicesRoute
   '/restaurant/pms/notifications': typeof RestaurantPmsNotificationsRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
+  '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
@@ -674,6 +683,7 @@ export interface FileRoutesById {
   '/restaurant/pms/guest-services': typeof RestaurantPmsGuestServicesRoute
   '/restaurant/pms/notifications': typeof RestaurantPmsNotificationsRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
+  '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
@@ -752,6 +762,7 @@ export interface FileRouteTypes {
     | '/restaurant/pms/guest-services'
     | '/restaurant/pms/notifications'
     | '/restaurant/pms/sales-events'
+    | '/restaurant/pms/security-audit'
     | '/restaurant/pos/new'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
@@ -826,6 +837,7 @@ export interface FileRouteTypes {
     | '/restaurant/pms/guest-services'
     | '/restaurant/pms/notifications'
     | '/restaurant/pms/sales-events'
+    | '/restaurant/pms/security-audit'
     | '/restaurant/pos/new'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
@@ -902,6 +914,7 @@ export interface FileRouteTypes {
     | '/restaurant/pms/guest-services'
     | '/restaurant/pms/notifications'
     | '/restaurant/pms/sales-events'
+    | '/restaurant/pms/security-audit'
     | '/restaurant/pos/new'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
@@ -972,6 +985,7 @@ export interface RootRouteChildren {
   RestaurantPmsGuestServicesRoute: typeof RestaurantPmsGuestServicesRoute
   RestaurantPmsNotificationsRoute: typeof RestaurantPmsNotificationsRoute
   RestaurantPmsSalesEventsRoute: typeof RestaurantPmsSalesEventsRoute
+  RestaurantPmsSecurityAuditRoute: typeof RestaurantPmsSecurityAuditRoute
   RestaurantPosNewRoute: typeof RestaurantPosNewRoute
   RestaurantRoomsArrivalsRoute: typeof RestaurantRoomsArrivalsRoute
   RestaurantRoomsDeparturesRoute: typeof RestaurantRoomsDeparturesRoute
@@ -1410,6 +1424,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPmsSalesEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/pms/security-audit': {
+      id: '/restaurant/pms/security-audit'
+      path: '/restaurant/pms/security-audit'
+      fullPath: '/restaurant/pms/security-audit'
+      preLoaderRoute: typeof RestaurantPmsSecurityAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/pos/new': {
       id: '/restaurant/pos/new'
       path: '/restaurant/pos/new'
@@ -1602,6 +1623,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPmsGuestServicesRoute: RestaurantPmsGuestServicesRoute,
   RestaurantPmsNotificationsRoute: RestaurantPmsNotificationsRoute,
   RestaurantPmsSalesEventsRoute: RestaurantPmsSalesEventsRoute,
+  RestaurantPmsSecurityAuditRoute: RestaurantPmsSecurityAuditRoute,
   RestaurantPosNewRoute: RestaurantPosNewRoute,
   RestaurantRoomsArrivalsRoute: RestaurantRoomsArrivalsRoute,
   RestaurantRoomsDeparturesRoute: RestaurantRoomsDeparturesRoute,
