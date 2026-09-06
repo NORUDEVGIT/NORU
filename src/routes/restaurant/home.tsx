@@ -291,9 +291,32 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         />
       </section>
 
-      <section aria-label="Modules" className="space-y-3">
-        <h2 className="font-display text-xl">Modules</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+      <section aria-label="Property domains" className="space-y-4">
+        <h2 className="font-display text-xl">Property domains</h2>
+
+        {showPms ? (
+          <Link
+            to="/restaurant/rooms"
+            search={{ tab: "dashboard" }}
+            className="group flex flex-col gap-4 rounded-2xl border border-primary/40 bg-card p-6 transition-colors hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:flex-row sm:items-center"
+          >
+            <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+              <Hotel className="size-7" />
+            </span>
+            <div className="min-w-0 space-y-1">
+              <p className="font-display text-2xl leading-snug">PMS</p>
+              <p className="text-sm text-muted-foreground">
+                Hotel operating system — the home for every rooms-side operation.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {PMS_SUBMODULES.join(" · ")} and more
+              </p>
+            </div>
+          </Link>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
           {modules.map((m) =>
             m.status === "active" ? (
               <Link
