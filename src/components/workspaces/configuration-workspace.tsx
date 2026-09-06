@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BedDouble, CalendarDays, Ban, DoorOpen, Globe, QrCode, UtensilsCrossed, BarChart3 } from "lucide-react";
-import { RestaurantShell } from "@/components/restaurant-shell";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 
 type ConfigLink = {
@@ -96,7 +95,7 @@ const GROUPS: ConfigGroup[] = [
   },
 ];
 
-export function ConfigurationWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function ConfigurationWorkspace({ membership }: { membership: RestaurantMembership }) {
   const role = membership.role;
 
   return (

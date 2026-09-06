@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,7 +26,7 @@ import type { RestaurantMembership } from "@/lib/restaurant.functions";
 
 const ALL = "all";
 
-export function ArrivalsWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function ArrivalsWorkspace({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);

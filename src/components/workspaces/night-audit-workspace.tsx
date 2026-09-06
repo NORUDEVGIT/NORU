@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import {
   ChecklistPanel,
@@ -25,7 +24,7 @@ import { formatStayDate } from "@/lib/reservation-dates";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 
-export function NightAuditWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function NightAuditWorkspace({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const queryClient = useQueryClient();
   const money = useMoney();

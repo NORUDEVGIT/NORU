@@ -4,7 +4,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Copy, Info, Plus, RefreshCw, Search, ShieldCheck, UserCog } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

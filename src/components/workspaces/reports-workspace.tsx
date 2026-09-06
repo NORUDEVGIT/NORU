@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, BarChart3, Boxes, ReceiptText, Sparkles, Users, Wallet } from "lucide-react";
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { RevenueOverviewTab } from "@/components/rates/rates-tabs";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { propertyToday } from "@/lib/reservation-dates";
@@ -53,7 +52,7 @@ const REPORT_LINKS: ReportLink[] = [
   },
 ];
 
-export function ReportsWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function ReportsWorkspace({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const today = propertyToday(membership.restaurant.timezone);
   const fetchAccess = useServerFn(getMyModuleAccess);

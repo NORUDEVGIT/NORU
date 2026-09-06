@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { updateMyRestaurant, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/lib/restaurant-time";
 
-export function SettingsWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string }) {
+export function SettingsWorkspace({ membership }: { membership: RestaurantMembership }) {
   const r = membership.restaurant;
   const queryClient = useQueryClient();
   const save = useServerFn(updateMyRestaurant);
