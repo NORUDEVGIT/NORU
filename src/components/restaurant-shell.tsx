@@ -399,7 +399,7 @@ const MODULE_NAV: Record<WorkspaceModule, NavEntry[]> = {
 const MODULE_TITLE: Record<WorkspaceModule, string> = {
   home: "Property Home",
   restaurant: "Food & Beverage",
-  stock: "Inventory",
+  stock: "Inventory / Warehouse",
   procurement: "Procurement",
   staff: "Human Resources",
   rooms: "Front Office",
