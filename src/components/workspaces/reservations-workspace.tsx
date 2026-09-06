@@ -46,11 +46,13 @@ export function ReservationsWorkspace({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
-  const [tab, setTab] = useState<ReservationsTabKey>("list");
+  const [tab, setTab] = useState<ReservationsTabKey>("individual");
 
   useEffect(() => {
-    if (initialTab && (TABS as readonly string[]).includes(initialTab)) {
-      setTab(initialTab as ReservationsTabKey);
+    // "list" is the pre-patch tab name; keep old links working.
+    const normalised = initialTab === "list" ? "individual" : initialTab;
+    if (normalised && (TABS as readonly string[]).includes(normalised)) {
+      setTab(normalised as ReservationsTabKey);
     }
   }, [initialTab]);
 
@@ -116,12 +118,15 @@ export function ReservationsWorkspace({
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as ReservationsTabKey)}>
-        <TabsList>
-          <TabsTrigger value="list">Reservations</TabsTrigger>
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="individual">Individual</TabsTrigger>
+          <TabsTrigger value="group">Group</TabsTrigger>
+          <TabsTrigger value="corporate">Corporate</TabsTrigger>
           <TabsTrigger value="amendments">Amendments</TabsTrigger>
+          <TabsTrigger value="cancellations">Cancellations</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list" className="mt-4 space-y-6">
+        <TabsContent value="individual" className="mt-4 space-y-6">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative min-w-56 flex-1">
                   <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
