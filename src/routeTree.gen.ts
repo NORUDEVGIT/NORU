@@ -51,9 +51,11 @@ import { Route as RRestaurantSlugConfirmationRouteImport } from './routes/r/$res
 import { Route as RRestaurantSlugReviewRouteImport } from './routes/r/$restaurantSlug/review'
 import { Route as RRestaurantSlugStatusRouteImport } from './routes/r/$restaurantSlug/status'
 import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
+import { Route as RestaurantBackOfficeIndexRouteImport } from './routes/restaurant/back-office/index'
 import { Route as RestaurantBackOfficeAccountingRouteImport } from './routes/restaurant/back-office/accounting'
 import { Route as RestaurantBackOfficeAuditRouteImport } from './routes/restaurant/back-office/audit'
 import { Route as RestaurantBackOfficeCostControlRouteImport } from './routes/restaurant/back-office/cost-control'
+import { Route as RestaurantBackOfficeDashboardRouteImport } from './routes/restaurant/back-office/dashboard'
 import { Route as RestaurantBackOfficeHrRouteImport } from './routes/restaurant/back-office/hr'
 import { Route as RestaurantBackOfficeInventoryRouteImport } from './routes/restaurant/back-office/inventory'
 import { Route as RestaurantBackOfficeMasterDataRouteImport } from './routes/restaurant/back-office/master-data'
@@ -337,6 +339,12 @@ const RRestaurantSlugTableRoute = RRestaurantSlugTableRouteImport.update({
   path: '/table',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RestaurantBackOfficeIndexRoute =
+  RestaurantBackOfficeIndexRouteImport.update({
+    id: '/restaurant/back-office/',
+    path: '/restaurant/back-office/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantBackOfficeAccountingRoute =
   RestaurantBackOfficeAccountingRouteImport.update({
     id: '/restaurant/back-office/accounting',
@@ -353,6 +361,12 @@ const RestaurantBackOfficeCostControlRoute =
   RestaurantBackOfficeCostControlRouteImport.update({
     id: '/restaurant/back-office/cost-control',
     path: '/restaurant/back-office/cost-control',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantBackOfficeDashboardRoute =
+  RestaurantBackOfficeDashboardRouteImport.update({
+    id: '/restaurant/back-office/dashboard',
+    path: '/restaurant/back-office/dashboard',
     getParentRoute: () => rootRouteImport,
   } as any)
 const RestaurantBackOfficeHrRoute = RestaurantBackOfficeHrRouteImport.update({
@@ -798,6 +812,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/back-office/accounting': typeof RestaurantBackOfficeAccountingRoute
   '/restaurant/back-office/audit': typeof RestaurantBackOfficeAuditRoute
   '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
+  '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
   '/restaurant/back-office/hr': typeof RestaurantBackOfficeHrRoute
   '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryRoute
   '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
@@ -850,6 +865,7 @@ export interface FileRoutesByFullPath {
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/restaurant/back-office/': typeof RestaurantBackOfficeIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/cashiering/': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
@@ -913,6 +929,7 @@ export interface FileRoutesByTo {
   '/restaurant/back-office/accounting': typeof RestaurantBackOfficeAccountingRoute
   '/restaurant/back-office/audit': typeof RestaurantBackOfficeAuditRoute
   '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
+  '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
   '/restaurant/back-office/hr': typeof RestaurantBackOfficeHrRoute
   '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryRoute
   '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
@@ -965,6 +982,7 @@ export interface FileRoutesByTo {
   '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
+  '/restaurant/back-office': typeof RestaurantBackOfficeIndexRoute
   '/restaurant/bookings': typeof RestaurantBookingsIndexRoute
   '/restaurant/cashiering': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests': typeof RestaurantGuestsIndexRoute
@@ -1031,6 +1049,7 @@ export interface FileRoutesById {
   '/restaurant/back-office/accounting': typeof RestaurantBackOfficeAccountingRoute
   '/restaurant/back-office/audit': typeof RestaurantBackOfficeAuditRoute
   '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
+  '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
   '/restaurant/back-office/hr': typeof RestaurantBackOfficeHrRoute
   '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryRoute
   '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
@@ -1083,6 +1102,7 @@ export interface FileRoutesById {
   '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
+  '/restaurant/back-office/': typeof RestaurantBackOfficeIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/cashiering/': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
@@ -1150,6 +1170,7 @@ export interface FileRouteTypes {
     | '/restaurant/back-office/accounting'
     | '/restaurant/back-office/audit'
     | '/restaurant/back-office/cost-control'
+    | '/restaurant/back-office/dashboard'
     | '/restaurant/back-office/hr'
     | '/restaurant/back-office/inventory'
     | '/restaurant/back-office/master-data'
@@ -1202,6 +1223,7 @@ export interface FileRouteTypes {
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/restaurant/back-office/'
     | '/restaurant/bookings/'
     | '/restaurant/cashiering/'
     | '/restaurant/guests/'
@@ -1265,6 +1287,7 @@ export interface FileRouteTypes {
     | '/restaurant/back-office/accounting'
     | '/restaurant/back-office/audit'
     | '/restaurant/back-office/cost-control'
+    | '/restaurant/back-office/dashboard'
     | '/restaurant/back-office/hr'
     | '/restaurant/back-office/inventory'
     | '/restaurant/back-office/master-data'
@@ -1317,6 +1340,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
+    | '/restaurant/back-office'
     | '/restaurant/bookings'
     | '/restaurant/cashiering'
     | '/restaurant/guests'
@@ -1382,6 +1406,7 @@ export interface FileRouteTypes {
     | '/restaurant/back-office/accounting'
     | '/restaurant/back-office/audit'
     | '/restaurant/back-office/cost-control'
+    | '/restaurant/back-office/dashboard'
     | '/restaurant/back-office/hr'
     | '/restaurant/back-office/inventory'
     | '/restaurant/back-office/master-data'
@@ -1434,6 +1459,7 @@ export interface FileRouteTypes {
     | '/account/orders/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
+    | '/restaurant/back-office/'
     | '/restaurant/bookings/'
     | '/restaurant/cashiering/'
     | '/restaurant/guests/'
@@ -1493,6 +1519,7 @@ export interface RootRouteChildren {
   RestaurantBackOfficeAccountingRoute: typeof RestaurantBackOfficeAccountingRoute
   RestaurantBackOfficeAuditRoute: typeof RestaurantBackOfficeAuditRoute
   RestaurantBackOfficeCostControlRoute: typeof RestaurantBackOfficeCostControlRoute
+  RestaurantBackOfficeDashboardRoute: typeof RestaurantBackOfficeDashboardRoute
   RestaurantBackOfficeHrRoute: typeof RestaurantBackOfficeHrRoute
   RestaurantBackOfficeInventoryRoute: typeof RestaurantBackOfficeInventoryRoute
   RestaurantBackOfficeMasterDataRoute: typeof RestaurantBackOfficeMasterDataRoute
@@ -1543,6 +1570,7 @@ export interface RootRouteChildren {
   StayPropertySlugConfirmationRoute: typeof StayPropertySlugConfirmationRoute
   StayPropertySlugManageRoute: typeof StayPropertySlugManageRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
+  RestaurantBackOfficeIndexRoute: typeof RestaurantBackOfficeIndexRoute
   RestaurantBookingsIndexRoute: typeof RestaurantBookingsIndexRoute
   RestaurantCashieringIndexRoute: typeof RestaurantCashieringIndexRoute
   RestaurantGuestsIndexRoute: typeof RestaurantGuestsIndexRoute
@@ -1860,6 +1888,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRestaurantSlugTableRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
     }
+    '/restaurant/back-office/': {
+      id: '/restaurant/back-office/'
+      path: '/restaurant/back-office'
+      fullPath: '/restaurant/back-office/'
+      preLoaderRoute: typeof RestaurantBackOfficeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/back-office/accounting': {
       id: '/restaurant/back-office/accounting'
       path: '/restaurant/back-office/accounting'
@@ -1879,6 +1914,13 @@ declare module '@tanstack/react-router' {
       path: '/restaurant/back-office/cost-control'
       fullPath: '/restaurant/back-office/cost-control'
       preLoaderRoute: typeof RestaurantBackOfficeCostControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/back-office/dashboard': {
+      id: '/restaurant/back-office/dashboard'
+      path: '/restaurant/back-office/dashboard'
+      fullPath: '/restaurant/back-office/dashboard'
+      preLoaderRoute: typeof RestaurantBackOfficeDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/back-office/hr': {
@@ -2451,6 +2493,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantBackOfficeAccountingRoute: RestaurantBackOfficeAccountingRoute,
   RestaurantBackOfficeAuditRoute: RestaurantBackOfficeAuditRoute,
   RestaurantBackOfficeCostControlRoute: RestaurantBackOfficeCostControlRoute,
+  RestaurantBackOfficeDashboardRoute: RestaurantBackOfficeDashboardRoute,
   RestaurantBackOfficeHrRoute: RestaurantBackOfficeHrRoute,
   RestaurantBackOfficeInventoryRoute: RestaurantBackOfficeInventoryRoute,
   RestaurantBackOfficeMasterDataRoute: RestaurantBackOfficeMasterDataRoute,
@@ -2513,6 +2556,7 @@ const rootRouteChildren: RootRouteChildren = {
   StayPropertySlugConfirmationRoute: StayPropertySlugConfirmationRoute,
   StayPropertySlugManageRoute: StayPropertySlugManageRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
+  RestaurantBackOfficeIndexRoute: RestaurantBackOfficeIndexRoute,
   RestaurantBookingsIndexRoute: RestaurantBookingsIndexRoute,
   RestaurantCashieringIndexRoute: RestaurantCashieringIndexRoute,
   RestaurantGuestsIndexRoute: RestaurantGuestsIndexRoute,
