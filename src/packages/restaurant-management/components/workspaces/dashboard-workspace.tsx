@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, ChefHat, CheckCircle2, Clock, PauseCircle, QrCode, ReceiptText, RefreshCw, Settings, Users, UtensilsCrossed, XCircle } from "lucide-react";
 
-import { DashboardAnalytics } from "@/components/dashboard-analytics";
+import { DashboardAnalytics } from "@/packages/restaurant-management/components/dashboard-analytics";
 import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
