@@ -6,38 +6,74 @@
  * itself (explicit disable, expiry, compatibility default) is resolved once,
  * server-side, by the Phase 8B1 resolver — no route file repeats that logic.
  *
+ * Phase 8D1 security patch: the gate is FAIL SAFE. A successful resolver
+ * answer of "enabled" (explicit or compatibility default) allows access; a
+ * failure to verify does NOT. An error is never cached and never treated as
+ * a compatibility default.
+ *
  * This gate can only take access away. Existing role/module permissions still
  * run afterwards exactly as before.
  */
 import { redirect } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { getMyRoutePackageAccess } from "./package-entitlements.functions";
 import type { PackageKey } from "./package-entitlements";
 
 const TTL_MS = 30_000;
 
-const cache = new Map<PackageKey, { at: number; allowed: boolean }>();
+type GuardResult = "allowed" | "blocked" | "unverified";
+
+/** Keyed by `${userId}:${packageKey}` so no result can cross accounts. */
+const cache = new Map<string, { at: number; allowed: boolean }>();
+let lastUserId: string | null = null;
 
 /** Dropped on sign-out / property switch so a new session never inherits state. */
 export function clearRoutePackageCache() {
   cache.clear();
+  lastUserId = null;
 }
 
-async function isAllowed(packageKey: PackageKey): Promise<boolean> {
-  const hit = cache.get(packageKey);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.allowed;
+async function currentUserId(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    return data.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolve(packageKey: PackageKey): Promise<GuardResult> {
+  const userId = await currentUserId();
+
+  // A different signed-in user must never read the previous one's results.
+  if (userId !== lastUserId) {
+    cache.clear();
+    lastUserId = userId;
+  }
+
+  const cacheKey = userId ? `${userId}:${packageKey}` : null;
+  if (cacheKey) {
+    const hit = cache.get(cacheKey);
+    if (hit && Date.now() - hit.at < TTL_MS) return hit.allowed ? "allowed" : "blocked";
+  }
 
   try {
     const { allowed } = await getMyRoutePackageAccess({ data: { packageKey } });
-    cache.set(packageKey, { at: Date.now(), allowed });
-    return allowed;
+    // Only real answers are cached; errors below never reach this line.
+    if (cacheKey) cache.set(cacheKey, { at: Date.now(), allowed });
+    return allowed ? "allowed" : "blocked";
   } catch {
-    // Compatibility stance: a transient failure must never lock a working
-    // property out of its own pages.
-    return true;
+    // Fail safe: an unverifiable check is not a compatibility default.
+    return "unverified";
   }
 }
 
 export async function requireRoutePackage(packageKey: PackageKey): Promise<void> {
-  if (await isAllowed(packageKey)) return;
-  throw redirect({ to: "/restaurant/home", search: { blocked: packageKey }, replace: true });
+  const result = await resolve(packageKey);
+  if (result === "allowed") return;
+  if (result === "blocked") {
+    throw redirect({ to: "/restaurant/home", search: { blocked: packageKey }, replace: true });
+  }
+  throw redirect({ to: "/restaurant/home", search: { verify: "failed" }, replace: true });
 }
