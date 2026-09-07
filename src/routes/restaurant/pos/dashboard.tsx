@@ -8,7 +8,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
-import { PosFoundationPage } from "@/components/workspaces/standalone-pos/foundation-page";
+import { StandalonePosDashboard } from "@/components/workspaces/standalone-pos/dashboard-page";
 
 export const Route = createFileRoute("/restaurant/pos/dashboard")({
   ssr: false,
@@ -36,15 +36,7 @@ export const Route = createFileRoute("/restaurant/pos/dashboard")({
 function PosDashboardRoute() {
   return (
     <RestaurantShell active="Standalone POS" posModule="dashboard">
-      {(m) => (
-        <PosFoundationPage
-          moduleKey="dashboard"
-          propertyName={m.restaurant.name}
-          what={[
-            "Takings for the day, by payment method", "Busiest products and hours", "Cashier shift performance",
-          ]}
-        />
-      )}
+      {(m) => <StandalonePosDashboard membership={m} />}
     </RestaurantShell>
   );
 }
