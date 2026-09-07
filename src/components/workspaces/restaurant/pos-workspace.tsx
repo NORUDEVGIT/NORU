@@ -186,7 +186,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
   function holdSale() {
     setHeld((prev) => [...prev, { id: `${Date.now()}`, lines, orderType }]);
     setLines([]);
-    toast.success("Sale held");
+    toast.success("Sale parked on this screen");
   }
 
   function recall(id: string) {

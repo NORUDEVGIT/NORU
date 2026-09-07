@@ -136,7 +136,7 @@ export function PosSalePanel({
             onClick={onHold}
             disabled={empty || busy}
           >
-            <PauseCircle className="mr-1 size-5" /> Hold
+            <PauseCircle className="mr-1 size-5" /> Park here
           </Button>
           <Button
             type="button"
@@ -145,9 +145,13 @@ export function PosSalePanel({
             onClick={onClear}
             disabled={empty || busy}
           >
-            Void
+            Clear
           </Button>
         </div>
+        <p className="text-center text-xs text-muted-foreground">
+          Parking keeps a sale on this screen only — it is lost if the till is closed or
+          refreshed. Clear empties a sale that hasn&apos;t been sent yet.
+        </p>
         <Button
           type="button"
           className="h-16 w-full rounded-2xl text-lg font-bold"
