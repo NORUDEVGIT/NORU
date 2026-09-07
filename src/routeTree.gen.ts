@@ -577,15 +577,15 @@ const RestaurantPmsReservationsIndexRoute =
   } as any)
 const RestaurantPmsReservationsReservationIdRoute =
   RestaurantPmsReservationsReservationIdRouteImport.update({
-    id: '/restaurant/pms/reservations/$reservationId',
-    path: '/restaurant/pms/reservations/$reservationId',
-    getParentRoute: () => rootRouteImport,
+    id: '/$reservationId',
+    path: '/$reservationId',
+    getParentRoute: () => RestaurantPmsReservationsRoute,
   } as any)
 const RestaurantPmsReservationsGuestsGuestIdRoute =
   RestaurantPmsReservationsGuestsGuestIdRouteImport.update({
-    id: '/restaurant/pms/reservations/guests/$guestId',
-    path: '/restaurant/pms/reservations/guests/$guestId',
-    getParentRoute: () => rootRouteImport,
+    id: '/guests/$guestId',
+    path: '/guests/$guestId',
+    getParentRoute: () => RestaurantPmsReservationsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1223,10 +1223,8 @@ export interface RootRouteChildren {
   RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
   RestaurantCashieringNightAuditRunIdRoute: typeof RestaurantCashieringNightAuditRunIdRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
-  RestaurantPmsReservationsReservationIdRoute: typeof RestaurantPmsReservationsReservationIdRoute
   RestaurantCashieringNightAuditIndexRoute: typeof RestaurantCashieringNightAuditIndexRoute
   RestaurantPmsReservationsIndexRoute: typeof RestaurantPmsReservationsIndexRoute
-  RestaurantPmsReservationsGuestsGuestIdRoute: typeof RestaurantPmsReservationsGuestsGuestIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1856,17 +1854,17 @@ declare module '@tanstack/react-router' {
     }
     '/restaurant/pms/reservations/$reservationId': {
       id: '/restaurant/pms/reservations/$reservationId'
-      path: '/restaurant/pms/reservations/$reservationId'
+      path: '/$reservationId'
       fullPath: '/restaurant/pms/reservations/$reservationId'
       preLoaderRoute: typeof RestaurantPmsReservationsReservationIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RestaurantPmsReservationsRoute
     }
     '/restaurant/pms/reservations/guests/$guestId': {
       id: '/restaurant/pms/reservations/guests/$guestId'
-      path: '/restaurant/pms/reservations/guests/$guestId'
+      path: '/guests/$guestId'
       fullPath: '/restaurant/pms/reservations/guests/$guestId'
       preLoaderRoute: typeof RestaurantPmsReservationsGuestsGuestIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RestaurantPmsReservationsRoute
     }
   }
 }
@@ -1992,13 +1990,9 @@ const rootRouteChildren: RootRouteChildren = {
     RestaurantCashieringNightAuditRunIdRoute,
   RestaurantInventoryPurchasingPurchaseOrderIdRoute:
     RestaurantInventoryPurchasingPurchaseOrderIdRoute,
-  RestaurantPmsReservationsReservationIdRoute:
-    RestaurantPmsReservationsReservationIdRoute,
   RestaurantCashieringNightAuditIndexRoute:
     RestaurantCashieringNightAuditIndexRoute,
   RestaurantPmsReservationsIndexRoute: RestaurantPmsReservationsIndexRoute,
-  RestaurantPmsReservationsGuestsGuestIdRoute:
-    RestaurantPmsReservationsGuestsGuestIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
