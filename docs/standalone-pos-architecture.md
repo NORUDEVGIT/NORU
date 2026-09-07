@@ -666,3 +666,44 @@ as proposed.
    counter table.
 
 None of these blocks the freeze itself.
+
+## Phase 8H2 — implemented foundation (backend only)
+
+The freeze above is now backed by real tables and server code. No selling UI
+exists yet, and the Restaurant Management till at
+`/restaurant/restaurant-management/pos-sales` is unchanged.
+
+Migrations: `0030_standalone_pos_foundation.sql`,
+`0031_fix_pos_complete_sale_cashier_name.sql`.
+
+Tables (all tenant-scoped by `restaurant_id`, RLS on, no anonymous access,
+read-only for `authenticated` staff, all writes via service role behind server
+guards): `pos_registers`, `pos_categories`, `pos_products`, `pos_settings`,
+`pos_cashier_shifts`, `pos_sales`, `pos_sale_items`, `pos_payments`,
+`pos_refunds`, `pos_sale_counters`.
+
+Deviations from the 8H1B freeze:
+- POS keeps its own `pos_settings` row (default tax rate, inclusive flag)
+  instead of a property-neutral tax setting, which does not exist. POS tax
+  therefore never depends on restaurant or hotel configuration.
+- Receipt numbering uses a dedicated `pos_sale_counters` row per property,
+  not the reservation counter.
+
+Server code:
+- `src/lib/module-access.ts` — new `standalone_pos` module key, role lists.
+- `src/lib/standalone-pos.server.ts` — access/mutation/manager guards
+  (membership + `pos` package + `standalone_pos` module + role) and error
+  translation. Fail-closed.
+- `src/lib/standalone-pos-pricing.server.ts` — the single canonical money
+  calculation (line and sale totals, inclusive/exclusive tax, half-up
+  rounding).
+- `src/lib/standalone-pos.functions.ts` — settings, registers, categories,
+  products, shifts, sales, lines, payments, completion, refunds,
+  transactions.
+- `public.pos_complete_sale` / `public.pos_refund_sale` — SECURITY DEFINER,
+  service-role only; completion recalculates totals, requires an open shift
+  and sufficient captured payment, allocates the receipt number and finalises
+  in one transaction. Completed sales are immutable (`POS_SALE_IMMUTABLE`).
+
+Not built yet: POS shell and routes, catalog/register/shift screens, the sell
+screen, receipts, reports, inventory and Charge to Room bridges.
