@@ -26,6 +26,7 @@ import {
   type FinanceSource,
   type SourceMetric,
 } from "@/lib/back-office-finance.functions";
+import { getBackOfficePosSummary } from "@/lib/back-office-pos.functions";
 import { formatMoney } from "@/lib/restaurant-time";
 import { propertyToday } from "@/lib/reservation-dates";
 
