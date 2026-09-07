@@ -132,3 +132,44 @@ workspaces) point at canonical addresses, so no new deprecated URL is generated.
 
 Deferred: shared-route ownership migration, Back Office, standalone POS / HR /
 Inventory splits, folder and broad dead-code cleanup.
+
+## Phase 8G1 — Back Office package foundation
+
+Back Office is the enterprise consolidation and control layer. Nothing has been
+migrated into it: every canonical route below is a foundation page. No database
+change, no RLS change, no entitlement-logic change, no server business logic
+change was made in this phase.
+
+Registry: `src/lib/back-office-modules.ts` (`BO_GROUPS`, `BO_MODULES`).
+Launcher: `/restaurant/back-office`. All Back Office routes run the existing
+sign-in check followed by `requireRoutePackage("back_office")`.
+
+| Canonical route | Module | Status | Transitional source screen today |
+|---|---|---|---|
+| `/restaurant/back-office` | Launcher | foundation | — |
+| `/restaurant/back-office/dashboard` | Dashboard | foundation | — (no consolidated figures) |
+| `/restaurant/back-office/hr` | Human Resources | partial (shared) | `/restaurant/staff` (`human_resources`) |
+| `/restaurant/back-office/payroll` | Payroll | planned | none — payroll does not exist |
+| `/restaurant/back-office/inventory` | Inventory / Warehouse | partial (shared) | `/restaurant/inventory` (`inventory`) |
+| `/restaurant/back-office/procurement` | Procurement | partial (shared) | `/restaurant/inventory?tab=suppliers` (`procurement`) |
+| `/restaurant/back-office/accounting` | Accounting & Finance | foundation | `/restaurant/cashiering` (`accounting_finance`) |
+| `/restaurant/back-office/reports` | Reports & Intelligence | partial (shared) | `/restaurant/reports` (`reports_analytics`) |
+| `/restaurant/back-office/audit` | Audit & Compliance | foundation | none exposed to tenants |
+| `/restaurant/back-office/cost-control` | Cost Control | planned | none |
+| `/restaurant/back-office/master-data` | Master Data | foundation | none |
+
+Shared-service links appear only when the person already holds the existing
+module access; the link grants nothing.
+
+### Still shared / transitional (unchanged, not redirected)
+
+`/restaurant/inventory`, `/restaurant/inventory/purchasing/*`, `/restaurant/staff`,
+`/restaurant/reports`, `/restaurant/configuration`, `/restaurant/settings`,
+`/restaurant/cashiering`. Ownership, permissions and data are exactly as before.
+
+### Future phases must migrate
+
+HR ownership and an employee master record; payroll; central warehouse and stock
+valuation; procurement ownership; a real accounting consolidation layer (no
+ledger, chart of accounts, journals or AP/AR exist today); consolidated reporting;
+cost-control calculations; property-level audit; master data.
