@@ -82,7 +82,14 @@ export interface PublicBookingDetail {
 
 export const getStayProperty = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ slug: slugSchema }).parse(input))
-  .handler(async ({ data }): Promise<StayProperty | null> => resolveStayProperty(data.slug));
+  .handler(
+    async ({
+      data,
+    }): Promise<{ status: StayPropertyStatus; property: StayProperty | null }> => {
+      const { resolveStayPropertyPublic } = await import("./public-booking.server");
+      return resolveStayPropertyPublic(data.slug);
+    },
+  );
 
 /* ------------------------------------------------------------------ search */
 
