@@ -95,6 +95,8 @@ export function SettingsWorkspace({
           Web address: <span className="font-mono">/{r.slug}</span> · Status: {r.approved ? "Approved" : "Pending approval"}
         </p>
       </div>
+      )}
+
 
       <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-border bg-card p-5">
         <Field id="name" label="Restaurant name" value={form.name} onChange={set("name")} disabled={!canEdit} />
