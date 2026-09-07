@@ -53,9 +53,10 @@ export const POS_MODULES: PosModule[] = [
     title: "Sell",
     description: "Ring up a sale, take payment and finish at the till.",
     icon: ShoppingCart,
-    status: "blocked",
-    note: "Selling needs an active register and an open cashier shift. Both are built in the next phase.",
+    status: "next",
+    note: "Selling needs an active register and an open cashier shift — both are ready now. The sell screen is built in the next phase.",
   },
+
   {
     key: "catalog",
     title: "Catalog",
