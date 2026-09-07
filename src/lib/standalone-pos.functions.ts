@@ -511,21 +511,10 @@ export const closePosShift = createServerFn({ method: "POST" })
     if (!shift) fail(new Error("That cashier shift could not be found."));
     if (shift.status !== "open") fail(new Error("That cashier shift is closed."));
 
-    const { data: cashPayments } = await db
-      .from("pos_payments")
-      .select("amount")
-      .eq("shift_id", data.shiftId)
-      .eq("payment_method", "cash")
-      .eq("status", "captured");
-    const { data: cashRefunds } = await db
-      .from("pos_refunds")
-      .select("amount")
-      .eq("shift_id", data.shiftId)
-      .eq("method", "cash");
-
-    const sum = (rows: any[] | null) => round2((rows ?? []).reduce((a, r) => a + Number(r.amount), 0));
-    const expected = round2(Number(shift.opening_float) + sum(cashPayments) - sum(cashRefunds));
+    const cash = await expectedCashFor(db, data.shiftId, Number(shift.opening_float));
+    const expected = cash.expectedCash;
     const closing = round2(data.closingCash);
+    const variance = round2(closing - expected);
 
     const { error } = await db
       .from("pos_cashier_shifts")
@@ -535,14 +524,22 @@ export const closePosShift = createServerFn({ method: "POST" })
         closed_by_membership_id: membership.id,
         closing_cash: closing,
         expected_cash: expected,
-        variance: round2(closing - expected),
+        variance,
         notes: data.notes ?? null,
       })
       .eq("id", data.shiftId)
       .eq("restaurant_id", data.restaurantId)
       .eq("status", "open");
     if (error) fail(error);
-    return { ok: true as const, expectedCash: expected, variance: round2(closing - expected) };
+    return {
+      ok: true as const,
+      openingFloat: round2(Number(shift.opening_float)),
+      cashTakings: cash.cashTakings,
+      cashRefunds: cash.cashRefunds,
+      expectedCash: expected,
+      closingCash: closing,
+      variance,
+    };
   });
 
 /**
