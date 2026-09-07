@@ -130,8 +130,13 @@ async function assertManager(
   if (!role || !MANAGE_ROLES.includes(role as (typeof MANAGE_ROLES)[number])) {
     throw new Error("You don't have permission to manage this menu.");
   }
+  // Phase 8E1: menu management is a Restaurant Management action. Checked here,
+  // before any menu read or write, so every mutation below inherits the gate.
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
   return role;
 }
+
 
 export const getManagedMenu = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
