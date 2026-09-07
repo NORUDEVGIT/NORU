@@ -559,3 +559,11 @@ are distinct from Restaurant Management's `cashier_shifts` and from PMS
 cashiering; no data, screen or guard is shared between them. Restaurant
 Management's till at `/restaurant/restaurant-management/pos-sales` is
 unchanged.
+
+### Standalone POS — Sell (Phase 8H5)
+
+Standalone POS owns selling end to end at `/restaurant/pos/sell`: its own
+catalog, sales, sale items, payments, receipt numbering and cashier shifts
+(`pos_*` tables only). It never writes `orders`, `order_items`,
+`order_payments` or Restaurant Management `cashier_shifts`, and does not touch
+PMS cashiering or Back Office finance.

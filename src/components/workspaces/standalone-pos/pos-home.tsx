@@ -46,16 +46,31 @@ export function StandalonePosHome({ membership }: { membership: RestaurantMember
       </section>
 
       <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-        Selling is not switched on yet. A till can only take money once a register exists and a
-        cashier shift is open — both are built in the next phase. For now, set up the{" "}
-        <Link to="/restaurant/pos/catalog" className="underline underline-offset-4">
-          catalog
-        </Link>{" "}
-        and confirm your{" "}
-        <Link to="/restaurant/pos/settings" className="underline underline-offset-4">
-          tax settings
-        </Link>
-        .
+        {o && o.openShifts > 0 ? (
+          <>
+            Ready to sell —{" "}
+            <Link to="/restaurant/pos/sell" className="underline underline-offset-4">
+              go to the sell screen
+            </Link>
+            .
+          </>
+        ) : (
+          <>
+            Open a shift to start selling. Add a{" "}
+            <Link to="/restaurant/pos/registers" className="underline underline-offset-4">
+              register
+            </Link>{" "}
+            and{" "}
+            <Link to="/restaurant/pos/shifts" className="underline underline-offset-4">
+              open a cashier shift
+            </Link>
+            , then ring up sales with your{" "}
+            <Link to="/restaurant/pos/catalog" className="underline underline-offset-4">
+              catalog
+            </Link>
+            .
+          </>
+        )}
         {canSetupPos(membership)
           ? null
           : " Your role can view this section but not change the setup."}

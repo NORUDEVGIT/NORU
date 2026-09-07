@@ -763,3 +763,20 @@ and Charge to Room bridges.
 Routes: `/restaurant/pos/registers` (setup) and `/restaurant/pos/shifts`
 (open/close/history). Both guarded by sign-in plus the `pos` package; the
 server functions re-check membership, package, module and role.
+
+## Phase 8H5 — Sell screen (live)
+
+Route `/restaurant/pos/sell` (`posModule: "sell"`, registry status `live`).
+
+- `getPosSellContext` resolves the caller's own open shift (never nominated by
+  the browser), fetches-or-creates the working open sale on that shift, and
+  returns lines, tenders, server totals and other open sales on the register.
+  A double click cannot fan out into two open sales.
+- Cart edits reuse `addPosSaleItem` / `updatePosSaleItem` / `removePosSaleItem`;
+  prices and tax always come from `pos_products` + `pos_settings`.
+- Tenders use `recordPosPayment`; a mis-keyed tender can be dropped with
+  `removePosPayment` while the sale is still open.
+- `completePosSale` is idempotent: a retry returns the receipt already issued
+  rather than allocating a second number.
+- The receipt panel renders from the completed sale's own data; printing uses
+  the browser print dialog. Refunds, reprints and reports remain 8H6.

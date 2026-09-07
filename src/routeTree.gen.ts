@@ -96,6 +96,7 @@ import { Route as RestaurantPosDashboardRouteImport } from './routes/restaurant/
 import { Route as RestaurantPosNewRouteImport } from './routes/restaurant/pos/new'
 import { Route as RestaurantPosRegistersRouteImport } from './routes/restaurant/pos/registers'
 import { Route as RestaurantPosReportsRouteImport } from './routes/restaurant/pos/reports'
+import { Route as RestaurantPosSellRouteImport } from './routes/restaurant/pos/sell'
 import { Route as RestaurantPosSettingsRouteImport } from './routes/restaurant/pos/settings'
 import { Route as RestaurantPosShiftsRouteImport } from './routes/restaurant/pos/shifts'
 import { Route as RestaurantPosTransactionsRouteImport } from './routes/restaurant/pos/transactions'
@@ -608,6 +609,11 @@ const RestaurantPosReportsRoute = RestaurantPosReportsRouteImport.update({
   path: '/restaurant/pos/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantPosSellRoute = RestaurantPosSellRouteImport.update({
+  id: '/restaurant/pos/sell',
+  path: '/restaurant/pos/sell',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantPosSettingsRoute = RestaurantPosSettingsRouteImport.update({
   id: '/restaurant/pos/settings',
   path: '/restaurant/pos/settings',
@@ -960,6 +966,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
   '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
+  '/restaurant/pos/sell': typeof RestaurantPosSellRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
   '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
@@ -1094,6 +1101,7 @@ export interface FileRoutesByTo {
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
   '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
+  '/restaurant/pos/sell': typeof RestaurantPosSellRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
   '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
@@ -1231,6 +1239,7 @@ export interface FileRoutesById {
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
   '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
   '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
+  '/restaurant/pos/sell': typeof RestaurantPosSellRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
   '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
@@ -1369,6 +1378,7 @@ export interface FileRouteTypes {
     | '/restaurant/pos/new'
     | '/restaurant/pos/registers'
     | '/restaurant/pos/reports'
+    | '/restaurant/pos/sell'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
     | '/restaurant/pos/transactions'
@@ -1503,6 +1513,7 @@ export interface FileRouteTypes {
     | '/restaurant/pos/new'
     | '/restaurant/pos/registers'
     | '/restaurant/pos/reports'
+    | '/restaurant/pos/sell'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
     | '/restaurant/pos/transactions'
@@ -1639,6 +1650,7 @@ export interface FileRouteTypes {
     | '/restaurant/pos/new'
     | '/restaurant/pos/registers'
     | '/restaurant/pos/reports'
+    | '/restaurant/pos/sell'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
     | '/restaurant/pos/transactions'
@@ -1769,6 +1781,7 @@ export interface RootRouteChildren {
   RestaurantPosNewRoute: typeof RestaurantPosNewRoute
   RestaurantPosRegistersRoute: typeof RestaurantPosRegistersRoute
   RestaurantPosReportsRoute: typeof RestaurantPosReportsRoute
+  RestaurantPosSellRoute: typeof RestaurantPosSellRoute
   RestaurantPosSettingsRoute: typeof RestaurantPosSettingsRoute
   RestaurantPosShiftsRoute: typeof RestaurantPosShiftsRoute
   RestaurantPosTransactionsRoute: typeof RestaurantPosTransactionsRoute
@@ -2437,6 +2450,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPosReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/pos/sell': {
+      id: '/restaurant/pos/sell'
+      path: '/restaurant/pos/sell'
+      fullPath: '/restaurant/pos/sell'
+      preLoaderRoute: typeof RestaurantPosSellRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/pos/settings': {
       id: '/restaurant/pos/settings'
       path: '/restaurant/pos/settings'
@@ -2879,6 +2899,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPosNewRoute: RestaurantPosNewRoute,
   RestaurantPosRegistersRoute: RestaurantPosRegistersRoute,
   RestaurantPosReportsRoute: RestaurantPosReportsRoute,
+  RestaurantPosSellRoute: RestaurantPosSellRoute,
   RestaurantPosSettingsRoute: RestaurantPosSettingsRoute,
   RestaurantPosShiftsRoute: RestaurantPosShiftsRoute,
   RestaurantPosTransactionsRoute: RestaurantPosTransactionsRoute,

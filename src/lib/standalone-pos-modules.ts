@@ -53,8 +53,9 @@ export const POS_MODULES: PosModule[] = [
     title: "Sell",
     description: "Ring up a sale, take payment and finish at the till.",
     icon: ShoppingCart,
-    status: "next",
-    note: "Selling needs an active register and an open cashier shift — both are ready now. The sell screen is built in the next phase.",
+    canonicalRoute: "/restaurant/pos/sell",
+    status: "live",
+    note: "Needs an active register and an open cashier shift.",
   },
 
   {
