@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
-import { ReportsWorkspace } from "@/components/workspaces/reports-workspace";
+import { PmsReportsWorkspace } from "@/components/workspaces/pms-reports-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { SharedModuleLinks } from "@/components/pms/shared-module-links";
 
@@ -33,7 +33,7 @@ function ReportsPmsRoute() {
   return (
     <RestaurantShell active="Reports" module="reports" pms pmsModule="reports">
       {(m) => <div className="space-y-8">
-          <ReportsWorkspace membership={m} />
+          <PmsReportsWorkspace membership={m} />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["reports_analytics"]} />
         </div>}
     </RestaurantShell>

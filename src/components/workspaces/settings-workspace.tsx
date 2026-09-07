@@ -10,7 +10,14 @@ import { updateMyRestaurant, type RestaurantMembership } from "@/lib/restaurant.
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/lib/restaurant-time";
 import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
-export function SettingsWorkspace({ membership }: { membership: RestaurantMembership }) {
+export function SettingsWorkspace({
+  membership,
+  embedded = false,
+}: {
+  membership: RestaurantMembership;
+  /** Phase 7D.2F2 — hide the page heading when shown inside another PMS screen. */
+  embedded?: boolean;
+}) {
   const r = membership.restaurant;
   const queryClient = useQueryClient();
   const save = useServerFn(updateMyRestaurant);
@@ -81,12 +88,15 @@ export function SettingsWorkspace({ membership }: { membership: RestaurantMember
 
   return (
     <div className="space-y-6">
+      {embedded ? null : (
       <div>
         <h1 className="font-display text-3xl"><PageHeading fallback="Property Settings &amp; Integrations" /></h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Web address: <span className="font-mono">/{r.slug}</span> · Status: {r.approved ? "Approved" : "Pending approval"}
         </p>
       </div>
+      )}
+
 
       <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-border bg-card p-5">
         <Field id="name" label="Restaurant name" value={form.name} onChange={set("name")} disabled={!canEdit} />

@@ -157,7 +157,14 @@ export function StaffWorkspace({ membership, initialTab }: { membership: Restaur
 type StatusFilter = "all" | "active" | "inactive";
 type RoleFilter = "all" | StaffRole;
 
-function StaffManager({ membership }: { membership: RestaurantMembership }) {
+export function StaffManager({
+  membership,
+  embedded = false,
+}: {
+  membership: RestaurantMembership;
+  /** Phase 7D.2F2 — hide the duplicate heading when shown inside PMS Administration. */
+  embedded?: boolean;
+}) {
   const restaurantId = membership.restaurantId;
   const queryClient = useQueryClient();
 
@@ -293,17 +300,21 @@ function StaffManager({ membership }: { membership: RestaurantMembership }) {
     <div className="space-y-6">
       <header className="flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl"><PageHeading fallback="Staff &amp; roles" /></h1>
+          {embedded ? null : (
+            <h1 className="font-display text-2xl"><PageHeading fallback="Staff &amp; roles" /></h1>
+          )}
           <p className="mt-1 text-sm text-muted-foreground">
             {summary.total} team {summary.total === 1 ? "member" : "members"} · {summary.active}{" "}
             active
           </p>
-          <PmsOnly>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Users, roles and module access for this property. Scheduling, attendance and workforce
-              records live in the property-wide Human Resources module.
-            </p>
-          </PmsOnly>
+          {embedded ? null : (
+            <PmsOnly>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Users, roles and module access for this property. Scheduling, attendance and
+                workforce records live in the property-wide Human Resources module.
+              </p>
+            </PmsOnly>
+          )}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setMatrixOpen(true)}>
