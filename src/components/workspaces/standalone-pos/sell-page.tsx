@@ -246,7 +246,7 @@ export function StandalonePosSell({ membership }: { membership: RestaurantMember
 
           {receipt ? (
             <section className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3 pb-3">
                 <div>
                   <h2 className="font-display text-xl">Sale completed</h2>
                   <p className="text-sm text-muted-foreground">Receipt {receipt.reference}</p>
@@ -258,58 +258,8 @@ export function StandalonePosSell({ membership }: { membership: RestaurantMember
                   <Button onClick={() => setReceipt(null)}>New sale</Button>
                 </div>
               </div>
-              <dl className="mt-4 grid gap-1 text-sm sm:grid-cols-2">
-                <div className="flex justify-between gap-4 sm:block">
-                  <dt className="text-muted-foreground">Register</dt>
-                  <dd>{receipt.register}</dd>
-                </div>
-                <div className="flex justify-between gap-4 sm:block">
-                  <dt className="text-muted-foreground">Cashier</dt>
-                  <dd>{receipt.cashier}</dd>
-                </div>
-                <div className="flex justify-between gap-4 sm:block">
-                  <dt className="text-muted-foreground">Time</dt>
-                  <dd>{dateTime(receipt.completedAt)}</dd>
-                </div>
-                <div className="flex justify-between gap-4 sm:block">
-                  <dt className="text-muted-foreground">Business date</dt>
-                  <dd>{receipt.businessDate}</dd>
-                </div>
-              </dl>
-              <ul className="mt-4 space-y-1 border-t border-border pt-3 text-sm">
-                {receipt.lines.map((l, index) => (
-                  <li key={index} className="flex justify-between gap-4">
-                    <span>
-                      {l.quantity} × {l.name}
-                    </span>
-                    <span className="tabular-nums">{money(l.lineTotal)}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tax</span>
-                  <span className="tabular-nums">{money(receipt.taxAmount)}</span>
-                </div>
-                <div className="flex justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <span className="tabular-nums">{money(receipt.total)}</span>
-                </div>
-                {receipt.payments.map((p, index) => (
-                  <div key={index} className="flex justify-between text-muted-foreground">
-                    <span>{TENDER_LABEL[(p.method as Tender) ?? "other"] ?? p.method}</span>
-                    <span className="tabular-nums">{money(p.amount)}</span>
-                  </div>
-                ))}
-                {receipt.payments.some((p) => p.change > 0) ? (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Change given</span>
-                    <span className="tabular-nums">
-                      {money(receipt.payments.reduce((sum, p) => sum + p.change, 0))}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
+              {/* Phase 8H6: same renderer the transaction reprint uses. */}
+              <ReceiptView receipt={receipt} />
             </section>
           ) : null}
 
