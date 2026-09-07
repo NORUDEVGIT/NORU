@@ -225,6 +225,13 @@
       "when": 1788816407899,
       "tag": "0031_fix_pos_complete_sale_cashier_name",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788820757146,
+      "tag": "0032_pos_refund_sale_tender_allocation",
+      "breakpoints": true
     }
   ]
 }

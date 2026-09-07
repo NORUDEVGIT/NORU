@@ -69,11 +69,10 @@ export const POS_MODULES: PosModule[] = [
   {
     key: "transactions",
     title: "Transactions",
-    description: "Completed sales, refunds and receipts for this till.",
+    description: "Completed sales, receipts and refunds for this till.",
     icon: ReceiptText,
     canonicalRoute: "/restaurant/pos/transactions",
-    status: "foundation",
-    note: "Available once selling is enabled.",
+    status: "live",
   },
   {
     key: "registers",

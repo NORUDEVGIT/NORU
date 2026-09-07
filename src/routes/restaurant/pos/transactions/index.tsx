@@ -1,5 +1,5 @@
 /**
- * Phase 8H3 — Standalone POS route: Transactions.
+ * Phase 8H6 — Standalone POS route: Transactions.
  *
  * Guarded by sign-in plus the `pos` package. Server functions keep their own
  * membership / package / module / role checks.
@@ -8,9 +8,9 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
-import { PosFoundationPage } from "@/components/workspaces/standalone-pos/foundation-page";
+import { StandalonePosTransactions } from "@/components/workspaces/standalone-pos/transactions-page";
 
-export const Route = createFileRoute("/restaurant/pos/transactions")({
+export const Route = createFileRoute("/restaurant/pos/transactions/")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -36,15 +36,7 @@ export const Route = createFileRoute("/restaurant/pos/transactions")({
 function PosTransactionsRoute() {
   return (
     <RestaurantShell active="Standalone POS" posModule="transactions">
-      {(m) => (
-        <PosFoundationPage
-          moduleKey="transactions"
-          propertyName={m.restaurant.name}
-          what={[
-            "Every completed sale with its receipt number", "Reprint or re-send a receipt", "Issue a refund against a sale",
-          ]}
-        />
-      )}
+      {(m) => <StandalonePosTransactions membership={m} />}
     </RestaurantShell>
   );
 }

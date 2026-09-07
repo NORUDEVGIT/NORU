@@ -780,3 +780,82 @@ Route `/restaurant/pos/sell` (`posModule: "sell"`, registry status `live`).
   rather than allocating a second number.
 - The receipt panel renders from the completed sale's own data; printing uses
   the browser print dialog. Refunds, reprints and reports remain 8H6.
+
+## Phase 8H6 — Transactions, receipt reprint, refunds (live)
+
+Routes `/restaurant/pos/transactions` (list) and
+`/restaurant/pos/transactions/:saleId` (detail). Registry status `live`.
+Both guarded by sign-in plus the `pos` package; every server function
+re-checks membership, package, module and role.
+
+### Transaction lifecycle
+
+open → completed (receipt number issued) → partially_refunded → refunded.
+`voided` belongs to the open-sale lifecycle only; a completed sale can never
+be voided or deleted, and there is no completed-sale "Void" action anywhere in
+the UI. Corrections are refunds.
+
+### Reads
+
+`listPosTransactions` reads `pos_sales` for this property only, with filters
+for receipt number, business-date range, status, register, cashier and tender
+method, plus register/cashier names, a tender summary and the remaining
+refundable amount. `getPosSale` returns the completed snapshots, per-tender
+refundable balances and the refund history. Neither ever reads Restaurant
+Management orders or PMS folios. Read roles: owner, manager, cashier,
+accountant. There is no public receipt lookup and no anonymous access.
+
+### Receipt reprint
+
+`ReceiptView` is the single renderer used by both the sell screen and the
+transaction detail. It renders from `pos_sales` / `pos_sale_items` /
+`pos_payments` snapshots; there is no second receipt-body store. Reprint
+changes nothing — same number, same totals, same status — and it is
+**presentation-only**: no reprint audit event is recorded, because no suitable
+audit structure exists for POS and this phase did not create one.
+
+### Refund semantics
+
+`refundPosSale` (owner/manager only) calls `pos_refund_sale_allocated`, which
+in one locked transaction:
+
+- refuses anything other than a `completed` / `partially_refunded` sale;
+- requires the refund to name a captured payment on that sale
+  (`POS_REFUND_PAYMENT_MISMATCH`);
+- caps the refund at the amount still refundable on that tender
+  (`POS_REFUND_EXCEEDS_PAYMENT`) and on the sale
+  (`POS_REFUND_EXCEEDS_REMAINING`);
+- takes the refund method from the payment, never from the browser;
+- writes `pos_refunds` with `authorized_by_membership_id` and
+  `processed_by_membership_id`;
+- moves the sale to `partially_refunded` or `refunded` and updates
+  `refunded_amount`. Original totals and payment rows are never rewritten.
+
+`SELECT ... FOR UPDATE` on the sale serialises racing or double-clicked
+refunds, so the caps hold under concurrency.
+
+### Split-tender refund policy
+
+Allocation is **payment-specific and explicit**: the person choses which
+original tender the money returns on, and the per-tender cap is enforced by
+the database. Nothing is auto-allocated or split by the backend.
+
+### Card refunds
+
+NORU has no payment-gateway integration. A card refund row is an internal POS
+record only; no funds move through a card network. The refund dialog says so.
+
+### Cash impact and shifts
+
+Cash refunds require an open shift belonging to the person processing them
+(`POS_REFUND_SHIFT_REQUIRED`), resolved server-side — the browser never
+nominates a shift. The refund's cash impact lands on that shift, even when the
+original sale's shift is long closed; closed shifts are never rewritten or
+backdated. Non-cash refunds carry no shift and no drawer impact. Expected cash
+stays: opening float + captured cash payments − cash refunds for that shift.
+
+### Roles
+
+Owner/manager: read, reprint, refund. Cashier and accountant: read and
+reprint, no refund. The server is authoritative; the UI only hides what the
+server would refuse.

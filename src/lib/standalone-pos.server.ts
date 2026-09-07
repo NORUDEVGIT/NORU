@@ -79,6 +79,9 @@ const POS_ERRORS: Record<string, string> = {
   POS_SALE_IMMUTABLE: "A completed sale can't be changed. Use a refund instead.",
   POS_SALE_NOT_REFUNDABLE: "Only a completed sale can be refunded.",
   POS_REFUND_EXCEEDS_REMAINING: "That's more than the amount still refundable on this sale.",
+  POS_REFUND_EXCEEDS_PAYMENT: "That's more than the amount still refundable on that payment.",
+  POS_REFUND_PAYMENT_MISMATCH: "Choose one of the payments taken on this sale.",
+  POS_REFUND_SHIFT_REQUIRED: "Open your own cashier shift before giving cash back.",
   POS_INVALID_AMOUNT: "Enter an amount greater than zero.",
 };
 
