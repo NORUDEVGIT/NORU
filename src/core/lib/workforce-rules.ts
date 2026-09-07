@@ -13,7 +13,7 @@ import {
   formatClockInZone,
   localDateInZone,
   zonedMoment,
-} from "./restaurant-time";
+} from "@/shared/lib/property-time";
 
 export { addDaysIsoBase as addDaysIso };
 

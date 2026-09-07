@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { deriveStatus } from "./restaurant-status";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, isValidTimeZone } from "./restaurant-time";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, isValidTimeZone } from "@/shared/lib/property-time";
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
