@@ -7,6 +7,7 @@ import { KitchenBoard } from "@/components/kitchen-board";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
+import { useRmRoutes } from "@/lib/rm-routes";
 import { useAuth } from "@/state/auth-store";
 
 /** Roles allowed to run the kitchen. Waiters are intentionally excluded. */
@@ -25,6 +26,7 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
 }
 
 export function RestaurantKitchen() {
+  const rm = useRmRoutes();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session } = useAuth();
@@ -89,7 +91,7 @@ export function RestaurantKitchen() {
           {membership.restaurant.suspensionReason ? ` Reason: ${membership.restaurant.suspensionReason}` : ""}
         </p>
         <div className="mt-4 flex justify-center gap-3">
-          <Button asChild variant="outline"><Link to="/restaurant/dashboard">Back to dashboard</Link></Button>
+          <Button asChild variant="outline"><Link to={rm.dashboard}>Back to dashboard</Link></Button>
         </div>
       </Shell>
     );
@@ -108,7 +110,7 @@ export function RestaurantKitchen() {
             </span>
           )}
           <Button asChild variant="ghost" size="lg">
-            <Link to="/restaurant/dashboard">Dashboard</Link>
+            <Link to={rm.dashboard}>Dashboard</Link>
           </Button>
         </>
       }
