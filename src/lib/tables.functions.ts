@@ -239,6 +239,12 @@ export const resolveRestaurantTable = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!restaurant || !restaurant.approved || !restaurant.active) return { ok: false };
 
+    // Phase 8D2 — package availability is checked BEFORE the token is looked
+    // up, and reuses the same generic failure shape, so a disabled property
+    // reveals nothing about whether a token exists.
+    const { publicPackageAvailable } = await import("./public-package.server");
+    if (!(await publicPackageAvailable(restaurant.id, "restaurant_management"))) return { ok: false };
+
     const { data: table } = await supabaseAdmin
       .from("restaurant_tables")
       .select("id, table_number, name, active, restaurant_id")
@@ -285,6 +291,11 @@ export const resolveManualTable = createServerFn({ method: "POST" })
         .eq("slug", data.restaurantSlug.toLowerCase())
         .maybeSingle();
       if (!restaurant || !restaurant.approved || !restaurant.active) {
+        return { ok: false, message: "This restaurant isn't accepting orders right now." };
+      }
+
+      const { publicPackageAvailable } = await import("./public-package.server");
+      if (!(await publicPackageAvailable(restaurant.id, "restaurant_management"))) {
         return { ok: false, message: "This restaurant isn't accepting orders right now." };
       }
 
