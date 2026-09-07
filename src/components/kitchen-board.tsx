@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellOff, Clock, LogOut, X } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { updateKitchenOrderStatus } from "@/lib/restaurant-orders.functions";
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
@@ -189,13 +191,16 @@ export function KitchenBoard({
           ? prev.filter((o) => o.id !== order.id)
           : prev.map((o) => (o.id === order.id ? { ...o, status: next } : o)),
       );
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: next })
-        .eq("id", order.id)
-        .eq("restaurant_id", restaurantId);
-      if (error) {
-        // Roll back on failure (RLS rejects orders outside this restaurant).
+      // Goes through the trusted server action so package + membership checks
+      // always apply; the browser can no longer write order status directly.
+      const result = await updateKitchenOrderStatus({
+        data: {
+          restaurantId,
+          orderId: order.id,
+          status: next as "preparing" | "ready" | "served",
+        },
+      }).catch(() => ({ ok: false as const }));
+      if (!result.ok) {
         setOrders((prev) =>
           prev.some((o) => o.id === order.id)
             ? prev.map((o) => (o.id === order.id ? order : o))
@@ -205,6 +210,7 @@ export function KitchenBoard({
     },
     [restaurantId],
   );
+
 
   const grouped = useMemo(() => {
     const sorted = [...orders].sort(
