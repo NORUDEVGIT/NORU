@@ -330,3 +330,66 @@ and labels it explicitly as not a valuation.
 
 No schema change in this phase.
 
+
+## Phase 8G2D — Human Resources boundary
+
+### Ownership split
+
+| Layer | Owns |
+| --- | --- |
+| Core | Sign-in identity, `profiles`, property membership (`restaurant_users`), account activation, module-access infrastructure (`staff_module_access`), package entitlement identity |
+| Back Office HR | Workforce administration: the workforce directory, shift administration, attendance administration, and the future payroll relationship |
+| Restaurant Management | Operational restaurant staffing: waiter/kitchen usage, `staff_table_assignments`, restaurant role usage |
+| PMS | Operational hotel staffing: housekeeping task assignment, front-office user context, maintenance assignment |
+
+### Authoritative tables (one set, never duplicated)
+
+`profiles`, `restaurants`, `restaurant_users`, `staff_module_access`,
+`staff_shifts`, `staff_attendance`, `staff_table_assignments`,
+`restaurant_staff_audit_log`. No employee master, no HR-specific person,
+shift or attendance copy exists, and none may be created.
+
+### Role vs employment
+
+The role on a membership (`owner`, `manager`, `waiter`, `kitchen`,
+`housekeeping`, …) is authorization, owned by Core. Employment attributes
+(department, job title, contract, payroll) do not exist yet and must not be
+made to control permissions when they arrive.
+
+### Route access
+
+`/restaurant/back-office/hr`, `/hr/staff`, `/hr/shifts` and `/hr/attendance`
+require the Back Office package (route guard) **and** existing Human Resources
+module access (checked in the page; the server functions re-check
+independently). Back Office entitlement alone grants nothing.
+`/restaurant/restaurant-management/staff` is unchanged: Restaurant Management
+package plus existing staff access. PMS staff usage is governed by PMS plus
+existing module access. No workforce mutation gained a package argument from
+the browser.
+
+### Cross-package links
+
+Operational staffing screens (Restaurant Management Staff, PMS
+Administration) show "Open in Back Office · Human Resources" only when Back
+Office is enabled for the property and the person already holds Human
+Resources access. Presentation only.
+
+### Transitional `/restaurant/staff`
+
+Left working and not redirected. It renders the same shared workforce
+workspace with neutral property wording, and still serves properties without
+Back Office. Remaining callers: the legacy sidebar workforce links, the
+reports workspace link, the Property Home tile and the PMS shared-module
+link. Once those point at package-canonical addresses it can become
+redirect-only; not done in this phase.
+
+### Not built (not invented anywhere in the UI)
+
+Payroll (no salary engine, payslips, tax, deductions, benefits or journals);
+structured departments and job titles; leave, performance and training. A
+structured department/job data model is recorded here as a future data-model
+requirement.
+
+### Database
+
+No schema change in this phase.
