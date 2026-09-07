@@ -5,8 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search, Star } from "lucide-react";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { GuestFormDialog } from "@/components/guests/guest-form-dialog";
-import { StatusBadge, VipBadge } from "@/components/guests/guest-bits";
+import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
+import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -18,7 +18,7 @@ import {
 } from "@/shared/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { getGuestsAccess, listGuests, type GuestSummary } from "@/lib/guests.functions";
+import { getGuestsAccess, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRestaurantTime } from "@/core/state/restaurant-context";
 

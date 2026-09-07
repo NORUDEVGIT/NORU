@@ -1,8 +1,8 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ConciergeBell, UserRound } from "lucide-react";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { SharedModuleLinks } from "@/components/pms/shared-module-links";
-import { PmsPlaceholder } from "@/components/pms/pms-placeholder";
+import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-links";
+import { PmsPlaceholder } from "@/packages/pms/components/pms/pms-placeholder";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 

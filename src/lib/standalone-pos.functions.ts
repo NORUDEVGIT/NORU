@@ -22,7 +22,7 @@ import {
   type PosProductPricing,
   type PosTaxSettings,
 } from "./standalone-pos-pricing.server";
-import { propertyToday } from "./reservation-dates";
+import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/core/lib/restaurant-time";
 import { STANDALONE_POS_ROLES } from "@/core/lib/module-access";
 

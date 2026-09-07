@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { Button } from "@/shared/components/ui/button";
-import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/components/stay/stay-chrome";
-import { getStayProperty, lookupDirectBooking } from "@/lib/public-booking.functions";
-import { formatStayDate } from "@/lib/reservation-dates";
+import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/packages/pms/components/stay/stay-chrome";
+import { getStayProperty, lookupDirectBooking } from "@/packages/pms/lib/public-booking.functions";
+import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 
 export const Route = createFileRoute("/stay/$propertySlug/confirmation")({
   ssr: false,

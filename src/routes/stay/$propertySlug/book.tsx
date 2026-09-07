@@ -7,15 +7,15 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
-import type { StayProperty } from "@/lib/public-booking.server";
-import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/components/stay/stay-chrome";
+import type { StayProperty } from "@/packages/pms/lib/public-booking.server";
+import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/packages/pms/components/stay/stay-chrome";
 import {
   getStayProperty,
   searchStay,
   submitDirectBooking,
   type PublicRoomTypeOffer,
-} from "@/lib/public-booking.functions";
-import { formatStayDate } from "@/lib/reservation-dates";
+} from "@/packages/pms/lib/public-booking.functions";
+import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 
 type BookSearch = {
   arrival: string;

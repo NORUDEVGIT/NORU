@@ -1,9 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { NightAuditWorkspace } from "@/components/workspaces/night-audit-workspace";
+import { NightAuditWorkspace } from "@/packages/pms/components/workspaces/night-audit-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { SharedModuleLinks } from "@/components/pms/shared-module-links";
+import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-links";
 
 export const Route = createFileRoute("/restaurant/pms/night-audit")({
   ssr: false,

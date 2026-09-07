@@ -28,7 +28,7 @@ import {
 } from "@/lib/back-office-finance.functions";
 import { getBackOfficePosSummary } from "@/lib/back-office-pos.functions";
 import { formatMoney } from "@/core/lib/restaurant-time";
-import { propertyToday } from "@/lib/reservation-dates";
+import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 
 /* ---------------------------------------------------------------- header */
 

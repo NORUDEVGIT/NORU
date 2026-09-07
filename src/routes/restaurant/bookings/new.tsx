@@ -17,19 +17,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { addDays, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
+import { addDays, formatStayDate, propertyToday } from "@/packages/pms/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { listGuests, type GuestSummary } from "@/lib/guests.functions";
+import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getBookingsAccess,
   getRoomTypeAvailability,
   listAssignableRooms,
-} from "@/lib/reservations.functions";
-import { nightsBetween } from "@/lib/reservation-dates";
+} from "@/packages/pms/lib/reservations.functions";
+import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { quoteStay } from "@/lib/rates.functions";
+import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import { useMoney, useRestaurantTimezone } from "@/core/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 

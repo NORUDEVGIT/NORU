@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getRestaurantDashboard } from "@/packages/restaurant-management/lib/dashboard.functions";
 import { getInventoryDashboard } from "@/lib/inventory-reporting.functions";
 import { listShifts } from "@/core/lib/workforce.functions";
-import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
+import { getFrontOfficeDashboard } from "@/packages/pms/lib/frontoffice.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTimezone } from "@/core/state/restaurant-context";
 import { localDateInZone } from "@/core/lib/restaurant-time";

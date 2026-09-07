@@ -5,14 +5,14 @@ import { CalendarPlus, ListChecks } from "lucide-react";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
-import { ReservationStatusBadge, StatCard, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
+import { ReservationStatusBadge, StatCard, formatStayDate, propertyToday } from "@/packages/pms/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import {
   getBookingsAccess,
   getBookingsDashboard,
   listReservations,
-} from "@/lib/reservations.functions";
+} from "@/packages/pms/lib/reservations.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRestaurantTimezone } from "@/core/state/restaurant-context";
 

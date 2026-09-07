@@ -6,8 +6,8 @@ import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
-import { PMS_GROUPS, PMS_MODULES } from "@/lib/pms-modules";
-import { SharedModuleLinks } from "@/components/pms/shared-module-links";
+import { PMS_GROUPS, PMS_MODULES } from "@/packages/pms/lib/pms-modules";
+import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-links";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/pms/")({

@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { RatesWorkspace } from "@/components/workspaces/rates-workspace";
+import { RatesWorkspace } from "@/packages/pms/components/workspaces/rates-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
