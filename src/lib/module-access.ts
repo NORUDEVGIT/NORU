@@ -106,7 +106,7 @@ export const ROLE_MODULES: Record<StaffRole, ModuleKey[]> = {
   housekeeper: ["housekeeping"],
   maintenance: ["housekeeping"],
   receptionist: ["front_office"],
-  cashier: ["accounting_finance", "pos"],
+  cashier: ["accounting_finance", "pos", "standalone_pos"],
   accountant: ["accounting_finance", "reports_analytics"],
   storekeeper: ["inventory", "procurement"],
 };
