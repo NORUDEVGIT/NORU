@@ -5084,6 +5084,49 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      pos_refund_sale_allocated: {
+        Args: {
+          _amount: number
+          _membership_id: string
+          _payment_id: string
+          _reason: string
+          _restaurant_id: string
+          _sale_id: string
+          _shift_id: string
+        }
+        Returns: {
+          business_date: string
+          cashier_name_snapshot: string | null
+          completed_at: string | null
+          completed_by_membership_id: string | null
+          created_at: string
+          currency_code: string
+          customer_reference: string | null
+          discount_amount: number
+          discount_reason: string | null
+          id: string
+          note: string | null
+          opened_by_membership_id: string
+          refunded_amount: number
+          register_id: string
+          restaurant_id: string
+          sale_number: number | null
+          sale_reference: string | null
+          shift_id: string | null
+          status: string
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          voided_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_sales"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       post_folio_transaction: {
         Args: {
           _amount: number

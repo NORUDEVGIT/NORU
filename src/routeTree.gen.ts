@@ -99,7 +99,6 @@ import { Route as RestaurantPosReportsRouteImport } from './routes/restaurant/po
 import { Route as RestaurantPosSellRouteImport } from './routes/restaurant/pos/sell'
 import { Route as RestaurantPosSettingsRouteImport } from './routes/restaurant/pos/settings'
 import { Route as RestaurantPosShiftsRouteImport } from './routes/restaurant/pos/shifts'
-import { Route as RestaurantPosTransactionsRouteImport } from './routes/restaurant/pos/transactions'
 import { Route as RestaurantRestaurantManagementIndexRouteImport } from './routes/restaurant/restaurant-management/index'
 import { Route as RestaurantRestaurantManagementDashboardRouteImport } from './routes/restaurant/restaurant-management/dashboard'
 import { Route as RestaurantRestaurantManagementDigitalOrderingRouteImport } from './routes/restaurant/restaurant-management/digital-ordering'
@@ -624,12 +623,6 @@ const RestaurantPosShiftsRoute = RestaurantPosShiftsRouteImport.update({
   path: '/restaurant/pos/shifts',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RestaurantPosTransactionsRoute =
-  RestaurantPosTransactionsRouteImport.update({
-    id: '/restaurant/pos/transactions',
-    path: '/restaurant/pos/transactions',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const RestaurantRestaurantManagementIndexRoute =
   RestaurantRestaurantManagementIndexRouteImport.update({
     id: '/restaurant/restaurant-management/',
@@ -969,7 +962,6 @@ export interface FileRoutesByFullPath {
   '/restaurant/pos/sell': typeof RestaurantPosSellRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
-  '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
   '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
   '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
   '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
@@ -1104,7 +1096,6 @@ export interface FileRoutesByTo {
   '/restaurant/pos/sell': typeof RestaurantPosSellRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
-  '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
   '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
   '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
   '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
@@ -1242,7 +1233,6 @@ export interface FileRoutesById {
   '/restaurant/pos/sell': typeof RestaurantPosSellRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
-  '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
   '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
   '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
   '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
@@ -1381,7 +1371,6 @@ export interface FileRouteTypes {
     | '/restaurant/pos/sell'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
-    | '/restaurant/pos/transactions'
     | '/restaurant/restaurant-management/dashboard'
     | '/restaurant/restaurant-management/digital-ordering'
     | '/restaurant/restaurant-management/inventory'
@@ -1516,7 +1505,6 @@ export interface FileRouteTypes {
     | '/restaurant/pos/sell'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
-    | '/restaurant/pos/transactions'
     | '/restaurant/restaurant-management/dashboard'
     | '/restaurant/restaurant-management/digital-ordering'
     | '/restaurant/restaurant-management/inventory'
@@ -1653,7 +1641,6 @@ export interface FileRouteTypes {
     | '/restaurant/pos/sell'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
-    | '/restaurant/pos/transactions'
     | '/restaurant/restaurant-management/dashboard'
     | '/restaurant/restaurant-management/digital-ordering'
     | '/restaurant/restaurant-management/inventory'
@@ -1784,7 +1771,6 @@ export interface RootRouteChildren {
   RestaurantPosSellRoute: typeof RestaurantPosSellRoute
   RestaurantPosSettingsRoute: typeof RestaurantPosSettingsRoute
   RestaurantPosShiftsRoute: typeof RestaurantPosShiftsRoute
-  RestaurantPosTransactionsRoute: typeof RestaurantPosTransactionsRoute
   RestaurantRestaurantManagementDashboardRoute: typeof RestaurantRestaurantManagementDashboardRoute
   RestaurantRestaurantManagementDigitalOrderingRoute: typeof RestaurantRestaurantManagementDigitalOrderingRoute
   RestaurantRestaurantManagementInventoryRoute: typeof RestaurantRestaurantManagementInventoryRoute
@@ -2471,13 +2457,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPosShiftsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/restaurant/pos/transactions': {
-      id: '/restaurant/pos/transactions'
-      path: '/restaurant/pos/transactions'
-      fullPath: '/restaurant/pos/transactions'
-      preLoaderRoute: typeof RestaurantPosTransactionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/restaurant/restaurant-management/': {
       id: '/restaurant/restaurant-management/'
       path: '/restaurant/restaurant-management'
@@ -2902,7 +2881,6 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPosSellRoute: RestaurantPosSellRoute,
   RestaurantPosSettingsRoute: RestaurantPosSettingsRoute,
   RestaurantPosShiftsRoute: RestaurantPosShiftsRoute,
-  RestaurantPosTransactionsRoute: RestaurantPosTransactionsRoute,
   RestaurantRestaurantManagementDashboardRoute:
     RestaurantRestaurantManagementDashboardRoute,
   RestaurantRestaurantManagementDigitalOrderingRoute:

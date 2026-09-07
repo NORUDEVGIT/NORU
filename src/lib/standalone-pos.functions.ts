@@ -764,7 +764,7 @@ export const getPosSale = createServerFn({ method: "POST" })
     const { data: sale } = await db
       .from("pos_sales")
       .select(
-        "id, register_id, shift_id, sale_number, sale_reference, status, business_date, currency_code, subtotal, discount_amount, tax_amount, total, refunded_amount, customer_reference, completed_at, voided_at, created_at",
+        "id, register_id, shift_id, sale_number, sale_reference, status, business_date, currency_code, subtotal, discount_amount, tax_amount, total, refunded_amount, customer_reference, cashier_name_snapshot, completed_by_membership_id, opened_by_membership_id, completed_at, voided_at, created_at",
       )
       .eq("id", data.saleId)
       .eq("restaurant_id", data.restaurantId)
@@ -784,14 +784,47 @@ export const getPosSale = createServerFn({ method: "POST" })
       .order("created_at");
     const { data: refunds } = await db
       .from("pos_refunds")
-      .select("id, amount, method, reason, created_at")
+      .select(
+        "id, payment_id, shift_id, amount, method, reason, authorized_by_membership_id, processed_by_membership_id, created_at",
+      )
       .eq("sale_id", data.saleId)
       .order("created_at");
+
+    const { data: register } = await db
+      .from("pos_registers")
+      .select("name")
+      .eq("id", sale.register_id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+
+    const refundRows = (refunds ?? []) as any[];
+    const names = await membershipNames(db, data.restaurantId, [
+      (sale.completed_by_membership_id as string) ?? (sale.opened_by_membership_id as string),
+      ...refundRows.flatMap((r) => [r.processed_by_membership_id, r.authorized_by_membership_id]),
+    ]);
+
+    // Refunded per tender, so the screen can cap each one honestly.
+    const refundedByPayment = new Map<string, number>();
+    for (const r of refundRows) {
+      if (!r.payment_id) continue;
+      refundedByPayment.set(
+        r.payment_id as string,
+        round2((refundedByPayment.get(r.payment_id as string) ?? 0) + Number(r.amount)),
+      );
+    }
+
+    const total = Number(sale.total);
+    const refundedAmount = Number(sale.refunded_amount);
 
     return {
       id: sale.id as string,
       registerId: sale.register_id as string,
+      registerName: (register?.name as string) ?? "—",
       shiftId: (sale.shift_id as string) ?? null,
+      cashier:
+        (sale.cashier_name_snapshot as string) ??
+        names.get((sale.completed_by_membership_id ?? sale.opened_by_membership_id) as string) ??
+        "—",
       saleNumber: sale.sale_number === null ? null : Number(sale.sale_number),
       reference: (sale.sale_reference as string) ?? null,
       status: sale.status as string,
@@ -800,8 +833,9 @@ export const getPosSale = createServerFn({ method: "POST" })
       subtotal: Number(sale.subtotal),
       discountAmount: Number(sale.discount_amount),
       taxAmount: Number(sale.tax_amount),
-      total: Number(sale.total),
-      refundedAmount: Number(sale.refunded_amount),
+      total,
+      refundedAmount,
+      refundable: sale.status === "voided" ? 0 : round2(Math.max(0, total - refundedAmount)),
       customerReference: (sale.customer_reference as string) ?? null,
       completedAt: (sale.completed_at as string) ?? null,
       voidedAt: (sale.voided_at as string) ?? null,
@@ -828,12 +862,21 @@ export const getPosSale = createServerFn({ method: "POST" })
         status: p.status as string,
         reference: (p.reference as string) ?? null,
         createdAt: p.created_at as string,
+        refunded: refundedByPayment.get(p.id as string) ?? 0,
+        refundable:
+          p.status === "voided"
+            ? 0
+            : round2(Math.max(0, Number(p.amount) - (refundedByPayment.get(p.id as string) ?? 0))),
       })),
-      refunds: ((refunds ?? []) as any[]).map((r) => ({
+      refunds: refundRows.map((r) => ({
         id: r.id as string,
+        paymentId: (r.payment_id as string) ?? null,
+        shiftId: (r.shift_id as string) ?? null,
         amount: Number(r.amount),
         method: r.method as string,
         reason: (r.reason as string) ?? null,
+        processedBy: names.get(r.processed_by_membership_id as string) ?? "A team member",
+        authorizedBy: names.get(r.authorized_by_membership_id as string) ?? null,
         createdAt: r.created_at as string,
       })),
     };
@@ -1112,45 +1155,66 @@ export const completePosSale = createServerFn({ method: "POST" })
   });
 
 
+/**
+ * Phase 8H6 — refund against a completed sale.
+ *
+ * Owner/manager only. The refund is always allocated to one of the sale's own
+ * captured tenders, so the database can cap it per tender as well as per sale.
+ * Cash refunds need an open shift belonging to the person processing them, and
+ * the cash impact lands on THAT shift — a closed historical shift is never
+ * rewritten. Card refunds are internal POS records: NORU has no payment
+ * gateway, so no money moves through a card network here.
+ */
 export const refundPosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: {
-      restaurantId: string;
-      saleId: string;
-      amount: number;
-      method: "cash" | "card" | "voucher" | "other";
-      reason?: string | null;
-      paymentId?: string | null;
-    }) =>
+    (input: { restaurantId: string; saleId: string; paymentId: string; amount: number; reason?: string | null }) =>
       z
         .object({
           restaurantId: idSchema,
           saleId: idSchema,
+          paymentId: idSchema,
           amount: z.number().positive(),
-          method: z.enum(["cash", "card", "voucher", "other"]),
           reason: z.string().trim().max(300).nullable().optional(),
-          paymentId: idSchema.nullable().optional(),
         })
         .parse(input),
   )
   .handler(async ({ data, context }) => {
     const membership = await requireStandalonePosManager(context as any, data.restaurantId);
     const db = await admin();
-    const { data: row, error } = await db.rpc("pos_refund_sale", {
+
+    // The acting shift is resolved server-side; the browser never nominates one.
+    const { data: shift } = await db
+      .from("pos_cashier_shifts")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "open")
+      .eq("opened_by_membership_id", membership.id)
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: row, error } = await db.rpc("pos_refund_sale_allocated", {
       _restaurant_id: data.restaurantId,
       _sale_id: data.saleId,
+      _payment_id: data.paymentId,
       _amount: round2(data.amount),
-      _method: data.method,
       _reason: data.reason ?? null,
-      _payment_id: data.paymentId ?? null,
+      _shift_id: (shift?.id as string) ?? null,
       _membership_id: membership.id,
     });
     if (error) fail(error);
     const sale = Array.isArray(row) ? row[0] : row;
+    const names = await membershipNames(db, data.restaurantId, [membership.id]);
     return {
       ok: true as const,
       status: sale.status as string,
+      reference: (sale.sale_reference as string) ?? null,
+      amount: round2(data.amount),
+      reason: data.reason ?? null,
+      processedBy: names.get(membership.id) ?? "You",
+      processedAt: new Date().toISOString(),
+      shiftId: (shift?.id as string) ?? null,
       refundedAmount: Number(sale.refunded_amount),
       remaining: round2(Number(sale.total) - Number(sale.refunded_amount)),
     };
@@ -1158,13 +1222,37 @@ export const refundPosSale = createServerFn({ method: "POST" })
 
 /* --------------------------------------------------------- transactions */
 
+export type PosTransactionFilters = {
+  restaurantId: string;
+  reference?: string | null;
+  fromDate?: string | null;
+  toDate?: string | null;
+  status?: string | null;
+  registerId?: string | null;
+  cashierMembershipId?: string | null;
+  method?: string | null;
+  limit?: number;
+};
+
+/**
+ * Phase 8H6 — transaction history for this till only.
+ *
+ * Reads `pos_sales` and its own tenders; it never looks at Restaurant
+ * Management orders or PMS folios.
+ */
 export const listPosTransactions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; businessDate?: string; limit?: number }) =>
+  .inputValidator((input: PosTransactionFilters) =>
     z
       .object({
         restaurantId: idSchema,
-        businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        reference: z.string().trim().max(60).nullable().optional(),
+        fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        status: z.enum(["completed", "partially_refunded", "refunded", "voided"]).nullable().optional(),
+        registerId: idSchema.nullable().optional(),
+        cashierMembershipId: idSchema.nullable().optional(),
+        method: z.enum(["cash", "card", "voucher", "other"]).nullable().optional(),
         limit: z.number().int().min(1).max(200).optional(),
       })
       .parse(input),
@@ -1172,25 +1260,108 @@ export const listPosTransactions = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireStandalonePosAccess(context as any, data.restaurantId);
     const db = await admin();
+
     let query = db
       .from("pos_sales")
-      .select("id, sale_reference, status, business_date, total, refunded_amount, currency_code, completed_at, created_at")
+      .select(
+        "id, sale_reference, status, business_date, total, refunded_amount, currency_code, register_id, shift_id, completed_by_membership_id, opened_by_membership_id, cashier_name_snapshot, completed_at, created_at",
+      )
       .eq("restaurant_id", data.restaurantId)
       .in("status", ["completed", "partially_refunded", "refunded", "voided"]);
-    if (data.businessDate) query = query.eq("business_date", data.businessDate);
-    const { data: rows } = await query.order("created_at", { ascending: false }).limit(data.limit ?? 50);
-    return ((rows ?? []) as any[]).map((r) => ({
-      id: r.id as string,
-      reference: (r.sale_reference as string) ?? null,
-      status: r.status as string,
-      businessDate: r.business_date as string,
-      total: Number(r.total),
-      refundedAmount: Number(r.refunded_amount),
-      currency: r.currency_code as string,
-      completedAt: (r.completed_at as string) ?? null,
-      createdAt: r.created_at as string,
-    }));
+    if (data.reference) query = query.ilike("sale_reference", `%${data.reference.replace(/[%_]/g, "")}%`);
+    if (data.fromDate) query = query.gte("business_date", data.fromDate);
+    if (data.toDate) query = query.lte("business_date", data.toDate);
+    if (data.status) query = query.eq("status", data.status);
+    if (data.registerId) query = query.eq("register_id", data.registerId);
+    if (data.cashierMembershipId) query = query.eq("completed_by_membership_id", data.cashierMembershipId);
+    const { data: rows } = await query.order("created_at", { ascending: false }).limit(data.limit ?? 100);
+
+    const sales = (rows ?? []) as any[];
+    const saleIds = sales.map((r) => r.id as string);
+
+    const [{ data: registers }, { data: payments }] = await Promise.all([
+      db.from("pos_registers").select("id, name").eq("restaurant_id", data.restaurantId),
+      saleIds.length
+        ? db
+            .from("pos_payments")
+            .select("sale_id, payment_method, amount, status")
+            .eq("restaurant_id", data.restaurantId)
+            .in("sale_id", saleIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const registerName = new Map(((registers ?? []) as any[]).map((r) => [r.id as string, r.name as string]));
+    const tenders = new Map<string, Map<string, number>>();
+    for (const p of (payments ?? []) as any[]) {
+      if (p.status === "voided") continue;
+      const forSale = tenders.get(p.sale_id as string) ?? new Map<string, number>();
+      forSale.set(p.payment_method as string, round2((forSale.get(p.payment_method as string) ?? 0) + Number(p.amount)));
+      tenders.set(p.sale_id as string, forSale);
+    }
+
+    const names = await membershipNames(
+      db,
+      data.restaurantId,
+      sales.map((r) => (r.completed_by_membership_id ?? r.opened_by_membership_id) as string),
+    );
+
+    const mapped = sales.map((r) => {
+      const total = Number(r.total);
+      const refunded = Number(r.refunded_amount);
+      const tenderList = [...(tenders.get(r.id as string) ?? new Map()).entries()].map(([method, amount]) => ({
+        method: method as string,
+        amount: amount as number,
+      }));
+      return {
+        id: r.id as string,
+        reference: (r.sale_reference as string) ?? null,
+        status: r.status as string,
+        businessDate: r.business_date as string,
+        total,
+        refundedAmount: refunded,
+        refundable: r.status === "voided" ? 0 : round2(Math.max(0, total - refunded)),
+        currency: r.currency_code as string,
+        registerId: (r.register_id as string) ?? null,
+        registerName: registerName.get(r.register_id as string) ?? "—",
+        cashier:
+          (r.cashier_name_snapshot as string) ??
+          names.get((r.completed_by_membership_id ?? r.opened_by_membership_id) as string) ??
+          "—",
+        tenders: tenderList,
+        completedAt: (r.completed_at as string) ?? null,
+        createdAt: r.created_at as string,
+      };
+    });
+
+    return data.method
+      ? mapped.filter((t) => t.tenders.some((x) => x.method === data.method))
+      : mapped;
   });
+
+/** Registers and cashiers that actually appear in this till's history. */
+export const getPosTransactionFilterOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireStandalonePosAccess(context as any, data.restaurantId);
+    const db = await admin();
+    const [{ data: registers }, { data: sales }] = await Promise.all([
+      db.from("pos_registers").select("id, name").eq("restaurant_id", data.restaurantId).order("name"),
+      db
+        .from("pos_sales")
+        .select("completed_by_membership_id")
+        .eq("restaurant_id", data.restaurantId)
+        .not("completed_by_membership_id", "is", null)
+        .limit(500),
+    ]);
+    const ids = [...new Set(((sales ?? []) as any[]).map((r) => r.completed_by_membership_id as string))];
+    const names = await membershipNames(db, data.restaurantId, ids);
+    return {
+      registers: ((registers ?? []) as any[]).map((r) => ({ id: r.id as string, name: r.name as string })),
+      cashiers: ids.map((id) => ({ id, name: names.get(id) ?? "A team member" })),
+    };
+  });
+
 
 /* ------------------------------------------------------- package overview */
 
