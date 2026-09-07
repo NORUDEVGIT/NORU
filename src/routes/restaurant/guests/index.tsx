@@ -2,10 +2,11 @@ import { useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Search, Star } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { GuestFormDialog } from "@/components/guests/guest-form-dialog";
+import { StatusBadge, VipBadge } from "@/components/guests/guest-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -87,7 +88,7 @@ function GuestsPage({ membership }: { membership: RestaurantMembership }) {
   });
 
   function openGuest(id: string) {
-    void navigate({ to: "/restaurant/guests/$guestId", params: { guestId: id } });
+    void navigate({ to: "/restaurant/pms/reservations/guests/$guestId", params: { guestId: id } });
   }
 
   if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading guests…</p>;
