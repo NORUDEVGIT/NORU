@@ -31,7 +31,7 @@ export const Route = createFileRoute("/restaurant/pms/reservations/guests/$guest
 function GuestDetailPmsRoute() {
   const { guestId } = Route.useParams();
   return (
-    <RestaurantShell active="Reservations" module="rooms" pms pmsModule="reservations">
+    <RestaurantShell active="Reservations" module="rooms" pms pmsModule="reservations" pmsLeaf="Guest Profile">
       {(m) => <GuestDetailWorkspace membership={m} guestId={guestId} backTo="reservations" />}
     </RestaurantShell>
   );

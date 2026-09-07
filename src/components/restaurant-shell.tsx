@@ -457,6 +457,7 @@ export function RestaurantShell({
   module,
   pms,
   pmsModule,
+  pmsLeaf,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -469,6 +470,8 @@ export function RestaurantShell({
    * PMS submodule: PMS sidebar, PMS breadcrumb, PMS heading. Presentation only.
    */
   pmsModule?: string;
+  /** Optional final breadcrumb step (e.g. "Reservation", "Guest Profile") for detail pages. */
+  pmsLeaf?: string;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
