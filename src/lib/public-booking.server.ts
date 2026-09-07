@@ -32,7 +32,35 @@ export async function admin(): Promise<AdminClient> {
  * Public property resolution. Only approved, active properties with direct
  * booking switched on are visible; anything else looks like "not found".
  */
+export type StayPropertyStatus = "ok" | "not_found" | "unavailable";
+
+/**
+ * Phase 8D2 — the public booking gate. Unknown/closed properties stay
+ * "not_found" (anti-enumeration unchanged); a property whose PMS package is
+ * off or expired reports "unavailable" so the page can show a neutral notice.
+ */
+export async function resolveStayPropertyPublic(
+  slug: string,
+): Promise<{ status: StayPropertyStatus; property: StayProperty | null }> {
+  const property = await loadStayProperty(slug);
+  if (!property) return { status: "not_found", property: null };
+
+  const { publicPackageAvailable } = await import("./public-package.server");
+  if (!(await publicPackageAvailable(property.id, "pms"))) {
+    return { status: "unavailable", property: null };
+  }
+  return { status: "ok", property };
+}
+
+/**
+ * Every public booking server function resolves the property through here, so
+ * deep links and direct posts cannot bypass the package gate.
+ */
 export async function resolveStayProperty(slug: string): Promise<StayProperty | null> {
+  return (await resolveStayPropertyPublic(slug)).property;
+}
+
+async function loadStayProperty(slug: string): Promise<StayProperty | null> {
   const db = await admin();
   const { data: row } = await db
     .from("restaurants")
