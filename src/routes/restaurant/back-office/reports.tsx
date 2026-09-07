@@ -39,7 +39,7 @@ export const Route = createFileRoute("/restaurant/back-office/reports")({
 function BackOfficeModuleRoute() {
   return (
     <RestaurantShell active="Back Office" boModule="reports">
-      {(m) => <BackOfficeFoundation module={MODULE} restaurantId={m.restaurantId} />}
+      {(m) => <BackOfficeReportsPage membership={m} />}
     </RestaurantShell>
   );
 }
