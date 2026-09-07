@@ -65,6 +65,7 @@ export const MODULE_KEYS = [
   "front_office",
   "housekeeping",
   "pos",
+  "standalone_pos",
   "inventory",
   "procurement",
   "human_resources",
