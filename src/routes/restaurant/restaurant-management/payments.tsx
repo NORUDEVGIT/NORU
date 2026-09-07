@@ -36,7 +36,7 @@ function RouteComponent() {
   return (
     <div className="min-h-dvh">
       <RmContextBar moduleKey="payments-cashiering" note="Restaurant payments, cashier shifts and till reconciliation. Hotel folios stay in PMS Cashiering." />
-      <PosPage />
+      <RestaurantPaymentsFoundation />
     </div>
   );
 }
