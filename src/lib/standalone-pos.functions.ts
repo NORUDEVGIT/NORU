@@ -670,7 +670,7 @@ export const posSellReadiness = createServerFn({ method: "POST" })
     } catch {
       return { ready: false as const, reason: "You don't have access to Standalone POS for this property." };
     }
-    if (!STANDALONE_POS_ROLES.includes(membership.role)) {
+    if (!(STANDALONE_POS_ROLES as readonly string[]).includes(membership.role)) {
       return { ready: false as const, reason: "Your role can view this till but not sell on it." };
     }
     const db = await admin();
