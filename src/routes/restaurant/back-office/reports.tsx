@@ -1,15 +1,13 @@
 /**
- * Phase 8G1 — Back Office foundation route. Presentation only: no business
- * data, no ownership migration, no new entitlement logic.
+ * Phase 8G2A — canonical Back Office Reports & Intelligence route.
+ * Read-only cross-package reporting landing page; package reports stay put.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
-import { getBoModule } from "@/lib/back-office-modules";
-import { BackOfficeFoundation } from "@/components/workspaces/back-office/foundation-page";
+import { BackOfficeReportsPage } from "@/components/workspaces/back-office/reports-page";
 
-const MODULE = getBoModule("reports")!;
 
 export const Route = createFileRoute("/restaurant/back-office/reports")({
   ssr: false,
@@ -41,7 +39,7 @@ export const Route = createFileRoute("/restaurant/back-office/reports")({
 function BackOfficeModuleRoute() {
   return (
     <RestaurantShell active="Back Office" boModule="reports">
-      {(m) => <BackOfficeFoundation module={MODULE} restaurantId={m.restaurantId} />}
+      {(m) => <BackOfficeReportsPage membership={m} />}
     </RestaurantShell>
   );
 }

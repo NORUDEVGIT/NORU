@@ -173,3 +173,49 @@ HR ownership and an employee master record; payroll; central warehouse and stock
 valuation; procurement ownership; a real accounting consolidation layer (no
 ledger, chart of accounts, journals or AP/AR exist today); consolidated reporting;
 cost-control calculations; property-level audit; master data.
+
+## Phase 8G2A — Reports ownership
+
+| Reporting area | Canonical route | Scope | Owner |
+|---|---|---|---|
+| Restaurant Management Reports | `/restaurant/restaurant-management/reports` | Restaurant-only operational reporting | Restaurant Management |
+| PMS Reports | `/restaurant/pms/reports` | Hotel-only operational reporting | PMS |
+| Reports & Intelligence | `/restaurant/back-office/reports` | Consolidated, cross-package, executive | Back Office |
+
+The three are deliberately separate screens. No report formula was forked: the
+Back Office page calls the existing package-owned queries
+(`getRestaurantDashboard`, `getFrontOfficeDashboard`) and adds no engine of its
+own. PMS occupancy/ADR/RevPAR and restaurant sales KPIs remain owned by their
+packages.
+
+### Access
+
+`/restaurant/back-office/reports` runs the sign-in check plus
+`requireRoutePackage("back_office")`. Beyond that, each source figure and each
+source link requires BOTH the source package to be enabled AND the person's
+existing module access (`food_and_beverage` for restaurant figures,
+`front_office` for hotel figures, `reports_analytics` for report links). An
+unavailable source is not queried and not displayed, and no combined total is
+shown when a contributing source is missing. Back Office never widens access.
+
+### Legacy `/restaurant/reports`
+
+Classified **shared transitional**. It shows property-wide room revenue plus
+shortcuts into F&B, inventory, workforce, finance and housekeeping, and the same
+workspace component is reused by the Restaurant Management reports route. It
+stays active and is a future redirect candidate only after that workspace is
+split into a restaurant-only body and a Back Office consolidated body.
+
+### Database
+
+No migration, no view, no RLS change, no mutation change in this phase.
+
+### Recommended future read models (not created)
+
+- A per-day property revenue summary per source package (restaurant orders, room
+  revenue, POS) to back Revenue & Sales and Executive Overview without repeating
+  package queries client-side.
+- A workforce hours/cost summary per day and department.
+- An inventory valuation and procurement spend summary per period.
+Each should be a read-only view or server read model over existing operational
+tables — never a copy of transactions.
