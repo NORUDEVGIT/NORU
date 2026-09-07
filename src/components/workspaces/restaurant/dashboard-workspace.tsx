@@ -1,35 +1,15 @@
 import { useEffect, useMemo } from "react";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  AlertTriangle,
-  ChefHat,
-  CheckCircle2,
-  Clock,
-  PauseCircle,
-  QrCode,
-  ReceiptText,
-  RefreshCw,
-  Settings,
-  Users,
-  UtensilsCrossed,
+import { AlertTriangle, ChefHat, CheckCircle2, Clock, PauseCircle, QrCode, ReceiptText, RefreshCw, Settings, Users, UtensilsCrossed, XCircle } from "lucide-react";
 
-  XCircle,
-} from "lucide-react";
-
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
 import { cn } from "@/lib/utils";
-import {
-  getRestaurantDashboard,
-  type DashboardOrder,
-  type RestaurantDashboard,
-} from "@/lib/dashboard.functions";
+import { getRestaurantDashboard, type DashboardOrder, type RestaurantDashboard } from "@/lib/dashboard.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney } from "@/state/restaurant-context";
 import { useRestaurantTime } from "@/state/restaurant-context";

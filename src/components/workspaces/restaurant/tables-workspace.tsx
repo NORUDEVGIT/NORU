@@ -1,27 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 import { Pencil, Plus, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import {
-  deleteRestaurantTable,
-  listRestaurantTables,
-  regenerateTableToken,
-  saveRestaurantTable,
-  setTableActive,
-  type ManagedTable,
-} from "@/lib/tables.functions";
+import { deleteRestaurantTable, listRestaurantTables, regenerateTableToken, saveRestaurantTable, setTableActive, type ManagedTable } from "@/lib/tables.functions";
 import { buildRestaurantTableQrUrl } from "@/lib/restaurant-table-qr";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 

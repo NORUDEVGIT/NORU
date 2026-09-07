@@ -1,23 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Bell, RefreshCw, Search } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
 import { cn } from "@/lib/utils";
-import {
-  listRestaurantOrders,
-  ORDER_PERIODS,
-  ORDER_SORTS,
-  type OrderListResult,
-  type OrderListRow,
-} from "@/lib/restaurant-orders.functions";
+import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult, type OrderListRow } from "@/lib/restaurant-orders.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney } from "@/state/restaurant-context";
 import { useRestaurantTime } from "@/state/restaurant-context";
@@ -48,7 +40,7 @@ const SORT_LABELS: Record<(typeof ORDER_SORTS)[number], string> = {
   value_asc: "Lowest Order Value",
 };
 
-interface OrdersSearch {
+export interface OrdersSearch {
   status: string;
   period: (typeof ORDER_PERIODS)[number];
   from?: string | undefined;
@@ -60,13 +52,38 @@ interface OrdersSearch {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Shared by the canonical and legacy Orders routes so both parse the same URL. */
+export function validateOrdersSearch(search: Record<string, unknown>): OrdersSearch {
+  const status = String(search['status'] ?? "all");
+  const period = String(search['period'] ?? "today") as OrdersSearch["period"];
+  const sort = String(search['sort'] ?? "newest") as OrdersSearch["sort"];
+  const from = typeof search['from'] === "string" && DATE_RE.test(search['from']) ? search['from'] : undefined;
+  const to = typeof search['to'] === "string" && DATE_RE.test(search['to']) ? search['to'] : undefined;
+  const q = typeof search['q'] === "string" && search['q'].trim() ? search['q'].trim().slice(0, 60) : undefined;
+  const page = Math.max(1, Math.min(400, Number(search['page']) || 1));
+  return {
+    status: STATUS_TABS.some((t) => t.value === status) ? status : "all",
+    period: (ORDER_PERIODS as readonly string[]).includes(period) ? period : "today",
+    sort: (ORDER_SORTS as readonly string[]).includes(sort) ? sort : "newest",
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
+    ...(q ? { q } : {}),
+    page,
+  };
+}
 
 
-export function OrdersBody({ membership }: { membership: RestaurantMembership }) {
+
+export function OrdersBody({
+  membership,
+  search,
+}: {
+  membership: RestaurantMembership;
+  search: OrdersSearch;
+}) {
   const clock = useRestaurantTime();
   const money = useMoney();
   const restaurantId = membership.restaurantId;
-  const search = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchOrders = useServerFn(listRestaurantOrders);
@@ -81,8 +98,7 @@ export function OrdersBody({ membership }: { membership: RestaurantMembership })
     if (searchInput.trim() === current) return;
     const id = setTimeout(() => {
       void navigate({
-        to: "/restaurant/orders",
-        search: (prev) => {
+          search: (prev) => {
           const next = { ...(prev as OrdersSearch), page: 1 } as OrdersSearch;
           if (searchInput.trim()) next.q = searchInput.trim();
           else delete next.q;
@@ -147,7 +163,6 @@ export function OrdersBody({ membership }: { membership: RestaurantMembership })
 
   function setParam(patch: Partial<OrdersSearch>, resetPage = true) {
     void navigate({
-      to: "/restaurant/orders",
       search: (prev) => ({ ...(prev as OrdersSearch), ...patch, ...(resetPage ? { page: 1 } : {}) }),
     });
   }
@@ -155,7 +170,6 @@ export function OrdersBody({ membership }: { membership: RestaurantMembership })
   function clearFilters() {
     setSearchInput("");
     void navigate({
-      to: "/restaurant/orders",
       search: { status: "all", period: "today", sort: "newest", page: 1 } as OrdersSearch,
     });
   }

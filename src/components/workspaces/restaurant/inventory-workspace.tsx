@@ -1,49 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import {
-  AlertTriangle,
-  History,
-  Minus,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Search,
-  SlidersHorizontal,
-  Trash2,
-} from "lucide-react";
+import { AlertTriangle, History, Minus, MoreHorizontal, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  ItemFormDialog,
-  MovementDialog,
-  MovementHistoryDialog,
-  type ItemFormValues,
-} from "@/components/inventory/inventory-dialogs";
-import {
-  createInventoryItem,
-  createInventoryMovement,
-  listInventoryItems,
-  listInventoryMovements,
-  listInventoryUnits,
-  updateInventoryItem,
-  type InventoryItem,
-} from "@/lib/inventory.functions";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ItemFormDialog, MovementDialog, MovementHistoryDialog, type ItemFormValues } from "@/components/inventory/inventory-dialogs";
+import { createInventoryItem, createInventoryMovement, listInventoryItems, listInventoryMovements, listInventoryUnits, updateInventoryItem, type InventoryItem } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { getIngredientUsage } from "@/lib/recipes.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -71,7 +38,13 @@ const STATUS_STYLE = {
   in: { label: "In stock", className: "bg-success/15 text-success" },
 } as const;
 
-export function InventoryPage({ membership }: { membership: RestaurantMembership }) {
+export function InventoryPage({
+  membership,
+  initialTab,
+}: {
+  membership: RestaurantMembership;
+  initialTab?: string | undefined;
+}) {
   const restaurantId = membership.restaurant.id;
   const fetchModuleAccess = useServerFn(getMyModuleAccess);
   const moduleAccess = useQuery({
@@ -91,7 +64,7 @@ export function InventoryPage({ membership }: { membership: RestaurantMembership
   const editItem = useServerFn(updateInventoryItem);
   const recordMovement = useServerFn(createInventoryMovement);
 
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const searchTab = initialTab;
   const procurement = searchTab === "suppliers" || searchTab === "purchasing";
   const [tab, setTab] = useState<
     "overview" | "ingredient" | "consumable" | "operating_asset" | "equipment" | "suppliers" | "purchasing"

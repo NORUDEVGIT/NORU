@@ -1,11 +1,9 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,8 +11,6 @@ import { getWaiterOrderContext, placeWaiterAssistedOrder } from "@/lib/waiter-or
 import { formatShiftTime } from "@/lib/workforce-rules";
 import { cn } from "@/lib/utils";
 import { useMoney } from "@/state/restaurant-context";
-import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
 
 
 type CartLine = { menuItemId: string; name: string; price: number; quantity: number; note: string };

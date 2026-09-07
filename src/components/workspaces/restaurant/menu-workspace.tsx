@@ -1,39 +1,18 @@
 import { useMemo, useRef, useState } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, ImagePlus, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import {
-  createMenuImageUpload,
-  deleteCategory,
-  deleteMenuItem,
-  getManagedMenu,
-  moveCategory,
-  saveCategory,
-  saveMenuItem,
-  setCategoryActive,
-  setItemAvailability,
-  type ManagedCategory,
-  type ManagedItem,
-} from "@/lib/menu.functions";
+import { createMenuImageUpload, deleteCategory, deleteMenuItem, getManagedMenu, moveCategory, saveCategory, saveMenuItem, setCategoryActive, setItemAvailability, type ManagedCategory, type ManagedItem } from "@/lib/menu.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMenuRecipeSummaries } from "@/lib/recipes.functions";
 import { RecipeDialog, RecipeStatusChip } from "@/components/menu/recipe-dialog";
@@ -599,4 +578,19 @@ function ItemDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Menu editing is owner/manager only; other roles see the same notice as before. */
+export function MenuWorkspace({ membership }: { membership: RestaurantMembership }) {
+  if (!MANAGE_ROLES.includes(membership.role)) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <h1 className="font-display text-2xl">Menu management unavailable</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Only owners and managers can edit the menu. Your role is “{membership.role}”.
+        </p>
+      </div>
+    );
+  }
+  return <MenuManager membership={membership} />;
 }

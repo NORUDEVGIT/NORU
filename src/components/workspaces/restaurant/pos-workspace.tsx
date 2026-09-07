@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -18,8 +18,6 @@ import { getMyRestaurants } from "@/lib/restaurant.functions";
 import { useAuth } from "@/state/auth-store";
 import { RestaurantSettingsProvider, useMoney } from "@/state/restaurant-context";
 import { formatMoney } from "@/lib/restaurant-time";
-import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
 
 
 interface HeldSale {
