@@ -567,3 +567,18 @@ catalog, sales, sale items, payments, receipt numbering and cashier shifts
 (`pos_*` tables only). It never writes `orders`, `order_items`,
 `order_payments` or Restaurant Management `cashier_shifts`, and does not touch
 PMS cashiering or Back Office finance.
+
+### Standalone POS — Transactions, receipts, refunds (Phase 8H6)
+
+Standalone POS owns its post-sale lifecycle outright:
+
+- transaction history (`/restaurant/pos/transactions`, reading `pos_sales`
+  only — never Restaurant Management orders or PMS folios);
+- receipt presentation and reprint (rendered from `pos_sales`,
+  `pos_sale_items`, `pos_payments`; presentation-only, no reprint audit);
+- refund records and corrections (`pos_refunds` via
+  `pos_refund_sale_allocated`, allocated to a specific original tender,
+  capped per tender and per sale, cash impact on the processing shift).
+
+Unchanged by this phase: RM till, orders, order payments, RM receipts, Charge
+to Room, PMS cashiering and folios, Back Office accounting and reports.
