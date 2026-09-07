@@ -72,6 +72,21 @@ export function StayNotFound() {
   );
 }
 
+/**
+ * Phase 8D2 — neutral public notice when online booking is switched off for
+ * this property. Deliberately says nothing about packages or billing.
+ */
+export function StayUnavailable() {
+  return (
+    <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 text-center">
+      <h1 className="font-display text-2xl">Online booking is currently unavailable</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Please contact the property directly to arrange your stay.
+      </p>
+    </div>
+  );
+}
+
 export function StayLoading() {
   return <p className="p-8 text-center text-sm text-muted-foreground">Loading…</p>;
 }

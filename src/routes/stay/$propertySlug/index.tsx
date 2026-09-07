@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { StayLayout, StayLoading, StayNotFound, formatMoney } from "@/components/stay/stay-chrome";
+import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/components/stay/stay-chrome";
 import { getStayProperty, searchStay, type PublicRoomTypeOffer } from "@/lib/public-booking.functions";
 import { addDays, formatStayDate, propertyToday } from "@/lib/reservation-dates";
 
@@ -37,16 +37,18 @@ function StaySearchRoute() {
   });
 
   if (propertyQuery.isLoading) return <StayLoading />;
-  if (!propertyQuery.data) return <StayNotFound />;
+  if (propertyQuery.data?.status === "unavailable") return <StayUnavailable />;
+  const property = propertyQuery.data?.property ?? null;
+  if (!property) return <StayNotFound />;
 
   return (
-    <StayLayout property={propertyQuery.data}>
-      <SearchPanel property={propertyQuery.data} />
+    <StayLayout property={property}>
+      <SearchPanel property={property} />
     </StayLayout>
   );
 }
 
-function SearchPanel({ property }: { property: NonNullable<Awaited<ReturnType<typeof getStayProperty>>> }) {
+function SearchPanel({ property }: { property: StayProperty }) {
   const navigate = useNavigate();
   const today = propertyToday(property.timezone);
   const [arrival, setArrival] = useState(today);
