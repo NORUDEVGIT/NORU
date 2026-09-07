@@ -148,7 +148,7 @@ sign-in check followed by `requireRoutePackage("back_office")`.
 |---|---|---|---|
 | `/restaurant/back-office` | Launcher | foundation | — |
 | `/restaurant/back-office/dashboard` | Dashboard | foundation | — (no consolidated figures) |
-| `/restaurant/back-office/hr` | Human Resources | partial (shared) | `/restaurant/staff` (`human_resources`) |
+| `/restaurant/back-office/hr` | Human Resources | **partial, canonical admin home (8G2D)** | `/restaurant/staff` and `/restaurant/restaurant-management/staff` still operational |
 | `/restaurant/back-office/payroll` | Payroll | planned | none — payroll does not exist |
 | `/restaurant/back-office/inventory` | Inventory / Warehouse | **partial, canonical central layer (8G2C)** | `/restaurant/inventory` and `/restaurant/restaurant-management/inventory` still operational |
 | `/restaurant/back-office/procurement` | Procurement | **owned (8G2B)** | legacy `/restaurant/inventory?tab=suppliers` kept |
