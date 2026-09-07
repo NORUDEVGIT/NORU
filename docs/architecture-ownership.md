@@ -462,3 +462,33 @@ sold; card payment status is not bank settlement. Each is shown on the page as
 ### Database
 
 No schema change in this phase, and no accounting mutation was introduced.
+
+## POS architecture freeze
+
+There is exactly one till in NORU and it belongs to **Restaurant Management**.
+
+| Surface | Address | State |
+| --- | --- | --- |
+| Till (POS & Sales) | `/restaurant/restaurant-management/pos-sales` | Live |
+| Legacy till address | `/restaurant/pos/new` | Redirect only |
+| Payments & Cashiering | `/restaurant/restaurant-management/payments` | Foundation page (no till, no mutations) |
+| Hotel billing | PMS Cashiering | Separate, untouched |
+
+Frozen decisions:
+
+1. POS & Sales is owned by Restaurant Management. The `pos` package key
+   ("Standalone POS") exists but is enforced nowhere; the till is gated by the
+   `restaurant_management` package plus the `pos` module permission
+   (owner, manager, cashier, waiter). The standalone package is future work.
+2. The till is not a second ordering engine: `placePosSale` reuses
+   `order-core.server.ts` / `order-pricing.server.ts` with server-side pricing,
+   tagged `pos_counter` and bound to an open `cashier_shifts` row.
+3. Settlement runs only through `record_pos_order_payment` (SECURITY DEFINER,
+   service-role execute only). Charge to Room is the sole bridge to PMS folios
+   and requires both `restaurant_management` and `pms`.
+4. `/restaurant/cashiering` and PMS Cashiering are untouched by this freeze.
+
+Known gaps, recorded rather than faked: tax/VAT and service charge (order
+totals are price × quantity), discounts/comps/tips, refunds and post-payment
+voids, persisted parked sales, receipt templates and reprint, end-of-day
+cash-up reporting.
