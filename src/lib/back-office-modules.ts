@@ -108,23 +108,23 @@ export const BO_MODULES: BoModule[] = [
   {
     key: "hr",
     title: "Human Resources",
-    description: "One property-wide workforce record, consolidated across every package.",
+    description: "Workforce administration for the property: directory, shifts and attendance.",
     icon: Users,
     group: "people",
     canonicalRoute: "/restaurant/back-office/hr",
-    currentRoute: "/restaurant/staff",
-    currentSearch: { tab: "schedule" },
-    currentLabel: "Open the current Workforce screen",
     moduleKey: "human_resources",
+    // Phase 8G2D — Back Office is now the canonical administrative home. The
+    // records themselves stay shared and Core-owned.
     implementationStatus: "partial",
     sourcePackages: ["Restaurant Management", "PMS"],
     futureScope: [
-      "Employee master record shared by every package.",
-      "Contracts, documents and workforce policy at property level.",
-      "Consolidated scheduling and attendance reporting.",
+      "Employment details beyond the access role: departments, job titles, contracts and documents.",
+      "Leave, performance and training records.",
+      "Payroll, built on this workforce record together with Accounting & Finance.",
     ],
     todayNote:
-      "People, roles, shifts and attendance remain the existing shared workforce service. Nothing has moved and no records are duplicated.",
+      "Canonical home for the workforce directory, shifts and attendance. Sign-in identity, property membership and module access stay Core (profiles, restaurant_users, staff_module_access); shifts and attendance stay the shared staff_shifts and staff_attendance records. Restaurant table assignments stay in Restaurant Management and hotel task assignment stays in PMS — all pointing at the same people.",
+
   },
   {
     key: "payroll",

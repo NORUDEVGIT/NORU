@@ -13,6 +13,7 @@ import { ArrowRight, type LucideIcon, BedDouble, TrendingUp, Users, Wallet } fro
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { StaffManager } from "@/components/workspaces/staff-workspace";
+import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";
 import {
   MODULE_LABELS,
   OVERRIDABLE_MODULES,
@@ -59,6 +60,9 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
               Property staff who can sign in and use the PMS. Adding someone here gives them access;
               their employment details stay in Human Resources.
             </p>
+            <div className="flex justify-end">
+              <BackOfficeHrLink restaurantId={membership.restaurantId} />
+            </div>
             <StaffManager membership={membership} embedded />
           </TabsContent>
 

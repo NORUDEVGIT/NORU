@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MyShiftCard } from "@/components/workforce/my-shift-card";
+import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";
 import { ScheduleTab } from "@/components/workforce/schedule-tab";
 import { AttendanceTab } from "@/components/workforce/attendance-tab";
 import { ReportsTab } from "@/components/workforce/reports-tab";
@@ -110,6 +111,12 @@ export function StaffWorkspace({ membership, initialTab }: { membership: Restaur
         restaurantId={membership.restaurantId}
         timezone={membership.restaurant.timezone}
       />
+
+      {canManage ? (
+        <div className="flex justify-end">
+          <BackOfficeHrLink restaurantId={membership.restaurantId} />
+        </div>
+      ) : null}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
