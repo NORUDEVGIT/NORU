@@ -315,7 +315,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
               title="Restaurant Management"
               description="Food & beverage service, kitchen, orders, menu, tables and the restaurant POS."
               detail="Dashboard · Kitchen · Orders · Take Order · Menu · Tables & QR · POS"
-              to="/restaurant/dashboard"
+              to="/restaurant/restaurant-management"
             />
           ) : null}
 

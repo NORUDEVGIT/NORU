@@ -55,6 +55,7 @@ import { PmsHeadingProvider } from "@/state/pms-context";
 export type RestaurantNavLabel =
   | "Home"
   | "PMS"
+  | "Restaurant Management"
   | "Dashboard"
   | "Menu"
   | "Kitchen"
@@ -424,6 +425,7 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
 const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Home: "home",
   PMS: "pms",
+  "Restaurant Management": "restaurant",
   Dashboard: "restaurant",
   Menu: "configuration",
   Kitchen: "restaurant",
