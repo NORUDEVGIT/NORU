@@ -44,6 +44,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { usePackageEntitlements } from "@/lib/use-package-entitlements";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
@@ -507,6 +508,9 @@ export function RestaurantShell({
     retry: false,
   });
   const allowedModules = moduleAccess.data?.modules ?? [];
+  // Phase 8C — package entitlement hides package-level entry points only.
+  const packages = usePackageEntitlements(membership?.restaurantId);
+  const pmsPackage = packages.has("pms");
 
   const workspace = module ?? LABEL_MODULE[active];
   const items = MODULE_NAV[workspace].filter(
