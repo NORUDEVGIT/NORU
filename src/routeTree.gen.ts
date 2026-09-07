@@ -57,7 +57,6 @@ import { Route as RestaurantBackOfficeAuditRouteImport } from './routes/restaura
 import { Route as RestaurantBackOfficeCostControlRouteImport } from './routes/restaurant/back-office/cost-control'
 import { Route as RestaurantBackOfficeDashboardRouteImport } from './routes/restaurant/back-office/dashboard'
 import { Route as RestaurantBackOfficeHrRouteImport } from './routes/restaurant/back-office/hr'
-import { Route as RestaurantBackOfficeInventoryRouteImport } from './routes/restaurant/back-office/inventory'
 import { Route as RestaurantBackOfficeMasterDataRouteImport } from './routes/restaurant/back-office/master-data'
 import { Route as RestaurantBackOfficePayrollRouteImport } from './routes/restaurant/back-office/payroll'
 import { Route as RestaurantBackOfficeReportsRouteImport } from './routes/restaurant/back-office/reports'
@@ -116,6 +115,10 @@ import { Route as StayPropertySlugConfirmationRouteImport } from './routes/stay/
 import { Route as StayPropertySlugManageRouteImport } from './routes/stay/$propertySlug/manage'
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
+import { Route as RestaurantBackOfficeInventoryIndexRouteImport } from './routes/restaurant/back-office/inventory/index'
+import { Route as RestaurantBackOfficeInventoryItemsRouteImport } from './routes/restaurant/back-office/inventory/items'
+import { Route as RestaurantBackOfficeInventoryMovementsRouteImport } from './routes/restaurant/back-office/inventory/movements'
+import { Route as RestaurantBackOfficeInventoryUnitsRouteImport } from './routes/restaurant/back-office/inventory/units'
 import { Route as RestaurantBackOfficeProcurementIndexRouteImport } from './routes/restaurant/back-office/procurement/index'
 import { Route as RestaurantBackOfficeProcurementSuppliersRouteImport } from './routes/restaurant/back-office/procurement/suppliers'
 import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/restaurant/cashiering/folios/$folioId'
@@ -377,12 +380,6 @@ const RestaurantBackOfficeHrRoute = RestaurantBackOfficeHrRouteImport.update({
   path: '/restaurant/back-office/hr',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RestaurantBackOfficeInventoryRoute =
-  RestaurantBackOfficeInventoryRouteImport.update({
-    id: '/restaurant/back-office/inventory',
-    path: '/restaurant/back-office/inventory',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const RestaurantBackOfficeMasterDataRoute =
   RestaurantBackOfficeMasterDataRouteImport.update({
     id: '/restaurant/back-office/master-data',
@@ -711,6 +708,30 @@ const RRestaurantSlugTQrTokenRoute = RRestaurantSlugTQrTokenRouteImport.update({
   path: '/t/$qrToken',
   getParentRoute: () => RRestaurantSlugRouteRoute,
 } as any)
+const RestaurantBackOfficeInventoryIndexRoute =
+  RestaurantBackOfficeInventoryIndexRouteImport.update({
+    id: '/restaurant/back-office/inventory/',
+    path: '/restaurant/back-office/inventory/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantBackOfficeInventoryItemsRoute =
+  RestaurantBackOfficeInventoryItemsRouteImport.update({
+    id: '/restaurant/back-office/inventory/items',
+    path: '/restaurant/back-office/inventory/items',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantBackOfficeInventoryMovementsRoute =
+  RestaurantBackOfficeInventoryMovementsRouteImport.update({
+    id: '/restaurant/back-office/inventory/movements',
+    path: '/restaurant/back-office/inventory/movements',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantBackOfficeInventoryUnitsRoute =
+  RestaurantBackOfficeInventoryUnitsRouteImport.update({
+    id: '/restaurant/back-office/inventory/units',
+    path: '/restaurant/back-office/inventory/units',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantBackOfficeProcurementIndexRoute =
   RestaurantBackOfficeProcurementIndexRouteImport.update({
     id: '/restaurant/back-office/procurement/',
@@ -837,7 +858,6 @@ export interface FileRoutesByFullPath {
   '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
   '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
   '/restaurant/back-office/hr': typeof RestaurantBackOfficeHrRoute
-  '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryRoute
   '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
   '/restaurant/back-office/payroll': typeof RestaurantBackOfficePayrollRoute
   '/restaurant/back-office/reports': typeof RestaurantBackOfficeReportsRoute
@@ -900,12 +920,16 @@ export interface FileRoutesByFullPath {
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
+  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
+  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
   '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
   '/restaurant/restaurant-management/orders/$orderId': typeof RestaurantRestaurantManagementOrdersOrderIdRoute
+  '/restaurant/back-office/inventory/': typeof RestaurantBackOfficeInventoryIndexRoute
   '/restaurant/back-office/procurement/': typeof RestaurantBackOfficeProcurementIndexRoute
   '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
   '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
@@ -957,7 +981,6 @@ export interface FileRoutesByTo {
   '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
   '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
   '/restaurant/back-office/hr': typeof RestaurantBackOfficeHrRoute
-  '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryRoute
   '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
   '/restaurant/back-office/payroll': typeof RestaurantBackOfficePayrollRoute
   '/restaurant/back-office/reports': typeof RestaurantBackOfficeReportsRoute
@@ -1020,12 +1043,16 @@ export interface FileRoutesByTo {
   '/stay/$propertySlug': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
+  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
+  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
   '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
   '/restaurant/restaurant-management/orders/$orderId': typeof RestaurantRestaurantManagementOrdersOrderIdRoute
+  '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryIndexRoute
   '/restaurant/back-office/procurement': typeof RestaurantBackOfficeProcurementIndexRoute
   '/restaurant/cashiering/night-audit': typeof RestaurantCashieringNightAuditIndexRoute
   '/restaurant/pms/reservations': typeof RestaurantPmsReservationsIndexRoute
@@ -1080,7 +1107,6 @@ export interface FileRoutesById {
   '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
   '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
   '/restaurant/back-office/hr': typeof RestaurantBackOfficeHrRoute
-  '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryRoute
   '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
   '/restaurant/back-office/payroll': typeof RestaurantBackOfficePayrollRoute
   '/restaurant/back-office/reports': typeof RestaurantBackOfficeReportsRoute
@@ -1143,12 +1169,16 @@ export interface FileRoutesById {
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
+  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
+  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
   '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
   '/restaurant/restaurant-management/orders/$orderId': typeof RestaurantRestaurantManagementOrdersOrderIdRoute
+  '/restaurant/back-office/inventory/': typeof RestaurantBackOfficeInventoryIndexRoute
   '/restaurant/back-office/procurement/': typeof RestaurantBackOfficeProcurementIndexRoute
   '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
   '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
@@ -1204,7 +1234,6 @@ export interface FileRouteTypes {
     | '/restaurant/back-office/cost-control'
     | '/restaurant/back-office/dashboard'
     | '/restaurant/back-office/hr'
-    | '/restaurant/back-office/inventory'
     | '/restaurant/back-office/master-data'
     | '/restaurant/back-office/payroll'
     | '/restaurant/back-office/reports'
@@ -1267,12 +1296,16 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/back-office/inventory/items'
+    | '/restaurant/back-office/inventory/movements'
+    | '/restaurant/back-office/inventory/units'
     | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
     | '/restaurant/pms/reservations/$reservationId'
     | '/restaurant/restaurant-management/orders/$orderId'
+    | '/restaurant/back-office/inventory/'
     | '/restaurant/back-office/procurement/'
     | '/restaurant/cashiering/night-audit/'
     | '/restaurant/pms/reservations/'
@@ -1324,7 +1357,6 @@ export interface FileRouteTypes {
     | '/restaurant/back-office/cost-control'
     | '/restaurant/back-office/dashboard'
     | '/restaurant/back-office/hr'
-    | '/restaurant/back-office/inventory'
     | '/restaurant/back-office/master-data'
     | '/restaurant/back-office/payroll'
     | '/restaurant/back-office/reports'
@@ -1387,12 +1419,16 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/back-office/inventory/items'
+    | '/restaurant/back-office/inventory/movements'
+    | '/restaurant/back-office/inventory/units'
     | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
     | '/restaurant/pms/reservations/$reservationId'
     | '/restaurant/restaurant-management/orders/$orderId'
+    | '/restaurant/back-office/inventory'
     | '/restaurant/back-office/procurement'
     | '/restaurant/cashiering/night-audit'
     | '/restaurant/pms/reservations'
@@ -1446,7 +1482,6 @@ export interface FileRouteTypes {
     | '/restaurant/back-office/cost-control'
     | '/restaurant/back-office/dashboard'
     | '/restaurant/back-office/hr'
-    | '/restaurant/back-office/inventory'
     | '/restaurant/back-office/master-data'
     | '/restaurant/back-office/payroll'
     | '/restaurant/back-office/reports'
@@ -1509,12 +1544,16 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/back-office/inventory/items'
+    | '/restaurant/back-office/inventory/movements'
+    | '/restaurant/back-office/inventory/units'
     | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
     | '/restaurant/pms/reservations/$reservationId'
     | '/restaurant/restaurant-management/orders/$orderId'
+    | '/restaurant/back-office/inventory/'
     | '/restaurant/back-office/procurement/'
     | '/restaurant/cashiering/night-audit/'
     | '/restaurant/pms/reservations/'
@@ -1562,7 +1601,6 @@ export interface RootRouteChildren {
   RestaurantBackOfficeCostControlRoute: typeof RestaurantBackOfficeCostControlRoute
   RestaurantBackOfficeDashboardRoute: typeof RestaurantBackOfficeDashboardRoute
   RestaurantBackOfficeHrRoute: typeof RestaurantBackOfficeHrRoute
-  RestaurantBackOfficeInventoryRoute: typeof RestaurantBackOfficeInventoryRoute
   RestaurantBackOfficeMasterDataRoute: typeof RestaurantBackOfficeMasterDataRoute
   RestaurantBackOfficePayrollRoute: typeof RestaurantBackOfficePayrollRoute
   RestaurantBackOfficeReportsRoute: typeof RestaurantBackOfficeReportsRoute
@@ -1621,12 +1659,16 @@ export interface RootRouteChildren {
   RestaurantRestaurantManagementIndexRoute: typeof RestaurantRestaurantManagementIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
   StayPropertySlugIndexRoute: typeof StayPropertySlugIndexRoute
+  RestaurantBackOfficeInventoryItemsRoute: typeof RestaurantBackOfficeInventoryItemsRoute
+  RestaurantBackOfficeInventoryMovementsRoute: typeof RestaurantBackOfficeInventoryMovementsRoute
+  RestaurantBackOfficeInventoryUnitsRoute: typeof RestaurantBackOfficeInventoryUnitsRoute
   RestaurantBackOfficeProcurementSuppliersRoute: typeof RestaurantBackOfficeProcurementSuppliersRoute
   RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
   RestaurantCashieringNightAuditRunIdRoute: typeof RestaurantCashieringNightAuditRunIdRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   RestaurantPmsReservationsReservationIdRoute: typeof RestaurantPmsReservationsReservationIdRoute
   RestaurantRestaurantManagementOrdersOrderIdRoute: typeof RestaurantRestaurantManagementOrdersOrderIdRoute
+  RestaurantBackOfficeInventoryIndexRoute: typeof RestaurantBackOfficeInventoryIndexRoute
   RestaurantBackOfficeProcurementIndexRoute: typeof RestaurantBackOfficeProcurementIndexRoute
   RestaurantCashieringNightAuditIndexRoute: typeof RestaurantCashieringNightAuditIndexRoute
   RestaurantPmsReservationsIndexRoute: typeof RestaurantPmsReservationsIndexRoute
@@ -1972,13 +2014,6 @@ declare module '@tanstack/react-router' {
       path: '/restaurant/back-office/hr'
       fullPath: '/restaurant/back-office/hr'
       preLoaderRoute: typeof RestaurantBackOfficeHrRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/inventory': {
-      id: '/restaurant/back-office/inventory'
-      path: '/restaurant/back-office/inventory'
-      fullPath: '/restaurant/back-office/inventory'
-      preLoaderRoute: typeof RestaurantBackOfficeInventoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/back-office/master-data': {
@@ -2387,6 +2422,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRestaurantSlugTQrTokenRouteImport
       parentRoute: typeof RRestaurantSlugRouteRoute
     }
+    '/restaurant/back-office/inventory/': {
+      id: '/restaurant/back-office/inventory/'
+      path: '/restaurant/back-office/inventory'
+      fullPath: '/restaurant/back-office/inventory/'
+      preLoaderRoute: typeof RestaurantBackOfficeInventoryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/back-office/inventory/items': {
+      id: '/restaurant/back-office/inventory/items'
+      path: '/restaurant/back-office/inventory/items'
+      fullPath: '/restaurant/back-office/inventory/items'
+      preLoaderRoute: typeof RestaurantBackOfficeInventoryItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/back-office/inventory/movements': {
+      id: '/restaurant/back-office/inventory/movements'
+      path: '/restaurant/back-office/inventory/movements'
+      fullPath: '/restaurant/back-office/inventory/movements'
+      preLoaderRoute: typeof RestaurantBackOfficeInventoryMovementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/back-office/inventory/units': {
+      id: '/restaurant/back-office/inventory/units'
+      path: '/restaurant/back-office/inventory/units'
+      fullPath: '/restaurant/back-office/inventory/units'
+      preLoaderRoute: typeof RestaurantBackOfficeInventoryUnitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/back-office/procurement/': {
       id: '/restaurant/back-office/procurement/'
       path: '/restaurant/back-office/procurement'
@@ -2560,7 +2623,6 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantBackOfficeCostControlRoute: RestaurantBackOfficeCostControlRoute,
   RestaurantBackOfficeDashboardRoute: RestaurantBackOfficeDashboardRoute,
   RestaurantBackOfficeHrRoute: RestaurantBackOfficeHrRoute,
-  RestaurantBackOfficeInventoryRoute: RestaurantBackOfficeInventoryRoute,
   RestaurantBackOfficeMasterDataRoute: RestaurantBackOfficeMasterDataRoute,
   RestaurantBackOfficePayrollRoute: RestaurantBackOfficePayrollRoute,
   RestaurantBackOfficeReportsRoute: RestaurantBackOfficeReportsRoute,
@@ -2632,6 +2694,12 @@ const rootRouteChildren: RootRouteChildren = {
     RestaurantRestaurantManagementIndexRoute,
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,
   StayPropertySlugIndexRoute: StayPropertySlugIndexRoute,
+  RestaurantBackOfficeInventoryItemsRoute:
+    RestaurantBackOfficeInventoryItemsRoute,
+  RestaurantBackOfficeInventoryMovementsRoute:
+    RestaurantBackOfficeInventoryMovementsRoute,
+  RestaurantBackOfficeInventoryUnitsRoute:
+    RestaurantBackOfficeInventoryUnitsRoute,
   RestaurantBackOfficeProcurementSuppliersRoute:
     RestaurantBackOfficeProcurementSuppliersRoute,
   RestaurantCashieringFoliosFolioIdRoute:
@@ -2644,6 +2712,8 @@ const rootRouteChildren: RootRouteChildren = {
     RestaurantPmsReservationsReservationIdRoute,
   RestaurantRestaurantManagementOrdersOrderIdRoute:
     RestaurantRestaurantManagementOrdersOrderIdRoute,
+  RestaurantBackOfficeInventoryIndexRoute:
+    RestaurantBackOfficeInventoryIndexRoute,
   RestaurantBackOfficeProcurementIndexRoute:
     RestaurantBackOfficeProcurementIndexRoute,
   RestaurantCashieringNightAuditIndexRoute:
