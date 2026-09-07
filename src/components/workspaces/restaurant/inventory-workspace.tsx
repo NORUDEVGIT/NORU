@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { AlertTriangle, History, Minus, MoreHorizontal, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Search } from "lucide-react";
 
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ItemFormDialog, MovementDialog, MovementHistoryDialog, type ItemFormValues } from "@/components/inventory/inventory-dialogs";
+import { ItemList } from "@/components/inventory/item-list";
 import { createInventoryItem, createInventoryMovement, listInventoryItems, listInventoryMovements, listInventoryUnits, updateInventoryItem, type InventoryItem } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { getIngredientUsage } from "@/lib/recipes.functions";
@@ -26,21 +26,7 @@ import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { PageHeading } from "@/state/pms-context";
 import { useIsRmContext } from "@/lib/rm-routes";
-import { cn } from "@/lib/utils";
 
-
-
-function statusOf(item: InventoryItem): "out" | "low" | "in" {
-  if (item.quantity <= 0) return "out";
-  if (item.quantity <= item.minimumStockLevel) return "low";
-  return "in";
-}
-
-const STATUS_STYLE = {
-  out: { label: "Out of stock", className: "bg-destructive/10 text-destructive" },
-  low: { label: "Low stock", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
-  in: { label: "In stock", className: "bg-success/15 text-success" },
-} as const;
 
 export function InventoryPage({
   membership,
