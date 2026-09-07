@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { AdminShell, StatusBadge } from "@/components/admin-shell";
+import { PackageEntitlementsPanel } from "@/components/admin/package-entitlements-panel";
+
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -194,7 +196,10 @@ function RestaurantDetail() {
         )}
       </section>
 
+      <PackageEntitlementsPanel restaurantId={restaurantId} />
+
       <section>
+
         <h2 className="text-lg font-semibold">Audit history</h2>
         <div className="mt-2 divide-y divide-border rounded-xl border border-border bg-card">
           {data.audit.length === 0 ? (
