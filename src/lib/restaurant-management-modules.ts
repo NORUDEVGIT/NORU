@@ -229,12 +229,12 @@ export const RM_MODULES: RmModule[] = [
     key: "payments-cashiering",
     title: "Payments & Cashiering",
     description:
-      "Restaurant payments, cashier shifts and till reconciliation. Hotel folios and guest billing stay in PMS Cashiering.",
+      "How restaurant payments and cashier shifts work today, and what is not built yet. Settlement itself happens at the till; hotel folios and guest billing stay in PMS Cashiering.",
     icon: Wallet,
     group: "people_control",
     moduleKey: "pos",
     canonicalRoute: "/restaurant/restaurant-management/payments",
-    legacyRoutes: ["/restaurant/pos/new"],
+    legacyRoutes: [],
     implementationStatus: "foundation",
   },
   {
