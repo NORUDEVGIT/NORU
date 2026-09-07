@@ -80,21 +80,46 @@ const UNAVAILABLE = (currency: string, businessDate: string): BackOfficePosSumma
  */
 export const getBackOfficePosSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; businessDate?: string | null }) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        businessDate: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .nullable()
-          .optional(),
-      })
-      .parse(input),
+  .inputValidator(
+    (input: {
+      restaurantId: string;
+      businessDate?: string | null;
+      surface?: "finance" | "reports" | null;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          businessDate: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .nullable()
+            .optional(),
+          surface: z.enum(["finance", "reports"]).nullable().optional(),
+        })
+        .parse(input),
   )
   .handler(async ({ data, context }): Promise<BackOfficePosSummary> => {
-    // 1. Back Office read gate (module access + role + back_office package).
-    await requireBackOfficeFinanceRead(context as never, data.restaurantId);
+    // 1. Back Office read gate: existing module access + role first, then the
+    //    back_office package. Neither surface can be reached with the other's
+    //    access, and neither grants operational POS access.
+    if (data.surface === "reports") {
+      const { requireModuleRole } = await import("./module-access.server");
+      const { REPORTS_ROLES } = await import("./module-access");
+      const { publicPackageAvailable } = await import("./public-package.server");
+      await requireModuleRole(
+        context as never,
+        data.restaurantId,
+        "reports_analytics",
+        REPORTS_ROLES,
+        "You don't have access to Reports & Analytics for this property.",
+      );
+      if (!(await publicPackageAvailable(data.restaurantId, "back_office"))) {
+        throw new Error("Back Office isn't available for this property.");
+      }
+    } else {
+      await requireBackOfficeFinanceRead(context as never, data.restaurantId);
+    }
+
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
