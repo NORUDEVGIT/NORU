@@ -32,7 +32,6 @@ export const Route = createFileRoute("/restaurant/pms/administration")({
 });
 
 function AdministrationPmsRoute() {
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Staff" module="staff" pms pmsModule="administration">
       {(m) => <div className="space-y-8">
