@@ -119,6 +119,7 @@ export const ROLE_MODULES: Record<StaffRole, ModuleKey[]> = {
 export const OVERRIDABLE_MODULES: ModuleKey[] = [
   "food_and_beverage",
   "pos",
+  "standalone_pos",
   "front_office",
   "housekeeping",
   "inventory",
