@@ -19,6 +19,7 @@ import {
   BedDouble,
   Briefcase,
   ArrowUpRight,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
@@ -239,12 +240,14 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const showRestaurant = packages.has("restaurant_management") && canSeeFnB;
   const showPms = packages.has("pms") && PMS_MODULE_KEYS.some((k) => allowed.includes(k));
   const showBackOffice = packages.has("back_office");
+  // Phase 8H3 — Standalone POS is its own package with its own module key.
+  const showStandalonePos = packages.has("pos") && allowed.includes("standalone_pos");
   const backOfficeLinks = showBackOffice
     ? BACK_OFFICE_LINKS.filter((l) => allowed.includes(l.moduleKey))
     : [];
   const setupLinks = SETUP_LINKS.filter((l) => allowed.includes(l.moduleKey));
   const nothingVisible =
-    !showRestaurant && !showPms && !showBackOffice && !packages.loading;
+    !showRestaurant && !showPms && !showBackOffice && !showStandalonePos && !packages.loading;
 
   return (
     <div className="space-y-8">
@@ -327,6 +330,16 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
               description="Hotel operating system — the home for every rooms-side operation."
               detail={`${PMS_SUBMODULES.join(" · ")} and more`}
               to="/restaurant/pms"
+            />
+          ) : null}
+
+          {showStandalonePos ? (
+            <PackageTile
+              icon={ShoppingCart}
+              title="Standalone POS"
+              description="An independent till with its own products, prices, tills and receipts."
+              detail="Catalog · Settings · Selling coming next"
+              to="/restaurant/pos"
             />
           ) : null}
         </div>

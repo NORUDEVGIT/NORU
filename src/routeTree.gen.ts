@@ -90,7 +90,14 @@ import { Route as RestaurantPmsReportsRouteImport } from './routes/restaurant/pm
 import { Route as RestaurantPmsRoomInventoryRouteImport } from './routes/restaurant/pms/room-inventory'
 import { Route as RestaurantPmsSalesEventsRouteImport } from './routes/restaurant/pms/sales-events'
 import { Route as RestaurantPmsSecurityAuditRouteImport } from './routes/restaurant/pms/security-audit'
+import { Route as RestaurantPosIndexRouteImport } from './routes/restaurant/pos/index'
+import { Route as RestaurantPosCatalogRouteImport } from './routes/restaurant/pos/catalog'
+import { Route as RestaurantPosDashboardRouteImport } from './routes/restaurant/pos/dashboard'
 import { Route as RestaurantPosNewRouteImport } from './routes/restaurant/pos/new'
+import { Route as RestaurantPosReportsRouteImport } from './routes/restaurant/pos/reports'
+import { Route as RestaurantPosSettingsRouteImport } from './routes/restaurant/pos/settings'
+import { Route as RestaurantPosShiftsRouteImport } from './routes/restaurant/pos/shifts'
+import { Route as RestaurantPosTransactionsRouteImport } from './routes/restaurant/pos/transactions'
 import { Route as RestaurantRestaurantManagementIndexRouteImport } from './routes/restaurant/restaurant-management/index'
 import { Route as RestaurantRestaurantManagementDashboardRouteImport } from './routes/restaurant/restaurant-management/dashboard'
 import { Route as RestaurantRestaurantManagementDigitalOrderingRouteImport } from './routes/restaurant/restaurant-management/digital-ordering'
@@ -570,11 +577,47 @@ const RestaurantPmsSecurityAuditRoute =
     path: '/restaurant/pms/security-audit',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantPosIndexRoute = RestaurantPosIndexRouteImport.update({
+  id: '/restaurant/pos/',
+  path: '/restaurant/pos/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantPosCatalogRoute = RestaurantPosCatalogRouteImport.update({
+  id: '/restaurant/pos/catalog',
+  path: '/restaurant/pos/catalog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantPosDashboardRoute = RestaurantPosDashboardRouteImport.update({
+  id: '/restaurant/pos/dashboard',
+  path: '/restaurant/pos/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantPosNewRoute = RestaurantPosNewRouteImport.update({
   id: '/restaurant/pos/new',
   path: '/restaurant/pos/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantPosReportsRoute = RestaurantPosReportsRouteImport.update({
+  id: '/restaurant/pos/reports',
+  path: '/restaurant/pos/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantPosSettingsRoute = RestaurantPosSettingsRouteImport.update({
+  id: '/restaurant/pos/settings',
+  path: '/restaurant/pos/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantPosShiftsRoute = RestaurantPosShiftsRouteImport.update({
+  id: '/restaurant/pos/shifts',
+  path: '/restaurant/pos/shifts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantPosTransactionsRoute =
+  RestaurantPosTransactionsRouteImport.update({
+    id: '/restaurant/pos/transactions',
+    path: '/restaurant/pos/transactions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantRestaurantManagementIndexRoute =
   RestaurantRestaurantManagementIndexRouteImport.update({
     id: '/restaurant/restaurant-management/',
@@ -906,7 +949,13 @@ export interface FileRoutesByFullPath {
   '/restaurant/pms/room-inventory': typeof RestaurantPmsRoomInventoryRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
+  '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
+  '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
+  '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
+  '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
+  '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
   '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
   '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
   '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
@@ -936,6 +985,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/pms/': typeof RestaurantPmsIndexRoute
+  '/restaurant/pos/': typeof RestaurantPosIndexRoute
   '/restaurant/restaurant-management/': typeof RestaurantRestaurantManagementIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
@@ -1032,7 +1082,13 @@ export interface FileRoutesByTo {
   '/restaurant/pms/room-inventory': typeof RestaurantPmsRoomInventoryRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
+  '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
+  '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
+  '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
+  '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
+  '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
   '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
   '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
   '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
@@ -1062,6 +1118,7 @@ export interface FileRoutesByTo {
   '/restaurant/inventory': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders': typeof RestaurantOrdersIndexRoute
   '/restaurant/pms': typeof RestaurantPmsIndexRoute
+  '/restaurant/pos': typeof RestaurantPosIndexRoute
   '/restaurant/restaurant-management': typeof RestaurantRestaurantManagementIndexRoute
   '/restaurant/rooms': typeof RestaurantRoomsIndexRoute
   '/stay/$propertySlug': typeof StayPropertySlugIndexRoute
@@ -1161,7 +1218,13 @@ export interface FileRoutesById {
   '/restaurant/pms/room-inventory': typeof RestaurantPmsRoomInventoryRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
+  '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
+  '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
+  '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
+  '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
+  '/restaurant/pos/transactions': typeof RestaurantPosTransactionsRoute
   '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
   '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
   '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
@@ -1191,6 +1254,7 @@ export interface FileRoutesById {
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
   '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/pms/': typeof RestaurantPmsIndexRoute
+  '/restaurant/pos/': typeof RestaurantPosIndexRoute
   '/restaurant/restaurant-management/': typeof RestaurantRestaurantManagementIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
@@ -1291,7 +1355,13 @@ export interface FileRouteTypes {
     | '/restaurant/pms/room-inventory'
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
+    | '/restaurant/pos/catalog'
+    | '/restaurant/pos/dashboard'
     | '/restaurant/pos/new'
+    | '/restaurant/pos/reports'
+    | '/restaurant/pos/settings'
+    | '/restaurant/pos/shifts'
+    | '/restaurant/pos/transactions'
     | '/restaurant/restaurant-management/dashboard'
     | '/restaurant/restaurant-management/digital-ordering'
     | '/restaurant/restaurant-management/inventory'
@@ -1321,6 +1391,7 @@ export interface FileRouteTypes {
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
     | '/restaurant/pms/'
+    | '/restaurant/pos/'
     | '/restaurant/restaurant-management/'
     | '/restaurant/rooms/'
     | '/stay/$propertySlug/'
@@ -1417,7 +1488,13 @@ export interface FileRouteTypes {
     | '/restaurant/pms/room-inventory'
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
+    | '/restaurant/pos/catalog'
+    | '/restaurant/pos/dashboard'
     | '/restaurant/pos/new'
+    | '/restaurant/pos/reports'
+    | '/restaurant/pos/settings'
+    | '/restaurant/pos/shifts'
+    | '/restaurant/pos/transactions'
     | '/restaurant/restaurant-management/dashboard'
     | '/restaurant/restaurant-management/digital-ordering'
     | '/restaurant/restaurant-management/inventory'
@@ -1447,6 +1524,7 @@ export interface FileRouteTypes {
     | '/restaurant/inventory'
     | '/restaurant/orders'
     | '/restaurant/pms'
+    | '/restaurant/pos'
     | '/restaurant/restaurant-management'
     | '/restaurant/rooms'
     | '/stay/$propertySlug'
@@ -1545,7 +1623,13 @@ export interface FileRouteTypes {
     | '/restaurant/pms/room-inventory'
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
+    | '/restaurant/pos/catalog'
+    | '/restaurant/pos/dashboard'
     | '/restaurant/pos/new'
+    | '/restaurant/pos/reports'
+    | '/restaurant/pos/settings'
+    | '/restaurant/pos/shifts'
+    | '/restaurant/pos/transactions'
     | '/restaurant/restaurant-management/dashboard'
     | '/restaurant/restaurant-management/digital-ordering'
     | '/restaurant/restaurant-management/inventory'
@@ -1575,6 +1659,7 @@ export interface FileRouteTypes {
     | '/restaurant/inventory/'
     | '/restaurant/orders/'
     | '/restaurant/pms/'
+    | '/restaurant/pos/'
     | '/restaurant/restaurant-management/'
     | '/restaurant/rooms/'
     | '/stay/$propertySlug/'
@@ -1667,7 +1752,13 @@ export interface RootRouteChildren {
   RestaurantPmsRoomInventoryRoute: typeof RestaurantPmsRoomInventoryRoute
   RestaurantPmsSalesEventsRoute: typeof RestaurantPmsSalesEventsRoute
   RestaurantPmsSecurityAuditRoute: typeof RestaurantPmsSecurityAuditRoute
+  RestaurantPosCatalogRoute: typeof RestaurantPosCatalogRoute
+  RestaurantPosDashboardRoute: typeof RestaurantPosDashboardRoute
   RestaurantPosNewRoute: typeof RestaurantPosNewRoute
+  RestaurantPosReportsRoute: typeof RestaurantPosReportsRoute
+  RestaurantPosSettingsRoute: typeof RestaurantPosSettingsRoute
+  RestaurantPosShiftsRoute: typeof RestaurantPosShiftsRoute
+  RestaurantPosTransactionsRoute: typeof RestaurantPosTransactionsRoute
   RestaurantRestaurantManagementDashboardRoute: typeof RestaurantRestaurantManagementDashboardRoute
   RestaurantRestaurantManagementDigitalOrderingRoute: typeof RestaurantRestaurantManagementDigitalOrderingRoute
   RestaurantRestaurantManagementInventoryRoute: typeof RestaurantRestaurantManagementInventoryRoute
@@ -1695,6 +1786,7 @@ export interface RootRouteChildren {
   RestaurantInventoryIndexRoute: typeof RestaurantInventoryIndexRoute
   RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
   RestaurantPmsIndexRoute: typeof RestaurantPmsIndexRoute
+  RestaurantPosIndexRoute: typeof RestaurantPosIndexRoute
   RestaurantRestaurantManagementIndexRoute: typeof RestaurantRestaurantManagementIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
   StayPropertySlugIndexRoute: typeof StayPropertySlugIndexRoute
@@ -2290,11 +2382,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPmsSecurityAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/pos/': {
+      id: '/restaurant/pos/'
+      path: '/restaurant/pos'
+      fullPath: '/restaurant/pos/'
+      preLoaderRoute: typeof RestaurantPosIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pos/catalog': {
+      id: '/restaurant/pos/catalog'
+      path: '/restaurant/pos/catalog'
+      fullPath: '/restaurant/pos/catalog'
+      preLoaderRoute: typeof RestaurantPosCatalogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pos/dashboard': {
+      id: '/restaurant/pos/dashboard'
+      path: '/restaurant/pos/dashboard'
+      fullPath: '/restaurant/pos/dashboard'
+      preLoaderRoute: typeof RestaurantPosDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/pos/new': {
       id: '/restaurant/pos/new'
       path: '/restaurant/pos/new'
       fullPath: '/restaurant/pos/new'
       preLoaderRoute: typeof RestaurantPosNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pos/reports': {
+      id: '/restaurant/pos/reports'
+      path: '/restaurant/pos/reports'
+      fullPath: '/restaurant/pos/reports'
+      preLoaderRoute: typeof RestaurantPosReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pos/settings': {
+      id: '/restaurant/pos/settings'
+      path: '/restaurant/pos/settings'
+      fullPath: '/restaurant/pos/settings'
+      preLoaderRoute: typeof RestaurantPosSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pos/shifts': {
+      id: '/restaurant/pos/shifts'
+      path: '/restaurant/pos/shifts'
+      fullPath: '/restaurant/pos/shifts'
+      preLoaderRoute: typeof RestaurantPosShiftsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pos/transactions': {
+      id: '/restaurant/pos/transactions'
+      path: '/restaurant/pos/transactions'
+      fullPath: '/restaurant/pos/transactions'
+      preLoaderRoute: typeof RestaurantPosTransactionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/restaurant-management/': {
@@ -2713,7 +2854,13 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPmsRoomInventoryRoute: RestaurantPmsRoomInventoryRoute,
   RestaurantPmsSalesEventsRoute: RestaurantPmsSalesEventsRoute,
   RestaurantPmsSecurityAuditRoute: RestaurantPmsSecurityAuditRoute,
+  RestaurantPosCatalogRoute: RestaurantPosCatalogRoute,
+  RestaurantPosDashboardRoute: RestaurantPosDashboardRoute,
   RestaurantPosNewRoute: RestaurantPosNewRoute,
+  RestaurantPosReportsRoute: RestaurantPosReportsRoute,
+  RestaurantPosSettingsRoute: RestaurantPosSettingsRoute,
+  RestaurantPosShiftsRoute: RestaurantPosShiftsRoute,
+  RestaurantPosTransactionsRoute: RestaurantPosTransactionsRoute,
   RestaurantRestaurantManagementDashboardRoute:
     RestaurantRestaurantManagementDashboardRoute,
   RestaurantRestaurantManagementDigitalOrderingRoute:
@@ -2753,6 +2900,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantInventoryIndexRoute: RestaurantInventoryIndexRoute,
   RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
   RestaurantPmsIndexRoute: RestaurantPmsIndexRoute,
+  RestaurantPosIndexRoute: RestaurantPosIndexRoute,
   RestaurantRestaurantManagementIndexRoute:
     RestaurantRestaurantManagementIndexRoute,
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,

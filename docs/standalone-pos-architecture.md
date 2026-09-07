@@ -707,3 +707,34 @@ Server code:
 
 Not built yet: POS shell and routes, catalog/register/shift screens, the sell
 screen, receipts, reports, inventory and Charge to Room bridges.
+
+## Phase 8H3 — package shell, catalog and settings (implemented)
+
+Delivered:
+
+- `src/lib/standalone-pos-modules.ts` — registry of the seven POS sections with
+  an honest status per section (`live`, `foundation`, `next`, `blocked`).
+- Canonical routes now exist: `/restaurant/pos` (home), `/catalog`, `/settings`
+  (working) and `/dashboard`, `/transactions`, `/shifts`, `/reports`
+  (foundation pages that state plainly they are not built). There is no
+  `/restaurant/pos/sell` route — selling cannot be reached.
+- `src/components/workspaces/standalone-pos/*` — home, catalog, settings,
+  foundation page and shared header/notices.
+- `RestaurantShell` gained a `posModule` prop: a POS-only sidebar plus a
+  `Standalone POS · <module>` context label. Property Home shows a POS tile
+  gated by the `pos` package entitlement AND the `standalone_pos` module key.
+- Route guard: sign-in check then `requireRoutePackage("pos")`. Server
+  functions keep their own 8H2 guards (membership + package + module + role).
+- Roles: owner/manager can change catalog and settings; cashier and accountant
+  see them read-only. Hiding controls is never the only protection.
+- Catalog reads and writes only `pos_categories` / `pos_products`. No
+  restaurant menu table is imported and there is no menu fallback. Products and
+  categories are deactivated, never deleted.
+- New read `getPosOverview` returns readiness counts only (categories,
+  products, active products, registers, active registers, open shifts). No
+  sales figures, because there are no sales yet.
+- No database changes were required.
+
+Deferred to 8H4+: registers, cashier shifts, the sell screen, payments,
+transactions browser, receipts, refunds, reports, and the optional inventory
+and Charge to Room bridges.

@@ -911,3 +911,33 @@ export const listPosTransactions = createServerFn({ method: "POST" })
       createdAt: r.created_at as string,
     }));
   });
+
+/* ------------------------------------------------------- package overview */
+
+/**
+ * Phase 8H3 — honest readiness counts for the POS dashboard. Deliberately no
+ * sales figures: selling does not exist yet.
+ */
+export const getPosOverview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireStandalonePosAccess(context as any, data.restaurantId);
+    const db = await admin();
+    const count = async (table: string, apply?: (q: any) => any) => {
+      let q = db.from(table).select("id", { count: "exact", head: true }).eq("restaurant_id", data.restaurantId);
+      if (apply) q = apply(q);
+      const { count: n } = await q;
+      return Number(n ?? 0);
+    };
+    const [categories, products, activeProducts, registers, activeRegisters, openShifts] = await Promise.all([
+      count("pos_categories"),
+      count("pos_products"),
+      count("pos_products", (q) => q.eq("active", true)),
+      count("pos_registers"),
+      count("pos_registers", (q) => q.eq("active", true)),
+      count("pos_cashier_shifts", (q) => q.eq("status", "open")),
+    ]);
+    const property = await propertyContext(db, data.restaurantId);
+    return { categories, products, activeProducts, registers, activeRegisters, openShifts, ...property };
+  });
