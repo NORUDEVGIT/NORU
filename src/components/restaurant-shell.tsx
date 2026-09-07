@@ -493,6 +493,7 @@ export function RestaurantShell({
   async function signOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
+    clearRoutePackageCache();
     await supabase.auth.signOut();
     void navigate({ to: "/restaurant/login", replace: true });
   }
