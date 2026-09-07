@@ -229,7 +229,16 @@ export const postOrderRoomCharge = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RoomChargeResult> => {
     const me = await callerMembership(context, data.restaurantId);
+    // Phase 8E1: the bridge needs BOTH packages live, checked before any write.
+    try {
+      const { requireRestaurantAndPms } = await import("./restaurant-package.server");
+      await requireRestaurantAndPms(data.restaurantId);
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+
 
     const { data: order } = await supabaseAdmin
       .from("orders")
