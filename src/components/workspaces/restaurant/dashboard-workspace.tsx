@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { getRestaurantDashboard, type DashboardOrder, type RestaurantDashboard } from "@/lib/dashboard.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useRmRoutes } from "@/lib/rm-routes";
 import { useMoney } from "@/state/restaurant-context";
 import { useRestaurantTime } from "@/state/restaurant-context";
 
@@ -24,6 +25,7 @@ function greeting() {
 }
 
 export function DashboardBody({ membership }: { membership: RestaurantMembership }) {
+  const rm = useRmRoutes();
   const clock = useRestaurantTime();
   const money = useMoney();
   const restaurant = membership.restaurant;
@@ -140,7 +142,7 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
         <Panel
           className="xl:col-span-2"
           title="Live Orders"
-          action={<PanelLink to="/restaurant/kitchen" label="Open Kitchen" />}
+          action={<PanelLink to={rm.kitchen} label="Open Kitchen" />}
         >
           {query.isLoading ? (
             <SkeletonRows />
@@ -163,10 +165,10 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
                   <OrderStatusBadge status={order.status} />
                   <span className="ml-auto flex items-center gap-1">
                     <Button asChild size="sm" variant="ghost">
-                      <Link to="/restaurant/orders/$orderId" params={{ orderId: order.id }}>View Order</Link>
+                      <Link to={rm.orderDetail} params={{ orderId: order.id }}>View Order</Link>
                     </Button>
                     <Button asChild size="sm" variant="ghost">
-                      <Link to="/restaurant/kitchen">Open Kitchen</Link>
+                      <Link to={rm.kitchen}>Open Kitchen</Link>
                     </Button>
                   </span>
                 </li>
@@ -177,7 +179,7 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
 
         {/* Kitchen status + quick actions */}
         <div className="space-y-4">
-          <Panel title="Kitchen Status" action={<PanelLink to="/restaurant/kitchen" label="Open Kitchen" />}>
+          <Panel title="Kitchen Status" action={<PanelLink to={rm.kitchen} label="Open Kitchen" />}>
             {query.isLoading ? (
               <SkeletonRows rows={1} />
             ) : d ? (
@@ -191,11 +193,11 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
 
           <Panel title="Quick Actions">
             <div className="grid grid-cols-2 gap-2">
-              <QuickAction to="/restaurant/menu" icon={UtensilsCrossed} label="Manage Menu" />
-              <QuickAction to="/restaurant/kitchen" icon={ChefHat} label="Open Kitchen" />
-              <QuickAction to="/restaurant/tables" icon={QrCode} label="Tables & QR" />
-              <QuickAction to="/restaurant/staff" icon={Users} label="Manage Staff" />
-              <QuickAction to="/restaurant/settings" icon={Settings} label="Settings" />
+              <QuickAction to={rm.menu} icon={UtensilsCrossed} label="Manage Menu" />
+              <QuickAction to={rm.kitchen} icon={ChefHat} label="Open Kitchen" />
+              <QuickAction to={rm.tables} icon={QrCode} label="Tables & QR" />
+              <QuickAction to={rm.staff} icon={Users} label="Manage Staff" />
+              <QuickAction to={rm.setup} icon={Settings} label="Settings" />
 
             </div>
           </Panel>
@@ -236,7 +238,7 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
                         <td className="py-2.5 pr-3 text-muted-foreground">{clock.time(o.createdAt)}</td>
                         <td className="py-2.5 text-right">
                           <Button asChild size="sm" variant="ghost">
-                            <Link to="/restaurant/orders/$orderId" params={{ orderId: o.id }}>View Order</Link>
+                            <Link to={rm.orderDetail} params={{ orderId: o.id }}>View Order</Link>
                           </Button>
                         </td>
                       </tr>
@@ -256,14 +258,14 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
 
         <div className="space-y-4">
           {/* Tables */}
-          <Panel title="Table Overview" action={<PanelLink to="/restaurant/tables" label="Manage Tables" />}>
+          <Panel title="Table Overview" action={<PanelLink to={rm.tables} label="Manage Tables" />}>
             {query.isLoading ? (
               <SkeletonRows rows={1} />
             ) : !d ? null : d.tables.total === 0 ? (
               <Empty
                 title="No tables configured"
                 body="Add tables and generate QR codes to begin dine-in ordering."
-                action={<Button asChild size="sm"><Link to="/restaurant/tables">Add tables</Link></Button>}
+                action={<Button asChild size="sm"><Link to={rm.tables}>Add tables</Link></Button>}
               />
             ) : (
               <div className="space-y-3">
@@ -292,14 +294,14 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
           </Panel>
 
           {/* Menu availability */}
-          <Panel title="Menu Availability" action={<PanelLink to="/restaurant/menu" label="Manage Menu" />}>
+          <Panel title="Menu Availability" action={<PanelLink to={rm.menu} label="Manage Menu" />}>
             {query.isLoading ? (
               <SkeletonRows rows={1} />
             ) : !d ? null : d.menu.total === 0 ? (
               <Empty
                 title="No menu items yet"
                 body="Add categories and dishes so guests can order."
-                action={<Button asChild size="sm"><Link to="/restaurant/menu">Add menu items</Link></Button>}
+                action={<Button asChild size="sm"><Link to={rm.menu}>Add menu items</Link></Button>}
               />
             ) : (
               <div className="space-y-3">
@@ -330,6 +332,7 @@ export function DashboardBody({ membership }: { membership: RestaurantMembership
 }
 
 function MobileOrderCard({ order }: { order: DashboardOrder }) {
+  const rm = useRmRoutes();
   const clock = useRestaurantTime();
   const money = useMoney();
   return (
@@ -345,7 +348,7 @@ function MobileOrderCard({ order }: { order: DashboardOrder }) {
       <div className="mt-2 flex items-center justify-between">
         <span className="text-sm font-medium tabular-nums">{money(order.total)}</span>
         <Button asChild size="sm" variant="ghost">
-          <Link to="/restaurant/orders/$orderId" params={{ orderId: order.id }}>View Order</Link>
+          <Link to={rm.orderDetail} params={{ orderId: order.id }}>View Order</Link>
         </Button>
       </div>
     </li>

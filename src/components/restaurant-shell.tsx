@@ -464,6 +464,7 @@ export function RestaurantShell({
   pmsModule,
   pmsLeaf,
   rmModule,
+  rmDetailLabel,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -484,6 +485,8 @@ export function RestaurantShell({
    * way back to the Restaurant Management home. Presentation only.
    */
   rmModule?: string;
+  /** Phase 8F3 — final breadcrumb crumb on a Restaurant Management detail page. */
+  rmDetailLabel?: string;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -798,7 +801,15 @@ export function RestaurantShell({
                         Restaurant Management
                       </Link>
                       <span className="px-1.5">→</span>
-                      <span className="text-foreground">{rmMod.title}</span>
+                      {rmDetailLabel ? (
+                        <>
+                          <span>{rmMod.title}</span>
+                          <span className="px-1.5">→</span>
+                          <span className="text-foreground">{rmDetailLabel}</span>
+                        </>
+                      ) : (
+                        <span className="text-foreground">{rmMod.title}</span>
+                      )}
                     </nav>
                   ) : null}
 

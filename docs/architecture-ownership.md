@@ -70,3 +70,28 @@ Back Office construction (enterprise HR, payroll, accounting ledger,
 consolidated reports, central warehouse, cost control), standalone POS split, HR
 database split, inventory database split, procurement centralisation, folder
 reorganisation, broad RLS package predicates, legacy route removal.
+
+## Phase 8F3 — Restaurant Management detail-flow ownership
+
+Route context helper: `src/lib/rm-routes.ts` (`useRmRoutes()`) resolves links by
+the current address family, so a shared screen rendered under
+`/restaurant/restaurant-management/*` links to canonical children while the same
+screen at a legacy address keeps legacy targets.
+
+Canonical detail route created:
+- `/restaurant/restaurant-management/orders/$orderId` — same guard, same screen
+  (`src/components/workspaces/restaurant/order-detail-workspace.tsx`) and same
+  server logic as the legacy address.
+
+Kept legacy / not owned yet:
+- `/restaurant/orders/$orderId` — retained for bookmarks. Redirect candidate
+  for 8F5 once no shared caller depends on it.
+- `/restaurant/inventory/purchasing/$purchaseOrderId` and supplier detail —
+  Procurement, SHARED_TEMPORARY.
+- Staff detail/edit — SHARED_TEMPORARY (one workforce shared with PMS/Back
+  Office); no duplicate people model.
+- Settings / configuration detail screens — shared property configuration.
+
+No route-based detail surface exists for menu items, recipe & cost, tables/QR,
+POS transactions or restaurant payments; those are modal/drawer flows inside
+their workspaces, so no routes were invented for them.

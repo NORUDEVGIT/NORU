@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult, type OrderListRow } from "@/lib/restaurant-orders.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useRmRoutes } from "@/lib/rm-routes";
 import { useMoney } from "@/state/restaurant-context";
 import { useRestaurantTime } from "@/state/restaurant-context";
 
@@ -84,6 +85,7 @@ export function OrdersBody({
   /** The address of the Orders page rendering this workspace (canonical or legacy). */
   basePath: string;
 }) {
+  const rm = useRmRoutes();
   const clock = useRestaurantTime();
   const money = useMoney();
   const restaurantId = membership.restaurantId;
@@ -355,7 +357,7 @@ export function OrdersBody({
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button asChild size="sm" variant="ghost">
-                          <Link to="/restaurant/orders/$orderId" params={{ orderId: o.id }}>View</Link>
+                          <Link to={rm.orderDetail} params={{ orderId: o.id }}>View</Link>
                         </Button>
                       </td>
                     </tr>
@@ -403,6 +405,7 @@ export function OrdersBody({
 }
 
 function MobileCard({ order }: { order: OrderListRow }) {
+  const rm = useRmRoutes();
   const clock = useRestaurantTime();
   const money = useMoney();
   return (
@@ -422,7 +425,7 @@ function MobileCard({ order }: { order: OrderListRow }) {
       <div className="mt-2 flex items-center justify-between">
         <span className="font-medium tabular-nums">{money(order.total)}</span>
         <Button asChild size="sm" variant="outline">
-          <Link to="/restaurant/orders/$orderId" params={{ orderId: order.id }}>View Order</Link>
+          <Link to={rm.orderDetail} params={{ orderId: order.id }}>View Order</Link>
         </Button>
       </div>
     </li>
