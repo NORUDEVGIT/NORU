@@ -28,7 +28,7 @@ import {
 } from "@/core/lib/workforce.functions";
 import { addDaysIso, formatShiftTime, todayIso, wasLate } from "@/core/lib/workforce-rules";
 import { cn } from "@/shared/lib/utils";
-import { AssignTablesDialog } from "./assign-tables-dialog";
+import { AssignTablesDialog } from "@/packages/restaurant-management/components/assign-tables-dialog";
 
 /**
  * Schedule tab. Owners/managers get the full controls; kitchen/waiter get a
