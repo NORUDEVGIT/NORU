@@ -10,7 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-import { requirePosAccess, requirePosOperator, posError } from "./pos.server";
+import { requirePosAccess, requirePosOperator, posError } from "./rm-pos.server";
 import { canManageCashiering } from "@/lib/cashiering.server";
 import { getRestaurantSettings, displayName } from "@/core/lib/workforce.server";
 import { resolveOrderLines } from "./order-pricing.server";
