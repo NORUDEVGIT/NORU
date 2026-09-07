@@ -30,6 +30,7 @@ import {
 } from "@/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { ErrorNotice, PosHeader } from "./pos-shared";
+import { ReceiptView } from "./receipt-view";
 
 type Tender = "cash" | "card" | "other";
 
