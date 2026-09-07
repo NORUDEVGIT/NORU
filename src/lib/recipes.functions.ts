@@ -75,8 +75,12 @@ async function requireManage(context: any, restaurantId: string) {
   if (!canManageRecipes(me.role)) {
     throw new Error("Only owners and managers can change recipes.");
   }
+  // Phase 8E1: recipes are Restaurant Management-owned today.
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
   return me;
 }
+
 
 /** A menu item that must belong to this exact restaurant. */
 async function loadMenuItem(admin: any, restaurantId: string, menuItemId: string) {

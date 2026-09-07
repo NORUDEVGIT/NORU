@@ -152,7 +152,12 @@ async function assertMembership(
     .eq("active", true)
     .maybeSingle();
   if (!membership) throw new Error("Order not found.");
+  // Phase 8E1: order data is a Restaurant Management surface.
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
+  return membership as { role: string };
 }
+
 
 export const listRestaurantOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -340,4 +345,60 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
         createdAt: h.created_at,
       })),
     };
+  });
+
+/**
+ * Phase 8E1 — kitchen status changes.
+ *
+ * The kitchen board used to write `orders.status` straight from the browser,
+ * which no server guard could reach. This is the trusted equivalent: the same
+ * tenant scoping and the same forward-only transitions, plus the Restaurant
+ * Management package boundary (via `assertMembership`) before the write.
+ */
+const KITCHEN_NEXT: Record<string, string[]> = {
+  new: ["preparing"],
+  placed: ["preparing"],
+  accepted: ["preparing"],
+  preparing: ["ready"],
+  ready: ["served"],
+};
+
+export const updateKitchenOrderStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: z.string().uuid(),
+        orderId: z.string().uuid(),
+        status: z.enum(["preparing", "ready", "served"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    try {
+      await assertMembership(context.supabase as never, context.userId, data.restaurantId);
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
+
+    const { data: order } = await context.supabase
+      .from("orders")
+      .select("id, status")
+      .eq("id", data.orderId)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (!order) return { ok: false, message: "Order not found." };
+
+    const allowed = KITCHEN_NEXT[(order as { status: string }).status] ?? [];
+    if (!allowed.includes(data.status)) {
+      return { ok: false, message: "That order has already moved on." };
+    }
+
+    const { error } = await context.supabase
+      .from("orders")
+      .update({ status: data.status })
+      .eq("id", data.orderId)
+      .eq("restaurant_id", data.restaurantId);
+    if (error) return { ok: false, message: "Could not update the order." };
+    return { ok: true };
   });

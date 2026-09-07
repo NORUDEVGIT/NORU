@@ -19,19 +19,35 @@ export async function requirePosAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
+  let membership: Membership;
   try {
-    return await requireModuleAccess(context, restaurantId, "pos");
+    membership = await requireModuleAccess(context, restaurantId, "pos");
   } catch {
     throw new Error(NO_POS);
   }
+  // Phase 8E1: today's POS is Restaurant Management POS, so the till requires
+  // the restaurant_management package, not the (unbuilt) standalone pos one.
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
+  return membership;
 }
 
 export async function requirePosOperator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(context, restaurantId, "pos", POS_OPERATOR_ROLES, NO_POS_ACTION);
+  const membership = await requireModuleRole(
+    context,
+    restaurantId,
+    "pos",
+    POS_OPERATOR_ROLES,
+    NO_POS_ACTION,
+  );
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
+  return membership;
 }
+
 
 const POS_ERRORS: Record<string, string> = {
   ORDER_NOT_FOUND: "That sale could not be found for this property.",

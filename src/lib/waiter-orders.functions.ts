@@ -63,6 +63,9 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
     if (!isManager && me.role !== "waiter") {
       throw new Error("You don't have permission to take orders for this restaurant.");
     }
+    const { requireRestaurantManagement } = await import("./restaurant-package.server");
+    await requireRestaurantManagement(data.restaurantId);
+
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = new Date();
@@ -193,6 +196,16 @@ export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
     if (!isManager && me.role !== "waiter") {
       return { ok: false as const, message: "You don't have permission to take orders." };
     }
+
+    // Phase 8E1: package boundary, before the first write of the order.
+    try {
+      const { requireRestaurantManagement } = await import("./restaurant-package.server");
+      await requireRestaurantManagement(data.restaurantId);
+    } catch (error) {
+      return { ok: false as const, message: (error as Error).message };
+    }
+
+
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { resolveOrderLines } = await import("./order-pricing.server");

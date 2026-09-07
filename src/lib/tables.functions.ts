@@ -67,8 +67,13 @@ async function assertRole(
   if (!role || !allowed.includes(role)) {
     throw new Error("You don't have permission to manage tables for this restaurant.");
   }
+  // Phase 8E1: table + QR management is Restaurant Management. Checked before
+  // any table row or QR token is created, rotated or removed.
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
   return role;
 }
+
 
 export const listRestaurantTables = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

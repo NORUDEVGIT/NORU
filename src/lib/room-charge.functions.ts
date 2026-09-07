@@ -229,7 +229,16 @@ export const postOrderRoomCharge = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RoomChargeResult> => {
     const me = await callerMembership(context, data.restaurantId);
+    // Phase 8E1: the bridge needs BOTH packages live, checked before any write.
+    try {
+      const { requireRestaurantAndPms } = await import("./restaurant-package.server");
+      await requireRestaurantAndPms(data.restaurantId);
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+
 
     const { data: order } = await supabaseAdmin
       .from("orders")
@@ -280,7 +289,14 @@ export const reverseOrderRoomCharge = createServerFn({ method: "POST" })
     if (!isManagerRole(me.role)) {
       return { ok: false, message: "Only an owner or manager can reverse a room charge." };
     }
+    try {
+      const { requireRestaurantAndPms } = await import("./restaurant-package.server");
+      await requireRestaurantAndPms(data.restaurantId);
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     const { data: result, error } = await supabaseAdmin.rpc("reverse_order_room_charge", {
       _restaurant_id: data.restaurantId,
       _order_id: data.orderId,

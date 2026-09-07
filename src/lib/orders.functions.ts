@@ -65,6 +65,17 @@ export const placeOrder = createServerFn({ method: "POST" })
     if (!restaurantResult.ok) return { ok: false as const, message: restaurantResult.message };
     const restaurant = restaurantResult.restaurant;
 
+    // Phase 8E1: a stale tab must not be able to submit an order after the
+    // Restaurant Management package is switched off. Neutral message only, and
+    // checked before any menu/table resolution or write.
+    const { publicRestaurantManagementAvailable, PUBLIC_UNAVAILABLE } = await import(
+      "./restaurant-package.server"
+    );
+    if (!(await publicRestaurantManagementAvailable(restaurant.id))) {
+      return { ok: false as const, message: PUBLIC_UNAVAILABLE };
+    }
+
+
     const tableResult = await core.resolveRestaurantTable(supabase, restaurant.id, {
       tableId: data.restaurantTableId ?? null,
       tableLabel: data.tableNumber,

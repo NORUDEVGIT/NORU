@@ -97,6 +97,11 @@ export const getRestaurantDashboard = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!membership) throw new Error("You don't have access to this restaurant.");
 
+    // Phase 8E1: restaurant KPIs are Restaurant Management data.
+    const { requireRestaurantManagement } = await import("./restaurant-package.server");
+    await requireRestaurantManagement(data.restaurantId);
+
+
     const dayStart = startOfLocalDay(data.tzOffsetMinutes).toISOString();
 
     const [todayRes, activeRes, recentRes, tablesRes, menuRes] = await Promise.all([
