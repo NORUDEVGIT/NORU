@@ -1073,6 +1073,24 @@ export const completePosSale = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const membership = await requireStandalonePosMutation(context as any, data.restaurantId);
     const db = await admin();
+    // Phase 8H5 — idempotent: a retry (double click, dropped connection) must
+    // return the receipt that already exists, never a second one.
+    const { data: existing } = await db
+      .from("pos_sales")
+      .select("id, status, sale_number, sale_reference, total")
+      .eq("id", data.saleId)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (existing && existing.status !== "open" && existing.sale_number) {
+      return {
+        ok: true as const,
+        id: existing.id as string,
+        saleNumber: Number(existing.sale_number),
+        reference: existing.sale_reference as string,
+        total: Number(existing.total),
+        alreadyCompleted: true as const,
+      };
+    }
     // One atomic database transaction: shift open, sale open, totals
     // recalculated from the lines, payments sufficient, receipt number
     // allocated, sale completed exactly once.
@@ -1089,8 +1107,10 @@ export const completePosSale = createServerFn({ method: "POST" })
       saleNumber: Number(sale.sale_number),
       reference: sale.sale_reference as string,
       total: Number(sale.total),
+      alreadyCompleted: false as const,
     };
   });
+
 
 export const refundPosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
