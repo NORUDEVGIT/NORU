@@ -104,16 +104,11 @@ async function requireInventoryAccess(context: any, restaurantId: string) {
  */
 async function requireInventoryWrite(context: any, restaurantId: string) {
   const me = await requireInventoryAccess(context, restaurantId);
-  const { propertyHasPackage } = await import("./package-entitlements.server");
-  const [rm, bo] = await Promise.all([
-    propertyHasPackage(restaurantId, "restaurant_management"),
-    propertyHasPackage(restaurantId, "back_office"),
-  ]);
-  if (!rm && !bo) {
-    throw new Error("Inventory isn't available for this property.");
-  }
+  const { requireInventoryWritePackage } = await import("./inventory-package.server");
+  await requireInventoryWritePackage(restaurantId);
   return me;
 }
+
 
 
 export const listInventoryUnits = createServerFn({ method: "POST" })
