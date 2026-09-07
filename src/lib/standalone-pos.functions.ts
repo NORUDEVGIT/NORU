@@ -368,6 +368,58 @@ export const savePosProduct = createServerFn({ method: "POST" })
 
 /* --------------------------------------------------------------- shifts */
 
+/** Display names for membership ids, resolved server-side. */
+async function membershipNames(db: any, restaurantId: string, ids: string[]) {
+  const out = new Map<string, string>();
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return out;
+  const { data: members } = await db
+    .from("restaurant_users")
+    .select("id, user_id")
+    .eq("restaurant_id", restaurantId)
+    .in("id", unique);
+  const rows = (members ?? []) as any[];
+  const { data: profiles } = await db
+    .from("profiles")
+    .select("id, first_name, last_name, email")
+    .in("id", rows.map((r) => r.user_id));
+  const byUser = new Map<string, any>();
+  for (const p of (profiles ?? []) as any[]) byUser.set(p.id as string, p);
+  for (const r of rows) {
+    const p = byUser.get(r.user_id as string);
+    const name = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
+    out.set(r.id as string, name || (p?.email as string) || "A team member");
+  }
+  return out;
+}
+
+/**
+ * Cash the drawer should hold for a shift: opening float plus captured cash
+ * payments, minus cash refunds. Card and any other tender never count.
+ */
+async function expectedCashFor(db: any, shiftId: string, openingFloat: number) {
+  const { data: payments } = await db
+    .from("pos_payments")
+    .select("amount")
+    .eq("shift_id", shiftId)
+    .eq("payment_method", "cash")
+    .eq("status", "captured");
+  const { data: refunds } = await db
+    .from("pos_refunds")
+    .select("amount")
+    .eq("shift_id", shiftId)
+    .eq("method", "cash");
+  const sum = (rows: any[] | null) => round2((rows ?? []).reduce((a, r) => a + Number(r.amount), 0));
+  const takings = sum(payments);
+  const refunded = sum(refunds);
+  return {
+    cashTakings: takings,
+    cashRefunds: refunded,
+    expectedCash: round2(openingFloat + takings - refunded),
+  };
+}
+
+
 export const getOpenPosShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { restaurantId: string; registerId: string }) =>
