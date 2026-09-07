@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Camera, X } from "lucide-react";
 import { NoruLogo } from "@/components/noru-logo";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { parseRestaurantTableQrValue } from "@/lib/restaurant-table-qr";
 
 export const Route = createFileRoute("/scan")({

@@ -8,7 +8,7 @@ import { SiteHeader } from "@/components/site-header";
 import { TableContextBar } from "@/components/table-context-bar";
 import { MenuItemCard } from "@/components/menu-item-card";
 import { ItemDetailDialog } from "@/components/item-detail-dialog";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import type { MenuItem } from "@/data/menu";
 import { getPublicMenu } from "@/lib/menu.functions";
 import { useRestaurant, useMoney } from "@/state/restaurant-context";

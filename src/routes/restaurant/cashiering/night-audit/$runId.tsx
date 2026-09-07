@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { RestaurantShell } from "@/components/restaurant-shell";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import { StatCard } from "@/components/bookings/reservation-bits";
 import { CheckBadge, RunStatusBadge } from "@/components/nightaudit/night-audit-panels";
 import { supabase } from "@/integrations/supabase/client";

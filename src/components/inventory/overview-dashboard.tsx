@@ -27,11 +27,11 @@ import {
   YAxis,
 } from "recharts";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import {
   getAssetAnalytics,
   getInventoryDashboard,

@@ -35,7 +35,7 @@ import { localDateInZone } from "@/lib/restaurant-time";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import type { ModuleKey } from "@/lib/module-access";
 import { usePackageEntitlements } from "@/lib/use-package-entitlements";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/home")({
   ssr: false,

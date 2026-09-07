@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { MenuLink } from "@/components/menu-link";
 import { formatPrice } from "@/data/menu";
 import { getMyOrders } from "@/lib/customer.functions";

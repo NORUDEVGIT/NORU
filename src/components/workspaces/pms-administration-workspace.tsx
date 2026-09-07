@@ -10,7 +10,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, type LucideIcon, BedDouble, TrendingUp, Users, Wallet } from "lucide-react";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { StaffManager } from "@/components/workspaces/staff-workspace";
 import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";

@@ -6,17 +6,17 @@ import { toast } from "sonner";
 import { Check, Search, UserPlus } from "lucide-react";
 
 import { RestaurantShell } from "@/components/restaurant-shell";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { addDays, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
@@ -31,7 +31,7 @@ import { nightsBetween } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { quoteStay } from "@/lib/rates.functions";
 import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,

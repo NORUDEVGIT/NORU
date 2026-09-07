@@ -1,5 +1,5 @@
 import noruLogoAsset from "@/assets/noru-logo.png.asset.json";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * Official NORU mark (circular white-on-brown disc) with optional wordmark.

@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { TableContextBar } from "@/components/table-context-bar";
 import { OrderLines } from "@/components/order-lines";
 import { useRestaurant, useMoney } from "@/state/restaurant-context";

@@ -13,7 +13,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ChefHat } from "lucide-react";
 
 import { OrderStatusBadge } from "@/components/order-status-badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ACTIVE_ORDER_STATUSES,

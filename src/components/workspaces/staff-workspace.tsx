@@ -4,16 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Copy, Info, Plus, RefreshCw, Search, ShieldCheck, UserCog } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,15 +23,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@/shared/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "@/shared/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { MyShiftCard } from "@/components/workforce/my-shift-card";
 import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";
 import { ScheduleTab } from "@/components/workforce/schedule-tab";
@@ -47,10 +47,10 @@ import {
   type StaffRole,
 } from "@/lib/staff.functions";
 import { getStaffModuleAccess, setStaffModuleAccess } from "@/lib/module-access.functions";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@/shared/components/ui/switch";
 import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/lib/module-access";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
 import { useIsRmContext } from "@/lib/rm-routes";
 

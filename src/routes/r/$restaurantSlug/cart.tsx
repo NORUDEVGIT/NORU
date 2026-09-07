@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Trash2, ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { TableContextBar } from "@/components/table-context-bar";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { useRestaurant, useMoney } from "@/state/restaurant-context";

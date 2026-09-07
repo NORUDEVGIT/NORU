@@ -4,29 +4,29 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { MoreHorizontal, Pencil, Plus, Power, Search } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Switch } from "@/shared/components/ui/switch";
+import { Textarea } from "@/shared/components/ui/textarea";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { listRoomTypes, listRooms, saveRoom, setRoomActive, type HotelRoom, type RoomType } from "@/lib/rooms.functions";
 import type { RoomStatus } from "@/lib/rooms.server";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
   available: "Available",

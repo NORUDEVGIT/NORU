@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/components/ui/badge";
 import type { FolioTransactionRow } from "@/lib/cashiering.functions";
 
 export function FolioStatusBadge({ status }: { status: "open" | "closed" }) {

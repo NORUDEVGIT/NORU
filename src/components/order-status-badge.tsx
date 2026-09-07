@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /** Maps the database order statuses to operator-friendly labels + restrained colour. */
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {

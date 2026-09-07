@@ -13,7 +13,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ArrowLeft, Ban, PackageCheck, Pencil, Send } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import {
   PurchaseOrderFormDialog,
   ReceiveGoodsDialog,
@@ -30,7 +30,7 @@ import { listInventoryItems } from "@/lib/inventory.functions";
 import { PO_STATUS_LABEL, isEditable, isReceivable } from "@/lib/purchasing.server";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 const EVENT_LABEL: Record<string, string> = {
   po_created: "Purchase order created",

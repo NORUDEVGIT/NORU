@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { DietaryBadges } from "@/components/dietary-badges";
 import type { MenuItem } from "@/data/menu";
 import { useMoney } from "@/state/restaurant-context";

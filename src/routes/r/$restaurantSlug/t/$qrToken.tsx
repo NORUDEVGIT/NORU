@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { resolveRestaurantTable } from "@/lib/tables.functions";
 import { useOrder } from "@/state/order-store";
 

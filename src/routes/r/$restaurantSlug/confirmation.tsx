@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2, Clock } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { OrderLines } from "@/components/order-lines";
 import { useRestaurant, useMoney } from "@/state/restaurant-context";
 import { useOrder } from "@/state/order-store";

@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Search, ShoppingBag, Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet";
+} from "@/shared/components/ui/sheet";
 import { MenuLink, OrderLink } from "@/components/menu-link";
 import { useOrder } from "@/state/order-store";
 import { useAuth } from "@/state/auth-store";

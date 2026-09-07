@@ -4,8 +4,8 @@ import { Bell, BellOff, Clock, LogOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { updateKitchenOrderStatus } from "@/lib/restaurant-orders.functions";
 
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 
 type OrderStatus = "new" | "preparing" | "ready" | "served";

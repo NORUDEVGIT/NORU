@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { HomeNav } from "@/components/home/home-nav";
 import { HomeHero } from "@/components/home/home-hero";
 import { HomePartners } from "@/components/home/home-partners";

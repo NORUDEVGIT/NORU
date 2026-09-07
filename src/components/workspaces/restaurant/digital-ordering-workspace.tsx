@@ -4,12 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Textarea } from "@/shared/components/ui/textarea";
 import { getWaiterOrderContext, placeWaiterAssistedOrder } from "@/lib/waiter-orders.functions";
 import { formatShiftTime } from "@/lib/workforce-rules";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { useMoney } from "@/state/restaurant-context";
 
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { ArrivalsWorkspace } from "@/components/workspaces/arrivals-workspace";
 import { FrontOfficeSummary } from "@/components/frontoffice/front-office-summary";
 import { DeparturesList, InHouseList } from "@/components/frontoffice/stay-lists";

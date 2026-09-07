@@ -5,10 +5,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Bell, RefreshCw, Search } from "lucide-react";
 
 import { OrderStatusBadge } from "@/components/order-status-badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult, type OrderListRow } from "@/lib/restaurant-orders.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useRmRoutes } from "@/lib/rm-routes";

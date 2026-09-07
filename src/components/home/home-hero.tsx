@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { QrCode, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { MockBars, MockKpi, MockOrderCard } from "@/components/home/ui-mock";
 
 export function HomeHero({ shortcuts }: { shortcuts?: ReactNode }) {

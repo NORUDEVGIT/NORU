@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { RefreshCw } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import { getStaffAttendanceSummary } from "@/lib/workforce.functions";
 import { addDaysIso, todayIso } from "@/lib/workforce-rules";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 type Preset = "today" | "7" | "30" | "custom";
 

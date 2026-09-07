@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CalendarCheck, DoorClosed, DoorOpen, Hotel, LogIn, Search, UserPlus, Wrench } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { WalkInDialog } from "@/components/frontoffice/front-office-dialogs";
 import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
 import { propertyToday } from "@/lib/reservation-dates";

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { KitchenBoard } from "@/components/kitchen-board";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { useRmRoutes } from "@/lib/rm-routes";

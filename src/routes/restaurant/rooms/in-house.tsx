@@ -5,8 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Search } from "lucide-react";
 
 import { RestaurantShell } from "@/components/restaurant-shell";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { ReservationStatusBadge, formatStayDate } from "@/components/bookings/reservation-bits";
 import {
   CheckOutDialog,

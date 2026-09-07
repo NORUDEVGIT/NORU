@@ -5,11 +5,11 @@ import { toast } from "sonner";
 import QRCode from "qrcode";
 import { Pencil, Plus, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Switch } from "@/shared/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { deleteRestaurantTable, listRestaurantTables, regenerateTableToken, saveRestaurantTable, setTableActive, type ManagedTable } from "@/lib/tables.functions";
 import { buildRestaurantTableQrUrl } from "@/lib/restaurant-table-qr";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";

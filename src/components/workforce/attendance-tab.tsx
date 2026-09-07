@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { RefreshCw } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { listShifts, type ShiftRecord } from "@/lib/workforce.functions";
 import { formatClock, formatShiftTime, todayIso, wasLate } from "@/lib/workforce-rules";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /** Read-only attendance for today. No manual correction in this batch. */
 export function AttendanceTab({ restaurantId, timezone }: { restaurantId: string; timezone: string }) {

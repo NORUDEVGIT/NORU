@@ -7,15 +7,15 @@ import { Plus, Search, Star } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { GuestFormDialog } from "@/components/guests/guest-form-dialog";
 import { StatusBadge, VipBadge } from "@/components/guests/guest-bits";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
 import { getGuestsAccess, listGuests, type GuestSummary } from "@/lib/guests.functions";

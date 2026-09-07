@@ -4,11 +4,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { LayoutDashboard, Store, Users, Settings, LogOut } from "lucide-react";
 import { NoruLogo } from "@/components/noru-logo";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { amIPlatformAdmin } from "@/lib/admin.functions";
 import { useAuth } from "@/state/auth-store";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },

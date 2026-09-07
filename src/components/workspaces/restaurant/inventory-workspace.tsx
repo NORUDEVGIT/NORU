@@ -5,15 +5,15 @@ import { toast } from "sonner";
 import { Plus, RefreshCw, Search } from "lucide-react";
 
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { ItemFormDialog, MovementDialog, MovementHistoryDialog, type ItemFormValues } from "@/components/inventory/inventory-dialogs";
 import { ItemList } from "@/components/inventory/item-list";
 import { createInventoryItem, createInventoryMovement, listInventoryItems, listInventoryMovements, listInventoryUnits, updateInventoryItem, type InventoryItem } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { getIngredientUsage } from "@/lib/recipes.functions";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { AssetsTab } from "@/components/inventory/assets-tab";
 import { SuppliersTab } from "@/components/inventory/suppliers-tab";
 import { PurchasingTab } from "@/components/inventory/purchasing-tab";

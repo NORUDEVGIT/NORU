@@ -5,7 +5,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "@/components/ui/carousel";
+} from "@/shared/components/ui/carousel";
 
 /**
  * Placeholder testimonial slots. No real quotes or customers are claimed here —

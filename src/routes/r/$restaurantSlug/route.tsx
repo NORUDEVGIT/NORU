@@ -3,7 +3,7 @@ import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { getPublicRestaurant } from "@/lib/public-restaurant.functions";
 import { RestaurantProvider } from "@/state/restaurant-context";
 import { useOrder } from "@/state/order-store";

@@ -1,6 +1,6 @@
 import { Minus, Plus, Trash2, PauseCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 
 export interface PosLine {
   menuItemId: string;

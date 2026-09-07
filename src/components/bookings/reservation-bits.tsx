@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import type { ReservationStatus } from "@/lib/reservation-dates";
 
 export { formatStayDate, addDays, nightsBetween, propertyToday } from "@/lib/reservation-dates";

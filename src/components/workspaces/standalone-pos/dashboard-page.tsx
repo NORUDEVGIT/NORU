@@ -8,7 +8,7 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
 import { getStandalonePosDashboard } from "@/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";

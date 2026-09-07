@@ -6,7 +6,7 @@
  * another module (the POS terminal stays its own top-level module) and no
  * integration is ever shown as connected unless it genuinely is.
  */
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { SettingsWorkspace } from "@/components/workspaces/settings-workspace";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";

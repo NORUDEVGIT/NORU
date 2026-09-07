@@ -38,7 +38,7 @@ import { usePackageEntitlements } from "@/lib/use-package-entitlements";
 import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
 import { localDateInZone } from "@/lib/restaurant-time";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { useMemo } from "react";
 
 /* ------------------------------------------------------------------ config */

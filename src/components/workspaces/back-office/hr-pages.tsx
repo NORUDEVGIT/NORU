@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CalendarDays, Clock, ShieldCheck, Users } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { StaffManager } from "@/components/workspaces/staff-workspace";
 import { ScheduleTab } from "@/components/workforce/schedule-tab";
 import { AttendanceTab } from "@/components/workforce/attendance-tab";

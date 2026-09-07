@@ -4,9 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Plus, RefreshCw } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,8 +16,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+} from "@/shared/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { listStaff } from "@/lib/staff.functions";
 import {
   cancelShift,
@@ -27,7 +27,7 @@ import {
   type ShiftRecord,
 } from "@/lib/workforce.functions";
 import { addDaysIso, formatShiftTime, todayIso, wasLate } from "@/lib/workforce-rules";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { AssignTablesDialog } from "./assign-tables-dialog";
 
 /**

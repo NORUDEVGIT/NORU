@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { StatCard } from "@/components/bookings/reservation-bits";
 import { RevenueOverviewTab } from "@/components/rates/rates-tabs";
 import { FoundationPanel } from "@/components/pms/foundation-panel";

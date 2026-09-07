@@ -6,9 +6,9 @@ import { AlertTriangle, ChefHat, CheckCircle2, Clock, PauseCircle, QrCode, Recei
 
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { OrderStatusBadge } from "@/components/order-status-badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { getRestaurantDashboard, type DashboardOrder, type RestaurantDashboard } from "@/lib/dashboard.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useRmRoutes } from "@/lib/rm-routes";

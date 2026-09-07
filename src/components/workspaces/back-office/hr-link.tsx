@@ -14,7 +14,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { usePackageEntitlements } from "@/lib/use-package-entitlements";
 

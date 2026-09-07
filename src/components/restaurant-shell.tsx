@@ -41,7 +41,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { NoruLogo } from "@/components/noru-logo";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
@@ -52,7 +52,7 @@ import { RM_GROUPS, RM_MODULES } from "@/lib/restaurant-management-modules";
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/lib/back-office-modules";
 import { POS_MODULES, getPosModule } from "@/lib/standalone-pos-modules";
 import { useAuth } from "@/state/auth-store";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { RestaurantSettingsProvider } from "@/state/restaurant-context";
 import { PmsHeadingProvider } from "@/state/pms-context";
 
