@@ -245,14 +245,49 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
                 />
               </>
             ) : null}
+            {posFigures ? (
+              <>
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till gross today"
+                  value={posData ? money(posData.gross) : null}
+                  loading={pos.isLoading}
+                />
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till net today"
+                  value={posData ? money(posData.net) : null}
+                  loading={pos.isLoading}
+                />
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till receipts today"
+                  value={posData ? String(posData.sales) : null}
+                  loading={pos.isLoading}
+                />
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till refunds today"
+                  value={posData ? money(posData.refunds) : null}
+                  loading={pos.isLoading}
+                />
+              </>
+            ) : null}
           </div>
         )}
 
-        {rmFigures && pmsFigures ? null : noSources ? null : (
+        {noSources ? null : (
           <p className="text-xs text-muted-foreground">
-            Only part of the property is represented above, so no combined property total is shown.
+            Each figure belongs to the source system that recorded it. Restaurant Management order
+            value, PMS activity and Standalone POS till sales are different source systems and are
+            never added together.
           </p>
         )}
+
       </section>
 
       {/* ------------------------------------------------- source packages */}
