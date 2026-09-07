@@ -173,7 +173,8 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
       })()
     : null;
 
-  const noSources = !rmFigures && !pmsFigures && !packages.loading && !access.isLoading;
+  const noSources =
+    !rmFigures && !pmsFigures && !posFigures && !packages.loading && !access.isLoading;
 
   return (
     <div className="space-y-8">
