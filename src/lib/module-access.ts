@@ -197,3 +197,8 @@ export const CASHIERING_MANAGE_ROLES = ["owner", "manager"] as const;
 export const INVENTORY_ROLES = ["owner", "manager", "kitchen", "storekeeper"] as const;
 export const PURCHASING_ROLES = ["owner", "manager", "storekeeper"] as const;
 export const REPORTS_ROLES = ["owner", "manager", "accountant"] as const;
+
+/** Phase 8H2 — Standalone POS. Sell/refund roles; accountant is read-only. */
+export const STANDALONE_POS_ROLES = ["owner", "manager", "cashier"] as const;
+export const STANDALONE_POS_READ_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
+export const STANDALONE_POS_MANAGE_ROLES = ["owner", "manager"] as const;
