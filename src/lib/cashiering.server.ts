@@ -8,6 +8,7 @@
  */
 import { type AuthedCtx, type Membership } from "./workforce.server";
 import { requireModuleRole } from "./module-access.server";
+import { withPmsPackage } from "./pms-package.server";
 
 /** Roles that may open Accounting & Finance and run day-to-day cashiering. */
 export const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
@@ -53,12 +54,9 @@ export async function requireCashieringAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "accounting_finance",
-    CASHIER_ACCESS_ROLES,
-    NO_ACCESS,
+    requireModuleRole(context, restaurantId, "accounting_finance", CASHIER_ACCESS_ROLES, NO_ACCESS),
   );
 }
 
@@ -67,12 +65,15 @@ export async function requireCashierOperator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "accounting_finance",
-    CASHIER_OPERATE_ROLES,
-    NO_PERMISSION,
+    requireModuleRole(
+      context,
+      restaurantId,
+      "accounting_finance",
+      CASHIER_OPERATE_ROLES,
+      NO_PERMISSION,
+    ),
   );
 }
 
@@ -81,12 +82,15 @@ export async function requireCashierManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "accounting_finance",
-    CASHIER_MANAGE_ROLES,
-    NO_PERMISSION,
+    requireModuleRole(
+      context,
+      restaurantId,
+      "accounting_finance",
+      CASHIER_MANAGE_ROLES,
+      NO_PERMISSION,
+    ),
   );
 }
 

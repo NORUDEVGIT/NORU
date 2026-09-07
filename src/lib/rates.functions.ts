@@ -621,6 +621,9 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {
     await requireModuleRole(context as never, data.restaurantId, "reports_analytics", REPORTS_ROLES, "You don't have access to Reports & Analytics for this property.");
+    // Phase 8E2 — hotel revenue reporting is a PMS-owned read.
+    const { requirePmsPackage } = await import("./pms-package.server");
+    await requirePmsPackage(data.restaurantId);
     // An inverted range is normal mid-edit in the date pickers — normalize instead of failing.
     const from = data.to < data.from ? data.to : data.from;
     const to = data.to < data.from ? data.from : data.to;

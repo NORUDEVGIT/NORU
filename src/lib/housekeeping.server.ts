@@ -7,6 +7,7 @@
  */
 import { type AuthedCtx, type Membership } from "./workforce.server";
 import { requireModuleRole } from "./module-access.server";
+import { withPmsPackage } from "./pms-package.server";
 import { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope } from "./module-access";
 
 export { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope };
@@ -99,12 +100,15 @@ export async function requireHousekeepingAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "housekeeping",
-    HOUSEKEEPING_ACCESS_ROLES,
-    NO_HK_ACCESS,
+    requireModuleRole(
+      context,
+      restaurantId,
+      "housekeeping",
+      HOUSEKEEPING_ACCESS_ROLES,
+      NO_HK_ACCESS,
+    ),
   );
 }
 
@@ -113,12 +117,15 @@ export async function requireHousekeepingSupervisor(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "housekeeping",
-    HOUSEKEEPING_SUPERVISOR_ROLES,
-    NO_HK_PERMISSION,
+    requireModuleRole(
+      context,
+      restaurantId,
+      "housekeeping",
+      HOUSEKEEPING_SUPERVISOR_ROLES,
+      NO_HK_PERMISSION,
+    ),
   );
 }
 
@@ -127,12 +134,15 @@ export async function requireHousekeepingOperator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "housekeeping",
-    HOUSEKEEPING_OPERATOR_ROLES,
-    NO_HK_PERMISSION,
+    requireModuleRole(
+      context,
+      restaurantId,
+      "housekeeping",
+      HOUSEKEEPING_OPERATOR_ROLES,
+      NO_HK_PERMISSION,
+    ),
   );
 }
 
@@ -141,12 +151,9 @@ export async function requireMaintenanceAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "housekeeping",
-    MAINTENANCE_ROLES,
-    NO_HK_PERMISSION,
+    requireModuleRole(context, restaurantId, "housekeeping", MAINTENANCE_ROLES, NO_HK_PERMISSION),
   );
 }
 

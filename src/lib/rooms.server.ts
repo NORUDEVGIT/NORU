@@ -7,6 +7,7 @@
  */
 import { type AuthedCtx, type Membership } from "./workforce.server";
 import { requireModuleRole } from "./module-access.server";
+import { withPmsPackage } from "./pms-package.server";
 import { FRONT_OFFICE_ROLES } from "./module-access";
 
 /** Room & room-type configuration stays with owners and managers. */
@@ -49,12 +50,15 @@ export async function requireRoomManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "configuration",
-    ROOM_MANAGE_ROLES,
-    "You don't have permission to configure rooms for this property.",
+    requireModuleRole(
+      context,
+      restaurantId,
+      "configuration",
+      ROOM_MANAGE_ROLES,
+      "You don't have permission to configure rooms for this property.",
+    ),
   );
 }
 
@@ -63,12 +67,15 @@ export async function requireFrontOfficeAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "front_office",
-    ROOM_ACCESS_ROLES,
-    "You don't have access to Front Office for this property.",
+    requireModuleRole(
+      context,
+      restaurantId,
+      "front_office",
+      ROOM_ACCESS_ROLES,
+      "You don't have access to Front Office for this property.",
+    ),
   );
 }
 
