@@ -1,8 +1,9 @@
 /**
- * Phase 8H3 — Standalone POS package home.
+ * Standalone POS package home (8H3, current as of 8H9).
  *
- * Honest launcher: only Catalog and Settings work today. Selling needs a
- * register and an open shift, which arrive in the next phase.
+ * Launcher for the live till: selling, catalog, transactions, registers and
+ * shifts, reports and settings. Selling still requires an active register and
+ * an open shift held by the signed-in person.
  */
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
