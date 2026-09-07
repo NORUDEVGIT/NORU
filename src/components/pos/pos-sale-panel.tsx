@@ -136,7 +136,7 @@ export function PosSalePanel({
             onClick={onHold}
             disabled={empty || busy}
           >
-            <PauseCircle className="mr-1 size-5" /> Hold
+            <PauseCircle className="mr-1 size-5" /> Park here
           </Button>
           <Button
             type="button"
