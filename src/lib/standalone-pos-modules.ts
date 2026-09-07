@@ -75,14 +75,22 @@ export const POS_MODULES: PosModule[] = [
     note: "Available once selling is enabled.",
   },
   {
+    key: "registers",
+    title: "Registers",
+    description: "The named tills in this property, and whether a shift is open on each.",
+    icon: MonitorSmartphone,
+    canonicalRoute: "/restaurant/pos/registers",
+    status: "live",
+  },
+  {
     key: "shifts",
     title: "Registers & Shifts",
-    description: "Tills in this property and the cashier shifts opened on them.",
+    description: "Open a till with a starting float, close it by counting the drawer.",
     icon: MonitorSmartphone,
     canonicalRoute: "/restaurant/pos/shifts",
-    status: "next",
-    note: "Built in the next phase, before selling.",
+    status: "live",
   },
+
   {
     key: "reports",
     title: "Reports",
