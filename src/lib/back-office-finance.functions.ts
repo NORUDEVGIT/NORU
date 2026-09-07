@@ -201,7 +201,7 @@ export const getBackOfficeFinanceOverview = createServerFn({ method: "POST" })
           .select("status, total")
           .eq("restaurant_id", data.restaurantId),
         supabaseAdmin
-          .from("suppliers")
+          .from("restaurant_suppliers")
           .select("id")
           .eq("restaurant_id", data.restaurantId),
       ]);
