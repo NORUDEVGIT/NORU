@@ -26,7 +26,8 @@ import {
   type FinanceSource,
   type SourceMetric,
 } from "@/lib/back-office-finance.functions";
-import { formatMoney, propertyToday } from "@/lib/restaurant-time";
+import { formatMoney } from "@/lib/restaurant-time";
+import { propertyToday } from "@/lib/reservation-dates";
 
 /* ---------------------------------------------------------------- header */
 
@@ -250,7 +251,7 @@ function AccountingBody({
   restaurantId: string;
   timezone: string | null | undefined;
 }) {
-  const today = propertyToday(timezone);
+  const today = propertyToday(timezone ?? "Europe/London");
   const packages = usePackageEntitlements(restaurantId);
   const fetchOverview = useServerFn(getBackOfficeFinanceOverview);
   const fetchModuleAccess = useServerFn(getMyModuleAccess);
