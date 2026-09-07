@@ -194,7 +194,10 @@ function RestaurantDetail() {
         )}
       </section>
 
+      <PackageEntitlementsPanel restaurantId={restaurantId} />
+
       <section>
+
         <h2 className="text-lg font-semibold">Audit history</h2>
         <div className="mt-2 divide-y divide-border rounded-xl border border-border bg-card">
           {data.audit.length === 0 ? (
