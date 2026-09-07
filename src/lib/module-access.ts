@@ -83,6 +83,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   front_office: "Front Office",
   housekeeping: "Housekeeping",
   pos: "POS",
+  standalone_pos: "Standalone POS",
   inventory: "Inventory / Warehouse",
   procurement: "Procurement",
   human_resources: "Human Resources",
