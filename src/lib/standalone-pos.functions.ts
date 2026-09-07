@@ -1221,3 +1221,247 @@ export const getPosOverview = createServerFn({ method: "POST" })
     const property = await propertyContext(db, data.restaurantId);
     return { categories, products, activeProducts, registers, activeRegisters, openShifts, ...property };
   });
+
+/* --------------------------------------------------------- sell workflow */
+
+/** Full server-authoritative picture of one sale (lines, tenders, totals). */
+async function saleSnapshot(db: any, restaurantId: string, saleId: string) {
+  const [{ data: sale }, { data: items }, { data: payments }] = await Promise.all([
+    db
+      .from("pos_sales")
+      .select(
+        "id, register_id, shift_id, sale_number, sale_reference, status, business_date, currency_code, subtotal, discount_amount, tax_amount, total, completed_at, created_at",
+      )
+      .eq("id", saleId)
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle(),
+    db
+      .from("pos_sale_items")
+      .select(
+        "id, product_id, product_name_snapshot, sku_snapshot, quantity, unit_price_snapshot, tax_rate_snapshot, tax_amount, discount_amount, line_subtotal, line_total, created_at",
+      )
+      .eq("sale_id", saleId)
+      .order("created_at"),
+    db
+      .from("pos_payments")
+      .select("id, payment_method, amount, tendered_amount, change_amount, status, reference, created_at")
+      .eq("sale_id", saleId)
+      .order("created_at"),
+  ]);
+  if (!sale) return null;
+  const paid = round2(
+    ((payments ?? []) as any[])
+      .filter((p) => p.status !== "voided")
+      .reduce((sum, p) => sum + Number(p.amount), 0),
+  );
+  const total = Number(sale.total);
+  return {
+    id: sale.id as string,
+    registerId: sale.register_id as string,
+    shiftId: (sale.shift_id as string) ?? null,
+    saleNumber: sale.sale_number === null ? null : Number(sale.sale_number),
+    reference: (sale.sale_reference as string) ?? null,
+    status: sale.status as string,
+    businessDate: sale.business_date as string,
+    currency: sale.currency_code as string,
+    subtotal: Number(sale.subtotal),
+    discountAmount: Number(sale.discount_amount),
+    taxAmount: Number(sale.tax_amount),
+    total,
+    paid,
+    remaining: round2(Math.max(0, total - paid)),
+    completedAt: (sale.completed_at as string) ?? null,
+    createdAt: sale.created_at as string,
+    items: ((items ?? []) as any[]).map((i) => ({
+      id: i.id as string,
+      productId: (i.product_id as string) ?? null,
+      name: i.product_name_snapshot as string,
+      sku: (i.sku_snapshot as string) ?? null,
+      quantity: Number(i.quantity),
+      unitPrice: Number(i.unit_price_snapshot),
+      taxRate: Number(i.tax_rate_snapshot),
+      taxAmount: Number(i.tax_amount),
+      discountAmount: Number(i.discount_amount),
+      lineSubtotal: Number(i.line_subtotal),
+      lineTotal: Number(i.line_total),
+    })),
+    payments: ((payments ?? []) as any[]).map((p) => ({
+      id: p.id as string,
+      method: p.payment_method as string,
+      amount: Number(p.amount),
+      tendered: p.tendered_amount === null ? null : Number(p.tendered_amount),
+      change: Number(p.change_amount),
+      status: p.status as string,
+      reference: (p.reference as string) ?? null,
+      createdAt: p.created_at as string,
+    })),
+  };
+}
+
+export type PosSaleSnapshot = NonNullable<Awaited<ReturnType<typeof saleSnapshot>>>;
+
+/**
+ * Phase 8H5 — everything the sell screen needs in one guarded call.
+ *
+ * The browser never nominates a shift: the server resolves the caller's own
+ * open shift, and the working sale is fetched-or-created against it so a
+ * double click cannot fan out into two open sales.
+ */
+export const getPosSellContext = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string; saleId?: string | null; create?: boolean }) =>
+    z
+      .object({ restaurantId: idSchema, saleId: idSchema.nullable().optional(), create: z.boolean().optional() })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    let membership: { id: string; role: string };
+    try {
+      membership = await requireStandalonePosAccess(context as any, data.restaurantId);
+    } catch {
+      return { ready: false as const, reason: "You don't have access to Standalone POS for this property." };
+    }
+    if (!(STANDALONE_POS_ROLES as readonly string[]).includes(membership.role)) {
+      return { ready: false as const, reason: "Your role can view this till but not sell on it." };
+    }
+    const db = await admin();
+    const { data: shift } = await db
+      .from("pos_cashier_shifts")
+      .select("id, register_id, business_date, opened_at, opening_float")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "open")
+      .eq("opened_by_membership_id", membership.id)
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!shift) {
+      const { count: activeRegisters } = await db
+        .from("pos_registers")
+        .select("id", { count: "exact", head: true })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("active", true);
+      return {
+        ready: false as const,
+        reason: Number(activeRegisters ?? 0)
+          ? "You don't have an open cashier shift. Open one to start selling."
+          : "No active register yet. Add one, then open a cashier shift.",
+      };
+    }
+
+    const { data: register } = await db
+      .from("pos_registers")
+      .select("id, name, active")
+      .eq("id", shift.register_id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (!register || !register.active) {
+      return {
+        ready: false as const,
+        reason: "The register for your open shift has been switched off. Close the shift and open another till.",
+      };
+    }
+
+    const names = await membershipNames(db, data.restaurantId, [membership.id]);
+    const { currency } = await propertyContext(db, data.restaurantId);
+
+    // Working sale: the one asked for (if still open on this shift), else the
+    // newest open sale on this shift, else a fresh one.
+    let workingId: string | null = null;
+    if (data.saleId) {
+      const { data: asked } = await db
+        .from("pos_sales")
+        .select("id, status, shift_id")
+        .eq("id", data.saleId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (asked && asked.status === "open" && asked.shift_id === shift.id) workingId = asked.id as string;
+    }
+    if (!workingId) {
+      const { data: newest } = await db
+        .from("pos_sales")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("shift_id", shift.id)
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (newest) workingId = newest.id as string;
+    }
+    if (!workingId && data.create !== false) {
+      const { data: row, error } = await db
+        .from("pos_sales")
+        .insert({
+          restaurant_id: data.restaurantId,
+          register_id: shift.register_id,
+          shift_id: shift.id,
+          business_date: shift.business_date,
+          currency_code: currency,
+          opened_by_membership_id: membership.id,
+        })
+        .select("id")
+        .maybeSingle();
+      if (error) fail(error);
+      workingId = row!.id as string;
+    }
+
+    const sale = workingId ? await saleSnapshot(db, data.restaurantId, workingId) : null;
+
+    // Other open sales on this register = parked sales the cashier can resume.
+    const { data: parkedRows } = await db
+      .from("pos_sales")
+      .select("id, total, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("register_id", shift.register_id)
+      .eq("status", "open")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    const parked = ((parkedRows ?? []) as any[])
+      .filter((r) => r.id !== workingId)
+      .map((r) => ({ id: r.id as string, total: Number(r.total), createdAt: r.created_at as string }));
+
+    return {
+      ready: true as const,
+      reason: null,
+      role: membership.role,
+      currency,
+      shift: {
+        id: shift.id as string,
+        registerId: shift.register_id as string,
+        registerName: register.name as string,
+        cashier: names.get(membership.id) ?? "You",
+        openedAt: shift.opened_at as string,
+        businessDate: shift.business_date as string,
+        openingFloat: Number(shift.opening_float),
+      },
+      sale,
+      parked,
+    };
+  });
+
+/**
+ * Phase 8H5 — remove a mis-keyed tender while the sale is still open.
+ * Completed sales are immutable; corrections are refunds (8H6).
+ */
+export const removePosPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string; saleId: string; paymentId: string }) =>
+    z.object({ restaurantId: idSchema, saleId: idSchema, paymentId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireStandalonePosMutation(context as any, data.restaurantId);
+    const db = await admin();
+    try {
+      await loadOpenSale(db, data.restaurantId, data.saleId);
+      const { error } = await db
+        .from("pos_payments")
+        .delete()
+        .eq("id", data.paymentId)
+        .eq("sale_id", data.saleId)
+        .eq("restaurant_id", data.restaurantId);
+      if (error) throw error;
+      return { ok: true as const };
+    } catch (error) {
+      fail(error);
+    }
+  });
