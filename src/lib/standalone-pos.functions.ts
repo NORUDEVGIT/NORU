@@ -24,6 +24,7 @@ import {
 } from "./standalone-pos-pricing.server";
 import { propertyToday } from "./reservation-dates";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "./restaurant-time";
+import { STANDALONE_POS_ROLES } from "./module-access";
 
 const idSchema = z.string().uuid();
 
