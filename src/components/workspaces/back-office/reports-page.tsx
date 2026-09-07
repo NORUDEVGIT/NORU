@@ -57,10 +57,12 @@ const CATEGORIES: {
     key: "revenue",
     title: "Revenue & Sales",
     description:
-      "Trading performance side by side: restaurant sales, room revenue and, later, standalone checkout.",
+      "Trading performance side by side: restaurant sales, room revenue and standalone till sales.",
     icon: LineChart,
     sources: "Restaurant Management · PMS · Standalone POS",
-    state: "Consolidated view planned. Each package reports its own sales today.",
+    state:
+      "Standalone POS reports here as a live source. A single combined sales total is still not shown — these are different source systems.",
+
   },
   {
     key: "operations",
