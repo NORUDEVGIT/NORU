@@ -859,3 +859,51 @@ stays: opening float + captured cash payments − cash refunds for that shift.
 Owner/manager: read, reprint, refund. Cashier and accountant: read and
 reprint, no refund. The server is authoritative; the UI only hides what the
 server would refuse.
+
+## Phase 8H7 — Dashboard and reporting
+
+Standalone POS reports on itself. Every figure on `/restaurant/pos/dashboard`
+and `/restaurant/pos/reports` comes from one aggregation
+(`src/lib/standalone-pos-reporting.server.ts`, `buildPosReport`), exposed by
+`getStandalonePosDashboard` and `getStandalonePosReport`, so the two screens
+can never disagree.
+
+Sources, and nothing else: `pos_sales`, `pos_sale_items`, `pos_payments`,
+`pos_refunds`, `pos_cashier_shifts`, `pos_registers` — all scoped by
+`restaurant_id`. Never Restaurant Management `orders` / `order_items` /
+`order_payments`, never the restaurant's own `cashier_shifts`, never PMS
+folios. POS reporting therefore works with every other package switched off.
+
+Frozen definitions:
+
+- Gross = sum of `pos_sales.total` for status `completed`,
+  `partially_refunded`, `refunded`.
+- Refunds = sum of `pos_refunds.amount`, attributed to the business date of
+  the original sale so gross, refunds and net always reconcile in one range.
+- Net POS sales = gross − refunds. Original sale totals are never rewritten.
+- Average sale = gross ÷ counted sale count.
+- Expected cash = opening float + captured cash tenders − cash refunds, the
+  same rule as `expectedCashFor` in the shift screens.
+
+Behaviour:
+
+- Parked (`open`) sales are shown separately and excluded from every total;
+  `voided` sales are excluded entirely.
+- Tender figures are recorded till activity, never bank settlement. Each part
+  of a split tender is counted once against its own method.
+- Product figures come from line snapshots (`product_name_snapshot`,
+  `sku_snapshot`, `line_total`), so renaming or repricing a product never
+  rewrites history. There is no category snapshot on a sale line, so
+  historical category reporting is deliberately not offered.
+- Refunds cannot be attributed to individual lines: they are recorded against
+  a sale and a tender, and the screens say so.
+- Date scope is always the property's own business date (property timezone),
+  never the browser's date.
+- Read access follows `requireStandalonePosAccess` (owner, manager, cashier,
+  accountant). Reporting adds no mutations and no schema changes.
+- CSV export is deferred: the project has no export pattern to reuse.
+
+Deviation from the plan: the six planned per-section server functions were
+implemented as two (`getStandalonePosDashboard`, `getStandalonePosReport`)
+over one shared aggregation — same formulas in one place, one round trip per
+screen instead of six.
