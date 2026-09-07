@@ -3,7 +3,7 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { ReservationsWorkspace } from "@/components/workspaces/reservations-workspace";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/restaurant/pms/reservations")({
+export const Route = createFileRoute("/restaurant/pms/reservations/")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) =>
     typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
