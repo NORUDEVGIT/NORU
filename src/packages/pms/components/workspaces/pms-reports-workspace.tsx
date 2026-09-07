@@ -20,7 +20,7 @@ import { getCashieringDashboard } from "@/packages/pms/lib/cashiering.functions"
 import { listNightAuditRuns } from "@/packages/pms/lib/nightaudit.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { PageHeading } from "@/core/state/pms-context";
 
 export function PmsReportsWorkspace({ membership }: { membership: RestaurantMembership }) {

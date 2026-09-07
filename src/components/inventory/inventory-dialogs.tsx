@@ -14,7 +14,7 @@ import {
 } from "@/shared/components/ui/select";
 import type { InventoryItem, InventoryMovement, InventoryUnit } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 export const MOVEMENT_LABEL: Record<MovementType, string> = {
   opening_balance: "Opening balance",

@@ -1,5 +1,5 @@
-import type { CartLine } from "@/core/state/order-store";
-import { useMoney } from "@/core/state/restaurant-context";
+import type { CartLine } from "@/packages/restaurant-management/state/order-store";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 
 export function OrderLines({ lines }: { lines: CartLine[] }) {
   const money = useMoney();

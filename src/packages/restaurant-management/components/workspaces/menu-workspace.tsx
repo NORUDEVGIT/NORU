@@ -16,7 +16,7 @@ import { createMenuImageUpload, deleteCategory, deleteMenuItem, getManagedMenu, 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { getMenuRecipeSummaries } from "@/packages/restaurant-management/lib/recipes.functions";
 import { RecipeDialog, RecipeStatusChip } from "@/packages/restaurant-management/components/menu/recipe-dialog";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 /** Menu editing is limited to owners and managers. Kitchen/waiter cannot edit. */

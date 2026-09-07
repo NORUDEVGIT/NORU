@@ -49,7 +49,7 @@ import {
 } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 const MOVEMENT_LABEL: Record<string, string> = {
   opening_balance: "Opening balance",

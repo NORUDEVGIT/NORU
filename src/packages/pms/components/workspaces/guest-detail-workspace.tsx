@@ -30,7 +30,7 @@ import {
   type GuestPreferences,
 } from "@/packages/pms/lib/guests.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTime } from "@/core/state/restaurant-context";
+import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 const EVENT_LABEL: Record<string, string> = {
   created: "Guest created",

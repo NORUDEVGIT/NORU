@@ -15,7 +15,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/shared/lib/utils";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import {
   addPosSaleItem,
   completePosSale,

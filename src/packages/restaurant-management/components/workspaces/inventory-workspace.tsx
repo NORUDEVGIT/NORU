@@ -23,7 +23,7 @@ import { ArrowUpRight } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { PageHeading } from "@/core/state/pms-context";
 import { useIsRmContext } from "@/packages/restaurant-management/lib/rm-routes";
 

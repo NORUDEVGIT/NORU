@@ -35,8 +35,8 @@ import { getBackOfficePosSummary } from "@/integrations/cross-package/back-offic
 import { getRestaurantDashboard } from "@/packages/restaurant-management/lib/dashboard.functions";
 import { getFrontOfficeDashboard } from "@/packages/pms/lib/frontoffice.functions";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
-import { useMoney, useRestaurantTimezone } from "@/core/state/restaurant-context";
-import { localDateInZone } from "@/core/lib/restaurant-time";
+import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { localDateInZone } from "@/shared/lib/property-time";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
 import { useMemo } from "react";

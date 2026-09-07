@@ -6,7 +6,7 @@
  * own calendar day, never the browser's.
  */
 
-import { addDaysIso, localDateInZone, zonedMoment } from "@/core/lib/restaurant-time";
+import { addDaysIso, localDateInZone, zonedMoment } from "@/shared/lib/property-time";
 import type { MovementType } from "./inventory.server";
 
 export const RANGE_PRESETS = ["today", "7d", "30d", "custom"] as const;

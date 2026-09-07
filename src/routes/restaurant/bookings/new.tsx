@@ -30,7 +30,7 @@ import {
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
-import { useMoney, useRestaurantTimezone } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({

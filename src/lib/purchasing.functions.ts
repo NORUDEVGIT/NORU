@@ -475,7 +475,7 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
         return { ok: true as const, purchaseOrderId: existing.id };
       }
 
-      const { localDateInZone } = await import("@/core/lib/restaurant-time");
+      const { localDateInZone } = await import("@/shared/lib/property-time");
       const poNumber = await nextPoNumber(supabaseAdmin, data.restaurantId);
       const { data: created, error } = await supabaseAdmin
         .from("purchase_orders")
@@ -660,7 +660,7 @@ export const getPurchasingSummary = createServerFn({ method: "POST" })
     const me = await requirePurchasingAccess(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
-    const { localDateInZone } = await import("@/core/lib/restaurant-time");
+    const { localDateInZone } = await import("@/shared/lib/property-time");
     const today = localDateInZone(settings.timezone);
 
     const { data: rows } = await supabaseAdmin

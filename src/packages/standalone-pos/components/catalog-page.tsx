@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import {
   getPosSettings,
   listPosCategories,

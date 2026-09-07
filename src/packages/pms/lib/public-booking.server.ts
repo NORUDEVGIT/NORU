@@ -5,7 +5,7 @@
  * from the browser: the property is always resolved from the public slug and
  * every other id is re-validated against that property before use.
  */
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/core/lib/restaurant-time";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import { normalizeEmail, normalizePhone } from "./guests.server";
 
 export interface StayProperty {

@@ -5,7 +5,7 @@
  * (menu_categories / menu_items) and removed: every menu shown to customers and
  * every price used by placeOrder now comes from Supabase, per restaurant.
  */
-import { formatMoney } from "@/core/lib/restaurant-time";
+import { formatMoney } from "@/shared/lib/property-time";
 
 export type DietaryTag = "Vegetarian" | "Vegan" | "Gluten Free";
 

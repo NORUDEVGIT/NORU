@@ -21,7 +21,7 @@ import {
 import { listArrivals, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
-import { useRestaurantTimezone } from "@/core/state/restaurant-context";
+import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
 

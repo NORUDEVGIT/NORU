@@ -9,7 +9,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/shared/components/ui/button";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { getStandalonePosDashboard } from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PosHeader, ErrorNotice, ReadOnlyNotice } from "./pos-shared";

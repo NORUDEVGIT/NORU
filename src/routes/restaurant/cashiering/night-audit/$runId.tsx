@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { getNightAuditRun } from "@/packages/pms/lib/nightaudit.functions";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/cashiering/night-audit/$runId")({

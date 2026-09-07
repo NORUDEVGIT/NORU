@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { SiteHeader } from "@/core/components/site-header";
+import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
 import { Button } from "@/shared/components/ui/button";
 import { resolveRestaurantTable } from "@/packages/restaurant-management/lib/tables.functions";
-import { useOrder } from "@/core/state/order-store";
+import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/t/$qrToken")({
   head: () => ({

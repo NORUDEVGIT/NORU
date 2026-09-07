@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Check, Circle, Dot } from "lucide-react";
-import { SiteHeader } from "@/core/components/site-header";
+import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
 import { Button } from "@/shared/components/ui/button";
 import { formatPrice } from "@/shared/lib/menu";
 import { getMyOrder } from "@/core/lib/customer.functions";

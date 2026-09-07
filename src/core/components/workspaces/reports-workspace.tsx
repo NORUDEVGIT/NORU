@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, BarChart3, Boxes, ReceiptText, Sparkles, Users, Wallet } from "lucide-react";
 import { RevenueOverviewTab } from "@/packages/pms/components/rates/rates-tabs";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { propertyToday } from "@/shared/lib/property-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 import { useIsRmContext } from "@/packages/restaurant-management/lib/rm-routes";

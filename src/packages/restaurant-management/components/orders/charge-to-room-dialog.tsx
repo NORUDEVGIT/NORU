@@ -20,7 +20,7 @@ import {
   searchChargeableStays,
   type ChargeableStay,
 } from "@/integrations/cross-package/room-charge.functions";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 
 export function ChargeToRoomDialog({
   restaurantId,

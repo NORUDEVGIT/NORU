@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/core/lib/restaurant-time";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 
 const slugSchema = z.object({
   slug: z

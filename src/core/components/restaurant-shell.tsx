@@ -53,7 +53,7 @@ import { BO_GROUPS, BO_MODULES, getBoModule } from "@/packages/back-office/lib/b
 import { POS_MODULES, getPosModule } from "@/packages/standalone-pos/lib/standalone-pos-modules";
 import { useAuth } from "@/core/state/auth-store";
 import { cn } from "@/shared/lib/utils";
-import { RestaurantSettingsProvider } from "@/core/state/restaurant-context";
+import { RestaurantSettingsProvider } from "@/packages/restaurant-management/state/restaurant-context";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 
 export type RestaurantNavLabel =

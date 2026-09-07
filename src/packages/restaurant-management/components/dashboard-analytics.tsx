@@ -19,7 +19,7 @@ import {
 
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import {
   ANALYTICS_PERIODS,
   getRestaurantAnalytics,

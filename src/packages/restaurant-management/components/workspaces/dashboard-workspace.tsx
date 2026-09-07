@@ -12,8 +12,8 @@ import { cn } from "@/shared/lib/utils";
 import { getRestaurantDashboard, type DashboardOrder, type RestaurantDashboard } from "@/packages/restaurant-management/lib/dashboard.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
-import { useMoney } from "@/core/state/restaurant-context";
-import { useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 
 

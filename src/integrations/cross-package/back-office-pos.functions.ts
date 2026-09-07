@@ -26,8 +26,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireBackOfficeFinanceRead, sourceAvailable } from "@/packages/back-office/lib/back-office-finance.server";
 import { resolveCallerAccess } from "@/core/lib/module-access.server";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, zonedMoment, addDaysIso } from "@/core/lib/restaurant-time";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, zonedMoment, addDaysIso } from "@/shared/lib/property-time";
+import { propertyToday } from "@/shared/lib/property-dates";
 import { STANDALONE_POS_READ_ROLES } from "@/core/lib/module-access";
 
 const idSchema = z.string().uuid();

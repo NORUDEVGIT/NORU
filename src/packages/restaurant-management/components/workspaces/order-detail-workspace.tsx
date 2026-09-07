@@ -28,7 +28,7 @@ import {
 } from "@/packages/restaurant-management/components/orders/charge-to-room-dialog";
 import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 export function OrderDetailBody({
   membership,

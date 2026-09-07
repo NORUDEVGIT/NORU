@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { getGuestsAccess, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTime } from "@/core/state/restaurant-context";
+import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/guests/")({
   ssr: false,

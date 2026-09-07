@@ -6,7 +6,7 @@ import { Label } from "@/shared/components/ui/label";
 import { QuantityStepper } from "@/packages/restaurant-management/components/quantity-stepper";
 import { DietaryBadges } from "@/packages/restaurant-management/components/dietary-badges";
 import type { MenuItem } from "@/shared/lib/menu";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 
 export function ItemDetailDialog({
   item,

@@ -16,8 +16,8 @@ import { ChargeToRoomDialog } from "@/packages/restaurant-management/components/
 import { getPosContext, openPosShift, payPosSale, placePosSale, type PosMenuItem, type PosSale } from "@/packages/restaurant-management/lib/rm-pos.functions";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { useAuth } from "@/core/state/auth-store";
-import { RestaurantSettingsProvider, useMoney } from "@/core/state/restaurant-context";
-import { formatMoney } from "@/core/lib/restaurant-time";
+import { RestaurantSettingsProvider, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { formatMoney } from "@/shared/lib/property-time";
 
 
 interface HeldSale {

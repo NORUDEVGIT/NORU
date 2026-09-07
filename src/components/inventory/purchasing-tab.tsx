@@ -17,7 +17,7 @@ import { listSuppliers } from "@/lib/suppliers.functions";
 import { listInventoryItems } from "@/lib/inventory.functions";
 import { PO_STATUS_LABEL, PO_STATUSES, type PoStatus } from "@/lib/purchasing.server";
 import { RANGE_PRESETS, type RangePreset } from "@/lib/inventory-reporting.server";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
 export const PO_STATUS_STYLE: Record<PoStatus, string> = {

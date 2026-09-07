@@ -11,7 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "@/core/lib/lovable-error-reporting";
-import { OrderProvider } from "@/core/state/order-store";
+import { OrderProvider } from "@/packages/restaurant-management/state/order-store";
 import { AuthProvider } from "@/core/state/auth-store";
 import { Toaster } from "@/shared/components/ui/sonner";
 

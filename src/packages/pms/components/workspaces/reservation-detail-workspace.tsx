@@ -38,7 +38,7 @@ import {
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.functions";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 const UNASSIGNED = "unassigned";
 

@@ -17,7 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { closeFolio, postFolioEntry } from "@/packages/pms/lib/cashiering.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 
 const PAYMENT_METHODS = ["Cash", "Card", "Bank transfer", "Mobile money", "Other"];
 

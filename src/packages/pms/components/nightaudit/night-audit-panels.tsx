@@ -9,7 +9,7 @@ import type {
   NightAuditState,
 } from "@/packages/pms/lib/nightaudit.functions";
 import type { AreaCheck } from "@/packages/pms/lib/nightaudit.server";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 
 export function CheckBadge({ status }: { status: AreaCheck["status"] }) {

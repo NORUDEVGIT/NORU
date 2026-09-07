@@ -27,8 +27,8 @@ import {
   type SourceMetric,
 } from "@/packages/back-office/lib/back-office-finance.functions";
 import { getBackOfficePosSummary } from "@/integrations/cross-package/back-office-pos.functions";
-import { formatMoney } from "@/core/lib/restaurant-time";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { formatMoney } from "@/shared/lib/property-time";
+import { propertyToday } from "@/shared/lib/property-dates";
 
 /* ---------------------------------------------------------------- header */
 

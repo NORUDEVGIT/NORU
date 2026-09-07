@@ -21,7 +21,7 @@ import {
 } from "@/packages/pms/lib/nightaudit.functions";
 import { markNoShow } from "@/packages/pms/lib/frontoffice.functions";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 

@@ -22,8 +22,8 @@ import {
   type PosProductPricing,
   type PosTaxSettings,
 } from "./standalone-pos-pricing.server";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/core/lib/restaurant-time";
+import { propertyToday } from "@/shared/lib/property-dates";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import { STANDALONE_POS_ROLES } from "@/core/lib/module-access";
 
 const idSchema = z.string().uuid();

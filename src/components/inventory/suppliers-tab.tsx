@@ -25,7 +25,7 @@ import {
   updateSupplier,
   type Supplier,
 } from "@/lib/suppliers.functions";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
 export function SuppliersTab({ restaurantId }: { restaurantId: string }) {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { useOrder } from "@/core/state/order-store";
+import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 type OrderPage = "cart" | "table" | "review" | "confirmation" | "status";
 

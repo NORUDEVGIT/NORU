@@ -21,7 +21,7 @@ import {
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { listDepartures, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
-import { useRestaurantTimezone } from "@/core/state/restaurant-context";
+import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 
 function ConfirmationLink({ stay }: { stay: FrontOfficeStay }) {
   return (

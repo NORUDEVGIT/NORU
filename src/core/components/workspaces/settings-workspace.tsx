@@ -7,7 +7,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { updateMyRestaurant, type RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/core/lib/restaurant-time";
+import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 export function SettingsWorkspace({

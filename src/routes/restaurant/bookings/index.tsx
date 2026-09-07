@@ -14,7 +14,7 @@ import {
   listReservations,
 } from "@/packages/pms/lib/reservations.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTimezone } from "@/core/state/restaurant-context";
+import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/bookings/")({
   ssr: false,

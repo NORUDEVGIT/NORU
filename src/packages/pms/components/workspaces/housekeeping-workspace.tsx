@@ -14,8 +14,8 @@ import {
   RestrictionsTab,
   RoomRackTab,
 } from "@/packages/pms/components/housekeeping/housekeeping-tabs";
-import { useRestaurantTimezone } from "@/core/state/restaurant-context";
-import { localDateInZone } from "@/core/lib/restaurant-time";
+import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { localDateInZone } from "@/shared/lib/property-time";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 

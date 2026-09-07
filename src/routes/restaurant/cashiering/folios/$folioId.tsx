@@ -12,7 +12,7 @@ import { getFolio } from "@/packages/pms/lib/cashiering.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import { FolioStatusBadge, labelTransactionType, splitLedger } from "@/packages/pms/components/cashiering/folio-bits";
 import { CloseFolioDialog, FolioEntryDialog } from "@/packages/pms/components/cashiering/folio-dialogs";
-import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/cashiering/folios/$folioId")({

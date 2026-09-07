@@ -12,9 +12,9 @@ import { cn } from "@/shared/lib/utils";
 import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult, type OrderListRow } from "@/packages/restaurant-management/lib/restaurant-orders.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
-import { useMoney } from "@/core/state/restaurant-context";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { PageHeading } from "@/core/state/pms-context";
-import { useRestaurantTime } from "@/core/state/restaurant-context";
+import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 const STATUS_TABS = [
   { value: "all", label: "All" },

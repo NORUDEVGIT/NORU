@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership, displayName, getRestaurantSettings } from "@/core/lib/workforce.server";
-import { localDateInZone } from "@/core/lib/restaurant-time";
+import { localDateInZone } from "@/shared/lib/property-time";
 import {
   ASSET_COLUMNS,
   ASSET_CONDITIONS,

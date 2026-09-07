@@ -9,7 +9,7 @@ import { Label } from "@/shared/components/ui/label";
 import type { StayProperty } from "@/packages/pms/lib/public-booking.server";
 import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/packages/pms/components/stay/stay-chrome";
 import { getStayProperty, searchStay, type PublicRoomTypeOffer } from "@/packages/pms/lib/public-booking.functions";
-import { addDays, formatStayDate, propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { addDays, formatStayDate, propertyToday } from "@/shared/lib/property-dates";
 
 export const Route = createFileRoute("/stay/$propertySlug/")({
   ssr: false,
