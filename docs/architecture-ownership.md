@@ -582,3 +582,10 @@ Standalone POS owns its post-sale lifecycle outright:
 
 Unchanged by this phase: RM till, orders, order payments, RM receipts, Charge
 to Room, PMS cashiering and folios, Back Office accounting and reports.
+
+## Standalone POS — operational reporting (Phase 8H7)
+
+Standalone POS owns its own dashboard and reports, computed only from its own
+tables (`pos_*`). No other package supplies or receives figures here. Back
+Office finance aggregation of POS remains out of scope until a later phase;
+today the Back Office finance overview lists Standalone POS as planned.

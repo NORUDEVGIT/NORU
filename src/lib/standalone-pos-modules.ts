@@ -42,11 +42,10 @@ export const POS_MODULES: PosModule[] = [
   {
     key: "dashboard",
     title: "Dashboard",
-    description: "How ready this till is: catalog size, registers and open shifts.",
+    description: "Today's takings, tenders, products, tills and drawer position.",
     icon: LayoutDashboard,
     canonicalRoute: "/restaurant/pos/dashboard",
-    status: "foundation",
-    note: "Sales figures appear once selling is live.",
+    status: "live",
   },
   {
     key: "sell",
@@ -94,11 +93,10 @@ export const POS_MODULES: PosModule[] = [
   {
     key: "reports",
     title: "Reports",
-    description: "Sales, products, payments, cashier shifts and refunds.",
+    description: "Sales, products, payments, cashier shifts and refunds over any date range.",
     icon: BarChart3,
     canonicalRoute: "/restaurant/pos/reports",
-    status: "foundation",
-    note: "Reports need real sales first.",
+    status: "live",
   },
   {
     key: "settings",
