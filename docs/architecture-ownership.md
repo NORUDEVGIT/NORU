@@ -95,3 +95,40 @@ Kept legacy / not owned yet:
 No route-based detail surface exists for menu items, recipe & cost, tables/QR,
 POS transactions or restaurant payments; those are modal/drawer flows inside
 their workspaces, so no routes were invented for them.
+
+## Phase 8F5 — Restaurant Management legacy route redirects
+
+The canonical `/restaurant/restaurant-management/*` family is now the
+authoritative address space. Clearly RM-owned legacy addresses are redirect-only
+(sign-in check first, then `redirect(..., { replace: true })`); the destination
+route remains the sole owner of the package guard, role rules and screen.
+
+| Deprecated address | Canonical replacement |
+|---|---|
+| `/restaurant/dashboard` | `/restaurant/restaurant-management/dashboard` |
+| `/restaurant/orders` | `/restaurant/restaurant-management/orders` (search preserved) |
+| `/restaurant/orders/$orderId` | `/restaurant/restaurant-management/orders/$orderId` |
+| `/restaurant/kitchen` | `/restaurant/restaurant-management/kitchen` |
+| `/restaurant/menu` | `/restaurant/restaurant-management/menu` |
+| `/restaurant/tables` | `/restaurant/restaurant-management/tables` |
+| `/restaurant/waiter` | `/restaurant/restaurant-management/digital-ordering` |
+| `/restaurant/pos/new` | `/restaurant/restaurant-management/pos-sales` |
+| `/kitchen`, `/kitchen/login` | `/restaurant/restaurant-management/kitchen` (single hop) |
+
+`src/lib/rm-routes.ts` now always returns canonical paths; the legacy branch was
+removed. Internal RM links (shell nav, homepage, reports and configuration
+workspaces) point at canonical addresses, so no new deprecated URL is generated.
+
+### Retained active (not redirected)
+
+| Address | Reason |
+|---|---|
+| `/restaurant/inventory`, `/restaurant/inventory/purchasing/*` | Hotel modules and procurement cross-link into stock; ownership resolves with Back Office. |
+| `/restaurant/staff` | One shared workforce, reused by PMS Administration and future Back Office HR. |
+| `/restaurant/reports` | Mixed workspace: restaurant plus property-wide sections. |
+| `/restaurant/configuration`, `/restaurant/settings` | Core tenant identity plus PMS content. |
+| Public `/r/*`, `/scan` | Already canonical Restaurant Management public addresses. |
+| `/restaurant/pms/*` | PMS-owned, unchanged. |
+
+Deferred: shared-route ownership migration, Back Office, standalone POS / HR /
+Inventory splits, folder and broad dead-code cleanup.

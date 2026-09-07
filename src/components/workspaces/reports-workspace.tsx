@@ -22,7 +22,7 @@ const REPORT_LINKS: ReportLink[] = [
     title: "Food & Beverage",
     description: "Order volume, revenue trends and service performance.",
     icon: ReceiptText,
-    to: "/restaurant/dashboard",
+    to: "/restaurant/restaurant-management/dashboard",
   },
   {
     title: "Inventory",

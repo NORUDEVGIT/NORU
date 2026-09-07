@@ -22,13 +22,14 @@ const GROUPS: ConfigGroup[] = [
         title: "Menu",
         description: "Categories, items, prices, availability and recipe mapping.",
         icon: UtensilsCrossed,
-        to: "/restaurant/menu",
+        to: "/restaurant/restaurant-management/menu",
       },
       {
         title: "Tables & QR",
         description: "Tables, QR codes and printable table cards.",
         icon: QrCode,
-        to: "/restaurant/tables",
+        to: "/restaurant/restaurant-management/tables",
+
       },
     ],
   },

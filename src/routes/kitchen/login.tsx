@@ -4,7 +4,11 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 export const Route = createFileRoute("/kitchen/login")({
   ssr: false,
   beforeLoad: () => {
-    throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/kitchen" }, replace: true });
+    throw redirect({
+      to: "/restaurant/login",
+      search: { redirect: "/restaurant/restaurant-management/kitchen" },
+      replace: true,
+    });
   },
   component: () => null,
 });
