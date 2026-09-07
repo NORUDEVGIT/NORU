@@ -587,5 +587,37 @@ to Room, PMS cashiering and folios, Back Office accounting and reports.
 
 Standalone POS owns its own dashboard and reports, computed only from its own
 tables (`pos_*`). No other package supplies or receives figures here. Back
-Office finance aggregation of POS remains out of scope until a later phase;
-today the Back Office finance overview lists Standalone POS as planned.
+Office finance aggregation of POS was out of scope in 8H7; it is delivered
+read-only in 8H8 (below).
+
+## Standalone POS — cross-package integration (Phase 8H8)
+
+Standalone POS remains the sole author of its records. Phase 8H8 adds a
+**read-only** consumption path only:
+
+| Surface | Direction | Notes |
+| --- | --- | --- |
+| Back Office Accounting & Finance → POS source card | Back Office reads POS | `getBackOfficePosSummary` in `src/lib/back-office-pos.functions.ts`, computed on demand from `pos_*` tables via the same server aggregation the POS reports use. |
+| Back Office Reports & Intelligence → POS figures + source card | Back Office reads POS | Same server function; figures are labelled "From Standalone POS". |
+
+Rules frozen by this phase:
+
+1. No POS transaction data is copied, mirrored or summarised into Back Office
+   tables. No database change was made in 8H8.
+2. Back Office figures must reconcile exactly with `/restaurant/pos/reports`
+   for the same business date, because both derive from the same POS-owned
+   aggregation.
+3. POS figures are never added to Restaurant Management or PMS figures. No
+   consolidated property revenue total exists; there is still no general ledger.
+4. Visibility requires the `pos` package enabled **and** `back_office` access
+   **and** the reader's existing module access (finance or reports). The POS
+   deep link additionally requires the reader's own Standalone POS access.
+5. When the `pos` package is off, POS is shown as unavailable with a neutral
+   message and no figures are fetched.
+
+### Bridges audited and deferred
+
+| Bridge | Status | Reason |
+| --- | --- | --- |
+| POS sale → Inventory stock depletion | Deferred | Requires a POS product ↔ inventory item mapping and a recipe/component model for POS products, neither of which exists. Introducing partial depletion would silently corrupt stock. |
+| POS sale → PMS Charge to Room (folio posting) | Deferred | Requires guest/room lookup, folio selection, package-cross authorisation and a reversal path inside POS. The existing RM Charge to Room bridge is untouched and remains RM-only. |

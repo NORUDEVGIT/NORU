@@ -226,7 +226,7 @@ export const BO_MODULES: BoModule[] = [
       "Bank reconciliation, tax accounting and financial statements (P&L, balance sheet, cash flow, trial balance).",
     ],
     todayNote:
-      "Canonical home for finance monitoring and control: read-only, source-labelled summaries of restaurant order value, hotel folio activity, purchase-order commitment and stock at last-known cost, each only when that source is enabled and the reader already has access. Nothing is posted here and no figure is a ledger figure. Hotel folios, payments, deposits, refunds, cashier shifts and night audit stay in PMS; restaurant payments and till shifts stay in Restaurant Management; purchase orders stay in Procurement; stock and cost stay in Inventory. There is still no general ledger, chart of accounts, journals, AP, AR, bank reconciliation or tax ledger in NORU.",
+      "Canonical home for finance monitoring and control: read-only, source-labelled summaries of restaurant order value, hotel folio activity, purchase-order commitment and stock at last-known cost, and recorded Standalone POS till sales, refunds and tender activity, each only when that source is enabled and the reader already has access. Nothing is posted here and no figure is a ledger figure. Hotel folios, payments, deposits, refunds, cashier shifts and night audit stay in PMS; restaurant payments and till shifts stay in Restaurant Management; purchase orders stay in Procurement; stock and cost stay in Inventory; till sales, refunds and cashier shifts stay in Standalone POS. There is still no general ledger, chart of accounts, journals, AP, AR, bank reconciliation or tax ledger in NORU.",
   },
   {
     key: "reports",
@@ -245,7 +245,7 @@ export const BO_MODULES: BoModule[] = [
       "Comparisons and trends that no single package can produce alone.",
     ],
     todayNote:
-      "Package reports are not copied here. Restaurant reporting stays in Restaurant Management and hotel reporting stays in PMS.",
+      "Package reports are not copied here. Restaurant reporting stays in Restaurant Management, hotel reporting stays in PMS and till reporting stays in Standalone POS, which reports here as a live read-only source.",
   },
 
   // ------------------------------------------------------------ control

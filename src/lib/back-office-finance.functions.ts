@@ -264,13 +264,10 @@ export const getBackOfficeFinanceOverview = createServerFn({ method: "POST" })
     sources.push(invSource);
 
     // --------------------------------------------------------- Standalone POS
-    sources.push({
-      key: "pos",
-      name: "Standalone POS",
-      role: "Independent checkout sales and payments once the package is separated.",
-      state: "planned",
-      metrics: [],
-    });
+    // Phase 8H8: Standalone POS is a LIVE source, read through its own
+    // authoritative aggregation in `back-office-pos.functions.ts`. It is not
+    // computed here so the till's formulas are never duplicated or re-derived.
+
 
     return { currency, sources };
   });

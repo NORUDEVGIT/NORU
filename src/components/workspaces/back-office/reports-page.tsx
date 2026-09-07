@@ -31,6 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { getBackOfficePosSummary } from "@/lib/back-office-pos.functions";
 import { getRestaurantDashboard } from "@/lib/dashboard.functions";
 import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
 import { usePackageEntitlements } from "@/lib/use-package-entitlements";
@@ -56,10 +57,12 @@ const CATEGORIES: {
     key: "revenue",
     title: "Revenue & Sales",
     description:
-      "Trading performance side by side: restaurant sales, room revenue and, later, standalone checkout.",
+      "Trading performance side by side: restaurant sales, room revenue and standalone till sales.",
     icon: LineChart,
     sources: "Restaurant Management · PMS · Standalone POS",
-    state: "Consolidated view planned. Each package reports its own sales today.",
+    state:
+      "Standalone POS reports here as a live source. A single combined sales total is still not shown — these are different source systems.",
+
   },
   {
     key: "operations",
@@ -133,6 +136,10 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
   const rmFigures = rmOn && allowed.includes("food_and_beverage");
   const pmsFigures = pmsOn && allowed.includes("front_office");
   const canSeeReports = allowed.includes("reports_analytics");
+  // Phase 8H8 — Standalone POS is a real source here. It is queried only when
+  // the POS package is on and the reader already holds Reports & Analytics.
+  const posOn = packages.has("pos");
+  const posFigures = posOn && canSeeReports;
 
   const fetchRestaurant = useServerFn(getRestaurantDashboard);
   const restaurant = useQuery({
@@ -150,6 +157,16 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
     retry: false,
   });
 
+  const fetchPos = useServerFn(getBackOfficePosSummary);
+  const pos = useQuery({
+    queryKey: ["bo-reports-pos", restaurantId, today],
+    queryFn: () => fetchPos({ data: { restaurantId, surface: "reports" as const } }),
+    enabled: posFigures,
+    retry: false,
+  });
+  const posData = pos.data?.state === "available" ? pos.data : null;
+
+
   const occupancy = frontOffice.data
     ? (() => {
         const total = frontOffice.data.occupiedRooms + frontOffice.data.availableRooms;
@@ -159,7 +176,8 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
       })()
     : null;
 
-  const noSources = !rmFigures && !pmsFigures && !packages.loading && !access.isLoading;
+  const noSources =
+    !rmFigures && !pmsFigures && !posFigures && !packages.loading && !access.isLoading;
 
   return (
     <div className="space-y-8">
@@ -230,14 +248,49 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
                 />
               </>
             ) : null}
+            {posFigures ? (
+              <>
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till gross today"
+                  value={posData ? money(posData.gross) : null}
+                  loading={pos.isLoading}
+                />
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till net today"
+                  value={posData ? money(posData.net) : null}
+                  loading={pos.isLoading}
+                />
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till receipts today"
+                  value={posData ? String(posData.sales) : null}
+                  loading={pos.isLoading}
+                />
+                <Figure
+                  icon={CreditCard}
+                  source="Standalone POS"
+                  label="Till refunds today"
+                  value={posData ? money(posData.refunds) : null}
+                  loading={pos.isLoading}
+                />
+              </>
+            ) : null}
           </div>
         )}
 
-        {rmFigures && pmsFigures ? null : noSources ? null : (
+        {noSources ? null : (
           <p className="text-xs text-muted-foreground">
-            Only part of the property is represented above, so no combined property total is shown.
+            Each figure belongs to the source system that recorded it. Restaurant Management order
+            value, PMS activity and Standalone POS till sales are different source systems and are
+            never added together.
           </p>
         )}
+
       </section>
 
       {/* ------------------------------------------------- source packages */}
@@ -269,10 +322,15 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
           <SourceCard
             icon={CreditCard}
             title="Standalone POS"
-            body="Independent checkout sales and payments."
-            state="planned"
-            link={null}
+            body="Independent checkout sales, tenders, refunds and cashier shifts. Standalone POS owns these records; Back Office only reads them."
+            state={posOn ? "available" : "unavailable"}
+            link={
+              posOn && posData?.operationalAccess
+                ? { to: "/restaurant/pos/reports", label: "Open Standalone POS Reports" }
+                : null
+            }
           />
+
           <SourceCard
             icon={Boxes}
             title="Shared services"
