@@ -96,20 +96,32 @@ const GROUPS: ConfigGroup[] = [
   },
 ];
 
-export function ConfigurationWorkspace({ membership }: { membership: RestaurantMembership }) {
+export function ConfigurationWorkspace({
+  membership,
+  sections,
+  heading,
+  intro,
+}: {
+  membership: RestaurantMembership;
+  /** Optional presentation filter, e.g. Restaurant Management setup shows F&B only. */
+  sections?: string[];
+  heading?: string;
+  intro?: string;
+}) {
   const role = membership.role;
+  const groups = sections ? GROUPS.filter((g) => sections.includes(g.section)) : GROUPS;
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-2xl"><PageHeading fallback="Configuration" /></h1>
+        <h1 className="font-display text-2xl">{heading ?? <PageHeading fallback="Configuration" />}</h1>
         <p className="text-sm text-muted-foreground">
-          Operational master data for {membership.restaurant.name}. Property, regional and account settings live in
-          Property Settings & Integrations.
+          {intro ??
+            `Operational master data for ${membership.restaurant.name}. Property, regional and account settings live in Property Settings & Integrations.`}
         </p>
       </div>
 
-      {GROUPS.map((group) => {
+      {groups.map((group) => {
         const items = group.items.filter((i) => !i.roles || i.roles.includes(role));
         if (items.length === 0) return null;
         return (

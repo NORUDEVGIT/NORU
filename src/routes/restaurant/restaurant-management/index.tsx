@@ -81,8 +81,8 @@ function StatusChip({ status }: { status: string }) {
 function ModuleCard({ m }: { m: RmModule }) {
   return (
     <Link
-      to={m.currentRoute}
-      {...(m.currentSearch ? { search: m.currentSearch } : {})}
+      to={m.canonicalRoute}
+      {...(m.canonicalSearch ? { search: m.canonicalSearch } : {})}
       className="group flex min-h-36 flex-col rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/60 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <div className="flex w-full items-start justify-between gap-2">
