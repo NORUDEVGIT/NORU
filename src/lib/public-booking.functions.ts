@@ -9,6 +9,7 @@ import {
   matchOrCreateGuest,
   resolveStayProperty,
   type StayProperty,
+  type StayPropertyStatus,
 } from "./public-booking.server";
 import { signRoomImages } from "./rooms.server";
 import { parseSnapshot, rateError, toQuote, type StayQuote } from "./rates.server";
