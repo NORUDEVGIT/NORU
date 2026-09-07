@@ -1,0 +1,50 @@
+/**
+ * Phase 8H3 — Standalone POS route: Reports.
+ *
+ * Guarded by sign-in plus the `pos` package. Server functions keep their own
+ * membership / package / module / role checks.
+ */
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { RestaurantShell } from "@/components/restaurant-shell";
+import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
+import { PosFoundationPage } from "@/components/workspaces/standalone-pos/foundation-page";
+
+export const Route = createFileRoute("/restaurant/pos/reports")({
+  ssr: false,
+  beforeLoad: async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/pos/reports" } });
+    }
+    await requireRoutePackage("pos");
+  },
+  head: () => ({
+    meta: [
+      { title: "Reports — Standalone POS — NORU" },
+      { name: "description", content: "Sales, product, payment and shift reporting for the independent point of sale." },
+      { property: "og:title", content: "Reports — Standalone POS — NORU" },
+      { property: "og:description", content: "Sales, product, payment and shift reporting for the independent point of sale." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
+    ],
+  }),
+  component: PosReportsRoute,
+});
+
+function PosReportsRoute() {
+  return (
+    <RestaurantShell active="Standalone POS" posModule="reports">
+      {(m) => (
+        <PosFoundationPage
+          moduleKey="reports"
+          propertyName={m.restaurant.name}
+          what={[
+            "Sales by day, product and category", "Payments by method", "Refunds and discounts, with who authorised them",
+          ]}
+        />
+      )}
+    </RestaurantShell>
+  );
+}

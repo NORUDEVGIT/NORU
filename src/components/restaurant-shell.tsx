@@ -50,6 +50,7 @@ import { clearRoutePackageCache } from "@/lib/route-package-guard";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
 import { RM_GROUPS, RM_MODULES } from "@/lib/restaurant-management-modules";
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/lib/back-office-modules";
+import { POS_MODULES, getPosModule } from "@/lib/standalone-pos-modules";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
 import { RestaurantSettingsProvider } from "@/state/restaurant-context";
@@ -60,6 +61,7 @@ export type RestaurantNavLabel =
   | "PMS"
   | "Restaurant Management"
   | "Back Office"
+  | "Standalone POS"
   | "Dashboard"
   | "Menu"
   | "Kitchen"
@@ -439,6 +441,7 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   PMS: "pms",
   "Restaurant Management": "restaurant",
   "Back Office": "home",
+  "Standalone POS": "home",
   Dashboard: "restaurant",
   Menu: "configuration",
   Kitchen: "restaurant",
@@ -479,6 +482,7 @@ export function RestaurantShell({
   rmDetailLabel,
   boModule,
   boDetailLabel,
+  posModule,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -508,6 +512,12 @@ export function RestaurantShell({
   boModule?: string;
   /** Phase 8G2B — final breadcrumb crumb on a Back Office detail page. */
   boDetailLabel?: string;
+  /**
+   * Phase 8H3 — key from `POS_MODULES`. When set, the page is presented as a
+   * Standalone POS screen: POS-only sidebar and context label. Presentation
+   * only; the route guard and server guards do the enforcing.
+   */
+  posModule?: string;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -538,6 +548,7 @@ export function RestaurantShell({
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
   const rmMod = rmModule ? RM_MODULES.find((m) => m.key === rmModule) : undefined;
   const boMod = boModule ? getBoModule(boModule) : undefined;
+  const posMod = posModule ? getPosModule(posModule) : undefined;
 
   const moduleAccess = useQuery({
     queryKey: ["my-module-access", membership?.restaurantId],
@@ -564,7 +575,11 @@ export function RestaurantShell({
   const activeTab =
     search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
 
-  const contextLabel = boMod
+  const contextLabel = posMod
+    ? `Standalone POS · ${posMod.title}`
+    : active === "Standalone POS"
+    ? "Standalone POS"
+    : boMod
     ? `Back Office · ${boMod.title}`
     : active === "Back Office"
     ? "Back Office"
@@ -690,6 +705,43 @@ export function RestaurantShell({
   );
 
 
+  // Phase 8H3 — Standalone POS navigation. This package never shows
+  // Restaurant Management, PMS or Back Office navigation. Areas that are not
+  // built yet are listed but not clickable, so nobody is routed into an
+  // unfinished screen.
+  const posSidebarNav = (
+    <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Standalone POS navigation">
+      <ul className="space-y-1 pt-2">
+        {POS_MODULES.map((m) => {
+          const className = cn(
+            "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+            m.key === posMod?.key
+              ? "bg-sidebar-primary text-sidebar-primary-foreground"
+              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          );
+          return (
+            <li key={m.key}>
+              {m.canonicalRoute ? (
+                <Link to={m.canonicalRoute} onClick={() => setNavOpen(false)} className={className}>
+                  <m.icon className="size-4 shrink-0" /> {m.title}
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  title="Not available yet"
+                  className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/35"
+                >
+                  <m.icon className="size-4 shrink-0" /> {m.title}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+
+
   const sidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
       <Link
@@ -719,6 +771,23 @@ export function RestaurantShell({
               <Hotel className="size-4 shrink-0" /> PMS Home
             </Link>
           ) : null}
+        </div>
+      ) : posMod || active === "Standalone POS" ? (
+        <div className="space-y-1">
+          <Link
+            to="/restaurant/home"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" /> Property Home
+          </Link>
+          <Link
+            to="/restaurant/pos"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <ShoppingCart className="size-4 shrink-0" /> Standalone POS Home
+          </Link>
         </div>
       ) : boMod || active === "Back Office" ? (
         <div className="space-y-1">
@@ -773,8 +842,10 @@ export function RestaurantShell({
       {pmsMod && pmsPackage ? pmsSidebarNav : null}
       {rmMod ? rmSidebarNav : null}
       {boMod || active === "Back Office" ? boSidebarNav : null}
+      {posMod || active === "Standalone POS" ? posSidebarNav : null}
 
-      <nav className={cn("min-h-0 flex-1 overflow-y-auto", (pmsMod || rmMod || boMod || active === "Back Office") && "hidden")}>
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto", (pmsMod || rmMod || boMod || posMod || active === "Back Office" || active === "Standalone POS") &&
+            "hidden")}>
 
         <ul className="space-y-1">
           {items.map((item, index) => {
