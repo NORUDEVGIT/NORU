@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
 import { StaffWorkspace } from "@/components/workspaces/staff-workspace";
 
-export const Route = createFileRoute("/restaurant/restaurant-management/staff/")({
+export const Route = createFileRoute("/restaurant/restaurant-management/staff")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) =>
     typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/restaurant/restaurant-management/staff/")
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
-  }}),
+  }),
   component: RouteComponent,
 });
 

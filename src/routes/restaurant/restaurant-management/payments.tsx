@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
 import { PosPage } from "@/components/workspaces/restaurant/pos-workspace";
 
-export const Route = createFileRoute("/restaurant/restaurant-management/payments/")({
+export const Route = createFileRoute("/restaurant/restaurant-management/payments")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -27,6 +27,6 @@ export const Route = createFileRoute("/restaurant/restaurant-management/payments
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
-  }}),
+  }),
   component: PosPage,
 });

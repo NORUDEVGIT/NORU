@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
 import { OrdersBody, validateOrdersSearch } from "@/components/workspaces/restaurant/orders-workspace";
 
-export const Route = createFileRoute("/restaurant/restaurant-management/orders/")({
+export const Route = createFileRoute("/restaurant/restaurant-management/orders")({
   ssr: false,
   validateSearch: validateOrdersSearch,
   beforeLoad: async () => {
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/restaurant/restaurant-management/orders/"
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
-  }}),
+  }),
   component: RouteComponent,
 });
 

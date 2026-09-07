@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
 import { ReportsWorkspace } from "@/components/workspaces/reports-workspace";
 
-export const Route = createFileRoute("/restaurant/restaurant-management/reports/")({
+export const Route = createFileRoute("/restaurant/restaurant-management/reports")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/restaurant/restaurant-management/reports/
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
-  }}),
+  }),
   component: RouteComponent,
 });
 
