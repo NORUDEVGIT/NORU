@@ -153,12 +153,30 @@ export const listPosRegisters = createServerFn({ method: "POST" })
       .select("id, name, location_label, active")
       .eq("restaurant_id", data.restaurantId)
       .order("name");
-    return ((rows ?? []) as any[]).map((r) => ({
-      id: r.id as string,
-      name: r.name as string,
-      locationLabel: (r.location_label as string) ?? null,
-      active: Boolean(r.active),
-    }));
+    const { data: openShifts } = await db
+      .from("pos_cashier_shifts")
+      .select("id, register_id, opened_by_membership_id, opened_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "open");
+    const names = await membershipNames(
+      db,
+      data.restaurantId,
+      ((openShifts ?? []) as any[]).map((s) => s.opened_by_membership_id),
+    );
+    const byRegister = new Map<string, any>();
+    for (const s of (openShifts ?? []) as any[]) byRegister.set(s.register_id as string, s);
+    return ((rows ?? []) as any[]).map((r) => {
+      const shift = byRegister.get(r.id as string);
+      return {
+        id: r.id as string,
+        name: r.name as string,
+        locationLabel: (r.location_label as string) ?? null,
+        active: Boolean(r.active),
+        openShiftId: shift ? (shift.id as string) : null,
+        openShiftBy: shift ? names.get(shift.opened_by_membership_id as string) ?? "A cashier" : null,
+        openShiftAt: shift ? (shift.opened_at as string) : null,
+      };
+    });
   });
 
 export const savePosRegister = createServerFn({ method: "POST" })
@@ -178,6 +196,20 @@ export const savePosRegister = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireStandalonePosManager(context as any, data.restaurantId);
     const db = await admin();
+    // A till with an open cashier shift is never deactivated: the shift must
+    // be closed and counted first. Shifts are never closed silently.
+    if (data.id && data.active === false) {
+      const { data: open } = await db
+        .from("pos_cashier_shifts")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("register_id", data.id)
+        .eq("status", "open")
+        .maybeSingle();
+      if (open) {
+        fail(new Error("Close the open cashier shift on this register before deactivating it."));
+      }
+    }
     const payload = {
       restaurant_id: data.restaurantId,
       name: data.name,
@@ -188,7 +220,12 @@ export const savePosRegister = createServerFn({ method: "POST" })
       ? db.from("pos_registers").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : db.from("pos_registers").insert(payload);
     const { data: row, error } = await query.select("id").maybeSingle();
-    if (error) fail(error);
+    if (error) {
+      if (String((error as any).message ?? "").includes("pos_registers_name_unique")) {
+        fail(new Error("Another register in this property already uses that name."));
+      }
+      fail(error);
+    }
     return { ok: true as const, id: (row?.id as string) ?? data.id! };
   });
 
