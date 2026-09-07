@@ -85,10 +85,11 @@ export function StandalonePosSell({ membership }: { membership: RestaurantMember
     queryFn: () => productsFn({ data: { restaurantId } }),
   });
 
-  const ready = ctx.data?.ready === true;
-  const shift = ready ? ctx.data.shift : null;
-  const sale = ready ? ctx.data.sale : null;
-  const parked = ready ? ctx.data.parked : [];
+  const data = ctx.data;
+  const ready = data?.ready === true;
+  const shift = data && data.ready ? data.shift : null;
+  const sale = data && data.ready ? data.sale : null;
+  const parked = data && data.ready ? data.parked : [];
 
   async function refresh() {
     await qc.invalidateQueries({ queryKey: ["pos-sell-context", restaurantId] });
