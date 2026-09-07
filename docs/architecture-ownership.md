@@ -492,3 +492,38 @@ Known gaps, recorded rather than faked: tax/VAT and service charge (order
 totals are price × quantity), discounts/comps/tips, refunds and post-payment
 voids, persisted parked sales, receipt templates and reprint, end-of-day
 cash-up reporting.
+
+## Standalone POS architecture freeze (Phase 8H1B)
+
+The Standalone POS domain is frozen on paper in
+[`docs/standalone-pos-architecture.md`](./standalone-pos-architecture.md).
+Nothing was built: no tables, routes, policies, navigation or runtime changes.
+
+Ownership added by that freeze:
+
+| Domain | Owner | Tables / surfaces |
+| --- | --- | --- |
+| Restaurant menu and ordering | Restaurant Management | `menu_categories`, `menu_items`, `orders`, `order_items`, `order_payments`, `cashier_shifts` |
+| Standalone till (proposed, not created) | Standalone POS | `pos_registers`, `pos_categories`, `pos_products`, `pos_cashier_shifts`, `pos_sales`, `pos_sale_items`, `pos_payments`, `pos_refunds` |
+| Hotel billing | PMS | folios, folio transactions, night audit |
+| Cross-package consolidation | Back Office | read-only over the owners above; owns no POS rows |
+
+Key frozen decisions:
+
+1. The Restaurant Management till keeps `/restaurant/restaurant-management/pos-sales`
+   and every table it uses. Standalone POS never writes to RM tables.
+2. Standalone POS is entitled by the `pos` package alone and must work with
+   Restaurant Management, PMS and Back Office all switched off. Both tills may
+   coexist.
+3. Canonical route family frozen at `/restaurant/pos` plus `dashboard`, `sell`,
+   `catalog`, `transactions`, `shifts`, `reports`, `settings`. The namespace is
+   safe to reclaim: it holds only the `new.tsx` redirect today, which stays.
+4. Module key `pos` continues to mean the restaurant till. A new
+   `standalone_pos` key will gate the standalone product (owner, manager,
+   cashier), so entitlement alone never grants till access.
+5. Sales are immutable once completed; corrections are voids (open sales only)
+   or linked refund records (completed sales). Sale lines carry full snapshots.
+6. Currency and business date come from the property (`restaurants.currency_code`,
+   `restaurants.timezone`), never from the browser.
+7. Charge to Room and inventory posting are optional future bridges, not part
+   of Standalone POS v1, and the existing RM Charge to Room bridge is untouched.
