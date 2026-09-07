@@ -2,17 +2,17 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/bookings/reservation-bits";
-import { CheckBadge, RunStatusBadge } from "@/components/nightaudit/night-audit-panels";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { StatCard } from "@/packages/pms/components/bookings/reservation-bits";
+import { CheckBadge, RunStatusBadge } from "@/packages/pms/components/nightaudit/night-audit-panels";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import { getNightAuditRun } from "@/lib/nightaudit.functions";
-import { formatStayDate } from "@/lib/reservation-dates";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { getNightAuditRun } from "@/packages/pms/lib/nightaudit.functions";
+import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/cashiering/night-audit/$runId")({
   ssr: false,

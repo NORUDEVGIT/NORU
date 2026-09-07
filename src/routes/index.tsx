@@ -1,19 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { HomeNav } from "@/components/home/home-nav";
-import { HomeHero } from "@/components/home/home-hero";
-import { HomePartners } from "@/components/home/home-partners";
-import { HomeFeatures } from "@/components/home/home-features";
-import { HomeSteps } from "@/components/home/home-steps";
-import { HomeShowcase } from "@/components/home/home-showcase";
-import { HomeBenefits } from "@/components/home/home-benefits";
-import { HomeTestimonials } from "@/components/home/home-testimonials";
-import { HomeCta } from "@/components/home/home-cta";
-import { HomeFooter } from "@/components/home/home-footer";
-import { useAuth } from "@/state/auth-store";
-import { getMyRestaurants } from "@/lib/restaurant.functions";
-import { amIPlatformAdmin } from "@/lib/admin.functions";
+import { Button } from "@/shared/components/ui/button";
+import { HomeNav } from "@/core/components/home/home-nav";
+import { HomeHero } from "@/core/components/home/home-hero";
+import { HomePartners } from "@/core/components/home/home-partners";
+import { HomeFeatures } from "@/core/components/home/home-features";
+import { HomeSteps } from "@/core/components/home/home-steps";
+import { HomeShowcase } from "@/core/components/home/home-showcase";
+import { HomeBenefits } from "@/core/components/home/home-benefits";
+import { HomeTestimonials } from "@/core/components/home/home-testimonials";
+import { HomeCta } from "@/core/components/home/home-cta";
+import { HomeFooter } from "@/core/components/home/home-footer";
+import { useAuth } from "@/core/state/auth-store";
+import { getMyRestaurants } from "@/core/lib/restaurant.functions";
+import { amIPlatformAdmin } from "@/core/lib/admin.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({

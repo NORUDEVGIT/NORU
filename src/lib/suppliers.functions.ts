@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "./workforce.server";
+import { callerMembership } from "@/core/lib/workforce.server";
 import {
   canManagePurchasing,
   canViewPurchasing,
@@ -38,8 +38,8 @@ export interface SupplierPermissions {
 const idSchema = z.string().uuid();
 
 async function requireSupplierAccess(context: any, restaurantId: string) {
-  const { requireModuleRole } = await import("./module-access.server");
-  const { PURCHASING_ROLES } = await import("./module-access");
+  const { requireModuleRole } = await import("@/core/lib/module-access.server");
+  const { PURCHASING_ROLES } = await import("@/core/lib/module-access");
   return requireModuleRole(
     context,
     restaurantId,

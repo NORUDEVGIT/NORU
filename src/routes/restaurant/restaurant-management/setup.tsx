@@ -3,10 +3,10 @@
  * shared workspace component; no business logic lives here.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import { ConfigurationWorkspace } from "@/components/workspaces/configuration-workspace";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { ConfigurationWorkspace } from "@/core/components/workspaces/configuration-workspace";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/setup")({
   ssr: false,

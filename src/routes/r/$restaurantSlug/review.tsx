@@ -2,12 +2,12 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
-import { TableContextBar } from "@/components/table-context-bar";
-import { OrderLines } from "@/components/order-lines";
-import { useRestaurant, useMoney } from "@/state/restaurant-context";
-import { useOrder } from "@/state/order-store";
+import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
+import { Button } from "@/shared/components/ui/button";
+import { TableContextBar } from "@/packages/restaurant-management/components/table-context-bar";
+import { OrderLines } from "@/packages/restaurant-management/components/order-lines";
+import { useRestaurant, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/review")({
   head: () => ({

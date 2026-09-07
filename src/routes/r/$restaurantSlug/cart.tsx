@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Trash2, ArrowLeft } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { TableContextBar } from "@/components/table-context-bar";
-import { QuantityStepper } from "@/components/quantity-stepper";
-import { useRestaurant, useMoney } from "@/state/restaurant-context";
-import { useOrder } from "@/state/order-store";
+import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { TableContextBar } from "@/packages/restaurant-management/components/table-context-bar";
+import { QuantityStepper } from "@/packages/restaurant-management/components/quantity-stepper";
+import { useRestaurant, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/cart")({
   head: () => ({

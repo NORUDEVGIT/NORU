@@ -2,13 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
-import { MenuLink } from "@/components/menu-link";
-import { formatPrice } from "@/data/menu";
-import { getMyOrders } from "@/lib/customer.functions";
-import { statusLabel } from "@/lib/order-status";
-import { useAuth } from "@/state/auth-store";
+import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
+import { Button } from "@/shared/components/ui/button";
+import { MenuLink } from "@/packages/restaurant-management/components/menu-link";
+import { formatPrice } from "@/shared/lib/menu";
+import { getMyOrders } from "@/core/lib/customer.functions";
+import { statusLabel } from "@/packages/restaurant-management/lib/order-status";
+import { useAuth } from "@/core/state/auth-store";
 
 export const Route = createFileRoute("/account/orders/")({
   head: () => ({

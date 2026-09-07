@@ -652,3 +652,30 @@ Key naming, deliberately kept distinct:
 
 Deferred to a later rename-only phase: `pos.functions.ts` / `pos.server.ts` →
 `rm-pos.*`, and moving `src/components/pos/*` under a restaurant-owned folder.
+
+
+## Phase 8I — source organisation by package ownership
+
+Structural only: files moved/renamed, behaviour unchanged. Full map, move
+table, bridge list and dependency rules live in `docs/code-organization.md`.
+
+| Area | Source path |
+| --- | --- |
+| Platform foundation (shell, navigation, membership, module access, package entitlements, guards, workforce, settings) | `src/core/` |
+| Restaurant Management | `src/packages/restaurant-management/` |
+| PMS | `src/packages/pms/` |
+| Standalone POS | `src/packages/standalone-pos/` |
+| Back Office | `src/packages/back-office/` |
+| UI primitives, hooks, neutral helpers | `src/shared/` |
+| Cross-package bridges (charge to room, POS → Back Office) | `src/integrations/cross-package/` |
+| Inventory / assets / purchasing (transitional, shared) | `src/lib/`, `src/components/inventory/` |
+
+Dependency rules: `routes -> packages/core/shared/integrations`,
+`packages -> core/shared/integrations`, `core -> shared`, `shared -> nothing`.
+Ten audited exceptions in `src/core` (shell navigation aggregation and two
+context-aware shared workspaces) are listed in `docs/code-organization.md`.
+
+Renames: `pos.functions.ts`/`pos.server.ts` -> `rm-pos.*`,
+`components/pos/*` -> `packages/restaurant-management/components/rm-pos/*`,
+`restaurant-time.ts` -> `shared/lib/property-time.ts`. The deferred renames
+noted in Phase 8H9 are now done.

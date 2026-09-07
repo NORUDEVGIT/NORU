@@ -4,16 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { History, MapPin, MoreHorizontal, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/components/ui/dropdown-menu";
 import {
   ASSET_CONDITION_LABEL,
   ASSET_STATUS_LABEL,
@@ -33,8 +33,8 @@ import {
   type RestaurantAsset,
 } from "@/lib/assets.functions";
 import type { AssetCondition, AssetStatus, AssetType, WarrantyState } from "@/lib/assets.server";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
-import { cn } from "@/lib/utils";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { cn } from "@/shared/lib/utils";
 
 const STATUS_STYLE: Record<AssetStatus, string> = {
   active: "bg-success/15 text-success",

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { NoruLogo } from "@/components/noru-logo";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { NoruLogo } from "@/core/components/noru-logo";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { registerRestaurant } from "@/lib/restaurant.functions";
+import { registerRestaurant } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/register")({
   ssr: false,

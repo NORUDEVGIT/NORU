@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership, displayName, getRestaurantSettings } from "./workforce.server";
+import { callerMembership, displayName, getRestaurantSettings } from "@/core/lib/workforce.server";
 import { canViewInventory, isManager, stockStatus, type MovementType } from "./inventory.server";
 import { warrantyState } from "./assets.server";
 import {

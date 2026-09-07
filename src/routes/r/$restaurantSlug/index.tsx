@@ -4,15 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ShoppingBag } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
-import { TableContextBar } from "@/components/table-context-bar";
-import { MenuItemCard } from "@/components/menu-item-card";
-import { ItemDetailDialog } from "@/components/item-detail-dialog";
-import { Button } from "@/components/ui/button";
-import type { MenuItem } from "@/data/menu";
-import { getPublicMenu } from "@/lib/menu.functions";
-import { useRestaurant, useMoney } from "@/state/restaurant-context";
-import { useOrder } from "@/state/order-store";
+import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
+import { TableContextBar } from "@/packages/restaurant-management/components/table-context-bar";
+import { MenuItemCard } from "@/packages/restaurant-management/components/menu-item-card";
+import { ItemDetailDialog } from "@/packages/restaurant-management/components/item-detail-dialog";
+import { Button } from "@/shared/components/ui/button";
+import type { MenuItem } from "@/shared/lib/menu";
+import { getPublicMenu } from "@/packages/restaurant-management/lib/menu.functions";
+import { useRestaurant, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useOrder } from "@/packages/restaurant-management/state/order-store";
 import heroImage from "@/assets/hero.jpg";
 
 export const Route = createFileRoute("/r/$restaurantSlug/")({

@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { INVENTORY_ROLES } from "./module-access";
+import { INVENTORY_ROLES } from "@/core/lib/module-access";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership, displayName, getRestaurantSettings } from "./workforce.server";
+import { callerMembership, displayName, getRestaurantSettings } from "@/core/lib/workforce.server";
 import {
   INVENTORY_TYPES,
   MOVEMENT_TYPES,
@@ -82,7 +82,7 @@ function permissionsFor(role: string): InventoryPermissions {
 }
 
 async function requireInventoryAccess(context: any, restaurantId: string) {
-  const { requireModuleRole } = await import("./module-access.server");
+  const { requireModuleRole } = await import("@/core/lib/module-access.server");
   return requireModuleRole(
     context,
     restaurantId,

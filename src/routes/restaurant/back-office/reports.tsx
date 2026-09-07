@@ -3,10 +3,10 @@
  * Read-only cross-package reporting landing page; package reports stay put.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import { BackOfficeReportsPage } from "@/components/workspaces/back-office/reports-page";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { BackOfficeReportsPage } from "@/packages/back-office/components/reports-page";
 
 
 export const Route = createFileRoute("/restaurant/back-office/reports")({

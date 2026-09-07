@@ -16,17 +16,17 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/components/ui/dropdown-menu";
 import type { InventoryItem } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 export type ItemAction = MovementType | "history" | "edit" | "recipes";
 

@@ -4,15 +4,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { History, MoreHorizontal, Pencil, Plus, Power, Search } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/components/ui/dropdown-menu";
 import {
   SupplierFormDialog,
   SupplierHistoryDialog,
@@ -25,8 +25,8 @@ import {
   updateSupplier,
   type Supplier,
 } from "@/lib/suppliers.functions";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
-import { cn } from "@/lib/utils";
+import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { cn } from "@/shared/lib/utils";
 
 export function SuppliersTab({ restaurantId }: { restaurantId: string }) {
   const queryClient = useQueryClient();

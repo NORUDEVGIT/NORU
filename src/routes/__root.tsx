@@ -10,10 +10,10 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
-import { OrderProvider } from "@/state/order-store";
-import { AuthProvider } from "@/state/auth-store";
-import { Toaster } from "@/components/ui/sonner";
+import { reportLovableError } from "@/core/lib/lovable-error-reporting";
+import { OrderProvider } from "@/packages/restaurant-management/state/order-store";
+import { AuthProvider } from "@/core/state/auth-store";
+import { Toaster } from "@/shared/components/ui/sonner";
 
 function NotFoundComponent() {
   return (

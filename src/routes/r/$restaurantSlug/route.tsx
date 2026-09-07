@@ -2,11 +2,11 @@ import { useEffect, useRef } from "react";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
-import { getPublicRestaurant } from "@/lib/public-restaurant.functions";
-import { RestaurantProvider } from "@/state/restaurant-context";
-import { useOrder } from "@/state/order-store";
+import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
+import { Button } from "@/shared/components/ui/button";
+import { getPublicRestaurant } from "@/packages/restaurant-management/lib/public-restaurant.functions";
+import { RestaurantProvider } from "@/packages/restaurant-management/state/restaurant-context";
+import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug")({
   component: RestaurantLayout,

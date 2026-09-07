@@ -5,10 +5,10 @@
  * membership / package / module / role checks.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import { StandalonePosSettings } from "@/components/workspaces/standalone-pos/settings-page";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { StandalonePosSettings } from "@/packages/standalone-pos/components/settings-page";
 
 export const Route = createFileRoute("/restaurant/pos/settings")({
   ssr: false,

@@ -3,17 +3,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/components/stay/stay-chrome";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/packages/pms/components/stay/stay-chrome";
 import {
   cancelDirectBooking,
   getStayProperty,
   lookupDirectBooking,
   type PublicBookingDetail,
-} from "@/lib/public-booking.functions";
-import { formatStayDate } from "@/lib/reservation-dates";
+} from "@/packages/pms/lib/public-booking.functions";
+import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 
 export const Route = createFileRoute("/stay/$propertySlug/manage")({
   ssr: false,

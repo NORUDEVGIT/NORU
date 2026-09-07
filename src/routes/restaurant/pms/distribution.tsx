@@ -1,8 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
-import { DistributionWorkspace } from "@/components/workspaces/distribution-workspace";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { DistributionWorkspace } from "@/packages/pms/components/workspaces/distribution-workspace";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/distribution")({
   ssr: false,

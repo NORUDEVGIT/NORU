@@ -5,33 +5,33 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check, Search, UserPlus } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { addDays, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
+} from "@/shared/components/ui/select";
+import { addDays, formatStayDate, propertyToday } from "@/packages/pms/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import { listGuests, type GuestSummary } from "@/lib/guests.functions";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getBookingsAccess,
   getRoomTypeAvailability,
   listAssignableRooms,
-} from "@/lib/reservations.functions";
-import { nightsBetween } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { quoteStay } from "@/lib/rates.functions";
-import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
-import { cn } from "@/lib/utils";
+} from "@/packages/pms/lib/reservations.functions";
+import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { quoteStay } from "@/packages/pms/lib/rates.functions";
+import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,

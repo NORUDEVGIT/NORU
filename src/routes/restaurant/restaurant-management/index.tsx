@@ -8,18 +8,18 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { UtensilsCrossed } from "lucide-react";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import {
   RM_FUTURE_MODULES,
   RM_GROUPS,
   RM_MODULES,
   type RmFutureModule,
   type RmModule,
-} from "@/lib/restaurant-management-modules";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+} from "@/packages/restaurant-management/lib/restaurant-management-modules";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/")({
   ssr: false,

@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
-import { StaffWorkspace } from "@/components/workspaces/staff-workspace";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { StaffWorkspace } from "@/core/components/workspaces/staff-workspace";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/restaurant/staff")({

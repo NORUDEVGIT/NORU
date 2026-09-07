@@ -2,12 +2,12 @@ import { useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AdminShell, StatusBadge } from "@/components/admin-shell";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AdminShell, StatusBadge } from "@/core/components/admin-shell";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { listRestaurantsAdmin } from "@/lib/admin.functions";
-import type { RestaurantStatus } from "@/lib/restaurant-status";
+import { listRestaurantsAdmin } from "@/core/lib/admin.functions";
+import type { RestaurantStatus } from "@/core/lib/restaurant-status";
 
 const FILTERS = ["all", "pending", "approved", "suspended", "rejected"] as const;
 type Filter = (typeof FILTERS)[number];

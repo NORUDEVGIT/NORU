@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LegacyOrderRedirect } from "@/components/legacy-order-redirect";
+import { LegacyOrderRedirect } from "@/packages/restaurant-management/components/legacy-order-redirect";
 
 export const Route = createFileRoute("/confirmation")({
   head: () => ({
