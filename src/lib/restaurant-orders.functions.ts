@@ -152,7 +152,12 @@ async function assertMembership(
     .eq("active", true)
     .maybeSingle();
   if (!membership) throw new Error("Order not found.");
+  // Phase 8E1: order data is a Restaurant Management surface.
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
+  return membership as { role: string };
 }
+
 
 export const listRestaurantOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
