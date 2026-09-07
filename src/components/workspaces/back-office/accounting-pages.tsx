@@ -186,6 +186,145 @@ function SourceCard({
   );
 }
 
+/* ------------------------------------------------- Standalone POS source */
+
+const TENDER_LABEL: Record<string, string> = {
+  cash: "Cash",
+  card: "Card",
+  other: "Other",
+};
+
+/**
+ * Phase 8H8 — Standalone POS as a live, READ-ONLY finance source.
+ *
+ * Every figure is recorded operational till activity for the property business
+ * date: not general ledger revenue, not bank-settled money, not audited cash,
+ * not accounts receivable and not profit. Nothing is written, copied or posted.
+ * Operational till links appear only when the reader also holds Standalone POS
+ * access — a Back Office summary never grants it.
+ */
+function PosSourceCard({ restaurantId }: { restaurantId: string }) {
+  const fetchPos = useServerFn(getBackOfficePosSummary);
+  const pos = useQuery({
+    queryKey: ["bo-finance-pos", restaurantId],
+    queryFn: () => fetchPos({ data: { restaurantId } }),
+    retry: false,
+  });
+
+  const state: FinanceSource["state"] = pos.error
+    ? "no_access"
+    : pos.data?.state === "available"
+      ? "available"
+      : "unavailable";
+  const currency = pos.data?.currency ?? "GBP";
+  const d = pos.data;
+
+  return (
+    <article className="rounded-2xl border border-border bg-card p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Calculator className="size-4" />
+        </span>
+        <h3 className="font-display text-lg">Standalone POS</h3>
+        <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {pos.isLoading ? "Loading…" : STATE_LABEL[state]}
+        </span>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Independent checkout sales, tenders, refunds and cashier shifts. Standalone POS owns every
+        one of these records; Back Office only reads them.
+      </p>
+
+      {state === "available" && d ? (
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <Metric
+              currency={currency}
+              metric={{
+                label: "Gross till sales today",
+                value: d.gross,
+                kind: "money",
+                note: "Completed till receipts for today's business date. Recorded till activity, not ledger revenue or settled money.",
+              }}
+            />
+            <Metric
+              currency={currency}
+              metric={{
+                label: "Refunds against today's receipts",
+                value: d.refunds,
+                kind: "money",
+                note: "Refunds counted against the receipt they belong to, so gross minus refunds equals net.",
+              }}
+            />
+            <Metric
+              currency={currency}
+              metric={{
+                label: "Net recorded till sales",
+                value: d.net,
+                kind: "money",
+                note: "Gross minus refunds on those receipts. Not audited cash and not profit.",
+              }}
+            />
+            <Metric
+              currency={currency}
+              metric={{ label: "Receipts today", value: d.sales, kind: "count" }}
+            />
+            <Metric
+              currency={currency}
+              metric={{
+                label: "Refunds processed today",
+                value: d.refundsProcessed,
+                kind: "money",
+                note: `Money actually handed back today (${d.refundsProcessedCount} refund${d.refundsProcessedCount === 1 ? "" : "s"}), whatever date the original receipt belongs to.`,
+              }}
+            />
+            <Metric
+              currency={currency}
+              metric={{ label: "Open cashier shifts", value: d.openShifts, kind: "count" }}
+            />
+          </div>
+
+          {d.tenders.length > 0 ? (
+            <div className="mt-4 rounded-xl border border-border bg-background p-3">
+              <p className="text-xs text-muted-foreground">
+                Tender activity — money taken and given back at the till, not bank settlement.
+              </p>
+              <ul className="mt-2 grid gap-1.5 sm:grid-cols-3">
+                {d.tenders.map((t) => (
+                  <li key={t.method} className="text-sm">
+                    <span className="font-medium">{TENDER_LABEL[t.method] ?? t.method}</span>{" "}
+                    <span className="text-muted-foreground">
+                      {formatMoney(t.taken, currency)} taken
+                      {t.refunded > 0 ? ` · ${formatMoney(t.refunded, currency)} back` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {d.operationalAccess ? (
+            <div className="mt-3 flex flex-wrap gap-4">
+              <Link
+                to="/restaurant/pos/reports"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                Open Standalone POS reports <ArrowUpRight className="size-4" />
+              </Link>
+              <Link
+                to="/restaurant/pos/transactions"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                Open Standalone POS transactions <ArrowUpRight className="size-4" />
+              </Link>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </article>
+  );
+}
+
 /* --------------------------------------------------------- future domains */
 
 const FUTURE: { title: string; body: string }[] = [
