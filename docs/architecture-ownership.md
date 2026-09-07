@@ -541,3 +541,13 @@ Key frozen decisions:
 Standalone POS reads nothing from PMS or Back Office. Charge to Room,
 inventory depletion and Back Office finance reads remain optional future
 bridges, not built.
+
+## Phase 8H3 — Standalone POS shell / catalog / settings
+
+Standalone POS owns its shell (`/restaurant/pos/*`), its catalog
+(`pos_categories`, `pos_products`) and its settings (`pos_settings`). It reads
+no Restaurant Management menu data and has no menu fallback. The Restaurant
+Management till remains at `/restaurant/restaurant-management/pos-sales` with
+its own menu, orders, order payments and restaurant cashier shifts —
+unchanged. Access = `pos` package entitlement + `standalone_pos` module +
+role (owner/manager for setup; cashier/accountant read-only).
