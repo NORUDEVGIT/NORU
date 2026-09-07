@@ -19,7 +19,7 @@ unambiguous. Everything else is recorded as `SHARED_TEMPORARY`.
 | Suppliers (`suppliers.functions.ts`) | SHARED_TEMPORARY | BO | module `procurement` + role | back_office (+ RM/PMS consumers) | Unguarded | Medium | Hotel modules declare `procurement` as a shared dependency; a hard RM check would break PMS-only purchasing. |
 | Purchase orders, receiving, PO status, purchasing summary (`purchasing.functions.ts`) | SHARED_TEMPORARY | BO | module `procurement` + role | back_office | Unguarded | Medium | Same reason as suppliers. RM-only properties must keep purchasing without Back Office. |
 | Recipes & menu costing (`recipes.functions.ts`) | RM | RM | role + restaurant_management (8E1) | unchanged | Guarded | Low | — |
-| Restaurant orders, menu, tables/QR, kitchen, POS | RM | RM / POS | restaurant_management (8E1) | + standalone POS later | Guarded | Low | — |
+| Restaurant orders, menu, tables/QR, kitchen, restaurant till | RM | RM | restaurant_management (8E1) | unchanged; Standalone POS is a separate package with its own tables and routes | Guarded | Low | — |
 | Restaurant analytics & dashboard KPIs (`analytics.functions.ts`, `dashboard.functions.ts`) | RM | RM | role + restaurant_management (8E1) | unchanged | Guarded | Low | — |
 | PMS reporting (occupancy, ADR, RevPAR, arrivals, cashiering, night audit, housekeeping) | PMS | PMS | role + pms (8E2) | unchanged | Guarded | Low | — |
 | `/restaurant/reports` (mixed workspace) | SHARED_TEMPORARY | BO (consolidated) | route auth only | back_office for consolidated views | Unguarded route | Low | Data behind each section is guarded by its own package; no true property-wide ledger exists yet. |
@@ -412,7 +412,8 @@ accounting engine. It owns no financial transaction and posts nothing.
   spend source data.
 - **Inventory / Warehouse** — stock quantities and last-known cost inputs;
   the future valuation source.
-- **Standalone POS** — future independent sales and payments (8H).
+- **Standalone POS** — independent sales and payments, live since 8H5; a
+  read-only source for Back Office since 8H8.
 - **Back Office Accounting & Finance** — cross-package finance overview,
   financial control, source monitoring, and the future GL / journals / CoA /
   AP / AR / bank reconciliation / tax accounting / financial statements.

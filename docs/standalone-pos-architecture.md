@@ -1,9 +1,13 @@
-# Standalone POS — frozen architecture (Phase 8H1B)
+# Standalone POS — architecture and current state
 
-Status: **architecture freeze, documentation only.** No tables, routes,
-policies, navigation or runtime behaviour were created or changed in this
-phase. This document is the design contract for 8H2 onwards; 8H2 should be
-implementable from it without redesigning the domain.
+Status: **built and live** (8H2–8H8), audited and corrected in 8H9. The
+current state of the package is described in the "Phase 8H9 — current state"
+section at the end of this document; that section is authoritative.
+
+Everything between here and that section is the original 8H1B design contract
+plus a per-phase delivery record. Those sections are **historical**: statements
+such as "not built yet" describe the moment that phase was written, not the
+system today.
 
 The existing restaurant till is unaffected by everything below.
 
