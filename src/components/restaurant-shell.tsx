@@ -756,9 +756,20 @@ export function RestaurantShell({
                         PMS
                       </Link>
                       <span className="px-1.5">→</span>
-                      <span className="text-foreground">{pmsMod.title}</span>
+                      {pmsLeaf ? (
+                        <>
+                          <Link to={pmsMod.canonicalRoute} className="hover:text-foreground">
+                            {pmsMod.title}
+                          </Link>
+                          <span className="px-1.5">→</span>
+                          <span className="text-foreground">{pmsLeaf}</span>
+                        </>
+                      ) : (
+                        <span className="text-foreground">{pmsMod.title}</span>
+                      )}
                     </nav>
                   ) : null}
+
                   {children(membership)}
                 </PmsHeadingProvider>
               </RestaurantSettingsProvider>
