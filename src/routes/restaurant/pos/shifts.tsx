@@ -1,5 +1,5 @@
 /**
- * Phase 8H3 — Standalone POS route: Registers & Shifts.
+ * Phase 8H4 — Standalone POS route: Registers & Shifts.
  *
  * Guarded by sign-in plus the `pos` package. Server functions keep their own
  * membership / package / module / role checks.
@@ -8,7 +8,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
-import { PosFoundationPage } from "@/components/workspaces/standalone-pos/foundation-page";
+import { StandalonePosShifts } from "@/components/workspaces/standalone-pos/shifts-page";
+
 
 export const Route = createFileRoute("/restaurant/pos/shifts")({
   ssr: false,
