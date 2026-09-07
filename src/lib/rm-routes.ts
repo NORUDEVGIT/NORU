@@ -1,11 +1,10 @@
 /**
- * Phase 8F3 — small route-context helper for Restaurant Management.
+ * Phase 8F5 — Restaurant Management route paths.
  *
- * Shared workspace components are rendered by BOTH the legacy top-level
- * addresses and the canonical `/restaurant/restaurant-management/*` family.
- * This helper answers one question — "which family am I in?" — and hands back
- * the matching paths, so a canonical page links to canonical children and a
- * legacy page keeps its legacy targets. No routing framework, just a lookup.
+ * The legacy top-level addresses are now redirect-only, so every shared
+ * workspace links to the canonical `/restaurant/restaurant-management/*`
+ * family. `useIsRmContext()` is kept for presentation code that still needs to
+ * know whether it is rendered inside the package family.
  */
 import { useRouterState } from "@tanstack/react-router";
 
@@ -19,16 +18,16 @@ export function useIsRmContext(): boolean {
 
 export type RmRoutes = {
   canonical: boolean;
-  home: "/restaurant/restaurant-management" | "/restaurant/home";
-  dashboard: "/restaurant/restaurant-management/dashboard" | "/restaurant/dashboard";
-  orders: "/restaurant/restaurant-management/orders" | "/restaurant/orders";
-  orderDetail: "/restaurant/restaurant-management/orders/$orderId" | "/restaurant/orders/$orderId";
-  kitchen: "/restaurant/restaurant-management/kitchen" | "/restaurant/kitchen";
-  menu: "/restaurant/restaurant-management/menu" | "/restaurant/menu";
-  tables: "/restaurant/restaurant-management/tables" | "/restaurant/tables";
-  staff: "/restaurant/restaurant-management/staff" | "/restaurant/staff";
-  reports: "/restaurant/restaurant-management/reports" | "/restaurant/reports";
-  setup: "/restaurant/restaurant-management/setup" | "/restaurant/settings";
+  home: "/restaurant/restaurant-management";
+  dashboard: "/restaurant/restaurant-management/dashboard";
+  orders: "/restaurant/restaurant-management/orders";
+  orderDetail: "/restaurant/restaurant-management/orders/$orderId";
+  kitchen: "/restaurant/restaurant-management/kitchen";
+  menu: "/restaurant/restaurant-management/menu";
+  tables: "/restaurant/restaurant-management/tables";
+  staff: "/restaurant/restaurant-management/staff";
+  reports: "/restaurant/restaurant-management/reports";
+  setup: "/restaurant/restaurant-management/setup";
 };
 
 const CANONICAL: RmRoutes = {
@@ -45,21 +44,7 @@ const CANONICAL: RmRoutes = {
   setup: "/restaurant/restaurant-management/setup",
 };
 
-const LEGACY: RmRoutes = {
-  canonical: false,
-  home: "/restaurant/home",
-  dashboard: "/restaurant/dashboard",
-  orders: "/restaurant/orders",
-  orderDetail: "/restaurant/orders/$orderId",
-  kitchen: "/restaurant/kitchen",
-  menu: "/restaurant/menu",
-  tables: "/restaurant/tables",
-  staff: "/restaurant/staff",
-  reports: "/restaurant/reports",
-  setup: "/restaurant/settings",
-};
-
-/** Paths for the family the current page belongs to. */
+/** Canonical Restaurant Management paths. */
 export function useRmRoutes(): RmRoutes {
-  return useIsRmContext() ? CANONICAL : LEGACY;
+  return CANONICAL;
 }

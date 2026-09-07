@@ -1,39 +1,21 @@
 /**
- * Legacy address kept working for bookmarks. The canonical Restaurant
- * Management address renders the same shared workspace component.
+ * Phase 8F5 — deprecated address. Kept working for bookmarks; redirects to the
+ * canonical Restaurant Management POS & Sales till.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
-import { PosPage } from "@/components/workspaces/restaurant/pos-workspace";
 
 export const Route = createFileRoute("/restaurant/pos/new")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
-      throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/pos/new" } });
+      throw redirect({
+        to: "/restaurant/login",
+        search: { redirect: "/restaurant/restaurant-management/pos-sales" },
+      });
     }
-    await requireRoutePackage("restaurant_management");
+    throw redirect({ to: "/restaurant/restaurant-management/pos-sales", replace: true });
   },
-  head: () => ({
-    meta: [
-      { title: "POS Till | NORU Property Portal" },
-      {
-        name: "description",
-        content:
-          "Touchscreen point of sale for counter and takeaway orders: one-tap menu, cash and card payments, and charge to room.",
-      },
-      { property: "og:title", content: "POS Till | NORU" },
-      {
-        property: "og:description",
-        content: "Take counter and takeaway sales in seconds on a tablet till.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: PosPage,
+  component: () => null,
 });
-
-
