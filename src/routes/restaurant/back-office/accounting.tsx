@@ -52,7 +52,7 @@ function BackOfficeAccountingRoute() {
       {(m) => (
         <BackOfficeAccountingHome
           restaurantId={m.restaurantId}
-          timezone={m.restaurant?.timezone ?? null}
+          timezone={m.restaurant.timezone}
         />
       )}
     </RestaurantShell>
