@@ -544,6 +544,165 @@ export const closePosShift = createServerFn({ method: "POST" })
     return { ok: true as const, expectedCash: expected, variance: round2(closing - expected) };
   });
 
+/**
+ * Phase 8H4 — trusted current-state read for the registers & shifts screen.
+ * The browser never decides who holds which till.
+ */
+export const getPosShiftState = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    const membership = await requireStandalonePosAccess(context as any, data.restaurantId);
+    const db = await admin();
+    const property = await propertyContext(db, data.restaurantId);
+
+    const { data: registers } = await db
+      .from("pos_registers")
+      .select("id, name, location_label, active")
+      .eq("restaurant_id", data.restaurantId)
+      .order("name");
+    const { data: shifts } = await db
+      .from("pos_cashier_shifts")
+      .select("id, register_id, business_date, opening_float, opened_at, opened_by_membership_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "open");
+    const openRows = (shifts ?? []) as any[];
+    const names = await membershipNames(
+      db,
+      data.restaurantId,
+      openRows.map((s) => s.opened_by_membership_id),
+    );
+    const registerName = new Map<string, string>();
+    for (const r of (registers ?? []) as any[]) registerName.set(r.id as string, r.name as string);
+
+    const mine = openRows.filter((s) => s.opened_by_membership_id === membership.id);
+    const myShifts = await Promise.all(
+      mine.map(async (s) => {
+        const cash = await expectedCashFor(db, s.id as string, Number(s.opening_float));
+        return {
+          id: s.id as string,
+          registerId: s.register_id as string,
+          registerName: registerName.get(s.register_id as string) ?? "Register",
+          businessDate: s.business_date as string,
+          openedAt: s.opened_at as string,
+          openedBy: names.get(s.opened_by_membership_id as string) ?? "You",
+          openingFloat: Number(s.opening_float),
+          ...cash,
+        };
+      }),
+    );
+
+    return {
+      role: membership.role,
+      currency: property.currency,
+      businessDate: property.businessDate,
+      myShifts,
+      registers: ((registers ?? []) as any[]).map((r) => {
+        const shift = openRows.find((s) => s.register_id === r.id);
+        return {
+          id: r.id as string,
+          name: r.name as string,
+          locationLabel: (r.location_label as string) ?? null,
+          active: Boolean(r.active),
+          openShiftId: shift ? (shift.id as string) : null,
+          openShiftMine: shift ? shift.opened_by_membership_id === membership.id : false,
+          openShiftBy: shift ? names.get(shift.opened_by_membership_id as string) ?? "A cashier" : null,
+        };
+      }),
+    };
+  });
+
+/** Recent Standalone POS shift history. Never Restaurant Management shifts. */
+export const listPosShifts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string; limit?: number }) =>
+    z.object({ restaurantId: idSchema, limit: z.number().int().min(1).max(100).optional() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireStandalonePosAccess(context as any, data.restaurantId);
+    const db = await admin();
+    const { data: rows } = await db
+      .from("pos_cashier_shifts")
+      .select(
+        "id, register_id, business_date, status, opening_float, expected_cash, closing_cash, variance, opened_at, closed_at, opened_by_membership_id, closed_by_membership_id, notes",
+      )
+      .eq("restaurant_id", data.restaurantId)
+      .order("opened_at", { ascending: false })
+      .limit(data.limit ?? 25);
+    const list = (rows ?? []) as any[];
+    const { data: registers } = await db
+      .from("pos_registers")
+      .select("id, name")
+      .eq("restaurant_id", data.restaurantId);
+    const registerName = new Map<string, string>();
+    for (const r of (registers ?? []) as any[]) registerName.set(r.id as string, r.name as string);
+    const names = await membershipNames(db, data.restaurantId, [
+      ...list.map((s) => s.opened_by_membership_id),
+      ...list.map((s) => s.closed_by_membership_id).filter(Boolean),
+    ]);
+    return list.map((s) => ({
+      id: s.id as string,
+      registerName: registerName.get(s.register_id as string) ?? "Register",
+      businessDate: s.business_date as string,
+      status: s.status as string,
+      openingFloat: Number(s.opening_float),
+      expectedCash: s.expected_cash === null ? null : Number(s.expected_cash),
+      closingCash: s.closing_cash === null ? null : Number(s.closing_cash),
+      variance: s.variance === null ? null : Number(s.variance),
+      openedAt: s.opened_at as string,
+      closedAt: (s.closed_at as string) ?? null,
+      openedBy: names.get(s.opened_by_membership_id as string) ?? "A team member",
+      closedBy: s.closed_by_membership_id ? names.get(s.closed_by_membership_id as string) ?? "A team member" : null,
+      notes: (s.notes as string) ?? null,
+    }));
+  });
+
+/**
+ * Phase 8H4 — the single trusted answer to "can this person sell right now?".
+ * Reused by the sell screen in 8H5. Returns a reason instead of throwing so
+ * the package home can explain what is missing.
+ */
+export const posSellReadiness = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    let membership: { id: string; role: string };
+    try {
+      membership = await requireStandalonePosAccess(context as any, data.restaurantId);
+    } catch {
+      return { ready: false as const, reason: "You don't have access to Standalone POS for this property." };
+    }
+    if (!STANDALONE_POS_ROLES.includes(membership.role)) {
+      return { ready: false as const, reason: "Your role can view this till but not sell on it." };
+    }
+    const db = await admin();
+    const { count: activeRegisters } = await db
+      .from("pos_registers")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", data.restaurantId)
+      .eq("active", true);
+    if (!Number(activeRegisters ?? 0)) {
+      return { ready: false as const, reason: "No active register yet. Add one in Registers & Shifts." };
+    }
+    const { data: shift } = await db
+      .from("pos_cashier_shifts")
+      .select("id, register_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "open")
+      .eq("opened_by_membership_id", membership.id)
+      .limit(1)
+      .maybeSingle();
+    if (!shift) {
+      return { ready: false as const, reason: "You don't have an open cashier shift. Open one to start selling." };
+    }
+    return {
+      ready: true as const,
+      reason: null,
+      shiftId: shift.id as string,
+      registerId: shift.register_id as string,
+    };
+  });
+
 /* ---------------------------------------------------------------- sales */
 
 export const openPosSale = createServerFn({ method: "POST" })
