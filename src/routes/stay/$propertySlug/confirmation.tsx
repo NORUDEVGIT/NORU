@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { Button } from "@/components/ui/button";
-import { StayLayout, StayLoading, StayNotFound, formatMoney } from "@/components/stay/stay-chrome";
+import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/components/stay/stay-chrome";
 import { getStayProperty, lookupDirectBooking } from "@/lib/public-booking.functions";
 import { formatStayDate } from "@/lib/reservation-dates";
 
@@ -44,12 +44,14 @@ function ConfirmationRoute() {
   });
 
   if (propertyQuery.isLoading) return <StayLoading />;
-  if (!propertyQuery.data) return <StayNotFound />;
+  if (propertyQuery.data?.status === "unavailable") return <StayUnavailable />;
+  const property = propertyQuery.data?.property ?? null;
+  if (!property) return <StayNotFound />;
 
   const booking = bookingQuery.data?.ok ? bookingQuery.data.booking : null;
 
   return (
-    <StayLayout property={propertyQuery.data}>
+    <StayLayout property={property}>
       {bookingQuery.isLoading ? <StayLoading /> : null}
 
       {!bookingQuery.isLoading && !booking ? (

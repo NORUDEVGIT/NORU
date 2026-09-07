@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { StayLayout, StayLoading, StayNotFound, formatMoney } from "@/components/stay/stay-chrome";
+import type { StayProperty } from "@/lib/public-booking.server";
+import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/components/stay/stay-chrome";
 import {
   getStayProperty,
   searchStay,
@@ -58,16 +59,18 @@ function BookRoute() {
   });
 
   if (propertyQuery.isLoading) return <StayLoading />;
-  if (!propertyQuery.data) return <StayNotFound />;
+  if (propertyQuery.data?.status === "unavailable") return <StayUnavailable />;
+  const property = propertyQuery.data?.property ?? null;
+  if (!property) return <StayNotFound />;
 
   return (
-    <StayLayout property={propertyQuery.data}>
-      <BookPanel property={propertyQuery.data} />
+    <StayLayout property={property}>
+      <BookPanel property={property} />
     </StayLayout>
   );
 }
 
-function BookPanel({ property }: { property: NonNullable<Awaited<ReturnType<typeof getStayProperty>>> }) {
+function BookPanel({ property }: { property: StayProperty }) {
   const navigate = useNavigate();
   const s = Route.useSearch();
   const runSearch = useServerFn(searchStay);
