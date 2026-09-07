@@ -5,13 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, ChefHat, CheckCircle2, Clock, PauseCircle, QrCode, ReceiptText, RefreshCw, Settings, Users, UtensilsCrossed, XCircle } from "lucide-react";
 
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
-import { OrderStatusBadge } from "@/components/order-status-badge";
+import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/shared/lib/utils";
-import { getRestaurantDashboard, type DashboardOrder, type RestaurantDashboard } from "@/lib/dashboard.functions";
+import { getRestaurantDashboard, type DashboardOrder, type RestaurantDashboard } from "@/packages/restaurant-management/lib/dashboard.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRmRoutes } from "@/lib/rm-routes";
+import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
 import { useMoney } from "@/core/state/restaurant-context";
 import { useRestaurantTime } from "@/core/state/restaurant-context";
 

@@ -25,7 +25,7 @@ import {
   getRestaurantAnalytics,
   type AnalyticsPeriod,
   type RestaurantAnalytics,
-} from "@/lib/analytics.functions";
+} from "@/packages/restaurant-management/lib/analytics.functions";
 
 const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {
   today: "Today",

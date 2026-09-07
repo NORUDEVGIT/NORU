@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
-import { DietaryBadges } from "@/components/dietary-badges";
-import type { MenuItem } from "@/data/menu";
+import { DietaryBadges } from "@/packages/restaurant-management/components/dietary-badges";
+import type { MenuItem } from "@/shared/lib/menu";
 import { useMoney } from "@/core/state/restaurant-context";
 
 export function MenuItemCard({

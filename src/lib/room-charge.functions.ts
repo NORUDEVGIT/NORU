@@ -231,7 +231,7 @@ export const postOrderRoomCharge = createServerFn({ method: "POST" })
     const me = await callerMembership(context, data.restaurantId);
     // Phase 8E1: the bridge needs BOTH packages live, checked before any write.
     try {
-      const { requireRestaurantAndPms } = await import("./restaurant-package.server");
+      const { requireRestaurantAndPms } = await import("@/packages/restaurant-management/lib/restaurant-package.server");
       await requireRestaurantAndPms(data.restaurantId);
     } catch (error) {
       return { ok: false, message: (error as Error).message };
@@ -290,7 +290,7 @@ export const reverseOrderRoomCharge = createServerFn({ method: "POST" })
       return { ok: false, message: "Only an owner or manager can reverse a room charge." };
     }
     try {
-      const { requireRestaurantAndPms } = await import("./restaurant-package.server");
+      const { requireRestaurantAndPms } = await import("@/packages/restaurant-management/lib/restaurant-package.server");
       await requireRestaurantAndPms(data.restaurantId);
     } catch (error) {
       return { ok: false, message: (error as Error).message };

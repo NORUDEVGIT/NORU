@@ -52,7 +52,7 @@ import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/core/lib/
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/core/state/pms-context";
-import { useIsRmContext } from "@/lib/rm-routes";
+import { useIsRmContext } from "@/packages/restaurant-management/lib/rm-routes";
 
 const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;
 

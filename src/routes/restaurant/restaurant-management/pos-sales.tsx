@@ -5,8 +5,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { RmContextBar } from "@/components/rm-context-bar";
-import { PosPage } from "@/components/workspaces/restaurant/pos-workspace";
+import { RmContextBar } from "@/packages/restaurant-management/components/rm-context-bar";
+import { PosPage } from "@/packages/restaurant-management/components/workspaces/pos-workspace";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/pos-sales")({
   ssr: false,

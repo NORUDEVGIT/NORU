@@ -22,7 +22,7 @@ import {
   saveRecipeComponent,
   updateRecipeComponent,
   type RecipeComponent,
-} from "@/lib/recipes.functions";
+} from "@/packages/restaurant-management/lib/recipes.functions";
 import { useMoney } from "@/core/state/restaurant-context";
 
 /** Derived recipe state, shown wherever a menu item appears in staff UI. */

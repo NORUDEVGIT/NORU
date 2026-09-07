@@ -4,14 +4,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Bell, RefreshCw, Search } from "lucide-react";
 
-import { OrderStatusBadge } from "@/components/order-status-badge";
+import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/shared/lib/utils";
-import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult, type OrderListRow } from "@/lib/restaurant-orders.functions";
+import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult, type OrderListRow } from "@/packages/restaurant-management/lib/restaurant-orders.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRmRoutes } from "@/lib/rm-routes";
+import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
 import { useMoney } from "@/core/state/restaurant-context";
 import { PageHeading } from "@/core/state/pms-context";
 import { useRestaurantTime } from "@/core/state/restaurant-context";

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2, Clock } from "lucide-react";
 import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
-import { OrderLines } from "@/components/order-lines";
+import { OrderLines } from "@/packages/restaurant-management/components/order-lines";
 import { useRestaurant, useMoney } from "@/core/state/restaurant-context";
 import { useOrder } from "@/core/state/order-store";
 

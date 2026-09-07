@@ -18,7 +18,7 @@ import {
   RM_MODULES,
   type RmFutureModule,
   type RmModule,
-} from "@/lib/restaurant-management-modules";
+} from "@/packages/restaurant-management/lib/restaurant-management-modules";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/")({

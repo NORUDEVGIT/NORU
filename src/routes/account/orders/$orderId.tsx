@@ -5,9 +5,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Check, Circle, Dot } from "lucide-react";
 import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
-import { formatPrice } from "@/data/menu";
+import { formatPrice } from "@/shared/lib/menu";
 import { getMyOrder } from "@/core/lib/customer.functions";
-import { CUSTOMER_STATUS_FLOW, normaliseStatus, statusLabel } from "@/lib/order-status";
+import { CUSTOMER_STATUS_FLOW, normaliseStatus, statusLabel } from "@/packages/restaurant-management/lib/order-status";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/core/state/auth-store";
 

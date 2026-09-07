@@ -12,21 +12,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ChefHat } from "lucide-react";
 
-import { OrderStatusBadge } from "@/components/order-status-badge";
+import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ACTIVE_ORDER_STATUSES,
   getRestaurantOrderDetail,
   type OrderDetail,
-} from "@/lib/restaurant-orders.functions";
-import { statusLabel } from "@/lib/order-status";
+} from "@/packages/restaurant-management/lib/restaurant-orders.functions";
+import { statusLabel } from "@/packages/restaurant-management/lib/order-status";
 import { getOrderBilling } from "@/lib/room-charge.functions";
 import {
   ChargeToRoomDialog,
   ReverseRoomChargeDialog,
-} from "@/components/orders/charge-to-room-dialog";
-import { useRmRoutes } from "@/lib/rm-routes";
+} from "@/packages/restaurant-management/components/orders/charge-to-room-dialog";
+import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 

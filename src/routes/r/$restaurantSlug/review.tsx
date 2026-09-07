@@ -4,8 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
-import { TableContextBar } from "@/components/table-context-bar";
-import { OrderLines } from "@/components/order-lines";
+import { TableContextBar } from "@/packages/restaurant-management/components/table-context-bar";
+import { OrderLines } from "@/packages/restaurant-management/components/order-lines";
 import { useRestaurant, useMoney } from "@/core/state/restaurant-context";
 import { useOrder } from "@/core/state/order-store";
 

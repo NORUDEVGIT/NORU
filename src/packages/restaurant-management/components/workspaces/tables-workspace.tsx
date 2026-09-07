@@ -10,8 +10,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
-import { deleteRestaurantTable, listRestaurantTables, regenerateTableToken, saveRestaurantTable, setTableActive, type ManagedTable } from "@/lib/tables.functions";
-import { buildRestaurantTableQrUrl } from "@/lib/restaurant-table-qr";
+import { deleteRestaurantTable, listRestaurantTables, regenerateTableToken, saveRestaurantTable, setTableActive, type ManagedTable } from "@/packages/restaurant-management/lib/tables.functions";
+import { buildRestaurantTableQrUrl } from "@/packages/restaurant-management/lib/restaurant-table-qr";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 

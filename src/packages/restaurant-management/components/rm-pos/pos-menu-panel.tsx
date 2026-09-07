@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
-import type { PosMenuItem } from "@/lib/pos.functions";
+import type { PosMenuItem } from "@/packages/restaurant-management/lib/rm-pos.functions";
 
 /**
  * Touch menu grid. Every tile is one tap = one item added; targets stay well

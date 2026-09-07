@@ -3,9 +3,9 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/shared/
 import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Label } from "@/shared/components/ui/label";
-import { QuantityStepper } from "@/components/quantity-stepper";
-import { DietaryBadges } from "@/components/dietary-badges";
-import type { MenuItem } from "@/data/menu";
+import { QuantityStepper } from "@/packages/restaurant-management/components/quantity-stepper";
+import { DietaryBadges } from "@/packages/restaurant-management/components/dietary-badges";
+import type { MenuItem } from "@/shared/lib/menu";
 import { useMoney } from "@/core/state/restaurant-context";
 
 export function ItemDetailDialog({

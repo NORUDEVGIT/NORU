@@ -9,7 +9,7 @@
  */
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { RM_MODULES } from "@/lib/restaurant-management-modules";
+import { RM_MODULES } from "@/packages/restaurant-management/lib/restaurant-management-modules";
 
 export function RmContextBar({ moduleKey, note }: { moduleKey: string; note?: string }) {
   const mod = RM_MODULES.find((m) => m.key === moduleKey);

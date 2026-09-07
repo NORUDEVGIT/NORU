@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellOff, Clock, LogOut, X } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { updateKitchenOrderStatus } from "@/lib/restaurant-orders.functions";
+import { updateKitchenOrderStatus } from "@/packages/restaurant-management/lib/restaurant-orders.functions";
 
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";

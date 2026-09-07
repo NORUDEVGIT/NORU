@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import type { PublicRestaurant } from "@/lib/public-restaurant.functions";
+import type { PublicRestaurant } from "@/packages/restaurant-management/lib/public-restaurant.functions";
 import {
   DEFAULT_CURRENCY,
   DEFAULT_TIMEZONE,

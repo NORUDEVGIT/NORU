@@ -7,7 +7,7 @@ import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
-import { useIsRmContext } from "@/lib/rm-routes";
+import { useIsRmContext } from "@/packages/restaurant-management/lib/rm-routes";
 
 type ReportLink = {
   title: string;

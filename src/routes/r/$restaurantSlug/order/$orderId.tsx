@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
-import { getTrackedOrder } from "@/lib/order-tracking.functions";
-import { CUSTOMER_STATUS_FLOW, normaliseStatus, statusLabel } from "@/lib/order-status";
+import { getTrackedOrder } from "@/packages/restaurant-management/lib/order-tracking.functions";
+import { CUSTOMER_STATUS_FLOW, normaliseStatus, statusLabel } from "@/packages/restaurant-management/lib/order-status";
 import { useOrder } from "@/core/state/order-store";
 import { useMoney } from "@/core/state/restaurant-context";
 

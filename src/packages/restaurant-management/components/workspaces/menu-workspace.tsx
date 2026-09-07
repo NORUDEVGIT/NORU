@@ -12,10 +12,10 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { createMenuImageUpload, deleteCategory, deleteMenuItem, getManagedMenu, moveCategory, saveCategory, saveMenuItem, setCategoryActive, setItemAvailability, type ManagedCategory, type ManagedItem } from "@/lib/menu.functions";
+import { createMenuImageUpload, deleteCategory, deleteMenuItem, getManagedMenu, moveCategory, saveCategory, saveMenuItem, setCategoryActive, setItemAvailability, type ManagedCategory, type ManagedItem } from "@/packages/restaurant-management/lib/menu.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { getMenuRecipeSummaries } from "@/lib/recipes.functions";
-import { RecipeDialog, RecipeStatusChip } from "@/components/menu/recipe-dialog";
+import { getMenuRecipeSummaries } from "@/packages/restaurant-management/lib/recipes.functions";
+import { RecipeDialog, RecipeStatusChip } from "@/packages/restaurant-management/components/menu/recipe-dialog";
 import { useMoney } from "@/core/state/restaurant-context";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 

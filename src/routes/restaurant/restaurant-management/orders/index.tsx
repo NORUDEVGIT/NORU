@@ -6,7 +6,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { OrdersBody, validateOrdersSearch } from "@/components/workspaces/restaurant/orders-workspace";
+import { OrdersBody, validateOrdersSearch } from "@/packages/restaurant-management/components/workspaces/orders-workspace";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/orders/")({
   ssr: false,

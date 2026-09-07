@@ -12,7 +12,7 @@ import { ItemFormDialog, MovementDialog, MovementHistoryDialog, type ItemFormVal
 import { ItemList } from "@/components/inventory/item-list";
 import { createInventoryItem, createInventoryMovement, listInventoryItems, listInventoryMovements, listInventoryUnits, updateInventoryItem, type InventoryItem } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
-import { getIngredientUsage } from "@/lib/recipes.functions";
+import { getIngredientUsage } from "@/packages/restaurant-management/lib/recipes.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { AssetsTab } from "@/components/inventory/assets-tab";
 import { SuppliersTab } from "@/components/inventory/suppliers-tab";
@@ -25,7 +25,7 @@ import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import { PageHeading } from "@/core/state/pms-context";
-import { useIsRmContext } from "@/lib/rm-routes";
+import { useIsRmContext } from "@/packages/restaurant-management/lib/rm-routes";
 
 
 export function InventoryPage({

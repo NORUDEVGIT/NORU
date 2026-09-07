@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Camera, X } from "lucide-react";
 import { NoruLogo } from "@/core/components/noru-logo";
 import { Button } from "@/shared/components/ui/button";
-import { parseRestaurantTableQrValue } from "@/lib/restaurant-table-qr";
+import { parseRestaurantTableQrValue } from "@/packages/restaurant-management/lib/restaurant-table-qr";
 
 export const Route = createFileRoute("/scan")({
   head: () => ({

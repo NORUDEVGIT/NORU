@@ -50,7 +50,7 @@ function slugify(value: string): string {
 export const registerRestaurant = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => registerSchema.parse(input))
   .handler(async ({ data }) => {
-    const { publicServerClient } = await import("@/lib/order-pricing.server");
+    const { publicServerClient } = await import("@/packages/restaurant-management/lib/order-pricing.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const auth = publicServerClient();

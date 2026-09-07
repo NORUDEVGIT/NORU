@@ -48,7 +48,7 @@ import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { clearRoutePackageCache } from "@/core/lib/route-package-guard";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
-import { RM_GROUPS, RM_MODULES } from "@/lib/restaurant-management-modules";
+import { RM_GROUPS, RM_MODULES } from "@/packages/restaurant-management/lib/restaurant-management-modules";
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/lib/back-office-modules";
 import { POS_MODULES, getPosModule } from "@/lib/standalone-pos-modules";
 import { useAuth } from "@/core/state/auth-store";

@@ -8,8 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { MenuItem } from "@/data/menu";
-import { placeOrder as placeOrderFn } from "@/lib/orders.functions";
+import type { MenuItem } from "@/shared/lib/menu";
+import { placeOrder as placeOrderFn } from "@/packages/restaurant-management/lib/orders.functions";
 
 export interface CartLine {
   lineId: string;

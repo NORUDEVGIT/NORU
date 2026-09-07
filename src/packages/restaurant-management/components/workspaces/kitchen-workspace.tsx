@@ -3,11 +3,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { KitchenBoard } from "@/components/kitchen-board";
+import { KitchenBoard } from "@/packages/restaurant-management/components/kitchen-board";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRmRoutes } from "@/lib/rm-routes";
+import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
 import { useAuth } from "@/core/state/auth-store";
 
 /** Roles allowed to run the kitchen. Waiters are intentionally excluded. */

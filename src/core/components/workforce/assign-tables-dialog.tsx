@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
-import { listRestaurantTables } from "@/lib/tables.functions";
+import { listRestaurantTables } from "@/packages/restaurant-management/lib/tables.functions";
 import {
   assignTableToShift,
   listShiftTableAssignments,

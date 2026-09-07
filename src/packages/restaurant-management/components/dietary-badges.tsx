@@ -1,4 +1,4 @@
-import type { DietaryTag } from "@/data/menu";
+import type { DietaryTag } from "@/shared/lib/menu";
 import { Badge } from "@/shared/components/ui/badge";
 
 export function DietaryBadges({ tags }: { tags?: DietaryTag[] | undefined }) {
