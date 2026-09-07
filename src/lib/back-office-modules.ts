@@ -143,25 +143,26 @@ export const BO_MODULES: BoModule[] = [
 
   // ------------------------------------------------------------ supply
   {
+    // Phase 8G2C — Back Office is the canonical home for central inventory.
     key: "inventory",
     title: "Inventory / Warehouse",
-    description: "The property's central warehouse and stock consolidation layer.",
+    description:
+      "Central stock control for the property: item master, movement ledger and shared units.",
     icon: Boxes,
     group: "supply",
     canonicalRoute: "/restaurant/back-office/inventory",
-    currentRoute: "/restaurant/inventory",
-    currentSearch: { tab: "overview" },
-    currentLabel: "Open the current Inventory screen",
     moduleKey: "inventory",
     implementationStatus: "partial",
     sourcePackages: ["Restaurant Management", "PMS"],
     futureScope: [
-      "Central warehouse with issues to each operating package.",
-      "Stock valuation and consolidated movement history.",
+      "Storage locations, a central warehouse and issues to each operating package.",
+      "Inter-outlet transfers.",
+      "A real stock valuation method and period closing stock.",
     ],
     todayNote:
-      "Current operational inventory remains shared during migration. Back Office will become the central warehouse and consolidation layer.",
+      "Item master, property-wide movement history and units are canonical here, on the same records and the same single stock ledger (inventory_items, inventory_stock_movements, inventory_units). Restaurant operational stock, operating assets and recipe cost stay in Restaurant Management. Received goods from Procurement post to this same ledger. Valuation and warehouses do not exist yet.",
   },
+
   {
     // Phase 8G2B — Back Office is the canonical owner of procurement.
     key: "procurement",
