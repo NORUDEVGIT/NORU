@@ -203,24 +203,30 @@ export const BO_MODULES: BoModule[] = [
 
   // ------------------------------------------------------------ finance
   {
+    // Phase 8G2E — Back Office is the canonical home for finance
+    // administration and the future accounting engine. It owns no financial
+    // transaction: every posting stays in the package that makes it.
     key: "accounting",
     title: "Accounting & Finance",
-    description: "Consolidated financial events from every package.",
+    description:
+      "Property-level financial control: the finance sources behind every package, and the accounting engine still to come.",
     icon: Calculator,
     group: "finance",
     canonicalRoute: "/restaurant/back-office/accounting",
     currentRoute: "/restaurant/cashiering",
     currentSearch: { tab: "dashboard" },
-    currentLabel: "Open the current Accounting & Finance screen",
+    currentLabel: "Open PMS Cashiering (hotel folios and payments)",
     moduleKey: "accounting_finance",
-    implementationStatus: "foundation",
-    sourcePackages: ["Restaurant Management", "PMS", "Standalone POS", "Procurement"],
+    implementationStatus: "partial",
+    sourcePackages: ["Restaurant Management", "PMS", "Procurement", "Inventory", "Standalone POS"],
     futureScope: [
-      "Consolidation of restaurant payments, hotel folio postings, POS sales and purchasing effects.",
-      "Property-level financial control and period close.",
+      "General ledger, chart of accounts and a posting engine mapping source events to journal entries.",
+      "Accounts payable built on supplier invoices, due dates and payment allocation.",
+      "Accounts receivable with a real debtor ledger.",
+      "Bank reconciliation, tax accounting and financial statements (P&L, balance sheet, cash flow, trial balance).",
     ],
     todayNote:
-      "There is no general ledger, chart of accounts, journals or AP/AR in NORU. Hotel folios stay in PMS and restaurant payments stay in Restaurant Management.",
+      "Canonical home for finance monitoring and control: read-only, source-labelled summaries of restaurant order value, hotel folio activity, purchase-order commitment and stock at last-known cost, each only when that source is enabled and the reader already has access. Nothing is posted here and no figure is a ledger figure. Hotel folios, payments, deposits, refunds, cashier shifts and night audit stay in PMS; restaurant payments and till shifts stay in Restaurant Management; purchase orders stay in Procurement; stock and cost stay in Inventory. There is still no general ledger, chart of accounts, journals, AP, AR, bank reconciliation or tax ledger in NORU.",
   },
   {
     key: "reports",

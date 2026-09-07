@@ -393,3 +393,72 @@ requirement.
 ### Database
 
 No schema change in this phase.
+
+---
+
+## Phase 8G2E — Accounting & Finance
+
+Back Office is the canonical home for finance ADMINISTRATION and the future
+accounting engine. It owns no financial transaction and posts nothing.
+
+### Financial ownership
+
+- **PMS** — guest folios, room charges, hotel payments, deposits, refunds,
+  cashier shifts, night-audit financial operations. Unchanged.
+- **Restaurant Management** — restaurant orders, restaurant payments, till
+  shifts, refunds/voids where supported, and the Charge to Room bridge into
+  PMS folios. Unchanged; the bridge is not re-routed through Back Office.
+- **Procurement** — purchase orders, receiving, purchasing history, supplier
+  spend source data.
+- **Inventory / Warehouse** — stock quantities and last-known cost inputs;
+  the future valuation source.
+- **Standalone POS** — future independent sales and payments (8H).
+- **Back Office Accounting & Finance** — cross-package finance overview,
+  financial control, source monitoring, and the future GL / journals / CoA /
+  AP / AR / bank reconciliation / tax accounting / financial statements.
+
+### What the canonical page does
+
+`/restaurant/back-office/accounting` is read-only. One server function,
+`getBackOfficeFinanceOverview` (`src/lib/back-office-finance.functions.ts`),
+returns high-level, source-labelled figures: restaurant order value and order
+count for today; open folios, outstanding balance on open folios, folio
+payments and charges today, open cashier shifts; open purchase-order count,
+open purchase-order value and supplier count; stock at last-known cost and the
+count of items without a cost. No transaction detail crosses the boundary and
+values from different sources are never summed — there is no consolidated
+revenue, profit or net position, because there is no ledger.
+
+### Authorization
+
+`requireBackOfficeFinanceRead` (`back-office-finance.server.ts`) requires
+existing Accounting & Finance module access with role owner / manager /
+accountant, and then the Back Office package. The package alone grants
+nothing. Each source is checked before it is queried: Restaurant Management
+and PMS need their package switched on plus the reader's matching module
+access; Procurement and Inventory need the reader's existing module access. A
+source that fails any check is reported as unavailable and is never queried.
+Cross-package links appear only under the same conditions, so no link can
+escalate access.
+
+### Legacy / shared accounting route decision
+
+`/restaurant/cashiering` stays exactly as it is: PMS-owned, live operational
+hotel billing, no redirect, no ownership change. It is linked from PMS
+Cashiering, PMS Night Audit, PMS Home and Property Home, and it is gated by
+the `accounting_finance` module plus the PMS package. Back Office links to it
+as a source, nothing more.
+
+### Not built (architecture gaps)
+
+General ledger, chart of accounts, journals, accounts payable, accounts
+receivable, bank reconciliation, tax accounting, and financial statements
+(P&L, balance sheet, cash flow, trial balance). Purchase orders are
+commitments, not payables; open folio balances are guest billing, not a debtor
+ledger; stock at last-known cost is not an audited valuation or cost of goods
+sold; card payment status is not bank settlement. Each is shown on the page as
+"not built yet" with what it would require.
+
+### Database
+
+No schema change in this phase, and no accounting mutation was introduced.
