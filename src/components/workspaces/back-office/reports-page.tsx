@@ -31,6 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { getBackOfficePosSummary } from "@/lib/back-office-pos.functions";
 import { getRestaurantDashboard } from "@/lib/dashboard.functions";
 import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
 import { usePackageEntitlements } from "@/lib/use-package-entitlements";
@@ -319,10 +320,15 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
           <SourceCard
             icon={CreditCard}
             title="Standalone POS"
-            body="Independent checkout sales and payments."
-            state="planned"
-            link={null}
+            body="Independent checkout sales, tenders, refunds and cashier shifts. Standalone POS owns these records; Back Office only reads them."
+            state={posOn ? "available" : "unavailable"}
+            link={
+              posOn && posData?.operationalAccess
+                ? { to: "/restaurant/pos/reports", label: "Open Standalone POS Reports" }
+                : null
+            }
           />
+
           <SourceCard
             icon={Boxes}
             title="Shared services"
