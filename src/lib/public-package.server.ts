@@ -48,7 +48,7 @@ export async function publicPackageAvailable(
       restaurantId,
       packageKey,
     );
-    cache.set(key, { value, expiresAtMs: Date.now() + TTL_MS });
+    cache.set(key, { value, expiresAtMs: Date.now() + (value ? TTL_MS : DENIED_TTL_MS) });
     return value;
   } catch (error) {
     // Server-side only; nothing about this reaches the visitor.
