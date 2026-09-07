@@ -91,7 +91,7 @@ export function RestaurantPaymentsFoundation() {
           </Link>
           <Link
             to="/restaurant/restaurant-management/orders"
-            search={{}}
+            search={{ status: "all", period: "today", sort: "newest", page: 1 }}
             className="flex items-center justify-between rounded-xl border border-border p-3 text-sm font-semibold hover:bg-muted"
           >
             Restaurant orders <ArrowUpRight className="size-4" />
