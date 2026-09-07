@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Star } from "lucide-react";
 
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { GuestFormDialog } from "@/components/guests/guest-form-dialog";
