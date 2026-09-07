@@ -235,6 +235,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         </p>
       </header>
 
+      <BlockedNotice />
+
       <section aria-label="Today at a glance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard
           icon={TrendingUp}
