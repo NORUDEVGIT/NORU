@@ -59,7 +59,7 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
               Property staff who can sign in and use the PMS. Adding someone here gives them access;
               their employment details stay in Human Resources.
             </p>
-            <StaffManager membership={membership} />
+            <StaffManager membership={membership} embedded />
           </TabsContent>
 
           <TabsContent value="roles" className="mt-6 space-y-4">
