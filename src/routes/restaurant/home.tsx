@@ -40,8 +40,10 @@ export const Route = createFileRoute("/restaurant/home")({
   ssr: false,
   // Phase 8D1 — a guarded route sends the user back here with the package it
   // blocked. Property Home is Core and is never package-gated, so no loop.
-  validateSearch: (search: Record<string, unknown>) =>
-    typeof search["blocked"] === "string" ? { blocked: search["blocked"] as string } : {},
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search["blocked"] === "string" ? { blocked: search["blocked"] as string } : {}),
+    ...(search["verify"] === "failed" ? { verify: "failed" as const } : {}),
+  }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
