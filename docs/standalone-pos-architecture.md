@@ -907,3 +907,22 @@ Deviation from the plan: the six planned per-section server functions were
 implemented as two (`getStandalonePosDashboard`, `getStandalonePosReport`)
 over one shared aggregation — same formulas in one place, one round trip per
 screen instead of six.
+
+## Phase 8H8 — cross-package integration (implemented)
+
+Back Office consumes Standalone POS as a **read-only source**:
+
+- `src/lib/back-office-pos.functions.ts` exposes `getBackOfficePosSummary`,
+  reusing the POS-owned aggregation in `standalone-pos-reporting.server.ts`.
+- Back Office Accounting shows a POS source card (gross, refunds against
+  today's receipts, net, receipt count, refunds processed today, open shifts,
+  tender split) and a link to POS Reports.
+- Back Office Reports shows POS gross / net / receipts / refunds as labelled
+  source figures and a POS reporting-source card.
+
+Constraints: no copied tables, no writes, no database change, no combined
+cross-package total, exact reconciliation with `/restaurant/pos/reports`.
+
+Inventory depletion and POS → folio Charge to Room remain **deferred**
+(see the ownership doc for the reasoning); nothing about the RM Charge to Room
+bridge changed.
