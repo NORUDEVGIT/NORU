@@ -2469,6 +2469,656 @@ export type Database = {
           },
         ]
       }
+      pos_cashier_shifts: {
+        Row: {
+          business_date: string
+          closed_at: string | null
+          closed_by_membership_id: string | null
+          closing_cash: number | null
+          created_at: string
+          expected_cash: number | null
+          id: string
+          notes: string | null
+          opened_at: string
+          opened_by_membership_id: string
+          opening_float: number
+          register_id: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+          variance: number | null
+        }
+        Insert: {
+          business_date: string
+          closed_at?: string | null
+          closed_by_membership_id?: string | null
+          closing_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by_membership_id: string
+          opening_float?: number
+          register_id: string
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+          variance?: number | null
+        }
+        Update: {
+          business_date?: string
+          closed_at?: string | null
+          closed_by_membership_id?: string | null
+          closing_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by_membership_id?: string
+          opening_float?: number
+          register_id?: string
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+          variance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_cashier_shifts_closed_by_membership_id_fkey"
+            columns: ["closed_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_cashier_shifts_opened_by_membership_id_fkey"
+            columns: ["opened_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_cashier_shifts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_shifts_register_same_property"
+            columns: ["register_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_registers"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      pos_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_categories_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_payments: {
+        Row: {
+          amount: number
+          change_amount: number
+          created_at: string
+          id: string
+          payment_method: string
+          received_by_membership_id: string
+          reference: string | null
+          restaurant_id: string
+          sale_id: string
+          shift_id: string | null
+          status: string
+          tendered_amount: number | null
+        }
+        Insert: {
+          amount: number
+          change_amount?: number
+          created_at?: string
+          id?: string
+          payment_method: string
+          received_by_membership_id: string
+          reference?: string | null
+          restaurant_id: string
+          sale_id: string
+          shift_id?: string | null
+          status?: string
+          tendered_amount?: number | null
+        }
+        Update: {
+          amount?: number
+          change_amount?: number
+          created_at?: string
+          id?: string
+          payment_method?: string
+          received_by_membership_id?: string
+          reference?: string | null
+          restaurant_id?: string
+          sale_id?: string
+          shift_id?: string | null
+          status?: string
+          tendered_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_payments_received_by_membership_id_fkey"
+            columns: ["received_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_payments_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_payments_sale_same_property"
+            columns: ["sale_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pos_payments_shift_same_property"
+            columns: ["shift_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_cashier_shifts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      pos_products: {
+        Row: {
+          active: boolean
+          barcode: string | null
+          category_id: string | null
+          cost_price: number | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          restaurant_id: string
+          sku: string | null
+          sort_order: number
+          tax_rate: number | null
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          barcode?: string | null
+          category_id?: string | null
+          cost_price?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          restaurant_id: string
+          sku?: string | null
+          sort_order?: number
+          tax_rate?: number | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          barcode?: string | null
+          category_id?: string | null
+          cost_price?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          restaurant_id?: string
+          sku?: string | null
+          sort_order?: number
+          tax_rate?: number | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_products_category_same_property"
+            columns: ["category_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_categories"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pos_products_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_refunds: {
+        Row: {
+          amount: number
+          authorized_by_membership_id: string | null
+          created_at: string
+          id: string
+          line_detail: Json | null
+          method: string
+          payment_id: string | null
+          processed_by_membership_id: string
+          reason: string | null
+          restaurant_id: string
+          sale_id: string
+          shift_id: string | null
+        }
+        Insert: {
+          amount: number
+          authorized_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          line_detail?: Json | null
+          method: string
+          payment_id?: string | null
+          processed_by_membership_id: string
+          reason?: string | null
+          restaurant_id: string
+          sale_id: string
+          shift_id?: string | null
+        }
+        Update: {
+          amount?: number
+          authorized_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          line_detail?: Json | null
+          method?: string
+          payment_id?: string | null
+          processed_by_membership_id?: string
+          reason?: string | null
+          restaurant_id?: string
+          sale_id?: string
+          shift_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_refunds_authorized_by_membership_id_fkey"
+            columns: ["authorized_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_refunds_payment_same_property"
+            columns: ["payment_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_payments"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pos_refunds_processed_by_membership_id_fkey"
+            columns: ["processed_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_refunds_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_refunds_sale_same_property"
+            columns: ["sale_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pos_refunds_shift_same_property"
+            columns: ["shift_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_cashier_shifts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      pos_registers: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          location_label: string | null
+          name: string
+          restaurant_id: string
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          location_label?: string | null
+          name: string
+          restaurant_id: string
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          location_label?: string | null
+          name?: string
+          restaurant_id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_registers_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_sale_counters: {
+        Row: {
+          last_number: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_number?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_number?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sale_counters_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_sale_items: {
+        Row: {
+          created_at: string
+          discount_amount: number
+          id: string
+          line_subtotal: number
+          line_total: number
+          note: string | null
+          product_id: string | null
+          product_name_snapshot: string
+          quantity: number
+          restaurant_id: string
+          sale_id: string
+          sku_snapshot: string | null
+          tax_amount: number
+          tax_rate_snapshot: number
+          unit_price_snapshot: number
+        }
+        Insert: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          line_subtotal?: number
+          line_total?: number
+          note?: string | null
+          product_id?: string | null
+          product_name_snapshot: string
+          quantity: number
+          restaurant_id: string
+          sale_id: string
+          sku_snapshot?: string | null
+          tax_amount?: number
+          tax_rate_snapshot?: number
+          unit_price_snapshot: number
+        }
+        Update: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          line_subtotal?: number
+          line_total?: number
+          note?: string | null
+          product_id?: string | null
+          product_name_snapshot?: string
+          quantity?: number
+          restaurant_id?: string
+          sale_id?: string
+          sku_snapshot?: string | null
+          tax_amount?: number
+          tax_rate_snapshot?: number
+          unit_price_snapshot?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sale_items_product_same_property"
+            columns: ["product_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_products"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pos_sale_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sale_items_sale_same_property"
+            columns: ["sale_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      pos_sales: {
+        Row: {
+          business_date: string
+          cashier_name_snapshot: string | null
+          completed_at: string | null
+          completed_by_membership_id: string | null
+          created_at: string
+          currency_code: string
+          customer_reference: string | null
+          discount_amount: number
+          discount_reason: string | null
+          id: string
+          note: string | null
+          opened_by_membership_id: string
+          refunded_amount: number
+          register_id: string
+          restaurant_id: string
+          sale_number: number | null
+          sale_reference: string | null
+          shift_id: string | null
+          status: string
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          voided_at: string | null
+        }
+        Insert: {
+          business_date: string
+          cashier_name_snapshot?: string | null
+          completed_at?: string | null
+          completed_by_membership_id?: string | null
+          created_at?: string
+          currency_code: string
+          customer_reference?: string | null
+          discount_amount?: number
+          discount_reason?: string | null
+          id?: string
+          note?: string | null
+          opened_by_membership_id: string
+          refunded_amount?: number
+          register_id: string
+          restaurant_id: string
+          sale_number?: number | null
+          sale_reference?: string | null
+          shift_id?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          total?: number
+          updated_at?: string
+          voided_at?: string | null
+        }
+        Update: {
+          business_date?: string
+          cashier_name_snapshot?: string | null
+          completed_at?: string | null
+          completed_by_membership_id?: string | null
+          created_at?: string
+          currency_code?: string
+          customer_reference?: string | null
+          discount_amount?: number
+          discount_reason?: string | null
+          id?: string
+          note?: string | null
+          opened_by_membership_id?: string
+          refunded_amount?: number
+          register_id?: string
+          restaurant_id?: string
+          sale_number?: number | null
+          sale_reference?: string | null
+          shift_id?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          total?: number
+          updated_at?: string
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sales_completed_by_membership_id_fkey"
+            columns: ["completed_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sales_opened_by_membership_id_fkey"
+            columns: ["opened_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sales_register_same_property"
+            columns: ["register_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_registers"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pos_sales_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sales_shift_same_property"
+            columns: ["shift_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pos_cashier_shifts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      pos_settings: {
+        Row: {
+          created_at: string
+          default_tax_rate: number
+          receipt_footer: string | null
+          receipt_header: string | null
+          restaurant_id: string
+          tax_inclusive: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_tax_rate?: number
+          receipt_footer?: string | null
+          receipt_header?: string | null
+          restaurant_id: string
+          tax_inclusive?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_tax_rate?: number
+          receipt_footer?: string | null
+          receipt_header?: string | null
+          restaurant_id?: string
+          tax_inclusive?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           account_type: string
@@ -4348,6 +4998,88 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "guest_folios"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      pos_complete_sale: {
+        Args: {
+          _membership_id: string
+          _restaurant_id: string
+          _sale_id: string
+        }
+        Returns: {
+          business_date: string
+          cashier_name_snapshot: string | null
+          completed_at: string | null
+          completed_by_membership_id: string | null
+          created_at: string
+          currency_code: string
+          customer_reference: string | null
+          discount_amount: number
+          discount_reason: string | null
+          id: string
+          note: string | null
+          opened_by_membership_id: string
+          refunded_amount: number
+          register_id: string
+          restaurant_id: string
+          sale_number: number | null
+          sale_reference: string | null
+          shift_id: string | null
+          status: string
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          voided_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_sales"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      pos_refund_sale: {
+        Args: {
+          _amount: number
+          _membership_id: string
+          _method: string
+          _payment_id: string
+          _reason: string
+          _restaurant_id: string
+          _sale_id: string
+        }
+        Returns: {
+          business_date: string
+          cashier_name_snapshot: string | null
+          completed_at: string | null
+          completed_by_membership_id: string | null
+          created_at: string
+          currency_code: string
+          customer_reference: string | null
+          discount_amount: number
+          discount_reason: string | null
+          id: string
+          note: string | null
+          opened_by_membership_id: string
+          refunded_amount: number
+          register_id: string
+          restaurant_id: string
+          sale_number: number | null
+          sale_reference: string | null
+          shift_id: string | null
+          status: string
+          subtotal: number
+          tax_amount: number
+          total: number
+          updated_at: string
+          voided_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pos_sales"
           isOneToOne: true
           isSetofReturn: false
         }

@@ -43,9 +43,9 @@ export const PACKAGE_MODULE_MAP: Record<PackageKey, ModuleKey[]> = {
     "reports_analytics",
     "accounting_finance",
   ],
-  // The current `pos` key stays bound to the restaurant POS until the
-  // standalone POS package is actually built.
-  pos: ["pos"],
+  // The current `pos` module key stays bound to the restaurant till; the
+  // Standalone POS package owns the `standalone_pos` module key (Phase 8H2).
+  pos: ["standalone_pos"],
   back_office: [
     "human_resources",
     "inventory",

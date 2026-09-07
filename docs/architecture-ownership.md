@@ -527,3 +527,17 @@ Key frozen decisions:
    `restaurants.timezone`), never from the browser.
 7. Charge to Room and inventory posting are optional future bridges, not part
    of Standalone POS v1, and the existing RM Charge to Room bridge is untouched.
+
+## Standalone POS — data ownership (Phase 8H2)
+
+| Data | Owner | Notes |
+| --- | --- | --- |
+| `pos_registers`, `pos_categories`, `pos_products`, `pos_settings` | Standalone POS | Own catalog; never reads restaurant menu tables. |
+| `pos_cashier_shifts`, `pos_sales`, `pos_sale_items`, `pos_payments`, `pos_refunds`, `pos_sale_counters` | Standalone POS | Own transaction record and receipt numbering. |
+| `menu_items`, `orders`, `order_items`, `order_payments`, `cashier_shifts` | Restaurant Management | Unchanged; the RM till keeps writing these. Standalone POS never writes them. |
+| Module key `pos` | Restaurant Management | The restaurant till. |
+| Module key `standalone_pos` | Standalone POS | New in 8H2; package `pos` gates it. |
+
+Standalone POS reads nothing from PMS or Back Office. Charge to Room,
+inventory depletion and Back Office finance reads remain optional future
+bridges, not built.

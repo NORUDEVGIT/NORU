@@ -211,6 +211,20 @@
       "when": 1788810389177,
       "tag": "0029_cleanup_8g2b_procurement_test_records",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788816354096,
+      "tag": "0030_standalone_pos_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788816407899,
+      "tag": "0031_fix_pos_complete_sale_cashier_name",
+      "breakpoints": true
     }
   ]
 }
