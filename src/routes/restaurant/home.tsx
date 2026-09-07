@@ -238,12 +238,13 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   // Package tile = package entitlement AND existing module access.
   const showRestaurant = packages.has("restaurant_management") && canSeeFnB;
   const showPms = packages.has("pms") && PMS_MODULE_KEYS.some((k) => allowed.includes(k));
-  const backOfficeLinks = packages.has("back_office")
+  const showBackOffice = packages.has("back_office");
+  const backOfficeLinks = showBackOffice
     ? BACK_OFFICE_LINKS.filter((l) => allowed.includes(l.moduleKey))
     : [];
   const setupLinks = SETUP_LINKS.filter((l) => allowed.includes(l.moduleKey));
   const nothingVisible =
-    !showRestaurant && !showPms && backOfficeLinks.length === 0 && !packages.loading;
+    !showRestaurant && !showPms && !showBackOffice && !packages.loading;
 
   return (
     <div className="space-y-8">
@@ -330,7 +331,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
           ) : null}
         </div>
 
-        {backOfficeLinks.length > 0 ? (
+        {showBackOffice ? (
           <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
             <Link
               to="/restaurant/back-office"
