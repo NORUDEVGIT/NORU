@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { StayProperty } from "@/lib/public-booking.server";
 import { StayLayout, StayLoading, StayNotFound, StayUnavailable, formatMoney } from "@/components/stay/stay-chrome";
 import { getStayProperty, searchStay, type PublicRoomTypeOffer } from "@/lib/public-booking.functions";
 import { addDays, formatStayDate, propertyToday } from "@/lib/reservation-dates";
