@@ -47,6 +47,7 @@ import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { usePackageEntitlements } from "@/lib/use-package-entitlements";
 import { clearRoutePackageCache } from "@/lib/route-package-guard";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
+import { RM_MODULES } from "@/lib/restaurant-management-modules";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
 import { RestaurantSettingsProvider } from "@/state/restaurant-context";
@@ -462,6 +463,7 @@ export function RestaurantShell({
   pms,
   pmsModule,
   pmsLeaf,
+  rmModule,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -476,6 +478,12 @@ export function RestaurantShell({
   pmsModule?: string;
   /** Optional final breadcrumb step (e.g. "Reservation", "Guest Profile") for detail pages. */
   pmsLeaf?: string;
+  /**
+   * Phase 8F2 — key from `RM_MODULES`. When set, the page is presented as a
+   * canonical Restaurant Management submodule: breadcrumb, context label and a
+   * way back to the Restaurant Management home. Presentation only.
+   */
+  rmModule?: string;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -504,6 +512,7 @@ export function RestaurantShell({
   const membership = data?.[0];
   const restaurant = membership?.restaurant;
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
+  const rmMod = rmModule ? RM_MODULES.find((m) => m.key === rmModule) : undefined;
 
   const moduleAccess = useQuery({
     queryKey: ["my-module-access", membership?.restaurantId],
@@ -529,7 +538,9 @@ export function RestaurantShell({
   const activeTab =
     search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
 
-  const contextLabel = pmsMod
+  const contextLabel = rmMod
+    ? `Restaurant Management · ${rmMod.title}`
+    : pmsMod
     ? `PMS · ${pmsMod.title}`
     : pms && workspace !== "pms"
       ? `PMS · ${MODULE_TITLE[workspace]}`
@@ -598,6 +609,19 @@ export function RestaurantShell({
               <Hotel className="size-4 shrink-0" /> PMS Home
             </Link>
           ) : null}
+        </div>
+      ) : rmMod ? (
+        <div className="space-y-2">
+          <Link
+            to="/restaurant/restaurant-management"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" /> Restaurant Management
+          </Link>
+          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+            {contextLabel}
+          </p>
         </div>
       ) : workspace !== "home" ? (
         <div className="space-y-2">
@@ -764,6 +788,20 @@ export function RestaurantShell({
                 currencyCode={membership.restaurant.currencyCode}
               >
                 <PmsHeadingProvider heading={pmsMod?.title}>
+                  {rmMod ? (
+                    <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
+                      <Link to="/restaurant/home" className="hover:text-foreground">
+                        Property Home
+                      </Link>
+                      <span className="px-1.5">→</span>
+                      <Link to="/restaurant/restaurant-management" className="hover:text-foreground">
+                        Restaurant Management
+                      </Link>
+                      <span className="px-1.5">→</span>
+                      <span className="text-foreground">{rmMod.title}</span>
+                    </nav>
+                  ) : null}
+
                   {pmsMod ? (
                     <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
                       <Link to="/restaurant/home" className="hover:text-foreground">

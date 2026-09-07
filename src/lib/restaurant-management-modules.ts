@@ -4,7 +4,9 @@
  * One source of truth for what the Restaurant Management package contains.
  * Presentation only: every tile points at an EXISTING working screen and
  * reuses the existing module-access keys for visibility. No new entitlements,
- * no route migration (that is Phase 8F2), no business logic.
+ * Phase 8F2 — /restaurant/restaurant-management/* is now the CANONICAL route
+ * family. `canonicalRoute` is the live address; `legacyRoutes` records the
+ * older addresses that still work for bookmarks. No business logic changed.
  *
  * Ownership notes that must not drift:
  * - The current POS is the RESTAURANT MANAGEMENT POS (it uses the restaurant
@@ -83,12 +85,12 @@ export type RmModule = {
   group: RmGroupKey;
   /** Existing module-access key that governs visibility. Unchanged in this phase. */
   moduleKey: ModuleKey;
-  /** The working address used today. */
-  currentRoute: string;
-  /** Optional query for the current route (existing tabbed screens). */
-  currentSearch?: Record<string, string>;
-  /** The address Phase 8F2 will move this to. Recorded only — not created yet. */
+  /** The canonical Restaurant Management address (live). */
   canonicalRoute: string;
+  /** Optional query for the canonical route (tabbed screens). */
+  canonicalSearch?: Record<string, string>;
+  /** Older addresses that still work; not deleted in this phase. */
+  legacyRoutes: string[];
   implementationStatus: RmImplementationStatus;
   /** True while the target screen is a shared/transitional property-wide service. */
   transitional?: boolean;
@@ -105,8 +107,8 @@ export const RM_MODULES: RmModule[] = [
     icon: LayoutDashboard,
     group: "operations",
     moduleKey: "food_and_beverage",
-    currentRoute: "/restaurant/dashboard",
     canonicalRoute: "/restaurant/restaurant-management/dashboard",
+    legacyRoutes: ["/restaurant/dashboard"],
     implementationStatus: "existing",
   },
   {
@@ -117,8 +119,8 @@ export const RM_MODULES: RmModule[] = [
     icon: CreditCard,
     group: "operations",
     moduleKey: "pos",
-    currentRoute: "/restaurant/pos/new",
-    canonicalRoute: "/restaurant/restaurant-management/pos",
+    canonicalRoute: "/restaurant/restaurant-management/pos-sales",
+    legacyRoutes: ["/restaurant/pos/new"],
     implementationStatus: "existing",
   },
   {
@@ -128,8 +130,8 @@ export const RM_MODULES: RmModule[] = [
     icon: QrCode,
     group: "operations",
     moduleKey: "food_and_beverage",
-    currentRoute: "/restaurant/waiter",
     canonicalRoute: "/restaurant/restaurant-management/digital-ordering",
+    legacyRoutes: ["/restaurant/waiter"],
     implementationStatus: "existing",
   },
   {
@@ -139,8 +141,8 @@ export const RM_MODULES: RmModule[] = [
     icon: LayoutGrid,
     group: "operations",
     moduleKey: "food_and_beverage",
-    currentRoute: "/restaurant/tables",
     canonicalRoute: "/restaurant/restaurant-management/tables",
+    legacyRoutes: ["/restaurant/tables"],
     implementationStatus: "existing",
   },
   {
@@ -150,8 +152,8 @@ export const RM_MODULES: RmModule[] = [
     icon: ReceiptText,
     group: "operations",
     moduleKey: "food_and_beverage",
-    currentRoute: "/restaurant/orders",
     canonicalRoute: "/restaurant/restaurant-management/orders",
+    legacyRoutes: ["/restaurant/orders", "/restaurant/orders/$orderId"],
     implementationStatus: "existing",
   },
   {
@@ -161,8 +163,8 @@ export const RM_MODULES: RmModule[] = [
     icon: ChefHat,
     group: "operations",
     moduleKey: "food_and_beverage",
-    currentRoute: "/restaurant/kitchen",
     canonicalRoute: "/restaurant/restaurant-management/kitchen",
+    legacyRoutes: ["/restaurant/kitchen"],
     implementationStatus: "existing",
   },
 
@@ -174,20 +176,20 @@ export const RM_MODULES: RmModule[] = [
     icon: UtensilsCrossed,
     group: "menu_cost_stock",
     moduleKey: "food_and_beverage",
-    currentRoute: "/restaurant/menu",
     canonicalRoute: "/restaurant/restaurant-management/menu",
+    legacyRoutes: ["/restaurant/menu"],
     implementationStatus: "existing",
   },
   {
-    key: "recipes",
+    key: "recipe-cost",
     title: "Recipe & Cost Management",
     description:
       "Dish recipes, ingredient mapping and plate cost. Currently managed from inside the menu screen.",
     icon: BookOpen,
     group: "menu_cost_stock",
     moduleKey: "food_and_beverage",
-    currentRoute: "/restaurant/menu",
-    canonicalRoute: "/restaurant/restaurant-management/recipes",
+    canonicalRoute: "/restaurant/restaurant-management/recipe-cost",
+    legacyRoutes: ["/restaurant/menu"],
     implementationStatus: "partial",
     sharedDependencies: ["inventory"],
   },
@@ -199,9 +201,9 @@ export const RM_MODULES: RmModule[] = [
     icon: Boxes,
     group: "menu_cost_stock",
     moduleKey: "inventory",
-    currentRoute: "/restaurant/inventory",
-    currentSearch: { tab: "overview" },
     canonicalRoute: "/restaurant/restaurant-management/inventory",
+    canonicalSearch: { tab: "overview" },
+    legacyRoutes: ["/restaurant/inventory"],
     implementationStatus: "existing",
     transitional: true,
     sharedDependencies: ["inventory"],
@@ -216,9 +218,9 @@ export const RM_MODULES: RmModule[] = [
     icon: Users,
     group: "people_control",
     moduleKey: "human_resources",
-    currentRoute: "/restaurant/staff",
-    currentSearch: { tab: "schedule" },
     canonicalRoute: "/restaurant/restaurant-management/staff",
+    canonicalSearch: { tab: "schedule" },
+    legacyRoutes: ["/restaurant/staff"],
     implementationStatus: "existing",
     transitional: true,
     sharedDependencies: ["human_resources"],
@@ -231,8 +233,8 @@ export const RM_MODULES: RmModule[] = [
     icon: Wallet,
     group: "people_control",
     moduleKey: "pos",
-    currentRoute: "/restaurant/pos/new",
     canonicalRoute: "/restaurant/restaurant-management/payments",
+    legacyRoutes: ["/restaurant/pos/new"],
     implementationStatus: "foundation",
   },
   {
@@ -243,8 +245,8 @@ export const RM_MODULES: RmModule[] = [
     icon: BarChart3,
     group: "people_control",
     moduleKey: "reports_analytics",
-    currentRoute: "/restaurant/reports",
     canonicalRoute: "/restaurant/restaurant-management/reports",
+    legacyRoutes: ["/restaurant/reports"],
     implementationStatus: "existing",
     transitional: true,
   },
@@ -258,8 +260,8 @@ export const RM_MODULES: RmModule[] = [
     icon: SlidersHorizontal,
     group: "system",
     moduleKey: "configuration",
-    currentRoute: "/restaurant/configuration",
     canonicalRoute: "/restaurant/restaurant-management/setup",
+    legacyRoutes: ["/restaurant/configuration"],
     implementationStatus: "partial",
     transitional: true,
   },

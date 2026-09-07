@@ -84,6 +84,19 @@ import { Route as RestaurantPmsSalesEventsRouteImport } from './routes/restauran
 import { Route as RestaurantPmsSecurityAuditRouteImport } from './routes/restaurant/pms/security-audit'
 import { Route as RestaurantPosNewRouteImport } from './routes/restaurant/pos/new'
 import { Route as RestaurantRestaurantManagementIndexRouteImport } from './routes/restaurant/restaurant-management/index'
+import { Route as RestaurantRestaurantManagementDashboardRouteImport } from './routes/restaurant/restaurant-management/dashboard'
+import { Route as RestaurantRestaurantManagementDigitalOrderingRouteImport } from './routes/restaurant/restaurant-management/digital-ordering'
+import { Route as RestaurantRestaurantManagementInventoryRouteImport } from './routes/restaurant/restaurant-management/inventory'
+import { Route as RestaurantRestaurantManagementKitchenRouteImport } from './routes/restaurant/restaurant-management/kitchen'
+import { Route as RestaurantRestaurantManagementMenuRouteImport } from './routes/restaurant/restaurant-management/menu'
+import { Route as RestaurantRestaurantManagementOrdersRouteImport } from './routes/restaurant/restaurant-management/orders'
+import { Route as RestaurantRestaurantManagementPaymentsRouteImport } from './routes/restaurant/restaurant-management/payments'
+import { Route as RestaurantRestaurantManagementPosSalesRouteImport } from './routes/restaurant/restaurant-management/pos-sales'
+import { Route as RestaurantRestaurantManagementRecipeCostRouteImport } from './routes/restaurant/restaurant-management/recipe-cost'
+import { Route as RestaurantRestaurantManagementReportsRouteImport } from './routes/restaurant/restaurant-management/reports'
+import { Route as RestaurantRestaurantManagementSetupRouteImport } from './routes/restaurant/restaurant-management/setup'
+import { Route as RestaurantRestaurantManagementStaffRouteImport } from './routes/restaurant/restaurant-management/staff'
+import { Route as RestaurantRestaurantManagementTablesRouteImport } from './routes/restaurant/restaurant-management/tables'
 import { Route as RestaurantRoomsIndexRouteImport } from './routes/restaurant/rooms/index'
 import { Route as RestaurantRoomsArrivalsRouteImport } from './routes/restaurant/rooms/arrivals'
 import { Route as RestaurantRoomsDeparturesRouteImport } from './routes/restaurant/rooms/departures'
@@ -499,6 +512,84 @@ const RestaurantRestaurantManagementIndexRoute =
     path: '/restaurant/restaurant-management/',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantRestaurantManagementDashboardRoute =
+  RestaurantRestaurantManagementDashboardRouteImport.update({
+    id: '/restaurant/restaurant-management/dashboard',
+    path: '/restaurant/restaurant-management/dashboard',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementDigitalOrderingRoute =
+  RestaurantRestaurantManagementDigitalOrderingRouteImport.update({
+    id: '/restaurant/restaurant-management/digital-ordering',
+    path: '/restaurant/restaurant-management/digital-ordering',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementInventoryRoute =
+  RestaurantRestaurantManagementInventoryRouteImport.update({
+    id: '/restaurant/restaurant-management/inventory',
+    path: '/restaurant/restaurant-management/inventory',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementKitchenRoute =
+  RestaurantRestaurantManagementKitchenRouteImport.update({
+    id: '/restaurant/restaurant-management/kitchen',
+    path: '/restaurant/restaurant-management/kitchen',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementMenuRoute =
+  RestaurantRestaurantManagementMenuRouteImport.update({
+    id: '/restaurant/restaurant-management/menu',
+    path: '/restaurant/restaurant-management/menu',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementOrdersRoute =
+  RestaurantRestaurantManagementOrdersRouteImport.update({
+    id: '/restaurant/restaurant-management/orders',
+    path: '/restaurant/restaurant-management/orders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementPaymentsRoute =
+  RestaurantRestaurantManagementPaymentsRouteImport.update({
+    id: '/restaurant/restaurant-management/payments',
+    path: '/restaurant/restaurant-management/payments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementPosSalesRoute =
+  RestaurantRestaurantManagementPosSalesRouteImport.update({
+    id: '/restaurant/restaurant-management/pos-sales',
+    path: '/restaurant/restaurant-management/pos-sales',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementRecipeCostRoute =
+  RestaurantRestaurantManagementRecipeCostRouteImport.update({
+    id: '/restaurant/restaurant-management/recipe-cost',
+    path: '/restaurant/restaurant-management/recipe-cost',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementReportsRoute =
+  RestaurantRestaurantManagementReportsRouteImport.update({
+    id: '/restaurant/restaurant-management/reports',
+    path: '/restaurant/restaurant-management/reports',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementSetupRoute =
+  RestaurantRestaurantManagementSetupRouteImport.update({
+    id: '/restaurant/restaurant-management/setup',
+    path: '/restaurant/restaurant-management/setup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementStaffRoute =
+  RestaurantRestaurantManagementStaffRouteImport.update({
+    id: '/restaurant/restaurant-management/staff',
+    path: '/restaurant/restaurant-management/staff',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantRestaurantManagementTablesRoute =
+  RestaurantRestaurantManagementTablesRouteImport.update({
+    id: '/restaurant/restaurant-management/tables',
+    path: '/restaurant/restaurant-management/tables',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantRoomsIndexRoute = RestaurantRoomsIndexRouteImport.update({
   id: '/restaurant/rooms/',
   path: '/restaurant/rooms/',
@@ -660,6 +751,19 @@ export interface FileRoutesByFullPath {
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
+  '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
+  '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
+  '/restaurant/restaurant-management/kitchen': typeof RestaurantRestaurantManagementKitchenRoute
+  '/restaurant/restaurant-management/menu': typeof RestaurantRestaurantManagementMenuRoute
+  '/restaurant/restaurant-management/orders': typeof RestaurantRestaurantManagementOrdersRoute
+  '/restaurant/restaurant-management/payments': typeof RestaurantRestaurantManagementPaymentsRoute
+  '/restaurant/restaurant-management/pos-sales': typeof RestaurantRestaurantManagementPosSalesRoute
+  '/restaurant/restaurant-management/recipe-cost': typeof RestaurantRestaurantManagementRecipeCostRoute
+  '/restaurant/restaurant-management/reports': typeof RestaurantRestaurantManagementReportsRoute
+  '/restaurant/restaurant-management/setup': typeof RestaurantRestaurantManagementSetupRoute
+  '/restaurant/restaurant-management/staff': typeof RestaurantRestaurantManagementStaffRoute
+  '/restaurant/restaurant-management/tables': typeof RestaurantRestaurantManagementTablesRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
@@ -752,6 +856,19 @@ export interface FileRoutesByTo {
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
+  '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
+  '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
+  '/restaurant/restaurant-management/kitchen': typeof RestaurantRestaurantManagementKitchenRoute
+  '/restaurant/restaurant-management/menu': typeof RestaurantRestaurantManagementMenuRoute
+  '/restaurant/restaurant-management/orders': typeof RestaurantRestaurantManagementOrdersRoute
+  '/restaurant/restaurant-management/payments': typeof RestaurantRestaurantManagementPaymentsRoute
+  '/restaurant/restaurant-management/pos-sales': typeof RestaurantRestaurantManagementPosSalesRoute
+  '/restaurant/restaurant-management/recipe-cost': typeof RestaurantRestaurantManagementRecipeCostRoute
+  '/restaurant/restaurant-management/reports': typeof RestaurantRestaurantManagementReportsRoute
+  '/restaurant/restaurant-management/setup': typeof RestaurantRestaurantManagementSetupRoute
+  '/restaurant/restaurant-management/staff': typeof RestaurantRestaurantManagementStaffRoute
+  '/restaurant/restaurant-management/tables': typeof RestaurantRestaurantManagementTablesRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
@@ -847,6 +964,19 @@ export interface FileRoutesById {
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
+  '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
+  '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
+  '/restaurant/restaurant-management/kitchen': typeof RestaurantRestaurantManagementKitchenRoute
+  '/restaurant/restaurant-management/menu': typeof RestaurantRestaurantManagementMenuRoute
+  '/restaurant/restaurant-management/orders': typeof RestaurantRestaurantManagementOrdersRoute
+  '/restaurant/restaurant-management/payments': typeof RestaurantRestaurantManagementPaymentsRoute
+  '/restaurant/restaurant-management/pos-sales': typeof RestaurantRestaurantManagementPosSalesRoute
+  '/restaurant/restaurant-management/recipe-cost': typeof RestaurantRestaurantManagementRecipeCostRoute
+  '/restaurant/restaurant-management/reports': typeof RestaurantRestaurantManagementReportsRoute
+  '/restaurant/restaurant-management/setup': typeof RestaurantRestaurantManagementSetupRoute
+  '/restaurant/restaurant-management/staff': typeof RestaurantRestaurantManagementStaffRoute
+  '/restaurant/restaurant-management/tables': typeof RestaurantRestaurantManagementTablesRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
@@ -943,6 +1073,19 @@ export interface FileRouteTypes {
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
     | '/restaurant/pos/new'
+    | '/restaurant/restaurant-management/dashboard'
+    | '/restaurant/restaurant-management/digital-ordering'
+    | '/restaurant/restaurant-management/inventory'
+    | '/restaurant/restaurant-management/kitchen'
+    | '/restaurant/restaurant-management/menu'
+    | '/restaurant/restaurant-management/orders'
+    | '/restaurant/restaurant-management/payments'
+    | '/restaurant/restaurant-management/pos-sales'
+    | '/restaurant/restaurant-management/recipe-cost'
+    | '/restaurant/restaurant-management/reports'
+    | '/restaurant/restaurant-management/setup'
+    | '/restaurant/restaurant-management/staff'
+    | '/restaurant/restaurant-management/tables'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
@@ -1035,6 +1178,19 @@ export interface FileRouteTypes {
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
     | '/restaurant/pos/new'
+    | '/restaurant/restaurant-management/dashboard'
+    | '/restaurant/restaurant-management/digital-ordering'
+    | '/restaurant/restaurant-management/inventory'
+    | '/restaurant/restaurant-management/kitchen'
+    | '/restaurant/restaurant-management/menu'
+    | '/restaurant/restaurant-management/orders'
+    | '/restaurant/restaurant-management/payments'
+    | '/restaurant/restaurant-management/pos-sales'
+    | '/restaurant/restaurant-management/recipe-cost'
+    | '/restaurant/restaurant-management/reports'
+    | '/restaurant/restaurant-management/setup'
+    | '/restaurant/restaurant-management/staff'
+    | '/restaurant/restaurant-management/tables'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
@@ -1129,6 +1285,19 @@ export interface FileRouteTypes {
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
     | '/restaurant/pos/new'
+    | '/restaurant/restaurant-management/dashboard'
+    | '/restaurant/restaurant-management/digital-ordering'
+    | '/restaurant/restaurant-management/inventory'
+    | '/restaurant/restaurant-management/kitchen'
+    | '/restaurant/restaurant-management/menu'
+    | '/restaurant/restaurant-management/orders'
+    | '/restaurant/restaurant-management/payments'
+    | '/restaurant/restaurant-management/pos-sales'
+    | '/restaurant/restaurant-management/recipe-cost'
+    | '/restaurant/restaurant-management/reports'
+    | '/restaurant/restaurant-management/setup'
+    | '/restaurant/restaurant-management/staff'
+    | '/restaurant/restaurant-management/tables'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
@@ -1217,6 +1386,19 @@ export interface RootRouteChildren {
   RestaurantPmsSalesEventsRoute: typeof RestaurantPmsSalesEventsRoute
   RestaurantPmsSecurityAuditRoute: typeof RestaurantPmsSecurityAuditRoute
   RestaurantPosNewRoute: typeof RestaurantPosNewRoute
+  RestaurantRestaurantManagementDashboardRoute: typeof RestaurantRestaurantManagementDashboardRoute
+  RestaurantRestaurantManagementDigitalOrderingRoute: typeof RestaurantRestaurantManagementDigitalOrderingRoute
+  RestaurantRestaurantManagementInventoryRoute: typeof RestaurantRestaurantManagementInventoryRoute
+  RestaurantRestaurantManagementKitchenRoute: typeof RestaurantRestaurantManagementKitchenRoute
+  RestaurantRestaurantManagementMenuRoute: typeof RestaurantRestaurantManagementMenuRoute
+  RestaurantRestaurantManagementOrdersRoute: typeof RestaurantRestaurantManagementOrdersRoute
+  RestaurantRestaurantManagementPaymentsRoute: typeof RestaurantRestaurantManagementPaymentsRoute
+  RestaurantRestaurantManagementPosSalesRoute: typeof RestaurantRestaurantManagementPosSalesRoute
+  RestaurantRestaurantManagementRecipeCostRoute: typeof RestaurantRestaurantManagementRecipeCostRoute
+  RestaurantRestaurantManagementReportsRoute: typeof RestaurantRestaurantManagementReportsRoute
+  RestaurantRestaurantManagementSetupRoute: typeof RestaurantRestaurantManagementSetupRoute
+  RestaurantRestaurantManagementStaffRoute: typeof RestaurantRestaurantManagementStaffRoute
+  RestaurantRestaurantManagementTablesRoute: typeof RestaurantRestaurantManagementTablesRoute
   RestaurantRoomsArrivalsRoute: typeof RestaurantRoomsArrivalsRoute
   RestaurantRoomsDeparturesRoute: typeof RestaurantRoomsDeparturesRoute
   RestaurantRoomsInHouseRoute: typeof RestaurantRoomsInHouseRoute
@@ -1770,6 +1952,97 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantRestaurantManagementIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/restaurant-management/dashboard': {
+      id: '/restaurant/restaurant-management/dashboard'
+      path: '/restaurant/restaurant-management/dashboard'
+      fullPath: '/restaurant/restaurant-management/dashboard'
+      preLoaderRoute: typeof RestaurantRestaurantManagementDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/digital-ordering': {
+      id: '/restaurant/restaurant-management/digital-ordering'
+      path: '/restaurant/restaurant-management/digital-ordering'
+      fullPath: '/restaurant/restaurant-management/digital-ordering'
+      preLoaderRoute: typeof RestaurantRestaurantManagementDigitalOrderingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/inventory': {
+      id: '/restaurant/restaurant-management/inventory'
+      path: '/restaurant/restaurant-management/inventory'
+      fullPath: '/restaurant/restaurant-management/inventory'
+      preLoaderRoute: typeof RestaurantRestaurantManagementInventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/kitchen': {
+      id: '/restaurant/restaurant-management/kitchen'
+      path: '/restaurant/restaurant-management/kitchen'
+      fullPath: '/restaurant/restaurant-management/kitchen'
+      preLoaderRoute: typeof RestaurantRestaurantManagementKitchenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/menu': {
+      id: '/restaurant/restaurant-management/menu'
+      path: '/restaurant/restaurant-management/menu'
+      fullPath: '/restaurant/restaurant-management/menu'
+      preLoaderRoute: typeof RestaurantRestaurantManagementMenuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/orders': {
+      id: '/restaurant/restaurant-management/orders'
+      path: '/restaurant/restaurant-management/orders'
+      fullPath: '/restaurant/restaurant-management/orders'
+      preLoaderRoute: typeof RestaurantRestaurantManagementOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/payments': {
+      id: '/restaurant/restaurant-management/payments'
+      path: '/restaurant/restaurant-management/payments'
+      fullPath: '/restaurant/restaurant-management/payments'
+      preLoaderRoute: typeof RestaurantRestaurantManagementPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/pos-sales': {
+      id: '/restaurant/restaurant-management/pos-sales'
+      path: '/restaurant/restaurant-management/pos-sales'
+      fullPath: '/restaurant/restaurant-management/pos-sales'
+      preLoaderRoute: typeof RestaurantRestaurantManagementPosSalesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/recipe-cost': {
+      id: '/restaurant/restaurant-management/recipe-cost'
+      path: '/restaurant/restaurant-management/recipe-cost'
+      fullPath: '/restaurant/restaurant-management/recipe-cost'
+      preLoaderRoute: typeof RestaurantRestaurantManagementRecipeCostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/reports': {
+      id: '/restaurant/restaurant-management/reports'
+      path: '/restaurant/restaurant-management/reports'
+      fullPath: '/restaurant/restaurant-management/reports'
+      preLoaderRoute: typeof RestaurantRestaurantManagementReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/setup': {
+      id: '/restaurant/restaurant-management/setup'
+      path: '/restaurant/restaurant-management/setup'
+      fullPath: '/restaurant/restaurant-management/setup'
+      preLoaderRoute: typeof RestaurantRestaurantManagementSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/staff': {
+      id: '/restaurant/restaurant-management/staff'
+      path: '/restaurant/restaurant-management/staff'
+      fullPath: '/restaurant/restaurant-management/staff'
+      preLoaderRoute: typeof RestaurantRestaurantManagementStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/restaurant-management/tables': {
+      id: '/restaurant/restaurant-management/tables'
+      path: '/restaurant/restaurant-management/tables'
+      fullPath: '/restaurant/restaurant-management/tables'
+      preLoaderRoute: typeof RestaurantRestaurantManagementTablesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/rooms/': {
       id: '/restaurant/rooms/'
       path: '/restaurant/rooms'
@@ -1991,6 +2264,32 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPmsSalesEventsRoute: RestaurantPmsSalesEventsRoute,
   RestaurantPmsSecurityAuditRoute: RestaurantPmsSecurityAuditRoute,
   RestaurantPosNewRoute: RestaurantPosNewRoute,
+  RestaurantRestaurantManagementDashboardRoute:
+    RestaurantRestaurantManagementDashboardRoute,
+  RestaurantRestaurantManagementDigitalOrderingRoute:
+    RestaurantRestaurantManagementDigitalOrderingRoute,
+  RestaurantRestaurantManagementInventoryRoute:
+    RestaurantRestaurantManagementInventoryRoute,
+  RestaurantRestaurantManagementKitchenRoute:
+    RestaurantRestaurantManagementKitchenRoute,
+  RestaurantRestaurantManagementMenuRoute:
+    RestaurantRestaurantManagementMenuRoute,
+  RestaurantRestaurantManagementOrdersRoute:
+    RestaurantRestaurantManagementOrdersRoute,
+  RestaurantRestaurantManagementPaymentsRoute:
+    RestaurantRestaurantManagementPaymentsRoute,
+  RestaurantRestaurantManagementPosSalesRoute:
+    RestaurantRestaurantManagementPosSalesRoute,
+  RestaurantRestaurantManagementRecipeCostRoute:
+    RestaurantRestaurantManagementRecipeCostRoute,
+  RestaurantRestaurantManagementReportsRoute:
+    RestaurantRestaurantManagementReportsRoute,
+  RestaurantRestaurantManagementSetupRoute:
+    RestaurantRestaurantManagementSetupRoute,
+  RestaurantRestaurantManagementStaffRoute:
+    RestaurantRestaurantManagementStaffRoute,
+  RestaurantRestaurantManagementTablesRoute:
+    RestaurantRestaurantManagementTablesRoute,
   RestaurantRoomsArrivalsRoute: RestaurantRoomsArrivalsRoute,
   RestaurantRoomsDeparturesRoute: RestaurantRoomsDeparturesRoute,
   RestaurantRoomsInHouseRoute: RestaurantRoomsInHouseRoute,
