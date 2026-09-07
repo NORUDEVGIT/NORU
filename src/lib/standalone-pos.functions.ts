@@ -404,6 +404,14 @@ export const openPosShift = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const membership = await requireStandalonePosMutation(context as any, data.restaurantId);
     const db = await admin();
+    const { data: register } = await db
+      .from("pos_registers")
+      .select("id, active")
+      .eq("id", data.registerId)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (!register) fail(new Error("That register could not be found for this property."));
+    if (!register.active) fail(new Error("That register is switched off. Activate it before opening a shift."));
     const { businessDate } = await propertyContext(db, data.restaurantId);
     const { data: row, error } = await db
       .from("pos_cashier_shifts")
@@ -416,7 +424,13 @@ export const openPosShift = createServerFn({ method: "POST" })
       })
       .select("id")
       .maybeSingle();
-    if (error) fail(error);
+    if (error) {
+      // Database rule: one open shift per register (partial unique index).
+      if (String((error as any).message ?? "").includes("pos_shifts_one_open_per_register")) {
+        fail(new Error("That register already has an open cashier shift."));
+      }
+      fail(error);
+    }
     return { ok: true as const, id: row!.id as string };
   });
 
