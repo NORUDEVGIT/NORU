@@ -8,26 +8,37 @@ import { createContext, useContext, type ReactNode } from "react";
  * can show the PMS name instead of their legacy heading. No behaviour changes.
  */
 const PmsHeadingContext = createContext<string | undefined>(undefined);
+/** Phase 8F4 — which package the current screen is presented as. */
+const PackageKindContext = createContext<"pms" | "rm" | undefined>(undefined);
 
 export function PmsHeadingProvider({
   heading,
+  kind,
   children,
 }: {
   heading?: string | undefined;
+  kind?: "pms" | "rm" | undefined;
   children: ReactNode;
 }) {
-  return <PmsHeadingContext.Provider value={heading}>{children}</PmsHeadingContext.Provider>;
+  return (
+    <PmsHeadingContext.Provider value={heading}>
+      <PackageKindContext.Provider value={heading ? kind : undefined}>
+        {children}
+      </PackageKindContext.Provider>
+    </PmsHeadingContext.Provider>
+  );
 }
 
-/** Returns the PMS title when inside a canonical PMS route, else the fallback. */
+/** Returns the package title when inside a canonical package route, else the fallback. */
 export function usePageHeading(fallback: string): string {
   return useContext(PmsHeadingContext) ?? fallback;
 }
 
 /** True when the current screen is presented as a PMS submodule. */
 export function useIsPmsContext(): boolean {
-  return useContext(PmsHeadingContext) !== undefined;
+  return useContext(PackageKindContext) === "pms";
 }
+
 
 /** Renders the PMS submodule title when in PMS context, else the given fallback. */
 export function PageHeading({ fallback }: { fallback: string }) {
@@ -43,6 +54,7 @@ export function NonPmsOnly({ children }: { children: ReactNode }) {
 
 /** Renders content only inside a canonical PMS route. */
 export function PmsOnly({ children }: { children: ReactNode }) {
-  const heading = useContext(PmsHeadingContext);
-  return heading === undefined ? null : <>{children}</>;
+  const kind = useContext(PackageKindContext);
+  return kind === "pms" ? <>{children}</> : null;
+
 }

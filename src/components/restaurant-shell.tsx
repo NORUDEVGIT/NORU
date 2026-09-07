@@ -47,7 +47,7 @@ import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { usePackageEntitlements } from "@/lib/use-package-entitlements";
 import { clearRoutePackageCache } from "@/lib/route-package-guard";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
-import { RM_MODULES } from "@/lib/restaurant-management-modules";
+import { RM_GROUPS, RM_MODULES } from "@/lib/restaurant-management-modules";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
 import { RestaurantSettingsProvider } from "@/state/restaurant-context";
@@ -520,9 +520,10 @@ export function RestaurantShell({
   const moduleAccess = useQuery({
     queryKey: ["my-module-access", membership?.restaurantId],
     queryFn: () => fetchModules({ data: { restaurantId: membership!.restaurantId } }),
-    enabled: !!pmsMod && !!membership?.restaurantId,
+    enabled: (!!pmsMod || !!rmMod) && !!membership?.restaurantId,
     retry: false,
   });
+
   const allowedModules = moduleAccess.data?.modules ?? [];
   // Phase 8C — package entitlement hides package-level entry points only.
   const packages = usePackageEntitlements(membership?.restaurantId);
@@ -583,6 +584,47 @@ export function RestaurantShell({
     </nav>
   );
 
+  // Phase 8F4 — dedicated Restaurant Management navigation, grouped exactly as
+  // the package launcher. Presentation only: visibility still comes from the
+  // existing module-access result.
+  const rmSidebarNav = (
+    <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Restaurant Management navigation">
+      {RM_GROUPS.map((group) => {
+        const groupItems = RM_MODULES.filter(
+          (m) => m.group === group.key && allowedModules.includes(m.moduleKey),
+        );
+        if (groupItems.length === 0) return null;
+        return (
+          <div key={group.key} className="pb-2">
+            <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+              {group.title}
+            </p>
+            <ul className="space-y-1">
+              {groupItems.map((m) => (
+                <li key={m.key}>
+                  <Link
+                    to={m.canonicalRoute}
+                    {...(m.canonicalSearch ? { search: m.canonicalSearch } : {})}
+                    onClick={() => setNavOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                      m.key === rmMod?.key
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    )}
+                  >
+                    <m.icon className="size-4 shrink-0" /> {m.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </nav>
+  );
+
+
   const sidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
       <Link
@@ -614,17 +656,21 @@ export function RestaurantShell({
           ) : null}
         </div>
       ) : rmMod ? (
-        <div className="space-y-2">
+        <div className="space-y-1">
+          <Link
+            to="/restaurant/home"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" /> Property Home
+          </Link>
           <Link
             to="/restaurant/restaurant-management"
             onClick={() => setNavOpen(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <ArrowLeft className="size-4 shrink-0" /> Restaurant Management
+            <UtensilsCrossed className="size-4 shrink-0" /> Restaurant Management Home
           </Link>
-          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-            {contextLabel}
-          </p>
         </div>
       ) : workspace !== "home" ? (
         <div className="space-y-2">
@@ -633,7 +679,8 @@ export function RestaurantShell({
             onClick={() => setNavOpen(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <ArrowLeft className="size-4 shrink-0" /> {pms && pmsPackage ? "PMS Home" : "NORU Home"}
+            <ArrowLeft className="size-4 shrink-0" />{" "}
+            {pms && pmsPackage ? "PMS Home" : "Property Home"}
           </Link>
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
             {contextLabel}
@@ -642,8 +689,10 @@ export function RestaurantShell({
       ) : null}
 
       {pmsMod && pmsPackage ? pmsSidebarNav : null}
+      {rmMod ? rmSidebarNav : null}
 
-      <nav className={cn("min-h-0 flex-1 overflow-y-auto", pmsMod && "hidden")}>
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto", (pmsMod || rmMod) && "hidden")}>
+
         <ul className="space-y-1">
           {items.map((item, index) => {
             const isActive = item.tab ? activeTab === item.tab : active === item.label;
@@ -790,7 +839,11 @@ export function RestaurantShell({
                 timezone={membership.restaurant.timezone}
                 currencyCode={membership.restaurant.currencyCode}
               >
-                <PmsHeadingProvider heading={pmsMod?.title}>
+                <PmsHeadingProvider
+                  heading={pmsMod?.title ?? rmMod?.title}
+                  kind={pmsMod ? "pms" : rmMod ? "rm" : undefined}
+                >
+
                   {rmMod ? (
                     <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
                       <Link to="/restaurant/home" className="hover:text-foreground">

@@ -7,6 +7,7 @@ import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { propertyToday } from "@/lib/reservation-dates";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import { useIsRmContext } from "@/lib/rm-routes";
 
 type ReportLink = {
   title: string;
@@ -64,12 +65,16 @@ export function ReportsWorkspace({ membership }: { membership: RestaurantMembers
     retry: false,
   });
 
+  const rmContext = useIsRmContext();
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl"><PageHeading fallback="Reports & Analytics" /></h1>
         <p className="text-sm text-muted-foreground">
-          Property performance for {membership.restaurant.name}, using your existing operational data.
+          {rmContext
+            ? `Restaurant sales, product performance and restaurant KPIs for ${membership.restaurant.name}. Hotel reporting stays in PMS.`
+            : `Property performance for ${membership.restaurant.name}, using your existing operational data.`}
         </p>
       </div>
 

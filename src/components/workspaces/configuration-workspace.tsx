@@ -99,12 +99,15 @@ const GROUPS: ConfigGroup[] = [
 export function ConfigurationWorkspace({
   membership,
   sections,
+  sectionLabels,
   heading,
   intro,
 }: {
   membership: RestaurantMembership;
   /** Optional presentation filter, e.g. Restaurant Management setup shows F&B only. */
   sections?: string[];
+  /** Optional per-package section headings (Phase 8F4, presentation only). */
+  sectionLabels?: Record<string, string>;
   heading?: string;
   intro?: string;
 }) {
@@ -127,8 +130,9 @@ export function ConfigurationWorkspace({
         return (
           <section key={group.section} className="space-y-3">
             <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {group.section}
+              {sectionLabels?.[group.section] ?? group.section}
             </h2>
+
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => (
                 <Link

@@ -51,6 +51,7 @@ import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/lib/modul
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { cn } from "@/lib/utils";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
+import { useIsRmContext } from "@/lib/rm-routes";
 
 const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;
 
@@ -166,6 +167,8 @@ export function StaffManager({
   embedded?: boolean;
 }) {
   const restaurantId = membership.restaurantId;
+  const rmContext = useIsRmContext();
+
   const queryClient = useQueryClient();
 
   const fetchStaff = useServerFn(listStaff);
@@ -314,6 +317,12 @@ export function StaffManager({
                 workforce records live in the property-wide Human Resources module.
               </p>
             </PmsOnly>
+          )}
+          {embedded || !rmContext ? null : (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Your restaurant team, roles, roster and attendance. One shared team record for the
+              property — no separate restaurant employees.
+            </p>
           )}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
