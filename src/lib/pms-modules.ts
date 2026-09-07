@@ -25,7 +25,7 @@ import {
   Bell,
   FileSearch,
 } from "lucide-react";
-import type { ModuleKey } from "./module-access";
+import type { ModuleKey } from "@/core/lib/module-access";
 
 /**
  * Phase 7D.2E — NORU keeps ONE property-wide service per capability

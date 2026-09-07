@@ -10,8 +10,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-import { callerMembership, MANAGE_ROLES, getRestaurantSettings, resolveCurrentShift } from "./workforce.server";
-import { shiftStateMessage, type ShiftState } from "./workforce-rules";
+import { callerMembership, MANAGE_ROLES, getRestaurantSettings, resolveCurrentShift } from "@/core/lib/workforce.server";
+import { shiftStateMessage, type ShiftState } from "@/core/lib/workforce-rules";
 
 const idSchema = z.string().uuid();
 

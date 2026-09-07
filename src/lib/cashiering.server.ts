@@ -6,8 +6,8 @@
  * applies. Money never comes from the browser signed — the database applies the
  * sign convention.
  */
-import { type AuthedCtx, type Membership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
+import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 
 /** Roles that may open Accounting & Finance and run day-to-day cashiering. */

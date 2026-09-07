@@ -4,7 +4,7 @@
  * Distribution is owner/manager only, like rates. Every helper re-derives the
  * caller's membership from restaurant_users.
  */
-import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { callerMembership, type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requirePmsPackage } from "./pms-package.server";
 
 export const DISTRIBUTION_MANAGE_ROLES = ["owner", "manager"] as const;

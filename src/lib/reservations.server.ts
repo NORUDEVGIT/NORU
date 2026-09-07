@@ -5,8 +5,8 @@
  * restaurant id from the browser is only used to select which membership
  * applies. Reservations are owner/manager only in this phase.
  */
-import { type AuthedCtx, type Membership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
+import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 
 /** Front Office operations: owners, managers and receptionists. */

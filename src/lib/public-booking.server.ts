@@ -5,7 +5,7 @@
  * from the browser: the property is always resolved from the public slug and
  * every other id is re-validated against that property before use.
  */
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "./restaurant-time";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/core/lib/restaurant-time";
 import { normalizeEmail, normalizePhone } from "./guests.server";
 
 export interface StayProperty {
@@ -45,7 +45,7 @@ export async function resolveStayPropertyPublic(
   const property = await loadStayProperty(slug);
   if (!property) return { status: "not_found", property: null };
 
-  const { publicPackageAvailable } = await import("./public-package.server");
+  const { publicPackageAvailable } = await import("@/core/lib/public-package.server");
   if (!(await publicPackageAvailable(property.id, "pms"))) {
     return { status: "unavailable", property: null };
   }

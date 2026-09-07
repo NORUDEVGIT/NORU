@@ -5,13 +5,13 @@
  * browser's restaurant id only selects which membership applies. Housekeeping
  * is owner/manager only in this phase.
  */
-import { type AuthedCtx, type Membership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
+import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
-import { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope } from "./module-access";
+import { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope } from "@/core/lib/module-access";
 
 export { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope };
-export type { HousekeepingScope } from "./module-access";
+export type { HousekeepingScope } from "@/core/lib/module-access";
 
 /** Supervisor-level housekeeping (assign, inspect, resolve, restrict). */
 export const HOUSEKEEPING_MANAGE_ROLES = HOUSEKEEPING_SUPERVISOR_ROLES;

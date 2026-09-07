@@ -5,8 +5,8 @@
  * re-derives the caller's membership; a restaurant id from the browser only
  * selects which membership applies.
  */
-import { type AuthedCtx, type Membership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
+import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 
 export const RATE_MANAGE_ROLES = ["owner", "manager"] as const;

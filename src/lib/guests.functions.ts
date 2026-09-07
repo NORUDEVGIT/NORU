@@ -13,7 +13,7 @@ import {
   type GuestEventType,
   type GuestStatus,
 } from "./guests.server";
-import { callerMembership } from "./workforce.server";
+import { callerMembership } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
 

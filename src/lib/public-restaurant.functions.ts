@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "./restaurant-time";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/core/lib/restaurant-time";
 
 const slugSchema = z.object({
   slug: z
@@ -44,7 +44,7 @@ export const getPublicRestaurant = createServerFn({ method: "GET" })
 
     if (error || !row || !row.approved || !row.active) return null;
 
-    const { publicPackageAvailable } = await import("./public-package.server");
+    const { publicPackageAvailable } = await import("@/core/lib/public-package.server");
     const serviceAvailable = await publicPackageAvailable(row.id, "restaurant_management");
 
     return {

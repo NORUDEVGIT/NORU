@@ -121,8 +121,8 @@ export const getRestaurantAnalytics = createServerFn({ method: "GET" })
     if (!membership) throw new Error("You don't have access to this restaurant.");
 
     // Reports & Analytics is module-gated (owner / manager / accountant).
-    const { requireModuleRole } = await import("./module-access.server");
-    const { REPORTS_ROLES } = await import("./module-access");
+    const { requireModuleRole } = await import("@/core/lib/module-access.server");
+    const { REPORTS_ROLES } = await import("@/core/lib/module-access");
     await requireModuleRole(
       context as never,
       data.restaurantId,

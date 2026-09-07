@@ -25,10 +25,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireBackOfficeFinanceRead, sourceAvailable } from "./back-office-finance.server";
-import { resolveCallerAccess } from "./module-access.server";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, zonedMoment, addDaysIso } from "./restaurant-time";
+import { resolveCallerAccess } from "@/core/lib/module-access.server";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, zonedMoment, addDaysIso } from "@/core/lib/restaurant-time";
 import { propertyToday } from "./reservation-dates";
-import { STANDALONE_POS_READ_ROLES } from "./module-access";
+import { STANDALONE_POS_READ_ROLES } from "@/core/lib/module-access";
 
 const idSchema = z.string().uuid();
 
@@ -103,9 +103,9 @@ export const getBackOfficePosSummary = createServerFn({ method: "POST" })
     //    back_office package. Neither surface can be reached with the other's
     //    access, and neither grants operational POS access.
     if (data.surface === "reports") {
-      const { requireModuleRole } = await import("./module-access.server");
-      const { REPORTS_ROLES } = await import("./module-access");
-      const { publicPackageAvailable } = await import("./public-package.server");
+      const { requireModuleRole } = await import("@/core/lib/module-access.server");
+      const { REPORTS_ROLES } = await import("@/core/lib/module-access");
+      const { publicPackageAvailable } = await import("@/core/lib/public-package.server");
       await requireModuleRole(
         context as never,
         data.restaurantId,

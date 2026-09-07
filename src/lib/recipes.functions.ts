@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership, getRestaurantSettings } from "./workforce.server";
+import { callerMembership, getRestaurantSettings } from "@/core/lib/workforce.server";
 import {
   areUnitsCompatible,
   canManageRecipes,

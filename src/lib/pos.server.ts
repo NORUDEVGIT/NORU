@@ -6,8 +6,8 @@
  * on every call — a restaurant id from the browser only selects which
  * membership applies.
  */
-import type { AuthedCtx, Membership } from "./workforce.server";
-import { requireModuleAccess, requireModuleRole } from "./module-access.server";
+import type { AuthedCtx, Membership } from "@/core/lib/workforce.server";
+import { requireModuleAccess, requireModuleRole } from "@/core/lib/module-access.server";
 
 /** Roles that may operate the till. */
 export const POS_OPERATOR_ROLES = ["owner", "manager", "cashier", "waiter"] as const;

@@ -12,7 +12,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 import { requirePosAccess, requirePosOperator, posError } from "./pos.server";
 import { canManageCashiering } from "./cashiering.server";
-import { getRestaurantSettings, displayName } from "./workforce.server";
+import { getRestaurantSettings, displayName } from "@/core/lib/workforce.server";
 import { resolveOrderLines } from "./order-pricing.server";
 import { createValidatedOrder, staffNameSnapshot } from "./order-core.server";
 

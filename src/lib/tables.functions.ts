@@ -247,7 +247,7 @@ export const resolveRestaurantTable = createServerFn({ method: "POST" })
     // Phase 8D2 — package availability is checked BEFORE the token is looked
     // up, and reuses the same generic failure shape, so a disabled property
     // reveals nothing about whether a token exists.
-    const { publicPackageAvailable } = await import("./public-package.server");
+    const { publicPackageAvailable } = await import("@/core/lib/public-package.server");
     if (!(await publicPackageAvailable(restaurant.id, "restaurant_management"))) return { ok: false };
 
     const { data: table } = await supabaseAdmin
@@ -299,7 +299,7 @@ export const resolveManualTable = createServerFn({ method: "POST" })
         return { ok: false, message: "This restaurant isn't accepting orders right now." };
       }
 
-      const { publicPackageAvailable } = await import("./public-package.server");
+      const { publicPackageAvailable } = await import("@/core/lib/public-package.server");
       if (!(await publicPackageAvailable(restaurant.id, "restaurant_management"))) {
         return { ok: false, message: "This restaurant isn't accepting orders right now." };
       }

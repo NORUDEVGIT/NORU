@@ -12,9 +12,9 @@ import {
   toQuote,
   type StayQuote,
 } from "./rates.server";
-import { callerMembership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
-import { REPORTS_ROLES } from "./module-access";
+import { callerMembership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
+import { REPORTS_ROLES } from "@/core/lib/module-access";
 
 const idSchema = z.string().uuid();
 

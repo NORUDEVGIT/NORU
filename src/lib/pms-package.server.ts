@@ -10,7 +10,7 @@
  * reimplemented here — they come from the shared Phase 8B1 resolver via the
  * fail-closed, short-cached availability helper from Phase 8D2.
  */
-import { publicPackageAvailable } from "./public-package.server";
+import { publicPackageAvailable } from "@/core/lib/public-package.server";
 
 /** Staff wording: the project's normal access-denied style. */
 const PMS_DENIED = "You don't have access to this feature for this property.";

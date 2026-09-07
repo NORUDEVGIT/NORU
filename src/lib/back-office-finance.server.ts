@@ -11,10 +11,10 @@
  * caller must already hold the existing Accounting & Finance module access, and
  * the Back Office package must be switched on for the property.
  */
-import { requireModuleRole } from "./module-access.server";
-import { publicPackageAvailable } from "./public-package.server";
-import type { AuthedCtx, Membership } from "./workforce.server";
-import type { PackageKey } from "./package-entitlements";
+import { requireModuleRole } from "@/core/lib/module-access.server";
+import { publicPackageAvailable } from "@/core/lib/public-package.server";
+import type { AuthedCtx, Membership } from "@/core/lib/workforce.server";
+import type { PackageKey } from "@/core/lib/package-entitlements";
 
 /** Roles allowed to read the property-level finance summary. */
 export const FINANCE_READ_ROLES = ["owner", "manager", "accountant"] as const;

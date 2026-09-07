@@ -5,8 +5,8 @@
  * restaurant id from the browser is never trusted on its own. Guest data is
  * owner/manager only and never surfaced on public/customer routes.
  */
-import { type AuthedCtx, type Membership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
+import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 
 export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;

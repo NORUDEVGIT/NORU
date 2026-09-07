@@ -15,7 +15,7 @@ import {
   signRoomImages,
   type RoomStatus,
 } from "./rooms.server";
-import { callerMembership } from "./workforce.server";
+import { callerMembership } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
 

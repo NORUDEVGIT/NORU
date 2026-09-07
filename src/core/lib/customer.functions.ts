@@ -26,7 +26,7 @@ const profileSchema = z.object({
 export const registerCustomer = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => registerSchema.parse(input))
   .handler(async ({ data }) => {
-    const { publicServerClient } = await import("./order-pricing.server");
+    const { publicServerClient } = await import("@/lib/order-pricing.server");
     const auth = publicServerClient();
 
     const { data: signUp, error } = await auth.auth.signUp({

@@ -8,7 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "./workforce.server";
+import { callerMembership } from "@/core/lib/workforce.server";
 import { canPostRoomCharge, isManagerRole, roomChargeError } from "./room-charge.server";
 
 const idSchema = z.string().uuid();

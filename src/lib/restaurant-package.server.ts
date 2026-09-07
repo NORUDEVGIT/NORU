@@ -10,8 +10,8 @@
  * reimplemented here — they come from the shared Phase 8B1 resolver via the
  * fail-closed, short-cached availability helper introduced in Phase 8D2.
  */
-import { publicPackageAvailable } from "./public-package.server";
-import type { PackageKey } from "./package-entitlements";
+import { publicPackageAvailable } from "@/core/lib/public-package.server";
+import type { PackageKey } from "@/core/lib/package-entitlements";
 
 /** Wording for signed-in staff: the project's normal access-denied style. */
 const RM_DENIED = "You don't have access to Restaurant Management for this property.";

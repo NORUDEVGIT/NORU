@@ -23,7 +23,7 @@ import {
   TrendingDown,
   Database,
 } from "lucide-react";
-import type { ModuleKey } from "./module-access";
+import type { ModuleKey } from "@/core/lib/module-access";
 
 export type BoGroupKey = "overview" | "people" | "supply" | "finance" | "control";
 

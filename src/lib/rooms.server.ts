@@ -5,10 +5,10 @@
  * restaurant id from the browser is never trusted on its own. Room setup is
  * limited to owners and managers.
  */
-import { type AuthedCtx, type Membership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
+import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
-import { FRONT_OFFICE_ROLES } from "./module-access";
+import { FRONT_OFFICE_ROLES } from "@/core/lib/module-access";
 
 /** Room & room-type configuration stays with owners and managers. */
 export const ROOM_MANAGE_ROLES = ["owner", "manager"] as const;

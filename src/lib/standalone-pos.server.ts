@@ -9,14 +9,14 @@
  *
  * This file never calls a Restaurant Management, PMS or Back Office guard.
  */
-import type { AuthedCtx, Membership } from "./workforce.server";
-import { requireModuleRole } from "./module-access.server";
-import { publicPackageAvailable } from "./public-package.server";
+import type { AuthedCtx, Membership } from "@/core/lib/workforce.server";
+import { requireModuleRole } from "@/core/lib/module-access.server";
+import { publicPackageAvailable } from "@/core/lib/public-package.server";
 import {
   STANDALONE_POS_MANAGE_ROLES,
   STANDALONE_POS_READ_ROLES,
   STANDALONE_POS_ROLES,
-} from "./module-access";
+} from "@/core/lib/module-access";
 
 const DENIED = "You don't have access to Standalone POS for this property.";
 const DENIED_ACTION = "You don't have permission to do that in Standalone POS.";

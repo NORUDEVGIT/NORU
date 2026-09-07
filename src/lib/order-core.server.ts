@@ -9,9 +9,9 @@
  * a verified session, prices and names are re-read from the database, and the
  * assigned waiter is resolved from workforce data, never from request input.
  */
-import { shiftMoment } from "./workforce-rules";
-import { getRestaurantSettings } from "./workforce.server";
-import { displayName } from "./workforce.server";
+import { shiftMoment } from "@/core/lib/workforce-rules";
+import { getRestaurantSettings } from "@/core/lib/workforce.server";
+import { displayName } from "@/core/lib/workforce.server";
 import type { ResolvedLine } from "./order-pricing.server";
 
 export type OrderSource = "customer_qr" | "waiter_assisted" | "pos_counter";

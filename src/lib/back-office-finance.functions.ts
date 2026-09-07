@@ -19,7 +19,7 @@ import {
   sourceAvailable,
   round2,
 } from "./back-office-finance.server";
-import { resolveCallerAccess } from "./module-access.server";
+import { resolveCallerAccess } from "@/core/lib/module-access.server";
 
 const idSchema = z.string().uuid();
 

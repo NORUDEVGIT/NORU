@@ -34,7 +34,7 @@ import {
   HOUSEKEEPING_ASSIGNABLE_ROLES,
   housekeepingScope,
   type HousekeepingScope,
-} from "./module-access";
+} from "@/core/lib/module-access";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -530,7 +530,7 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
 
     if (data.action === "assign") {
       if (!data.assigneeMembershipId) throw new Error("Pick a staff member to assign.");
-      const { loadMembership } = await import("./workforce.server");
+      const { loadMembership } = await import("@/core/lib/workforce.server");
       const assignee = await loadMembership(
         supabaseAdmin,
         data.restaurantId,

@@ -15,7 +15,7 @@ import {
   type ReservationStatus,
 } from "./reservations.server";
 import { parseSnapshot, rateError } from "./rates.server";
-import { callerMembership } from "./workforce.server";
+import { callerMembership } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");

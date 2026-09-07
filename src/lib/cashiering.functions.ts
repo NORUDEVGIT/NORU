@@ -14,7 +14,7 @@ import {
   type FolioStatus,
   type TransactionType,
 } from "./cashiering.server";
-import { callerMembership } from "./workforce.server";
+import { callerMembership } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
 

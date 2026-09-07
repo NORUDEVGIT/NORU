@@ -5,7 +5,7 @@
  * they are allowed to operate under the existing waiter rules (the order is
  * theirs and their shift is currently active). Kitchen never.
  */
-import { MANAGE_ROLES, getRestaurantSettings, resolveCurrentShift } from "./workforce.server";
+import { MANAGE_ROLES, getRestaurantSettings, resolveCurrentShift } from "@/core/lib/workforce.server";
 
 /** Order statuses that may be charged to a room. */
 export const CHARGEABLE_ORDER_STATUSES = ["served"] as const;

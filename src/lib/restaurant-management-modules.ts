@@ -47,7 +47,7 @@ import {
   Plug,
   ShieldCheck,
 } from "lucide-react";
-import type { ModuleKey } from "./module-access";
+import type { ModuleKey } from "@/core/lib/module-access";
 
 export type RmGroupKey = "operations" | "menu_cost_stock" | "people_control" | "system";
 

@@ -13,7 +13,7 @@ import {
   requireCashierManager,
   requireCashieringAccess,
 } from "./cashiering.server";
-import { callerMembership } from "./workforce.server";
+import { callerMembership } from "@/core/lib/workforce.server";
 import { propertyToday } from "./reservation-dates";
 import {
   NON_IGNORABLE_TYPES,

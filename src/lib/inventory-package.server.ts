@@ -10,7 +10,7 @@
  * so no caller can widen its own access, and this gate never replaces the
  * existing membership, role and Inventory module checks — those run first.
  */
-import { publicPackageAvailable } from "./public-package.server";
+import { publicPackageAvailable } from "@/core/lib/public-package.server";
 
 const DENIED = "Inventory isn't available for this property.";
 

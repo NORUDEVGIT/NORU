@@ -5,7 +5,7 @@
  * reservations, rooms, folios or the ledger; it only derives checks and
  * exceptions that the night-audit functions persist against the audit run.
  */
-import { round2 } from "./workforce.server";
+import { round2 } from "@/core/lib/workforce.server";
 
 export type Severity = "warning" | "blocking";
 export type CheckStatus = "pass" | "warning" | "blocking";
