@@ -332,20 +332,26 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
 
         {backOfficeLinks.length > 0 ? (
           <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-            <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/restaurant/back-office"
+              className="group flex flex-wrap items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <span className="inline-flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Briefcase className="size-6" />
               </span>
               <div className="min-w-0">
-                <p className="font-display text-lg leading-snug">Back Office</p>
+                <p className="flex items-center gap-1 font-display text-lg leading-snug">
+                  Back Office
+                  <ArrowUpRight className="size-4 text-muted-foreground" />
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Property-wide support services shared by every other package.
+                  The enterprise consolidation and control layer for this property.
                 </p>
               </div>
               <span className="ml-auto rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Foundation
               </span>
-            </div>
+            </Link>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {backOfficeLinks.map((l) => (
                 <Link
