@@ -513,9 +513,14 @@ export function RestaurantShell({
   const pmsPackage = packages.has("pms");
 
   const workspace = module ?? LABEL_MODULE[active];
-  const items = MODULE_NAV[workspace].filter(
-    (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
-  );
+  // Restaurant Management is a package-level nav group: it disappears from
+  // navigation when the package is switched off (routes still work).
+  const workspacePackaged = workspace === "restaurant" ? packages.has("restaurant_management") : true;
+  const items = workspacePackaged
+    ? MODULE_NAV[workspace].filter(
+        (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
+      )
+    : [];
   const activeItem = items.find((i) => i.label === active);
   const activeTab =
     search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
