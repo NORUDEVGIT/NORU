@@ -338,7 +338,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
               icon={ShoppingCart}
               title="Standalone POS"
               description="An independent till with its own products, prices, tills and receipts."
-              detail="Catalog · Settings · Selling coming next"
+              detail="Sell · Catalog · Transactions · Registers & Shifts · Reports · Settings"
               to="/restaurant/pos"
             />
           ) : null}
