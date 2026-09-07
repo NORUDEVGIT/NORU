@@ -131,6 +131,11 @@ export const getRestaurantAnalytics = createServerFn({ method: "GET" })
       "You don't have access to Reports & Analytics for this property.",
     );
 
+    // Phase 8E1: these are restaurant sales/order reports.
+    const { requireRestaurantManagement } = await import("./restaurant-package.server");
+    await requireRestaurantManagement(data.restaurantId);
+
+
     const tz = data.tzOffsetMinutes;
     const days = data.period === "today" ? 1 : data.period === "7d" ? 7 : 30;
 
