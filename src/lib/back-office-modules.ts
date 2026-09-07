@@ -163,24 +163,24 @@ export const BO_MODULES: BoModule[] = [
       "Current operational inventory remains shared during migration. Back Office will become the central warehouse and consolidation layer.",
   },
   {
+    // Phase 8G2B — Back Office is the canonical owner of procurement.
     key: "procurement",
     title: "Procurement",
-    description: "Suppliers, purchasing and goods receiving for the whole property.",
+    description:
+      "Suppliers, purchase orders and goods receiving for the whole property, owned by Back Office.",
     icon: Truck,
     group: "supply",
     canonicalRoute: "/restaurant/back-office/procurement",
-    currentRoute: "/restaurant/inventory",
-    currentSearch: { tab: "suppliers" },
-    currentLabel: "Open the current Procurement screen",
     moduleKey: "procurement",
-    implementationStatus: "partial",
+    implementationStatus: "existing",
     sourcePackages: ["Restaurant Management", "PMS"],
     futureScope: [
-      "Property-wide supplier register and purchasing approvals.",
+      "Purchasing approvals and spend limits.",
       "Purchase-to-pay linked into Back Office accounting.",
+      "Supplier returns and credit notes.",
     ],
     todayNote:
-      "Suppliers, purchase orders and goods receiving stay exactly where they are today, with their current permissions.",
+      "Suppliers, purchase orders and goods receiving are live here on the same data and the same Procurement permissions. Received goods still post to the Inventory stock ledger, which Inventory owns. The old Inventory tabs keep working.",
   },
   {
     key: "cost-control",

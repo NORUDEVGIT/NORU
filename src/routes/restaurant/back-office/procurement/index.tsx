@@ -11,7 +11,7 @@ import { BackOfficeFoundation } from "@/components/workspaces/back-office/founda
 
 const MODULE = getBoModule("procurement")!;
 
-export const Route = createFileRoute("/restaurant/back-office/procurement")({
+export const Route = createFileRoute("/restaurant/back-office/procurement/")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();

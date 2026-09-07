@@ -18,6 +18,8 @@ import { AssetsTab } from "@/components/inventory/assets-tab";
 import { SuppliersTab } from "@/components/inventory/suppliers-tab";
 import { PurchasingTab } from "@/components/inventory/purchasing-tab";
 import { InventoryOverviewDashboard } from "@/components/inventory/overview-dashboard";
+import { Link } from "@tanstack/react-router";
+import { ArrowUpRight } from "lucide-react";
 
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
@@ -345,10 +347,12 @@ export function InventoryPage({
         <TabsContent value="equipment" className="mt-4">
           <AssetsTab restaurantId={restaurantId} assetType="equipment" />
         </TabsContent>
-        <TabsContent value="suppliers" className="mt-4">
+        <TabsContent value="suppliers" className="mt-4 space-y-4">
+          <BackOfficeProcurementNote to="/restaurant/back-office/procurement/suppliers" />
           <SuppliersTab restaurantId={restaurantId} />
         </TabsContent>
-        <TabsContent value="purchasing" className="mt-4">
+        <TabsContent value="purchasing" className="mt-4 space-y-4">
+          <BackOfficeProcurementNote to="/restaurant/back-office/procurement/purchase-orders" />
           <PurchasingTab restaurantId={restaurantId} />
         </TabsContent>
 
@@ -581,5 +585,27 @@ function ItemActions({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Phase 8G2B — procurement is owned by Back Office. These tabs stay for
+ * compatibility and point people at the canonical Back Office address.
+ */
+function BackOfficeProcurementNote({
+  to,
+}: {
+  to:
+    | "/restaurant/back-office/procurement/suppliers"
+    | "/restaurant/back-office/procurement/purchase-orders";
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+      <span>Procurement now lives in Back Office.</span>
+      <Link to={to} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+        Open in Back Office · Procurement
+        <ArrowUpRight className="size-4" />
+      </Link>
+    </div>
   );
 }

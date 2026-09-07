@@ -151,7 +151,7 @@ sign-in check followed by `requireRoutePackage("back_office")`.
 | `/restaurant/back-office/hr` | Human Resources | partial (shared) | `/restaurant/staff` (`human_resources`) |
 | `/restaurant/back-office/payroll` | Payroll | planned | none — payroll does not exist |
 | `/restaurant/back-office/inventory` | Inventory / Warehouse | partial (shared) | `/restaurant/inventory` (`inventory`) |
-| `/restaurant/back-office/procurement` | Procurement | partial (shared) | `/restaurant/inventory?tab=suppliers` (`procurement`) |
+| `/restaurant/back-office/procurement` | Procurement | **owned (8G2B)** | legacy `/restaurant/inventory?tab=suppliers` kept |
 | `/restaurant/back-office/accounting` | Accounting & Finance | foundation | `/restaurant/cashiering` (`accounting_finance`) |
 | `/restaurant/back-office/reports` | Reports & Intelligence | partial (shared) | `/restaurant/reports` (`reports_analytics`) |
 | `/restaurant/back-office/audit` | Audit & Compliance | foundation | none exposed to tenants |
@@ -219,3 +219,55 @@ No migration, no view, no RLS change, no mutation change in this phase.
 - An inventory valuation and procurement spend summary per period.
 Each should be a read-only view or server read model over existing operational
 tables — never a copy of transactions.
+
+## Phase 8G2B — Back Office owns Procurement
+
+Procurement is no longer shared/transitional: **Back Office is the owner.**
+
+### Canonical routes
+
+| Route | Screen |
+|---|---|
+| `/restaurant/back-office/procurement` | Procurement home (supplier count, open POs, awaiting delivery, partially received) |
+| `/restaurant/back-office/procurement/suppliers` | Supplier register (`suppliers-tab.tsx`) |
+| `/restaurant/back-office/procurement/purchase-orders` | Purchase order list + KPIs (`purchasing-tab.tsx`) |
+| `/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId` | Purchase order detail, mark ordered / cancel / receive goods |
+
+All four require sign-in plus `requireRoutePackage("back_office")`, and the
+underlying server functions keep their existing `procurement` module/role
+checks (owner, manager, storekeeper manage; kitchen may view and receive).
+
+### Authoritative tables
+
+`restaurant_suppliers`, `purchase_orders`, `purchase_order_items`,
+`purchase_order_history` — owned by Back Office · Procurement.
+
+### Procurement → Inventory boundary
+
+Procurement never writes stock balances. Receiving calls
+`receive_purchase_order_goods`, which writes through the Phase 5A ledger
+(`apply_inventory_movement`). `inventory_items`, `inventory_stock_movements`
+and stock valuation stay owned by Inventory / Warehouse.
+
+### Legacy surfaces retained
+
+- `/restaurant/inventory?tab=suppliers` and `?tab=purchasing` still render the
+  same components and now carry an "Open in Back Office · Procurement" link.
+- `/restaurant/inventory/purchasing/$purchaseOrderId` still works and renders
+  the same shared `PurchaseOrderPage` with inventory-flavoured back navigation.
+
+No redirects were added: properties without the Back Office package must keep
+reaching procurement through the legacy inventory screens.
+
+### Enforcement decision
+
+Procurement mutations are deliberately **not** gated on the Back Office
+package. Gating them would break procurement for properties that only hold
+Restaurant Management or PMS, which still use the legacy inventory tabs. Route
+guards protect the canonical Back Office addresses; module/role checks protect
+the data. A package check on procurement mutations is deferred to 8G2C, when
+package assignment for procurement is decided.
+
+### Database
+
+No schema change in this phase.

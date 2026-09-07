@@ -184,11 +184,17 @@ const STOCK_NAV: NavEntry[] = [
   { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench, roles: INV },
 ];
 
+// Phase 8G2B — Back Office is the canonical owner of procurement, so this
+// group points at the canonical Back Office addresses.
 const PROCUREMENT_NAV: NavEntry[] = [
-  { to: "/restaurant/inventory", tab: "suppliers", label: "Suppliers", icon: Truck, roles: PROC },
   {
-    to: "/restaurant/inventory",
-    tab: "purchasing",
+    to: "/restaurant/back-office/procurement/suppliers",
+    label: "Suppliers",
+    icon: Truck,
+    roles: PROC,
+  },
+  {
+    to: "/restaurant/back-office/procurement/purchase-orders",
     label: "Purchasing",
     icon: ShoppingCart,
     roles: PROC,
@@ -472,6 +478,7 @@ export function RestaurantShell({
   rmModule,
   rmDetailLabel,
   boModule,
+  boDetailLabel,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -499,6 +506,8 @@ export function RestaurantShell({
    * Back Office submodule: Back Office sidebar, breadcrumb and context label.
    */
   boModule?: string;
+  /** Phase 8G2B — final breadcrumb crumb on a Back Office detail page. */
+  boDetailLabel?: string;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -928,7 +937,17 @@ export function RestaurantShell({
                         Back Office
                       </Link>
                       <span className="px-1.5">→</span>
-                      <span className="text-foreground">{boMod.title}</span>
+                      {boDetailLabel ? (
+                        <>
+                          <Link to={boMod.canonicalRoute} className="hover:text-foreground">
+                            {boMod.title}
+                          </Link>
+                          <span className="px-1.5">→</span>
+                          <span className="text-foreground">{boDetailLabel}</span>
+                        </>
+                      ) : (
+                        <span className="text-foreground">{boMod.title}</span>
+                      )}
                     </nav>
                   ) : null}
 
