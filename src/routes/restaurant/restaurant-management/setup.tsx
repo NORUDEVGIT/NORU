@@ -39,8 +39,9 @@ function RouteComponent() {
         <ConfigurationWorkspace
           membership={m}
           sections={["Food & Beverage"]}
+          sectionLabels={{ "Food & Beverage": "Restaurant setup" }}
           heading="Restaurant Setup & Administration"
-          intro="Restaurant master data. Hotel property setup stays in PMS."
+          intro="Restaurant setup and administration: menu, tables and QR codes, operating configuration, hours, taxes and service charges. Hotel property setup stays in PMS."
         />
       )}
     </RestaurantShell>

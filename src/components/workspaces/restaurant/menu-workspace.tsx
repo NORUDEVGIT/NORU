@@ -17,6 +17,7 @@ import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMenuRecipeSummaries } from "@/lib/recipes.functions";
 import { RecipeDialog, RecipeStatusChip } from "@/components/menu/recipe-dialog";
 import { useMoney } from "@/state/restaurant-context";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 /** Menu editing is limited to owners and managers. Kitchen/waiter cannot edit. */
 const MANAGE_ROLES = ["owner", "manager"];
@@ -98,10 +99,15 @@ function MenuManager({ membership }: { membership: RestaurantMembership }) {
   return (
     <div className="space-y-8">
       <header>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Configuration · Food &amp; Beverage
-        </p>
-        <h1 className="font-display text-3xl">Menu</h1>
+        <NonPmsOnly>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Configuration · Food &amp; Beverage
+          </p>
+        </NonPmsOnly>
+        <h1 className="font-display text-3xl">
+          <PageHeading fallback="Menu" />
+        </h1>
+
         <p className="mt-1 text-sm text-muted-foreground">
           {membership.restaurant.name} · {categories.length} categories · {items.length} items
         </p>

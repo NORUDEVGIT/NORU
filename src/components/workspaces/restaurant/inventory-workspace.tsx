@@ -22,6 +22,8 @@ import { InventoryOverviewDashboard } from "@/components/inventory/overview-dash
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { PageHeading } from "@/state/pms-context";
+import { useIsRmContext } from "@/lib/rm-routes";
 import { cn } from "@/lib/utils";
 
 
@@ -46,6 +48,8 @@ export function InventoryPage({
   initialTab?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
+  const rmContext = useIsRmContext();
+
   const fetchModuleAccess = useServerFn(getMyModuleAccess);
   const moduleAccess = useQuery({
     queryKey: ["my-module-access", restaurantId],
@@ -233,13 +237,18 @@ export function InventoryPage({
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0">
           <h1 className="font-display text-2xl">
-            {tab === "suppliers" || tab === "purchasing" ? "Procurement" : "Inventory"}
+            <PageHeading
+              fallback={tab === "suppliers" || tab === "purchasing" ? "Procurement" : "Inventory"}
+            />
           </h1>
           <p className="text-sm text-muted-foreground">
             {tab === "suppliers" || tab === "purchasing"
               ? "Manage suppliers and purchasing for your property."
-              : "Track ingredients and consumables. Every stock change is recorded in the movement ledger."}
+              : rmContext
+                ? "Restaurant operational stock: ingredients and consumables used in service. Every stock change is recorded in the movement ledger."
+                : "Track ingredients and consumables. Every stock change is recorded in the movement ledger."}
           </p>
+
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={refresh}>

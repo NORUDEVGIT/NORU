@@ -5,6 +5,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
+import { RmContextBar } from "@/components/rm-context-bar";
 import { PosPage } from "@/components/workspaces/restaurant/pos-workspace";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/pos-sales")({
@@ -28,5 +29,14 @@ export const Route = createFileRoute("/restaurant/restaurant-management/pos-sale
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: PosPage,
+  component: RouteComponent,
 });
+
+function RouteComponent() {
+  return (
+    <div className="min-h-dvh">
+      <RmContextBar moduleKey="pos-sales" note="Restaurant till: selling from the restaurant menu into restaurant orders." />
+      <PosPage />
+    </div>
+  );
+}

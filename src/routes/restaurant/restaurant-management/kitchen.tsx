@@ -5,6 +5,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/lib/route-package-guard";
+import { RmContextBar } from "@/components/rm-context-bar";
 import { RestaurantKitchen } from "@/components/workspaces/restaurant/kitchen-workspace";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/kitchen")({
@@ -28,5 +29,14 @@ export const Route = createFileRoute("/restaurant/restaurant-management/kitchen"
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: RestaurantKitchen,
+  component: RouteComponent,
 });
+
+function RouteComponent() {
+  return (
+    <div className="min-h-dvh">
+      <RmContextBar moduleKey="kitchen" note="Live preparation board for the kitchen and service departments." />
+      <RestaurantKitchen />
+    </div>
+  );
+}

@@ -13,6 +13,7 @@ import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult,
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useRmRoutes } from "@/lib/rm-routes";
 import { useMoney } from "@/state/restaurant-context";
+import { PageHeading } from "@/state/pms-context";
 import { useRestaurantTime } from "@/state/restaurant-context";
 
 const STATUS_TABS = [
@@ -185,7 +186,10 @@ export function OrdersBody({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-xl leading-tight">Orders</h1>
+          <h1 className="font-display text-xl leading-tight">
+            <PageHeading fallback="Orders" />
+          </h1>
+
           <p className="text-sm text-muted-foreground">Search, review and manage restaurant orders.</p>
         </div>
         <div className="flex items-center gap-2">

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { deleteRestaurantTable, listRestaurantTables, regenerateTableToken, saveRestaurantTable, setTableActive, type ManagedTable } from "@/lib/tables.functions";
 import { buildRestaurantTableQrUrl } from "@/lib/restaurant-table-qr";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/state/pms-context";
 
 /** Editing tables is limited to owners and managers; other staff read only. */
 const MANAGE_ROLES = ["owner", "manager"];
@@ -57,10 +58,15 @@ export function TablesManager({ membership }: { membership: RestaurantMembership
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Configuration · Food &amp; Beverage
-          </p>
-          <h1 className="font-display text-3xl">Tables & QR Codes</h1>
+          <NonPmsOnly>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Configuration · Food &amp; Beverage
+            </p>
+          </NonPmsOnly>
+          <h1 className="font-display text-3xl">
+            <PageHeading fallback="Tables & QR Codes" />
+          </h1>
+
           <p className="mt-1 text-sm text-muted-foreground">
             Each table gets its own secure QR code. Guests scan it and order straight to that table.
           </p>
