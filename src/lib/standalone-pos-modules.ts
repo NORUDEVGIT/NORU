@@ -53,9 +53,10 @@ export const POS_MODULES: PosModule[] = [
     title: "Sell",
     description: "Ring up a sale, take payment and finish at the till.",
     icon: ShoppingCart,
-    status: "blocked",
-    note: "Selling needs an active register and an open cashier shift. Both are built in the next phase.",
+    status: "next",
+    note: "Selling needs an active register and an open cashier shift — both are ready now. The sell screen is built in the next phase.",
   },
+
   {
     key: "catalog",
     title: "Catalog",
@@ -74,14 +75,22 @@ export const POS_MODULES: PosModule[] = [
     note: "Available once selling is enabled.",
   },
   {
+    key: "registers",
+    title: "Registers",
+    description: "The named tills in this property, and whether a shift is open on each.",
+    icon: MonitorSmartphone,
+    canonicalRoute: "/restaurant/pos/registers",
+    status: "live",
+  },
+  {
     key: "shifts",
     title: "Registers & Shifts",
-    description: "Tills in this property and the cashier shifts opened on them.",
+    description: "Open a till with a starting float, close it by counting the drawer.",
     icon: MonitorSmartphone,
     canonicalRoute: "/restaurant/pos/shifts",
-    status: "next",
-    note: "Built in the next phase, before selling.",
+    status: "live",
   },
+
   {
     key: "reports",
     title: "Reports",

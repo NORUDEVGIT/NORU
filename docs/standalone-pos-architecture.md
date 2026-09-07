@@ -738,3 +738,28 @@ Delivered:
 Deferred to 8H4+: registers, cashier shifts, the sell screen, payments,
 transactions browser, receipts, refunds, reports, and the optional inventory
 and Charge to Room bridges.
+
+## Phase 8H4 — Registers and cashier shifts (implemented)
+
+- A register is a named till in one property (`pos_registers`: name, optional
+  location label, active). Names are unique per property. No codes, no
+  hardware pairing.
+- Only owner/manager create, edit, activate or deactivate registers. A
+  register with an open cashier shift cannot be deactivated; the shift must be
+  closed and counted first. Shifts are never closed implicitly.
+- A cashier shift (`pos_cashier_shifts`) is opened on an active register with
+  an opening float, and stamped with the property-timezone business date.
+  Uniqueness is one open shift per register; a person may hold shifts on more
+  than one register.
+- Expected cash = opening float + captured cash payments − cash refunds for
+  that shift, computed server-side. Variance = counted cash − expected cash.
+  The browser never derives any of these.
+- Closed shifts are terminal: no edit path exists. Corrections require an
+  audited adjustment, which is not built.
+- Selling readiness (`posSellReadiness`) requires the POS package, the
+  `standalone_pos` module, a permitted role, an active register and an open
+  shift held by that person. Phase 8H5 consumes it.
+
+Routes: `/restaurant/pos/registers` (setup) and `/restaurant/pos/shifts`
+(open/close/history). Both guarded by sign-in plus the `pos` package; the
+server functions re-check membership, package, module and role.
