@@ -157,7 +157,7 @@ export function StaffWorkspace({ membership, initialTab }: { membership: Restaur
 type StatusFilter = "all" | "active" | "inactive";
 type RoleFilter = "all" | StaffRole;
 
-function StaffManager({ membership }: { membership: RestaurantMembership }) {
+export function StaffManager({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurantId;
   const queryClient = useQueryClient();
 
