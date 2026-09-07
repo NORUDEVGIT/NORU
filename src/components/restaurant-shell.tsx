@@ -132,21 +132,22 @@ type NavEntry = {
 };
 
 const RESTAURANT_NAV: NavEntry[] = [
-  { to: "/restaurant/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: FNB },
+  { to: "/restaurant/restaurant-management/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: FNB },
   {
-    to: "/restaurant/kitchen",
+    to: "/restaurant/restaurant-management/kitchen",
     label: "Kitchen",
     icon: ChefHat,
     roles: ["owner", "manager", "kitchen"],
   },
-  { to: "/restaurant/orders", label: "Orders", icon: ReceiptText, roles: FNB },
+  { to: "/restaurant/restaurant-management/orders", label: "Orders", icon: ReceiptText, roles: FNB },
   {
-    to: "/restaurant/waiter",
+    to: "/restaurant/restaurant-management/digital-ordering",
     label: "Take Order",
     icon: HandPlatter,
     roles: ["owner", "manager", "waiter"],
   },
 ];
+
 
 const STOCK_NAV: NavEntry[] = [
   {
@@ -339,8 +340,9 @@ const REPORTS_NAV: NavEntry[] = [
 
 const CONFIGURATION_NAV: NavEntry[] = [
   { to: "/restaurant/configuration", label: "Configuration", icon: LayoutDashboard },
-  { to: "/restaurant/menu", label: "Menu", icon: UtensilsCrossed, section: "Food & Beverage" },
-  { to: "/restaurant/tables", label: "Tables & QR", icon: QrCode, section: "Food & Beverage" },
+  { to: "/restaurant/restaurant-management/menu", label: "Menu", icon: UtensilsCrossed, section: "Food & Beverage" },
+  { to: "/restaurant/restaurant-management/tables", label: "Tables & QR", icon: QrCode, section: "Food & Beverage" },
+
   {
     to: "/restaurant/rooms",
     tab: "room-types",

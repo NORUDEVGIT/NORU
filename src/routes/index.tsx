@@ -67,7 +67,7 @@ function PlatformHome() {
           variant="ghost"
           className="h-11 rounded-full px-4 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
         >
-          <Link to="/restaurant/dashboard">Restaurant Dashboard</Link>
+          <Link to="/restaurant/restaurant-management/dashboard">Restaurant Dashboard</Link>
         </Button>
       ) : null}
       {isAdmin ? (
