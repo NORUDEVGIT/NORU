@@ -81,7 +81,12 @@ function RestaurantDetail() {
   });
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading restaurant…</p>;
-  if (error || !data) return <p className="text-sm text-destructive">Administrator access required.</p>;
+  if (error || !data)
+    return (
+      <p className="text-sm text-destructive">
+        {error instanceof Error ? error.message : "Administrator access required."}
+      </p>
+    );
 
   const r = data.restaurant;
   const needsReason = pendingAction === "reject" || pendingAction === "suspend";
