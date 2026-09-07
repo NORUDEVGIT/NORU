@@ -7,6 +7,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import { getFolio } from "@/lib/cashiering.functions";
 import type { TransactionType } from "@/lib/cashiering.server";
 import { FolioStatusBadge, labelTransactionType, splitLedger } from "@/components/cashiering/folio-bits";
@@ -24,6 +25,8 @@ export const Route = createFileRoute("/restaurant/cashiering/folios/$folioId")({
         search: { redirect: `/restaurant/cashiering/folios/${params.folioId}` },
       });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

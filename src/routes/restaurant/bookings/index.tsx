@@ -7,6 +7,7 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { Button } from "@/components/ui/button";
 import { ReservationStatusBadge, StatCard, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import {
   getBookingsAccess,
   getBookingsDashboard,
@@ -22,6 +23,8 @@ export const Route = createFileRoute("/restaurant/bookings/")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/bookings" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

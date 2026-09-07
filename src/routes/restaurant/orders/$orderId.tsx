@@ -8,6 +8,7 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { OrderStatusBadge } from "@/components/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import {
   ACTIVE_ORDER_STATUSES,
   getRestaurantOrderDetail,
@@ -28,6 +29,8 @@ export const Route = createFileRoute("/restaurant/orders/$orderId")({
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/restaurant/login" });
+
+    await requireRoutePackage("restaurant_management");
   },
   head: () => ({
     meta: [

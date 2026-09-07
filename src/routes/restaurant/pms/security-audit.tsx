@@ -3,6 +3,7 @@ import { FileSearch } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { PmsPlaceholder } from "@/components/pms/pms-placeholder";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/security-audit")({
   ssr: false,
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/restaurant/pms/security-audit")({
         search: { redirect: "/restaurant/pms/security-audit" },
       });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

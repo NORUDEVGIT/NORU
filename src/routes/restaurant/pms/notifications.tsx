@@ -3,6 +3,7 @@ import { Bell } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { PmsPlaceholder } from "@/components/pms/pms-placeholder";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/notifications")({
   ssr: false,
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/restaurant/pms/notifications")({
         search: { redirect: "/restaurant/pms/notifications" },
       });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

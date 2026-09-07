@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { RoomsWorkspace } from "@/components/workspaces/rooms-workspace";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/room-inventory")({
   ssr: false,
@@ -15,6 +16,8 @@ export const Route = createFileRoute("/restaurant/pms/room-inventory")({
         search: { redirect: "/restaurant/pms/room-inventory" },
       });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [
