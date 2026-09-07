@@ -1636,3 +1636,110 @@ export const removePosPayment = createServerFn({ method: "POST" })
       fail(error);
     }
   });
+
+/* ------------------------------------------------ Phase 8H7 — reporting */
+
+/**
+ * Dashboard and reports both come from one aggregation, so a figure can
+ * never differ between the two screens. Read-only; access role is enough.
+ */
+const rangeSchema = z.object({
+  restaurantId: idSchema,
+  fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+});
+
+async function reportFor(restaurantId: string, from?: string | null, to?: string | null) {
+  const db = await admin();
+  const property = await propertyContext(db, restaurantId);
+  const { buildPosReport } = await import("./standalone-pos-reporting.server");
+  const fromDate = from || property.businessDate;
+  const toDate = to || property.businessDate;
+  const report = await buildPosReport(
+    db,
+    restaurantId,
+    { fromDate: fromDate <= toDate ? fromDate : toDate, toDate: fromDate <= toDate ? toDate : fromDate },
+    property.currency,
+    (ids) => membershipNames(db, restaurantId, ids),
+  );
+  return { db, property, report };
+}
+
+export const getStandalonePosReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string; fromDate?: string | null; toDate?: string | null }) =>
+    rangeSchema.parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireStandalonePosAccess(context as any, data.restaurantId);
+    const { property, report } = await reportFor(data.restaurantId, data.fromDate, data.toDate);
+    return { ...report, propertyBusinessDate: property.businessDate, timezone: property.timezone };
+  });
+
+/** Today's trading picture plus the till's live state. */
+export const getStandalonePosDashboard = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { restaurantId: string; businessDate?: string | null }) =>
+    z
+      .object({ restaurantId: idSchema, businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional() })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireStandalonePosAccess(context as any, data.restaurantId);
+    const { db, property, report } = await reportFor(
+      data.restaurantId,
+      data.businessDate,
+      data.businessDate,
+    );
+
+    const [{ data: openShiftRows }, { count: activeProducts }, { count: activeRegisters }] =
+      await Promise.all([
+        db
+          .from("pos_cashier_shifts")
+          .select("id, register_id, opened_at, opening_float, opened_by_membership_id, business_date")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("status", "open"),
+        db
+          .from("pos_products")
+          .select("id", { count: "exact", head: true })
+          .eq("restaurant_id", data.restaurantId)
+          .eq("active", true),
+        db
+          .from("pos_registers")
+          .select("id", { count: "exact", head: true })
+          .eq("restaurant_id", data.restaurantId)
+          .eq("active", true),
+      ]);
+
+    const openShifts = (openShiftRows ?? []) as any[];
+    const registerNames = new Map<string, string>();
+    const { data: registers } = await db
+      .from("pos_registers")
+      .select("id, name")
+      .eq("restaurant_id", data.restaurantId);
+    for (const r of (registers ?? []) as any[]) registerNames.set(r.id as string, r.name as string);
+    const names = await membershipNames(
+      db,
+      data.restaurantId,
+      openShifts.map((s) => s.opened_by_membership_id as string),
+    );
+
+    return {
+      ...report,
+      businessDate: report.range.fromDate,
+      propertyBusinessDate: property.businessDate,
+      timezone: property.timezone,
+      readiness: {
+        activeProducts: Number(activeProducts ?? 0),
+        activeRegisters: Number(activeRegisters ?? 0),
+      },
+      openShifts: openShifts.map((s) => ({
+        id: s.id as string,
+        registerName: registerNames.get(s.register_id as string) ?? "Register",
+        openedBy: names.get(s.opened_by_membership_id as string) ?? "A team member",
+        openedAt: s.opened_at as string,
+        businessDate: s.business_date as string,
+        openingFloat: Number(s.opening_float),
+      })),
+    };
+  });
