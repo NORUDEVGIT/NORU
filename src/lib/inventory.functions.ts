@@ -93,17 +93,28 @@ async function requireInventoryAccess(context: any, restaurantId: string) {
 }
 
 /**
- * Phase 8E3 — stock WRITES are Restaurant Management operational today
- * (recipe costing, restaurant waste/counts). Reads stay shared/transitional so
- * hotel cross-links keep working. Role check first, package check before the
- * first write.
+ * Phase 8G2C — stock writes are reachable from two entitled packages:
+ * Restaurant Management (operational stock) and Back Office (central
+ * inventory / warehouse). The role and module check runs first and is
+ * unchanged; the property must then hold at least one of those packages.
+ *
+ * The package is resolved server-side from the property's entitlements — the
+ * browser never tells us which package it is calling from, so no caller can
+ * widen its own access.
  */
 async function requireInventoryWrite(context: any, restaurantId: string) {
   const me = await requireInventoryAccess(context, restaurantId);
-  const { requireRestaurantManagement } = await import("./restaurant-package.server");
-  await requireRestaurantManagement(restaurantId);
+  const { propertyHasPackage } = await import("./package-entitlements.server");
+  const [rm, bo] = await Promise.all([
+    propertyHasPackage(restaurantId, "restaurant_management"),
+    propertyHasPackage(restaurantId, "back_office"),
+  ]);
+  if (!rm && !bo) {
+    throw new Error("Inventory isn't available for this property.");
+  }
   return me;
 }
+
 
 export const listInventoryUnits = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

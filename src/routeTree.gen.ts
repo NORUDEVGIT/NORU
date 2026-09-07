@@ -116,6 +116,9 @@ import { Route as StayPropertySlugManageRouteImport } from './routes/stay/$prope
 import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
 import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
 import { Route as RestaurantBackOfficeInventoryIndexRouteImport } from './routes/restaurant/back-office/inventory/index'
+import { Route as RestaurantBackOfficeInventoryItemsRouteImport } from './routes/restaurant/back-office/inventory/items'
+import { Route as RestaurantBackOfficeInventoryMovementsRouteImport } from './routes/restaurant/back-office/inventory/movements'
+import { Route as RestaurantBackOfficeInventoryUnitsRouteImport } from './routes/restaurant/back-office/inventory/units'
 import { Route as RestaurantBackOfficeProcurementIndexRouteImport } from './routes/restaurant/back-office/procurement/index'
 import { Route as RestaurantBackOfficeProcurementSuppliersRouteImport } from './routes/restaurant/back-office/procurement/suppliers'
 import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/restaurant/cashiering/folios/$folioId'
@@ -711,6 +714,24 @@ const RestaurantBackOfficeInventoryIndexRoute =
     path: '/restaurant/back-office/inventory/',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantBackOfficeInventoryItemsRoute =
+  RestaurantBackOfficeInventoryItemsRouteImport.update({
+    id: '/restaurant/back-office/inventory/items',
+    path: '/restaurant/back-office/inventory/items',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantBackOfficeInventoryMovementsRoute =
+  RestaurantBackOfficeInventoryMovementsRouteImport.update({
+    id: '/restaurant/back-office/inventory/movements',
+    path: '/restaurant/back-office/inventory/movements',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantBackOfficeInventoryUnitsRoute =
+  RestaurantBackOfficeInventoryUnitsRouteImport.update({
+    id: '/restaurant/back-office/inventory/units',
+    path: '/restaurant/back-office/inventory/units',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantBackOfficeProcurementIndexRoute =
   RestaurantBackOfficeProcurementIndexRouteImport.update({
     id: '/restaurant/back-office/procurement/',
@@ -899,6 +920,9 @@ export interface FileRoutesByFullPath {
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
+  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
+  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
   '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
@@ -1019,6 +1043,9 @@ export interface FileRoutesByTo {
   '/stay/$propertySlug': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
+  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
+  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
   '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
@@ -1142,6 +1169,9 @@ export interface FileRoutesById {
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
   '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
   '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
+  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
+  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
+  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
   '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
@@ -1266,6 +1296,9 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/back-office/inventory/items'
+    | '/restaurant/back-office/inventory/movements'
+    | '/restaurant/back-office/inventory/units'
     | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
@@ -1386,6 +1419,9 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/back-office/inventory/items'
+    | '/restaurant/back-office/inventory/movements'
+    | '/restaurant/back-office/inventory/units'
     | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
@@ -1508,6 +1544,9 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug/'
     | '/r/$restaurantSlug/order/$orderId'
     | '/r/$restaurantSlug/t/$qrToken'
+    | '/restaurant/back-office/inventory/items'
+    | '/restaurant/back-office/inventory/movements'
+    | '/restaurant/back-office/inventory/units'
     | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
@@ -1620,6 +1659,9 @@ export interface RootRouteChildren {
   RestaurantRestaurantManagementIndexRoute: typeof RestaurantRestaurantManagementIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
   StayPropertySlugIndexRoute: typeof StayPropertySlugIndexRoute
+  RestaurantBackOfficeInventoryItemsRoute: typeof RestaurantBackOfficeInventoryItemsRoute
+  RestaurantBackOfficeInventoryMovementsRoute: typeof RestaurantBackOfficeInventoryMovementsRoute
+  RestaurantBackOfficeInventoryUnitsRoute: typeof RestaurantBackOfficeInventoryUnitsRoute
   RestaurantBackOfficeProcurementSuppliersRoute: typeof RestaurantBackOfficeProcurementSuppliersRoute
   RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
   RestaurantCashieringNightAuditRunIdRoute: typeof RestaurantCashieringNightAuditRunIdRoute
@@ -2387,6 +2429,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantBackOfficeInventoryIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/back-office/inventory/items': {
+      id: '/restaurant/back-office/inventory/items'
+      path: '/restaurant/back-office/inventory/items'
+      fullPath: '/restaurant/back-office/inventory/items'
+      preLoaderRoute: typeof RestaurantBackOfficeInventoryItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/back-office/inventory/movements': {
+      id: '/restaurant/back-office/inventory/movements'
+      path: '/restaurant/back-office/inventory/movements'
+      fullPath: '/restaurant/back-office/inventory/movements'
+      preLoaderRoute: typeof RestaurantBackOfficeInventoryMovementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/back-office/inventory/units': {
+      id: '/restaurant/back-office/inventory/units'
+      path: '/restaurant/back-office/inventory/units'
+      fullPath: '/restaurant/back-office/inventory/units'
+      preLoaderRoute: typeof RestaurantBackOfficeInventoryUnitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/back-office/procurement/': {
       id: '/restaurant/back-office/procurement/'
       path: '/restaurant/back-office/procurement'
@@ -2631,6 +2694,12 @@ const rootRouteChildren: RootRouteChildren = {
     RestaurantRestaurantManagementIndexRoute,
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,
   StayPropertySlugIndexRoute: StayPropertySlugIndexRoute,
+  RestaurantBackOfficeInventoryItemsRoute:
+    RestaurantBackOfficeInventoryItemsRoute,
+  RestaurantBackOfficeInventoryMovementsRoute:
+    RestaurantBackOfficeInventoryMovementsRoute,
+  RestaurantBackOfficeInventoryUnitsRoute:
+    RestaurantBackOfficeInventoryUnitsRoute,
   RestaurantBackOfficeProcurementSuppliersRoute:
     RestaurantBackOfficeProcurementSuppliersRoute,
   RestaurantCashieringFoliosFolioIdRoute:
