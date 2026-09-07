@@ -19,7 +19,9 @@ export interface ResolvedLine {
   special_instructions: string | null;
 }
 
-export { publicServerClient } from "@/core/lib/public-client.server";
+import { publicServerClient } from "@/core/lib/public-client.server";
+
+export { publicServerClient };
 
 /**
  * Prices and names are NEVER taken from the browser. Every line is rebuilt from
