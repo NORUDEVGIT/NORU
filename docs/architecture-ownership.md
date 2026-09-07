@@ -551,3 +551,11 @@ Management till remains at `/restaurant/restaurant-management/pos-sales` with
 its own menu, orders, order payments and restaurant cashier shifts —
 unchanged. Access = `pos` package entitlement + `standalone_pos` module +
 role (owner/manager for setup; cashier/accountant read-only).
+
+### Standalone POS — tills and cashier shifts (Phase 8H4)
+
+Standalone POS owns `pos_registers` and `pos_cashier_shifts` outright. These
+are distinct from Restaurant Management's `cashier_shifts` and from PMS
+cashiering; no data, screen or guard is shared between them. Restaurant
+Management's till at `/restaurant/restaurant-management/pos-sales` is
+unchanged.
