@@ -19,6 +19,12 @@ export interface PublicRestaurant {
   logo_url: string | null;
   timezone: string;
   currencyCode: string;
+  /**
+   * Phase 8D2 — whether the public ordering service is operating. This is the
+   * ONLY package-derived value exposed publicly: no source, expiry or admin
+   * metadata is ever included.
+   */
+  serviceAvailable: boolean;
 }
 
 /**
@@ -37,6 +43,10 @@ export const getPublicRestaurant = createServerFn({ method: "GET" })
       .maybeSingle();
 
     if (error || !row || !row.approved || !row.active) return null;
+
+    const { publicPackageAvailable } = await import("./public-package.server");
+    const serviceAvailable = await publicPackageAvailable(row.id, "restaurant_management");
+
     return {
       id: row.id,
       name: row.name,
@@ -45,5 +55,7 @@ export const getPublicRestaurant = createServerFn({ method: "GET" })
       logo_url: row.logo_url ?? null,
       timezone: row.timezone ?? DEFAULT_TIMEZONE,
       currencyCode: row.currency_code ?? DEFAULT_CURRENCY,
+      serviceAvailable,
     };
   });
+
