@@ -92,6 +92,19 @@ async function requireInventoryAccess(context: any, restaurantId: string) {
   );
 }
 
+/**
+ * Phase 8E3 — stock WRITES are Restaurant Management operational today
+ * (recipe costing, restaurant waste/counts). Reads stay shared/transitional so
+ * hotel cross-links keep working. Role check first, package check before the
+ * first write.
+ */
+async function requireInventoryWrite(context: any, restaurantId: string) {
+  const me = await requireInventoryAccess(context, restaurantId);
+  const { requireRestaurantManagement } = await import("./restaurant-package.server");
+  await requireRestaurantManagement(restaurantId);
+  return me;
+}
+
 export const listInventoryUnits = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<InventoryUnit[]> => {
@@ -323,7 +336,7 @@ export const createInventoryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireInventoryAccess(context, data.restaurantId);
+    const me = await requireInventoryWrite(context, data.restaurantId);
     if (!isManager(me.role)) {
       return {
         ok: false as const,
@@ -404,7 +417,7 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireInventoryAccess(context, data.restaurantId);
+    const me = await requireInventoryWrite(context, data.restaurantId);
     if (!isManager(me.role)) {
       return { ok: false as const, message: "Only owners and managers can edit inventory items." };
     }
@@ -451,7 +464,7 @@ export const createInventoryMovement = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireInventoryAccess(context, data.restaurantId);
+    const me = await requireInventoryWrite(context, data.restaurantId);
     const type = data.movementType as MovementType;
 
     if (type === "opening_balance") {
