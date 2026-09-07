@@ -94,6 +94,7 @@ import { Route as RestaurantPosIndexRouteImport } from './routes/restaurant/pos/
 import { Route as RestaurantPosCatalogRouteImport } from './routes/restaurant/pos/catalog'
 import { Route as RestaurantPosDashboardRouteImport } from './routes/restaurant/pos/dashboard'
 import { Route as RestaurantPosNewRouteImport } from './routes/restaurant/pos/new'
+import { Route as RestaurantPosRegistersRouteImport } from './routes/restaurant/pos/registers'
 import { Route as RestaurantPosReportsRouteImport } from './routes/restaurant/pos/reports'
 import { Route as RestaurantPosSettingsRouteImport } from './routes/restaurant/pos/settings'
 import { Route as RestaurantPosShiftsRouteImport } from './routes/restaurant/pos/shifts'
@@ -597,6 +598,11 @@ const RestaurantPosNewRoute = RestaurantPosNewRouteImport.update({
   path: '/restaurant/pos/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestaurantPosRegistersRoute = RestaurantPosRegistersRouteImport.update({
+  id: '/restaurant/pos/registers',
+  path: '/restaurant/pos/registers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RestaurantPosReportsRoute = RestaurantPosReportsRouteImport.update({
   id: '/restaurant/pos/reports',
   path: '/restaurant/pos/reports',
@@ -952,6 +958,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
   '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
   '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
@@ -1085,6 +1092,7 @@ export interface FileRoutesByTo {
   '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
   '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
   '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
@@ -1221,6 +1229,7 @@ export interface FileRoutesById {
   '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
   '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
   '/restaurant/pos/new': typeof RestaurantPosNewRoute
+  '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
   '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
   '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
   '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
@@ -1358,6 +1367,7 @@ export interface FileRouteTypes {
     | '/restaurant/pos/catalog'
     | '/restaurant/pos/dashboard'
     | '/restaurant/pos/new'
+    | '/restaurant/pos/registers'
     | '/restaurant/pos/reports'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
@@ -1491,6 +1501,7 @@ export interface FileRouteTypes {
     | '/restaurant/pos/catalog'
     | '/restaurant/pos/dashboard'
     | '/restaurant/pos/new'
+    | '/restaurant/pos/registers'
     | '/restaurant/pos/reports'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
@@ -1626,6 +1637,7 @@ export interface FileRouteTypes {
     | '/restaurant/pos/catalog'
     | '/restaurant/pos/dashboard'
     | '/restaurant/pos/new'
+    | '/restaurant/pos/registers'
     | '/restaurant/pos/reports'
     | '/restaurant/pos/settings'
     | '/restaurant/pos/shifts'
@@ -1755,6 +1767,7 @@ export interface RootRouteChildren {
   RestaurantPosCatalogRoute: typeof RestaurantPosCatalogRoute
   RestaurantPosDashboardRoute: typeof RestaurantPosDashboardRoute
   RestaurantPosNewRoute: typeof RestaurantPosNewRoute
+  RestaurantPosRegistersRoute: typeof RestaurantPosRegistersRoute
   RestaurantPosReportsRoute: typeof RestaurantPosReportsRoute
   RestaurantPosSettingsRoute: typeof RestaurantPosSettingsRoute
   RestaurantPosShiftsRoute: typeof RestaurantPosShiftsRoute
@@ -2410,6 +2423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPosNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/pos/registers': {
+      id: '/restaurant/pos/registers'
+      path: '/restaurant/pos/registers'
+      fullPath: '/restaurant/pos/registers'
+      preLoaderRoute: typeof RestaurantPosRegistersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/pos/reports': {
       id: '/restaurant/pos/reports'
       path: '/restaurant/pos/reports'
@@ -2857,6 +2877,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPosCatalogRoute: RestaurantPosCatalogRoute,
   RestaurantPosDashboardRoute: RestaurantPosDashboardRoute,
   RestaurantPosNewRoute: RestaurantPosNewRoute,
+  RestaurantPosRegistersRoute: RestaurantPosRegistersRoute,
   RestaurantPosReportsRoute: RestaurantPosReportsRoute,
   RestaurantPosSettingsRoute: RestaurantPosSettingsRoute,
   RestaurantPosShiftsRoute: RestaurantPosShiftsRoute,
