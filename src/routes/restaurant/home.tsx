@@ -70,6 +70,24 @@ function PropertyHomeRoute() {
   return <RestaurantShell active="Home">{(m) => <PropertyHome membership={m} />}</RestaurantShell>;
 }
 
+/**
+ * Shown when someone opened the address of a page that belongs to a package
+ * this property doesn't have. Deliberately says nothing about dates, sources
+ * or billing.
+ */
+function BlockedNotice() {
+  const { blocked } = Route.useSearch() as { blocked?: string };
+  if (!blocked) return null;
+  return (
+    <div
+      role="status"
+      className="rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+    >
+      This package isn't enabled for this property.
+    </div>
+  );
+}
+
 /** Module keys that make the PMS package meaningful for this user. */
 const PMS_MODULE_KEYS: ModuleKey[] = [
   "pms",
