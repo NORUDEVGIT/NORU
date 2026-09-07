@@ -26,7 +26,7 @@ import { useRestaurantTimezone } from "@/state/restaurant-context";
 function ConfirmationLink({ stay }: { stay: FrontOfficeStay }) {
   return (
     <Link
-      to="/restaurant/bookings/$reservationId"
+      to="/restaurant/pms/reservations/$reservationId"
       params={{ reservationId: stay.id }}
       className="font-medium underline-offset-4 hover:underline"
     >
@@ -105,7 +105,7 @@ export function InHouseList({ restaurantId, propertyName }: { restaurantId: stri
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" asChild>
-                    <Link to="/restaurant/guests/$guestId" params={{ guestId: row.guestId }}>
+                    <Link to="/restaurant/pms/reservations/guests/$guestId" params={{ guestId: row.guestId }}>
                       Guest
                     </Link>
                   </Button>

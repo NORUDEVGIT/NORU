@@ -146,7 +146,7 @@ function BookingsDashboardPage({ membership }: { membership: RestaurantMembershi
             {active.map((r) => (
               <li key={r.id}>
                 <Link
-                  to="/restaurant/bookings/$reservationId"
+                  to="/restaurant/pms/reservations/$reservationId"
                   params={{ reservationId: r.id }}
                   className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40"
                 >

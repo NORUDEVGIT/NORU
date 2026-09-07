@@ -165,7 +165,7 @@ export function ArrivalsWorkspace({
                 <div>
                   <div className="flex items-center gap-2">
                     <Link
-                      to="/restaurant/bookings/$reservationId"
+                      to="/restaurant/pms/reservations/$reservationId"
                       params={{ reservationId: stay.id }}
                       className="font-medium underline-offset-4 hover:underline"
                     >

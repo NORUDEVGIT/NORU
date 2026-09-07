@@ -31,7 +31,7 @@ export function ReservationCancellationsTab({ restaurantId }: { restaurantId: st
   }
 
   function open(id: string) {
-    void navigate({ to: "/restaurant/bookings/$reservationId", params: { reservationId: id } });
+    void navigate({ to: "/restaurant/pms/reservations/$reservationId", params: { reservationId: id } });
   }
 
   return (

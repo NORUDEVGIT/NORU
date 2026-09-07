@@ -457,6 +457,7 @@ export function RestaurantShell({
   module,
   pms,
   pmsModule,
+  pmsLeaf,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -469,6 +470,8 @@ export function RestaurantShell({
    * PMS submodule: PMS sidebar, PMS breadcrumb, PMS heading. Presentation only.
    */
   pmsModule?: string;
+  /** Optional final breadcrumb step (e.g. "Reservation", "Guest Profile") for detail pages. */
+  pmsLeaf?: string;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -756,9 +759,20 @@ export function RestaurantShell({
                         PMS
                       </Link>
                       <span className="px-1.5">→</span>
-                      <span className="text-foreground">{pmsMod.title}</span>
+                      {pmsLeaf ? (
+                        <>
+                          <Link to={pmsMod.canonicalRoute} className="hover:text-foreground">
+                            {pmsMod.title}
+                          </Link>
+                          <span className="px-1.5">→</span>
+                          <span className="text-foreground">{pmsLeaf}</span>
+                        </>
+                      ) : (
+                        <span className="text-foreground">{pmsMod.title}</span>
+                      )}
                     </nav>
                   ) : null}
+
                   {children(membership)}
                 </PmsHeadingProvider>
               </RestaurantSettingsProvider>

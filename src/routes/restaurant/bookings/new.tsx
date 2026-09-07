@@ -152,7 +152,10 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
       }),
     onSuccess: (result) => {
       toast.success(`Reservation ${result.confirmationNumber} created.`);
-      void navigate({ to: "/restaurant/bookings/$reservationId", params: { reservationId: result.id } });
+      void navigate({
+        to: "/restaurant/pms/reservations/$reservationId",
+        params: { reservationId: result.id },
+      });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -467,7 +470,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           {create.isPending ? "Creating…" : "Create reservation"}
         </Button>
         <Button asChild variant="outline">
-          <Link to="/restaurant/bookings/reservations">Cancel</Link>
+          <Link to="/restaurant/pms/reservations">Cancel</Link>
         </Button>
         {!canSubmit ? (
           <p className="text-xs text-muted-foreground">

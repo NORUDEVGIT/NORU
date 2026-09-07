@@ -79,7 +79,6 @@ import { Route as RestaurantPmsNotificationsRouteImport } from './routes/restaur
 import { Route as RestaurantPmsPropertySetupRouteImport } from './routes/restaurant/pms/property-setup'
 import { Route as RestaurantPmsRatesRevenueRouteImport } from './routes/restaurant/pms/rates-revenue'
 import { Route as RestaurantPmsReportsRouteImport } from './routes/restaurant/pms/reports'
-import { Route as RestaurantPmsReservationsRouteImport } from './routes/restaurant/pms/reservations'
 import { Route as RestaurantPmsRoomInventoryRouteImport } from './routes/restaurant/pms/room-inventory'
 import { Route as RestaurantPmsSalesEventsRouteImport } from './routes/restaurant/pms/sales-events'
 import { Route as RestaurantPmsSecurityAuditRouteImport } from './routes/restaurant/pms/security-audit'
@@ -98,6 +97,9 @@ import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/
 import { Route as RestaurantCashieringNightAuditIndexRouteImport } from './routes/restaurant/cashiering/night-audit/index'
 import { Route as RestaurantCashieringNightAuditRunIdRouteImport } from './routes/restaurant/cashiering/night-audit/$runId'
 import { Route as RestaurantInventoryPurchasingPurchaseOrderIdRouteImport } from './routes/restaurant/inventory/purchasing/$purchaseOrderId'
+import { Route as RestaurantPmsReservationsIndexRouteImport } from './routes/restaurant/pms/reservations.index'
+import { Route as RestaurantPmsReservationsReservationIdRouteImport } from './routes/restaurant/pms/reservations.$reservationId'
+import { Route as RestaurantPmsReservationsGuestsGuestIdRouteImport } from './routes/restaurant/pms/reservations.guests.$guestId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -467,12 +469,6 @@ const RestaurantPmsReportsRoute = RestaurantPmsReportsRouteImport.update({
   path: '/restaurant/pms/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RestaurantPmsReservationsRoute =
-  RestaurantPmsReservationsRouteImport.update({
-    id: '/restaurant/pms/reservations',
-    path: '/restaurant/pms/reservations',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const RestaurantPmsRoomInventoryRoute =
   RestaurantPmsRoomInventoryRouteImport.update({
     id: '/restaurant/pms/room-inventory',
@@ -573,6 +569,24 @@ const RestaurantInventoryPurchasingPurchaseOrderIdRoute =
     path: '/restaurant/inventory/purchasing/$purchaseOrderId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RestaurantPmsReservationsIndexRoute =
+  RestaurantPmsReservationsIndexRouteImport.update({
+    id: '/restaurant/pms/reservations/',
+    path: '/restaurant/pms/reservations/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantPmsReservationsReservationIdRoute =
+  RestaurantPmsReservationsReservationIdRouteImport.update({
+    id: '/restaurant/pms/reservations/$reservationId',
+    path: '/restaurant/pms/reservations/$reservationId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RestaurantPmsReservationsGuestsGuestIdRoute =
+  RestaurantPmsReservationsGuestsGuestIdRouteImport.update({
+    id: '/restaurant/pms/reservations/guests/$guestId',
+    path: '/restaurant/pms/reservations/guests/$guestId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -635,7 +649,6 @@ export interface FileRoutesByFullPath {
   '/restaurant/pms/property-setup': typeof RestaurantPmsPropertySetupRoute
   '/restaurant/pms/rates-revenue': typeof RestaurantPmsRatesRevenueRoute
   '/restaurant/pms/reports': typeof RestaurantPmsReportsRoute
-  '/restaurant/pms/reservations': typeof RestaurantPmsReservationsRoute
   '/restaurant/pms/room-inventory': typeof RestaurantPmsRoomInventoryRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
@@ -663,7 +676,10 @@ export interface FileRoutesByFullPath {
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
   '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
+  '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
+  '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -724,7 +740,6 @@ export interface FileRoutesByTo {
   '/restaurant/pms/property-setup': typeof RestaurantPmsPropertySetupRoute
   '/restaurant/pms/rates-revenue': typeof RestaurantPmsRatesRevenueRoute
   '/restaurant/pms/reports': typeof RestaurantPmsReportsRoute
-  '/restaurant/pms/reservations': typeof RestaurantPmsReservationsRoute
   '/restaurant/pms/room-inventory': typeof RestaurantPmsRoomInventoryRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
@@ -752,7 +767,10 @@ export interface FileRoutesByTo {
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
   '/restaurant/cashiering/night-audit': typeof RestaurantCashieringNightAuditIndexRoute
+  '/restaurant/pms/reservations': typeof RestaurantPmsReservationsIndexRoute
+  '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -816,7 +834,6 @@ export interface FileRoutesById {
   '/restaurant/pms/property-setup': typeof RestaurantPmsPropertySetupRoute
   '/restaurant/pms/rates-revenue': typeof RestaurantPmsRatesRevenueRoute
   '/restaurant/pms/reports': typeof RestaurantPmsReportsRoute
-  '/restaurant/pms/reservations': typeof RestaurantPmsReservationsRoute
   '/restaurant/pms/room-inventory': typeof RestaurantPmsRoomInventoryRoute
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
@@ -844,7 +861,10 @@ export interface FileRoutesById {
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
   '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
+  '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
+  '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -909,7 +929,6 @@ export interface FileRouteTypes {
     | '/restaurant/pms/property-setup'
     | '/restaurant/pms/rates-revenue'
     | '/restaurant/pms/reports'
-    | '/restaurant/pms/reservations'
     | '/restaurant/pms/room-inventory'
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
@@ -937,7 +956,10 @@ export interface FileRouteTypes {
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
+    | '/restaurant/pms/reservations/$reservationId'
     | '/restaurant/cashiering/night-audit/'
+    | '/restaurant/pms/reservations/'
+    | '/restaurant/pms/reservations/guests/$guestId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -998,7 +1020,6 @@ export interface FileRouteTypes {
     | '/restaurant/pms/property-setup'
     | '/restaurant/pms/rates-revenue'
     | '/restaurant/pms/reports'
-    | '/restaurant/pms/reservations'
     | '/restaurant/pms/room-inventory'
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
@@ -1026,7 +1047,10 @@ export interface FileRouteTypes {
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
+    | '/restaurant/pms/reservations/$reservationId'
     | '/restaurant/cashiering/night-audit'
+    | '/restaurant/pms/reservations'
+    | '/restaurant/pms/reservations/guests/$guestId'
   id:
     | '__root__'
     | '/'
@@ -1089,7 +1113,6 @@ export interface FileRouteTypes {
     | '/restaurant/pms/property-setup'
     | '/restaurant/pms/rates-revenue'
     | '/restaurant/pms/reports'
-    | '/restaurant/pms/reservations'
     | '/restaurant/pms/room-inventory'
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
@@ -1117,7 +1140,10 @@ export interface FileRouteTypes {
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
+    | '/restaurant/pms/reservations/$reservationId'
     | '/restaurant/cashiering/night-audit/'
+    | '/restaurant/pms/reservations/'
+    | '/restaurant/pms/reservations/guests/$guestId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1174,7 +1200,6 @@ export interface RootRouteChildren {
   RestaurantPmsPropertySetupRoute: typeof RestaurantPmsPropertySetupRoute
   RestaurantPmsRatesRevenueRoute: typeof RestaurantPmsRatesRevenueRoute
   RestaurantPmsReportsRoute: typeof RestaurantPmsReportsRoute
-  RestaurantPmsReservationsRoute: typeof RestaurantPmsReservationsRoute
   RestaurantPmsRoomInventoryRoute: typeof RestaurantPmsRoomInventoryRoute
   RestaurantPmsSalesEventsRoute: typeof RestaurantPmsSalesEventsRoute
   RestaurantPmsSecurityAuditRoute: typeof RestaurantPmsSecurityAuditRoute
@@ -1198,7 +1223,10 @@ export interface RootRouteChildren {
   RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
   RestaurantCashieringNightAuditRunIdRoute: typeof RestaurantCashieringNightAuditRunIdRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
+  RestaurantPmsReservationsReservationIdRoute: typeof RestaurantPmsReservationsReservationIdRoute
   RestaurantCashieringNightAuditIndexRoute: typeof RestaurantCashieringNightAuditIndexRoute
+  RestaurantPmsReservationsIndexRoute: typeof RestaurantPmsReservationsIndexRoute
+  RestaurantPmsReservationsGuestsGuestIdRoute: typeof RestaurantPmsReservationsGuestsGuestIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1693,13 +1721,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPmsReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/restaurant/pms/reservations': {
-      id: '/restaurant/pms/reservations'
-      path: '/restaurant/pms/reservations'
-      fullPath: '/restaurant/pms/reservations'
-      preLoaderRoute: typeof RestaurantPmsReservationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/restaurant/pms/room-inventory': {
       id: '/restaurant/pms/room-inventory'
       path: '/restaurant/pms/room-inventory'
@@ -1826,6 +1847,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restaurant/pms/reservations/': {
+      id: '/restaurant/pms/reservations/'
+      path: '/restaurant/pms/reservations'
+      fullPath: '/restaurant/pms/reservations/'
+      preLoaderRoute: typeof RestaurantPmsReservationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pms/reservations/$reservationId': {
+      id: '/restaurant/pms/reservations/$reservationId'
+      path: '/restaurant/pms/reservations/$reservationId'
+      fullPath: '/restaurant/pms/reservations/$reservationId'
+      preLoaderRoute: typeof RestaurantPmsReservationsReservationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/pms/reservations/guests/$guestId': {
+      id: '/restaurant/pms/reservations/guests/$guestId'
+      path: '/restaurant/pms/reservations/guests/$guestId'
+      fullPath: '/restaurant/pms/reservations/guests/$guestId'
+      preLoaderRoute: typeof RestaurantPmsReservationsGuestsGuestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1924,7 +1966,6 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPmsPropertySetupRoute: RestaurantPmsPropertySetupRoute,
   RestaurantPmsRatesRevenueRoute: RestaurantPmsRatesRevenueRoute,
   RestaurantPmsReportsRoute: RestaurantPmsReportsRoute,
-  RestaurantPmsReservationsRoute: RestaurantPmsReservationsRoute,
   RestaurantPmsRoomInventoryRoute: RestaurantPmsRoomInventoryRoute,
   RestaurantPmsSalesEventsRoute: RestaurantPmsSalesEventsRoute,
   RestaurantPmsSecurityAuditRoute: RestaurantPmsSecurityAuditRoute,
@@ -1951,8 +1992,13 @@ const rootRouteChildren: RootRouteChildren = {
     RestaurantCashieringNightAuditRunIdRoute,
   RestaurantInventoryPurchasingPurchaseOrderIdRoute:
     RestaurantInventoryPurchasingPurchaseOrderIdRoute,
+  RestaurantPmsReservationsReservationIdRoute:
+    RestaurantPmsReservationsReservationIdRoute,
   RestaurantCashieringNightAuditIndexRoute:
     RestaurantCashieringNightAuditIndexRoute,
+  RestaurantPmsReservationsIndexRoute: RestaurantPmsReservationsIndexRoute,
+  RestaurantPmsReservationsGuestsGuestIdRoute:
+    RestaurantPmsReservationsGuestsGuestIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
