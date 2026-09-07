@@ -17,8 +17,16 @@ interface CacheEntry {
   expiresAtMs: number;
 }
 
+/** Positive answers are safe to hold briefly. */
 const TTL_MS = 30_000;
+/**
+ * Negative answers are held only for a moment: when a package is switched back
+ * on (or a test row is removed) the property must recover almost immediately
+ * instead of failing for another half-minute.
+ */
+const DENIED_TTL_MS = 3_000;
 const cache = new Map<string, CacheEntry>();
+
 
 /**
  * Availability for one already-resolved property. Fail-safe: any resolver or
