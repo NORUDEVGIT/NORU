@@ -37,15 +37,8 @@ export const Route = createFileRoute("/restaurant/pos/shifts")({
 function PosShiftsRoute() {
   return (
     <RestaurantShell active="Standalone POS" posModule="shifts">
-      {(m) => (
-        <PosFoundationPage
-          moduleKey="shifts"
-          propertyName={m.restaurant.name}
-          what={[
-            "Add and name the tills in this property", "Open a shift with a starting cash amount", "Close a shift and count the drawer",
-          ]}
-        />
-      )}
+      {(m) => <StandalonePosShifts membership={m} />}
     </RestaurantShell>
   );
 }
+
