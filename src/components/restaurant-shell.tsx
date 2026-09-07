@@ -580,22 +580,24 @@ export function RestaurantShell({
           >
             <ArrowLeft className="size-4 shrink-0" /> Property Home
           </Link>
-          <Link
-            to="/restaurant/pms"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <Hotel className="size-4 shrink-0" /> PMS Home
-          </Link>
+          {pmsPackage ? (
+            <Link
+              to="/restaurant/pms"
+              onClick={() => setNavOpen(false)}
+              className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <Hotel className="size-4 shrink-0" /> PMS Home
+            </Link>
+          ) : null}
         </div>
       ) : workspace !== "home" ? (
         <div className="space-y-2">
           <Link
-            to={pms ? "/restaurant/pms" : "/restaurant/home"}
+            to={pms && pmsPackage ? "/restaurant/pms" : "/restaurant/home"}
             onClick={() => setNavOpen(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <ArrowLeft className="size-4 shrink-0" /> {pms ? "PMS Home" : "NORU Home"}
+            <ArrowLeft className="size-4 shrink-0" /> {pms && pmsPackage ? "PMS Home" : "NORU Home"}
           </Link>
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
             {contextLabel}
@@ -603,7 +605,7 @@ export function RestaurantShell({
         </div>
       ) : null}
 
-      {pmsMod ? pmsSidebarNav : null}
+      {pmsMod && pmsPackage ? pmsSidebarNav : null}
 
       <nav className={cn("min-h-0 flex-1 overflow-y-auto", pmsMod && "hidden")}>
         <ul className="space-y-1">
