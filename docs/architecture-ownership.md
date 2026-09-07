@@ -477,10 +477,11 @@ There is exactly one till in NORU and it belongs to **Restaurant Management**.
 
 Frozen decisions:
 
-1. POS & Sales is owned by Restaurant Management. The `pos` package key
-   ("Standalone POS") exists but is enforced nowhere; the till is gated by the
-   `restaurant_management` package plus the `pos` module permission
-   (owner, manager, cashier, waiter). The standalone package is future work.
+1. POS & Sales is owned by Restaurant Management. The restaurant till is gated
+   by the `restaurant_management` package plus the `pos` module permission
+   (owner, manager, cashier, waiter). The `pos` **package** key belongs to the
+   separate Standalone POS package, which is enforced on every
+   `/restaurant/pos/*` route and server function (8H2 onwards).
 2. The till is not a second ordering engine: `placePosSale` reuses
    `order-core.server.ts` / `order-pricing.server.ts` with server-side pricing,
    tagged `pos_counter` and bound to an open `cashier_shifts` row.
@@ -622,3 +623,32 @@ Rules frozen by this phase:
 | --- | --- | --- |
 | POS sale → Inventory stock depletion | Deferred | Requires a POS product ↔ inventory item mapping and a recipe/component model for POS products, neither of which exists. Introducing partial depletion would silently corrupt stock. |
 | POS sale → PMS Charge to Room (folio posting) | Deferred | Requires guest/room lookup, folio selection, package-cross authorisation and a reversal path inside POS. The existing RM Charge to Room bridge is untouched and remains RM-only. |
+
+
+## Phase 8H9 — two tills, confirmed ownership
+
+Audited, no behaviour changed.
+
+| Concern | Owner |
+| --- | --- |
+| `/restaurant/restaurant-management/pos-sales` | Restaurant Management |
+| Restaurant menu, orders, order payments, `cashier_shifts`, charge to room | Restaurant Management |
+| `src/lib/pos.functions.ts`, `src/lib/pos.server.ts`, `src/components/pos/*` | Restaurant Management (names are misleading; rename deferred) |
+| `/restaurant/pos` and its ten canonical screens | Standalone POS |
+| `pos_*` tables, `POS-000001` receipt counter, POS pricing and reporting | Standalone POS |
+| `src/lib/standalone-pos*.ts`, `src/components/workspaces/standalone-pos/*` | Standalone POS |
+| `getBackOfficePosSummary` | Back Office (read-only consumer) |
+
+Key naming, deliberately kept distinct:
+
+| Key | Meaning |
+| --- | --- |
+| package `pos` | the Standalone POS commercial package |
+| module `pos` | access to the restaurant till inside Restaurant Management |
+| module `standalone_pos` | access to the Standalone POS package |
+
+`/restaurant/pos/new` remains a compatibility redirect to the restaurant till
+(its historical meaning) and is not part of the Standalone POS route family.
+
+Deferred to a later rename-only phase: `pos.functions.ts` / `pos.server.ts` →
+`rm-pos.*`, and moving `src/components/pos/*` under a restaurant-owned folder.

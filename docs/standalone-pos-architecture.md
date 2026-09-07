@@ -930,3 +930,63 @@ cross-package total, exact reconciliation with `/restaurant/pos/reports`.
 Inventory depletion and POS → folio Charge to Room remain **deferred**
 (see the ownership doc for the reasoning); nothing about the RM Charge to Room
 bridge changed.
+
+
+## Phase 8H9 — current state (authoritative)
+
+### Canonical routes
+
+| Route | Screen | Status |
+| --- | --- | --- |
+| `/restaurant/pos` | Home / launcher | live |
+| `/restaurant/pos/dashboard` | Dashboard | live |
+| `/restaurant/pos/sell` | Sell | live |
+| `/restaurant/pos/catalog` | Catalog | live |
+| `/restaurant/pos/transactions` | Transactions | live |
+| `/restaurant/pos/transactions/$saleId` | Transaction detail, receipt, refund | live |
+| `/restaurant/pos/registers` | Registers | live |
+| `/restaurant/pos/shifts` | Cashier shifts | live |
+| `/restaurant/pos/reports` | Reports | live |
+| `/restaurant/pos/settings` | Settings | live |
+
+`/restaurant/pos/new` is **not** part of this family: it is a Restaurant
+Management compatibility redirect to
+`/restaurant/restaurant-management/pos-sales`.
+
+### Ownership
+
+Standalone POS owns `pos_settings`, `pos_registers`, `pos_categories`,
+`pos_products`, `pos_cashier_shifts`, `pos_sales`, `pos_sale_items`,
+`pos_sale_payments`, `pos_refunds`, `pos_receipt_counters`, and the
+`POS-000001` receipt sequence. It never reads or writes `menu_items`,
+`orders`, `order_items`, `order_payments` or `cashier_shifts`.
+
+The restaurant till owns those restaurant tables and keeps its existing charge
+to room. Neither till touches the other's data.
+
+### Access keys
+
+Route level: `requireRoutePackage("pos")`. Server level: membership + `pos`
+package + `standalone_pos` module + role (`STANDALONE_POS_ROLES`,
+`STANDALONE_POS_READ_ROLES`, `STANDALONE_POS_MANAGE_ROLES`). The `pos` *module*
+key is the restaurant till and is never used to authorise Standalone POS.
+
+### Bridges
+
+| Bridge | Status |
+| --- | --- |
+| Back Office reporting and finance | live, read-only, no copied data |
+| POS sale → inventory depletion | deferred (no POS product ↔ stock mapping) |
+| POS sale → PMS charge to room | deferred |
+| Restaurant till → charge to room | unchanged, live |
+
+### Recommended moves for a later rename-only phase
+
+| From | To | Reason |
+| --- | --- | --- |
+| `src/lib/pos.functions.ts` | `src/lib/rm-pos.functions.ts` | serves the restaurant till, not this package |
+| `src/lib/pos.server.ts` | `src/lib/rm-pos.server.ts` | same |
+| `src/components/pos/*` | `src/components/workspaces/restaurant/pos/*` | restaurant-owned components |
+
+Removed in 8H9: `src/components/workspaces/standalone-pos/foundation-page.tsx`
+(a "not built yet" placeholder with no remaining users).
