@@ -120,7 +120,7 @@ function InHousePage({ membership }: { membership: RestaurantMembership }) {
                 <div>
                   <div className="flex items-center gap-2">
                     <Link
-                      to="/restaurant/bookings/$reservationId"
+                      to="/restaurant/pms/reservations/$reservationId"
                       params={{ reservationId: row.id }}
                       className="font-medium underline-offset-4 hover:underline"
                     >
@@ -147,7 +147,7 @@ function InHousePage({ membership }: { membership: RestaurantMembership }) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" asChild>
-                    <Link to="/restaurant/guests/$guestId" params={{ guestId: row.guestId }}>
+                    <Link to="/restaurant/pms/reservations/guests/$guestId" params={{ guestId: row.guestId }}>
                       Guest
                     </Link>
                   </Button>
