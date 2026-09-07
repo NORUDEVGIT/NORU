@@ -3,18 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CalendarPlus, ListChecks } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
 import { ReservationStatusBadge, StatCard, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import {
   getBookingsAccess,
   getBookingsDashboard,
   listReservations,
 } from "@/lib/reservations.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useRestaurantTimezone } from "@/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { useRestaurantTimezone } from "@/core/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/bookings/")({
   ssr: false,

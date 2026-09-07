@@ -10,8 +10,8 @@ import {
   listShiftTableAssignments,
   listShifts,
   type ShiftRecord,
-} from "@/lib/workforce.functions";
-import { formatClock, formatShiftTime, todayIso, wasLate } from "@/lib/workforce-rules";
+} from "@/core/lib/workforce.functions";
+import { formatClock, formatShiftTime, todayIso, wasLate } from "@/core/lib/workforce-rules";
 
 /**
  * "My Shift" — visible to any active staff member (all roles) with a shift today.

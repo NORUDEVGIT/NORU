@@ -28,8 +28,8 @@ import {
 import { listSuppliers } from "@/lib/suppliers.functions";
 import { listInventoryItems } from "@/lib/inventory.functions";
 import { PO_STATUS_LABEL, isEditable, isReceivable } from "@/lib/purchasing.server";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
 const EVENT_LABEL: Record<string, string> = {

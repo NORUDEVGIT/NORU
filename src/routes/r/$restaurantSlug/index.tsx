@@ -4,15 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ShoppingBag } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
+import { SiteHeader } from "@/core/components/site-header";
 import { TableContextBar } from "@/components/table-context-bar";
 import { MenuItemCard } from "@/components/menu-item-card";
 import { ItemDetailDialog } from "@/components/item-detail-dialog";
 import { Button } from "@/shared/components/ui/button";
 import type { MenuItem } from "@/data/menu";
 import { getPublicMenu } from "@/lib/menu.functions";
-import { useRestaurant, useMoney } from "@/state/restaurant-context";
-import { useOrder } from "@/state/order-store";
+import { useRestaurant, useMoney } from "@/core/state/restaurant-context";
+import { useOrder } from "@/core/state/order-store";
 import heroImage from "@/assets/hero.jpg";
 
 export const Route = createFileRoute("/r/$restaurantSlug/")({

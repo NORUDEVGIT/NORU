@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { useMoney } from "@/state/restaurant-context";
+import { useMoney } from "@/core/state/restaurant-context";
 import {
   getPosSettings,
   listPosCategories,
@@ -37,7 +37,7 @@ import {
   savePosCategory,
   savePosProduct,
 } from "@/lib/standalone-pos.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice, canSetupPos } from "./pos-shared";
 
 type Category = { id: string; name: string; sortOrder: number; active: boolean };

@@ -11,8 +11,8 @@ import {
   RevenueOverviewTab,
 } from "@/components/rates/rates-tabs";
 import { propertyToday } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 const TABS = ["overview", "plans", "calendar", "restrictions"] as const;
 type RatesTabKey = (typeof TABS)[number];

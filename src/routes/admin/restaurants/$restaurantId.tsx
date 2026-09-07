@@ -3,7 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { AdminShell, StatusBadge } from "@/components/admin-shell";
+import { AdminShell, StatusBadge } from "@/core/components/admin-shell";
 import { PackageEntitlementsPanel } from "@/components/admin/package-entitlements-panel";
 
 import { Button } from "@/shared/components/ui/button";
@@ -15,7 +15,7 @@ import {
   reactivateRestaurant,
   rejectRestaurant,
   suspendRestaurant,
-} from "@/lib/admin.functions";
+} from "@/core/lib/admin.functions";
 
 export const Route = createFileRoute("/admin/restaurants/$restaurantId")({
   ssr: false,

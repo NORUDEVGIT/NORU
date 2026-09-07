@@ -7,7 +7,7 @@ import {
   formatDateInZone,
   formatDateTimeInZone,
   formatMoney,
-} from "@/lib/restaurant-time";
+} from "@/core/lib/restaurant-time";
 
 const RestaurantContext = createContext<PublicRestaurant | null>(null);
 

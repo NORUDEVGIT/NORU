@@ -5,9 +5,9 @@
  * membership / package / module / role checks on the server.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { StandalonePosTransactionDetail } from "@/components/workspaces/standalone-pos/transaction-detail-page";
 
 export const Route = createFileRoute("/restaurant/pos/transactions/$saleId")({

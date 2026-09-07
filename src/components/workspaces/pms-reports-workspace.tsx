@@ -19,9 +19,9 @@ import { getHousekeepingDashboard } from "@/lib/housekeeping.functions";
 import { getCashieringDashboard } from "@/lib/cashiering.functions";
 import { listNightAuditRuns } from "@/lib/nightaudit.functions";
 import { propertyToday } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useMoney } from "@/state/restaurant-context";
-import { PageHeading } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { useMoney } from "@/core/state/restaurant-context";
+import { PageHeading } from "@/core/state/pms-context";
 
 export function PmsReportsWorkspace({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;

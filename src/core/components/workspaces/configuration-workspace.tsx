@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BedDouble, CalendarDays, Ban, DoorOpen, Globe, QrCode, UtensilsCrossed, BarChart3 } from "lucide-react";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 type ConfigLink = {
   title: string;

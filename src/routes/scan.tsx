@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Camera, X } from "lucide-react";
-import { NoruLogo } from "@/components/noru-logo";
+import { NoruLogo } from "@/core/components/noru-logo";
 import { Button } from "@/shared/components/ui/button";
 import { parseRestaurantTableQrValue } from "@/lib/restaurant-table-qr";
 

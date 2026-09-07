@@ -22,19 +22,19 @@ import {
   ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
-import { RestaurantShell } from "@/components/restaurant-shell";
-import { NoruLogo } from "@/components/noru-logo";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { NoruLogo } from "@/core/components/noru-logo";
 import { supabase } from "@/integrations/supabase/client";
 import { getRestaurantDashboard } from "@/lib/dashboard.functions";
 import { getInventoryDashboard } from "@/lib/inventory-reporting.functions";
-import { listShifts } from "@/lib/workforce.functions";
+import { listShifts } from "@/core/lib/workforce.functions";
 import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
-import { localDateInZone } from "@/lib/restaurant-time";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
-import type { ModuleKey } from "@/lib/module-access";
-import { usePackageEntitlements } from "@/lib/use-package-entitlements";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { useMoney, useRestaurantTimezone } from "@/core/state/restaurant-context";
+import { localDateInZone } from "@/core/lib/restaurant-time";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
+import type { ModuleKey } from "@/core/lib/module-access";
+import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/home")({

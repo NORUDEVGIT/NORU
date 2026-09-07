@@ -21,10 +21,10 @@ import { InventoryOverviewDashboard } from "@/components/inventory/overview-dash
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
-import { PageHeading } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import { PageHeading } from "@/core/state/pms-context";
 import { useIsRmContext } from "@/lib/rm-routes";
 
 

@@ -7,11 +7,11 @@
  */
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Briefcase } from "lucide-react";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { BO_GROUPS, BO_MODULES, BO_STATUS_LABEL } from "@/lib/back-office-modules";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/back-office/")({
   ssr: false,

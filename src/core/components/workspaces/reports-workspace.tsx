@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, BarChart3, Boxes, ReceiptText, Sparkles, Users, Wallet } from "lucide-react";
 import { RevenueOverviewTab } from "@/components/rates/rates-tabs";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { propertyToday } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 import { useIsRmContext } from "@/lib/rm-routes";
 
 type ReportLink = {

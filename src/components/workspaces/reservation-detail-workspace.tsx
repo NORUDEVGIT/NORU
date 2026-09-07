@@ -36,9 +36,9 @@ import {
   type ReservationDetail,
 } from "@/lib/reservations.functions";
 import { nightsBetween } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { listRatePlans, repriceReservation } from "@/lib/rates.functions";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 
 const UNASSIGNED = "unassigned";
 

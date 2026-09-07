@@ -19,15 +19,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUpRight, BarChart3, Boxes, Building2, Calculator, Truck, UtensilsCrossed } from "lucide-react";
 
-import { getMyModuleAccess } from "@/lib/module-access.functions";
-import { usePackageEntitlements } from "@/lib/use-package-entitlements";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
+import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import {
   getBackOfficeFinanceOverview,
   type FinanceSource,
   type SourceMetric,
 } from "@/lib/back-office-finance.functions";
 import { getBackOfficePosSummary } from "@/lib/back-office-pos.functions";
-import { formatMoney } from "@/lib/restaurant-time";
+import { formatMoney } from "@/core/lib/restaurant-time";
 import { propertyToday } from "@/lib/reservation-dates";
 
 /* ---------------------------------------------------------------- header */

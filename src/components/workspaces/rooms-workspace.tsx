@@ -7,8 +7,8 @@ import { RoomsDashboardTab } from "@/components/rooms/rooms-dashboard";
 import { RoomTypesTab } from "@/components/rooms/room-types-tab";
 import { RoomsTab } from "@/components/rooms/rooms-tab";
 import { getRoomsAccess } from "@/lib/rooms.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly, PmsOnly } from "@/core/state/pms-context";
 
 const TABS = ["dashboard", "room-types", "rooms"] as const;
 type RoomsTabKey = (typeof TABS)[number];

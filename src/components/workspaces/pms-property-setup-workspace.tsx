@@ -11,9 +11,9 @@ import { ArrowRight, BedDouble, DoorOpen, type LucideIcon } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { FoundationPanel } from "@/components/pms/foundation-panel";
-import { SettingsWorkspace } from "@/components/workspaces/settings-workspace";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading } from "@/state/pms-context";
+import { SettingsWorkspace } from "@/core/components/workspaces/settings-workspace";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading } from "@/core/state/pms-context";
 
 export function PmsPropertySetupWorkspace({ membership }: { membership: RestaurantMembership }) {
   const canManageRooms = membership.role === "owner" || membership.role === "manager";

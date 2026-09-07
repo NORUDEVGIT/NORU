@@ -28,7 +28,7 @@ import {
   type FolioRow,
   type LedgerEntryRow,
 } from "@/lib/cashiering.functions";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import { FolioStatusBadge } from "./folio-bits";
 
 /* -------------------------------------------------------------- dashboard */

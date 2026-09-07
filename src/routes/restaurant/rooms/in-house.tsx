@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Search } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { ReservationStatusBadge, formatStayDate } from "@/components/bookings/reservation-bits";
@@ -14,12 +14,12 @@ import {
   StayDatesDialog,
 } from "@/components/frontoffice/front-office-dialogs";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { listInHouse, type FrontOfficeStay } from "@/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/lib/reservations.functions";
 import { propertyToday } from "@/lib/reservation-dates";
-import { useRestaurantTimezone } from "@/state/restaurant-context";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useRestaurantTimezone } from "@/core/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/rooms/in-house")({
   ssr: false,

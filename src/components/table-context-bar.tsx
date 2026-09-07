@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck, MapPin } from "lucide-react";
-import { useRestaurant } from "@/state/restaurant-context";
-import { useOrder } from "@/state/order-store";
+import { useRestaurant } from "@/core/state/restaurant-context";
+import { useOrder } from "@/core/state/order-store";
 
 /**
  * Small persistent indicator so a diner always knows which restaurant and which

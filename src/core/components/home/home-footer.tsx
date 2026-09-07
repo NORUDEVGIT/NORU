@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { NoruLogo } from "@/components/noru-logo";
+import { NoruLogo } from "@/core/components/noru-logo";
 
 export function HomeFooter() {
   return (

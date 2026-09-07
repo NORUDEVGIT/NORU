@@ -32,11 +32,11 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-import { MyShiftCard } from "@/components/workforce/my-shift-card";
+import { MyShiftCard } from "@/core/components/workforce/my-shift-card";
 import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";
-import { ScheduleTab } from "@/components/workforce/schedule-tab";
-import { AttendanceTab } from "@/components/workforce/attendance-tab";
-import { ReportsTab } from "@/components/workforce/reports-tab";
+import { ScheduleTab } from "@/core/components/workforce/schedule-tab";
+import { AttendanceTab } from "@/core/components/workforce/attendance-tab";
+import { ReportsTab } from "@/core/components/workforce/reports-tab";
 
 import {
   changeStaffRole,
@@ -45,13 +45,13 @@ import {
   setStaffActive,
   type StaffMember,
   type StaffRole,
-} from "@/lib/staff.functions";
-import { getStaffModuleAccess, setStaffModuleAccess } from "@/lib/module-access.functions";
+} from "@/core/lib/staff.functions";
+import { getStaffModuleAccess, setStaffModuleAccess } from "@/core/lib/module-access.functions";
 import { Switch } from "@/shared/components/ui/switch";
-import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/lib/module-access";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/core/lib/module-access";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
-import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
+import { PageHeading, NonPmsOnly, PmsOnly } from "@/core/state/pms-context";
 import { useIsRmContext } from "@/lib/rm-routes";
 
 const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;

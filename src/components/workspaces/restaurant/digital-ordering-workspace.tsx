@@ -8,9 +8,9 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { getWaiterOrderContext, placeWaiterAssistedOrder } from "@/lib/waiter-orders.functions";
-import { formatShiftTime } from "@/lib/workforce-rules";
+import { formatShiftTime } from "@/core/lib/workforce-rules";
 import { cn } from "@/shared/lib/utils";
-import { useMoney } from "@/state/restaurant-context";
+import { useMoney } from "@/core/state/restaurant-context";
 
 
 type CartLine = { menuItemId: string; name: string; price: number; quantity: number; note: string };

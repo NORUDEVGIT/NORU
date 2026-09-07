@@ -12,8 +12,8 @@ import {
 } from "@/components/cashiering/cashiering-tabs";
 import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { propertyToday } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly, PmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly, PmsOnly } from "@/core/state/pms-context";
 
 const TABS = ["dashboard", "folios", "payments", "deposits", "refunds", "transfers", "shifts"] as const;
 type CashieringTabKey = (typeof TABS)[number];

@@ -14,10 +14,10 @@ import {
   RestrictionsTab,
   RoomRackTab,
 } from "@/components/housekeeping/housekeeping-tabs";
-import { useRestaurantTimezone } from "@/state/restaurant-context";
-import { localDateInZone } from "@/lib/restaurant-time";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import { useRestaurantTimezone } from "@/core/state/restaurant-context";
+import { localDateInZone } from "@/core/lib/restaurant-time";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 const TABS = [
   "dashboard",

@@ -11,9 +11,9 @@ import {
   SheetTrigger,
 } from "@/shared/components/ui/sheet";
 import { MenuLink, OrderLink } from "@/components/menu-link";
-import { useOrder } from "@/state/order-store";
-import { useAuth } from "@/state/auth-store";
-import { useMoney } from "@/state/restaurant-context";
+import { useOrder } from "@/core/state/order-store";
+import { useAuth } from "@/core/state/auth-store";
+import { useMoney } from "@/core/state/restaurant-context";
 
 interface SiteHeaderProps {
   /** Category names come from the restaurant's database menu. */

@@ -3,9 +3,9 @@
  * functions, dialogs and item table; no separate data or posting path.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { BackOfficeInventoryItems } from "@/components/workspaces/back-office/inventory-pages";
 
 export const Route = createFileRoute("/restaurant/back-office/inventory/items")({

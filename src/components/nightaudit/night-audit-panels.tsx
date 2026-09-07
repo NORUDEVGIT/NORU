@@ -9,7 +9,7 @@ import type {
   NightAuditState,
 } from "@/lib/nightaudit.functions";
 import type { AreaCheck } from "@/lib/nightaudit.server";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import { formatStayDate } from "@/lib/reservation-dates";
 
 export function CheckBadge({ status }: { status: AreaCheck["status"] }) {

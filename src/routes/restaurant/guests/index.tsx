@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search, Star } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { GuestFormDialog } from "@/components/guests/guest-form-dialog";
 import { StatusBadge, VipBadge } from "@/components/guests/guest-bits";
 import { Button } from "@/shared/components/ui/button";
@@ -17,10 +17,10 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { getGuestsAccess, listGuests, type GuestSummary } from "@/lib/guests.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useRestaurantTime } from "@/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { useRestaurantTime } from "@/core/state/restaurant-context";
 
 export const Route = createFileRoute("/restaurant/guests/")({
   ssr: false,

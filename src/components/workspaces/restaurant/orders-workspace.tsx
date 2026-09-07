@@ -10,11 +10,11 @@ import { Input } from "@/shared/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/shared/lib/utils";
 import { listRestaurantOrders, ORDER_PERIODS, ORDER_SORTS, type OrderListResult, type OrderListRow } from "@/lib/restaurant-orders.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRmRoutes } from "@/lib/rm-routes";
-import { useMoney } from "@/state/restaurant-context";
-import { PageHeading } from "@/state/pms-context";
-import { useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney } from "@/core/state/restaurant-context";
+import { PageHeading } from "@/core/state/pms-context";
+import { useRestaurantTime } from "@/core/state/restaurant-context";
 
 const STATUS_TABS = [
   { value: "all", label: "All" },

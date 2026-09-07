@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { SiteHeader } from "@/components/site-header";
+import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
-import { useOrder } from "@/state/order-store";
+import { useOrder } from "@/core/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/status")({
   head: () => ({

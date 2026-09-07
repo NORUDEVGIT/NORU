@@ -12,8 +12,8 @@ import {
   RoomMappingTab,
   useDistribution,
 } from "@/components/distribution/distribution-tabs";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 const TABS = ["overview", "channels", "rooms", "rates", "logs"] as const;
 type TabKey = (typeof TABS)[number];

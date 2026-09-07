@@ -8,16 +8,16 @@ import { ArrowLeft, Printer, RotateCcw, Wallet } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { NoruLogo } from "@/components/noru-logo";
+import { NoruLogo } from "@/core/components/noru-logo";
 import { PosMenuPanel } from "@/components/pos/pos-menu-panel";
 import { PosSalePanel, type PosLine, type PosOrderType } from "@/components/pos/pos-sale-panel";
 import { PosPaymentDialog, type PosPaymentChoice } from "@/components/pos/pos-payment-dialog";
 import { ChargeToRoomDialog } from "@/components/orders/charge-to-room-dialog";
 import { getPosContext, openPosShift, payPosSale, placePosSale, type PosMenuItem, type PosSale } from "@/lib/pos.functions";
-import { getMyRestaurants } from "@/lib/restaurant.functions";
-import { useAuth } from "@/state/auth-store";
-import { RestaurantSettingsProvider, useMoney } from "@/state/restaurant-context";
-import { formatMoney } from "@/lib/restaurant-time";
+import { getMyRestaurants } from "@/core/lib/restaurant.functions";
+import { useAuth } from "@/core/state/auth-store";
+import { RestaurantSettingsProvider, useMoney } from "@/core/state/restaurant-context";
+import { formatMoney } from "@/core/lib/restaurant-time";
 
 
 interface HeldSale {

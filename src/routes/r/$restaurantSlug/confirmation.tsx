@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2, Clock } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
+import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
 import { OrderLines } from "@/components/order-lines";
-import { useRestaurant, useMoney } from "@/state/restaurant-context";
-import { useOrder } from "@/state/order-store";
+import { useRestaurant, useMoney } from "@/core/state/restaurant-context";
+import { useOrder } from "@/core/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/confirmation")({
   head: () => ({

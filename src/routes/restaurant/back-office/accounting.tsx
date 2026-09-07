@@ -6,9 +6,9 @@
  * homes, owners and permissions.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { BackOfficeAccountingHome } from "@/components/workspaces/back-office/accounting-pages";
 
 export const Route = createFileRoute("/restaurant/back-office/accounting")({

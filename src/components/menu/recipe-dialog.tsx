@@ -23,7 +23,7 @@ import {
   updateRecipeComponent,
   type RecipeComponent,
 } from "@/lib/recipes.functions";
-import { useMoney } from "@/state/restaurant-context";
+import { useMoney } from "@/core/state/restaurant-context";
 
 /** Derived recipe state, shown wherever a menu item appears in staff UI. */
 export function RecipeStatusChip({ status }: { status: "no_recipe" | "incomplete" | "ready" }) {

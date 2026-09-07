@@ -27,8 +27,8 @@ import {
   ReverseRoomChargeDialog,
 } from "@/components/orders/charge-to-room-dialog";
 import { useRmRoutes } from "@/lib/rm-routes";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 
 export function OrderDetailBody({
   membership,

@@ -3,9 +3,9 @@
  * reports honestly on how far each Back Office area has moved.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { BO_GROUPS, BO_MODULES, BO_STATUS_LABEL } from "@/lib/back-office-modules";
 
 export const Route = createFileRoute("/restaurant/back-office/dashboard")({

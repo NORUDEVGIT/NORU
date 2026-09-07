@@ -12,8 +12,8 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { deleteRestaurantTable, listRestaurantTables, regenerateTableToken, saveRestaurantTable, setTableActive, type ManagedTable } from "@/lib/tables.functions";
 import { buildRestaurantTableQrUrl } from "@/lib/restaurant-table-qr";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 /** Editing tables is limited to owners and managers; other staff read only. */
 const MANAGE_ROLES = ["owner", "manager"];

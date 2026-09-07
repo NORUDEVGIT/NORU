@@ -12,13 +12,13 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { PACKAGE_LABELS, type PackageKey } from "@/lib/package-entitlements";
+import { PACKAGE_LABELS, type PackageKey } from "@/core/lib/package-entitlements";
 import {
   clearPropertyPackageEntitlement,
   getPackageEntitlementsAdmin,
   setPropertyPackageEntitlement,
   type AdminPackageState,
-} from "@/lib/package-entitlements.functions";
+} from "@/core/lib/package-entitlements.functions";
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";

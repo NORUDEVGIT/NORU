@@ -3,9 +3,9 @@
  * data, no ownership migration, no new entitlement logic.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { getBoModule } from "@/lib/back-office-modules";
 import { BackOfficeFoundation } from "@/components/workspaces/back-office/foundation-page";
 

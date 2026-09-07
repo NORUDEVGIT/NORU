@@ -30,14 +30,14 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { getBackOfficePosSummary } from "@/lib/back-office-pos.functions";
 import { getRestaurantDashboard } from "@/lib/dashboard.functions";
 import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
-import { usePackageEntitlements } from "@/lib/use-package-entitlements";
-import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
-import { localDateInZone } from "@/lib/restaurant-time";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
+import { useMoney, useRestaurantTimezone } from "@/core/state/restaurant-context";
+import { localDateInZone } from "@/core/lib/restaurant-time";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
 import { useMemo } from "react";
 

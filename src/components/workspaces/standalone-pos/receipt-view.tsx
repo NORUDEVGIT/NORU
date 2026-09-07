@@ -8,7 +8,7 @@
  * edit can never change an old receipt. Rendering is presentation only — it
  * never changes totals, the receipt number or the sale's state.
  */
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 
 export const TENDER_LABEL: Record<string, string> = {
   cash: "Cash",

@@ -15,7 +15,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/shared/lib/utils";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import {
   addPosSaleItem,
   completePosSale,
@@ -28,7 +28,7 @@ import {
   updatePosSaleItem,
   voidPosSale,
 } from "@/lib/standalone-pos.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader } from "./pos-shared";
 import { ReceiptView } from "./receipt-view";
 

@@ -13,7 +13,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { getPosSettings, savePosSettings } from "@/lib/standalone-pos.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice, canSetupPos } from "./pos-shared";
 
 export function StandalonePosSettings({ membership }: { membership: RestaurantMembership }) {

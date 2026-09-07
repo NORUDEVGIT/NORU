@@ -8,7 +8,7 @@ import { Button } from "@/shared/components/ui/button";
 import { WalkInDialog } from "@/components/frontoffice/front-office-dialogs";
 import { getFrontOfficeDashboard } from "@/lib/frontoffice.functions";
 import { propertyToday } from "@/lib/reservation-dates";
-import { useRestaurantTimezone } from "@/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/restaurant-context";
 
 export function FrontOfficeSummary({ restaurantId }: { restaurantId: string }) {
   const timezone = useRestaurantTimezone();

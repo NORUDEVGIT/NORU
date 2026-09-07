@@ -40,21 +40,21 @@ import {
   Globe,
   Briefcase,
 } from "lucide-react";
-import { NoruLogo } from "@/components/noru-logo";
+import { NoruLogo } from "@/core/components/noru-logo";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
-import { usePackageEntitlements } from "@/lib/use-package-entitlements";
-import { clearRoutePackageCache } from "@/lib/route-package-guard";
+import { getMyRestaurants, type RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
+import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
+import { clearRoutePackageCache } from "@/core/lib/route-package-guard";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
 import { RM_GROUPS, RM_MODULES } from "@/lib/restaurant-management-modules";
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/lib/back-office-modules";
 import { POS_MODULES, getPosModule } from "@/lib/standalone-pos-modules";
-import { useAuth } from "@/state/auth-store";
+import { useAuth } from "@/core/state/auth-store";
 import { cn } from "@/shared/lib/utils";
-import { RestaurantSettingsProvider } from "@/state/restaurant-context";
-import { PmsHeadingProvider } from "@/state/pms-context";
+import { RestaurantSettingsProvider } from "@/core/state/restaurant-context";
+import { PmsHeadingProvider } from "@/core/state/pms-context";
 
 export type RestaurantNavLabel =
   | "Home"

@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { ORDER_STATUS_STEPS, type OrderStatus } from "@/state/order-store";
+import { ORDER_STATUS_STEPS, type OrderStatus } from "@/core/state/order-store";
 
 export function StatusTracker({ status }: { status: OrderStatus }) {
   const activeIndex = ORDER_STATUS_STEPS.findIndex((step) => step.key === status);

@@ -12,7 +12,7 @@ import { ArrowRight, type LucideIcon, BedDouble, TrendingUp, Users, Wallet } fro
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { FoundationPanel } from "@/components/pms/foundation-panel";
-import { StaffManager } from "@/components/workspaces/staff-workspace";
+import { StaffManager } from "@/core/components/workspaces/staff-workspace";
 import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";
 import {
   MODULE_LABELS,
@@ -20,9 +20,9 @@ import {
   ROLE_LABELS,
   ROLE_MODULES,
   SELECTABLE_STAFF_ROLES,
-} from "@/lib/module-access";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading } from "@/state/pms-context";
+} from "@/core/lib/module-access";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading } from "@/core/state/pms-context";
 
 export function PmsAdministrationWorkspace({ membership }: { membership: RestaurantMembership }) {
   const canManage = membership.role === "owner" || membership.role === "manager";

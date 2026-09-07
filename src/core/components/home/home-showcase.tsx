@@ -1,4 +1,4 @@
-import { MockBars, MockChip, MockKpi, MockOrderCard } from "@/components/home/ui-mock";
+import { MockBars, MockChip, MockKpi, MockOrderCard } from "@/core/components/home/ui-mock";
 import { cn } from "@/shared/lib/utils";
 
 const ROWS = [

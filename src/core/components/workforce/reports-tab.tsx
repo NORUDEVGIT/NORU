@@ -6,8 +6,8 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { getStaffAttendanceSummary } from "@/lib/workforce.functions";
-import { addDaysIso, todayIso } from "@/lib/workforce-rules";
+import { getStaffAttendanceSummary } from "@/core/lib/workforce.functions";
+import { addDaysIso, todayIso } from "@/core/lib/workforce-rules";
 import { cn } from "@/shared/lib/utils";
 
 type Preset = "today" | "7" | "30" | "custom";

@@ -20,12 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import {
   getPosTransactionFilterOptions,
   listPosTransactions,
 } from "@/lib/standalone-pos.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PosHeader } from "./pos-shared";
 import { tenderLabel } from "./receipt-view";
 

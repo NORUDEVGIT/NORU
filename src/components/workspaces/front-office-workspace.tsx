@@ -4,8 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui
 import { ArrivalsWorkspace } from "@/components/workspaces/arrivals-workspace";
 import { FrontOfficeSummary } from "@/components/frontoffice/front-office-summary";
 import { DeparturesList, InHouseList } from "@/components/frontoffice/stay-lists";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading } from "@/core/state/pms-context";
 
 const TABS = ["overview", "arrivals", "checkin", "assignment", "inhouse", "departures"] as const;
 type FrontOfficeTabKey = (typeof TABS)[number];

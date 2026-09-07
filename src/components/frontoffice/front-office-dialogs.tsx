@@ -26,7 +26,7 @@ import {
 import { addDays, formatStayDate } from "@/components/bookings/reservation-bits";
 import { listGuests, type GuestSummary } from "@/lib/guests.functions";
 import { getReservationFolio } from "@/lib/cashiering.functions";
-import { useMoney } from "@/state/restaurant-context";
+import { useMoney } from "@/core/state/restaurant-context";
 import {
   createReservation,
   getRoomTypeAvailability,

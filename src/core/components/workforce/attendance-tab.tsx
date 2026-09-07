@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import { listShifts, type ShiftRecord } from "@/lib/workforce.functions";
-import { formatClock, formatShiftTime, todayIso, wasLate } from "@/lib/workforce-rules";
+import { listShifts, type ShiftRecord } from "@/core/lib/workforce.functions";
+import { formatClock, formatShiftTime, todayIso, wasLate } from "@/core/lib/workforce-rules";
 import { cn } from "@/shared/lib/utils";
 
 /** Read-only attendance for today. No manual correction in this batch. */

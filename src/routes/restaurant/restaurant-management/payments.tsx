@@ -4,7 +4,7 @@
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { RmContextBar } from "@/components/rm-context-bar";
 import { RestaurantPaymentsFoundation } from "@/components/workspaces/restaurant/payments-foundation";
 

@@ -3,9 +3,9 @@
  * manager; no separate people, memberships or login identities.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { BackOfficeHrStaff } from "@/components/workspaces/back-office/hr-pages";
 
 export const Route = createFileRoute("/restaurant/back-office/hr/staff")({

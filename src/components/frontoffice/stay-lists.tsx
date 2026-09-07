@@ -21,7 +21,7 @@ import {
 } from "@/components/frontoffice/front-office-dialogs";
 import { listDepartures, listInHouse, type FrontOfficeStay } from "@/lib/frontoffice.functions";
 import { propertyToday } from "@/lib/reservation-dates";
-import { useRestaurantTimezone } from "@/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/restaurant-context";
 
 function ConfirmationLink({ stay }: { stay: FrontOfficeStay }) {
   return (

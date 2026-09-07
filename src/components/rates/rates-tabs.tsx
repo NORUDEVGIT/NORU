@@ -33,7 +33,7 @@ import {
   setRatePlanActive,
   type RatePlan,
 } from "@/lib/rates.functions";
-import { useMoney } from "@/state/restaurant-context";
+import { useMoney } from "@/core/state/restaurant-context";
 
 const ALL = "all";
 

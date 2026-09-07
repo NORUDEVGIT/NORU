@@ -4,16 +4,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Printer } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { getFolio } from "@/lib/cashiering.functions";
 import type { TransactionType } from "@/lib/cashiering.server";
 import { FolioStatusBadge, labelTransactionType, splitLedger } from "@/components/cashiering/folio-bits";
 import { CloseFolioDialog, FolioEntryDialog } from "@/components/cashiering/folio-dialogs";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export const Route = createFileRoute("/restaurant/cashiering/folios/$folioId")({
   ssr: false,

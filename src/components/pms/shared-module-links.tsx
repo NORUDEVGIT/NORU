@@ -12,10 +12,10 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUpRight, Boxes, Truck, Users, Wallet, BarChart3, type LucideIcon } from "lucide-react";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
-import { MODULE_LABELS, type ModuleKey } from "@/lib/module-access";
-import { usePackageEntitlements } from "@/lib/use-package-entitlements";
-import type { PackageKey } from "@/lib/package-entitlements";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
+import { MODULE_LABELS, type ModuleKey } from "@/core/lib/module-access";
+import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
+import type { PackageKey } from "@/core/lib/package-entitlements";
 
 /**
  * Phase 8C — which package will own each shared service. A link is hidden

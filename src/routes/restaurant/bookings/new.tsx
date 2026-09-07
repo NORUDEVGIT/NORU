@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check, Search, UserPlus } from "lucide-react";
 
-import { RestaurantShell } from "@/components/restaurant-shell";
+import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -19,7 +19,7 @@ import {
 } from "@/shared/components/ui/select";
 import { addDays, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/lib/route-package-guard";
+import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { listGuests, type GuestSummary } from "@/lib/guests.functions";
 import {
   createReservation,
@@ -28,9 +28,9 @@ import {
   listAssignableRooms,
 } from "@/lib/reservations.functions";
 import { nightsBetween } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/lib/rates.functions";
-import { useMoney, useRestaurantTimezone } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTimezone } from "@/core/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({

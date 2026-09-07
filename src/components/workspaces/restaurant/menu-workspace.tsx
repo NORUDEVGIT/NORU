@@ -13,11 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/compo
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { createMenuImageUpload, deleteCategory, deleteMenuItem, getManagedMenu, moveCategory, saveCategory, saveMenuItem, setCategoryActive, setItemAvailability, type ManagedCategory, type ManagedItem } from "@/lib/menu.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { getMenuRecipeSummaries } from "@/lib/recipes.functions";
 import { RecipeDialog, RecipeStatusChip } from "@/components/menu/recipe-dialog";
-import { useMoney } from "@/state/restaurant-context";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import { useMoney } from "@/core/state/restaurant-context";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 /** Menu editing is limited to owners and managers. Kitchen/waiter cannot edit. */
 const MANAGE_ROLES = ["owner", "manager"];

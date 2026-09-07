@@ -6,7 +6,7 @@ import { updateKitchenOrderStatus } from "@/lib/restaurant-orders.functions";
 
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 
 type OrderStatus = "new" | "preparing" | "ready" | "served";
 

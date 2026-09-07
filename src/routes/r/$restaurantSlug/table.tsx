@@ -2,12 +2,12 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Utensils } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
+import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { resolveManualTable } from "@/lib/tables.functions";
-import { useOrder } from "@/state/order-store";
-import { useMoney } from "@/state/restaurant-context";
+import { useOrder } from "@/core/state/order-store";
+import { useMoney } from "@/core/state/restaurant-context";
 
 export const Route = createFileRoute("/r/$restaurantSlug/table")({
   head: () => ({

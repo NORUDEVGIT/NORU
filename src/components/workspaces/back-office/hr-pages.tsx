@@ -19,11 +19,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { CalendarDays, Clock, ShieldCheck, Users } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import { StaffManager } from "@/components/workspaces/staff-workspace";
-import { ScheduleTab } from "@/components/workforce/schedule-tab";
-import { AttendanceTab } from "@/components/workforce/attendance-tab";
-import { getMyModuleAccess } from "@/lib/module-access.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { StaffManager } from "@/core/components/workspaces/staff-workspace";
+import { ScheduleTab } from "@/core/components/workforce/schedule-tab";
+import { AttendanceTab } from "@/core/components/workforce/attendance-tab";
+import { getMyModuleAccess } from "@/core/lib/module-access.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export function HrHeader({ title, blurb }: { title: string; blurb: string }) {
   return (

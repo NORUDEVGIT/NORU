@@ -1,9 +1,9 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AdminShell } from "@/components/admin-shell";
+import { AdminShell } from "@/core/components/admin-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { getAdminOverview, listAuditLog } from "@/lib/admin.functions";
+import { getAdminOverview, listAuditLog } from "@/core/lib/admin.functions";
 
 export const Route = createFileRoute("/admin/")({
   ssr: false,

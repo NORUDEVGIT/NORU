@@ -29,8 +29,8 @@ import {
   setGuestVip,
   type GuestPreferences,
 } from "@/lib/guests.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { useRestaurantTime } from "@/state/restaurant-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { useRestaurantTime } from "@/core/state/restaurant-context";
 
 const EVENT_LABEL: Record<string, string> = {
   created: "Guest created",

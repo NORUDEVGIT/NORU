@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { SiteHeader } from "@/components/site-header";
+import { SiteHeader } from "@/core/components/site-header";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { registerCustomer } from "@/lib/customer.functions";
+import { registerCustomer } from "@/core/lib/customer.functions";
 
 export const Route = createFileRoute("/register")({
   ssr: false,

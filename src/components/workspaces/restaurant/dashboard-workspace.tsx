@@ -10,10 +10,10 @@ import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/shared/lib/utils";
 import { getRestaurantDashboard, type DashboardOrder, type RestaurantDashboard } from "@/lib/dashboard.functions";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRmRoutes } from "@/lib/rm-routes";
-import { useMoney } from "@/state/restaurant-context";
-import { useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney } from "@/core/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/restaurant-context";
 
 
 

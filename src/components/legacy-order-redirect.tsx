@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useOrder } from "@/state/order-store";
+import { useOrder } from "@/core/state/order-store";
 
 type LegacyPage = "cart" | "table" | "review" | "confirmation" | "status";
 

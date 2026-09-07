@@ -18,15 +18,15 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { listStaff } from "@/lib/staff.functions";
+import { listStaff } from "@/core/lib/staff.functions";
 import {
   cancelShift,
   createShift,
   listShiftTableAssignments,
   listShifts,
   type ShiftRecord,
-} from "@/lib/workforce.functions";
-import { addDaysIso, formatShiftTime, todayIso, wasLate } from "@/lib/workforce-rules";
+} from "@/core/lib/workforce.functions";
+import { addDaysIso, formatShiftTime, todayIso, wasLate } from "@/core/lib/workforce-rules";
 import { cn } from "@/shared/lib/utils";
 import { AssignTablesDialog } from "./assign-tables-dialog";
 

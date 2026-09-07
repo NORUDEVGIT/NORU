@@ -30,10 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import { getPosSale, refundPosSale } from "@/lib/standalone-pos.functions";
-import { STANDALONE_POS_MANAGE_ROLES } from "@/lib/module-access";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
+import { STANDALONE_POS_MANAGE_ROLES } from "@/core/lib/module-access";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice } from "./pos-shared";
 import { ReceiptView, tenderLabel } from "./receipt-view";
 

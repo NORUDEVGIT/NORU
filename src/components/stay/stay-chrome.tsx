@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { StayProperty } from "@/lib/public-booking.server";
-import { formatMoney } from "@/lib/restaurant-time";
+import { formatMoney } from "@/core/lib/restaurant-time";
 
 export { formatMoney };
 

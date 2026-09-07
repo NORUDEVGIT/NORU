@@ -20,8 +20,8 @@ import { ReservationCancellationsTab } from "@/components/bookings/reservation-c
 import { FoundationPanel } from "@/components/pms/foundation-panel";
 import { getBookingsAccess, listReservations } from "@/lib/reservations.functions";
 import type { ReservationStatus } from "@/lib/reservation-dates";
-import type { RestaurantMembership } from "@/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/state/pms-context";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 const ALL = "all";
 const TABS = ["individual", "group", "corporate", "amendments", "cancellations"] as const;

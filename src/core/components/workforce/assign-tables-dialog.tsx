@@ -11,8 +11,8 @@ import {
   listShiftTableAssignments,
   removeTableAssignment,
   type ShiftRecord,
-} from "@/lib/workforce.functions";
-import { formatShiftTime } from "@/lib/workforce-rules";
+} from "@/core/lib/workforce.functions";
+import { formatShiftTime } from "@/core/lib/workforce-rules";
 
 /** Simple checkbox list of active tables for one shift. No drag/drop, zones or floor plans. */
 export function AssignTablesDialog({
