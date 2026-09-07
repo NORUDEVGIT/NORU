@@ -44,6 +44,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
+import { usePackageEntitlements } from "@/lib/use-package-entitlements";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
@@ -507,11 +508,19 @@ export function RestaurantShell({
     retry: false,
   });
   const allowedModules = moduleAccess.data?.modules ?? [];
+  // Phase 8C — package entitlement hides package-level entry points only.
+  const packages = usePackageEntitlements(membership?.restaurantId);
+  const pmsPackage = packages.has("pms");
 
   const workspace = module ?? LABEL_MODULE[active];
-  const items = MODULE_NAV[workspace].filter(
-    (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
-  );
+  // Restaurant Management is a package-level nav group: it disappears from
+  // navigation when the package is switched off (routes still work).
+  const workspacePackaged = workspace === "restaurant" ? packages.has("restaurant_management") : true;
+  const items = workspacePackaged
+    ? MODULE_NAV[workspace].filter(
+        (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
+      )
+    : [];
   const activeItem = items.find((i) => i.label === active);
   const activeTab =
     search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
@@ -576,22 +585,24 @@ export function RestaurantShell({
           >
             <ArrowLeft className="size-4 shrink-0" /> Property Home
           </Link>
-          <Link
-            to="/restaurant/pms"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <Hotel className="size-4 shrink-0" /> PMS Home
-          </Link>
+          {pmsPackage ? (
+            <Link
+              to="/restaurant/pms"
+              onClick={() => setNavOpen(false)}
+              className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <Hotel className="size-4 shrink-0" /> PMS Home
+            </Link>
+          ) : null}
         </div>
       ) : workspace !== "home" ? (
         <div className="space-y-2">
           <Link
-            to={pms ? "/restaurant/pms" : "/restaurant/home"}
+            to={pms && pmsPackage ? "/restaurant/pms" : "/restaurant/home"}
             onClick={() => setNavOpen(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <ArrowLeft className="size-4 shrink-0" /> {pms ? "PMS Home" : "NORU Home"}
+            <ArrowLeft className="size-4 shrink-0" /> {pms && pmsPackage ? "PMS Home" : "NORU Home"}
           </Link>
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
             {contextLabel}
@@ -599,7 +610,7 @@ export function RestaurantShell({
         </div>
       ) : null}
 
-      {pmsMod ? pmsSidebarNav : null}
+      {pmsMod && pmsPackage ? pmsSidebarNav : null}
 
       <nav className={cn("min-h-0 flex-1 overflow-y-auto", pmsMod && "hidden")}>
         <ul className="space-y-1">
