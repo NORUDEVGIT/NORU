@@ -437,6 +437,7 @@ function AccountingBody({
                 packages={packages}
               />
             ))}
+            <PosSourceCard restaurantId={restaurantId} />
           </div>
         )}
       </section>
