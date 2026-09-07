@@ -8,7 +8,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { PurchaseOrderPage } from "@/components/workspaces/back-office/purchase-order-page";
+import { PurchaseOrderPage } from "@/packages/back-office/components/purchase-order-page";
 
 export const Route = createFileRoute("/restaurant/inventory/purchasing/$purchaseOrderId")({
   ssr: false,

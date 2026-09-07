@@ -33,7 +33,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { MyShiftCard } from "@/core/components/workforce/my-shift-card";
-import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";
+import { BackOfficeHrLink } from "@/packages/back-office/components/hr-link";
 import { ScheduleTab } from "@/core/components/workforce/schedule-tab";
 import { AttendanceTab } from "@/core/components/workforce/attendance-tab";
 import { ReportsTab } from "@/core/components/workforce/reports-tab";

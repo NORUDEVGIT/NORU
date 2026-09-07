@@ -24,7 +24,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireBackOfficeFinanceRead, sourceAvailable } from "./back-office-finance.server";
+import { requireBackOfficeFinanceRead, sourceAvailable } from "@/packages/back-office/lib/back-office-finance.server";
 import { resolveCallerAccess } from "@/core/lib/module-access.server";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, zonedMoment, addDaysIso } from "@/core/lib/restaurant-time";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
@@ -140,7 +140,7 @@ export const getBackOfficePosSummary = createServerFn({ method: "POST" })
 
     // 3. Same aggregation the till itself reports from. Membership names are
     //    not needed for a summary, so none are resolved.
-    const { buildPosReport } = await import("./standalone-pos-reporting.server");
+    const { buildPosReport } = await import("@/packages/standalone-pos/lib/standalone-pos-reporting.server");
     const report = await buildPosReport(
       db,
       data.restaurantId,

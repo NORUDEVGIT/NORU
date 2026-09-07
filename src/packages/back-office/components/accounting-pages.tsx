@@ -25,8 +25,8 @@ import {
   getBackOfficeFinanceOverview,
   type FinanceSource,
   type SourceMetric,
-} from "@/lib/back-office-finance.functions";
-import { getBackOfficePosSummary } from "@/lib/back-office-pos.functions";
+} from "@/packages/back-office/lib/back-office-finance.functions";
+import { getBackOfficePosSummary } from "@/integrations/cross-package/back-office-pos.functions";
 import { formatMoney } from "@/core/lib/restaurant-time";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 

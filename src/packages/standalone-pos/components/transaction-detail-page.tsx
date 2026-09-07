@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
-import { getPosSale, refundPosSale } from "@/lib/standalone-pos.functions";
+import { getPosSale, refundPosSale } from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import { STANDALONE_POS_MANAGE_ROLES } from "@/core/lib/module-access";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice } from "./pos-shared";

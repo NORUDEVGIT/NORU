@@ -7,7 +7,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ShoppingCart } from "lucide-react";
-import { POS_STATUS_LABEL, type PosModuleStatus } from "@/lib/standalone-pos-modules";
+import { POS_STATUS_LABEL, type PosModuleStatus } from "@/packages/standalone-pos/lib/standalone-pos-modules";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 /** Roles allowed to change POS catalog and settings (server-enforced too). */

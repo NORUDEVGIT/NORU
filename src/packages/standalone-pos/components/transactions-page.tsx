@@ -24,7 +24,7 @@ import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
 import {
   getPosTransactionFilterOptions,
   listPosTransactions,
-} from "@/lib/standalone-pos.functions";
+} from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PosHeader } from "./pos-shared";
 import { tenderLabel } from "./receipt-view";

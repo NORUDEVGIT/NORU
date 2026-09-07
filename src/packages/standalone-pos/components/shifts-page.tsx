@@ -35,7 +35,7 @@ import {
   getPosShiftState,
   listPosShifts,
   openPosShift,
-} from "@/lib/standalone-pos.functions";
+} from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import { STANDALONE_POS_ROLES } from "@/core/lib/module-access";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice } from "./pos-shared";

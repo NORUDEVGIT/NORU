@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import { listPosRegisters, savePosRegister } from "@/lib/standalone-pos.functions";
+import { listPosRegisters, savePosRegister } from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice, canSetupPos } from "./pos-shared";
 

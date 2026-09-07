@@ -36,7 +36,7 @@ import {
   listPosProducts,
   savePosCategory,
   savePosProduct,
-} from "@/lib/standalone-pos.functions";
+} from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice, canSetupPos } from "./pos-shared";
 

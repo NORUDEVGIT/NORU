@@ -6,7 +6,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { BO_GROUPS, BO_MODULES, BO_STATUS_LABEL } from "@/lib/back-office-modules";
+import { BO_GROUPS, BO_MODULES, BO_STATUS_LABEL } from "@/packages/back-office/lib/back-office-modules";
 
 export const Route = createFileRoute("/restaurant/back-office/dashboard")({
   ssr: false,

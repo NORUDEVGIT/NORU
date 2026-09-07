@@ -5,7 +5,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { BackOfficeInventoryUnits } from "@/components/workspaces/back-office/inventory-pages";
+import { BackOfficeInventoryUnits } from "@/packages/back-office/components/inventory-pages";
 
 export const Route = createFileRoute("/restaurant/back-office/inventory/units")({
   ssr: false,

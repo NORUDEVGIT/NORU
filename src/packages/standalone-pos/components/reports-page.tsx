@@ -11,7 +11,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { useMoney, useRestaurantTime } from "@/core/state/restaurant-context";
-import { getStandalonePosReport } from "@/lib/standalone-pos.functions";
+import { getStandalonePosReport } from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PosHeader, ErrorNotice, ReadOnlyNotice } from "./pos-shared";
 import { DataTable, Metric, Panel, SALE_STATUS_LABELS, tenderName } from "./report-shared";

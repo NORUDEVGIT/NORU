@@ -8,7 +8,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { StandalonePosHome } from "@/components/workspaces/standalone-pos/pos-home";
+import { StandalonePosHome } from "@/packages/standalone-pos/components/pos-home";
 
 export const Route = createFileRoute("/restaurant/pos/")({
   ssr: false,

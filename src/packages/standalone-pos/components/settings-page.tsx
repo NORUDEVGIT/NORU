@@ -12,7 +12,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
-import { getPosSettings, savePosSettings } from "@/lib/standalone-pos.functions";
+import { getPosSettings, savePosSettings } from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader, ReadOnlyNotice, canSetupPos } from "./pos-shared";
 

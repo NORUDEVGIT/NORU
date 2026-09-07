@@ -13,7 +13,7 @@ import { ArrowRight, type LucideIcon, BedDouble, TrendingUp, Users, Wallet } fro
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { FoundationPanel } from "@/packages/pms/components/pms/foundation-panel";
 import { StaffManager } from "@/core/components/workspaces/staff-workspace";
-import { BackOfficeHrLink } from "@/components/workspaces/back-office/hr-link";
+import { BackOfficeHrLink } from "@/packages/back-office/components/hr-link";
 import {
   MODULE_LABELS,
   OVERRIDABLE_MODULES,

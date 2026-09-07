@@ -8,8 +8,8 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { POS_MODULES } from "@/lib/standalone-pos-modules";
-import { getPosOverview } from "@/lib/standalone-pos.functions";
+import { POS_MODULES } from "@/packages/standalone-pos/lib/standalone-pos-modules";
+import { getPosOverview } from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PosHeader, StatusPill, canSetupPos } from "./pos-shared";
 

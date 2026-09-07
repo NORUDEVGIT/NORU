@@ -21,7 +21,7 @@ import {
   type OrderDetail,
 } from "@/packages/restaurant-management/lib/restaurant-orders.functions";
 import { statusLabel } from "@/packages/restaurant-management/lib/order-status";
-import { getOrderBilling } from "@/lib/room-charge.functions";
+import { getOrderBilling } from "@/integrations/cross-package/room-charge.functions";
 import {
   ChargeToRoomDialog,
   ReverseRoomChargeDialog,

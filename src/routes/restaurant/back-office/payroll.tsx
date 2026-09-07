@@ -6,8 +6,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { getBoModule } from "@/lib/back-office-modules";
-import { BackOfficeFoundation } from "@/components/workspaces/back-office/foundation-page";
+import { getBoModule } from "@/packages/back-office/lib/back-office-modules";
+import { BackOfficeFoundation } from "@/packages/back-office/components/foundation-page";
 
 const MODULE = getBoModule("payroll")!;
 

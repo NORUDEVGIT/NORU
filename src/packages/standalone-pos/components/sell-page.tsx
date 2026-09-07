@@ -27,7 +27,7 @@ import {
   removePosSaleItem,
   updatePosSaleItem,
   voidPosSale,
-} from "@/lib/standalone-pos.functions";
+} from "@/packages/standalone-pos/lib/standalone-pos.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ErrorNotice, PosHeader } from "./pos-shared";
 import { ReceiptView } from "./receipt-view";

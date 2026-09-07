@@ -19,7 +19,7 @@ import {
   reverseOrderRoomCharge,
   searchChargeableStays,
   type ChargeableStay,
-} from "@/lib/room-charge.functions";
+} from "@/integrations/cross-package/room-charge.functions";
 import { useMoney } from "@/core/state/restaurant-context";
 
 export function ChargeToRoomDialog({

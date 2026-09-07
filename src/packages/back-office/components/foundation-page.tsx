@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUpRight } from "lucide-react";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
-import { BO_STATUS_LABEL, type BoModule } from "@/lib/back-office-modules";
+import { BO_STATUS_LABEL, type BoModule } from "@/packages/back-office/lib/back-office-modules";
 
 export function BackOfficeStatusChip({ module }: { module: BoModule }) {
   return (
