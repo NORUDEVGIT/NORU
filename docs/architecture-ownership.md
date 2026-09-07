@@ -150,7 +150,7 @@ sign-in check followed by `requireRoutePackage("back_office")`.
 | `/restaurant/back-office/dashboard` | Dashboard | foundation | — (no consolidated figures) |
 | `/restaurant/back-office/hr` | Human Resources | partial (shared) | `/restaurant/staff` (`human_resources`) |
 | `/restaurant/back-office/payroll` | Payroll | planned | none — payroll does not exist |
-| `/restaurant/back-office/inventory` | Inventory / Warehouse | partial (shared) | `/restaurant/inventory` (`inventory`) |
+| `/restaurant/back-office/inventory` | Inventory / Warehouse | **partial, canonical central layer (8G2C)** | `/restaurant/inventory` and `/restaurant/restaurant-management/inventory` still operational |
 | `/restaurant/back-office/procurement` | Procurement | **owned (8G2B)** | legacy `/restaurant/inventory?tab=suppliers` kept |
 | `/restaurant/back-office/accounting` | Accounting & Finance | foundation | `/restaurant/cashiering` (`accounting_finance`) |
 | `/restaurant/back-office/reports` | Reports & Intelligence | partial (shared) | `/restaurant/reports` (`reports_analytics`) |
@@ -271,3 +271,62 @@ package assignment for procurement is decided.
 ### Database
 
 No schema change in this phase.
+
+## Phase 8G2C — Inventory / Warehouse boundary
+
+### Split of ownership
+
+| Capability | Owner | Address |
+|---|---|---|
+| Item master (create, edit, activate) | Back Office (canonical) — also reachable in RM | `/restaurant/back-office/inventory/items` |
+| Property-wide movement history | Back Office (canonical) | `/restaurant/back-office/inventory/movements` |
+| Units reference (read-only) | Back Office (canonical) | `/restaurant/back-office/inventory/units` |
+| Operational stock view, per-item workflow, adjustments in service | Restaurant Management | `/restaurant/restaurant-management/inventory` |
+| Operating assets and equipment | Restaurant Management | same screen, asset tabs |
+| Recipe ingredient mapping and recipe cost | Restaurant Management (never moves) | Recipes & Cost |
+| Suppliers, purchase orders, goods receiving | Back Office · Procurement | `/restaurant/back-office/procurement` |
+
+### Authoritative storage (single copy, single ledger)
+
+`inventory_units`, `inventory_items`, `inventory_stock_movements`. Every
+posting path — manual movement, stocktake correction and procurement receiving
+— goes through `apply_inventory_movement`. Back Office screens call the same
+`createInventoryMovement` server function as Restaurant Management; no second
+posting path exists and nothing is copied between packages.
+
+### Server write authorization
+
+`requireInventoryWrite` in `inventory.functions.ts` runs the existing
+membership, role and `inventory` module check first, then
+`requireInventoryWritePackage` (`inventory-package.server.ts`): the property
+must hold **restaurant_management OR back_office**. The package is resolved
+server-side from the property's entitlements through the shared fail-closed
+resolver; the browser never supplies a package name, so no caller can widen
+its own access. Reads stay shared/transitional so PMS cross-links keep working.
+
+### Route access
+
+`/restaurant/back-office/inventory/*` requires the Back Office package (route
+guard) **and** existing Inventory module access (checked in the page). Back
+Office entitlement alone grants nothing.
+`/restaurant/restaurant-management/inventory` is unchanged: Restaurant
+Management package plus Inventory access.
+
+### Transitional `/restaurant/inventory`
+
+Left working and not redirected. It still serves properties without Back
+Office and carries the operational restaurant view plus the compatibility
+procurement tabs. A future phase may split it once Back Office owns the
+central warehouse outright.
+
+### Not built (future scope, not invented anywhere in the UI)
+
+Stock valuation method and period closing stock; storage locations, a central
+warehouse and issues to operating packages; inter-outlet transfers; automatic
+recipe consumption. The Back Office home shows quantity × last known unit cost
+and labels it explicitly as not a valuation.
+
+### Database
+
+No schema change in this phase.
+
