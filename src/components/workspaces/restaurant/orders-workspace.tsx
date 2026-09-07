@@ -77,9 +77,12 @@ export function validateOrdersSearch(search: Record<string, unknown>): OrdersSea
 export function OrdersBody({
   membership,
   search,
+  basePath,
 }: {
   membership: RestaurantMembership;
   search: OrdersSearch;
+  /** The address of the Orders page rendering this workspace (canonical or legacy). */
+  basePath: string;
 }) {
   const clock = useRestaurantTime();
   const money = useMoney();
@@ -90,6 +93,9 @@ export function OrdersBody({
   const tzOffsetMinutes = useMemo(() => new Date().getTimezoneOffset(), []);
 
   const [searchInput, setSearchInput] = useState(search.q ?? "");
+  // The same workspace renders at two addresses, so navigation targets are passed in.
+  const go = (next: OrdersSearch, replace = false) =>
+    void (navigate as unknown as (opts: unknown) => void)({ to: basePath, search: next, replace });
   const [pendingUpdates, setPendingUpdates] = useState(0);
 
   // Debounce the search box rather than navigating on every keystroke.
@@ -97,18 +103,14 @@ export function OrdersBody({
     const current = search.q ?? "";
     if (searchInput.trim() === current) return;
     const id = setTimeout(() => {
-      void navigate({
-          search: (prev) => {
-          const next = { ...(prev as OrdersSearch), page: 1 } as OrdersSearch;
-          if (searchInput.trim()) next.q = searchInput.trim();
-          else delete next.q;
-          return next;
-        },
-        replace: true,
-      });
+      const next = { ...search, page: 1 } as OrdersSearch;
+      if (searchInput.trim()) next.q = searchInput.trim();
+      else delete next.q;
+      go(next, true);
     }, 350);
     return () => clearTimeout(id);
-  }, [searchInput, search.q, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput, search.q]);
 
   const queryKey = [
     "restaurant-orders",
@@ -162,16 +164,12 @@ export function OrdersBody({
   }
 
   function setParam(patch: Partial<OrdersSearch>, resetPage = true) {
-    void navigate({
-      search: (prev) => ({ ...(prev as OrdersSearch), ...patch, ...(resetPage ? { page: 1 } : {}) }),
-    });
+    go({ ...search, ...patch, ...(resetPage ? { page: 1 } : {}) } as OrdersSearch);
   }
 
   function clearFilters() {
     setSearchInput("");
-    void navigate({
-      search: { status: "all", period: "today", sort: "newest", page: 1 } as OrdersSearch,
-    });
+    go({ status: "all", period: "today", sort: "newest", page: 1 } as OrdersSearch);
   }
 
   const d = query.data;
