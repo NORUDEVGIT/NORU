@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
-import { SettingsWorkspace } from "@/components/workspaces/settings-workspace";
+import { PmsIntegrationsWorkspace } from "@/components/workspaces/pms-integrations-workspace";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/restaurant/pms/integrations")({
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/restaurant/pms/integrations")({
 function IntegrationsPmsRoute() {
   return (
     <RestaurantShell active="Settings" module="settings" pms pmsModule="integrations">
-      {(m) => <SettingsWorkspace membership={m} />}
+      {(m) => <PmsIntegrationsWorkspace membership={m} />}
     </RestaurantShell>
   );
 }
