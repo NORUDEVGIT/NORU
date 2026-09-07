@@ -7,6 +7,7 @@
  */
 import { type AuthedCtx, type Membership } from "./workforce.server";
 import { requireModuleRole } from "./module-access.server";
+import { withPmsPackage } from "./pms-package.server";
 
 export const RATE_MANAGE_ROLES = ["owner", "manager"] as const;
 
@@ -21,12 +22,15 @@ export async function requireRateManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "configuration",
-    RATE_MANAGE_ROLES,
-    "You don't have access to Rates & Revenue for this property.",
+    requireModuleRole(
+      context,
+      restaurantId,
+      "configuration",
+      RATE_MANAGE_ROLES,
+      "You don't have access to Rates & Revenue for this property.",
+    ),
   );
 }
 

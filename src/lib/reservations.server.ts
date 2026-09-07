@@ -7,6 +7,7 @@
  */
 import { type AuthedCtx, type Membership } from "./workforce.server";
 import { requireModuleRole } from "./module-access.server";
+import { withPmsPackage } from "./pms-package.server";
 
 /** Front Office operations: owners, managers and receptionists. */
 export const RESERVATION_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
@@ -46,12 +47,15 @@ export async function requireReservationManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return requireModuleRole(
-    context,
+  return withPmsPackage(
     restaurantId,
-    "front_office",
-    RESERVATION_MANAGE_ROLES,
-    "You don't have access to Front Office for this property.",
+    requireModuleRole(
+      context,
+      restaurantId,
+      "front_office",
+      RESERVATION_MANAGE_ROLES,
+      "You don't have access to Front Office for this property.",
+    ),
   );
 }
 
@@ -70,7 +74,10 @@ export function assertDateOnly(value: string, label: string): string {
   return value;
 }
 
-export function assertStayDates(arrival: string, departure: string): { arrival: string; departure: string } {
+export function assertStayDates(
+  arrival: string,
+  departure: string,
+): { arrival: string; departure: string } {
   assertDateOnly(arrival, "Arrival date");
   assertDateOnly(departure, "Departure date");
   if (departure <= arrival) {
@@ -82,7 +89,8 @@ export function assertStayDates(arrival: string, departure: string): { arrival: 
 const DB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_DATES: "Departure must be after arrival.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",
-  ROOM_NOT_ASSIGNABLE: "That room can't be used — check it is active, available and of the reserved type.",
+  ROOM_NOT_ASSIGNABLE:
+    "That room can't be used — check it is active, available and of the reserved type.",
   ROOM_ALREADY_BOOKED: "That room is already booked or occupied for part of those dates.",
   RESERVATION_NOT_FOUND: "Reservation not found for this property.",
   RESERVATION_CANCELLED: "This reservation is cancelled. Restore it before amending.",
@@ -94,7 +102,6 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   DATES_UNCHANGED: "Pick a different departure date.",
   NOT_PAST_DUE: "Only past-due arrivals can be marked as a no-show.",
 };
-
 
 /** Turn RAISE EXCEPTION codes from the reservation functions into user-facing text. */
 export function reservationError(message: string): Error {

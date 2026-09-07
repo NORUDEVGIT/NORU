@@ -7,6 +7,7 @@
  */
 import { type AuthedCtx, type Membership } from "./workforce.server";
 import { requireModuleRole } from "./module-access.server";
+import { withPmsPackage } from "./pms-package.server";
 
 export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 
@@ -28,13 +29,19 @@ export function canManageGuests(role: string): boolean {
 }
 
 /** Owner/manager membership for this property, or a hard failure. */
-export async function requireGuestManager(context: AuthedCtx, restaurantId: string): Promise<Membership> {
-  return requireModuleRole(
-    context,
+export async function requireGuestManager(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return withPmsPackage(
     restaurantId,
-    "front_office",
-    GUEST_MANAGE_ROLES,
-    "You don't have access to Guest Management for this property.",
+    requireModuleRole(
+      context,
+      restaurantId,
+      "front_office",
+      GUEST_MANAGE_ROLES,
+      "You don't have access to Guest Management for this property.",
+    ),
   );
 }
 

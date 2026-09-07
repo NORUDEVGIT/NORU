@@ -5,6 +5,7 @@
  * caller's membership from restaurant_users.
  */
 import { callerMembership, type AuthedCtx, type Membership } from "./workforce.server";
+import { requirePmsPackage } from "./pms-package.server";
 
 export const DISTRIBUTION_MANAGE_ROLES = ["owner", "manager"] as const;
 
@@ -23,6 +24,7 @@ export async function requireDistributionManager(
   if (!canManageDistribution(me.role)) {
     throw new Error("You don't have access to Distribution for this property.");
   }
+  await requirePmsPackage(restaurantId);
   return me;
 }
 
