@@ -133,6 +133,10 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
   const rmFigures = rmOn && allowed.includes("food_and_beverage");
   const pmsFigures = pmsOn && allowed.includes("front_office");
   const canSeeReports = allowed.includes("reports_analytics");
+  // Phase 8H8 — Standalone POS is a real source here. It is queried only when
+  // the POS package is on and the reader already holds Reports & Analytics.
+  const posOn = packages.has("pos");
+  const posFigures = posOn && canSeeReports;
 
   const fetchRestaurant = useServerFn(getRestaurantDashboard);
   const restaurant = useQuery({
@@ -149,6 +153,16 @@ export function BackOfficeReportsPage({ membership }: { membership: RestaurantMe
     enabled: pmsFigures,
     retry: false,
   });
+
+  const fetchPos = useServerFn(getBackOfficePosSummary);
+  const pos = useQuery({
+    queryKey: ["bo-reports-pos", restaurantId, today],
+    queryFn: () => fetchPos({ data: { restaurantId, surface: "reports" as const } }),
+    enabled: posFigures,
+    retry: false,
+  });
+  const posData = pos.data?.state === "available" ? pos.data : null;
+
 
   const occupancy = frontOffice.data
     ? (() => {
