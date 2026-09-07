@@ -64,6 +64,27 @@ function RestaurantLayout() {
     );
   }
 
+  // Phase 8D2 — every page under /r/:slug inherits this gate, so no menu or
+  // order data is fetched once ordering is unavailable. The message stays
+  // neutral: nothing about packages, expiry or billing is shown.
+  if (!restaurant.serviceAvailable) {
+    return (
+      <div className="min-h-dvh bg-background">
+        <SiteHeader />
+        <main className="mx-auto max-w-md px-4 py-20 text-center">
+          <h1 className="font-display text-3xl">Online ordering is currently unavailable</h1>
+          <p className="mt-2 text-muted-foreground">
+            Please ask a member of staff for help with your order.
+          </p>
+          <Button asChild size="lg" className="mt-6 h-14 rounded-full px-6">
+            <Link to="/">Back to home</Link>
+          </Button>
+        </main>
+      </div>
+    );
+  }
+
+
   return (
     <RestaurantProvider restaurant={restaurant}>
       <Outlet />
