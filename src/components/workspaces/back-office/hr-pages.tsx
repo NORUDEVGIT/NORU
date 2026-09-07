@@ -23,7 +23,6 @@ import { StaffManager } from "@/components/workspaces/staff-workspace";
 import { ScheduleTab } from "@/components/workforce/schedule-tab";
 import { AttendanceTab } from "@/components/workforce/attendance-tab";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
-import { usePackageEntitlements } from "@/lib/use-package-entitlements";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 
 export function HrHeader({ title, blurb }: { title: string; blurb: string }) {
@@ -226,30 +225,5 @@ export function BackOfficeHrAttendance({ membership }: { membership: RestaurantM
         />
       </HrGate>
     </div>
-  );
-}
-
-/**
- * Cross-package link shown on operational staffing screens. Presentation only:
- * it appears when Back Office is switched on for the property AND the person
- * already holds Human Resources access, so it can never hint at or grant
- * anything they don't already have.
- */
-export function BackOfficeHrLink({ restaurantId }: { restaurantId: string }) {
-  const packages = usePackageEntitlements(restaurantId);
-  const fetchModuleAccess = useServerFn(getMyModuleAccess);
-  const access = useQuery({
-    queryKey: ["my-module-access", restaurantId],
-    queryFn: () => fetchModuleAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-
-  if (!packages.has("back_office")) return null;
-  if (!access.data?.modules.includes("human_resources")) return null;
-
-  return (
-    <Button asChild variant="outline" size="sm">
-      <Link to="/restaurant/back-office/hr">Open in Back Office · Human Resources</Link>
-    </Button>
   );
 }
