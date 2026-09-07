@@ -88,7 +88,12 @@ export function PackageEntitlementsPanel({ restaurantId }: { restaurantId: strin
 
   const submit = (s: AdminPackageState, enabled: boolean) => {
     try {
-      mutation.mutate({ packageKey: s.packageKey, enabled, expiresAt: expiryIso(s) });
+      const expiresAt = expiryIso(s);
+      if (enabled && expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+        toast.error("An expiry date must be in the future.");
+        return;
+      }
+      mutation.mutate({ packageKey: s.packageKey, enabled, expiresAt });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That expiry date isn't valid.");
     }
