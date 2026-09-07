@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Hotel } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { PMS_GROUPS, PMS_MODULES } from "@/lib/pms-modules";
 import { SharedModuleLinks } from "@/components/pms/shared-module-links";
@@ -16,6 +17,8 @@ export const Route = createFileRoute("/restaurant/pms/")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/pms" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

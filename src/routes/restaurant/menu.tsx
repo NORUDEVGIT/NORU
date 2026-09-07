@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import {
   createMenuImageUpload,
   deleteCategory,
@@ -48,6 +49,8 @@ export const Route = createFileRoute("/restaurant/menu")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/menu" } });
     }
+
+    await requireRoutePackage("restaurant_management");
   },
   head: () => ({
     meta: [

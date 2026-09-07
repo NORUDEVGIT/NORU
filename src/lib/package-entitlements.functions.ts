@@ -40,6 +40,42 @@ export const getMyPackageEntitlements = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * Phase 8D1 — the single authenticated route gate.
+ *
+ * The caller's own active membership is resolved server-side, so nothing the
+ * browser sends can point the check at another property. Returns only a
+ * boolean: no expiry dates, sources or billing metadata reach the tenant.
+ * A property with no membership is reported as allowed — the existing
+ * "not linked to a restaurant" screen owns that case, not the package gate.
+ */
+export const getMyRoutePackageAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ packageKey: z.enum(["restaurant_management", "pms", "pos", "back_office"]) }).parse(
+      input,
+    ),
+  )
+  .handler(async ({ data, context }): Promise<{ allowed: boolean }> => {
+    const ctx = context as never as {
+      supabase: { from: (t: string) => any };
+      userId: string;
+    };
+
+    const { data: rows } = await ctx.supabase
+      .from("restaurant_users")
+      .select("restaurant_id")
+      .eq("user_id", ctx.userId)
+      .eq("active", true)
+      .limit(1);
+
+    const restaurantId = (rows ?? [])[0]?.restaurant_id as string | undefined;
+    if (!restaurantId) return { allowed: true };
+
+    const { propertyHasPackage } = await import("./package-entitlements.server");
+    return { allowed: await propertyHasPackage(ctx.supabase, restaurantId, data.packageKey) };
+  });
+
 /* ------------------------------------------------------------------ *
  * Phase 8B2 — Platform Admin package controls
  *

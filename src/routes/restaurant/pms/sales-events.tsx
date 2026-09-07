@@ -3,6 +3,7 @@ import { PartyPopper } from "lucide-react";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { PmsPlaceholder } from "@/components/pms/pms-placeholder";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/sales-events")({
   ssr: false,
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/restaurant/pms/sales-events")({
         search: { redirect: "/restaurant/pms/sales-events" },
       });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

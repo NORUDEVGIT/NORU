@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import {
   deleteRestaurantTable,
   listRestaurantTables,
@@ -34,6 +35,8 @@ export const Route = createFileRoute("/restaurant/tables")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/tables" } });
     }
+
+    await requireRoutePackage("restaurant_management");
   },
   head: () => ({
     meta: [

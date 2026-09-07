@@ -4,6 +4,7 @@ import { RestaurantShell } from "@/components/restaurant-shell";
 import { SharedModuleLinks } from "@/components/pms/shared-module-links";
 import { PmsPlaceholder } from "@/components/pms/pms-placeholder";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/guest-services")({
   ssr: false,
@@ -15,6 +16,8 @@ export const Route = createFileRoute("/restaurant/pms/guest-services")({
         search: { redirect: "/restaurant/pms/guest-services" },
       });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

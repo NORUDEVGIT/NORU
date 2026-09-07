@@ -45,6 +45,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/lib/restaurant.functions";
 import { getMyModuleAccess } from "@/lib/module-access.functions";
 import { usePackageEntitlements } from "@/lib/use-package-entitlements";
+import { clearRoutePackageCache } from "@/lib/route-package-guard";
 import { PMS_NAV_GROUPS, getPmsModule } from "@/lib/pms-modules";
 import { useAuth } from "@/state/auth-store";
 import { cn } from "@/lib/utils";
@@ -493,6 +494,7 @@ export function RestaurantShell({
   async function signOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
+    clearRoutePackageCache();
     await supabase.auth.signOut();
     void navigate({ to: "/restaurant/login", replace: true });
   }

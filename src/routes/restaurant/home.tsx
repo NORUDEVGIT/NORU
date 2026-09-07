@@ -38,6 +38,10 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/restaurant/home")({
   ssr: false,
+  // Phase 8D1 — a guarded route sends the user back here with the package it
+  // blocked. Property Home is Core and is never package-gated, so no loop.
+  validateSearch: (search: Record<string, unknown>) =>
+    typeof search["blocked"] === "string" ? { blocked: search["blocked"] as string } : {},
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -64,6 +68,24 @@ export const Route = createFileRoute("/restaurant/home")({
 
 function PropertyHomeRoute() {
   return <RestaurantShell active="Home">{(m) => <PropertyHome membership={m} />}</RestaurantShell>;
+}
+
+/**
+ * Shown when someone opened the address of a page that belongs to a package
+ * this property doesn't have. Deliberately says nothing about dates, sources
+ * or billing.
+ */
+function BlockedNotice() {
+  const { blocked } = Route.useSearch() as { blocked?: string };
+  if (!blocked) return null;
+  return (
+    <div
+      role="status"
+      className="rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+    >
+      This package isn't enabled for this property.
+    </div>
+  );
 }
 
 /** Module keys that make the PMS package meaningful for this user. */
@@ -230,6 +252,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
           Your unified hospitality workspace — the packages this property uses, in one place.
         </p>
       </header>
+
+      <BlockedNotice />
 
       <section aria-label="Today at a glance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard

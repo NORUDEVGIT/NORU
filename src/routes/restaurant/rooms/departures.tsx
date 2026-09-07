@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ReservationStatusBadge, formatStayDate } from "@/components/bookings/reservation-bits";
 import { CheckOutDialog } from "@/components/frontoffice/front-office-dialogs";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import { listDepartures, type FrontOfficeStay } from "@/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/lib/reservations.functions";
 import { propertyToday } from "@/lib/reservation-dates";
@@ -22,6 +23,8 @@ export const Route = createFileRoute("/restaurant/rooms/departures")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/rooms/departures" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

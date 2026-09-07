@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { FrontOfficeWorkspace } from "@/components/workspaces/front-office-workspace";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/front-office")({
   ssr: false,
@@ -15,6 +16,8 @@ export const Route = createFileRoute("/restaurant/pms/front-office")({
         search: { redirect: "/restaurant/pms/front-office" },
       });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

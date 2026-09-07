@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Minus, Plus, ShoppingBag } from "lucide-react";
@@ -13,8 +13,18 @@ import { getWaiterOrderContext, placeWaiterAssistedOrder } from "@/lib/waiter-or
 import { formatShiftTime } from "@/lib/workforce-rules";
 import { cn } from "@/lib/utils";
 import { useMoney } from "@/state/restaurant-context";
+import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/waiter")({
+  ssr: false,
+  beforeLoad: async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/waiter" } });
+    }
+    await requireRoutePackage("restaurant_management");
+  },
   head: () => ({
     meta: [
       { title: "Take an Order | NORU Restaurant Portal" },

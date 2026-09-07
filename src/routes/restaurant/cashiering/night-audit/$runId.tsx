@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/bookings/reservation-bits";
 import { CheckBadge, RunStatusBadge } from "@/components/nightaudit/night-audit-panels";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import { getNightAuditRun } from "@/lib/nightaudit.functions";
 import { formatStayDate } from "@/lib/reservation-dates";
 import { useMoney, useRestaurantTime } from "@/state/restaurant-context";
@@ -20,6 +21,8 @@ export const Route = createFileRoute("/restaurant/cashiering/night-audit/$runId"
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/cashiering/night-audit" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { addDays, formatStayDate, propertyToday } from "@/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import { listGuests, type GuestSummary } from "@/lib/guests.functions";
 import {
   createReservation,
@@ -39,6 +40,8 @@ export const Route = createFileRoute("/restaurant/bookings/new")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/bookings/new" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

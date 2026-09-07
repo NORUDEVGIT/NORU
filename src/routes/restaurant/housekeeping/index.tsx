@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/components/restaurant-shell";
 import { HousekeepingWorkspace } from "@/components/workspaces/housekeeping-workspace";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/housekeeping/")({
   ssr: false,
@@ -12,6 +13,8 @@ export const Route = createFileRoute("/restaurant/housekeeping/")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/housekeeping" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

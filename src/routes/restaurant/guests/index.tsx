@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import { getGuestsAccess, listGuests, type GuestSummary } from "@/lib/guests.functions";
 import type { RestaurantMembership } from "@/lib/restaurant.functions";
 import { useRestaurantTime } from "@/state/restaurant-context";
@@ -28,6 +29,8 @@ export const Route = createFileRoute("/restaurant/guests/")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/guests" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [

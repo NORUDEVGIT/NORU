@@ -14,6 +14,7 @@ import {
   StayDatesDialog,
 } from "@/components/frontoffice/front-office-dialogs";
 import { supabase } from "@/integrations/supabase/client";
+import { requireRoutePackage } from "@/lib/route-package-guard";
 import { listInHouse, type FrontOfficeStay } from "@/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/lib/reservations.functions";
 import { propertyToday } from "@/lib/reservation-dates";
@@ -27,6 +28,8 @@ export const Route = createFileRoute("/restaurant/rooms/in-house")({
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/rooms/in-house" } });
     }
+
+    await requireRoutePackage("pms");
   },
   head: () => ({
     meta: [
