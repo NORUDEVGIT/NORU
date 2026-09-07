@@ -4864,7 +4864,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      is_active_staff: { Args: never; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       is_restaurant_member: {
         Args: { _restaurant_id: string }
