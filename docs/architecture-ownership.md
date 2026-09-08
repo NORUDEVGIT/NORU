@@ -679,3 +679,45 @@ Renames: `pos.functions.ts`/`pos.server.ts` -> `rm-pos.*`,
 `components/pos/*` -> `packages/restaurant-management/components/rm-pos/*`,
 `restaurant-time.ts` -> `shared/lib/property-time.ts`. The deferred renames
 noted in Phase 8H9 are now done.
+
+## Phase 8J — verified cleanup record
+
+Audit-first cleanup. Live schema before cleanup: 70 tables, 49 functions,
+47 triggers, 156 policies, 227 indexes, 2 storage buckets.
+
+Removed (proven dead):
+
+| Object | Proof |
+| --- | --- |
+| `src/packages/restaurant-management/components/status-tracker.tsx` | zero imports; its only historical consumer `/status` is now a legacy redirect |
+| `public.is_active_staff()` | no source refs, no policy refs, no trigger, not called by any other function (migration `0033`) |
+
+Pending manual removal (blocked by the additive-migration guard, safe to run
+in the SQL editor): `DROP TABLE public.staff_users;` — pre-multi-tenant kitchen
+login table, 1 superseded row, no inbound FKs, no triggers, no source refs; its
+only reader was `is_active_staff`, already dropped. Its own self-select policy
+goes with it.
+
+Kept deliberately:
+
+- Security helper functions with zero React call sites (`has_restaurant_role`,
+  `has_any_restaurant_role`, `has_kitchen_access`, `is_restaurant_member`,
+  `is_platform_admin`, `can_manage_restaurant_storage`, `assert_room_assignable`)
+  — all reachable from RLS policies or other functions.
+- All Standalone POS, entitlement and distribution tables with zero rows — new
+  and active, row count is not evidence of death.
+- Inventory, procurement, workforce and `/restaurant/reports` shared paths —
+  still genuinely shared; ownership stays as documented.
+- All compatibility redirects, including `/restaurant/pos/new`.
+- Unused shadcn UI primitives under `src/shared/components/ui` — template
+  library surface, not migration debt.
+- `src/packages/back-office/components/procurement-home.tsx` — a complete but
+  unwired Back Office procurement landing page from 8G2B; the route renders the
+  foundation page instead. Classified NEEDS MANUAL DECISION: wiring or deleting
+  it would change behaviour, which is out of scope for 8J.
+
+Storage: both buckets (`menu-images`, `property-images`) are referenced and
+policy-protected — no storage cleanup performed.
+
+Secrets: no hardcoded project URLs, service-role keys or secret keys in source;
+only publishable-key prefix checks in the generated client files.
