@@ -1,4 +1,4 @@
-import noruLogoAsset from "@/assets/noru-logo.png.asset.json";
+import noruLogo from "@/assets/noru-logo.png";
 import { cn } from "@/shared/lib/utils";
 
 /**
@@ -21,7 +21,7 @@ export function NoruLogo({
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <img
-        src={noruLogoAsset.url}
+        src={noruLogo}
         alt="NORU logo"
         className={cn(imgSize, "shrink-0 rounded-full object-cover")}
         draggable={false}

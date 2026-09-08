@@ -4298,33 +4298,6 @@ export type Database = {
           },
         ]
       }
-      staff_users: {
-        Row: {
-          active: boolean
-          created_at: string
-          email: string
-          id: string
-          name: string | null
-          user_id: string
-        }
-        Insert: {
-          active?: boolean
-          created_at?: string
-          email: string
-          id?: string
-          name?: string | null
-          user_id: string
-        }
-        Update: {
-          active?: boolean
-          created_at?: string
-          email?: string
-          id?: string
-          name?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -5004,49 +4977,6 @@ export type Database = {
       pos_complete_sale: {
         Args: {
           _membership_id: string
-          _restaurant_id: string
-          _sale_id: string
-        }
-        Returns: {
-          business_date: string
-          cashier_name_snapshot: string | null
-          completed_at: string | null
-          completed_by_membership_id: string | null
-          created_at: string
-          currency_code: string
-          customer_reference: string | null
-          discount_amount: number
-          discount_reason: string | null
-          id: string
-          note: string | null
-          opened_by_membership_id: string
-          refunded_amount: number
-          register_id: string
-          restaurant_id: string
-          sale_number: number | null
-          sale_reference: string | null
-          shift_id: string | null
-          status: string
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          voided_at: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "pos_sales"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      pos_refund_sale: {
-        Args: {
-          _amount: number
-          _membership_id: string
-          _method: string
-          _payment_id: string
-          _reason: string
           _restaurant_id: string
           _sale_id: string
         }

@@ -300,19 +300,13 @@ Do not implement customer accounts yet.
 
 Focus entirely on creating a polished frontend prototype of the complete customer ordering experience.
 
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/9c601da0-c98a-448e-8c17-94c1dff00906).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+This project was originally scaffolded with [Lovable](https://lovable.dev). It now runs against an independent Supabase project.
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+You need Node.js 22+ and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+
+Copy [.env.example](.env.example) to `.env` (public keys) and `.env.local` (server secrets). Do not commit `.env.local`.
 
 ```sh
 git clone <this-repository-url>
@@ -320,3 +314,5 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+The app listens on http://localhost:8080/ by default. Platform administration is at `/admin/login`.
