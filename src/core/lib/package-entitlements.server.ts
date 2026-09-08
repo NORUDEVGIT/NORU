@@ -47,6 +47,27 @@ export async function propertyHasPackage(
 }
 
 /**
+ * New-tenant provisioning: four explicit disabled rows. Legacy properties with
+ * zero rows keep compatibility (missing = enabled) and must not be backfilled.
+ */
+export async function provisionDisabledPackageEntitlements(restaurantId: string): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const now = new Date().toISOString();
+  const rows = PACKAGE_KEYS.map((package_key) => ({
+    restaurant_id: restaurantId,
+    package_key,
+    enabled: false,
+    activated_at: null,
+    expires_at: null,
+    updated_at: now,
+  }));
+  const { error } = await supabaseAdmin.from("restaurant_package_entitlements").upsert(rows, {
+    onConflict: "restaurant_id,package_key",
+  });
+  if (error) throw new Error(`entitlements: ${error.message}`);
+}
+
+/**
  * Package gate for a later enforcement phase. Deliberately unused in 8B1.
  */
 export async function requirePropertyPackage(

@@ -139,6 +139,9 @@ export const registerRestaurant = createServerFn({ method: "POST" })
       });
       if (memberError) throw new Error(`membership: ${memberError.message}`);
 
+      const { provisionDisabledPackageEntitlements } = await import("./package-entitlements.server");
+      await provisionDisabledPackageEntitlements(restaurantId);
+
       return {
         ok: true as const,
         needsVerification: !signUp.session,

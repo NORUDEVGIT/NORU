@@ -30,6 +30,8 @@ async function available(restaurantId: string, key: PackageKey): Promise<boolean
  * alongside) the existing membership/role guard.
  */
 export async function requireRestaurantManagement(restaurantId: string): Promise<void> {
+  const { assertRestaurantOperational } = await import("@/core/lib/restaurant-access.server");
+  await assertRestaurantOperational(restaurantId);
   if (!(await available(restaurantId, "restaurant_management"))) throw new Error(RM_DENIED);
 }
 

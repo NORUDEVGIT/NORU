@@ -24,10 +24,29 @@ export const getMyPackageEntitlements = createServerFn({ method: "POST" })
     const { callerMembership } = await import("./workforce.server");
     const membership = await callerMembership(context as never, data.restaurantId);
 
+    const { restaurantIsOperational } = await import("./restaurant-access.server");
     const { getPropertyPackageEntitlements, packageFlags } = await import(
       "./package-entitlements.server"
     );
     const { PACKAGE_KEYS } = await import("./package-entitlements");
+
+    if (!(await restaurantIsOperational(membership.restaurantId))) {
+      const disabled = PACKAGE_KEYS.map((packageKey) => ({
+        packageKey,
+        enabled: false as const,
+        source: "explicit" as const,
+        expiresAt: null,
+      }));
+      return {
+        packages: {
+          restaurant_management: false,
+          pms: false,
+          pos: false,
+          back_office: false,
+        },
+        states: disabled,
+      };
+    }
 
     const states = await getPropertyPackageEntitlements(
       (context as never as { supabase: { from: (t: string) => any } }).supabase,
@@ -71,6 +90,9 @@ export const getMyRoutePackageAccess = createServerFn({ method: "POST" })
 
     const restaurantId = (rows ?? [])[0]?.restaurant_id as string | undefined;
     if (!restaurantId) return { allowed: true };
+
+    const { restaurantIsOperational } = await import("./restaurant-access.server");
+    if (!(await restaurantIsOperational(restaurantId))) return { allowed: false };
 
     const { propertyHasPackage } = await import("./package-entitlements.server");
     return { allowed: await propertyHasPackage(ctx.supabase, restaurantId, data.packageKey) };

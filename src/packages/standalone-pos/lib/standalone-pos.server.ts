@@ -24,6 +24,8 @@ const DENIED_MANAGE = "Only an owner or manager can do that in Standalone POS.";
 
 /** Fail-closed package check for the Standalone POS package (`pos`). */
 export async function requireStandalonePosPackage(restaurantId: string): Promise<void> {
+  const { assertRestaurantOperational } = await import("@/core/lib/restaurant-access.server");
+  await assertRestaurantOperational(restaurantId);
   if (!(await publicPackageAvailable(restaurantId, "pos"))) throw new Error(DENIED);
 }
 

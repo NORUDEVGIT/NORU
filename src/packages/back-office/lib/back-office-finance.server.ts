@@ -37,6 +37,8 @@ export async function requireBackOfficeFinanceRead(
     FINANCE_READ_ROLES,
     NO_ACCESS,
   );
+  const { assertRestaurantOperational } = await import("@/core/lib/restaurant-access.server");
+  await assertRestaurantOperational(restaurantId);
   if (!(await publicPackageAvailable(restaurantId, "back_office"))) {
     throw new Error(NO_BACK_OFFICE);
   }

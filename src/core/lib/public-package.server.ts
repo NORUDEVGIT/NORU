@@ -41,6 +41,11 @@ export async function publicPackageAvailable(
   if (hit && hit.expiresAtMs > Date.now()) return hit.value;
 
   try {
+    const { restaurantIsOperational } = await import("./restaurant-access.server");
+    if (!(await restaurantIsOperational(restaurantId))) {
+      cache.set(key, { value: false, expiresAtMs: Date.now() + DENIED_TTL_MS });
+      return false;
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { propertyHasPackage } = await import("./package-entitlements.server");
     const value = await propertyHasPackage(

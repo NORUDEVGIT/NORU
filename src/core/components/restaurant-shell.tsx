@@ -39,6 +39,7 @@ import {
   X,
   Globe,
   Briefcase,
+  Clock,
 } from "lucide-react";
 import { NoruLogo } from "@/core/components/noru-logo";
 import { Button } from "@/shared/components/ui/button";
@@ -545,6 +546,7 @@ export function RestaurantShell({
 
   const membership = data?.[0];
   const restaurant = membership?.restaurant;
+  const operational = restaurant?.status === "approved";
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
   const rmMod = rmModule ? RM_MODULES.find((m) => m.key === rmModule) : undefined;
   const boMod = boModule ? getBoModule(boModule) : undefined;
@@ -742,7 +744,50 @@ export function RestaurantShell({
   );
 
 
-  const sidebar = (
+  const restrictedSidebar = (
+    <div className="flex h-full flex-col gap-5 p-4">
+      <Link
+        to="/restaurant/home"
+        className="flex items-center gap-2 px-2 font-display text-lg"
+        onClick={() => setNavOpen(false)}
+        aria-label="NORU property home"
+      >
+        <NoruLogo size="sm" wordmarkClassName="text-sidebar-foreground" />
+      </Link>
+      <nav className="min-h-0 flex-1" aria-label="Account">
+        <ul className="space-y-1">
+          <li>
+            <Link
+              to="/restaurant/home"
+              onClick={() => setNavOpen(false)}
+              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <LayoutDashboard className="size-4 shrink-0" /> Home
+            </Link>
+          </li>
+        </ul>
+      </nav>
+      <div className="space-y-1">
+        <Link
+          to="/restaurant/settings"
+          onClick={() => setNavOpen(false)}
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <Settings className="size-4 shrink-0" /> Settings
+        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={() => void signOut()}
+        >
+          <LogOut className="mr-2 size-4" /> Log out
+        </Button>
+      </div>
+    </div>
+  );
+
+  const sidebar = !operational && membership ? restrictedSidebar : (
     <div className="flex h-full flex-col gap-5 p-4">
       <Link
         to="/restaurant/home"
@@ -988,6 +1033,8 @@ export function RestaurantShell({
                   </Button>
                 </div>
               </div>
+            ) : !operational && active !== "Settings" ? (
+              <UnavailableRestaurantScreen membership={membership} />
             ) : (
               <RestaurantSettingsProvider
                 timezone={membership.restaurant.timezone}
@@ -1075,6 +1122,43 @@ export function RestaurantShell({
           </main>
         </div>
       </div>
+    </div>
+  );
+}
+
+function UnavailableRestaurantScreen({ membership }: { membership: RestaurantMembership }) {
+  const status = membership.restaurant.status;
+  const copy =
+    status === "pending"
+      ? {
+          title: "Pending approval",
+          body: "Your restaurant is registered and waiting for NORU to review it. Operational dashboards stay unavailable until we approve the property. Packages are assigned separately after approval.",
+        }
+      : status === "suspended"
+        ? {
+            title: "Restaurant unavailable",
+            body: "This restaurant is suspended. Operational dashboards and packages are unavailable until a platform administrator reactivates it.",
+          }
+        : {
+            title: "Restaurant unavailable",
+            body: "This restaurant is not active. Contact NORU if you believe this is a mistake.",
+          };
+
+  return (
+    <div className="mx-auto max-w-lg space-y-4 rounded-2xl border border-border bg-card p-6">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex size-11 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400">
+          <Clock className="size-5" />
+        </span>
+        <div>
+          <h1 className="font-display text-2xl">{membership.restaurant.name}</h1>
+          <div className="mt-1">
+            <StatusPill status={status} />
+          </div>
+        </div>
+      </div>
+      <h2 className="text-lg font-semibold">{copy.title}</h2>
+      <p className="text-sm text-muted-foreground">{copy.body}</p>
     </div>
   );
 }

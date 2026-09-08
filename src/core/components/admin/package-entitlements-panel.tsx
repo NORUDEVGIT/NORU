@@ -14,7 +14,6 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { PACKAGE_LABELS, type PackageKey } from "@/core/lib/package-entitlements";
 import {
-  clearPropertyPackageEntitlement,
   getPackageEntitlementsAdmin,
   setPropertyPackageEntitlement,
   type AdminPackageState,
@@ -35,7 +34,6 @@ export function PackageEntitlementsPanel({ restaurantId }: { restaurantId: strin
   const queryClient = useQueryClient();
   const load = useServerFn(getPackageEntitlementsAdmin);
   const save = useServerFn(setPropertyPackageEntitlement);
-  const reset = useServerFn(clearPropertyPackageEntitlement);
 
   const [expiryDrafts, setExpiryDrafts] = useState<Record<string, string>>({});
   const [confirmKey, setConfirmKey] = useState<PackageKey | null>(null);
@@ -63,17 +61,7 @@ export function PackageEntitlementsPanel({ restaurantId }: { restaurantId: strin
       toast.error(err instanceof Error ? err.message : "That change could not be saved."),
   });
 
-  const resetMutation = useMutation({
-    mutationFn: (packageKey: PackageKey) => reset({ data: { restaurantId, packageKey } }),
-    onSuccess: () => {
-      toast.success("Package returned to the compatibility default.");
-      invalidate();
-    },
-    onError: (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : "That change could not be saved."),
-  });
-
-  const busy = mutation.isPending || resetMutation.isPending;
+  const busy = mutation.isPending;
 
   const expiryFor = (s: AdminPackageState) =>
     expiryDrafts[s.packageKey] ?? toLocalInput(s.expiresAt);
@@ -204,19 +192,6 @@ export function PackageEntitlementsPanel({ restaurantId }: { restaurantId: strin
                     >
                       Disable
                     </Button>
-                    {s.source === "explicit" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => {
-                          setExpiryDrafts((d) => ({ ...d, [s.packageKey]: "" }));
-                          resetMutation.mutate(s.packageKey);
-                        }}
-                      >
-                        Reset to compatibility default
-                      </Button>
-                    ) : null}
                   </div>
                 )}
               </div>

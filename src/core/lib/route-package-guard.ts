@@ -16,6 +16,7 @@
  */
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { getMyRestaurants } from "./restaurant.functions";
 import { getMyRoutePackageAccess } from "./package-entitlements.functions";
 import type { PackageKey } from "./package-entitlements";
 
@@ -76,4 +77,17 @@ export async function requireRoutePackage(packageKey: PackageKey): Promise<void>
     throw redirect({ to: "/restaurant/home", search: { blocked: packageKey }, replace: true });
   }
   throw redirect({ to: "/restaurant/home", search: { verify: "failed" }, replace: true });
+}
+
+/** Core operational routes: pending/suspended/rejected owners are sent home. */
+export async function requireOperationalRestaurantRoute(): Promise<void> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) {
+    throw redirect({ to: "/restaurant/login" });
+  }
+  const memberships = await getMyRestaurants();
+  const restaurant = memberships[0]?.restaurant;
+  if (!restaurant || !restaurant.approved || !restaurant.active) {
+    throw redirect({ to: "/restaurant/home", replace: true });
+  }
 }

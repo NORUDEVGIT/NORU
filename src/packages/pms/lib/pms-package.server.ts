@@ -28,6 +28,8 @@ async function pmsAvailable(restaurantId: string): Promise<boolean> {
  * alongside) the existing membership/role guard.
  */
 export async function requirePmsPackage(restaurantId: string): Promise<void> {
+  const { assertRestaurantOperational } = await import("@/core/lib/restaurant-access.server");
+  await assertRestaurantOperational(restaurantId);
   if (!(await pmsAvailable(restaurantId))) throw new Error(PMS_DENIED);
 }
 

@@ -33,9 +33,7 @@ export function usePackageEntitlements(restaurantId: string | undefined): Packag
 
   return {
     loading: !!restaurantId && query.isLoading,
-    // Until the answer arrives (or if it fails) we keep the compatibility
-    // stance and show the package — hiding on an error would look like a
-    // regression to an existing tenant.
-    has: (key: PackageKey) => (packages ? packages[key] : true),
+    // Hide until loaded so a pending tenant never flashes package tiles.
+    has: (key: PackageKey) => (packages ? packages[key] : false),
   };
 }
