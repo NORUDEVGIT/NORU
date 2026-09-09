@@ -8,9 +8,9 @@ import { cn } from "@/shared/lib/utils";
 
 const NAV_LINKS = [
   { label: "Home", href: "#top" },
-  { label: "Features", href: "#features" },
+  { label: "Packages", href: "#packages" },
   { label: "How It Works", href: "#how-it-works" },
-  { label: "For Restaurants", href: "#for-restaurants" },
+  { label: "Pricing", href: "#pricing" },
   { label: "Contact", href: "#contact" },
 ];
 
@@ -39,7 +39,7 @@ export function HomeNav() {
           <NoruLogo size="sm" />
         </a>
 
-        <nav className="hidden justify-center gap-1 lg:flex">
+        <nav className="hidden justify-center gap-1 lg:flex" aria-label="Page">
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
@@ -59,7 +59,7 @@ export function HomeNav() {
             asChild
             className="hidden h-11 rounded-full bg-accent px-5 font-semibold text-accent-foreground hover:bg-accent/90 sm:inline-flex"
           >
-            <Link to="/restaurant/register">Get Started</Link>
+            <Link to="/restaurant/register">Sign Up</Link>
           </Button>
 
           <Sheet open={open} onOpenChange={setOpen}>
@@ -74,7 +74,7 @@ export function HomeNav() {
                   <NoruLogo size="sm" />
                 </SheetTitle>
               </SheetHeader>
-              <nav className="flex flex-col gap-1 px-4 pb-6">
+              <nav className="flex flex-col gap-1 px-4 pb-6" aria-label="Page">
                 {NAV_LINKS.map((link) => (
                   <a
                     key={link.href}
@@ -96,7 +96,7 @@ export function HomeNav() {
                   className="mt-2 h-12 rounded-full bg-accent font-semibold text-accent-foreground hover:bg-accent/90"
                 >
                   <Link to="/restaurant/register" onClick={() => setOpen(false)}>
-                    Get Started
+                    Sign Up
                   </Link>
                 </Button>
               </nav>

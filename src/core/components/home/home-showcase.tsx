@@ -41,8 +41,8 @@ const ROWS = [
   },
   {
     eyebrow: "Manager",
-    title: "The whole service, at a glance",
-    body: "Track orders, active operations, order value and busy periods, and configure timezone, currency and staff from one place.",
+    title: "The whole property, at a glance",
+    body: "Track dining, rooms and till activity, busy periods, and configure timezone, currency and staff from one place.",
     panel: (
       <div className="grid gap-3">
         <MockBars />
@@ -60,10 +60,10 @@ export function HomeShowcase() {
     <section id="for-restaurants" className="bg-background">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
         <div className="max-w-2xl">
-          <h2 className="font-display text-3xl sm:text-4xl">One Connected Restaurant Experience</h2>
+          <h2 className="font-display text-3xl sm:text-4xl">One connected hospitality operation</h2>
           <p className="mt-3 text-base text-muted-foreground">
-            NORU keeps every part of the restaurant working from the same live information — from the
-            customer's table to the kitchen and management dashboard.
+            Dining, stays and the back office share live information — from the guest&apos;s table or
+            room to the kitchen, house and management dashboards.
           </p>
         </div>
 
