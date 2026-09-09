@@ -9,7 +9,8 @@ export function HomeFooter() {
           <div>
             <NoruLogo size="sm" />
             <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-              One platform for restaurant ordering, kitchen operations and staff management.
+              Hospitality management platform for Restaurant Management, PMS, Standalone POS and Back
+              Office Management.
             </p>
           </div>
 
@@ -17,18 +18,18 @@ export function HomeFooter() {
             <h3 className="text-sm font-semibold">Product</h3>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>
-                <a href="#features" className="hover:text-foreground">
-                  Features
+                <a href="#packages" className="hover:text-foreground">
+                  Packages
                 </a>
               </li>
               <li>
-                <a href="#how-it-works" className="hover:text-foreground">
-                  How It Works
+                <a href="#pricing" className="hover:text-foreground">
+                  Pricing
                 </a>
               </li>
               <li>
-                <a href="#for-restaurants" className="hover:text-foreground">
-                  For Restaurants
+                <a href="#contact" className="hover:text-foreground">
+                  Contact Us
                 </a>
               </li>
             </ul>
@@ -44,7 +45,7 @@ export function HomeFooter() {
               </li>
               <li>
                 <Link to="/restaurant/register" className="hover:text-foreground">
-                  Register
+                  Register Your Company
                 </Link>
               </li>
             </ul>

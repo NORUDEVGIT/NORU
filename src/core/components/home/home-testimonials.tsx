@@ -20,12 +20,14 @@ const TESTIMONIAL_SLOTS = [
 
 export function HomeTestimonials() {
   return (
-    <section className="bg-background">
+    <section className="bg-background" aria-labelledby="testimonials-heading">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-          Testimonials
+          Reviews
         </span>
-        <h2 className="mt-3 font-display text-3xl sm:text-4xl">From Restaurants Using NORU</h2>
+        <h2 id="testimonials-heading" className="mt-3 font-display text-3xl sm:text-4xl">
+          From properties using NORU
+        </h2>
         <p className="mt-3 max-w-xl text-base text-muted-foreground">
           Verified restaurant stories will appear here.
         </p>

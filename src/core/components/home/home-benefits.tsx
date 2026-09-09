@@ -1,14 +1,14 @@
 import { Check } from "lucide-react";
 
 const BENEFITS = [
-  "No app required for customers",
-  "Faster ordering",
-  "Real-time kitchen workflow",
-  "Better table accountability",
-  "Staff scheduling and attendance",
-  "Multi-restaurant architecture",
-  "Secure restaurant data separation",
-  "Built for mobile restaurant operations",
+  "Hospitality platform — not a single restaurant app",
+  "Four commercial packages, assigned per property",
+  "No app required for dining guests",
+  "Live kitchen and table service",
+  "Rooms, reservations and housekeeping in PMS",
+  "Standalone POS for counter selling",
+  "Back office for stock, people and finance",
+  "Secure property data separation",
 ];
 
 export function HomeBenefits() {
@@ -23,7 +23,7 @@ export function HomeBenefits() {
               className="flex items-start gap-3 rounded-2xl border border-border bg-card px-4 py-4"
             >
               <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-success/15 text-success">
-                <Check className="size-3.5" />
+                <Check className="size-3.5" aria-hidden />
               </span>
               <span className="text-sm font-medium">{benefit}</span>
             </li>

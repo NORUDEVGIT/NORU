@@ -1,18 +1,18 @@
 const STEPS = [
-  { title: "Customer scans QR", body: "Each table has its own secure QR code." },
-  { title: "Order is placed", body: "By the customer, or by a checked-in waiter." },
-  { title: "Kitchen receives it", body: "Live order board from New to Ready." },
-  { title: "You manage it all", body: "Orders, staff and insights in NORU." },
+  { title: "Choose your packages", body: "Restaurant Management, PMS, Standalone POS and Back Office." },
+  { title: "Register your company", body: "Create the property account. Packages are assigned after review." },
+  { title: "Run the operation", body: "Floor, rooms, till and office work from the same NORU workspace." },
+  { title: "Guests still scan QR", body: "Dining guests order from the table without downloading an app." },
 ];
 
 export function HomeSteps() {
   return (
-    <section id="how-it-works" className="bg-muted/50">
+    <section id="how-it-works" className="bg-background">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
         <div className="max-w-2xl">
           <h2 className="font-display text-3xl sm:text-4xl">How It Works</h2>
           <p className="mt-3 text-base text-muted-foreground">
-            Four steps from the table to the kitchen to your dashboard.
+            From company registration to live service — across restaurants and hotels.
           </p>
         </div>
 

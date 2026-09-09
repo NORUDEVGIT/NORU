@@ -2,9 +2,12 @@ import { Store } from "lucide-react";
 
 export function HomePartners() {
   return (
-    <section className="border-b border-border bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:py-14">
-        <h2 className="text-center text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+    <section className="border-b border-border bg-background" aria-labelledby="partners-heading">
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
+        <h2
+          id="partners-heading"
+          className="text-center text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+        >
           Trusted by Modern Hospitality Businesses
         </h2>
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
