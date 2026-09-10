@@ -1,13 +1,10 @@
-import { useId, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { QrCode, Sparkles } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { MockBars, MockKpi, MockOrderCard } from "@/core/components/home/ui-mock";
 
 export function HomeHero({ shortcuts }: { shortcuts?: ReactNode }) {
-  const [workflowTestOk, setWorkflowTestOk] = useState(false);
-  const workflowStatusId = useId();
-
   return (
     <section id="top" className="bg-primary text-primary-foreground">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:py-20 lg:grid-cols-2 lg:items-center lg:py-24">
@@ -54,28 +51,6 @@ export function HomeHero({ shortcuts }: { shortcuts?: ReactNode }) {
               </Link>
             </Button>
             {shortcuts}
-          </div>
-
-          <div className="mt-3">
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-11 rounded-full px-4 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-              aria-describedby={workflowTestOk ? workflowStatusId : undefined}
-              onClick={() => setWorkflowTestOk(true)}
-            >
-              Workflow Test
-            </Button>
-            {workflowTestOk ? (
-              <p
-                id={workflowStatusId}
-                role="status"
-                aria-live="polite"
-                className="mt-2 text-sm text-primary-foreground/80"
-              >
-                NORU workflow test successful
-              </p>
-            ) : null}
           </div>
         </div>
 
