@@ -1,9 +1,10 @@
 import { HomeBrandMark } from "@/core/components/home/home-brand-mark";
 import { MarketingHref } from "@/core/components/home/marketing-href";
-import { getMarketingContent, sortByOrder } from "@/core/lib/marketing";
+import { sortByOrder } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomeFooter() {
-  const { brand, footer } = getMarketingContent();
+  const { brand, footer } = usePublicMarketing();
   const groups = sortByOrder(footer.linkGroups);
   const socials = sortByOrder(footer.socials);
 

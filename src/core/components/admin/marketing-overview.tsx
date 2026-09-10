@@ -30,8 +30,8 @@ export function MarketingOverview() {
   return (
     <div className="space-y-5">
       <SectionCard
-        title="Publish (local stub)"
-        description="Milestone B stores draft and published snapshots in this browser only. Public `/` still reads the honest seed until Milestone C."
+        title="Publish"
+        description="Draft and published documents live in Core marketing tables. Public `/` reads the published document and falls back to the honest seed if a read fails. Concurrent edits are last-write-wins."
       >
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
           <div>
@@ -39,7 +39,7 @@ export function MarketingOverview() {
             <dd className="font-medium">{new Date(snapshot.draftUpdatedAt).toLocaleString()}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Last published stub</dt>
+            <dt className="text-muted-foreground">Last published</dt>
             <dd className="font-medium">
               {snapshot.publishedAt ? new Date(snapshot.publishedAt).toLocaleString() : "Never"}
             </dd>
@@ -59,13 +59,13 @@ export function MarketingOverview() {
           <p className="text-sm text-muted-foreground">Draft passes allowlist, protected-nav, and Available-now checks.</p>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={() => publish()} disabled={!report.ok}>
-            Publish stub
+          <Button type="button" onClick={() => void publish()} disabled={!report.ok}>
+            Publish
           </Button>
-          <Button type="button" variant="outline" onClick={revertDraft} disabled={!dirty}>
+          <Button type="button" variant="outline" onClick={() => void revertDraft()} disabled={!dirty}>
             Revert draft
           </Button>
-          <Button type="button" variant="outline" onClick={resetToSeed}>
+          <Button type="button" variant="outline" onClick={() => void resetToSeed()}>
             Reset to seed
           </Button>
         </div>

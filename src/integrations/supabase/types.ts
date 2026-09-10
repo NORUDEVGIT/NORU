@@ -2037,6 +2037,30 @@ export type Database = {
           },
         ]
       }
+      marketing_content_revisions: {
+        Row: {
+          content: Json
+          published_at: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          content: Json
+          published_at?: string | null
+          status: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          content?: Json
+          published_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       night_audit_exceptions: {
         Row: {
           created_at: string

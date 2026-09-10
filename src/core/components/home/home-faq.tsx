@@ -4,10 +4,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/shared/components/ui/accordion";
-import { activeOf, getMarketingContent } from "@/core/lib/marketing";
+import { activeOf } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomeFaq() {
-  const items = activeOf(getMarketingContent().faq);
+  const items = activeOf(usePublicMarketing().faq);
   if (items.length === 0) return null;
 
   return (

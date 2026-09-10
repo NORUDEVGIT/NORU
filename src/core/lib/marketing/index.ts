@@ -36,6 +36,21 @@ export {
   type MarketingEditorReport,
 } from "./editor.ts";
 export {
+  MARKETING_CMS_CONCURRENCY,
+  applyMarketingMutation,
+  assertMarketingAdmin,
+  collectAdminHrefs,
+  createSeedMarketingSnapshot,
+  evaluateMarketingDocument,
+  evaluatePublish,
+  evaluateSaveDraft,
+  isMarketingContent,
+  type MarketingCmsPublishResult,
+  type MarketingCmsSnapshot,
+  type MarketingRevisionStatus,
+} from "./document.ts";
+export { findDuplicateContentSlugs } from "./editor.ts";
+export {
   MARKETING_MOCK_STORAGE_KEY,
   MarketingMockStore,
   clearStoredMarketingSnapshot,

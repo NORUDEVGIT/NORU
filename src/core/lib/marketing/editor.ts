@@ -14,10 +14,14 @@ import { validateMarketingContent } from "./resolve.ts";
 import {
   MARKETING_ITEM_STATUSES,
   PROTECTED_NAV_ROLES,
+  type MarketingBlogPost,
+  type MarketingCaseStudy,
   type MarketingContent,
   type MarketingItemStatus,
   type MarketingNavItem,
 } from "./types.ts";
+
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const MARKETING_ADMIN_STATUS_LABELS: Record<MarketingItemStatus, string> = {
   available_now: "Available now",
@@ -159,7 +163,58 @@ export function validateMarketingEditorContent(content: MarketingContent): Marke
     });
   }
 
+  errors.push(...findDuplicateContentSlugs(content));
+
   return { ok: errors.length === 0, errors, forbiddenClaims };
+}
+
+export function findDuplicateContentSlugs(content: MarketingContent): MarketingEditorIssue[] {
+  return [
+    ...contentSlugIssues(content.blogPosts, "blogPosts", "blog"),
+    ...contentSlugIssues(content.caseStudies, "caseStudies", "case study"),
+  ];
+}
+
+function contentSlugIssues(
+  items: readonly (MarketingBlogPost | MarketingCaseStudy)[],
+  collection: "blogPosts" | "caseStudies",
+  label: string,
+): MarketingEditorIssue[] {
+  const errors: MarketingEditorIssue[] = [];
+  const seen = new Map<string, string>();
+
+  for (const item of items) {
+    const slug = item.slug.trim().toLowerCase();
+    if (!slug) {
+      if (item.published) {
+        errors.push({
+          code: "slug_required",
+          message: `Published ${label} “${item.title || item.id}” needs a unique slug.`,
+          path: `${collection}.${item.id}.slug`,
+        });
+      }
+      continue;
+    }
+    if (!SLUG_PATTERN.test(slug)) {
+      errors.push({
+        code: "slug_format",
+        message: `${label} slug must be lowercase letters, numbers, and hyphens: ${item.slug}`,
+        path: `${collection}.${item.id}.slug`,
+      });
+    }
+    const previous = seen.get(slug);
+    if (previous) {
+      errors.push({
+        code: "slug_duplicate",
+        message: `${label} slug “${slug}” is already used.`,
+        path: `${collection}.${item.id}.slug`,
+      });
+    } else {
+      seen.set(slug, item.id);
+    }
+  }
+
+  return errors;
 }
 
 /** Re-export for forms that need to assert a CTA target after a select change. */

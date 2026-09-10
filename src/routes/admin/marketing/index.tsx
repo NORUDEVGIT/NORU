@@ -11,7 +11,7 @@ export const Route = createFileRoute("/admin/marketing/")({
     <MarketingAdminLayout>
       <MarketingPage
         title="Overview"
-        description="Draft, validate, and publish the marketing stub. Public landing still uses the seed."
+        description="Draft, validate, and publish marketing content. Public landing reads the published document, then the honest seed."
       >
         <MarketingOverview />
       </MarketingPage>

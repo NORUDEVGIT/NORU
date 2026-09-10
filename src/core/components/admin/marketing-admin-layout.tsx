@@ -44,7 +44,7 @@ function MarketingToolbar() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
       <p className="text-sm text-muted-foreground">
-        {dirty ? "Unpublished draft changes (local stub only)." : "Draft matches the last published stub."}
+        {dirty ? "Unpublished draft changes." : "Draft matches the last published document."}
         {report.ok ? null : (
           <span className="ml-2 font-medium text-destructive">
             {report.errors.length} validation issue{report.errors.length === 1 ? "" : "s"}
@@ -52,11 +52,11 @@ function MarketingToolbar() {
         )}
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={revertDraft} disabled={!dirty}>
+        <Button type="button" variant="outline" size="sm" onClick={() => void revertDraft()} disabled={!dirty}>
           Revert draft
         </Button>
-        <Button type="button" size="sm" onClick={() => publish()} disabled={!report.ok}>
-          Publish stub
+        <Button type="button" size="sm" onClick={() => void publish()} disabled={!report.ok}>
+          Publish
         </Button>
       </div>
     </div>
