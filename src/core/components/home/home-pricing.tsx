@@ -4,19 +4,22 @@ import { Button } from "@/shared/components/ui/button";
 const TIERS = [
   {
     name: "Restaurant Management",
-    summary: "Floor, kitchen and guest ordering for restaurants and F&B outlets.",
+    summary: "Menus, QR and waiter ordering, kitchen display, and restaurant till for F&B operations.",
   },
   {
     name: "PMS",
-    summary: "Stay operations: rooms, reservations, guests and housekeeping.",
+    summary:
+      "Reservations, front desk, housekeeping, folios, night audit, and direct online booking. Live OTA channel sync: coming soon.",
   },
   {
     name: "Standalone POS",
-    summary: "A dedicated till package for counter and retail-style selling.",
+    summary:
+      "Catalog, sell, pay, shifts, refunds, and reports for cafés and counters — without full restaurant ops.",
   },
   {
     name: "Back Office Management",
-    summary: "Procurement, stock, people and finance tools for the property.",
+    summary:
+      "Evolving stock and purchasing tools toward centralized management reporting — not a full finance/HR suite yet.",
   },
 ] as const;
 

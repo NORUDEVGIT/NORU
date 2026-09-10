@@ -7,7 +7,7 @@ const BENEFITS = [
   "Live kitchen and table service",
   "Rooms, reservations and housekeeping in PMS",
   "Standalone POS for counter selling",
-  "Back office for stock, people and finance",
+  "Back office foundations for stock, purchasing and management reporting",
   "Secure property data separation",
 ];
 
