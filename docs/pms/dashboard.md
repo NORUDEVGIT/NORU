@@ -81,7 +81,7 @@ Pre-existing dashboard reads (`getRoomsDashboard`, `getFrontOfficeDashboard` ins
 
 ## Implementation status
 
-**IN PROGRESS** (this PR)
+**IN PROGRESS** (this PR — awaiting Independent QA)
 
 | Item | Status |
 |---|---|
@@ -95,7 +95,7 @@ Pre-existing dashboard reads (`getRoomsDashboard`, `getFrontOfficeDashboard` ins
 
 | Lane | Result | Notes |
 |---|---|---|
-| Developer QA | **PENDING** | Record after `tsc` / string-absence / diff-scope checks on this PR. Browser smoke on `/restaurant/pms/dashboard` needs a signed-in PMS session. |
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; string-absence PASS (`PMS Workflow Test`, `PMS workflow test passed`, `Temporary process test`, `workflowTestPassed`, `TEMPORARY` absent from `rooms-dashboard.tsx`); diff-scope / AC-4 frontend-only PASS (this PR: `rooms-dashboard.tsx` + `docs/pms/dashboard.md`). Browser smoke on `/restaurant/pms/dashboard` **NOT RUN** (needs a signed-in PMS session). Existing guard regression not re-executed; no guard code changed. |
 | Independent QA | **PENDING** | Rekik / Abel per issue #15. |
 
 Historical QA for the #12 / #13 process-test cycle: [qa/test-plan.md](./qa/test-plan.md).
