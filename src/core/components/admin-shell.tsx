@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LayoutDashboard, Store, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Store, Users, Settings, LogOut, Megaphone } from "lucide-react";
 import { NoruLogo } from "@/core/components/noru-logo";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/restaurants", label: "Restaurants", icon: Store },
   { to: "/admin/customers", label: "Customers", icon: Users },
+  { to: "/admin/marketing", label: "Marketing", icon: Megaphone },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ] as const;
 
