@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { MARKETING_NAV_HREFS, isAllowedMarketingHref, isRejectedAdminHref } from "./allowlist.ts";
+import { FORBIDDEN_AVAILABLE_NOW } from "./claims.ts";
 import { MARKETING_SEED } from "./seed.ts";
 import { PROTECTED_NAV_ROLES } from "./types.ts";
 import {
@@ -10,18 +11,6 @@ import {
   visibleNav,
   visiblePackages,
 } from "./resolve.ts";
-
-const FORBIDDEN_AVAILABLE_NOW = [
-  /\bRMS\b/i,
-  /booking\.com/i,
-  /expedia/i,
-  /digital invoic/i,
-  /\bpayroll\b/i,
-  /chart of accounts/i,
-  /financial statements/i,
-  /finance suite/i,
-  /enterprise multi-property/i,
-];
 
 describe("marketing nav allowlist", () => {
   it("rejects /admin and does not include it", () => {
@@ -74,8 +63,8 @@ describe("honest marketing seed", () => {
       MARKETING_SEED.brand.seoDescription,
     ].join("\n");
     assert.equal(/\bRMS\b/.test(text), false);
-    for (const pattern of FORBIDDEN_AVAILABLE_NOW) {
-      assert.equal(pattern.test(text), false, String(pattern));
+    for (const rule of FORBIDDEN_AVAILABLE_NOW) {
+      assert.equal(rule.pattern.test(text), false, rule.label);
     }
     const ota = MARKETING_SEED.packages
       .flatMap((pkg) => pkg.features)

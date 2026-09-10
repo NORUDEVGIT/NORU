@@ -9,6 +9,48 @@ export {
   type MarketingNavHref,
 } from "./allowlist.ts";
 export {
+  FORBIDDEN_AVAILABLE_NOW,
+  featureAvailableNowIssues,
+  findForbiddenAvailableNowClaims,
+  findForbiddenClaimsInText,
+  forbiddenClaimsForAvailableNowField,
+  packageAvailableNowIssues,
+  type ForbiddenClaimHit,
+} from "./claims.ts";
+export {
+  MARKETING_ADMIN_STATUS_LABELS,
+  MARKETING_CARD_DISCLAIMER,
+  assertEditorHref,
+  canHideOrUnpublishNavItem,
+  canRemoveNavItem,
+  isProtectedNavItem,
+  missingProtectedNavRoles,
+  newMarketingId,
+  parseMarketingHref,
+  removeNavItem,
+  requireMarketingHref,
+  setNavItemHref,
+  setNavItemVisible,
+  validateMarketingEditorContent,
+  type MarketingEditorIssue,
+  type MarketingEditorReport,
+} from "./editor.ts";
+export {
+  MARKETING_MOCK_STORAGE_KEY,
+  MarketingMockStore,
+  clearStoredMarketingSnapshot,
+  createInitialMarketingSnapshot,
+  getMarketingMockStore,
+  persistMarketingMockStore,
+  readStoredMarketingSnapshot,
+  resetMarketingMockStoreForTests,
+  snapshotHasUnpublishedChanges,
+  writeStoredMarketingSnapshot,
+  type MarketingMockPublishResult,
+  type MarketingMockSnapshot,
+  type MarketingPublishState,
+} from "./mock-store.ts";
+export {
   MARKETING_SEED,
 } from "./seed.ts";
 export {

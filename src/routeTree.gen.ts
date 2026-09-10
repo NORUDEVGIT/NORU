@@ -43,6 +43,13 @@ import { Route as RestaurantTablesRouteImport } from './routes/restaurant/tables
 import { Route as RestaurantWaiterRouteImport } from './routes/restaurant/waiter'
 import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
 import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
+import { Route as AdminMarketingIndexRouteImport } from './routes/admin/marketing/index'
+import { Route as AdminMarketingBrandRouteImport } from './routes/admin/marketing/brand'
+import { Route as AdminMarketingContentRouteImport } from './routes/admin/marketing/content'
+import { Route as AdminMarketingNavRouteImport } from './routes/admin/marketing/nav'
+import { Route as AdminMarketingPackagesRouteImport } from './routes/admin/marketing/packages'
+import { Route as AdminMarketingPricingRouteImport } from './routes/admin/marketing/pricing'
+import { Route as AdminMarketingSiteRouteImport } from './routes/admin/marketing/site'
 import { Route as AdminRestaurantsIndexRouteImport } from './routes/admin/restaurants/index'
 import { Route as AdminRestaurantsRestaurantIdRouteImport } from './routes/admin/restaurants/$restaurantId'
 import { Route as RRestaurantSlugIndexRouteImport } from './routes/r/$restaurantSlug/index'
@@ -315,6 +322,41 @@ const AccountOrdersOrderIdRoute = AccountOrdersOrderIdRouteImport.update({
   id: '/orders/$orderId',
   path: '/orders/$orderId',
   getParentRoute: () => AccountRouteRoute,
+} as any)
+const AdminMarketingIndexRoute = AdminMarketingIndexRouteImport.update({
+  id: '/admin/marketing/',
+  path: '/admin/marketing/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingBrandRoute = AdminMarketingBrandRouteImport.update({
+  id: '/admin/marketing/brand',
+  path: '/admin/marketing/brand',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingContentRoute = AdminMarketingContentRouteImport.update({
+  id: '/admin/marketing/content',
+  path: '/admin/marketing/content',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingNavRoute = AdminMarketingNavRouteImport.update({
+  id: '/admin/marketing/nav',
+  path: '/admin/marketing/nav',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingPackagesRoute = AdminMarketingPackagesRouteImport.update({
+  id: '/admin/marketing/packages',
+  path: '/admin/marketing/packages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingPricingRoute = AdminMarketingPricingRouteImport.update({
+  id: '/admin/marketing/pricing',
+  path: '/admin/marketing/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingSiteRoute = AdminMarketingSiteRouteImport.update({
+  id: '/admin/marketing/site',
+  path: '/admin/marketing/site',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRestaurantsIndexRoute = AdminRestaurantsIndexRouteImport.update({
   id: '/admin/restaurants/',
@@ -931,6 +973,12 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
+  '/admin/marketing/brand': typeof AdminMarketingBrandRoute
+  '/admin/marketing/content': typeof AdminMarketingContentRoute
+  '/admin/marketing/nav': typeof AdminMarketingNavRoute
+  '/admin/marketing/packages': typeof AdminMarketingPackagesRoute
+  '/admin/marketing/pricing': typeof AdminMarketingPricingRoute
+  '/admin/marketing/site': typeof AdminMarketingSiteRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
   '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
@@ -995,6 +1043,7 @@ export interface FileRoutesByFullPath {
   '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/stay/$propertySlug/manage': typeof StayPropertySlugManageRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
+  '/admin/marketing/': typeof AdminMarketingIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/back-office/': typeof RestaurantBackOfficeIndexRoute
@@ -1067,6 +1116,12 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/kitchen': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
+  '/admin/marketing/brand': typeof AdminMarketingBrandRoute
+  '/admin/marketing/content': typeof AdminMarketingContentRoute
+  '/admin/marketing/nav': typeof AdminMarketingNavRoute
+  '/admin/marketing/packages': typeof AdminMarketingPackagesRoute
+  '/admin/marketing/pricing': typeof AdminMarketingPricingRoute
+  '/admin/marketing/site': typeof AdminMarketingSiteRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
   '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
@@ -1131,6 +1186,7 @@ export interface FileRoutesByTo {
   '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/stay/$propertySlug/manage': typeof StayPropertySlugManageRoute
   '/account/orders': typeof AccountOrdersIndexRoute
+  '/admin/marketing': typeof AdminMarketingIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
   '/restaurant/back-office': typeof RestaurantBackOfficeIndexRoute
@@ -1206,6 +1262,12 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/kitchen/': typeof KitchenIndexRoute
   '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
+  '/admin/marketing/brand': typeof AdminMarketingBrandRoute
+  '/admin/marketing/content': typeof AdminMarketingContentRoute
+  '/admin/marketing/nav': typeof AdminMarketingNavRoute
+  '/admin/marketing/packages': typeof AdminMarketingPackagesRoute
+  '/admin/marketing/pricing': typeof AdminMarketingPricingRoute
+  '/admin/marketing/site': typeof AdminMarketingSiteRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
   '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
   '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
@@ -1270,6 +1332,7 @@ export interface FileRoutesById {
   '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/stay/$propertySlug/manage': typeof StayPropertySlugManageRoute
   '/account/orders/': typeof AccountOrdersIndexRoute
+  '/admin/marketing/': typeof AdminMarketingIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
   '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
   '/restaurant/back-office/': typeof RestaurantBackOfficeIndexRoute
@@ -1346,6 +1409,12 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/kitchen/'
     | '/account/orders/$orderId'
+    | '/admin/marketing/brand'
+    | '/admin/marketing/content'
+    | '/admin/marketing/nav'
+    | '/admin/marketing/packages'
+    | '/admin/marketing/pricing'
+    | '/admin/marketing/site'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
     | '/r/$restaurantSlug/confirmation'
@@ -1410,6 +1479,7 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug/confirmation'
     | '/stay/$propertySlug/manage'
     | '/account/orders/'
+    | '/admin/marketing/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
     | '/restaurant/back-office/'
@@ -1482,6 +1552,12 @@ export interface FileRouteTypes {
     | '/admin'
     | '/kitchen'
     | '/account/orders/$orderId'
+    | '/admin/marketing/brand'
+    | '/admin/marketing/content'
+    | '/admin/marketing/nav'
+    | '/admin/marketing/packages'
+    | '/admin/marketing/pricing'
+    | '/admin/marketing/site'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
     | '/r/$restaurantSlug/confirmation'
@@ -1546,6 +1622,7 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug/confirmation'
     | '/stay/$propertySlug/manage'
     | '/account/orders'
+    | '/admin/marketing'
     | '/admin/restaurants'
     | '/r/$restaurantSlug'
     | '/restaurant/back-office'
@@ -1620,6 +1697,12 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/kitchen/'
     | '/account/orders/$orderId'
+    | '/admin/marketing/brand'
+    | '/admin/marketing/content'
+    | '/admin/marketing/nav'
+    | '/admin/marketing/packages'
+    | '/admin/marketing/pricing'
+    | '/admin/marketing/site'
     | '/admin/restaurants/$restaurantId'
     | '/r/$restaurantSlug/cart'
     | '/r/$restaurantSlug/confirmation'
@@ -1684,6 +1767,7 @@ export interface FileRouteTypes {
     | '/stay/$propertySlug/confirmation'
     | '/stay/$propertySlug/manage'
     | '/account/orders/'
+    | '/admin/marketing/'
     | '/admin/restaurants/'
     | '/r/$restaurantSlug/'
     | '/restaurant/back-office/'
@@ -1757,6 +1841,12 @@ export interface RootRouteChildren {
   RestaurantWaiterRoute: typeof RestaurantWaiterRoute
   AdminIndexRoute: typeof AdminIndexRoute
   KitchenIndexRoute: typeof KitchenIndexRoute
+  AdminMarketingBrandRoute: typeof AdminMarketingBrandRoute
+  AdminMarketingContentRoute: typeof AdminMarketingContentRoute
+  AdminMarketingNavRoute: typeof AdminMarketingNavRoute
+  AdminMarketingPackagesRoute: typeof AdminMarketingPackagesRoute
+  AdminMarketingPricingRoute: typeof AdminMarketingPricingRoute
+  AdminMarketingSiteRoute: typeof AdminMarketingSiteRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
   RestaurantBackOfficeAccountingRoute: typeof RestaurantBackOfficeAccountingRoute
   RestaurantBackOfficeAuditRoute: typeof RestaurantBackOfficeAuditRoute
@@ -1815,6 +1905,7 @@ export interface RootRouteChildren {
   StayPropertySlugBookRoute: typeof StayPropertySlugBookRoute
   StayPropertySlugConfirmationRoute: typeof StayPropertySlugConfirmationRoute
   StayPropertySlugManageRoute: typeof StayPropertySlugManageRoute
+  AdminMarketingIndexRoute: typeof AdminMarketingIndexRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
   RestaurantBackOfficeIndexRoute: typeof RestaurantBackOfficeIndexRoute
   RestaurantBookingsIndexRoute: typeof RestaurantBookingsIndexRoute
@@ -2092,6 +2183,55 @@ declare module '@tanstack/react-router' {
       fullPath: '/account/orders/$orderId'
       preLoaderRoute: typeof AccountOrdersOrderIdRouteImport
       parentRoute: typeof AccountRouteRoute
+    }
+    '/admin/marketing/': {
+      id: '/admin/marketing/'
+      path: '/admin/marketing'
+      fullPath: '/admin/marketing/'
+      preLoaderRoute: typeof AdminMarketingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/brand': {
+      id: '/admin/marketing/brand'
+      path: '/admin/marketing/brand'
+      fullPath: '/admin/marketing/brand'
+      preLoaderRoute: typeof AdminMarketingBrandRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/content': {
+      id: '/admin/marketing/content'
+      path: '/admin/marketing/content'
+      fullPath: '/admin/marketing/content'
+      preLoaderRoute: typeof AdminMarketingContentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/nav': {
+      id: '/admin/marketing/nav'
+      path: '/admin/marketing/nav'
+      fullPath: '/admin/marketing/nav'
+      preLoaderRoute: typeof AdminMarketingNavRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/packages': {
+      id: '/admin/marketing/packages'
+      path: '/admin/marketing/packages'
+      fullPath: '/admin/marketing/packages'
+      preLoaderRoute: typeof AdminMarketingPackagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/pricing': {
+      id: '/admin/marketing/pricing'
+      path: '/admin/marketing/pricing'
+      fullPath: '/admin/marketing/pricing'
+      preLoaderRoute: typeof AdminMarketingPricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/site': {
+      id: '/admin/marketing/site'
+      path: '/admin/marketing/site'
+      fullPath: '/admin/marketing/site'
+      preLoaderRoute: typeof AdminMarketingSiteRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/restaurants/': {
       id: '/admin/restaurants/'
@@ -2883,6 +3023,12 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantWaiterRoute: RestaurantWaiterRoute,
   AdminIndexRoute: AdminIndexRoute,
   KitchenIndexRoute: KitchenIndexRoute,
+  AdminMarketingBrandRoute: AdminMarketingBrandRoute,
+  AdminMarketingContentRoute: AdminMarketingContentRoute,
+  AdminMarketingNavRoute: AdminMarketingNavRoute,
+  AdminMarketingPackagesRoute: AdminMarketingPackagesRoute,
+  AdminMarketingPricingRoute: AdminMarketingPricingRoute,
+  AdminMarketingSiteRoute: AdminMarketingSiteRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
   RestaurantBackOfficeAccountingRoute: RestaurantBackOfficeAccountingRoute,
   RestaurantBackOfficeAuditRoute: RestaurantBackOfficeAuditRoute,
@@ -2953,6 +3099,7 @@ const rootRouteChildren: RootRouteChildren = {
   StayPropertySlugBookRoute: StayPropertySlugBookRoute,
   StayPropertySlugConfirmationRoute: StayPropertySlugConfirmationRoute,
   StayPropertySlugManageRoute: StayPropertySlugManageRoute,
+  AdminMarketingIndexRoute: AdminMarketingIndexRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
   RestaurantBackOfficeIndexRoute: RestaurantBackOfficeIndexRoute,
   RestaurantBookingsIndexRoute: RestaurantBookingsIndexRoute,
