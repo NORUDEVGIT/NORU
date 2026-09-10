@@ -3,22 +3,25 @@ import { Link } from "@tanstack/react-router";
 import { QrCode, Sparkles } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { MockBars, MockKpi, MockOrderCard } from "@/core/components/home/ui-mock";
+import { MarketingHref } from "@/core/components/home/marketing-href";
+import { getMarketingContent } from "@/core/lib/marketing";
 
 export function HomeHero({ shortcuts }: { shortcuts?: ReactNode }) {
+  const { hero } = getMarketingContent();
+
   return (
     <section id="top" className="bg-primary text-primary-foreground">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:py-20 lg:grid-cols-2 lg:items-center lg:py-24">
         <div className="fade-up">
           <span className="inline-flex items-center gap-2 rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-accent">
             <Sparkles className="size-3.5" aria-hidden />
-            Hospitality management platform
+            {hero.eyebrow}
           </span>
           <h1 className="mt-5 font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">
-            Run hotels and restaurants on NORU
+            {hero.headline}
           </h1>
           <p className="mt-4 max-w-xl text-base text-primary-foreground/80 sm:text-lg">
-            Restaurant Management, PMS, Standalone POS and Back Office Management — one platform for
-            the floor, the stay and the office.
+            {hero.description}
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -27,16 +30,18 @@ export function HomeHero({ shortcuts }: { shortcuts?: ReactNode }) {
               size="lg"
               className="h-12 rounded-full bg-accent px-7 font-semibold text-accent-foreground hover:bg-accent/90"
             >
-              <Link to="/restaurant/register">Register Your Company</Link>
+              <MarketingHref href={hero.primaryCta.target}>{hero.primaryCta.label}</MarketingHref>
             </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="h-12 rounded-full border-primary-foreground/30 bg-transparent px-7 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-            >
-              <a href="#packages">See packages</a>
-            </Button>
+            {hero.secondaryCta ? (
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="h-12 rounded-full border-primary-foreground/30 bg-transparent px-7 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+              >
+                <MarketingHref href={hero.secondaryCta.target}>{hero.secondaryCta.label}</MarketingHref>
+              </Button>
+            ) : null}
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">

@@ -1,20 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { NoruLogo } from "@/core/components/noru-logo";
+import { HomeBrandMark } from "@/core/components/home/home-brand-mark";
+import { MarketingHref } from "@/core/components/home/marketing-href";
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
-
-const NAV_LINKS = [
-  { label: "Home", href: "#top" },
-  { label: "Packages", href: "#packages" },
-  { label: "How It Works", href: "#how-it-works" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Contact", href: "#contact" },
-];
+import { getMarketingContent, visibleNav } from "@/core/lib/marketing";
 
 export function HomeNav() {
+  const marketing = getMarketingContent();
+  const pageLinks = visibleNav(marketing, "page");
+  const authLinks = visibleNav(marketing, "auth");
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -35,32 +31,37 @@ export function HomeNav() {
       )}
     >
       <div className="mx-auto grid max-w-6xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
-        <a href="#top" className="flex min-w-0 items-center" aria-label="NORU home">
-          <NoruLogo size="sm" />
+        <a href="#top" className="flex min-w-0 items-center" aria-label={`${marketing.brand.siteName} home`}>
+          <HomeBrandMark brand={marketing.brand} />
         </a>
 
         <nav className="hidden justify-center gap-1 lg:flex" aria-label="Page">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
+          {pageLinks.map((link) => (
+            <MarketingHref
+              key={link.id}
               href={link.href}
               className="rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               {link.label}
-            </a>
+            </MarketingHref>
           ))}
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" className="hidden h-11 rounded-full px-4 sm:inline-flex">
-            <Link to="/restaurant/login">Sign In</Link>
-          </Button>
-          <Button
-            asChild
-            className="hidden h-11 rounded-full bg-accent px-5 font-semibold text-accent-foreground hover:bg-accent/90 sm:inline-flex"
-          >
-            <Link to="/restaurant/register">Sign Up</Link>
-          </Button>
+          {authLinks.map((item) => (
+            <Button
+              key={item.id}
+              asChild
+              variant={item.protectedRole === "sign_up" ? "default" : "ghost"}
+              className={
+                item.protectedRole === "sign_up"
+                  ? "hidden h-11 rounded-full bg-accent px-5 font-semibold text-accent-foreground hover:bg-accent/90 sm:inline-flex"
+                  : "hidden h-11 rounded-full px-4 sm:inline-flex"
+              }
+            >
+              <MarketingHref href={item.href}>{item.label}</MarketingHref>
+            </Button>
+          ))}
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
@@ -71,34 +72,37 @@ export function HomeNav() {
             <SheetContent side="right" className="w-[85vw] max-w-sm">
               <SheetHeader>
                 <SheetTitle className="text-left">
-                  <NoruLogo size="sm" />
+                  <HomeBrandMark brand={marketing.brand} />
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-1 px-4 pb-6" aria-label="Page">
-                {NAV_LINKS.map((link) => (
-                  <a
-                    key={link.href}
+                {pageLinks.map((link) => (
+                  <MarketingHref
+                    key={link.id}
                     href={link.href}
                     onClick={() => setOpen(false)}
                     className="rounded-xl px-3 py-3 text-base font-medium hover:bg-secondary"
                   >
                     {link.label}
-                  </a>
+                  </MarketingHref>
                 ))}
                 <div className="my-3 h-px bg-border" />
-                <Button asChild variant="outline" className="h-12 rounded-full">
-                  <Link to="/restaurant/login" onClick={() => setOpen(false)}>
-                    Sign In
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  className="mt-2 h-12 rounded-full bg-accent font-semibold text-accent-foreground hover:bg-accent/90"
-                >
-                  <Link to="/restaurant/register" onClick={() => setOpen(false)}>
-                    Sign Up
-                  </Link>
-                </Button>
+                {authLinks.map((item) => (
+                  <Button
+                    key={item.id}
+                    asChild
+                    variant={item.protectedRole === "sign_up" ? "default" : "outline"}
+                    className={
+                      item.protectedRole === "sign_up"
+                        ? "mt-2 h-12 rounded-full bg-accent font-semibold text-accent-foreground hover:bg-accent/90"
+                        : "h-12 rounded-full"
+                    }
+                  >
+                    <MarketingHref href={item.href} onClick={() => setOpen(false)}>
+                      {item.label}
+                    </MarketingHref>
+                  </Button>
+                ))}
               </nav>
             </SheetContent>
           </Sheet>

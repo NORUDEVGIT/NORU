@@ -2,33 +2,34 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/shared/components/ui/button";
 import { HomeNav } from "@/core/components/home/home-nav";
+import { HomePromoBanners } from "@/core/components/home/home-promo-banners";
 import { HomeHero } from "@/core/components/home/home-hero";
 import { HomePackages } from "@/core/components/home/home-packages";
+import { HomePartners } from "@/core/components/home/home-partners";
 import { HomeFeatures } from "@/core/components/home/home-features";
 import { HomeSteps } from "@/core/components/home/home-steps";
 import { HomeShowcase } from "@/core/components/home/home-showcase";
 import { HomeBenefits } from "@/core/components/home/home-benefits";
+import { HomeTestimonials } from "@/core/components/home/home-testimonials";
+import { HomeCaseStudies } from "@/core/components/home/home-case-studies";
+import { HomeBlog } from "@/core/components/home/home-blog";
 import { HomePricing } from "@/core/components/home/home-pricing";
+import { HomeFaq } from "@/core/components/home/home-faq";
 import { HomeCta } from "@/core/components/home/home-cta";
 import { HomeFooter } from "@/core/components/home/home-footer";
 import { useAuth } from "@/core/state/auth-store";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
+import { getMarketingContent } from "@/core/lib/marketing";
+
+const marketing = getMarketingContent();
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "NORU — Hospitality management platform" },
-      {
-        name: "description",
-        content:
-          "NORU is a hospitality management platform for Restaurant Management, PMS, Standalone POS and Back Office Management.",
-      },
-      { property: "og:title", content: "NORU — Hospitality management platform" },
-      {
-        property: "og:description",
-        content:
-          "Four commercial packages for hotels and restaurants: Restaurant Management, PMS, Standalone POS and Back Office Management.",
-      },
+      { title: marketing.brand.seoTitle },
+      { name: "description", content: marketing.brand.seoDescription },
+      { property: "og:title", content: marketing.brand.seoTitle },
+      { property: "og:description", content: marketing.brand.ogDescription },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -76,13 +77,19 @@ function PlatformHome() {
     <div className="min-h-dvh overflow-x-hidden bg-background">
       <HomeNav />
       <main>
+        <HomePromoBanners />
         <HomeHero shortcuts={shortcuts} />
         <HomePackages />
+        <HomePartners />
         <HomeFeatures />
         <HomeSteps />
         <HomeShowcase />
         <HomeBenefits />
+        <HomeTestimonials />
+        <HomeCaseStudies />
+        <HomeBlog />
         <HomePricing />
+        <HomeFaq />
         <HomeCta />
       </main>
       <HomeFooter />
