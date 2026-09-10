@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, Printer, RotateCcw, Wallet } from "lucide-react";
+import { ArrowLeft, Printer, ReceiptText, RotateCcw, Wallet } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -13,10 +13,11 @@ import { PosMenuPanel } from "@/packages/restaurant-management/components/rm-pos
 import { PosSalePanel, type PosLine, type PosOrderType } from "@/packages/restaurant-management/components/rm-pos/pos-sale-panel";
 import { PosPaymentDialog, type PosPaymentChoice } from "@/packages/restaurant-management/components/rm-pos/pos-payment-dialog";
 import { ChargeToRoomDialog } from "@/packages/restaurant-management/components/orders/charge-to-room-dialog";
+import { RecentPaidSalesSheet } from "@/packages/restaurant-management/components/rm-pos/recent-paid-sales-sheet";
 import { getPosContext, openPosShift, payPosSale, placePosSale, type PosMenuItem, type PosSale } from "@/packages/restaurant-management/lib/rm-pos.functions";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { useAuth } from "@/core/state/auth-store";
-import { RestaurantSettingsProvider, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { RestaurantSettingsProvider, useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { formatMoney } from "@/shared/lib/property-time";
 
 
@@ -66,6 +67,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const money = useMoney();
+  const { dateTime } = useRestaurantTime();
 
   const loadContext = useServerFn(getPosContext);
   const openShift = useServerFn(openPosShift);
@@ -82,6 +84,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
   const [payOpen, setPayOpen] = useState(false);
   const [roomOpen, setRoomOpen] = useState(false);
   const [done, setDone] = useState<{ sale: PosSale; label: string; change: number } | null>(null);
+  const [recentOpen, setRecentOpen] = useState(false);
 
   const context = useQuery({
     queryKey: ["pos-context", restaurantId],
@@ -237,6 +240,17 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 rounded-xl"
+            onClick={() => {
+              if (lines.length > 0) holdSale();
+              setRecentOpen(true);
+            }}
+          >
+            <ReceiptText className="mr-2 size-4" /> Recent
+          </Button>
           {held.map((parked, index) => (
             <Button
               key={parked.id}
@@ -321,6 +335,14 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
           }
           paymentMutation.mutate(choice);
         }}
+      />
+
+      <RecentPaidSalesSheet
+        restaurantId={restaurantId}
+        open={recentOpen}
+        onClose={() => setRecentOpen(false)}
+        money={tillMoney}
+        dateTime={dateTime}
       />
 
       {sale ? (

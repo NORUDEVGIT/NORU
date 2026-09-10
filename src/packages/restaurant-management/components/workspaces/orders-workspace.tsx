@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Bell, RefreshCw, Search } from "lucide-react";
 
 import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
+import { PaymentStatusBadge } from "@/packages/restaurant-management/components/payment-status-badge";
+import { restaurantPaymentStatus } from "@/packages/restaurant-management/lib/rm-refunds";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -340,6 +342,7 @@ export function OrdersBody({
                     <th className="px-4 py-3 font-medium">Items</th>
                     <th className="px-4 py-3 font-medium">Order Value</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Payment</th>
                     <th className="px-4 py-3 font-medium">Customer Type</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -355,6 +358,7 @@ export function OrdersBody({
                       </td>
                       <td className="px-4 py-3 tabular-nums">{money(o.total)}</td>
                       <td className="px-4 py-3"><OrderStatusBadge status={o.status} /></td>
+                      <td className="px-4 py-3"><OrderPaymentBadge order={o} /></td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {o.source === "waiter_assisted" ? "Waiter-assisted" : o.isGuest ? "Guest" : "Registered Customer"}
                         {o.waiterName ? <span className="block text-xs">Waiter: {o.waiterName}</span> : null}
@@ -416,7 +420,10 @@ function MobileCard({ order }: { order: OrderListRow }) {
     <li className="p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold tabular-nums">#{order.orderNumber}</span>
-        <OrderStatusBadge status={order.status} />
+        <span className="flex flex-wrap items-center justify-end gap-1">
+          <OrderStatusBadge status={order.status} />
+          <OrderPaymentBadge order={order} />
+        </span>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         {clock.dateTime(order.createdAt)} · Table {order.tableNumber}
@@ -434,6 +441,18 @@ function MobileCard({ order }: { order: OrderListRow }) {
       </div>
     </li>
   );
+}
+
+function OrderPaymentBadge({ order }: { order: OrderListRow }) {
+  const status = restaurantPaymentStatus({
+    paidAt: order.paidAt,
+    billingMethod: order.billingMethod,
+    roomPosted: order.roomPosted,
+    total: order.total,
+    refundedAmount: order.refundedAmount,
+  });
+  if (status === "unpaid") return <span className="text-xs text-muted-foreground">—</span>;
+  return <PaymentStatusBadge status={status} />;
 }
 
 function Chip({

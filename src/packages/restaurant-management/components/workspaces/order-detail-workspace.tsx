@@ -10,9 +10,13 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ChefHat } from "lucide-react";
+import { ArrowLeft, ChefHat, Undo2 } from "lucide-react";
 
 import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
+import { PaymentStatusBadge } from "@/packages/restaurant-management/components/payment-status-badge";
+import { RefundHistory, RefundSaleFlow } from "@/packages/restaurant-management/components/rm-pos/refund-sale-flow";
+import { getRefundSale } from "@/packages/restaurant-management/lib/rm-refunds.functions";
+import { restaurantPaymentStatus } from "@/packages/restaurant-management/lib/rm-refunds";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -43,6 +47,14 @@ export function OrderDetailBody({
   const restaurantId = membership.restaurantId;
   const fetchDetail = useServerFn(getRestaurantOrderDetail);
   const queryClient = useQueryClient();
+
+  const [refundOpen, setRefundOpen] = useState(false);
+  const fetchRefund = useServerFn(getRefundSale);
+  const refundQuery = useQuery({
+    queryKey: ["rm-refund-sale", restaurantId, orderId],
+    queryFn: () => fetchRefund({ data: { restaurantId, orderId } }),
+    retry: false,
+  });
 
   const queryKey = ["restaurant-order", restaurantId, orderId];
   const query = useQuery<OrderDetail>({
@@ -92,6 +104,15 @@ export function OrderDetailBody({
   const order = query.data;
   const isActive = (ACTIVE_ORDER_STATUSES as readonly string[]).includes(order.status);
   const subtotal = order.items.reduce((sum, i) => sum + i.lineTotal, 0);
+  const paymentStatus = restaurantPaymentStatus({
+    paidAt: order.paidAt,
+    billingMethod: order.billingMethod,
+    roomPosted: order.roomPosted,
+    total: order.total,
+    refundedAmount: order.refundedAmount,
+  });
+  const showPaymentBadge = paymentStatus !== "unpaid";
+  const canOfferRefund = Boolean(refundQuery.data?.canRefund);
 
   return (
     <div className="space-y-5">
@@ -100,6 +121,7 @@ export function OrderDetailBody({
           <div className="flex items-center gap-3">
             <h1 className="font-display text-xl leading-tight tabular-nums">Order #{order.orderNumber}</h1>
             <OrderStatusBadge status={order.status} />
+            {showPaymentBadge ? <PaymentStatusBadge status={paymentStatus} /> : null}
           </div>
           <p className="text-sm text-muted-foreground">{clock.dateTime(order.createdAt)}</p>
         </div>
@@ -109,6 +131,11 @@ export function OrderDetailBody({
               <ArrowLeft className="mr-2 size-4" /> Back to Orders
             </Link>
           </Button>
+          {canOfferRefund ? (
+            <Button size="sm" onClick={() => setRefundOpen(true)}>
+              <Undo2 className="mr-2 size-4" /> Refund
+            </Button>
+          ) : null}
           {isActive ? (
             <Button asChild size="sm">
               <Link to={rm.kitchen}><ChefHat className="mr-2 size-4" /> Open in Kitchen</Link>
@@ -146,6 +173,10 @@ export function OrderDetailBody({
           </div>
 
           <BillingSection restaurantId={restaurantId} orderId={order.id} />
+
+          {refundQuery.data ? (
+            <RefundHistory history={refundQuery.data.history} money={money} dateTime={clock.dateTime} />
+          ) : null}
 
 
           <div className="rounded-2xl border border-border bg-card p-5">
@@ -204,6 +235,18 @@ export function OrderDetailBody({
           )}
         </section>
       </div>
+
+      <RefundSaleFlow
+        restaurantId={restaurantId}
+        orderId={order.id}
+        open={refundOpen}
+        onClose={() => setRefundOpen(false)}
+        onSuccess={() => {
+          void queryClient.invalidateQueries({ queryKey });
+          void queryClient.invalidateQueries({ queryKey: ["rm-refund-sale", restaurantId, orderId] });
+        }}
+        money={money}
+      />
     </div>
   );
 }
