@@ -1,9 +1,7 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { BedDouble, CheckCircle2, CircleSlash, DoorOpen, Tag, Wrench } from "lucide-react";
 
-import { Button } from "@/shared/components/ui/button";
 import { getRoomsDashboard } from "@/packages/pms/lib/rooms.functions";
 import { FrontOfficeSummary } from "@/packages/pms/components/frontoffice/front-office-summary";
 
@@ -14,8 +12,6 @@ export function RoomsDashboardTab({ restaurantId }: { restaurantId: string }) {
     queryKey: ["rooms-dashboard", restaurantId],
     queryFn: () => fetchDashboard({ data: { restaurantId } }),
   });
-  // TEMPORARY: local UI state for the removable PMS process-test control.
-  const [workflowTestPassed, setWorkflowTestPassed] = useState(false);
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading room overview…</p>;
   if (isError || !data) return <p className="text-sm text-destructive">We couldn't load the room overview.</p>;
@@ -64,25 +60,6 @@ export function RoomsDashboardTab({ restaurantId }: { restaurantId: string }) {
             ))}
           </ul>
         )}
-      </section>
-
-      {/* TEMPORARY: removable after Advisor acceptance of the PMS coordination workflow test. */}
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <p className="text-xs text-muted-foreground">Temporary process test</p>
-        <Button
-          type="button"
-          variant="outline"
-          className="mt-2"
-          aria-label="PMS Workflow Test"
-          onClick={() => setWorkflowTestPassed(true)}
-        >
-          PMS Workflow Test
-        </Button>
-        {workflowTestPassed ? (
-          <p className="mt-2 text-sm" role="status">
-            PMS workflow test passed
-          </p>
-        ) : null}
       </section>
     </div>
   );

@@ -6,63 +6,54 @@
 
 PMS-owned. Canonical address is already in the `/restaurant/pms/*` family, which architecture ownership records as guarded (`requireRoutePackage("pms")`). See [`../architecture-ownership.md`](../architecture-ownership.md).
 
-This page documents the **process-test cycle** that landed on `main` via issue [#12](https://github.com/NORUDEVGIT/NORU/issues/12) and PR [#13](https://github.com/NORUDEVGIT/NORU/pull/13). It does not specify other PMS domains.
+This page documents the **operational PMS Dashboard**. A temporary process-test control landed via issue [#12](https://github.com/NORUDEVGIT/NORU/issues/12) and PR [#13](https://github.com/NORUDEVGIT/NORU/pull/13) and is cleaned up by issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15). It does not specify other PMS domains.
 
 ---
 
 ## EXPECTED FUNCTIONALITY
 
-Approved process-test Spec (issue #12 — PROCESS TEST, no commercial-readiness significance):
+Approved cleanup Spec (issue #15 — PROCESS TEST follow-up; do not reopen #12):
 
-Authorized PMS users who can open `/restaurant/pms/dashboard` can activate a disposable, **frontend-only** control labelled exactly `PMS Workflow Test` and see success text exactly `PMS workflow test passed`.
-
-The control exists only to prove the Advisor → Docs → Developer → Docs → Advisor coordination loop. It must not change real hotel workflows.
+Authorized PMS users who can open `/restaurant/pms/dashboard` see the operational snapshot only. The disposable frontend-only `PMS Workflow Test` control from #12 / #13 must not appear.
 
 | ID | Criterion |
 |---|---|
-| AC-1 | Signed-in user who can open PMS Dashboard sees the control labelled exactly `PMS Workflow Test`. |
-| AC-2 | Activating that control displays exactly `PMS workflow test passed`. |
-| AC-3 | No database, migration, RLS, auth, entitlement, or backend PMS logic changes. |
-| AC-4 | Existing dashboard operational snapshot behaviour unchanged aside from the temporary control and its feedback. |
-| AC-5 | Control is clearly temporary / removable after workflow-test acceptance. |
+| AC-1 | No control/text labelled `PMS Workflow Test` on PMS Dashboard. |
+| AC-2 | Dashboard never displays `PMS workflow test passed`. |
+| AC-3 | `FrontOfficeSummary`, room metric cards, and rooms-by-type still render as before (minus the temporary section). |
+| AC-4 | No database, migration, RLS, auth, entitlement, or backend PMS logic changes. |
+| AC-5 | New GitHub issue (not a reopen of #12); branch/PR reference this new issue. |
 
-Out of scope for the Spec: reservations, rooms inventory mutations, rates, folios, payments, housekeeping, night audit, cross-package integrations, production permanence of the control.
+Out of scope: reservations, rooms inventory mutations, rates, folios, payments, housekeeping, night audit, cross-package integrations, reopening #12, new Dashboard features.
 
 ---
 
 ## CURRENT FUNCTIONALITY
 
-Grounded in `src/packages/pms/components/rooms/rooms-dashboard.tsx` on `main` after PR #13.
+Grounded in `src/packages/pms/components/rooms/rooms-dashboard.tsx` after this #15 cleanup.
 
-`RoomsDashboardTab` still loads `getRoomsDashboard` and renders the **pre-existing** snapshot (unchanged by #12 / #13 except that the temporary control is appended below it):
+`RoomsDashboardTab` loads `getRoomsDashboard` and renders the operational snapshot only:
 
-1. `FrontOfficeSummary` — existing front-office today snapshot (not part of the process-test Spec; not modified by #13).
+1. `FrontOfficeSummary` — existing front-office today snapshot (not modified by #12 / #13 / #15).
 2. Room metric cards from `getRoomsDashboard`: Total rooms, Active rooms, Sellable rooms, Available, Out of order, Out of service.
 3. “Rooms by type” list (or “No room types yet.”).
 
-**Temporary process-test control** (appended after rooms-by-type):
+Loading (`Loading room overview…`) and error (`We couldn't load the room overview.`) behaviour is unchanged.
 
-- Helper text: `Temporary process test`.
-- Outline button labelled exactly `PMS Workflow Test` (`aria-label` matches the label).
-- Click sets local React `useState` (`workflowTestPassed`) to `true`.
-- When true, inline status text: `PMS workflow test passed`.
-- Source comments mark the block `TEMPORARY` / removable after Advisor acceptance.
-
-No other dashboard behaviour was added in this cycle. Do not read this control as a hotel operations feature.
+The temporary process-test block from #12 / #13 (`Temporary process test` helper, `PMS Workflow Test` button, `PMS workflow test passed` status, local `workflowTestPassed` state) is **removed**. The Dashboard is operational-only again.
 
 ---
 
 ## KNOWN LIMITATIONS
 
-- The workflow-test control is **temporary** and **removable**. It is local UI state only: refresh clears the success message; nothing is persisted.
-- It is a process-test fixture, not a product capability. It must not be treated as commercial dashboard functionality.
-- Removal was deferred (see below); the control remains visible on `main` until that follow-up lands.
+- The #12 / #13 control was a disposable coordination fixture, not a product capability. It is no longer present after #15.
+- This page does not document reservations, rates, housekeeping, or other PMS domains.
 
 ---
 
 ## DEFERRED
 
-Removal of the temporary `PMS Workflow Test` control after Advisor acceptance of the coordination workflow. Optional separate issue; not done in #12 / #13.
+Removal of the temporary `PMS Workflow Test` control after Advisor acceptance of the #12 / #13 coordination workflow is **addressed by issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15) / this PR**. It was not done in #12 / #13.
 
 ---
 
@@ -74,30 +65,29 @@ Access is the **existing** chain only:
 
 1. Signed-in user (route `beforeLoad` auth redirect to `/restaurant/login`).
 2. `requireRoutePackage("pms")` on `/restaurant/pms/dashboard`.
-3. Rooms workspace manage / access gate: `getRoomsAccess` → `canManage` in `RoomsWorkspace`. Users who fail that gate never reach `RoomsDashboardTab` (or the temporary control).
+3. Rooms workspace manage / access gate: `getRoomsAccess` → `canManage` in `RoomsWorkspace`. Users who fail that gate never reach `RoomsDashboardTab`.
 
-The process-test button does not add a client- or server-side permission of its own.
+This cleanup does not add a client- or server-side permission of its own.
 
 ---
 
 ## Backend / database
 
-**None** for the process-test control. No migration, RLS, RPC, server function, or entitlement change in #13.
+**None** for this cleanup. No migration, RLS, RPC, server function, or entitlement change.
 
-Pre-existing dashboard reads (`getRoomsDashboard`, `getFrontOfficeDashboard` inside `FrontOfficeSummary`) are unchanged. The workflow-test success path does not call them.
+Pre-existing dashboard reads (`getRoomsDashboard`, `getFrontOfficeDashboard` inside `FrontOfficeSummary`) are unchanged.
 
 ---
 
 ## Implementation status
 
-**PASS**
+**IN PROGRESS** (this PR — awaiting Independent QA)
 
 | Item | Status |
 |---|---|
-| Issue | [#12](https://github.com/NORUDEVGIT/NORU/issues/12) CLOSED (`completed`) |
-| PR | [#13](https://github.com/NORUDEVGIT/NORU/pull/13) MERGED to `main` |
-| AC-1 – AC-5 | PASS (recorded on #12 Design Execution Report) |
-| Classification | PROCESS TEST — no commercial product decision |
+| Issue | [#15](https://github.com/NORUDEVGIT/NORU/issues/15) OPEN |
+| Historical process-test cycle | [#12](https://github.com/NORUDEVGIT/NORU/issues/12) CLOSED · [#13](https://github.com/NORUDEVGIT/NORU/pull/13) MERGED — do not reopen #12 |
+| Classification | PROCESS TEST follow-up / cleanup — no commercial product decision |
 
 ---
 
@@ -105,7 +95,9 @@ Pre-existing dashboard reads (`getRoomsDashboard`, `getFrontOfficeDashboard` ins
 
 | Lane | Result | Notes |
 |---|---|---|
-| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; diff-scope / AC-3 frontend-only PASS. Browser smoke on `/restaurant/pms/dashboard` **NOT RUN** in the developer environment (needs a signed-in PMS session). Existing guard regression not re-executed; no guard code changed. |
-| Independent QA | **PASS** | Recorded by Rekik / Abel on #12 / #13. |
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; string-absence PASS (`PMS Workflow Test`, `PMS workflow test passed`, `Temporary process test`, `workflowTestPassed`, `TEMPORARY` absent from `rooms-dashboard.tsx`); diff-scope / AC-4 frontend-only PASS (this PR: `rooms-dashboard.tsx` + `docs/pms/dashboard.md`). Browser smoke on `/restaurant/pms/dashboard` **NOT RUN** (needs a signed-in PMS session). Existing guard regression not re-executed; no guard code changed. |
+| Independent QA | **PENDING** | Rekik / Abel per issue #15. |
 
-`NOT RUN` is not `PASS`. Full evidence: [qa/test-plan.md](./qa/test-plan.md).
+Historical QA for the #12 / #13 process-test cycle: [qa/test-plan.md](./qa/test-plan.md).
+
+`NOT RUN` is not `PASS`.
