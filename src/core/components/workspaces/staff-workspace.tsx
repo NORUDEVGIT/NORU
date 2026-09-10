@@ -47,6 +47,7 @@ import {
   type StaffRole,
 } from "@/core/lib/staff.functions";
 import { getStaffModuleAccess, setStaffModuleAccess } from "@/core/lib/module-access.functions";
+import { getStaffRmRefundGrant, setStaffRmRefundGrant } from "@/packages/restaurant-management/lib/rm-refunds.functions";
 import { Switch } from "@/shared/components/ui/switch";
 import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/core/lib/module-access";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -992,6 +993,57 @@ function ModuleAccessPanel({
           You can't change your own module access.
         </p>
       ) : null}
+      {member.role === "cashier" ? (
+        <CashierRefundGrant
+          restaurantId={restaurantId}
+          membershipId={member.membershipId}
+          isSelf={isSelf}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CashierRefundGrant({
+  restaurantId,
+  membershipId,
+  isSelf,
+}: {
+  restaurantId: string;
+  membershipId: string;
+  isSelf: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const fetchGrant = useServerFn(getStaffRmRefundGrant);
+  const saveGrant = useServerFn(setStaffRmRefundGrant);
+  const grant = useQuery({
+    queryKey: ["staff-rm-refund-grant", restaurantId, membershipId],
+    queryFn: () => fetchGrant({ data: { restaurantId, membershipId } }),
+  });
+  const mutation = useMutation({
+    mutationFn: (enabled: boolean) => saveGrant({ data: { restaurantId, membershipId, enabled } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["staff-rm-refund-grant", restaurantId, membershipId] });
+      toast.success("Restaurant sale refund permission updated.");
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof Error ? error.message : "Could not update refund permission."),
+  });
+
+  return (
+    <div className="space-y-2 pt-2">
+      <Label>Restaurant sale refunds</Label>
+      <p className="text-xs text-muted-foreground">
+        Cashiers cannot refund a restaurant sale unless this is granted. Owners and managers already can.
+      </p>
+      <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+        <p className="text-sm">Allow refunds</p>
+        <Switch
+          checked={grant.data?.enabled === true}
+          disabled={isSelf || mutation.isPending || grant.isLoading}
+          onCheckedChange={(checked) => mutation.mutate(checked)}
+        />
+      </div>
     </div>
   );
 }

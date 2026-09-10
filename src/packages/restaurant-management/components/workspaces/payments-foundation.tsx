@@ -25,12 +25,15 @@ const TODAY: { title: string; body: string }[] = [
     title: "Charge to Room",
     body: "A served restaurant order can be posted onto a guest folio instead of being paid at the till. This needs both Restaurant Management and the hotel system to be switched on.",
   },
+  {
+    title: "Permissioned refunds",
+    body: "Managers can refund a paid restaurant sale from the till Recent list or the order detail. Cashiers need an explicit refund grant. Room charges still use the existing reverse only.",
+  },
 ];
 
 const NOT_BUILT: string[] = [
   "Tax / VAT and service charge — order totals today are simply price × quantity",
   "Discounts, comps and tips",
-  "Refunds and voiding a sale after it has been paid",
   "Held sales that survive closing the till screen",
   "Printed receipt layouts and reprinting an earlier receipt",
   "End-of-day cash-up and reconciliation reporting",

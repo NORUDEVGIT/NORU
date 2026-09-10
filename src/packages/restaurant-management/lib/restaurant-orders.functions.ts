@@ -54,6 +54,10 @@ export interface OrderListRow {
   waiterName: string | null;
   itemCount: number;
   isGuest: boolean;
+  paidAt: string | null;
+  refundedAmount: number;
+  billingMethod: string | null;
+  roomPosted: boolean;
 }
 
 export interface OrderSummary {
@@ -87,6 +91,10 @@ export interface OrderDetail {
   source: string;
   waiterName: string | null;
   createdByStaffName: string | null;
+  paidAt: string | null;
+  refundedAmount: number;
+  billingMethod: string | null;
+  roomPosted: boolean;
   items: {
     id: string;
     name: string;
@@ -202,7 +210,7 @@ export const listRestaurantOrders = createServerFn({ method: "GET" })
         scoped(
           supabase
             .from("orders")
-            .select("id, order_number, table_number, status, total, created_at, customer_id, order_source, assigned_waiter_name_snapshot, order_items(id)", {
+            .select("id, order_number, table_number, status, total, created_at, customer_id, order_source, assigned_waiter_name_snapshot, paid_at, refunded_amount, billing_method, room_charge_folio_id, order_items(id)", {
               count: "exact",
             }),
         ),
@@ -269,6 +277,10 @@ export const listRestaurantOrders = createServerFn({ method: "GET" })
         itemCount: (o.order_items ?? []).length,
         // Only the boolean is exposed — never the customer UUID.
         isGuest: !o.customer_id,
+        paidAt: o.paid_at ?? null,
+        refundedAmount: Number(o.refunded_amount ?? 0),
+        billingMethod: o.billing_method ?? null,
+        roomPosted: Boolean(o.room_charge_folio_id) || o.billing_method === "room_charge",
       })),
       page: data.page,
       pageSize: ORDER_PAGE_SIZE,
@@ -287,7 +299,7 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
 
     const { data: order, error } = await supabase
       .from("orders")
-      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id, order_source, assigned_waiter_name_snapshot, created_by_staff_name_snapshot")
+      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id, order_source, assigned_waiter_name_snapshot, created_by_staff_name_snapshot, paid_at, refunded_amount, billing_method, room_charge_folio_id")
       .eq("id", data.orderId)
       // Tenant boundary: an order from another restaurant simply doesn't exist.
       .eq("restaurant_id", data.restaurantId)
@@ -330,6 +342,10 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
       // Prefer the snapshot taken at order time; never expose UUIDs.
       waiterName: (order as any).assigned_waiter_name_snapshot ?? null,
       createdByStaffName: (order as any).created_by_staff_name_snapshot ?? null,
+      paidAt: (order as any).paid_at ?? null,
+      refundedAmount: Number((order as any).refunded_amount ?? 0),
+      billingMethod: (order as any).billing_method ?? null,
+      roomPosted: Boolean((order as any).room_charge_folio_id) || (order as any).billing_method === "room_charge",
       items: (itemsRes.data ?? []).map((i) => ({
         id: i.id,
         // Snapshot values as stored at order time — never current menu pricing.

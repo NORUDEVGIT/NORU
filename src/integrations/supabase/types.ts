@@ -60,6 +60,7 @@ export type Database = {
           closed_at: string | null
           closing_cash: number | null
           created_at: string
+          expected_cash: number | null
           id: string
           membership_id: string
           notes: string | null
@@ -72,6 +73,7 @@ export type Database = {
           closed_at?: string | null
           closing_cash?: number | null
           created_at?: string
+          expected_cash?: number | null
           id?: string
           membership_id: string
           notes?: string | null
@@ -84,6 +86,7 @@ export type Database = {
           closed_at?: string | null
           closing_cash?: number | null
           created_at?: string
+          expected_cash?: number | null
           id?: string
           membership_id?: string
           notes?: string | null
@@ -2323,6 +2326,156 @@ export type Database = {
           },
         ]
       }
+      order_refund_lines: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          order_id: string
+          order_item_id: string
+          quantity: number
+          refund_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          order_id: string
+          order_item_id: string
+          quantity: number
+          refund_id: string
+          restaurant_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          order_id?: string
+          order_item_id?: string
+          quantity?: number
+          refund_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_refund_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refund_lines_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refund_lines_refund_id_fkey"
+            columns: ["refund_id"]
+            isOneToOne: false
+            referencedRelation: "order_refunds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refund_lines_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_refunds: {
+        Row: {
+          amount: number
+          authorized_by_membership_id: string | null
+          cashier_shift_id: string | null
+          created_at: string
+          id: string
+          method: string
+          no_open_shift: boolean
+          order_id: string
+          payment_id: string | null
+          processed_by_membership_id: string | null
+          reason: string
+          restaurant_id: string
+        }
+        Insert: {
+          amount: number
+          authorized_by_membership_id?: string | null
+          cashier_shift_id?: string | null
+          created_at?: string
+          id?: string
+          method: string
+          no_open_shift?: boolean
+          order_id: string
+          payment_id?: string | null
+          processed_by_membership_id?: string | null
+          reason: string
+          restaurant_id: string
+        }
+        Update: {
+          amount?: number
+          authorized_by_membership_id?: string | null
+          cashier_shift_id?: string | null
+          created_at?: string
+          id?: string
+          method?: string
+          no_open_shift?: boolean
+          order_id?: string
+          payment_id?: string | null
+          processed_by_membership_id?: string | null
+          reason?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_refunds_authorized_by_membership_id_fkey"
+            columns: ["authorized_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refunds_cashier_shift_id_fkey"
+            columns: ["cashier_shift_id"]
+            isOneToOne: false
+            referencedRelation: "cashier_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refunds_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refunds_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "order_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refunds_processed_by_membership_id_fkey"
+            columns: ["processed_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_refunds_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_history: {
         Row: {
           changed_by: string | null
@@ -2371,6 +2524,7 @@ export type Database = {
           order_source: string
           order_type: string | null
           paid_at: string | null
+          refunded_amount: number
           restaurant_id: string | null
           restaurant_table_id: string | null
           room_charge_folio_id: string | null
@@ -2397,6 +2551,7 @@ export type Database = {
           order_source?: string
           order_type?: string | null
           paid_at?: string | null
+          refunded_amount?: number
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           room_charge_folio_id?: string | null
@@ -2423,6 +2578,7 @@ export type Database = {
           order_source?: string
           order_type?: string | null
           paid_at?: string | null
+          refunded_amount?: number
           restaurant_id?: string | null
           restaurant_table_id?: string | null
           room_charge_folio_id?: string | null
@@ -4154,6 +4310,61 @@ export type Database = {
           },
         ]
       }
+      staff_action_grants: {
+        Row: {
+          action_key: string
+          created_at: string
+          created_by_membership_id: string | null
+          enabled: boolean
+          id: string
+          membership_id: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          action_key: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          id?: string
+          membership_id: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          action_key?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          id?: string
+          membership_id?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_action_grants_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_action_grants_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_action_grants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_module_access: {
         Row: {
           created_at: string
@@ -5142,6 +5353,38 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: string
+      }
+      refund_restaurant_order: {
+        Args: {
+          _amount: number
+          _lines: Json
+          _membership_id: string
+          _order_id: string
+          _payment_id: string
+          _reason: string
+          _restaurant_id: string
+          _shift_id: string
+        }
+        Returns: {
+          amount: number
+          authorized_by_membership_id: string | null
+          cashier_shift_id: string | null
+          created_at: string
+          id: string
+          method: string
+          no_open_shift: boolean
+          order_id: string
+          payment_id: string | null
+          processed_by_membership_id: string | null
+          reason: string
+          restaurant_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "order_refunds"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       record_pos_order_payment: {
         Args: {
