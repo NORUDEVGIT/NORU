@@ -1,7 +1,8 @@
-import { getMarketingContent, publishedOf } from "@/core/lib/marketing";
+import { publishedOf } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomeTestimonials() {
-  const testimonials = publishedOf(getMarketingContent().testimonials);
+  const testimonials = publishedOf(usePublicMarketing().testimonials);
   if (testimonials.length === 0) return null;
 
   return (

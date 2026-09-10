@@ -5,10 +5,11 @@ import { MarketingHref } from "@/core/components/home/marketing-href";
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
-import { getMarketingContent, visibleNav } from "@/core/lib/marketing";
+import { visibleNav } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomeNav() {
-  const marketing = getMarketingContent();
+  const marketing = usePublicMarketing();
   const pageLinks = visibleNav(marketing, "page");
   const authLinks = visibleNav(marketing, "auth");
   const [scrolled, setScrolled] = useState(false);

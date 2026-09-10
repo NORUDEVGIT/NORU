@@ -4,10 +4,10 @@ import { QrCode, Sparkles } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { MockBars, MockKpi, MockOrderCard } from "@/core/components/home/ui-mock";
 import { MarketingHref } from "@/core/components/home/marketing-href";
-import { getMarketingContent } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomeHero({ shortcuts }: { shortcuts?: ReactNode }) {
-  const { hero } = getMarketingContent();
+  const { hero } = usePublicMarketing();
 
   return (
     <section id="top" className="bg-primary text-primary-foreground">

@@ -1,7 +1,6 @@
 /**
- * Public marketing consumer. Milestone A reads the honest seed.
- * Later milestones may load published CMS rows and fall back here.
- * This module never reads or writes package entitlements.
+ * Public marketing consumer. Prefers a published CMS document, then the
+ * honest seed. This module never reads or writes package entitlements.
  */
 
 import {
@@ -59,8 +58,20 @@ export function validateMarketingContent(content: MarketingContent): void {
   }
 }
 
-/** Public consumer — seed today, CMS-with-seed-fallback later. */
-export function getMarketingContent(): MarketingContent {
+/**
+ * Public consumer: use a published MarketingContent document when it is
+ * structurally valid, otherwise the honest seed. Callers that load from the
+ * CMS pass the published row; omitting it is the seed fallback.
+ */
+export function getMarketingContent(published?: MarketingContent | null): MarketingContent {
+  if (published && typeof published === "object" && published.hero && published.brand && Array.isArray(published.nav)) {
+    try {
+      validateMarketingContent(published);
+      return published;
+    } catch (error) {
+      console.error("[getMarketingContent] published document failed validation; using seed", error);
+    }
+  }
   validateMarketingContent(MARKETING_SEED);
   return MARKETING_SEED;
 }

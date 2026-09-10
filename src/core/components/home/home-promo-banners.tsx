@@ -1,9 +1,10 @@
 import { MarketingHref } from "@/core/components/home/marketing-href";
 import { Button } from "@/shared/components/ui/button";
-import { activeOf, getMarketingContent } from "@/core/lib/marketing";
+import { activeOf } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomePromoBanners() {
-  const banners = activeOf(getMarketingContent().promoBanners);
+  const banners = activeOf(usePublicMarketing().promoBanners);
   if (banners.length === 0) return null;
 
   return (

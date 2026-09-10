@@ -1,12 +1,16 @@
 /**
- * In-memory / localStorage Marketing CMS stub (Milestone B).
- *
- * Edits the same MarketingContent shape as the public seed. This store never
- * imports entitlement APIs and never writes restaurant_package_entitlements.
- * Public `/` keeps using the seed until Milestone C.
+ * In-memory Marketing CMS helper used by unit tests.
+ * Admin UI persists through marketing.functions.ts (Milestone C).
+ * This store never imports entitlement APIs.
  */
 
-import { MARKETING_SEED } from "./seed.ts";
+import {
+  createSeedMarketingSnapshot,
+  evaluatePublish,
+  evaluateSaveDraft,
+  isMarketingContent,
+  type MarketingCmsSnapshot,
+} from "./document.ts";
 import { validateMarketingEditorContent, type MarketingEditorReport } from "./editor.ts";
 import type { MarketingContent } from "./types.ts";
 
@@ -14,12 +18,7 @@ export const MARKETING_MOCK_STORAGE_KEY = "noru.admin.marketing.draft.v1";
 
 export type MarketingPublishState = "draft" | "published";
 
-export interface MarketingMockSnapshot {
-  draft: MarketingContent;
-  published: MarketingContent;
-  draftUpdatedAt: string;
-  publishedAt: string | null;
-}
+export type MarketingMockSnapshot = MarketingCmsSnapshot;
 
 export interface MarketingMockPublishResult {
   ok: boolean;
@@ -36,28 +35,11 @@ function nowIso(): string {
 }
 
 export function createInitialMarketingSnapshot(): MarketingMockSnapshot {
-  const seed = cloneContent(MARKETING_SEED);
-  return {
-    draft: seed,
-    published: cloneContent(MARKETING_SEED),
-    draftUpdatedAt: nowIso(),
-    publishedAt: null,
-  };
+  return createSeedMarketingSnapshot();
 }
 
 export function snapshotHasUnpublishedChanges(snapshot: MarketingMockSnapshot): boolean {
   return JSON.stringify(snapshot.draft) !== JSON.stringify(snapshot.published);
-}
-
-function isMarketingContent(value: unknown): value is MarketingContent {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Partial<MarketingContent>;
-  return (
-    typeof record.brand === "object" &&
-    record.brand != null &&
-    Array.isArray(record.nav) &&
-    Array.isArray(record.packages)
-  );
 }
 
 function isSnapshot(value: unknown): value is MarketingMockSnapshot {
@@ -113,7 +95,8 @@ export class MarketingMockStore {
   }
 
   replaceDraft(next: MarketingContent): MarketingEditorReport {
-    const report = validateMarketingEditorContent(next);
+    const { persist, report } = evaluateSaveDraft(next);
+    if (!persist) return report;
     this.#snapshot = {
       ...this.#snapshot,
       draft: cloneContent(next),
@@ -129,16 +112,9 @@ export class MarketingMockStore {
   }
 
   publish(): MarketingMockPublishResult {
-    const report = validateMarketingEditorContent(this.#snapshot.draft);
-    if (!report.ok) {
-      return { ok: false, report, snapshot: this.snapshot };
-    }
-    this.#snapshot = {
-      ...this.#snapshot,
-      published: cloneContent(this.#snapshot.draft),
-      publishedAt: nowIso(),
-    };
-    return { ok: true, report, snapshot: this.snapshot };
+    const result = evaluatePublish(this.#snapshot.draft, this.#snapshot);
+    if (result.ok) this.#snapshot = result.snapshot;
+    return result;
   }
 
   revertDraftToPublished(): MarketingEditorReport {

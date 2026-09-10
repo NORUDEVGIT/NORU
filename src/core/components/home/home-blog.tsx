@@ -1,7 +1,8 @@
-import { getMarketingContent, publishedOf } from "@/core/lib/marketing";
+import { publishedOf } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomeBlog() {
-  const posts = publishedOf(getMarketingContent().blogPosts);
+  const posts = publishedOf(usePublicMarketing().blogPosts);
   if (posts.length === 0) return null;
 
   return (

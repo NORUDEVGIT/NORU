@@ -35,7 +35,7 @@ export type MarketingPackageIconKey = (typeof MARKETING_PACKAGE_ICON_KEYS)[numbe
 export interface BrandContent {
   siteName: string;
   tagline: string;
-  /** Optional CMS-managed mark. When omitted, the built-in NORU logo is used. */
+  /** Optional CMS-managed mark URL. Storage uploads are deferred — this stays a URL string. */
   logoUrl?: string;
   seoTitle: string;
   seoDescription: string;

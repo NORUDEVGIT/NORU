@@ -20,24 +20,35 @@ import { HomeFooter } from "@/core/components/home/home-footer";
 import { useAuth } from "@/core/state/auth-store";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { getMarketingContent } from "@/core/lib/marketing";
-
-const marketing = getMarketingContent();
+import { getPublishedMarketingContent } from "@/core/lib/marketing.functions";
+import { PublicMarketingProvider } from "@/core/components/home/marketing-content-context";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: marketing.brand.seoTitle },
-      { name: "description", content: marketing.brand.seoDescription },
-      { property: "og:title", content: marketing.brand.seoTitle },
-      { property: "og:description", content: marketing.brand.ogDescription },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
+  loader: async () => {
+    try {
+      return { marketing: await getPublishedMarketingContent() };
+    } catch {
+      return { marketing: getMarketingContent() };
+    }
+  },
+  head: ({ loaderData }) => {
+    const marketing = loaderData?.marketing ?? getMarketingContent();
+    return {
+      meta: [
+        { title: marketing.brand.seoTitle },
+        { name: "description", content: marketing.brand.seoDescription },
+        { property: "og:title", content: marketing.brand.seoTitle },
+        { property: "og:description", content: marketing.brand.ogDescription },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+      ],
+    };
+  },
   component: PlatformHome,
 });
 
 function PlatformHome() {
+  const { marketing } = Route.useLoaderData();
   const { session, user } = useAuth();
   const signedIn = Boolean(session);
 
@@ -74,25 +85,27 @@ function PlatformHome() {
   ) : null;
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-background">
-      <HomeNav />
-      <main>
-        <HomePromoBanners />
-        <HomeHero shortcuts={shortcuts} />
-        <HomePackages />
-        <HomePartners />
-        <HomeFeatures />
-        <HomeSteps />
-        <HomeShowcase />
-        <HomeBenefits />
-        <HomeTestimonials />
-        <HomeCaseStudies />
-        <HomeBlog />
-        <HomePricing />
-        <HomeFaq />
-        <HomeCta />
-      </main>
-      <HomeFooter />
-    </div>
+    <PublicMarketingProvider content={marketing}>
+      <div className="min-h-dvh overflow-x-hidden bg-background">
+        <HomeNav />
+        <main>
+          <HomePromoBanners />
+          <HomeHero shortcuts={shortcuts} />
+          <HomePackages />
+          <HomePartners />
+          <HomeFeatures />
+          <HomeSteps />
+          <HomeShowcase />
+          <HomeBenefits />
+          <HomeTestimonials />
+          <HomeCaseStudies />
+          <HomeBlog />
+          <HomePricing />
+          <HomeFaq />
+          <HomeCta />
+        </main>
+        <HomeFooter />
+      </div>
+    </PublicMarketingProvider>
   );
 }

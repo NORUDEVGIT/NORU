@@ -6,6 +6,7 @@ import { MARKETING_SEED } from "./seed.ts";
 import { PROTECTED_NAV_ROLES } from "./types.ts";
 import {
   collectAvailableNowText,
+  getMarketingContent,
   publishedOf,
   validateMarketingContent,
   visibleNav,
@@ -35,6 +36,8 @@ describe("marketing nav allowlist", () => {
 describe("honest marketing seed", () => {
   it("validates allowlisted CTAs and protected Sign In / Sign Up / Register", () => {
     validateMarketingContent(MARKETING_SEED);
+    assert.equal(getMarketingContent().brand.siteName, MARKETING_SEED.brand.siteName);
+    assert.equal(getMarketingContent(MARKETING_SEED).hero.headline, MARKETING_SEED.hero.headline);
     for (const role of PROTECTED_NAV_ROLES) {
       assert.equal(
         MARKETING_SEED.nav.some((item) => item.protectedRole === role && item.visible),

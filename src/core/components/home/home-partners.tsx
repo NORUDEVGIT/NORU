@@ -1,8 +1,9 @@
 import { MarketingHref } from "@/core/components/home/marketing-href";
-import { getMarketingContent, publishedOf } from "@/core/lib/marketing";
+import { publishedOf } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomePartners() {
-  const partners = publishedOf(getMarketingContent().partners);
+  const partners = publishedOf(usePublicMarketing().partners);
   if (partners.length === 0) return null;
 
   return (

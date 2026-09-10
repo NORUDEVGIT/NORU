@@ -1,9 +1,10 @@
 import { Button } from "@/shared/components/ui/button";
 import { MarketingHref } from "@/core/components/home/marketing-href";
-import { getMarketingContent, pricingSummary, visiblePackages } from "@/core/lib/marketing";
+import { pricingSummary, visiblePackages } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomePricing() {
-  const marketing = getMarketingContent();
+  const marketing = usePublicMarketing();
   const packages = visiblePackages(marketing);
 
   return (

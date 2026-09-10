@@ -4,12 +4,12 @@ import { cn } from "@/shared/lib/utils";
 import { MarketingHref } from "@/core/components/home/marketing-href";
 import {
   MARKETING_STATUS_LABELS,
-  getMarketingContent,
   roadmapFeatures,
   visiblePackages,
   type MarketingItemStatus,
   type MarketingPackageIconKey,
 } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 const PACKAGE_ICONS: Record<MarketingPackageIconKey, LucideIcon> = {
   restaurant: UtensilsCrossed,
@@ -39,7 +39,7 @@ function StatusBadge({
 }
 
 export function HomePackages() {
-  const marketing = getMarketingContent();
+  const marketing = usePublicMarketing();
   const packages = visiblePackages(marketing);
 
   return (

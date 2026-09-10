@@ -1,9 +1,9 @@
 import { Button } from "@/shared/components/ui/button";
 import { MarketingHref } from "@/core/components/home/marketing-href";
-import { getMarketingContent } from "@/core/lib/marketing";
+import { usePublicMarketing } from "@/core/components/home/marketing-content-context";
 
 export function HomeCta() {
-  const { contact } = getMarketingContent();
+  const { contact } = usePublicMarketing();
 
   return (
     <section id="contact" className="bg-primary text-primary-foreground">
