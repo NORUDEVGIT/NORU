@@ -3,14 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/shared/components/ui/button";
 import { HomeNav } from "@/core/components/home/home-nav";
 import { HomeHero } from "@/core/components/home/home-hero";
-import { HomePartners } from "@/core/components/home/home-partners";
 import { HomePackages } from "@/core/components/home/home-packages";
 import { HomeFeatures } from "@/core/components/home/home-features";
 import { HomeSteps } from "@/core/components/home/home-steps";
 import { HomeShowcase } from "@/core/components/home/home-showcase";
 import { HomeBenefits } from "@/core/components/home/home-benefits";
 import { HomePricing } from "@/core/components/home/home-pricing";
-import { HomeTestimonials } from "@/core/components/home/home-testimonials";
 import { HomeCta } from "@/core/components/home/home-cta";
 import { HomeFooter } from "@/core/components/home/home-footer";
 import { useAuth } from "@/core/state/auth-store";
@@ -79,14 +77,12 @@ function PlatformHome() {
       <HomeNav />
       <main>
         <HomeHero shortcuts={shortcuts} />
-        <HomePartners />
         <HomePackages />
         <HomeFeatures />
         <HomeSteps />
         <HomeShowcase />
         <HomeBenefits />
         <HomePricing />
-        <HomeTestimonials />
         <HomeCta />
       </main>
       <HomeFooter />
