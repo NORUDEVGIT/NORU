@@ -14,4 +14,6 @@ Other PMS area docs (reservations, rates, housekeeping, cashiering, night audit,
 
 ## This cycle
 
-Issue [#12](https://github.com/NORUDEVGIT/NORU/issues/12) (CLOSED) and PR [#13](https://github.com/NORUDEVGIT/NORU/pull/13) (MERGED) recorded a **process test** on the dashboard — not a commercial product change. QA evidence for that cycle is in [qa/test-plan.md](./qa/test-plan.md).
+Issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15) (CLOSED) and PR [#16](https://github.com/NORUDEVGIT/NORU/pull/16) (MERGED) removed the temporary dashboard process-test control. CURRENT Dashboard is operational-only.
+
+The earlier **process test** (issue [#12](https://github.com/NORUDEVGIT/NORU/issues/12) CLOSED · PR [#13](https://github.com/NORUDEVGIT/NORU/pull/13) MERGED) is historical — not a commercial product change. QA evidence for both cycles is in [qa/test-plan.md](./qa/test-plan.md).

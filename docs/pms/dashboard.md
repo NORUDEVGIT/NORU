@@ -6,7 +6,7 @@
 
 PMS-owned. Canonical address is already in the `/restaurant/pms/*` family, which architecture ownership records as guarded (`requireRoutePackage("pms")`). See [`../architecture-ownership.md`](../architecture-ownership.md).
 
-This page documents the **operational PMS Dashboard**. A temporary process-test control landed via issue [#12](https://github.com/NORUDEVGIT/NORU/issues/12) and PR [#13](https://github.com/NORUDEVGIT/NORU/pull/13) and is cleaned up by issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15). It does not specify other PMS domains.
+This page documents the **operational PMS Dashboard**. A temporary process-test control landed via issue [#12](https://github.com/NORUDEVGIT/NORU/issues/12) and PR [#13](https://github.com/NORUDEVGIT/NORU/pull/13) (historical) and was removed by issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15) / PR [#16](https://github.com/NORUDEVGIT/NORU/pull/16). It does not specify other PMS domains.
 
 ---
 
@@ -30,7 +30,7 @@ Out of scope: reservations, rooms inventory mutations, rates, folios, payments, 
 
 ## CURRENT FUNCTIONALITY
 
-Grounded in `src/packages/pms/components/rooms/rooms-dashboard.tsx` after this #15 cleanup.
+Grounded in `src/packages/pms/components/rooms/rooms-dashboard.tsx` on `main` after the #15 / #16 cleanup.
 
 `RoomsDashboardTab` loads `getRoomsDashboard` and renders the operational snapshot only:
 
@@ -53,7 +53,7 @@ The temporary process-test block from #12 / #13 (`Temporary process test` helper
 
 ## DEFERRED
 
-Removal of the temporary `PMS Workflow Test` control after Advisor acceptance of the #12 / #13 coordination workflow is **addressed by issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15) / this PR**. It was not done in #12 / #13.
+None for this cleanup. Removal of the temporary `PMS Workflow Test` control is complete via issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15) / PR [#16](https://github.com/NORUDEVGIT/NORU/pull/16). It was not done in #12 / #13.
 
 ---
 
@@ -81,11 +81,12 @@ Pre-existing dashboard reads (`getRoomsDashboard`, `getFrontOfficeDashboard` ins
 
 ## Implementation status
 
-**IN PROGRESS** (this PR — awaiting Independent QA)
+**PASS** (issue [#15](https://github.com/NORUDEVGIT/NORU/issues/15) CLOSED · PR [#16](https://github.com/NORUDEVGIT/NORU/pull/16) MERGED)
 
 | Item | Status |
 |---|---|
-| Issue | [#15](https://github.com/NORUDEVGIT/NORU/issues/15) OPEN |
+| Issue | [#15](https://github.com/NORUDEVGIT/NORU/issues/15) CLOSED (completed) |
+| Implementation PR | [#16](https://github.com/NORUDEVGIT/NORU/pull/16) MERGED |
 | Historical process-test cycle | [#12](https://github.com/NORUDEVGIT/NORU/issues/12) CLOSED · [#13](https://github.com/NORUDEVGIT/NORU/pull/13) MERGED — do not reopen #12 |
 | Classification | PROCESS TEST follow-up / cleanup — no commercial product decision |
 
@@ -95,9 +96,9 @@ Pre-existing dashboard reads (`getRoomsDashboard`, `getFrontOfficeDashboard` ins
 
 | Lane | Result | Notes |
 |---|---|---|
-| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; string-absence PASS (`PMS Workflow Test`, `PMS workflow test passed`, `Temporary process test`, `workflowTestPassed`, `TEMPORARY` absent from `rooms-dashboard.tsx`); diff-scope / AC-4 frontend-only PASS (this PR: `rooms-dashboard.tsx` + `docs/pms/dashboard.md`). Browser smoke on `/restaurant/pms/dashboard` **NOT RUN** (needs a signed-in PMS session). Existing guard regression not re-executed; no guard code changed. |
-| Independent QA | **PENDING** | Rekik / Abel per issue #15. |
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; string-absence PASS (`PMS Workflow Test`, `PMS workflow test passed`, `Temporary process test`, `workflowTestPassed`, `TEMPORARY` absent from `rooms-dashboard.tsx`); diff-scope / AC-4 frontend-only PASS (PR #16: `rooms-dashboard.tsx` + `docs/pms/dashboard.md`). Browser smoke on `/restaurant/pms/dashboard` **NOT RUN** (signed-in PMS session not available in the developer environment). Existing guard regression not re-executed; no guard code changed. |
+| Independent QA | **PASS** | Rekik / Abel, recorded on issue #15 and PR #16. |
 
-Historical QA for the #12 / #13 process-test cycle: [qa/test-plan.md](./qa/test-plan.md).
+QA evidence: [qa/test-plan.md](./qa/test-plan.md).
 
 `NOT RUN` is not `PASS`.
