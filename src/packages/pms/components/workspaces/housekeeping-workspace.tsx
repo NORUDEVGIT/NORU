@@ -18,6 +18,7 @@ import { useRestaurantTimezone } from "@/packages/restaurant-management/state/re
 import { localDateInZone } from "@/shared/lib/property-time";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
+import { HK_STATUS_TAB_LABEL } from "@/packages/pms/lib/housekeeping-labels";
 
 const TABS = [
   "dashboard",
@@ -82,7 +83,7 @@ export function HousekeepingWorkspace({ membership, initialTab }: { membership: 
       <Tabs value={tab} onValueChange={(value) => setTab(value as TabKey)}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="rack">Room Rack</TabsTrigger>
+          <TabsTrigger value="rack">{HK_STATUS_TAB_LABEL}</TabsTrigger>
           {canClean ? <TabsTrigger value="board">Cleaning Board</TabsTrigger> : null}
           {isSupervisor ? <TabsTrigger value="inspections">Inspections</TabsTrigger> : null}
           {isSupervisor ? <TabsTrigger value="discrepancies">Discrepancies</TabsTrigger> : null}

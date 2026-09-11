@@ -22,9 +22,9 @@ export const Route = createFileRoute("/restaurant/pms/front-office")({
   head: () => ({
     meta: [
       { title: "Front Office — NORU PMS" },
-      { name: "description", content: "Arrivals, room assignment and check-in for today at your property." },
+      { name: "description", content: "Room Rack + Calendar and Front Office operations for today at your property." },
       { property: "og:title", content: "Front Office — NORU PMS" },
-      { property: "og:description", content: "Arrivals, room assignment and check-in for today at your property." },
+      { property: "og:description", content: "Room Rack + Calendar and Front Office operations for today at your property." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -37,7 +37,7 @@ function FrontOfficePmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
     <RestaurantShell active="Arrivals" module="rooms" pms pmsModule="front-office">
-      {(m) => <FrontOfficeWorkspace membership={m} initialTab={searchTab ?? "overview"} />}
+      {(m) => <FrontOfficeWorkspace membership={m} initialTab={searchTab ?? "rack"} />}
     </RestaurantShell>
   );
 }

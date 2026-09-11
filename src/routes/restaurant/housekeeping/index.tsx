@@ -22,7 +22,7 @@ export const Route = createFileRoute("/restaurant/housekeeping/")({
       {
         name: "description",
         content:
-          "Room rack, cleaning board, inspections, room restrictions, discrepancies and maintenance for your property.",
+          "Room status, cleaning board, inspections, room restrictions, discrepancies and maintenance for your property.",
       },
       { property: "og:title", content: "Housekeeping — NORU" },
       { property: "og:description", content: "Daily housekeeping operations for your property." },
