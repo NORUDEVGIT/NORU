@@ -262,6 +262,11 @@ export const postOrderRoomCharge = createServerFn({ method: "POST" })
     });
     if (error) return { ok: false, message: roomChargeError(error.message).message };
 
+    const { freezeOrderReceiptAfterSettle } = await import(
+      "@/packages/restaurant-management/lib/rm-receipts.server"
+    );
+    await freezeOrderReceiptAfterSettle(supabaseAdmin, data.restaurantId, data.orderId);
+
     const payload = (result ?? {}) as { already?: boolean; folio_id?: string; amount?: number };
     return {
       ok: true,

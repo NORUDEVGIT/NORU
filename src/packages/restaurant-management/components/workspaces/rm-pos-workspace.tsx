@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, Printer, ReceiptText, RotateCcw, Wallet } from "lucide-react";
+import { ArrowLeft, ReceiptText, Wallet } from "lucide-react";
 import {
   RmCashUpFlow,
   RmShiftListsSheet,
@@ -21,6 +21,7 @@ import { PosPaymentDialog, type PosPaymentChoice } from "@/packages/restaurant-m
 import { RmAdjustCheckFlow } from "@/packages/restaurant-management/components/rm-pos/rm-adjust-check-flow";
 import { ChargeToRoomDialog } from "@/packages/restaurant-management/components/orders/charge-to-room-dialog";
 import { RecentPaidSalesSheet } from "@/packages/restaurant-management/components/rm-pos/recent-paid-sales-sheet";
+import { SaleSuccessActions } from "@/packages/restaurant-management/components/rm-pos/sale-success-actions";
 import { getPosContext, openPosShift, payPosSale, placePosSale, type PosMenuItem, type PosSale } from "@/packages/restaurant-management/lib/rm-pos.functions";
 import { completeCompedOrder } from "@/packages/restaurant-management/lib/rm-adjust.functions";
 import { DEFAULT_RM_TAX_SETTINGS } from "@/packages/restaurant-management/lib/rm-tax";
@@ -485,36 +486,22 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
 
       {done ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 p-6">
-          <div className="w-full max-w-md space-y-4 rounded-3xl border border-border bg-card p-8 text-center">
-            <p className="text-sm uppercase tracking-widest text-muted-foreground">Sale complete</p>
-            <p className="text-4xl font-bold tabular-nums">{money(done.sale.total)}</p>
-            <p className="text-sm text-muted-foreground">
-              Order #{done.sale.orderNumber} · {done.label}
-              {done.change > 0 ? ` · Change ${money(done.change)}` : ""}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-14 rounded-2xl"
-                onClick={() => window.print()}
-              >
-                <Printer className="mr-2 size-5" /> Print
-              </Button>
-              <Button
-                type="button"
-                className="h-14 rounded-2xl font-bold"
-                onClick={() => {
-                  setDone(null);
-                  void queryClient.invalidateQueries({ queryKey: ["pos-context", restaurantId] });
-                }}
-              >
-                <RotateCcw className="mr-2 size-5" /> New sale
-              </Button>
-            </div>
+          <div className="w-full max-w-md space-y-3">
+            <SaleSuccessActions
+              restaurantId={restaurantId}
+              orderId={done.sale.id}
+              orderNumber={done.sale.orderNumber}
+              amountLabel={money(done.sale.total)}
+              tenderLabel={done.label}
+              {...(done.change > 0 ? { changeLabel: `Change ${money(done.change)}` } : {})}
+              onDone={() => {
+                setDone(null);
+                void queryClient.invalidateQueries({ queryKey: ["pos-context", restaurantId] });
+              }}
+            />
             <button
               type="button"
-              className="text-sm text-muted-foreground underline"
+              className="w-full text-sm text-muted-foreground underline"
               onClick={() => void navigate({ to: "/restaurant/home" })}
             >
               Exit the till

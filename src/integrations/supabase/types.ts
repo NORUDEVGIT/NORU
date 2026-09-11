@@ -2341,6 +2341,51 @@ export type Database = {
           },
         ]
       }
+      order_receipts: {
+        Row: {
+          created_at: string
+          id: string
+          last_reprinted_at: string | null
+          order_id: string
+          reprint_count: number
+          restaurant_id: string
+          snapshot: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_reprinted_at?: string | null
+          order_id: string
+          reprint_count?: number
+          restaurant_id: string
+          snapshot: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_reprinted_at?: string | null
+          order_id?: string
+          reprint_count?: number
+          restaurant_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_receipts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_receipts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_refund_lines: {
         Row: {
           amount: number
@@ -5556,6 +5601,37 @@ export type Database = {
         Returns: {
           id: string
           total: number
+        }
+      }
+      freeze_order_receipt: {
+        Args: {
+          _restaurant_id: string
+          _order_id: string
+          _snapshot: Json
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_reprinted_at: string | null
+          order_id: string
+          reprint_count: number
+          restaurant_id: string
+          snapshot: Json
+        }
+      }
+      record_order_receipt_reprint: {
+        Args: {
+          _restaurant_id: string
+          _order_id: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_reprinted_at: string | null
+          order_id: string
+          reprint_count: number
+          restaurant_id: string
+          snapshot: Json
         }
       }
       refund_restaurant_order: {

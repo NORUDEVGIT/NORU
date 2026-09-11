@@ -41,12 +41,16 @@ const TODAY: { title: string; body: string }[] = [
     title: "Permissioned discounts & comps",
     body: "Managers can discount or comp an open unpaid check from the till or the order detail. Cashiers need explicit discount and/or comp grants. One order-level discount (replace, not stack), line or entire-check comps, mandatory reason, then tax/service recalc. Payable 0 completes as comped with no cash tender. Paid checks use Refund.",
   },
+  {
+    title: "Guest receipt view, print, reprint and email",
+    body: "Paid and Complete (comped) restaurant sales freeze a guest bill — hotel header, lines, discount/comp, tax/service/payable, tenders and refunds. View, browser print and email use that snapshot. Later reprints show REPRINT / DUPLICATE. Email is async and never traps the till. Thermal printers and SMS are not part of this.",
+  },
 ];
 
 const NOT_BUILT: string[] = [
   "Tips",
   "Held sales that survive closing the till screen",
-  "Printed receipt layouts and reprinting an earlier receipt",
+  "Thermal / ESC-POS printers and SMS receipts",
 ];
 
 function Card({

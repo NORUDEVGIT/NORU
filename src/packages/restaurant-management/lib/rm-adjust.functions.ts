@@ -32,6 +32,7 @@ import {
   resolveRmAdjustCapabilities,
   rmAdjustError,
 } from "./rm-adjust.server";
+import { freezeOrderReceiptAfterSettle } from "./rm-receipts.server";
 
 const idSchema = z.string().uuid();
 const reasonSchema = z.string().trim().min(RM_ADJUST_REASON_MIN).max(RM_ADJUST_REASON_MAX);
@@ -579,6 +580,8 @@ export const completeCompedOrder = createServerFn({ method: "POST" })
         _membership_id: membership.id,
       });
       if (error) return { ok: false, message: rmAdjustError(error.message).message };
+
+      await freezeOrderReceiptAfterSettle(supabaseAdmin, data.restaurantId, data.orderId);
 
       await audit(supabaseAdmin, {
         restaurantId: data.restaurantId,

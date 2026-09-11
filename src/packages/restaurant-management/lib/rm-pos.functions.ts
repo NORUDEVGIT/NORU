@@ -27,6 +27,7 @@ import {
 } from "./rm-cash-up";
 import type { RmBillTotals, RmTaxSettings } from "./rm-tax";
 import { loadRestaurantTaxSettings } from "./rm-tax.server";
+import { freezeOrderReceiptAfterSettle } from "./rm-receipts.server";
 
 const idSchema = z.string().uuid();
 
@@ -271,6 +272,8 @@ export const payPosSale = createServerFn({ method: "POST" })
         _membership_id: me.id,
       });
       if (error) return { ok: false, message: posError(error.message).message };
+
+      await freezeOrderReceiptAfterSettle(supabaseAdmin, data.restaurantId, data.orderId);
 
       const payment = row as unknown as {
         method: "cash" | "card";
