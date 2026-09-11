@@ -458,6 +458,114 @@ export type Database = {
           },
         ]
       }
+      fo_checkin_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          deposit_amount: number | null
+          deposit_method: string | null
+          deposit_transaction_id: string | null
+          deposit_waived: boolean
+          deposit_waived_at: string | null
+          deposit_waived_by: string | null
+          deposit_waiver_reason: string | null
+          id: string
+          key_access_type: string | null
+          key_count: number | null
+          key_identifier: string | null
+          key_issued_at: string | null
+          key_issued_by: string | null
+          key_waived: boolean
+          key_waived_at: string | null
+          key_waived_by: string | null
+          key_waiver_reason: string | null
+          registration_snapshot: Json | null
+          registration_waived: boolean
+          registration_waived_at: string | null
+          registration_waived_by: string | null
+          registration_waiver_reason: string | null
+          reservation_id: string
+          restaurant_id: string
+          updated_at: string
+          walk_in_incomplete: boolean
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_method?: string | null
+          deposit_transaction_id?: string | null
+          deposit_waived?: boolean
+          deposit_waived_at?: string | null
+          deposit_waived_by?: string | null
+          deposit_waiver_reason?: string | null
+          id?: string
+          key_access_type?: string | null
+          key_count?: number | null
+          key_identifier?: string | null
+          key_issued_at?: string | null
+          key_issued_by?: string | null
+          key_waived?: boolean
+          key_waived_at?: string | null
+          key_waived_by?: string | null
+          key_waiver_reason?: string | null
+          registration_snapshot?: Json | null
+          registration_waived?: boolean
+          registration_waived_at?: string | null
+          registration_waived_by?: string | null
+          registration_waiver_reason?: string | null
+          reservation_id: string
+          restaurant_id: string
+          updated_at?: string
+          walk_in_incomplete?: boolean
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_method?: string | null
+          deposit_transaction_id?: string | null
+          deposit_waived?: boolean
+          deposit_waived_at?: string | null
+          deposit_waived_by?: string | null
+          deposit_waiver_reason?: string | null
+          id?: string
+          key_access_type?: string | null
+          key_count?: number | null
+          key_identifier?: string | null
+          key_issued_at?: string | null
+          key_issued_by?: string | null
+          key_waived?: boolean
+          key_waived_at?: string | null
+          key_waived_by?: string | null
+          key_waiver_reason?: string | null
+          registration_snapshot?: Json | null
+          registration_waived?: boolean
+          registration_waived_at?: string | null
+          registration_waived_by?: string | null
+          registration_waiver_reason?: string | null
+          reservation_id?: string
+          restaurant_id?: string
+          updated_at?: string
+          walk_in_incomplete?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fo_checkin_progress_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: true
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fo_checkin_progress_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_folio_counters: {
         Row: {
           last_number: number
@@ -693,6 +801,9 @@ export type Database = {
           first_name: string
           guest_status: string
           id: string
+          id_document_expiry: string | null
+          id_document_number: string | null
+          id_document_type: string | null
           language: string | null
           last_name: string | null
           linked_customer_user_id: string | null
@@ -719,6 +830,9 @@ export type Database = {
           first_name: string
           guest_status?: string
           id?: string
+          id_document_expiry?: string | null
+          id_document_number?: string | null
+          id_document_type?: string | null
           language?: string | null
           last_name?: string | null
           linked_customer_user_id?: string | null
@@ -745,6 +859,9 @@ export type Database = {
           first_name?: string
           guest_status?: string
           id?: string
+          id_document_expiry?: string | null
+          id_document_number?: string | null
+          id_document_type?: string | null
           language?: string | null
           last_name?: string | null
           linked_customer_user_id?: string | null

@@ -5,8 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { CalendarCheck, DoorClosed, DoorOpen, Hotel, LogIn, Search, UserPlus, Wrench } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import { WalkInDialog } from "@/packages/pms/components/frontoffice/front-office-dialogs";
-import { getFrontOfficeDashboard } from "@/packages/pms/lib/frontoffice.functions";
+import { CheckInDialog, WalkInDialog } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import { getFrontOfficeDashboard, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 
@@ -14,6 +14,7 @@ export function FrontOfficeSummary({ restaurantId }: { restaurantId: string }) {
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
   const [walkIn, setWalkIn] = useState(false);
+  const [checkInStay, setCheckInStay] = useState<FrontOfficeStay | null>(null);
 
   const fetchDashboard = useServerFn(getFrontOfficeDashboard);
   const { data, isLoading, isError } = useQuery({
@@ -70,7 +71,22 @@ export function FrontOfficeSummary({ restaurantId }: { restaurantId: string }) {
         ))}
       </div>
 
-      <WalkInDialog restaurantId={restaurantId} today={today} open={walkIn} onOpenChange={setWalkIn} />
+      <WalkInDialog
+        restaurantId={restaurantId}
+        today={today}
+        open={walkIn}
+        onOpenChange={setWalkIn}
+        onCreated={setCheckInStay}
+      />
+      {checkInStay ? (
+        <CheckInDialog
+          restaurantId={restaurantId}
+          stay={checkInStay}
+          open
+          initialStep="registration"
+          onOpenChange={(v) => !v && setCheckInStay(null)}
+        />
+      ) : null}
     </section>
   );
 }
