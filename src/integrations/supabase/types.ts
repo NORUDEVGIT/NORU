@@ -2212,6 +2212,11 @@ export type Database = {
           price: number
           quantity: number
           special_instructions: string | null
+          comped: boolean
+          comp_amount: number
+          comp_reason: string | null
+          comped_by_membership_id: string | null
+          comped_at: string | null
         }
         Insert: {
           created_at?: string
@@ -2223,6 +2228,11 @@ export type Database = {
           price?: number
           quantity?: number
           special_instructions?: string | null
+          comped?: boolean
+          comp_amount?: number
+          comp_reason?: string | null
+          comped_by_membership_id?: string | null
+          comped_at?: string | null
         }
         Update: {
           created_at?: string
@@ -2234,6 +2244,11 @@ export type Database = {
           price?: number
           quantity?: number
           special_instructions?: string | null
+          comped?: boolean
+          comp_amount?: number
+          comp_reason?: string | null
+          comped_by_membership_id?: string | null
+          comped_at?: string | null
         }
         Relationships: [
           {
@@ -2388,6 +2403,70 @@ export type Database = {
           },
         ]
       }
+      order_adjustments: {
+        Row: {
+          actor_membership_id: string | null
+          amount: number
+          created_at: string
+          id: string
+          kind: string
+          order_id: string
+          payload: Json
+          payable_now: number | null
+          payable_was: number | null
+          reason: string
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          kind: string
+          order_id: string
+          payload?: Json
+          payable_now?: number | null
+          payable_was?: number | null
+          reason: string
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          order_id?: string
+          payload?: Json
+          payable_now?: number | null
+          payable_was?: number | null
+          reason?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_adjustments_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_adjustments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_adjustments_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_refunds: {
         Row: {
           amount: number
@@ -2524,6 +2603,14 @@ export type Database = {
           order_source: string
           order_type: string | null
           merchandise_subtotal: number | null
+          discount_type: string | null
+          discount_value: number | null
+          discount_amount: number
+          discount_reason: string | null
+          discount_applied_by_membership_id: string | null
+          discount_applied_at: string | null
+          comp_amount: number
+          check_comped: boolean
           paid_at: string | null
           refunded_amount: number
           restaurant_id: string | null
@@ -2555,6 +2642,14 @@ export type Database = {
           guest_token_hash?: string | null
           id?: string
           merchandise_subtotal?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
+          discount_amount?: number
+          discount_reason?: string | null
+          discount_applied_by_membership_id?: string | null
+          discount_applied_at?: string | null
+          comp_amount?: number
+          check_comped?: boolean
           order_number?: number
           order_source?: string
           order_type?: string | null
@@ -2588,6 +2683,14 @@ export type Database = {
           customer_id?: string | null
           guest_token_hash?: string | null
           id?: string
+          discount_type?: string | null
+          discount_value?: number | null
+          discount_amount?: number
+          discount_reason?: string | null
+          discount_applied_by_membership_id?: string | null
+          discount_applied_at?: string | null
+          comp_amount?: number
+          check_comped?: boolean
           merchandise_subtotal?: number | null
           order_number?: number
           order_source?: string
@@ -5387,6 +5490,73 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: string
+      }
+      apply_rm_order_discount: {
+        Args: {
+          _restaurant_id: string
+          _order_id: string
+          _membership_id: string
+          _discount_type: string
+          _discount_value: number
+          _discount_amount: number
+          _reason: string
+          _tax_amount: number
+          _service_amount: number
+          _total: number
+          _comp_amount: number
+        }
+        Returns: {
+          id: string
+          total: number
+        }
+      }
+      clear_rm_order_discount: {
+        Args: {
+          _restaurant_id: string
+          _order_id: string
+          _membership_id: string
+          _reason: string
+          _tax_amount: number
+          _service_amount: number
+          _total: number
+          _comp_amount: number
+        }
+        Returns: {
+          id: string
+          total: number
+        }
+      }
+      apply_rm_order_comp: {
+        Args: {
+          _restaurant_id: string
+          _order_id: string
+          _membership_id: string
+          _scope: string
+          _lines: Json
+          _comp_amount: number
+          _discount_amount: number
+          _discount_type: string | null
+          _discount_value: number | null
+          _reason: string
+          _tax_amount: number
+          _service_amount: number
+          _total: number
+        }
+        Returns: {
+          id: string
+          total: number
+        }
+      }
+      complete_comped_order: {
+        Args: {
+          _restaurant_id: string
+          _order_id: string
+          _membership_id: string
+        }
+        Returns: {
+          id: string
+          total: number
+        }
       }
       refund_restaurant_order: {
         Args: {

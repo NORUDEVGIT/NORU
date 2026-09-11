@@ -28,9 +28,11 @@ export function PosSalePanel({
   onHold,
   onClear,
   onPay,
+  onAdjust,
   busy,
   money,
   taxSettings = DEFAULT_RM_TAX_SETTINGS,
+  payable,
 }: {
   lines: PosLine[];
   orderType: PosOrderType;
@@ -40,12 +42,15 @@ export function PosSalePanel({
   onHold: () => void;
   onClear: () => void;
   onPay: () => void;
+  onAdjust?: () => void;
   busy: boolean;
   money: (value: number) => string;
   taxSettings?: RmTaxSettings;
+  payable?: number;
 }) {
   const bill = computeRmBill(merchandiseFromLines(lines), taxSettings);
   const empty = lines.length === 0;
+  const shownPayable = payable ?? bill.payable;
 
   return (
     <aside className="flex min-h-0 w-full shrink-0 flex-col border-t border-border bg-card lg:w-[380px] lg:border-l lg:border-t-0 xl:w-[420px]">
@@ -154,13 +159,24 @@ export function PosSalePanel({
           Parking keeps a sale on this screen only — it is lost if the till is closed or
           refreshed. Clear empties a sale that hasn&apos;t been sent yet.
         </p>
+        {onAdjust ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 w-full rounded-2xl text-sm font-semibold"
+            onClick={onAdjust}
+            disabled={busy}
+          >
+            Adjust
+          </Button>
+        ) : null}
         <Button
           type="button"
           className="h-16 w-full rounded-2xl text-lg font-bold"
           onClick={onPay}
           disabled={empty || busy}
         >
-          PAY {money(bill.payable)}
+          {shownPayable <= 0.001 ? "Complete" : `PAY ${money(shownPayable)}`}
         </Button>
       </div>
     </aside>

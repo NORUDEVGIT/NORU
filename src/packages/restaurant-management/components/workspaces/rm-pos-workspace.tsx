@@ -18,9 +18,11 @@ import { NoruLogo } from "@/core/components/noru-logo";
 import { PosMenuPanel } from "@/packages/restaurant-management/components/rm-pos/pos-menu-panel";
 import { PosSalePanel, type PosLine, type PosOrderType } from "@/packages/restaurant-management/components/rm-pos/pos-sale-panel";
 import { PosPaymentDialog, type PosPaymentChoice } from "@/packages/restaurant-management/components/rm-pos/pos-payment-dialog";
+import { RmAdjustCheckFlow } from "@/packages/restaurant-management/components/rm-pos/rm-adjust-check-flow";
 import { ChargeToRoomDialog } from "@/packages/restaurant-management/components/orders/charge-to-room-dialog";
 import { RecentPaidSalesSheet } from "@/packages/restaurant-management/components/rm-pos/recent-paid-sales-sheet";
 import { getPosContext, openPosShift, payPosSale, placePosSale, type PosMenuItem, type PosSale } from "@/packages/restaurant-management/lib/rm-pos.functions";
+import { completeCompedOrder } from "@/packages/restaurant-management/lib/rm-adjust.functions";
 import { DEFAULT_RM_TAX_SETTINGS } from "@/packages/restaurant-management/lib/rm-tax";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { useAuth } from "@/core/state/auth-store";
@@ -80,6 +82,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
   const openShift = useServerFn(openPosShift);
   const placeSale = useServerFn(placePosSale);
   const paySale = useServerFn(payPosSale);
+  const completeComped = useServerFn(completeCompedOrder);
 
   const [lines, setLines] = useState<PosLine[]>([]);
   const [orderType, setOrderType] = useState<PosOrderType>("counter");
@@ -91,6 +94,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
   const [payOpen, setPayOpen] = useState(false);
   const [roomOpen, setRoomOpen] = useState(false);
   const [done, setDone] = useState<{ sale: PosSale; label: string; change: number } | null>(null);
+  const [adjustOpen, setAdjustOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
   const [cashUpOpen, setCashUpOpen] = useState(false);
   const [cashUpShiftId, setCashUpShiftId] = useState<string | null>(null);
@@ -358,9 +362,13 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
             onQuantity={setQuantity}
             onRemove={(id) => setQuantity(id, 0)}
             onHold={holdSale}
-            onClear={() => setLines([])}
-            onPay={() => saleMutation.mutate()}
-            busy={saleMutation.isPending}
+            onClear={() => {
+              setLines([]);
+              setSale(null);
+            }}
+            onPay={() => (sale ? setPayOpen(true) : saleMutation.mutate())}
+            {...(sale ? { onAdjust: () => setAdjustOpen(true), payable: sale.total } : {})}
+            busy={saleMutation.isPending || paymentMutation.isPending}
             money={tillMoney}
             taxSettings={taxSettings ?? DEFAULT_RM_TAX_SETTINGS}
           />
@@ -375,6 +383,25 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
         canChargeRoom={canChargeRoom}
         money={tillMoney}
         onClose={() => setPayOpen(false)}
+        {...(sale
+          ? {
+              onAdjust: () => {
+                setPayOpen(false);
+                setAdjustOpen(true);
+              },
+              onCompleteComped: () => {
+                completeComped({ data: { restaurantId, orderId: sale.id } })
+                  .then((result) => {
+                    if (!result.ok) {
+                      toast.error(result.message);
+                      return;
+                    }
+                    finish("Comped", 0);
+                  })
+                  .catch((error: Error) => toast.error(error.message));
+              },
+            }
+          : {})}
         onConfirm={(choice) => {
           if (choice.method === "room") {
             setPayOpen(false);
@@ -384,6 +411,25 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
           paymentMutation.mutate(choice);
         }}
       />
+
+      {sale ? (
+        <RmAdjustCheckFlow
+          restaurantId={restaurantId}
+          orderId={sale.id}
+          open={adjustOpen}
+          onClose={() => setAdjustOpen(false)}
+          onSuccess={(result) => {
+            if (result.completed) {
+              finish("Comped", 0);
+              return;
+            }
+            setSale((prev) => (prev ? { ...prev, total: result.payable, bill: result.bill } : prev));
+            if (result.payable > 0.001) setPayOpen(true);
+            void queryClient.invalidateQueries({ queryKey: ["rm-adjust-check", restaurantId, sale.id] });
+          }}
+          money={tillMoney}
+        />
+      ) : null}
 
       <RecentPaidSalesSheet
         restaurantId={restaurantId}

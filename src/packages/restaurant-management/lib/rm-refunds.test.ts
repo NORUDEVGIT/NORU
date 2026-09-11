@@ -214,6 +214,16 @@ describe("payment badges and confirm lock", () => {
       }),
       "refunded",
     );
+    assert.equal(
+      restaurantPaymentStatus({
+        paidAt: "2026-09-11T12:00:00Z",
+        billingMethod: "comp",
+        roomPosted: false,
+        total: 0,
+        refundedAmount: 0,
+      }),
+      "paid",
+    );
   });
 
   it("disables Confirm until reason, selection and card honesty are present", () => {

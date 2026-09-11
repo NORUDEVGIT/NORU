@@ -10,12 +10,14 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ChefHat, Undo2 } from "lucide-react";
+import { ArrowLeft, ChefHat, Percent, Undo2 } from "lucide-react";
 
 import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
 import { PaymentStatusBadge } from "@/packages/restaurant-management/components/payment-status-badge";
 import { RefundHistory, RefundSaleFlow } from "@/packages/restaurant-management/components/rm-pos/refund-sale-flow";
+import { AdjustmentHistory, RmAdjustCheckFlow } from "@/packages/restaurant-management/components/rm-pos/rm-adjust-check-flow";
 import { getRefundSale } from "@/packages/restaurant-management/lib/rm-refunds.functions";
+import { getAdjustCheck } from "@/packages/restaurant-management/lib/rm-adjust.functions";
 import { restaurantPaymentStatus } from "@/packages/restaurant-management/lib/rm-refunds";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,10 +52,17 @@ export function OrderDetailBody({
   const queryClient = useQueryClient();
 
   const [refundOpen, setRefundOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
   const fetchRefund = useServerFn(getRefundSale);
+  const fetchAdjust = useServerFn(getAdjustCheck);
   const refundQuery = useQuery({
     queryKey: ["rm-refund-sale", restaurantId, orderId],
     queryFn: () => fetchRefund({ data: { restaurantId, orderId } }),
+    retry: false,
+  });
+  const adjustQuery = useQuery({
+    queryKey: ["rm-adjust-check", restaurantId, orderId],
+    queryFn: () => fetchAdjust({ data: { restaurantId, orderId } }),
     retry: false,
   });
 
@@ -113,6 +122,10 @@ export function OrderDetailBody({
   });
   const showPaymentBadge = paymentStatus !== "unpaid";
   const canOfferRefund = Boolean(refundQuery.data?.canRefund);
+  const canOfferAdjust = Boolean(
+    adjustQuery.data &&
+      (adjustQuery.data.canDiscount || adjustQuery.data.canComp || adjustQuery.data.canComplete),
+  );
 
   return (
     <div className="space-y-5">
@@ -131,6 +144,11 @@ export function OrderDetailBody({
               <ArrowLeft className="mr-2 size-4" /> Back to Orders
             </Link>
           </Button>
+          {canOfferAdjust ? (
+            <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
+              <Percent className="mr-2 size-4" /> Adjust
+            </Button>
+          ) : null}
           {canOfferRefund ? (
             <Button size="sm" onClick={() => setRefundOpen(true)}>
               <Undo2 className="mr-2 size-4" /> Refund
@@ -173,6 +191,10 @@ export function OrderDetailBody({
           </div>
 
           <BillingSection restaurantId={restaurantId} orderId={order.id} />
+
+          {adjustQuery.data ? (
+            <AdjustmentHistory history={adjustQuery.data.history} money={money} dateTime={clock.dateTime} />
+          ) : null}
 
           {refundQuery.data ? (
             <RefundHistory history={refundQuery.data.history} money={money} dateTime={clock.dateTime} />
@@ -237,6 +259,18 @@ export function OrderDetailBody({
         onSuccess={() => {
           void queryClient.invalidateQueries({ queryKey });
           void queryClient.invalidateQueries({ queryKey: ["rm-refund-sale", restaurantId, orderId] });
+        }}
+        money={money}
+      />
+      <RmAdjustCheckFlow
+        restaurantId={restaurantId}
+        orderId={order.id}
+        open={adjustOpen}
+        onClose={() => setAdjustOpen(false)}
+        onSuccess={() => {
+          void queryClient.invalidateQueries({ queryKey });
+          void queryClient.invalidateQueries({ queryKey: ["rm-adjust-check", restaurantId, orderId] });
+          void queryClient.invalidateQueries({ queryKey: ["order-billing", restaurantId, orderId] });
         }}
         money={money}
       />

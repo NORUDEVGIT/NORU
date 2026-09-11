@@ -37,10 +37,14 @@ const TODAY: { title: string; body: string }[] = [
     title: "Tax & service",
     body: "Property-level tax/VAT (inclusive or exclusive) and optional service sit on the bill. Payable is what pay, refund remaining and Charge to Room use. Rates are snapshotted on each new order; changing settings does not rewrite existing bills. Cash-up still counts cash tenders only.",
   },
+  {
+    title: "Permissioned discounts & comps",
+    body: "Managers can discount or comp an open unpaid check from the till or the order detail. Cashiers need explicit discount and/or comp grants. One order-level discount (replace, not stack), line or entire-check comps, mandatory reason, then tax/service recalc. Payable 0 completes as comped with no cash tender. Paid checks use Refund.",
+  },
 ];
 
 const NOT_BUILT: string[] = [
-  "Discounts, comps and tips",
+  "Tips",
   "Held sales that survive closing the till screen",
   "Printed receipt layouts and reprinting an earlier receipt",
 ];

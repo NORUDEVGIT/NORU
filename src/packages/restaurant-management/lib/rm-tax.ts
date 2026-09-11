@@ -2,8 +2,8 @@
  * Issue #22 — Restaurant Management property-level tax/VAT + optional service.
  *
  * Single math authority for till, waiter, QR and settings preview.
- * Merchandise → tax (inclusive extract vs exclusive add) → optional service
- * (% of tax-exclusive merchandise net) → payable.
+ * Merchandise → discount/comp → tax (inclusive extract vs exclusive add) →
+ * optional service (% of tax-exclusive net AFTER discount/comp) → payable.
  *
  * Standalone POS `pos_*` tax is intentionally not referenced here.
  */
@@ -35,8 +35,16 @@ export const SAMPLE_BILL_MERCHANDISE = 100;
 
 export type RmTaxLabel = "Tax (included)" | "Tax (added)";
 
+export interface RmBillAdjustments {
+  discountAmount?: number;
+  compAmount?: number;
+}
+
 export interface RmBillTotals {
   merchandiseSubtotal: number;
+  discountAmount: number;
+  compAmount: number;
+  adjustedMerchandise: number;
   merchandiseNet: number;
   taxAmount: number;
   serviceAmount: number;
@@ -85,23 +93,31 @@ export function merchandiseFromLines(lines: { price: number; quantity: number }[
 /**
  * Inclusive: extract tax already inside catalog prices — never add it again.
  * Exclusive: add tax on top of catalog prices.
- * Service, when on, is always a % of tax-exclusive merchandise net.
+ * Service, when on, is always a % of tax-exclusive net AFTER discount/comp.
+ * Discount and comp reduce the merchandise base before tax and service.
  */
-export function computeRmBill(merchandiseSubtotal: number, settings: RmTaxSettings): RmBillTotals {
+export function computeRmBill(
+  merchandiseSubtotal: number,
+  settings: RmTaxSettings,
+  adjustments: RmBillAdjustments = {},
+): RmBillTotals {
   const merchandise = roundMoney(Math.max(0, Number.isFinite(merchandiseSubtotal) ? merchandiseSubtotal : 0));
+  const discountAmount = roundMoney(Math.max(0, Number.isFinite(adjustments.discountAmount) ? (adjustments.discountAmount ?? 0) : 0));
+  const compAmount = roundMoney(Math.max(0, Number.isFinite(adjustments.compAmount) ? (adjustments.compAmount ?? 0) : 0));
+  const adjustedMerchandise = roundMoney(Math.max(0, merchandise - discountAmount - compAmount));
   const normalized = normalizeRmTaxSettings(settings);
   const rate = normalized.taxRate;
 
   let taxAmount = 0;
-  let merchandiseNet = merchandise;
+  let merchandiseNet = adjustedMerchandise;
 
   if (rate > 0) {
     if (normalized.taxInclusive) {
-      taxAmount = roundMoney(merchandise * (rate / (100 + rate)));
-      merchandiseNet = roundMoney(merchandise - taxAmount);
+      taxAmount = roundMoney(adjustedMerchandise * (rate / (100 + rate)));
+      merchandiseNet = roundMoney(adjustedMerchandise - taxAmount);
     } else {
-      taxAmount = roundMoney(merchandise * (rate / 100));
-      merchandiseNet = merchandise;
+      taxAmount = roundMoney(adjustedMerchandise * (rate / 100));
+      merchandiseNet = adjustedMerchandise;
     }
   }
 
@@ -112,11 +128,14 @@ export function computeRmBill(merchandiseSubtotal: number, settings: RmTaxSettin
 
   // Inclusive catalog prices already contain tax; exclusive adds it.
   const payable = normalized.taxInclusive
-    ? roundMoney(merchandise + serviceAmount)
-    : roundMoney(merchandise + taxAmount + serviceAmount);
+    ? roundMoney(adjustedMerchandise + serviceAmount)
+    : roundMoney(adjustedMerchandise + taxAmount + serviceAmount);
 
   return {
     merchandiseSubtotal: merchandise,
+    discountAmount,
+    compAmount,
+    adjustedMerchandise,
     merchandiseNet,
     taxAmount,
     serviceAmount,
@@ -137,6 +156,8 @@ export interface RmOrderTaxSnapshot {
   taxInclusive: boolean | null;
   serviceEnabled: boolean | null;
   serviceRate: number | null;
+  discountAmount?: number | null;
+  compAmount?: number | null;
   payable: number;
 }
 
@@ -149,6 +170,9 @@ export function billFromOrderSnapshot(snapshot: RmOrderTaxSnapshot): RmBillTotal
     const payable = roundMoney(snapshot.payable);
     return {
       merchandiseSubtotal: payable,
+      discountAmount: 0,
+      compAmount: 0,
+      adjustedMerchandise: payable,
       merchandiseNet: payable,
       taxAmount: 0,
       serviceAmount: 0,
@@ -161,17 +185,26 @@ export function billFromOrderSnapshot(snapshot: RmOrderTaxSnapshot): RmBillTotal
     };
   }
 
-  return computeRmBill(snapshot.merchandiseSubtotal, {
-    taxRate: snapshot.taxRate ?? 0,
-    taxInclusive: snapshot.taxInclusive === true,
-    serviceEnabled: snapshot.serviceEnabled === true,
-    serviceRate: snapshot.serviceRate ?? 0,
-  });
+  return computeRmBill(
+    snapshot.merchandiseSubtotal,
+    {
+      taxRate: snapshot.taxRate ?? 0,
+      taxInclusive: snapshot.taxInclusive === true,
+      serviceEnabled: snapshot.serviceEnabled === true,
+      serviceRate: snapshot.serviceRate ?? 0,
+    },
+    {
+      discountAmount: snapshot.discountAmount ?? 0,
+      compAmount: snapshot.compAmount ?? 0,
+    },
+  );
 }
 
 export function snapshotColumns(bill: RmBillTotals) {
   return {
     merchandise_subtotal: bill.merchandiseSubtotal,
+    discount_amount: bill.discountAmount,
+    comp_amount: bill.compAmount,
     tax_amount: bill.taxAmount,
     service_amount: bill.serviceAmount,
     tax_rate_snapshot: bill.taxRate,

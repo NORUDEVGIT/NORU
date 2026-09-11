@@ -60,7 +60,7 @@ export const getTrackedOrder = createServerFn({ method: "POST" })
     const { data: order } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, order_number, table_number, status, total, created_at, customer_id, guest_token_hash, merchandise_subtotal, tax_amount, service_amount, tax_rate_snapshot, tax_inclusive_snapshot, service_enabled_snapshot, service_rate_snapshot, restaurants(name, slug)",
+        "id, order_number, table_number, status, total, created_at, customer_id, guest_token_hash, merchandise_subtotal, tax_amount, service_amount, tax_rate_snapshot, tax_inclusive_snapshot, service_enabled_snapshot, service_rate_snapshot, discount_amount, comp_amount, restaurants(name, slug)",
       )
       .eq("id", data.orderId)
       .maybeSingle();
@@ -116,6 +116,8 @@ export const getTrackedOrder = createServerFn({ method: "POST" })
           taxInclusive: order.tax_inclusive_snapshot ?? null,
           serviceEnabled: order.service_enabled_snapshot ?? null,
           serviceRate: order.service_rate_snapshot == null ? null : Number(order.service_rate_snapshot),
+          discountAmount: Number((order as { discount_amount?: number | null }).discount_amount ?? 0),
+          compAmount: Number((order as { comp_amount?: number | null }).comp_amount ?? 0),
           payable: Number(order.total),
         }),
         createdAt: order.created_at,

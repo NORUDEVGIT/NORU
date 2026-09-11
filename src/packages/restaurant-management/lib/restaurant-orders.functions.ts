@@ -301,7 +301,7 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
 
     const { data: order, error } = await supabase
       .from("orders")
-      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id, order_source, assigned_waiter_name_snapshot, created_by_staff_name_snapshot, paid_at, refunded_amount, billing_method, room_charge_folio_id, merchandise_subtotal, tax_amount, service_amount, tax_rate_snapshot, tax_inclusive_snapshot, service_enabled_snapshot, service_rate_snapshot")
+      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id, order_source, assigned_waiter_name_snapshot, created_by_staff_name_snapshot, paid_at, refunded_amount, billing_method, room_charge_folio_id, merchandise_subtotal, tax_amount, service_amount, tax_rate_snapshot, tax_inclusive_snapshot, service_enabled_snapshot, service_rate_snapshot, discount_amount, comp_amount")
       .eq("id", data.orderId)
       // Tenant boundary: an order from another restaurant simply doesn't exist.
       .eq("restaurant_id", data.restaurantId)
@@ -345,6 +345,8 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
         taxInclusive: order.tax_inclusive_snapshot ?? null,
         serviceEnabled: order.service_enabled_snapshot ?? null,
         serviceRate: order.service_rate_snapshot == null ? null : Number(order.service_rate_snapshot),
+        discountAmount: Number((order as { discount_amount?: number | null }).discount_amount ?? 0),
+        compAmount: Number((order as { comp_amount?: number | null }).comp_amount ?? 0),
         payable: Number(order.total),
       }),
       createdAt: order.created_at,

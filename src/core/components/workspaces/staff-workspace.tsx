@@ -48,6 +48,7 @@ import {
 } from "@/core/lib/staff.functions";
 import { getStaffModuleAccess, setStaffModuleAccess } from "@/core/lib/module-access.functions";
 import { getStaffRmRefundGrant, setStaffRmRefundGrant } from "@/packages/restaurant-management/lib/rm-refunds.functions";
+import { getStaffRmAdjustGrant, setStaffRmAdjustGrant } from "@/packages/restaurant-management/lib/rm-adjust.functions";
 import { Switch } from "@/shared/components/ui/switch";
 import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/core/lib/module-access";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -994,11 +995,31 @@ function ModuleAccessPanel({
         </p>
       ) : null}
       {member.role === "cashier" ? (
-        <CashierRefundGrant
-          restaurantId={restaurantId}
-          membershipId={member.membershipId}
-          isSelf={isSelf}
-        />
+        <>
+          <CashierRefundGrant
+            restaurantId={restaurantId}
+            membershipId={member.membershipId}
+            isSelf={isSelf}
+          />
+          <CashierAdjustGrant
+            restaurantId={restaurantId}
+            membershipId={member.membershipId}
+            isSelf={isSelf}
+            actionKey="rm_discount"
+            title="Restaurant check discounts"
+            help="Cashiers cannot discount an unpaid restaurant check unless this is granted. Owners and managers already can."
+            label="Allow discounts"
+          />
+          <CashierAdjustGrant
+            restaurantId={restaurantId}
+            membershipId={member.membershipId}
+            isSelf={isSelf}
+            actionKey="rm_comp"
+            title="Restaurant check comps"
+            help="Cashiers cannot comp an unpaid restaurant check unless this is granted. Owners and managers already can."
+            label="Allow comps"
+          />
+        </>
       ) : null}
     </div>
   );
@@ -1038,6 +1059,58 @@ function CashierRefundGrant({
       </p>
       <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
         <p className="text-sm">Allow refunds</p>
+        <Switch
+          checked={grant.data?.enabled === true}
+          disabled={isSelf || mutation.isPending || grant.isLoading}
+          onCheckedChange={(checked) => mutation.mutate(checked)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CashierAdjustGrant({
+  restaurantId,
+  membershipId,
+  isSelf,
+  actionKey,
+  title,
+  help,
+  label,
+}: {
+  restaurantId: string;
+  membershipId: string;
+  isSelf: boolean;
+  actionKey: "rm_discount" | "rm_comp";
+  title: string;
+  help: string;
+  label: string;
+}) {
+  const queryClient = useQueryClient();
+  const fetchGrant = useServerFn(getStaffRmAdjustGrant);
+  const saveGrant = useServerFn(setStaffRmAdjustGrant);
+  const grant = useQuery({
+    queryKey: ["staff-rm-adjust-grant", restaurantId, membershipId, actionKey],
+    queryFn: () => fetchGrant({ data: { restaurantId, membershipId, actionKey } }),
+  });
+  const mutation = useMutation({
+    mutationFn: (enabled: boolean) => saveGrant({ data: { restaurantId, membershipId, actionKey, enabled } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["staff-rm-adjust-grant", restaurantId, membershipId, actionKey],
+      });
+      toast.success("Restaurant check permission updated.");
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof Error ? error.message : "Could not update that permission."),
+  });
+
+  return (
+    <div className="space-y-2 pt-2">
+      <Label>{title}</Label>
+      <p className="text-xs text-muted-foreground">{help}</p>
+      <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+        <p className="text-sm">{label}</p>
         <Switch
           checked={grant.data?.enabled === true}
           disabled={isSelf || mutation.isPending || grant.isLoading}
