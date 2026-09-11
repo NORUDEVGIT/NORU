@@ -29,6 +29,10 @@ const TODAY: { title: string; body: string }[] = [
     title: "Permissioned refunds",
     body: "Managers can refund a paid restaurant sale from the till Recent list or the order detail. Cashiers need an explicit refund grant. Room charges still use the existing reverse only.",
   },
+  {
+    title: "Shift close / cash-up",
+    body: "Close shift on the till counts the drawer against expected cash (opening + cash payments − cash refunds, recomputed at close). Managers can close any open shift and review recent closed cash-ups. An unpaid till draft must be finished or cleared first.",
+  },
 ];
 
 const NOT_BUILT: string[] = [
@@ -36,7 +40,6 @@ const NOT_BUILT: string[] = [
   "Discounts, comps and tips",
   "Held sales that survive closing the till screen",
   "Printed receipt layouts and reprinting an earlier receipt",
-  "End-of-day cash-up and reconciliation reporting",
 ];
 
 function Card({
