@@ -370,7 +370,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
       <PosPaymentDialog
         open={payOpen && !!sale}
         total={sale?.total ?? total}
-        bill={sale?.bill}
+        {...(sale?.bill ? { bill: sale.bill } : {})}
         busy={paymentMutation.isPending}
         canChargeRoom={canChargeRoom}
         money={tillMoney}

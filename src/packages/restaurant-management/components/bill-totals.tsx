@@ -27,17 +27,17 @@ export function BillTotals({
     >
       <Row label="Items" value={money(bill.merchandiseSubtotal)} muted compact={compact} />
       {showTax ? (
-        <Row
-          label={bill.taxLabel}
-          value={money(bill.taxAmount)}
-          muted
-          compact={compact}
-          hint={
-            bill.taxInclusive
-              ? "Already in the item prices — not added again."
-              : undefined
-          }
-        />
+        bill.taxInclusive ? (
+          <Row
+            label={bill.taxLabel}
+            value={money(bill.taxAmount)}
+            muted
+            compact={compact}
+            hint="Already in the item prices — not added again."
+          />
+        ) : (
+          <Row label={bill.taxLabel} value={money(bill.taxAmount)} muted compact={compact} />
+        )
       ) : null}
       {showService ? <Row label="Service" value={money(bill.serviceAmount)} muted compact={compact} /> : null}
       <Row label="Payable" value={money(bill.payable)} payable compact={compact} />
