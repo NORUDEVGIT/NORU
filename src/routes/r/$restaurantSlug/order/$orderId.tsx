@@ -7,6 +7,7 @@ import { getTrackedOrder } from "@/packages/restaurant-management/lib/order-trac
 import { CUSTOMER_STATUS_FLOW, normaliseStatus, statusLabel } from "@/packages/restaurant-management/lib/order-status";
 import { useOrder } from "@/packages/restaurant-management/state/order-store";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
 
 export const Route = createFileRoute("/r/$restaurantSlug/order/$orderId")({
   head: () => ({
@@ -101,7 +102,7 @@ function OrderStatusPage() {
         <p className="text-sm text-muted-foreground">{order.restaurantName}</p>
         <h1 className="mt-1 font-display text-3xl">Order #{order.orderNumber}</h1>
         <p className="mt-1 text-muted-foreground">
-          Table {order.tableNumber} · {money(order.total)}
+          Table {order.tableNumber} · Payable {money(order.total)}
         </p>
 
         <div className="mt-6 rounded-3xl border border-border/70 bg-card p-6">
@@ -166,6 +167,9 @@ function OrderStatusPage() {
               </li>
             ))}
           </ul>
+          <div className="border-t border-border py-4">
+            <BillTotals bill={order.bill} money={money} density="guest" />
+          </div>
         </div>
 
         <Button asChild variant="outline" size="lg" className="mt-6 h-14 w-full rounded-full text-base">

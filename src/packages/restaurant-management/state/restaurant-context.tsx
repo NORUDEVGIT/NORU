@@ -1,6 +1,12 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { PublicRestaurant } from "@/packages/restaurant-management/lib/public-restaurant.functions";
 import {
+  DEFAULT_RM_TAX_SETTINGS,
+  computeRmBill,
+  type RmBillTotals,
+  type RmTaxSettings,
+} from "@/packages/restaurant-management/lib/rm-tax";
+import {
   DEFAULT_CURRENCY,
   DEFAULT_TIMEZONE,
   formatClockInZone,
@@ -63,6 +69,20 @@ export function useRestaurant(): PublicRestaurant {
     throw new Error("useRestaurant must be used inside a /r/$restaurantSlug route");
   }
   return restaurant;
+}
+
+export function useOptionalRestaurant(): PublicRestaurant | null {
+  return useContext(RestaurantContext);
+}
+
+/** Live bill from current restaurant tax settings (guest QR / header). */
+export function useLiveRmBill(merchandiseSubtotal: number, settings?: RmTaxSettings): RmBillTotals {
+  const restaurant = useOptionalRestaurant();
+  const resolved = settings ?? restaurant?.taxSettings ?? DEFAULT_RM_TAX_SETTINGS;
+  return useMemo(
+    () => computeRmBill(merchandiseSubtotal, resolved),
+    [merchandiseSubtotal, resolved.taxRate, resolved.taxInclusive, resolved.serviceEnabled, resolved.serviceRate],
+  );
 }
 
 export function useRestaurantSettings(): RestaurantSettings {

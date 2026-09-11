@@ -4,6 +4,7 @@ import { SiteHeader } from "@/packages/restaurant-management/components/site-hea
 import { Button } from "@/shared/components/ui/button";
 import { OrderLines } from "@/packages/restaurant-management/components/order-lines";
 import { useRestaurant, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
 import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/confirmation")({
@@ -78,9 +79,15 @@ function ConfirmationPage() {
           <OrderLines lines={order.lines} />
         </div>
 
-        <div className="mt-3 flex justify-between rounded-3xl border border-border/70 bg-card p-5 text-xl font-semibold">
-          <span>Total</span>
-          <span className="tabular-nums">{money(order.total)}</span>
+        <div className="mt-3 rounded-3xl border border-border/70 bg-card p-5">
+          {order.bill ? (
+            <BillTotals bill={order.bill} money={money} density="guest" />
+          ) : (
+            <div className="flex justify-between text-xl font-semibold">
+              <span>Payable</span>
+              <span className="tabular-nums">{money(order.total)}</span>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">

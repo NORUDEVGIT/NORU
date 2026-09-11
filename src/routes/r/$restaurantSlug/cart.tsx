@@ -5,7 +5,8 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { TableContextBar } from "@/packages/restaurant-management/components/table-context-bar";
 import { QuantityStepper } from "@/packages/restaurant-management/components/quantity-stepper";
-import { useRestaurant, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurant, useMoney, useLiveRmBill } from "@/packages/restaurant-management/state/restaurant-context";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
 import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/cart")({
@@ -32,8 +33,8 @@ function CartPage() {
     setNotes,
     removeLine,
     subtotal,
-    total,
   } = useOrder();
+  const bill = useLiveRmBill(subtotal);
   // A table already resolved by QR (or the manual fallback) means the customer
   // never sees the table step again.
   const hasTable = Boolean(tableNumber);
@@ -126,14 +127,7 @@ function CartPage() {
             </ul>
 
             <div className="mt-6 rounded-3xl border border-border/70 bg-card p-5">
-              <div className="flex justify-between text-muted-foreground">
-                <span>Subtotal</span>
-                <span className="tabular-nums">{money(subtotal)}</span>
-              </div>
-              <div className="mt-3 flex justify-between text-xl font-semibold">
-                <span>Total</span>
-                <span className="tabular-nums">{money(total)}</span>
-              </div>
+              <BillTotals bill={bill} money={money} density="guest" />
             </div>
           </>
         )}
@@ -146,7 +140,7 @@ function CartPage() {
               to={hasTable ? "/r/$restaurantSlug/review" : "/r/$restaurantSlug/table"}
               params={{ restaurantSlug }}
             >
-              {hasTable ? `Continue to order · ${money(total)}` : "Select your table"}
+              {hasTable ? `Continue to order · ${money(bill.payable)}` : "Select your table"}
             </Link>
           </Button>
         </div>

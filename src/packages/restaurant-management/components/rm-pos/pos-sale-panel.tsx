@@ -1,6 +1,13 @@
 import { Minus, Plus, Trash2, PauseCircle } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
+import {
+  DEFAULT_RM_TAX_SETTINGS,
+  computeRmBill,
+  merchandiseFromLines,
+  type RmTaxSettings,
+} from "@/packages/restaurant-management/lib/rm-tax";
 
 export interface PosLine {
   menuItemId: string;
@@ -23,6 +30,7 @@ export function PosSalePanel({
   onPay,
   busy,
   money,
+  taxSettings = DEFAULT_RM_TAX_SETTINGS,
 }: {
   lines: PosLine[];
   orderType: PosOrderType;
@@ -34,8 +42,9 @@ export function PosSalePanel({
   onPay: () => void;
   busy: boolean;
   money: (value: number) => string;
+  taxSettings?: RmTaxSettings;
 }) {
-  const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const bill = computeRmBill(merchandiseFromLines(lines), taxSettings);
   const empty = lines.length === 0;
 
   return (
@@ -120,14 +129,7 @@ export function PosSalePanel({
       </div>
 
       <div className="shrink-0 space-y-3 border-t border-border p-3">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Subtotal</span>
-          <span className="tabular-nums">{money(subtotal)}</span>
-        </div>
-        <div className="flex items-center justify-between text-xl font-bold">
-          <span>Total</span>
-          <span className="tabular-nums">{money(subtotal)}</span>
-        </div>
+        <BillTotals bill={bill} money={money} density="till" />
         <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
@@ -158,7 +160,7 @@ export function PosSalePanel({
           onClick={onPay}
           disabled={empty || busy}
         >
-          PAY {money(subtotal)}
+          PAY {money(bill.payable)}
         </Button>
       </div>
     </aside>

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
+import { parseRmTaxSettings, type RmTaxSettings } from "./rm-tax";
 
 const slugSchema = z.object({
   slug: z
@@ -19,6 +20,7 @@ export interface PublicRestaurant {
   logo_url: string | null;
   timezone: string;
   currencyCode: string;
+  taxSettings: RmTaxSettings;
   /**
    * Phase 8D2 — whether the public ordering service is operating. This is the
    * ONLY package-derived value exposed publicly: no source, expiry or admin
@@ -38,7 +40,9 @@ export const getPublicRestaurant = createServerFn({ method: "GET" })
     const { publicServerClient } = await import("./order-pricing.server");
     const { data: row, error } = await publicServerClient()
       .from("restaurants")
-      .select("id, name, slug, city, logo_url, timezone, currency_code, approved, active")
+      .select(
+        "id, name, slug, city, logo_url, timezone, currency_code, approved, active, tax_rate, tax_inclusive, service_enabled, service_rate",
+      )
       .eq("slug", data.slug.toLowerCase())
       .maybeSingle();
 
@@ -55,6 +59,7 @@ export const getPublicRestaurant = createServerFn({ method: "GET" })
       logo_url: row.logo_url ?? null,
       timezone: row.timezone ?? DEFAULT_TIMEZONE,
       currencyCode: row.currency_code ?? DEFAULT_CURRENCY,
+      taxSettings: parseRmTaxSettings(row),
       serviceAvailable,
     };
   });

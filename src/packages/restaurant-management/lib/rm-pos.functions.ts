@@ -25,6 +25,8 @@ import {
   recomputeExpectedCash,
   type CashVarianceKind,
 } from "./rm-cash-up";
+import type { RmBillTotals, RmTaxSettings } from "./rm-tax";
+import { loadRestaurantTaxSettings } from "./rm-tax.server";
 
 const idSchema = z.string().uuid();
 
@@ -47,6 +49,7 @@ export interface PosContext {
   cashierName: string;
   currencyCode: string;
   timezone: string;
+  taxSettings: RmTaxSettings;
   /** Open cashier drawer for THIS member of staff, if any. */
   shift: PosShift | null;
   canManage: boolean;
@@ -62,6 +65,7 @@ export const getPosContext = createServerFn({ method: "POST" })
     const me = await requirePosAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
+    const taxSettings = await loadRestaurantTaxSettings(supabaseAdmin, data.restaurantId);
 
     const [{ data: categoryRows }, { data: itemRows }, { data: shiftRow }, { data: member }] =
       await Promise.all([
@@ -109,6 +113,7 @@ export const getPosContext = createServerFn({ method: "POST" })
       cashierName,
       currencyCode: settings.currencyCode,
       timezone: settings.timezone,
+      taxSettings,
       canManage: canManageCashiering(me.role),
       shift: shiftRow
         ? {
@@ -167,6 +172,7 @@ export interface PosSale {
   orderNumber: number;
   total: number;
   orderType: "counter" | "takeaway";
+  bill: RmBillTotals;
 }
 
 /** Creates the sale as a normal order so it reaches the kitchen board. */
@@ -212,6 +218,7 @@ export const placePosSale = createServerFn({ method: "POST" })
           orderNumber: order.orderNumber,
           total: order.total,
           orderType: data.orderType,
+          bill: order.bill,
         },
       };
     } catch (error) {

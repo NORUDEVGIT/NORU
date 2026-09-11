@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { billFromOrderSnapshot, type RmBillTotals } from "./rm-tax";
 
 /**
  * Restaurant-side order history. Every query is pinned to a restaurant the
@@ -85,6 +86,7 @@ export interface OrderDetail {
   tableNumber: string;
   status: string;
   total: number;
+  bill: RmBillTotals;
   createdAt: string;
   updatedAt: string;
   isGuest: boolean;
@@ -299,7 +301,7 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
 
     const { data: order, error } = await supabase
       .from("orders")
-      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id, order_source, assigned_waiter_name_snapshot, created_by_staff_name_snapshot, paid_at, refunded_amount, billing_method, room_charge_folio_id")
+      .select("id, order_number, table_number, status, total, created_at, updated_at, customer_id, restaurant_id, order_source, assigned_waiter_name_snapshot, created_by_staff_name_snapshot, paid_at, refunded_amount, billing_method, room_charge_folio_id, merchandise_subtotal, tax_amount, service_amount, tax_rate_snapshot, tax_inclusive_snapshot, service_enabled_snapshot, service_rate_snapshot")
       .eq("id", data.orderId)
       // Tenant boundary: an order from another restaurant simply doesn't exist.
       .eq("restaurant_id", data.restaurantId)
@@ -335,6 +337,16 @@ export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
       tableNumber: order.table_number,
       status: order.status,
       total: Number(order.total),
+      bill: billFromOrderSnapshot({
+        merchandiseSubtotal: order.merchandise_subtotal == null ? null : Number(order.merchandise_subtotal),
+        taxAmount: order.tax_amount == null ? null : Number(order.tax_amount),
+        serviceAmount: order.service_amount == null ? null : Number(order.service_amount),
+        taxRate: order.tax_rate_snapshot == null ? null : Number(order.tax_rate_snapshot),
+        taxInclusive: order.tax_inclusive_snapshot ?? null,
+        serviceEnabled: order.service_enabled_snapshot ?? null,
+        serviceRate: order.service_rate_snapshot == null ? null : Number(order.service_rate_snapshot),
+        payable: Number(order.total),
+      }),
       createdAt: order.created_at,
       updatedAt: order.updated_at,
       isGuest: !order.customer_id,

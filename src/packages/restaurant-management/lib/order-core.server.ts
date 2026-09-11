@@ -13,6 +13,13 @@ import { shiftMoment } from "@/core/lib/workforce-rules";
 import { getRestaurantSettings } from "@/core/lib/workforce.server";
 import { displayName } from "@/core/lib/workforce.server";
 import type { ResolvedLine } from "./order-pricing.server";
+import {
+  computeRmBill,
+  merchandiseFromLines,
+  snapshotColumns,
+  type RmBillTotals,
+} from "./rm-tax";
+import { loadRestaurantTaxSettings } from "./rm-tax.server";
 
 export type OrderSource = "customer_qr" | "waiter_assisted" | "pos_counter";
 
@@ -217,11 +224,13 @@ export interface CreatedOrder {
   total: number;
   status: string;
   createdAt: string;
+  bill: RmBillTotals;
 }
 
 /**
  * The complete write: the order row, its items, and the created order back.
- * The total is computed here from the resolved (authoritative) lines.
+ * Payable is computed here from resolved lines + the restaurant's tax/service
+ * settings, then snapshotted on the order. Settings changes do not rewrite this row.
  */
 export async function createValidatedOrder(
   admin: any,
@@ -235,16 +244,16 @@ export async function createValidatedOrder(
     throw new Error("Invalid order attribution.");
   }
 
-  const total = Number(
-    input.lines.reduce((sum, line) => sum + line.price * line.quantity, 0).toFixed(2),
-  );
+  const settings = await loadRestaurantTaxSettings(admin, input.restaurantId);
+  const bill = computeRmBill(merchandiseFromLines(input.lines), settings);
+  const snapshot = snapshotColumns(bill);
 
   const { data: order, error: orderError } = await admin
     .from("orders")
     .insert({
       table_number: input.tableLabel,
       status: "new",
-      total,
+      ...snapshot,
       restaurant_id: input.restaurantId,
       restaurant_table_id: input.restaurantTableId,
       customer_id: input.customerId,
@@ -285,5 +294,6 @@ export async function createValidatedOrder(
     total: Number(order.total),
     status: order.status as string,
     createdAt: order.created_at as string,
+    bill,
   };
 }

@@ -33,6 +33,7 @@ import {
 import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
 
 export function OrderDetailBody({
   membership,
@@ -103,7 +104,6 @@ export function OrderDetailBody({
 
   const order = query.data;
   const isActive = (ACTIVE_ORDER_STATUSES as readonly string[]).includes(order.status);
-  const subtotal = order.items.reduce((sum, i) => sum + i.lineTotal, 0);
   const paymentStatus = restaurantPaymentStatus({
     paidAt: order.paidAt,
     billingMethod: order.billingMethod,
@@ -168,7 +168,7 @@ export function OrderDetailBody({
               <Field label="Status" value={statusLabel(order.status)} />
               <Field label="Created" value={clock.dateTime(order.createdAt)} />
               <Field label="Last updated" value={clock.dateTime(order.updatedAt)} />
-              <Field label="Order value" value={money(order.total)} />
+              <Field label="Payable" value={money(order.total)} />
             </dl>
           </div>
 
@@ -198,15 +198,8 @@ export function OrderDetailBody({
                 </li>
               ))}
             </ul>
-            <div className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
-              <div className="flex justify-between text-muted-foreground">
-                <span>Subtotal</span>
-                <span className="tabular-nums">{money(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-base font-semibold">
-                <span>Total</span>
-                <span className="tabular-nums">{money(order.total)}</span>
-              </div>
+            <div className="mt-3 border-t border-border pt-3">
+              <BillTotals bill={order.bill} money={money} />
             </div>
           </div>
         </section>

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { billFromOrderSnapshot, type RmBillTotals } from "./rm-tax";
 
 const trackSchema = z.object({
   orderId: z.string().uuid(),
@@ -26,6 +27,7 @@ export interface TrackedOrder {
   tableNumber: string;
   status: string;
   total: number;
+  bill: RmBillTotals;
   createdAt: string;
   restaurantName: string;
   restaurantSlug: string;
@@ -58,7 +60,7 @@ export const getTrackedOrder = createServerFn({ method: "POST" })
     const { data: order } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, order_number, table_number, status, total, created_at, customer_id, guest_token_hash, restaurants(name, slug)",
+        "id, order_number, table_number, status, total, created_at, customer_id, guest_token_hash, merchandise_subtotal, tax_amount, service_amount, tax_rate_snapshot, tax_inclusive_snapshot, service_enabled_snapshot, service_rate_snapshot, restaurants(name, slug)",
       )
       .eq("id", data.orderId)
       .maybeSingle();
@@ -106,6 +108,16 @@ export const getTrackedOrder = createServerFn({ method: "POST" })
         tableNumber: order.table_number,
         status: order.status,
         total: Number(order.total),
+        bill: billFromOrderSnapshot({
+          merchandiseSubtotal: order.merchandise_subtotal == null ? null : Number(order.merchandise_subtotal),
+          taxAmount: order.tax_amount == null ? null : Number(order.tax_amount),
+          serviceAmount: order.service_amount == null ? null : Number(order.service_amount),
+          taxRate: order.tax_rate_snapshot == null ? null : Number(order.tax_rate_snapshot),
+          taxInclusive: order.tax_inclusive_snapshot ?? null,
+          serviceEnabled: order.service_enabled_snapshot ?? null,
+          serviceRate: order.service_rate_snapshot == null ? null : Number(order.service_rate_snapshot),
+          payable: Number(order.total),
+        }),
         createdAt: order.created_at,
         restaurantName: restaurant.name,
         restaurantSlug: restaurant.slug,
