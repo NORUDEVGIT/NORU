@@ -146,6 +146,28 @@ export function navHasRoomMoves(): boolean {
   return labels.includes("Room Moves") || ids.includes("moves") || ids.includes("room_moves");
 }
 
+/**
+ * FO-FS0 (Issue #31) — leave Front Office without opening the PMS package rail.
+ * Existing routes only. Front Office itself is omitted so the escape is not a loop.
+ */
+export const FO_ESCAPE_MODULES = [
+  { label: "PMS Home", to: "/restaurant/pms/dashboard" },
+  { label: "Reservations", to: "/restaurant/pms/reservations" },
+  { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
+  { label: "Cashiering", to: "/restaurant/pms/cashiering" },
+  { label: "Night Audit", to: "/restaurant/pms/night-audit" },
+  { label: "Rates", to: "/restaurant/pms/rates-revenue" },
+  { label: "Reports", to: "/restaurant/pms/reports" },
+  { label: "Settings", to: "/restaurant/settings" },
+] as const;
+
+export type FoEscapeModule = (typeof FO_ESCAPE_MODULES)[number];
+
+/** True only on Front Office: RestaurantShell must not paint the PMS package rail or its width. */
+export function shouldSuppressRestaurantPmsRail(pmsModule: string | undefined): boolean {
+  return pmsModule === "front-office";
+}
+
 export type FoWriteFns = Partial<Record<FoWriteName, () => void>>;
 
 export function invokeFoAction(
