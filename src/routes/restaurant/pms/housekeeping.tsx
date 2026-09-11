@@ -23,9 +23,9 @@ export const Route = createFileRoute("/restaurant/pms/housekeeping")({
   head: () => ({
     meta: [
       { title: "Housekeeping — NORU PMS" },
-      { name: "description", content: "Room rack, cleaning board, inspections and discrepancies for your property." },
+      { name: "description", content: "Room status, cleaning board, inspections and discrepancies for your property." },
       { property: "og:title", content: "Housekeeping — NORU PMS" },
-      { property: "og:description", content: "Room rack, cleaning board, inspections and discrepancies for your property." },
+      { property: "og:description", content: "Room status, cleaning board, inspections and discrepancies for your property." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },

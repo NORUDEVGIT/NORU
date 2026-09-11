@@ -56,6 +56,7 @@ import { useAuth } from "@/core/state/auth-store";
 import { cn } from "@/shared/lib/utils";
 import { RestaurantSettingsProvider } from "@/packages/restaurant-management/state/restaurant-context";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
+import { HK_STATUS_TAB_LABEL } from "@/packages/pms/lib/housekeeping-labels";
 
 export type RestaurantNavLabel =
   | "Home"
@@ -261,7 +262,7 @@ const HOUSEKEEPING_NAV: NavEntry[] = [
   {
     to: "/restaurant/housekeeping",
     tab: "rack",
-    label: "Room Rack",
+    label: HK_STATUS_TAB_LABEL,
     icon: DoorOpen,
     roles: HK_ALL,
   },

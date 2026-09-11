@@ -115,7 +115,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "front-office",
     title: "Front Office",
-    description: "Arrivals, check-in and check-out, in-house and room moves.",
+    description: "Room Rack + Calendar, arrivals, in-house, departures and stay amendments.",
     icon: Hotel,
     group: "core",
     moduleKey: "front_office",
@@ -142,7 +142,7 @@ export const PMS_MODULES: PmsModule[] = [
     key: "housekeeping",
     title: "Housekeeping",
     description:
-      "Room rack, cleaning board, inspections and discrepancies. Supplies come from the shared Inventory / Warehouse.",
+      "Room status, cleaning board, inspections and discrepancies. Supplies come from the shared Inventory / Warehouse.",
     icon: Sparkles,
     group: "core",
     moduleKey: "housekeeping",
