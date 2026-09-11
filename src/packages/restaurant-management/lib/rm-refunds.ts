@@ -93,7 +93,11 @@ export function restaurantPaymentStatus(input: {
 }): RestaurantPaymentStatus {
   const refunded = round2(Math.max(0, input.refundedAmount));
   const total = round2(Math.max(0, input.total));
-  const settled = Boolean(input.paidAt) || input.roomPosted || input.billingMethod === "room_charge";
+  const settled =
+    Boolean(input.paidAt) ||
+    input.roomPosted ||
+    input.billingMethod === "room_charge" ||
+    input.billingMethod === "comp";
   if (!settled && refunded <= 0) return "unpaid";
   if (total > 0 && refunded + 0.001 >= total) return "refunded";
   if (refunded > 0.001) return "partially_refunded";

@@ -26,6 +26,12 @@ export function BillTotals({
       )}
     >
       <Row label="Items" value={money(bill.merchandiseSubtotal)} muted compact={compact} />
+      {bill.discountAmount > 0 ? (
+        <Row label="Discount" value={`−${money(bill.discountAmount)}`} muted compact={compact} />
+      ) : null}
+      {bill.compAmount > 0 ? (
+        <Row label="Comp" value={`−${money(bill.compAmount)}`} muted compact={compact} />
+      ) : null}
       {showTax ? (
         bill.taxInclusive ? (
           <Row

@@ -31,6 +31,8 @@ export function PosPaymentDialog({
   canChargeRoom,
   onClose,
   onConfirm,
+  onAdjust,
+  onCompleteComped,
   money,
   bill,
 }: {
@@ -40,6 +42,8 @@ export function PosPaymentDialog({
   canChargeRoom: boolean;
   onClose: () => void;
   onConfirm: (choice: PosPaymentChoice) => void;
+  onAdjust?: () => void;
+  onCompleteComped?: () => void;
   money: (value: number) => string;
   bill?: RmBillTotals;
 }) {
@@ -91,8 +95,40 @@ export function PosPaymentDialog({
           </div>
         ) : null}
 
-        {method === "choose" ? (
+        {method === "choose" && total <= 0.001 && onCompleteComped ? (
           <div className="space-y-3">
+            <p className="rounded-2xl border border-border bg-muted/40 p-4 text-sm">
+              Payable is {money(0)}. Complete this check as comped — no cash or card tender.
+            </p>
+            <Button
+              type="button"
+              className="h-16 w-full rounded-2xl text-lg font-bold"
+              onClick={onCompleteComped}
+              disabled={busy}
+            >
+              Complete (comped)
+            </Button>
+            {onAdjust ? (
+              <Button type="button" variant="outline" className="h-12 w-full rounded-2xl" onClick={onAdjust} disabled={busy}>
+                Adjust
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {method === "choose" && total > 0.001 ? (
+          <div className="space-y-3">
+            {onAdjust ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full rounded-2xl text-sm font-semibold"
+                onClick={onAdjust}
+                disabled={busy}
+              >
+                Adjust check
+              </Button>
+            ) : null}
             <Button
               type="button"
               className="h-16 w-full justify-start rounded-2xl text-lg font-bold"
