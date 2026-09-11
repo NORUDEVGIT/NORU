@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Search, Undo2 } from "lucide-react";
+import { ReceiptText, Search, Undo2 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -21,6 +21,8 @@ import {
   type RefundSaleView,
 } from "@/packages/restaurant-management/lib/rm-refunds.functions";
 import { tenderLabel } from "@/packages/restaurant-management/lib/rm-refunds";
+import { canOfferGuestReceipt } from "@/packages/restaurant-management/lib/rm-receipts";
+import { RmGuestReceiptSheet } from "@/packages/restaurant-management/components/rm-pos/rm-guest-receipt-sheet";
 
 export function RecentPaidSalesSheet({
   restaurantId,
@@ -38,6 +40,7 @@ export function RecentPaidSalesSheet({
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refundOpen, setRefundOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   const listFn = useServerFn(listRecentPaidSales);
   const detailFn = useServerFn(getRefundSale);
@@ -87,6 +90,7 @@ export function RecentPaidSalesSheet({
               view={detail.data}
               onBack={() => setSelectedId(null)}
               onRefund={() => setRefundOpen(true)}
+              onReceipt={() => setReceiptOpen(true)}
             />
           ) : (
             <div className="space-y-3">
@@ -122,17 +126,26 @@ export function RecentPaidSalesSheet({
       </SheetContent>
 
       {selectedId ? (
-        <RefundSaleFlow
-          restaurantId={restaurantId}
-          orderId={selectedId}
-          open={refundOpen}
-          onClose={() => setRefundOpen(false)}
-          onSuccess={() => {
-            void detail.refetch();
-            void list.refetch();
-          }}
-          money={money}
-        />
+        <>
+          <RefundSaleFlow
+            restaurantId={restaurantId}
+            orderId={selectedId}
+            open={refundOpen}
+            onClose={() => setRefundOpen(false)}
+            onSuccess={() => {
+              void detail.refetch();
+              void list.refetch();
+            }}
+            money={money}
+          />
+          <RmGuestReceiptSheet
+            restaurantId={restaurantId}
+            orderId={selectedId}
+            open={receiptOpen}
+            mode="reprint"
+            onClose={() => setReceiptOpen(false)}
+          />
+        </>
       ) : null}
     </Sheet>
   );
@@ -183,12 +196,14 @@ function SaleDetail({
   dateTime,
   onBack,
   onRefund,
+  onReceipt,
 }: {
   view: RefundSaleView;
   money: (value: number) => string;
   dateTime: (value: string) => string;
   onBack: () => void;
   onRefund: () => void;
+  onReceipt: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -214,12 +229,17 @@ function SaleDetail({
         <Button type="button" variant="outline" className="h-12 rounded-2xl" onClick={onBack}>
           Back
         </Button>
+        {canOfferGuestReceipt(view.paymentStatus) ? (
+          <Button type="button" variant="outline" className="h-12 rounded-2xl" onClick={onReceipt}>
+            <ReceiptText className="mr-2 size-4" /> Receipt
+          </Button>
+        ) : null}
         {view.canRefund ? (
-          <Button type="button" className="h-12 rounded-2xl font-bold" onClick={onRefund}>
+          <Button type="button" className="col-span-2 h-12 rounded-2xl font-bold" onClick={onRefund}>
             <Undo2 className="mr-2 size-4" /> Refund
           </Button>
         ) : (
-          <p className="col-span-1 self-center text-right text-xs text-muted-foreground">
+          <p className="col-span-2 text-center text-xs text-muted-foreground">
             {view.remaining <= 0 ? "Fully refunded" : "Refund not available"}
           </p>
         )}

@@ -10,7 +10,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ChefHat, Percent, Undo2 } from "lucide-react";
+import { ArrowLeft, ChefHat, Percent, ReceiptText, Undo2 } from "lucide-react";
 
 import { OrderStatusBadge } from "@/packages/restaurant-management/components/order-status-badge";
 import { PaymentStatusBadge } from "@/packages/restaurant-management/components/payment-status-badge";
@@ -36,6 +36,8 @@ import { useRmRoutes } from "@/packages/restaurant-management/lib/rm-routes";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
+import { RmGuestReceiptSheet } from "@/packages/restaurant-management/components/rm-pos/rm-guest-receipt-sheet";
+import { canOfferGuestReceipt } from "@/packages/restaurant-management/lib/rm-receipts";
 
 export function OrderDetailBody({
   membership,
@@ -53,6 +55,7 @@ export function OrderDetailBody({
 
   const [refundOpen, setRefundOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const fetchRefund = useServerFn(getRefundSale);
   const fetchAdjust = useServerFn(getAdjustCheck);
   const refundQuery = useQuery({
@@ -121,6 +124,7 @@ export function OrderDetailBody({
     refundedAmount: order.refundedAmount,
   });
   const showPaymentBadge = paymentStatus !== "unpaid";
+  const showReceipt = canOfferGuestReceipt(paymentStatus);
   const canOfferRefund = Boolean(refundQuery.data?.canRefund);
   const canOfferAdjust = Boolean(
     adjustQuery.data &&
@@ -147,6 +151,11 @@ export function OrderDetailBody({
           {canOfferAdjust ? (
             <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
               <Percent className="mr-2 size-4" /> Adjust
+            </Button>
+          ) : null}
+          {showReceipt ? (
+            <Button size="sm" variant="outline" onClick={() => setReceiptOpen(true)}>
+              <ReceiptText className="mr-2 size-4" /> Receipt
             </Button>
           ) : null}
           {canOfferRefund ? (
@@ -251,6 +260,13 @@ export function OrderDetailBody({
         </section>
       </div>
 
+      <RmGuestReceiptSheet
+        restaurantId={restaurantId}
+        orderId={order.id}
+        open={receiptOpen}
+        mode="reprint"
+        onClose={() => setReceiptOpen(false)}
+      />
       <RefundSaleFlow
         restaurantId={restaurantId}
         orderId={order.id}
