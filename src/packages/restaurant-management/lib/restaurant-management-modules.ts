@@ -256,7 +256,7 @@ export const RM_MODULES: RmModule[] = [
     key: "setup-admin",
     title: "Restaurant Setup & Administration",
     description:
-      "Outlet configuration, dining areas, hours, charges and stations. Reuses the current configuration screen for now.",
+      "Outlet configuration, dining areas, tax & service, hours, charges and stations. Reuses the current configuration screen for now.",
     icon: SlidersHorizontal,
     group: "system",
     moduleKey: "configuration",

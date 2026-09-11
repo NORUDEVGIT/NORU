@@ -13,7 +13,7 @@ import {
 import { MenuLink, OrderLink } from "@/packages/restaurant-management/components/menu-link";
 import { useOrder } from "@/packages/restaurant-management/state/order-store";
 import { useAuth } from "@/core/state/auth-store";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useLiveRmBill, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 
 interface SiteHeaderProps {
   /** Category names come from the restaurant's database menu. */
@@ -26,7 +26,8 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ categories = [], restaurantName = "Order to your table", search, onSearchChange, onSelectCategory }: SiteHeaderProps) {
   const money = useMoney();
-  const { itemCount, total } = useOrder();
+  const { itemCount, subtotal } = useOrder();
+  const bill = useLiveRmBill(subtotal);
   const { user, loading: authLoading } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -115,7 +116,7 @@ export function SiteHeader({ categories = [], restaurantName = "Order to your ta
               <ShoppingBag className="size-5" />
               <span className="ml-1 text-sm font-semibold tabular-nums">{itemCount}</span>
               <span className="ml-2 hidden text-sm font-semibold tabular-nums sm:inline">
-                {money(total)}
+                {money(bill.payable)}
               </span>
             </OrderLink>
           </Button>

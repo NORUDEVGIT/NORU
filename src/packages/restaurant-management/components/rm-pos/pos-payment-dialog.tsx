@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
+import type { RmBillTotals } from "@/packages/restaurant-management/lib/rm-tax";
 
 export type PosPaymentChoice =
   | { method: "cash"; tendered: number }
@@ -30,6 +32,7 @@ export function PosPaymentDialog({
   onClose,
   onConfirm,
   money,
+  bill,
 }: {
   open: boolean;
   total: number;
@@ -38,6 +41,7 @@ export function PosPaymentDialog({
   onClose: () => void;
   onConfirm: (choice: PosPaymentChoice) => void;
   money: (value: number) => string;
+  bill?: RmBillTotals;
 }) {
   const [method, setMethod] = useState<"choose" | "cash" | "card">("choose");
   const [entry, setEntry] = useState("");
@@ -81,6 +85,11 @@ export function PosPaymentDialog({
             Amount due <span className="font-semibold text-foreground">{money(total)}</span>
           </DialogDescription>
         </DialogHeader>
+        {bill ? (
+          <div className="rounded-2xl border border-border bg-muted/40 p-3">
+            <BillTotals bill={bill} money={money} density="till" />
+          </div>
+        ) : null}
 
         {method === "choose" ? (
           <div className="space-y-3">

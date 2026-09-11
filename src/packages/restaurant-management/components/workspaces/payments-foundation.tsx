@@ -33,10 +33,13 @@ const TODAY: { title: string; body: string }[] = [
     title: "Shift close / cash-up",
     body: "Close shift on the till counts the drawer against expected cash (opening + cash payments − cash refunds, recomputed at close). Managers can close any open shift and review recent closed cash-ups. An unpaid till draft must be finished or cleared first.",
   },
+  {
+    title: "Tax & service",
+    body: "Property-level tax/VAT (inclusive or exclusive) and optional service sit on the bill. Payable is what pay, refund remaining and Charge to Room use. Rates are snapshotted on each new order; changing settings does not rewrite existing bills. Cash-up still counts cash tenders only.",
+  },
 ];
 
 const NOT_BUILT: string[] = [
-  "Tax / VAT and service charge — order totals today are simply price × quantity",
   "Discounts, comps and tips",
   "Held sales that survive closing the till screen",
   "Printed receipt layouts and reprinting an earlier receipt",

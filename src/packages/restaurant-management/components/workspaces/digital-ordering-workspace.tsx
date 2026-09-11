@@ -11,6 +11,12 @@ import { getWaiterOrderContext, placeWaiterAssistedOrder } from "@/packages/rest
 import { formatShiftTime } from "@/core/lib/workforce-rules";
 import { cn } from "@/shared/lib/utils";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
+import {
+  DEFAULT_RM_TAX_SETTINGS,
+  computeRmBill,
+  merchandiseFromLines,
+} from "@/packages/restaurant-management/lib/rm-tax";
 
 
 type CartLine = { menuItemId: string; name: string; price: number; quantity: number; note: string };
@@ -52,7 +58,10 @@ export function WaiterOrder({ restaurantId }: { restaurantId: string }) {
     return [...map.entries()];
   }, [filteredMenu]);
 
-  const total = cart.reduce((sum, l) => sum + l.price * l.quantity, 0);
+  const bill = computeRmBill(
+    merchandiseFromLines(cart),
+    data?.taxSettings ?? DEFAULT_RM_TAX_SETTINGS,
+  );
 
   function addItem(item: { id: string; name: string; price: number }) {
     setCart((prev) => {
@@ -255,13 +264,16 @@ export function WaiterOrder({ restaurantId }: { restaurantId: string }) {
                   </li>
                 ))}
               </ul>
+              <div className="mt-4 border-t border-border pt-3">
+                <BillTotals bill={bill} money={money} />
+              </div>
             </section>
           ) : null}
 
           <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur">
             <div className="mx-auto flex max-w-3xl items-center gap-4">
               <div className="min-w-0 flex-1 text-sm">
-                <p className="font-semibold">{money(total)}</p>
+                <p className="font-semibold">{money(bill.payable)}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {activeTable ? activeTable.label : "Select a table"} · {cart.length} item
                   {cart.length === 1 ? "" : "s"}

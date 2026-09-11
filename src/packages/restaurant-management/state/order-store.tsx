@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { MenuItem } from "@/shared/lib/menu";
 import { placeOrder as placeOrderFn } from "@/packages/restaurant-management/lib/orders.functions";
+import type { RmBillTotals } from "@/packages/restaurant-management/lib/rm-tax";
 
 export interface CartLine {
   lineId: string;
@@ -44,6 +45,7 @@ export interface PlacedOrder {
   tableNumber: string;
   lines: CartLine[];
   total: number;
+  bill?: RmBillTotals;
   prepMinutes: number;
 }
 
@@ -282,6 +284,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       tableNumber: result.tableNumber,
       lines,
       total: result.total,
+      bill: result.bill,
       prepMinutes: Math.min(40, 15 + lines.length * 3),
     };
     // Cart is only cleared once the order and its items exist in the database.

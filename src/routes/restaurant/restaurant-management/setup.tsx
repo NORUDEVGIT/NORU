@@ -7,6 +7,7 @@ import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { ConfigurationWorkspace } from "@/core/components/workspaces/configuration-workspace";
+import { TaxServiceSettingsCard } from "@/packages/restaurant-management/components/tax-service-settings-card";
 
 export const Route = createFileRoute("/restaurant/restaurant-management/setup")({
   ssr: false,
@@ -36,13 +37,20 @@ function RouteComponent() {
   return (
     <RestaurantShell active="Restaurant Management" rmModule="setup-admin">
       {(m) => (
-        <ConfigurationWorkspace
-          membership={m}
-          sections={["Food & Beverage"]}
-          sectionLabels={{ "Food & Beverage": "Restaurant setup" }}
-          heading="Restaurant Setup & Administration"
-          intro="Restaurant setup and administration: menu, tables and QR codes, operating configuration, hours, taxes and service charges. Hotel property setup stays in PMS."
-        />
+        <div className="space-y-8">
+          <ConfigurationWorkspace
+            membership={m}
+            sections={["Food & Beverage"]}
+            sectionLabels={{ "Food & Beverage": "Restaurant setup" }}
+            heading="Restaurant Setup & Administration"
+            intro="Restaurant setup and administration: menu, tables and QR codes, operating configuration, hours, taxes and service charges. Hotel property setup stays in PMS."
+          />
+          <TaxServiceSettingsCard
+            restaurantId={m.restaurantId}
+            role={m.role}
+            currencyCode={m.restaurant.currencyCode}
+          />
+        </div>
       )}
     </RestaurantShell>
   );

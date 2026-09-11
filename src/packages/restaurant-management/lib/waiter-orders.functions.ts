@@ -12,6 +12,8 @@ import { z } from "zod";
 
 import { callerMembership, MANAGE_ROLES, getRestaurantSettings, resolveCurrentShift } from "@/core/lib/workforce.server";
 import { shiftStateMessage, type ShiftState } from "@/core/lib/workforce-rules";
+import type { RmTaxSettings } from "./rm-tax";
+import { loadRestaurantTaxSettings } from "./rm-tax.server";
 
 const idSchema = z.string().uuid();
 
@@ -46,6 +48,7 @@ export interface WaiterContext {
   shiftMessage: string;
   timezone: string;
   currencyCode: string;
+  taxSettings: RmTaxSettings;
   tables: WaiterTableOption[];
   menu: { id: string; name: string; price: number; category: string }[];
 }
@@ -70,6 +73,7 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = new Date();
     const settings = await getRestaurantSettings(supabaseAdmin, data.restaurantId);
+    const taxSettings = await loadRestaurantTaxSettings(supabaseAdmin, data.restaurantId);
 
     const { data: menuRows } = await supabaseAdmin
       .from("menu_items")
@@ -90,6 +94,7 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
       isManager,
       timezone: settings.timezone,
       currencyCode: settings.currencyCode,
+      taxSettings,
       menu,
     };
 
@@ -281,5 +286,6 @@ export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
       orderNumber: order.orderNumber,
       tableNumber: order.tableNumber,
       total: order.total,
+      bill: order.bill,
     };
   });

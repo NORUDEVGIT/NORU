@@ -21,6 +21,7 @@ import { PosPaymentDialog, type PosPaymentChoice } from "@/packages/restaurant-m
 import { ChargeToRoomDialog } from "@/packages/restaurant-management/components/orders/charge-to-room-dialog";
 import { RecentPaidSalesSheet } from "@/packages/restaurant-management/components/rm-pos/recent-paid-sales-sheet";
 import { getPosContext, openPosShift, payPosSale, placePosSale, type PosMenuItem, type PosSale } from "@/packages/restaurant-management/lib/rm-pos.functions";
+import { DEFAULT_RM_TAX_SETTINGS } from "@/packages/restaurant-management/lib/rm-tax";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { useAuth } from "@/core/state/auth-store";
 import { RestaurantSettingsProvider, useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
@@ -108,6 +109,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
     [currency],
   );
 
+  const taxSettings = context.data?.taxSettings;
   const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
 
   const shiftMutation = useMutation({
@@ -360,6 +362,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
             onPay={() => saleMutation.mutate()}
             busy={saleMutation.isPending}
             money={tillMoney}
+            taxSettings={taxSettings ?? DEFAULT_RM_TAX_SETTINGS}
           />
         </main>
       )}
@@ -367,6 +370,7 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
       <PosPaymentDialog
         open={payOpen && !!sale}
         total={sale?.total ?? total}
+        {...(sale?.bill ? { bill: sale.bill } : {})}
         busy={paymentMutation.isPending}
         canChargeRoom={canChargeRoom}
         money={tillMoney}

@@ -2523,6 +2523,7 @@ export type Database = {
           order_number: number
           order_source: string
           order_type: string | null
+          merchandise_subtotal: number | null
           paid_at: string | null
           refunded_amount: number
           restaurant_id: string | null
@@ -2531,8 +2532,14 @@ export type Database = {
           room_charge_posted_at: string | null
           room_charge_posted_by_membership_id: string | null
           room_charge_reservation_id: string | null
+          service_amount: number | null
+          service_enabled_snapshot: boolean | null
+          service_rate_snapshot: number | null
           status: string
           table_number: string
+          tax_amount: number | null
+          tax_inclusive_snapshot: boolean | null
+          tax_rate_snapshot: number | null
           total: number
           updated_at: string
         }
@@ -2547,6 +2554,7 @@ export type Database = {
           customer_id?: string | null
           guest_token_hash?: string | null
           id?: string
+          merchandise_subtotal?: number | null
           order_number?: number
           order_source?: string
           order_type?: string | null
@@ -2558,8 +2566,14 @@ export type Database = {
           room_charge_posted_at?: string | null
           room_charge_posted_by_membership_id?: string | null
           room_charge_reservation_id?: string | null
+          service_amount?: number | null
+          service_enabled_snapshot?: boolean | null
+          service_rate_snapshot?: number | null
           status?: string
           table_number: string
+          tax_amount?: number | null
+          tax_inclusive_snapshot?: boolean | null
+          tax_rate_snapshot?: number | null
           total?: number
           updated_at?: string
         }
@@ -2574,6 +2588,7 @@ export type Database = {
           customer_id?: string | null
           guest_token_hash?: string | null
           id?: string
+          merchandise_subtotal?: number | null
           order_number?: number
           order_source?: string
           order_type?: string | null
@@ -2585,8 +2600,14 @@ export type Database = {
           room_charge_posted_at?: string | null
           room_charge_posted_by_membership_id?: string | null
           room_charge_reservation_id?: string | null
+          service_amount?: number | null
+          service_enabled_snapshot?: boolean | null
+          service_rate_snapshot?: number | null
           status?: string
           table_number?: string
+          tax_amount?: number | null
+          tax_inclusive_snapshot?: boolean | null
+          tax_rate_snapshot?: number | null
           total?: number
           updated_at?: string
         }
@@ -3974,9 +3995,13 @@ export type Database = {
           phone: string | null
           postcode: string | null
           rejection_reason: string | null
+          service_enabled: boolean
+          service_rate: number
           slug: string
           status_updated_at: string | null
           suspension_reason: string | null
+          tax_inclusive: boolean
+          tax_rate: number
           timezone: string
           updated_at: string
         }
@@ -4002,9 +4027,13 @@ export type Database = {
           phone?: string | null
           postcode?: string | null
           rejection_reason?: string | null
+          service_enabled?: boolean
+          service_rate?: number
           slug: string
           status_updated_at?: string | null
           suspension_reason?: string | null
+          tax_inclusive?: boolean
+          tax_rate?: number
           timezone?: string
           updated_at?: string
         }
@@ -4030,9 +4059,13 @@ export type Database = {
           phone?: string | null
           postcode?: string | null
           rejection_reason?: string | null
+          service_enabled?: boolean
+          service_rate?: number
           slug?: string
           status_updated_at?: string | null
           suspension_reason?: string | null
+          tax_inclusive?: boolean
+          tax_rate?: number
           timezone?: string
           updated_at?: string
         }

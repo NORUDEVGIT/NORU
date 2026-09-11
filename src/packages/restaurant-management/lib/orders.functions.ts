@@ -124,6 +124,7 @@ export const placeOrder = createServerFn({ method: "POST" })
       orderNumber: order.orderNumber,
       tableNumber: order.tableNumber,
       total: order.total,
+      bill: order.bill,
       trackingToken,
     };
   });

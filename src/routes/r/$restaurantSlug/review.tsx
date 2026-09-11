@@ -6,7 +6,8 @@ import { SiteHeader } from "@/packages/restaurant-management/components/site-hea
 import { Button } from "@/shared/components/ui/button";
 import { TableContextBar } from "@/packages/restaurant-management/components/table-context-bar";
 import { OrderLines } from "@/packages/restaurant-management/components/order-lines";
-import { useRestaurant, useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurant, useMoney, useLiveRmBill } from "@/packages/restaurant-management/state/restaurant-context";
+import { BillTotals } from "@/packages/restaurant-management/components/bill-totals";
 import { useOrder } from "@/packages/restaurant-management/state/order-store";
 
 export const Route = createFileRoute("/r/$restaurantSlug/review")({
@@ -32,9 +33,9 @@ function ReviewPage() {
     tableNumber,
     tableSource,
     subtotal,
-    total,
     placeOrder,
   } = useOrder();
+  const bill = useLiveRmBill(subtotal);
   const [submitting, setSubmitting] = useState(false);
 
   const tenantMismatch = Boolean(cartSlug) && cartSlug !== restaurant.slug;
@@ -105,14 +106,7 @@ function ReviewPage() {
         </div>
 
         <div className="mt-4 rounded-3xl border border-border/70 bg-card p-5">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal</span>
-            <span className="tabular-nums">{money(subtotal)}</span>
-          </div>
-          <div className="mt-3 flex justify-between text-xl font-semibold">
-            <span>Total</span>
-            <span className="tabular-nums">{money(total)}</span>
-          </div>
+          <BillTotals bill={bill} money={money} density="guest" />
         </div>
       </main>
 
@@ -138,7 +132,7 @@ function ReviewPage() {
             }
           }}
         >
-          {submitting ? "Sending to the kitchen…" : `Place order · ${money(total)}`}
+          {submitting ? "Sending to the kitchen…" : `Place order · ${money(bill.payable)}`}
         </Button>
       </div>
     </div>
