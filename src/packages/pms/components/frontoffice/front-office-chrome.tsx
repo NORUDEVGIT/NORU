@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Bell, HelpCircle, Plus, Search } from "lucide-react";
+import { Bell, ChevronUp, HelpCircle, Plus, Search } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 
 import { NoruLogo } from "@/core/components/noru-logo";
 import { Button } from "@/shared/components/ui/button";
@@ -13,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shar
 import { ComingSoonChip } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
   FO_BRAND,
+  FO_ESCAPE_MODULES,
   FO_NAV_ITEMS,
   FO_PRIMARY_TITLE,
   actionsForMenu,
@@ -20,6 +22,50 @@ import {
 } from "@/packages/pms/lib/front-office-shell";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 import { cn } from "@/shared/lib/utils";
+
+function FoPmsModulesEscape({
+  variant,
+}: {
+  variant: "desktop" | "phone";
+}) {
+  const navigate = useNavigate();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-testid="fo-pms-modules-escape"
+          className={
+            variant === "desktop"
+              ? "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-white/75 hover:bg-white/10 hover:text-white"
+              : "mt-2 flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
+          }
+        >
+          <span>PMS modules</span>
+          <ChevronUp className="size-3.5 opacity-70" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side={variant === "desktop" ? "top" : "bottom"}
+        className="min-w-[12rem]"
+        data-testid="fo-pms-modules-menu"
+      >
+        {FO_ESCAPE_MODULES.map((item) => (
+          <DropdownMenuItem
+            key={item.to}
+            onSelect={() => {
+              void navigate({ to: item.to });
+            }}
+          >
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function FrontOfficeChrome({
   propertyName,
@@ -144,6 +190,9 @@ export function FrontOfficeChrome({
                 </button>
               ))}
             </nav>
+            <div className="border-t border-white/10 p-3">
+              <FoPmsModulesEscape variant="desktop" />
+            </div>
           </aside>
 
           <div className="flex min-w-0 flex-1 flex-col bg-background">
@@ -164,6 +213,7 @@ export function FrontOfficeChrome({
                   </option>
                 ))}
               </select>
+              <FoPmsModulesEscape variant="phone" />
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>
           </div>

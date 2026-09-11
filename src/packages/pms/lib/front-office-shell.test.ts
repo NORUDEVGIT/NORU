@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { HK_STATUS_TAB_LABEL } from "./housekeeping-labels.ts";
 import {
   FO_ACTIONS,
+  FO_ESCAPE_MODULES,
   FO_LANDING_NAV,
   FO_NAV_ITEMS,
   FO_PRIMARY_TITLE,
@@ -19,6 +20,7 @@ import {
   reservationBarPlacement,
   resolveFoNav,
   shouldShowWeekGantt,
+  shouldSuppressRestaurantPmsRail,
 } from "./front-office-shell.ts";
 
 describe("FO IA nav", () => {
@@ -43,6 +45,7 @@ describe("FO IA nav", () => {
     assert.equal(resolveFoNav(undefined), "rack");
     assert.equal(resolveFoNav("overview"), "rack");
     assert.equal(navHasRoomMoves(), false);
+    assert.ok(FO_NAV_ITEMS.some((item) => item.label === "Amendments" && item.id === "amendments"));
   });
 
   it("does not include a Room Moves sidebar item in source", () => {
@@ -50,6 +53,66 @@ describe("FO IA nav", () => {
     assert.match(workspace, /Room Rack \+ Calendar/);
     assert.doesNotMatch(workspace, /Room Moves/);
     assert.match(workspace, /resolveFoNav\(initialTab\)/);
+  });
+});
+
+describe("FO-FS0 single left nav", () => {
+  it("suppresses the RestaurantShell package rail only on Front Office", () => {
+    assert.equal(shouldSuppressRestaurantPmsRail("front-office"), true);
+    assert.equal(shouldSuppressRestaurantPmsRail("dashboard"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail("reservations"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail("housekeeping"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail("cashiering"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail("night-audit"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail("rates-revenue"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail("reports"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail("room-inventory"), false);
+    assert.equal(shouldSuppressRestaurantPmsRail(undefined), false);
+  });
+
+  it("exposes exactly eight PMS escape destinations and never Front Office or Room Moves", () => {
+    assert.equal(FO_ESCAPE_MODULES.length, 8);
+    assert.deepEqual(
+      FO_ESCAPE_MODULES.map((item) => [item.label, item.to]),
+      [
+        ["PMS Home", "/restaurant/pms/dashboard"],
+        ["Reservations", "/restaurant/pms/reservations"],
+        ["Housekeeping", "/restaurant/pms/housekeeping"],
+        ["Cashiering", "/restaurant/pms/cashiering"],
+        ["Night Audit", "/restaurant/pms/night-audit"],
+        ["Rates", "/restaurant/pms/rates-revenue"],
+        ["Reports", "/restaurant/pms/reports"],
+        ["Settings", "/restaurant/settings"],
+      ],
+    );
+    assert.equal(
+      FO_ESCAPE_MODULES.some((item) => item.to.includes("front-office") || /front office/i.test(item.label)),
+      false,
+    );
+    assert.equal(
+      FO_ESCAPE_MODULES.some((item) => /room moves/i.test(item.label) || item.to.includes("room-move")),
+      false,
+    );
+    assert.equal(navHasRoomMoves(), false);
+    assert.ok(FO_NAV_ITEMS.some((item) => item.label === "Amendments"));
+  });
+
+  it("wires RestaurantShell suppression and the FO escape hatch in source", () => {
+    const shell = readFileSync(new URL("../../../core/components/restaurant-shell.tsx", import.meta.url), "utf8");
+    assert.match(shell, /shouldSuppressRestaurantPmsRail/);
+    assert.match(shell, /hidePackageRail/);
+    assert.match(shell, /hidePackageRail \? null/);
+    assert.doesNotMatch(shell, /Option A/);
+
+    const chrome = readFileSync(new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url), "utf8");
+    assert.match(chrome, /fo-pms-modules-escape/);
+    assert.match(chrome, /FO_ESCAPE_MODULES/);
+    assert.match(chrome, /PMS modules/);
+    assert.match(chrome, /fo-mobile-nav/);
+    assert.doesNotMatch(chrome, /Room Moves/);
+    assert.match(chrome, /FO_NAV_ITEMS/);
+    assert.match(chrome, /#251605/);
+    assert.match(chrome, /#C89933/);
   });
 });
 

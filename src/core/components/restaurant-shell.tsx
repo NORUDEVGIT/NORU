@@ -57,6 +57,7 @@ import { cn } from "@/shared/lib/utils";
 import { RestaurantSettingsProvider } from "@/packages/restaurant-management/state/restaurant-context";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { HK_STATUS_TAB_LABEL } from "@/packages/pms/lib/housekeeping-labels";
+import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
 
 export type RestaurantNavLabel =
   | "Home"
@@ -549,6 +550,7 @@ export function RestaurantShell({
   const restaurant = membership?.restaurant;
   const operational = restaurant?.status === "approved";
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
+  const hidePackageRail = shouldSuppressRestaurantPmsRail(pmsModule);
   const rmMod = rmModule ? RM_MODULES.find((m) => m.key === rmModule) : undefined;
   const boMod = boModule ? getBoModule(boModule) : undefined;
   const posMod = posModule ? getPosModule(posModule) : undefined;
@@ -885,7 +887,7 @@ export function RestaurantShell({
         </div>
       ) : null}
 
-      {pmsMod && pmsPackage ? pmsSidebarNav : null}
+      {pmsMod && pmsPackage && !hidePackageRail ? pmsSidebarNav : null}
       {rmMod ? rmSidebarNav : null}
       {boMod || active === "Back Office" ? boSidebarNav : null}
       {posMod || active === "Standalone POS" ? posSidebarNav : null}
@@ -946,13 +948,15 @@ export function RestaurantShell({
   return (
     <div className="min-h-dvh bg-muted/30">
       <div className="mx-auto flex w-full max-w-[1600px]">
-        {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
-          {sidebar}
-        </aside>
+        {/* Desktop sidebar — FO-FS0: omit the package rail and its w-60 width on Front Office. */}
+        {hidePackageRail ? null : (
+          <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
+            {sidebar}
+          </aside>
+        )}
 
-        {/* Mobile drawer */}
-        {navOpen ? (
+        {/* Mobile drawer — never open the package drawer on Front Office. */}
+        {!hidePackageRail && navOpen ? (
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-foreground/40" onClick={() => setNavOpen(false)} />
             <aside className="absolute inset-y-0 left-0 w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -972,15 +976,17 @@ export function RestaurantShell({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
             <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                aria-label="Open navigation"
-                onClick={() => setNavOpen(true)}
-              >
-                <MenuIcon className="size-5" />
-              </Button>
+              {hidePackageRail ? null : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  aria-label="Open navigation"
+                  onClick={() => setNavOpen(true)}
+                >
+                  <MenuIcon className="size-5" />
+                </Button>
+              )}
               <div className="min-w-0">
                 <p className="truncate font-display text-lg leading-tight">
                   {restaurant?.name ?? "Restaurant"}
