@@ -4,6 +4,14 @@ Official NORU Property Management System (PMS) docs for features that have compl
 
 Package boundaries, route ownership, and shared-service rules live in [`../architecture-ownership.md`](../architecture-ownership.md). This tree does not redefine them. PMS source lives under `src/packages/pms/` per [`../code-organization.md`](../code-organization.md).
 
+## Advisory — READY FOR PM REVIEW
+
+| Record | Classification |
+|---|---|
+| [Commercial Readiness & Gap Analysis (2026-09-11)](./commercial-readiness.md) | **ADVISORY ONLY** — **READY FOR PM REVIEW**. Not an engineering Spec. Does not approve development, create backlog items, or authorise a Phase 1 Spec / issue / developer handoff. |
+
+That record is commercial-readiness advice from a read-only review of `main`. It is **not** CURRENT feature documentation for each PMS area.
+
 ## Surfaces documented in this cycle
 
 | Surface | Doc |
