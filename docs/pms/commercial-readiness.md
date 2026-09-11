@@ -95,7 +95,7 @@ The full letter-by-letter matrix lived in the 2026-09-11 advisory session. This 
 | Night audit | **PARTIAL** | **HIGH** | Exception checks + business-date close. **Not** classic nightly room + tax posting. |
 | OTA / distribution | **FOUNDATION** | **CRITICAL** | Direct booking is live. Channel-manager / live OTA sync is **not**. See §5. |
 | Groups | **DEFERRED** | **HIGH** for mid+ | Sales & Events is planned. Not a mid-size or MICE product. |
-| Folio transfers / advanced folio | **MISSING** / unsupported | **HIGH** for mid+ | Ledger has no folio-to-folio transfer. No split / routing / company bill-to. |
+| Folio transfers / advanced folio | **MISSING** / unsupported | **HIGH** for mid+ | Cashiering dashboard exposes `transfersSupported: false`. Ledger has no folio-to-folio transfer. No split / routing / company bill-to. |
 | Payments / card | **PARTIAL** | **HIGH** | Recorded tender labels only. **Not** payment-gateway settlement. |
 
 ---
@@ -174,6 +174,16 @@ This document alone creates:
 - **no** engineering handoff
 
 **Why first (brief):** enforceable departure settlement and a clear room-charge / tax story are required before a confident small-hotel pilot.
+
+**First cycle — explicitly out of scope** (do not expand *Pilot Front-Desk Day Integrity* to these):
+
+| Out of scope | Why |
+|---|---|
+| OTA / live channel sync | Distribution is foundation + direct booking only. Not live OTA. |
+| Groups / MICE / allotments | Sales & Events is planned. Mid+ work, not a small-hotel pilot blocker. |
+| Notifications & communications | Catalogue status is planned. Not a departure-settlement blocker. |
+| New packages | Package boundaries stay as in [`../architecture-ownership.md`](../architecture-ownership.md). |
+| Back Office ledger | Accounting & Finance remains a presentational / shared foundation. Not a hotel general ledger. |
 
 PM review (Rekik and/or Abel) must approve any first development cycle **before** the requirement → Spec → Developer flow starts.
 
