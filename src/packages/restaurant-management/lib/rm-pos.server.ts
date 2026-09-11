@@ -58,6 +58,7 @@ const POS_ERRORS: Record<string, string> = {
   SHIFT_NOT_FOUND: "Open a cashier shift before taking payments.",
   SHIFT_ALREADY_CLOSED: "Your cashier shift is closed. Open a new one to continue.",
   SHIFT_ALREADY_OPEN: "You already have an open cashier shift.",
+  INVALID_CLOSING_CASH: "Enter a closing cash amount of zero or more.",
 };
 
 export function posError(message: string): Error {

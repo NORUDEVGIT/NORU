@@ -4,6 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ArrowLeft, Printer, ReceiptText, RotateCcw, Wallet } from "lucide-react";
+import {
+  RmCashUpFlow,
+  RmShiftListsSheet,
+  RmUnpaidDraftBlock,
+} from "@/packages/restaurant-management/components/rm-pos/rm-cash-up-flow";
+import { canStartCashUp } from "@/packages/restaurant-management/lib/rm-cash-up";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -85,6 +91,10 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
   const [roomOpen, setRoomOpen] = useState(false);
   const [done, setDone] = useState<{ sale: PosSale; label: string; change: number } | null>(null);
   const [recentOpen, setRecentOpen] = useState(false);
+  const [cashUpOpen, setCashUpOpen] = useState(false);
+  const [cashUpShiftId, setCashUpShiftId] = useState<string | null>(null);
+  const [draftBlockOpen, setDraftBlockOpen] = useState(false);
+  const [shiftsOpen, setShiftsOpen] = useState(false);
 
   const context = useQuery({
     queryKey: ["pos-context", restaurantId],
@@ -218,6 +228,20 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
 
   const shift = context.data?.shift ?? null;
   const canChargeRoom = context.data?.role !== "kitchen";
+  const canManage = context.data?.canManage === true;
+  const unpaidDraft = !canStartCashUp({
+    lineCount: lines.length,
+    hasUnpaidPlacedSale: Boolean(sale),
+  });
+
+  function startCashUp(shiftId: string) {
+    if (unpaidDraft) {
+      setDraftBlockOpen(true);
+      return;
+    }
+    setCashUpShiftId(shiftId);
+    setCashUpOpen(true);
+  }
 
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
@@ -240,6 +264,26 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {shift ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl"
+              onClick={() => startCashUp(shift.id)}
+            >
+              Close shift
+            </Button>
+          ) : null}
+          {canManage ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl"
+              onClick={() => setShiftsOpen(true)}
+            >
+              Shifts
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -344,6 +388,35 @@ function PosTill({ restaurantId, propertyName }: { restaurantId: string; propert
         money={tillMoney}
         dateTime={dateTime}
       />
+
+      <RmUnpaidDraftBlock open={draftBlockOpen} onBack={() => setDraftBlockOpen(false)} />
+
+      {canManage ? (
+        <RmShiftListsSheet
+          restaurantId={restaurantId}
+          open={shiftsOpen}
+          onClose={() => setShiftsOpen(false)}
+          onCloseShift={startCashUp}
+          money={tillMoney}
+          dateTime={dateTime}
+        />
+      ) : null}
+
+      {cashUpShiftId ? (
+        <RmCashUpFlow
+          restaurantId={restaurantId}
+          shiftId={cashUpShiftId}
+          open={cashUpOpen}
+          onClose={() => setCashUpOpen(false)}
+          onClosed={() => {
+            setCashUpOpen(false);
+            setCashUpShiftId(null);
+            void queryClient.invalidateQueries({ queryKey: ["pos-context", restaurantId] });
+          }}
+          money={tillMoney}
+          dateTime={dateTime}
+        />
+      ) : null}
 
       {sale ? (
         <ChargeToRoomDialog

@@ -4826,6 +4826,7 @@ export type Database = {
           closed_at: string | null
           closing_cash: number | null
           created_at: string
+          expected_cash: number | null
           id: string
           membership_id: string
           notes: string | null
