@@ -44,13 +44,13 @@ export function RmGuestReceiptSheet({
   });
 
   async function handlePrint() {
+    window.print();
     try {
       await reprint({ data: { restaurantId, orderId } });
       void query.refetch();
     } catch (error) {
       toast.error((error as Error).message);
     }
-    window.print();
   }
 
   const view = query.data;
@@ -62,16 +62,11 @@ export function RmGuestReceiptSheet({
     }
     if (!autoPrint || !view || printedFor.current === view.orderId) return;
     printedFor.current = view.orderId;
-    void (async () => {
-      try {
-        await reprint({ data: { restaurantId, orderId } });
-        void query.refetch();
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-      window.print();
-    })();
-  }, [open, autoPrint, view, restaurantId, orderId, reprint, query]);
+    const timer = window.setTimeout(() => {
+      void handlePrint();
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [open, autoPrint, view]);
 
   return (
     <>
