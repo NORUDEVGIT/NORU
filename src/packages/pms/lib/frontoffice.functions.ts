@@ -41,6 +41,7 @@ export interface FrontOfficeStay {
   status: ReservationStatus;
   specialRequests: string | null;
   overstay: boolean;
+  walkInIncomplete?: boolean;
 }
 
 export interface FrontOfficeDashboard {
@@ -117,6 +118,7 @@ function toStay(row: StayRow, businessDate: string): FrontOfficeStay {
     status: row.status as ReservationStatus,
     specialRequests: row.special_requests,
     overstay: row.status === "checked_in" && row.departure_date < businessDate,
+    walkInIncomplete: false,
   };
 }
 
@@ -209,7 +211,22 @@ export const listArrivals = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
-    return ((rows ?? []) as unknown as StayRow[]).map((r) => toStay(r, date));
+    const stays = ((rows ?? []) as unknown as StayRow[]).map((r) => toStay(r, date));
+    if (stays.length === 0) return stays;
+
+    const { data: progressRows, error: progressError } = await context.supabase
+      .from("fo_checkin_progress")
+      .select("reservation_id, walk_in_incomplete")
+      .eq("restaurant_id", data.restaurantId)
+      .in("reservation_id", stays.map((s) => s.id))
+      .eq("walk_in_incomplete", true);
+    if (progressError) return stays;
+    const incomplete = new Set(
+      ((progressRows ?? []) as { reservation_id: string; walk_in_incomplete: boolean }[])
+        .filter((p) => p.walk_in_incomplete)
+        .map((p) => p.reservation_id),
+    );
+    return stays.map((s) => ({ ...s, walkInIncomplete: incomplete.has(s.id) }));
   });
 
 export const listInHouse = createServerFn({ method: "POST" })

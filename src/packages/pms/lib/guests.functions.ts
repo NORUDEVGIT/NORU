@@ -42,6 +42,9 @@ export interface GuestProfile extends GuestSummary {
   notes: string | null;
   linkedCustomerUserId: string | null;
   createdAt: string;
+  idDocumentType: "passport" | "national_id" | "driving_licence" | "other" | null;
+  idDocumentNumber: string | null;
+  idDocumentExpiry: string | null;
 }
 
 export interface GuestPreferences {
@@ -79,7 +82,7 @@ const EMPTY_PREFERENCES: GuestPreferences = {
 };
 
 const GUEST_COLUMNS =
-  "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, guest_status, vip_status, notes, linked_customer_user_id, created_at, updated_at";
+  "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, id_document_type, id_document_number, id_document_expiry, guest_status, vip_status, notes, linked_customer_user_id, created_at, updated_at";
 
 type GuestRow = {
   id: string;
@@ -96,6 +99,9 @@ type GuestRow = {
   region?: string | null;
   country?: string | null;
   postal_code?: string | null;
+  id_document_type?: string | null;
+  id_document_number?: string | null;
+  id_document_expiry?: string | null;
   guest_status: string;
   vip_status: boolean;
   notes?: string | null;
@@ -137,6 +143,9 @@ function toProfile(row: GuestRow): GuestProfile {
     notes: row.notes ?? null,
     linkedCustomerUserId: row.linked_customer_user_id ?? null,
     createdAt: row.created_at ?? row.updated_at,
+    idDocumentType: (row.id_document_type as GuestProfile["idDocumentType"]) ?? null,
+    idDocumentNumber: row.id_document_number ?? null,
+    idDocumentExpiry: row.id_document_expiry ?? null,
   };
 }
 
@@ -154,6 +163,9 @@ const guestInputSchema = z.object({
   region: z.string().max(120).optional().nullable(),
   country: z.string().max(120).optional().nullable(),
   postalCode: z.string().max(40).optional().nullable(),
+  idDocumentType: z.enum(["passport", "national_id", "driving_licence", "other"]).optional().nullable(),
+  idDocumentNumber: z.string().max(80).optional().nullable(),
+  idDocumentExpiry: z.string().max(20).optional().nullable(),
   vipStatus: z.boolean().optional(),
   notes: z.string().max(4000).optional().nullable(),
 });
@@ -181,6 +193,9 @@ function toColumns(input: GuestInput) {
     postal_code: blankToNull(input.postalCode),
     vip_status: input.vipStatus ?? false,
     notes: blankToNull(input.notes),
+    ...(input.idDocumentType !== undefined ? { id_document_type: blankToNull(input.idDocumentType) } : {}),
+    ...(input.idDocumentNumber !== undefined ? { id_document_number: blankToNull(input.idDocumentNumber) } : {}),
+    ...(input.idDocumentExpiry !== undefined ? { id_document_expiry: blankToNull(input.idDocumentExpiry) } : {}),
   };
 }
 
@@ -198,6 +213,9 @@ const TRACKED_FIELDS = [
   "region",
   "country",
   "postal_code",
+  "id_document_type",
+  "id_document_number",
+  "id_document_expiry",
   "notes",
 ] as const;
 

@@ -84,6 +84,7 @@ export interface AssignableRoom {
   roomNumber: string;
   floor: string | null;
   building: string | null;
+  housekeepingStatus: string | null;
 }
 
 export interface BookingsDashboard {
@@ -261,7 +262,7 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
-      .select("id, room_number, floor, building")
+      .select("id, room_number, floor, building, housekeeping_status")
       .eq("restaurant_id", data.restaurantId)
       .eq("room_type_id", data.roomTypeId)
       .eq("active", true)
@@ -289,6 +290,7 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
         roomNumber: r.room_number,
         floor: r.floor,
         building: r.building,
+        housekeepingStatus: (r as { housekeeping_status?: string | null }).housekeeping_status ?? null,
       }));
   });
 

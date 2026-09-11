@@ -34,13 +34,16 @@ import {
 } from "@/packages/pms/lib/reservations.functions";
 import {
   changeStayDates,
-  checkInReservation,
   checkOutReservation,
   markNoShow,
   moveReservationRoom,
   type FrontOfficeStay,
 } from "@/packages/pms/lib/frontoffice.functions";
 import { assignReservationRoom } from "@/packages/pms/lib/reservations.functions";
+import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check-in-stepper";
+import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
+import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import type { CheckInStepId } from "@/packages/pms/lib/fo-check-in";
 
 function useRefresh() {
   const queryClient = useQueryClient();
@@ -171,54 +174,22 @@ export function CheckInDialog({
   stay,
   open,
   onOpenChange,
+  initialStep,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialStep?: CheckInStepId;
 }) {
-  const [roomId, setRoomId] = useState(stay.roomId ?? "");
-  const refresh = useRefresh();
-  const checkIn = useServerFn(checkInReservation);
-
-  useEffect(() => {
-    if (open) setRoomId(stay.roomId ?? "");
-  }, [open, stay.roomId]);
-
-  const mutation = useMutation({
-    mutationFn: () => checkIn({ data: { restaurantId, reservationId: stay.id, roomId: roomId || null } }),
-    onSuccess: () => {
-      toast.success(`${stay.guestName} checked in.`);
-      refresh();
-      onOpenChange(false);
-    },
-    onError: (error) => toast.error(errorText(error)),
-  });
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Check in</DialogTitle>
-          <DialogDescription>
-            {stay.confirmationNumber} · {stay.guestName} · {formatStayDate(stay.arrivalDate)} →{" "}
-            {formatStayDate(stay.departureDate)}
-          </DialogDescription>
-        </DialogHeader>
-        <RoomSelect restaurantId={restaurantId} stay={stay} value={roomId} onChange={setRoomId} />
-        <p className="text-xs text-muted-foreground">
-          Billing settlement will be handled in a future Cashiering phase.
-        </p>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={!roomId || mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? "Checking in…" : "Check in"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FoCheckInStepper
+      restaurantId={restaurantId}
+      stay={stay}
+      open={open}
+      onOpenChange={onOpenChange}
+      {...(initialStep ? { initialStep } : {})}
+    />
   );
 }
 
@@ -478,11 +449,13 @@ export function WalkInDialog({
   today,
   open,
   onOpenChange,
+  onCreated,
 }: {
   restaurantId: string;
   today: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onCreated?: (stay: FrontOfficeStay) => void;
 }) {
   const refresh = useRefresh();
   const [guestSearch, setGuestSearch] = useState("");
@@ -507,7 +480,7 @@ export function WalkInDialog({
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const create = useServerFn(createReservation);
-  const checkIn = useServerFn(checkInReservation);
+  const startWalkIn = useServerFn(startWalkInCheckIn);
 
   const guestsQuery = useQuery({
     queryKey: ["front-office", "walkin-guests", restaurantId, guestSearch],
@@ -535,6 +508,9 @@ export function WalkInDialog({
     enabled: open && !!roomTypeId && departure > today,
   });
 
+  const types = (availabilityQuery.data ?? []).filter((t) => t.available > 0);
+  const rooms = roomsQuery.data ?? [];
+
   const mutation = useMutation({
     mutationFn: async () => {
       if (!guest) throw new Error("Pick a guest first.");
@@ -551,26 +527,47 @@ export function WalkInDialog({
           status: "confirmed" as const,
         },
       });
-      await checkIn({ data: { restaurantId, reservationId: created.id, roomId } });
-      return created;
+      await startWalkIn({ data: { restaurantId, reservationId: created.id } });
+      const room = rooms.find((r) => r.id === roomId);
+      const roomType = types.find((t) => t.roomTypeId === roomTypeId);
+      const stay: FrontOfficeStay = {
+        id: created.id,
+        confirmationNumber: created.confirmationNumber,
+        guestId: guest.id,
+        guestName: guest.fullName,
+        guestVip: guest.vipStatus,
+        guestPhone: guest.phone,
+        roomTypeId,
+        roomTypeName: roomType?.name ?? "Room type",
+        roomId,
+        roomNumber: room?.roomNumber ?? null,
+        arrivalDate: today,
+        departureDate: departure,
+        nights: nightsBetween(today, departure),
+        adults,
+        children: 0,
+        status: "confirmed",
+        specialRequests: null,
+        overstay: false,
+        walkInIncomplete: true,
+      };
+      return stay;
     },
-    onSuccess: (created) => {
-      toast.success(`Walk-in ${created.confirmationNumber} checked in.`);
+    onSuccess: (createdStay) => {
+      toast.success(`Walk-in ${createdStay.confirmationNumber} created — finish check-in.`);
       refresh();
       onOpenChange(false);
+      onCreated?.(createdStay);
     },
     onError: (error) => toast.error(errorText(error)),
   });
-
-  const types = (availabilityQuery.data ?? []).filter((t) => t.available > 0);
-  const rooms = roomsQuery.data ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Walk-in</DialogTitle>
-          <DialogDescription>Create a confirmed reservation for today and check the guest straight in.</DialogDescription>
+          <DialogDescription>Create a confirmed stay for today, then continue registration, deposit and key.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
@@ -681,7 +678,7 @@ export function WalkInDialog({
             disabled={!guest || !roomTypeId || !roomId || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? "Creating…" : "Create & check in"}
+            {mutation.isPending ? "Creating…" : "Create stay"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -60,6 +60,7 @@ export function FrontOfficeWorkspace({
   const [view, setView] = useState<FoNavId>(() => resolveFoNav(initialTab));
   const [phone, setPhone] = useState(false);
   const [walkIn, setWalkIn] = useState(false);
+  const [checkInStep, setCheckInStep] = useState<"stay" | "registration">("stay");
   const [searchOpen, setSearchOpen] = useState(false);
   const [comingSoon, setComingSoon] = useState<string | null>(null);
   const [sheetStay, setSheetStay] = useState<FrontOfficeStay | null>(null);
@@ -158,6 +159,10 @@ export function FrontOfficeWorkspace({
       return;
     }
     const kind = map[action];
+    if (kind === "checkin") {
+      setCheckInStep("stay");
+      setSheetStay(null);
+    }
     if (kind) openDialog(kind, stay);
   }
 
@@ -228,7 +233,16 @@ export function FrontOfficeWorkspace({
         onAction={onSheetAction}
       />
 
-      <WalkInDialog restaurantId={restaurantId} today={today} open={walkIn} onOpenChange={setWalkIn} />
+      <WalkInDialog
+        restaurantId={restaurantId}
+        today={today}
+        open={walkIn}
+        onOpenChange={setWalkIn}
+        onCreated={(created) => {
+          setCheckInStep("registration");
+          openDialog("checkin", created);
+        }}
+      />
       <GuestSearchDialog restaurantId={restaurantId} open={searchOpen} onOpenChange={setSearchOpen} />
 
       <StayPickerDialog
@@ -246,7 +260,10 @@ export function FrontOfficeWorkspace({
         open={picker !== null}
         onOpenChange={(open) => !open && setPicker(null)}
         onPick={(stay) => {
-          if (picker === "check_in") openDialog("checkin", stay);
+          if (picker === "check_in") {
+            setCheckInStep("stay");
+            openDialog("checkin", stay);
+          }
           if (picker === "room_move") openDialog("move", stay);
           if (picker === "extend_stay") openDialog("stay", stay);
           if (picker === "check_out") openDialog("checkout", stay);
@@ -257,7 +274,18 @@ export function FrontOfficeWorkspace({
         <AssignRoomDialog restaurantId={restaurantId} stay={dialogStay} open onOpenChange={(v) => !v && setDialog(null)} />
       ) : null}
       {dialogStay && dialog === "checkin" ? (
-        <CheckInDialog restaurantId={restaurantId} stay={dialogStay} open onOpenChange={(v) => !v && setDialog(null)} />
+        <CheckInDialog
+          restaurantId={restaurantId}
+          stay={dialogStay}
+          open
+          initialStep={checkInStep}
+          onOpenChange={(v) => {
+            if (!v) {
+              setDialog(null);
+              setCheckInStep("stay");
+            }
+          }}
+        />
       ) : null}
       {dialogStay && dialog === "move" ? (
         <RoomMoveDialog restaurantId={restaurantId} stay={dialogStay} open onOpenChange={(v) => !v && setDialog(null)} />

@@ -184,6 +184,9 @@ export function ArrivalsWorkspace({
                     {formatStayDate(stay.arrivalDate)} → {formatStayDate(stay.departureDate)} · {stay.nights} night
                     {stay.nights === 1 ? "" : "s"}
                   </p>
+                  {stay.walkInIncomplete ? (
+                    <p className="mt-2 text-xs font-medium text-[#C89933]">Walk-in incomplete — finish check-in</p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => setAssign(stay)}>

@@ -21,6 +21,7 @@ import { ReservationAmendmentsTab } from "@/packages/pms/components/bookings/res
 import { ReservationCancellationsTab } from "@/packages/pms/components/bookings/reservation-cancellations";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
+  CheckInDialog,
   NoShowDialog,
   RoomMoveDialog,
   StayDatesDialog,
@@ -54,12 +55,13 @@ export function WalkInsFrame({
   today: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [checkInStay, setCheckInStay] = useState<FrontOfficeStay | null>(null);
   return (
     <div className="space-y-4">
       <div>
         <h2 className="font-display text-xl">Walk-ins</h2>
         <p className="text-sm text-muted-foreground">
-          Create today&apos;s stay and check the guest in with the existing walk-in dialog.
+          Create today&apos;s stay, then finish registration, deposit and key.
         </p>
       </div>
       <Button onClick={() => setOpen(true)}>New walk-in</Button>
@@ -67,7 +69,22 @@ export function WalkInsFrame({
         title="Walk-in history is Coming soon"
         description="Existing reservations are not tagged as walk-ins, so this frame does not invent a walk-in list."
       />
-      <WalkInDialog restaurantId={restaurantId} today={today} open={open} onOpenChange={setOpen} />
+      <WalkInDialog
+        restaurantId={restaurantId}
+        today={today}
+        open={open}
+        onOpenChange={setOpen}
+        onCreated={setCheckInStay}
+      />
+      {checkInStay ? (
+        <CheckInDialog
+          restaurantId={restaurantId}
+          stay={checkInStay}
+          open
+          initialStep="registration"
+          onOpenChange={(v) => !v && setCheckInStay(null)}
+        />
+      ) : null}
     </div>
   );
 }
