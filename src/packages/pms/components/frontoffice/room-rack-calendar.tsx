@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
@@ -58,7 +58,8 @@ import {
 import { listRoomRack, type RackRoom } from "@/packages/pms/lib/housekeeping.functions";
 import { listReservations, type ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import { addDays, formatStayDate } from "@/packages/pms/lib/reservation-dates";
-import { deriveOpsStrip } from "@/packages/pms/lib/fo-exceptions";
+import { deriveOpsStrip, type FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
+import { listFoExceptionFeeds } from "@/packages/pms/lib/fo-exceptions.functions";
 
 type Viewport = "phone" | "wide";
 
@@ -68,16 +69,26 @@ export function RoomRackCalendar({
   restaurantId,
   today,
   viewport,
+  rackFocus = null,
   onSelectStay,
 }: {
   restaurantId: string;
   today: string;
   viewport: Viewport;
+  rackFocus?: FoRackFocus | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
 }) {
-  const [focusDate, setFocusDate] = useState(today);
+  const [focusDate, setFocusDate] = useState(rackFocus?.focusDate ?? today);
   const [horizon, setHorizon] = useState<CalendarHorizon>(viewport === "phone" ? 1 : 7);
-  const [filters, setFilters] = useState<RackFilters>(EMPTY_RACK_FILTERS);
+  const [filters, setFilters] = useState<RackFilters>(() =>
+    rackFocus
+      ? {
+          ...EMPTY_RACK_FILTERS,
+          ...(rackFocus.roomType ? { roomType: rackFocus.roomType } : {}),
+          ...(rackFocus.discrepancy ? { discrepancy: rackFocus.discrepancy } : {}),
+        }
+      : EMPTY_RACK_FILTERS,
+  );
   const [draft, setDraft] = useState<RackConfirmDraft | null>(null);
   const [preview, setPreview] = useState<RackConfirmDraft | null>(null);
 
@@ -91,6 +102,17 @@ export function RoomRackCalendar({
   const fetchReservations = useServerFn(listReservations);
   const fetchDashboard = useServerFn(getFrontOfficeDashboard);
   const fetchHk = useServerFn(listRoomRack);
+  const fetchFeeds = useServerFn(listFoExceptionFeeds);
+
+  useEffect(() => {
+    if (!rackFocus) return;
+    if (rackFocus.focusDate) setFocusDate(rackFocus.focusDate);
+    setFilters({
+      ...EMPTY_RACK_FILTERS,
+      ...(rackFocus.roomType ? { roomType: rackFocus.roomType } : {}),
+      ...(rackFocus.discrepancy ? { discrepancy: rackFocus.discrepancy } : {}),
+    });
+  }, [rackFocus]);
 
   const occupancyQuery = useQuery({
     queryKey: ["front-office", "occupancy", restaurantId],
@@ -120,6 +142,11 @@ export function RoomRackCalendar({
     queryFn: () => fetchHk({ data: { restaurantId } }),
     retry: false,
   });
+  const feedsQuery = useQuery({
+    queryKey: ["front-office", "exception-feeds", restaurantId, today],
+    queryFn: () => fetchFeeds({ data: { restaurantId, businessDate: today } }),
+    retry: false,
+  });
 
   const rooms = occupancyQuery.data ?? [];
   const stays = (reservationsQuery.data?.rows ?? []).filter((row) =>
@@ -128,6 +155,10 @@ export function RoomRackCalendar({
   const hkByRoom = new Map((hkQuery.data ?? []).map((r) => [r.id, r]));
   const hkDenied = hkQuery.isError && isPermissionDeniedMessage(hkQuery.error);
   const hkAvailable = !hkDenied && !!hkQuery.data;
+  const discrepancyLive = (feedsQuery.data?.discrepancyLane ?? "coming_soon") === "live";
+  const openDiscrepancyRoomIds = new Set(
+    discrepancyLive ? (feedsQuery.data?.discrepancies ?? []).map((row) => row.roomId) : [],
+  );
 
   const floors = useMemo(
     () => Array.from(new Set(rooms.map((r) => r.floor).filter(Boolean) as string[])).sort(),
@@ -147,6 +178,7 @@ export function RoomRackCalendar({
         occupancy: room.occupancy,
         status: room.status,
         housekeepingStatus: hkByRoom.get(room.id)?.housekeepingStatus ?? null,
+        hasOpenDiscrepancy: openDiscrepancyRoomIds.has(room.id),
       },
       filters,
     ),
@@ -218,6 +250,8 @@ export function RoomRackCalendar({
           housekeepingStatus: hkByRoom.get(room.id)?.housekeepingStatus ?? null,
         }))}
         hkAvailable={hkAvailable}
+        occupancyTrusted={!occupancyQuery.isError && !dashboardQuery.isError}
+        openDiscrepancies={discrepancyLive ? (feedsQuery.data?.discrepancies.length ?? 0) : null}
         onFilter={(next) => setFilters({ ...EMPTY_RACK_FILTERS, ...next })}
       />
 
@@ -257,6 +291,7 @@ export function RoomRackCalendar({
           stays={visibleStays}
           hkByRoom={hkByRoom}
           today={focusDate}
+          openDiscrepancyRoomIds={openDiscrepancyRoomIds}
           onSelectStay={onSelectStay}
         />
       ) : (
@@ -270,6 +305,8 @@ export function RoomRackCalendar({
           days={days}
           showDrag={showDrag}
           preview={preview}
+          openDiscrepancyRoomIds={openDiscrepancyRoomIds}
+          highlightRoomId={rackFocus?.roomId ?? null}
           onSelectStay={onSelectStay}
           onPreview={setPreview}
           onOpenConfirm={openConfirm}
@@ -314,6 +351,8 @@ function OpsStrip({
   loading,
   rooms,
   hkAvailable,
+  occupancyTrusted = true,
+  openDiscrepancies = null,
   onFilter,
 }: {
   dashboard?: {
@@ -328,6 +367,8 @@ function OpsStrip({
   loading: boolean;
   rooms: Array<{ occupancy: "vacant" | "occupied"; status: string; housekeepingStatus?: string | null }>;
   hkAvailable: boolean;
+  occupancyTrusted?: boolean;
+  openDiscrepancies?: number | null;
   onFilter: (next: Partial<RackFilters>) => void;
 }) {
   const cards = dashboard
@@ -341,6 +382,8 @@ function OpsStrip({
         outOfService: dashboard.outOfService,
         rooms,
         hkAvailable,
+        occupancyTrusted,
+        openDiscrepancies,
       })
     : [];
 
@@ -356,7 +399,7 @@ function OpsStrip({
           onClick={() => onFilter(item.filter)}
         >
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{item.label}</p>
-          <p className="font-display text-lg">{item.value}</p>
+          <p className="font-display text-lg">{item.display ?? item.value}</p>
         </button>
       ))}
     </div>
@@ -518,6 +561,8 @@ function CalendarBoard({
   days,
   showDrag,
   preview,
+  openDiscrepancyRoomIds,
+  highlightRoomId,
   onSelectStay,
   onPreview,
   onOpenConfirm,
@@ -531,6 +576,8 @@ function CalendarBoard({
   days: number;
   showDrag: boolean;
   preview: RackConfirmDraft | null;
+  openDiscrepancyRoomIds: Set<string>;
+  highlightRoomId: string | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenConfirm: (next: RackConfirmDraft) => void;
@@ -665,6 +712,8 @@ function CalendarBoard({
             colMin={colMin}
             showDrag={showDrag}
             preview={preview}
+            hasOpenDiscrepancy={openDiscrepancyRoomIds.has(room.id)}
+            highlight={highlightRoomId === room.id}
             onSelectStay={onSelectStay}
             onDropStay={(id) => dropOnRoom(id, room)}
             onPreview={onPreview}
@@ -739,6 +788,8 @@ function RoomRow({
   colMin,
   showDrag,
   preview,
+  hasOpenDiscrepancy,
+  highlight,
   onSelectStay,
   onDropStay,
   onPreview,
@@ -753,6 +804,8 @@ function RoomRow({
   colMin: number;
   showDrag: boolean;
   preview: RackConfirmDraft | null;
+  hasOpenDiscrepancy: boolean;
+  highlight: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onDropStay: (reservationId: string) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
@@ -764,6 +817,8 @@ function RoomRow({
         className="sticky left-0 z-10 border-b border-r border-border bg-card px-3 py-2 text-sm"
         data-testid="fo-room-row"
         data-room-id={room.id}
+        data-highlighted={highlight ? "true" : undefined}
+        style={highlight ? { outline: `2px solid ${FO_BRAND.gold}` } : undefined}
         onDragOver={
           showDrag
             ? (e) => {
@@ -788,6 +843,10 @@ function RoomRow({
           {room.roomNumber}
           <span className="ml-1 text-xs font-normal text-muted-foreground">{room.roomTypeName}</span>
         </p>
+        <StayBadgeStrip
+          badges={liveStayBadges({ guestVip: false, hasOpenDiscrepancy })}
+          mode={badgeDisplayMode(days)}
+        />
         <p className="text-xs text-muted-foreground">
           {room.floor ? `Floor ${room.floor}` : "—"} · {room.occupancy}
           {hk ? ` · HK ${hk.housekeepingStatus}` : ""}
@@ -834,6 +893,7 @@ function RoomRow({
           colMin={colMin}
           showDrag={showDrag}
           preview={preview}
+          hasOpenDiscrepancy={hasOpenDiscrepancy}
           onSelectStay={onSelectStay}
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
@@ -850,6 +910,7 @@ function BarTrack({
   colMin,
   showDrag,
   preview,
+  hasOpenDiscrepancy = false,
   onSelectStay,
   onPreview,
   onOpenDateConfirm,
@@ -860,6 +921,7 @@ function BarTrack({
   colMin: number;
   showDrag: boolean;
   preview: RackConfirmDraft | null;
+  hasOpenDiscrepancy?: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: ReservationDetail, arrival: string, departure: string) => void;
@@ -902,6 +964,7 @@ function BarTrack({
               })
             }
             onCommitDates={(arrival, departure) => onOpenDateConfirm(stay, arrival, departure)}
+            hasOpenDiscrepancy={hasOpenDiscrepancy}
           />
         );
       })}
@@ -916,6 +979,7 @@ function ReservationBar({
   days,
   focusDate,
   showDrag,
+  hasOpenDiscrepancy = false,
   onSelectStay,
   onPreviewDates,
   onCommitDates,
@@ -926,12 +990,13 @@ function ReservationBar({
   days: number;
   focusDate: string;
   showDrag: boolean;
+  hasOpenDiscrepancy?: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onPreviewDates: (arrival: string, departure: string) => void;
   onCommitDates: (arrival: string, departure: string) => void;
 }) {
   const dragged = useRef(false);
-  const badges = liveStayBadges(stay);
+  const badges = liveStayBadges({ ...stay, hasOpenDiscrepancy });
   const compact = badgeDisplayMode(days);
 
   return (
@@ -1066,12 +1131,14 @@ function PhoneRackList({
   stays,
   hkByRoom,
   today,
+  openDiscrepancyRoomIds,
   onSelectStay,
 }: {
   rooms: OccupancyRoom[];
   stays: ReservationDetail[];
   hkByRoom: Map<string, RackRoom>;
   today: string;
+  openDiscrepancyRoomIds: Set<string>;
   onSelectStay: (stay: FrontOfficeStay) => void;
 }) {
   const todayStays = stays.filter((s) => s.arrivalDate <= today && s.departureDate > today);
@@ -1088,6 +1155,10 @@ function PhoneRackList({
               <p className="font-medium">
                 {room.roomNumber} · {room.roomTypeName}
               </p>
+              <StayBadgeStrip
+                badges={liveStayBadges({ guestVip: false, hasOpenDiscrepancy: openDiscrepancyRoomIds.has(room.id) })}
+                mode="full"
+              />
               <p className="text-xs text-muted-foreground">
                 {room.occupancy}
                 {hk ? ` · HK ${hk.housekeepingStatus}` : ""} · {room.guestName ?? "Vacant"}
@@ -1108,7 +1179,13 @@ function PhoneRackList({
               <p className="text-xs text-muted-foreground">
                 {stay.confirmationNumber} · {stay.roomNumber ?? "Unassigned"}
               </p>
-              <StayBadgeStrip badges={liveStayBadges(stay)} mode="full" />
+              <StayBadgeStrip
+                badges={liveStayBadges({
+                  ...stay,
+                  hasOpenDiscrepancy: Boolean(stay.roomId && openDiscrepancyRoomIds.has(stay.roomId)),
+                })}
+                mode="full"
+              />
             </button>
           </li>
         ))}

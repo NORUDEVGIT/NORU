@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Building2, Crown, MessageSquare, Users } from "lucide-react";
+import { AlertTriangle, Building2, Crown, MessageSquare, Users } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { FO_BRAND } from "@/packages/pms/lib/front-office-shell";
@@ -10,6 +10,7 @@ const ICONS: Record<StayBadgeId, typeof Crown> = {
   group_badge: Users,
   corporate_badge: Building2,
   special_request_badge: MessageSquare,
+  room_discrepancy_badge: AlertTriangle,
 };
 
 function badgeStyle(tone: LiveStayBadge["tone"]): { className: string; style: CSSProperties } {

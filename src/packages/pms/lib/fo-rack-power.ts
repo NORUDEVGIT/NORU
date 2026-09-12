@@ -66,7 +66,12 @@ export type AssignableLookup =
   | { state: "ready"; roomIds: string[] };
 
 export type StayBadgeTone = "gold" | "outline" | "green";
-export type StayBadgeId = "vip_badge" | "group_badge" | "corporate_badge" | "special_request_badge";
+export type StayBadgeId =
+  | "vip_badge"
+  | "group_badge"
+  | "corporate_badge"
+  | "special_request_badge"
+  | "room_discrepancy_badge";
 
 export type LiveStayBadge = {
   id: StayBadgeId;
@@ -134,6 +139,7 @@ export function liveStayBadges(stay: {
   guestVip: boolean;
   source?: string | null;
   specialRequests?: string | null;
+  hasOpenDiscrepancy?: boolean;
 }): LiveStayBadge[] {
   const badges: LiveStayBadge[] = [];
   if (stay.guestVip) badges.push({ id: "vip_badge", label: "VIP", tone: "gold" });
@@ -141,6 +147,9 @@ export function liveStayBadges(stay: {
   if (sourceIsCorporate(stay.source)) badges.push({ id: "corporate_badge", label: "Corporate", tone: "outline" });
   if (hasSpecialRequestText(stay.specialRequests)) {
     badges.push({ id: "special_request_badge", label: "Special request", tone: "green" });
+  }
+  if (stay.hasOpenDiscrepancy) {
+    badges.push({ id: "room_discrepancy_badge", label: "Discrepancy", tone: "outline" });
   }
   return badges;
 }
@@ -157,6 +166,7 @@ export function rackFiltersActive(filters: {
   group: string;
   corporate: string;
   specialRequest: string;
+  discrepancy?: string;
 }): boolean {
   return Object.values(filters).some((value) => value !== "all");
 }

@@ -40,7 +40,7 @@ export function FoHelpSheet({
             <h3 className="font-medium text-[#251605]">Exceptions honesty</h3>
             <p className="mt-1 text-muted-foreground">
               The badge is the count of Live open rows, including zero. Types without a trustworthy signal stay
-              Coming soon. Permission denied is not Coming soon.
+              Coming soon. Permission denied is not Coming soon. Exceptions only show real feeds — empty means clear.
             </p>
           </section>
           <section>

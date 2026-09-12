@@ -220,6 +220,9 @@ describe("calendar helpers", () => {
         ["group_badge", "live"],
         ["corporate_badge", "live"],
         ["special_request_badge", "live"],
+        ["room_discrepancy_badge", "live"],
+        ["early_arrival_badge", "empty"],
+        ["late_arrival_badge", "empty"],
       ],
     );
   });

@@ -236,7 +236,14 @@ describe("FO-FS5 badges, horizons, phone handle", () => {
       liveStayBadges({ guestVip: false, source: "CORPORATE", specialRequests: null }).map((b) => b.id),
       ["corporate_badge"],
     );
-    assert.ok(RESERVED_BADGE_SLOTS.every((slot) => slot.lane === "live"));
+    assert.deepEqual(
+      liveStayBadges({ guestVip: false, hasOpenDiscrepancy: true }).map((b) => b.id),
+      ["room_discrepancy_badge"],
+    );
+    assert.deepEqual(liveStayBadges({ guestVip: false, hasOpenDiscrepancy: false }).map((b) => b.id), []);
+    assert.ok(RESERVED_BADGE_SLOTS.filter((slot) => slot.lane === "live").every((slot) => slot.lane === "live"));
+    assert.ok(RESERVED_BADGE_SLOTS.some((slot) => slot.id === "early_arrival_badge" && slot.lane === "empty"));
+    assert.ok(RESERVED_BADGE_SLOTS.some((slot) => slot.id === "late_arrival_badge" && slot.lane === "empty"));
     assert.deepEqual(LIVE_HORIZONS, [1, 7, 14, 30]);
     assert.equal(shouldShowDragHandle("phone"), false);
     assert.equal(shouldShowDragHandle("desktop"), true);
