@@ -269,8 +269,9 @@ describe("FO-FS0 / chrome locks", () => {
     assert.match(chrome, /fo-help/);
     assert.match(chrome, /FoHelpSheet/);
     assert.doesNotMatch(chrome, /Help — Coming soon/);
-    assert.doesNotMatch(chrome, /Notifications — Coming soon/);
-    assert.match(chrome, /exceptionBadgeCount|exceptionBadge/);
+    assert.match(chrome, /fo-notifications/);
+    assert.match(chrome, /notificationsComingSoon/);
+    assert.match(chrome, /exceptionBadge/);
 
     const help = readFileSync(new URL("../components/frontoffice/fo-help-sheet.tsx", import.meta.url), "utf8");
     assert.match(help, /Room Rack/);

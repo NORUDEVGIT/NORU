@@ -357,7 +357,7 @@ export {
   deriveExceptionRows,
   exceptionBadgeCount,
   exceptionHighCount,
-} from "./fo-exceptions";
+} from "./fo-exceptions.ts";
 
 export const RESERVED_BADGE_SLOTS = [
   { id: "vip_badge", label: "VIP", lane: "live" as const },
