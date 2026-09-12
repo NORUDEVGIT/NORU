@@ -38,6 +38,7 @@ type StayLike = {
   children: number;
   status: ReservationStatus;
   specialRequests?: string | null;
+  source?: string | null;
 };
 
 export const FO_BRAND = {
@@ -185,14 +186,18 @@ export function invokeFoAction(
   return { lane: "live", invokedWrite: null };
 }
 
-/** Drag-and-drop room moves are Coming soon. Never call moveReservationRoom. */
+/**
+ * Drop / resize never writes. FO-FS5 opens FoRackConfirmSheet (or snaps back)
+ * from the calendar; Confirm is the only path that may call a write.
+ */
 export function handleReservationBarDrop(
   _payload: { reservationId: string; targetRoomId: string },
   writes: FoWriteFns,
-): { moved: false; lane: "coming_soon" } {
+): { moved: false; write: false; lane: "live" } {
   void _payload;
   void writes.moveReservationRoom;
-  return { moved: false, lane: "coming_soon" };
+  void writes.changeStayDates;
+  return { moved: false, write: false, lane: "live" };
 }
 
 export type UnavailableKind = "permission_denied" | "coming_soon" | "empty";
@@ -210,7 +215,7 @@ export function isPermissionDeniedMessage(error: unknown): boolean {
 
 export type CalendarHorizon = 1 | 7 | 14 | 30;
 
-export const LIVE_HORIZONS: CalendarHorizon[] = [1, 7];
+export const LIVE_HORIZONS: CalendarHorizon[] = [1, 7, 14, 30];
 
 export function isLiveHorizon(days: CalendarHorizon): boolean {
   return LIVE_HORIZONS.includes(days);
@@ -264,6 +269,7 @@ export function stayFromReservation(
     children: row.children,
     status: row.status,
     specialRequests,
+    ...(row.source !== undefined ? { source: row.source } : {}),
     overstay: row.status === "checked_in" && row.departureDate < businessDate,
   };
 }
@@ -279,6 +285,9 @@ export type RackFilters = {
   staySlice: RackStaySlice;
   vip: string;
   source: string;
+  group: string;
+  corporate: string;
+  specialRequest: string;
 };
 
 export const EMPTY_RACK_FILTERS: RackFilters = {
@@ -290,12 +299,32 @@ export const EMPTY_RACK_FILTERS: RackFilters = {
   staySlice: "all",
   vip: "all",
   source: "all",
+  group: "all",
+  corporate: "all",
+  specialRequest: "all",
 };
 
-export const RACK_COMING_SOON_FILTERS = [
+export const RACK_LIVE_FILTERS = [
   { id: "group", label: "Group" },
   { id: "corporate", label: "Corporate" },
+  { id: "special_request", label: "Special request" },
 ] as const;
+
+export function sourceToken(source: string | null | undefined): string {
+  return (source ?? "").trim().toLowerCase();
+}
+
+export function sourceIsGroup(source: string | null | undefined): boolean {
+  return sourceToken(source) === "group";
+}
+
+export function sourceIsCorporate(source: string | null | undefined): boolean {
+  return sourceToken(source) === "corporate";
+}
+
+export function hasSpecialRequestText(text: string | null | undefined): boolean {
+  return (text ?? "").trim().length > 0;
+}
 
 export type RoomLegendKey = "vacant" | "occupied" | "available" | "out_of_order" | "out_of_service" | "hk_clean" | "hk_dirty" | "hk_inspected";
 export type ReservationLegendKey = ReservationStatus;
@@ -355,9 +384,10 @@ export function deriveExceptionSlots(input: {
 }
 
 export const RESERVED_BADGE_SLOTS = [
-  { id: "vip_badge", label: "VIP", lane: "coming_soon" as const },
-  { id: "group_badge", label: "Group", lane: "coming_soon" as const },
-  { id: "corporate_badge", label: "Corporate", lane: "coming_soon" as const },
+  { id: "vip_badge", label: "VIP", lane: "live" as const },
+  { id: "group_badge", label: "Group", lane: "live" as const },
+  { id: "corporate_badge", label: "Corporate", lane: "live" as const },
+  { id: "special_request_badge", label: "Special request", lane: "live" as const },
 ] as const;
 
 export const LIST_COMING_SOON_COLUMNS = [
@@ -384,6 +414,10 @@ export const OPS_STRIP_COMING_SOON = [
 ] as const;
 
 export function shouldShowWeekGantt(viewport: "phone" | "tablet" | "desktop"): boolean {
+  return viewport !== "phone";
+}
+
+export function shouldShowDragHandle(viewport: "phone" | "tablet" | "desktop" | "wide"): boolean {
   return viewport !== "phone";
 }
 
@@ -417,6 +451,7 @@ export function stayMatchesFilters(
     departureDate: string;
     guestVip: boolean;
     source?: string | null;
+    specialRequests?: string | null;
   },
   filters: RackFilters,
   focusDate: string,
@@ -424,6 +459,9 @@ export function stayMatchesFilters(
   if (filters.resStatus !== "all" && stay.status !== filters.resStatus) return false;
   if (filters.vip === "vip" && !stay.guestVip) return false;
   if (filters.source !== "all" && (stay.source ?? "") !== filters.source) return false;
+  if (filters.group === "group" && !sourceIsGroup(stay.source)) return false;
+  if (filters.corporate === "corporate" && !sourceIsCorporate(stay.source)) return false;
+  if (filters.specialRequest === "special" && !hasSpecialRequestText(stay.specialRequests)) return false;
   if (filters.staySlice === "arrival" && stay.arrivalDate !== focusDate) return false;
   if (filters.staySlice === "departure" && stay.departureDate !== focusDate) return false;
   if (filters.staySlice === "in_house") {

@@ -12,17 +12,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
-import { ComingSoonButton, ComingSoonChip, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { ComingSoonButton, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { StayBadgeStrip } from "@/packages/pms/components/frontoffice/fo-stay-badges";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { getReservationFolio } from "@/packages/pms/lib/cashiering.functions";
 import { getReservation } from "@/packages/pms/lib/reservations.functions";
-import {
-  RESERVED_BADGE_SLOTS,
-  actionsForMenu,
-  handleReservationBarDrop,
-  isPermissionDeniedMessage,
-  type FoActionDef,
-} from "@/packages/pms/lib/front-office-shell";
+import { actionsForMenu, isPermissionDeniedMessage, type FoActionDef } from "@/packages/pms/lib/front-office-shell";
+import { liveStayBadges, onRackDrop } from "@/packages/pms/lib/fo-rack-power";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { SPECIAL_REQUEST_CATEGORY_LABELS } from "@/packages/pms/lib/fo-amendments";
@@ -120,9 +116,14 @@ export function ReservationSideSheet({
                 Overstay
               </span>
             ) : null}
-            {RESERVED_BADGE_SLOTS.map((slot) => (
-              <ComingSoonChip key={slot.id} label={slot.label} />
-            ))}
+            <StayBadgeStrip
+              badges={liveStayBadges({
+                guestVip: stay.guestVip,
+                source: reservation?.source ?? stay.source ?? null,
+                specialRequests: stay.specialRequests,
+              })}
+              mode="full"
+            />
           </div>
 
           <dl className="grid grid-cols-2 gap-3 text-sm">
@@ -212,7 +213,7 @@ export function ReservationSideSheet({
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <GripVertical className="size-3.5" />
-            Drag to move is Coming soon — use Room Move.
+            Drag a stay on Room Rack + Calendar, then Confirm. Phone uses Room Move and Extend Stay.
           </div>
 
           <div className="flex flex-col gap-2">
@@ -249,5 +250,5 @@ function SheetActionButton({ action, onLive }: { action: FoActionDef; onLive: ()
 
 /** Exported so tests can prove a drop never writes. */
 export function onRackBarDropped(reservationId: string, targetRoomId: string) {
-  return handleReservationBarDrop({ reservationId, targetRoomId }, {});
+  return onRackDrop({ reservationId, targetRoomId }, {});
 }

@@ -307,7 +307,7 @@ export const listReservations = createServerFn({ method: "POST" })
         fromDate: dateSchema.optional(),
         toDate: dateSchema.optional(),
         page: z.number().int().min(1).max(500).optional(),
-        pageSize: z.number().int().min(1).max(100).optional(),
+        pageSize: z.number().int().min(1).max(500).optional(),
       })
       .parse(input),
   )
