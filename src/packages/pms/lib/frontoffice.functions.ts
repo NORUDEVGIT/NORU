@@ -40,6 +40,7 @@ export interface FrontOfficeStay {
   children: number;
   status: ReservationStatus;
   specialRequests: string | null;
+  source?: string | null;
   overstay: boolean;
   walkInIncomplete?: boolean;
 }
@@ -58,6 +59,7 @@ export interface FrontOfficeDashboard {
 export interface OccupancyRoom {
   id: string;
   roomNumber: string;
+  roomTypeId: string;
   roomTypeName: string;
   floor: string | null;
   status: string;
@@ -300,7 +302,7 @@ export const listOccupancy = createServerFn({ method: "POST" })
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
-      .select("id, room_number, floor, status, room_types!inner ( name )")
+      .select("id, room_number, floor, status, room_type_id, room_types!inner ( name )")
       .eq("restaurant_id", data.restaurantId)
       .eq("active", true)
       .order("room_number");
@@ -331,12 +333,14 @@ export const listOccupancy = createServerFn({ method: "POST" })
       room_number: string;
       floor: string | null;
       status: string;
+      room_type_id: string;
       room_types: { name: string } | null;
     }>).map((room) => {
       const stay = byRoom.get(room.id);
       return {
         id: room.id,
         roomNumber: room.room_number,
+        roomTypeId: room.room_type_id,
         roomTypeName: room.room_types?.name ?? "Room type",
         floor: room.floor,
         status: room.status,

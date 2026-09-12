@@ -15,10 +15,13 @@ import {
   handleReservationBarDrop,
   invokeFoAction,
   isLiveHorizon,
+  LIVE_HORIZONS,
   menuHasVoid,
   navHasRoomMoves,
   reservationBarPlacement,
   resolveFoNav,
+  RESERVED_BADGE_SLOTS,
+  shouldShowDragHandle,
   shouldShowWeekGantt,
   shouldSuppressRestaurantPmsRail,
 } from "./front-office-shell.ts";
@@ -139,17 +142,25 @@ describe("Coming soon and writes", () => {
     assert.deepEqual(called, []);
   });
 
-  it("drag does not call moveReservationRoom", () => {
+  it("drop never writes — Confirm is the only write path", () => {
     let moved = false;
+    let dated = false;
     const result = handleReservationBarDrop(
       { reservationId: "res-1", targetRoomId: "room-2" },
-      { moveReservationRoom: () => {
-        moved = true;
-      } },
+      {
+        moveReservationRoom: () => {
+          moved = true;
+        },
+        changeStayDates: () => {
+          dated = true;
+        },
+      },
     );
     assert.equal(result.moved, false);
-    assert.equal(result.lane, "coming_soon");
+    assert.equal(result.write, false);
+    assert.equal(result.lane, "live");
     assert.equal(moved, false);
+    assert.equal(dated, false);
   });
 
   it("keeps permission denied distinct from Coming soon", () => {
@@ -187,13 +198,29 @@ describe("HK title lock", () => {
 });
 
 describe("calendar helpers", () => {
-  it("treats 1 and 7 day windows as live and 14/30 as coming soon", () => {
+  it("treats 1, 7, 14 and 30 day windows as live", () => {
+    assert.deepEqual(LIVE_HORIZONS, [1, 7, 14, 30]);
     assert.equal(isLiveHorizon(1), true);
     assert.equal(isLiveHorizon(7), true);
-    assert.equal(isLiveHorizon(14), false);
-    assert.equal(isLiveHorizon(30), false);
+    assert.equal(isLiveHorizon(14), true);
+    assert.equal(isLiveHorizon(30), true);
     assert.equal(shouldShowWeekGantt("phone"), false);
     assert.equal(shouldShowWeekGantt("desktop"), true);
+    assert.equal(shouldShowDragHandle("phone"), false);
+    assert.equal(shouldShowDragHandle("desktop"), true);
+    assert.equal(shouldShowDragHandle("wide"), true);
+  });
+
+  it("flips reserved badge slots Live", () => {
+    assert.deepEqual(
+      RESERVED_BADGE_SLOTS.map((slot) => [slot.id, slot.lane]),
+      [
+        ["vip_badge", "live"],
+        ["group_badge", "live"],
+        ["corporate_badge", "live"],
+        ["special_request_badge", "live"],
+      ],
+    );
   });
 
   it("places a stay bar on the occupied nights only", () => {
