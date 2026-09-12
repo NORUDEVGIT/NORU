@@ -9,12 +9,29 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
+  CASHIER_ACCESS_ROLES,
   canManageCashiering,
   requireCashierManager,
   requireCashieringAccess,
 } from "./cashiering.server";
 import { callerMembership } from "@/core/lib/workforce.server";
+import { requireReservationManager } from "./reservations.server";
+import { requirePmsPackage } from "./pms-package.server";
 import { propertyToday } from "./reservation-dates";
+import { evaluateNa1Blockers } from "./na1.server";
+import {
+  canConfirmNightAudit,
+  canEnableConfirm,
+  nextBusinessDate,
+  remainingBlockerCount,
+  snapshotBlockers,
+  workspaceStatus,
+  type Na1BlockerSnapshot,
+  type NaBlockerRow,
+  type NaFolioLane,
+  type NaLastClosed,
+  type NaWorkspaceStatus,
+} from "./na1";
 import {
   NON_IGNORABLE_TYPES,
   evaluateAudit,
@@ -58,6 +75,9 @@ export interface AuditSummary {
   blockingResolved: number;
   inHouse: number;
   checks: AreaCheck[];
+  blockers?: Na1BlockerSnapshot[];
+  previousBusinessDate?: string;
+  nextBusinessDate?: string;
 }
 
 export interface NightAuditState {
@@ -74,6 +94,9 @@ export interface NightAuditState {
   shifts: ShiftReconciliation[];
   finance: AuditFinance;
   canClose: boolean;
+  blockers: NaBlockerRow[];
+  workspaceStatus: NaWorkspaceStatus;
+  lastClosed: NaLastClosed | null;
 }
 
 /* ----------------------------------------------------------------- helpers */
@@ -159,14 +182,47 @@ async function staffNames(admin: any, restaurantId: string, membershipIds: strin
   return names;
 }
 
+function folioLaneForRole(role: string): NaFolioLane {
+  return (CASHIER_ACCESS_ROLES as readonly string[]).includes(role) ? "live" : "unavailable";
+}
+
+async function requireNightAuditView(
+  context: Parameters<typeof requireCashieringAccess>[0],
+  restaurantId: string,
+) {
+  try {
+    return await requireCashieringAccess(context, restaurantId);
+  } catch (cashErr) {
+    try {
+      return await requireReservationManager(context, restaurantId);
+    } catch {
+      throw cashErr;
+    }
+  }
+}
+
+export const getPropertyBusinessDate = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .handler(async ({ data, context }) => {
+    await callerMembership(context as never, data.restaurantId);
+    await requirePmsPackage(data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return loadProperty(supabaseAdmin, data.restaurantId);
+  });
+
 /* ------------------------------------------------------------------ access */
 
 export const getNightAuditAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
-    return { canManage: canManageCashiering(me.role), role: me.role };
+    const me = await requireNightAuditView(context as never, data.restaurantId);
+    return {
+      canManage: canManageCashiering(me.role),
+      canConfirm: canConfirmNightAudit(me.role),
+      role: me.role,
+    };
   });
 
 /* -------------------------------------------------------------- run / sync */
@@ -175,9 +231,10 @@ export const runNightAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditState> => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requireNightAuditView(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
+    const folioLane = folioLaneForRole(me.role);
 
     // One run per property/business date.
     let { data: runRow } = await supabaseAdmin
@@ -229,6 +286,12 @@ export const runNightAudit = createServerFn({ method: "POST" })
       data.restaurantId,
       property.businessDate,
       property.currency,
+    );
+    const blockers = await evaluateNa1Blockers(
+      supabaseAdmin,
+      data.restaurantId,
+      property.businessDate,
+      folioLane,
     );
 
     // A closed business date is immutable — report it, never re-derive it.
@@ -321,10 +384,37 @@ export const runNightAudit = createServerFn({ method: "POST" })
       }
     }
 
+    const { data: lastClosedRow } = await supabaseAdmin
+      .from("night_audit_runs")
+      .select("business_date, closed_at, closed_by_membership_id, summary")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "closed")
+      .order("business_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastClosedRaw = lastClosedRow as {
+      business_date: string;
+      closed_at: string | null;
+      closed_by_membership_id: string | null;
+      summary: AuditSummary | null;
+    } | null;
+
     const names = await staffNames(supabaseAdmin, data.restaurantId, [
       run.started_by_membership_id ?? "",
       run.closed_by_membership_id ?? "",
+      lastClosedRaw?.closed_by_membership_id ?? "",
     ]);
+
+    const lastClosed: NaLastClosed | null = lastClosedRaw
+      ? {
+          who: lastClosedRaw.closed_by_membership_id
+            ? (names.get(lastClosedRaw.closed_by_membership_id) ?? null)
+            : null,
+          when: lastClosedRaw.closed_at,
+          previousBusinessDate: lastClosedRaw.summary?.previousBusinessDate ?? lastClosedRaw.business_date,
+          nextBusinessDate: lastClosedRaw.summary?.nextBusinessDate ?? nextBusinessDate(lastClosedRaw.business_date),
+        }
+      : null;
 
     return {
       businessDate: property.businessDate,
@@ -352,7 +442,10 @@ export const runNightAudit = createServerFn({ method: "POST" })
       overstays: evaluation.overstays,
       shifts: evaluation.shifts,
       finance: evaluation.finance,
-      canClose: run.status !== "closed" && blockingCount === 0,
+      canClose: run.status !== "closed" && canEnableConfirm(blockers),
+      blockers,
+      workspaceStatus: workspaceStatus({ closed: run.status === "closed", rows: blockers }),
+      lastClosed,
     };
   });
 
@@ -421,8 +514,14 @@ export const updateException = createServerFn({ method: "POST" })
 
 export const closeBusinessDate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; runId: string }) =>
-    z.object({ restaurantId: idSchema, runId: idSchema }).parse(d),
+  .inputValidator((d: { restaurantId: string; runId: string; notes?: string }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        runId: idSchema,
+        notes: z.string().max(500).optional(),
+      })
+      .parse(d),
   )
   .handler(
     async ({
@@ -461,6 +560,18 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         run.business_date,
         property.currency,
       );
+      const blockers = await evaluateNa1Blockers(
+        supabaseAdmin,
+        data.restaurantId,
+        run.business_date,
+        folioLaneForRole(me.role),
+      );
+      if (remainingBlockerCount(blockers) > 0) {
+        return {
+          ok: false,
+          message: "Live blockers are still open. Clear them in Front Office or Cashiering before closing.",
+        };
+      }
       if (evaluation.exceptions.some((e) => e.severity === "blocking")) {
         return {
           ok: false,
@@ -485,12 +596,16 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         .eq("night_audit_run_id", run.id);
       const rows = (allExceptions ?? []) as Array<{ severity: string; status: string }>;
 
+      const rolledTo = nextBusinessDate(run.business_date);
       const summary = {
         finance: evaluation.finance,
         warnings: rows.filter((r) => r.severity === "warning").length,
         blockingResolved: rows.filter((r) => r.severity === "blocking").length,
         inHouse: evaluation.overstays.length,
         checks: evaluation.checks,
+        blockers: snapshotBlockers(blockers),
+        previousBusinessDate: run.business_date,
+        nextBusinessDate: rolledTo,
       };
 
       const { error } = await supabaseAdmin.rpc("close_business_date", {
@@ -500,6 +615,11 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         _membership_id: me.id,
       });
       if (error) return { ok: false, message: nightAuditError(error.message).message };
+
+      const note = (data.notes ?? "").trim();
+      if (note) {
+        await supabaseAdmin.from("night_audit_runs").update({ notes: note }).eq("id", run.id);
+      }
 
       const after = await loadProperty(supabaseAdmin, data.restaurantId);
       return {
@@ -517,7 +637,7 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditRunRow[]> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requireNightAuditView(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows } = await supabaseAdmin
       .from("night_audit_runs")
@@ -570,7 +690,7 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
       exceptions: AuditException[];
       currency: string;
     } | null> => {
-      await requireCashieringAccess(context as never, data.restaurantId);
+      await requireNightAuditView(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
       const { data: row } = await supabaseAdmin

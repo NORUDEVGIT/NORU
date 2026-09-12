@@ -1,41 +1,47 @@
-import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { Button } from "@/shared/components/ui/button";
 import {
-  ChecklistPanel,
-  ExceptionsPanel,
-  NoShowPanel,
-  RevenuePanel,
-  RunStatusBadge,
-  ShiftsPanel,
-} from "@/packages/pms/components/nightaudit/night-audit-panels";
+  NaBlockerBoard,
+  NaClosePanel,
+  NaCloseSummary,
+  NaHistoryList,
+  NaStatusChip,
+} from "@/packages/pms/components/nightaudit/na1-panels";
 import {
   closeBusinessDate,
   listNightAuditRuns,
   getNightAuditAccess,
   runNightAudit,
-  updateException,
 } from "@/packages/pms/lib/nightaudit.functions";
-import { markNoShow } from "@/packages/pms/lib/frontoffice.functions";
-import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
-import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { NA1_TITLE, formatNa1Date, workspaceStatus } from "@/packages/pms/lib/na1";
+import { PROPERTY_BUSINESS_DATE_KEY } from "@/packages/pms/lib/use-property-business-date";
+import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
+import { PageHeading } from "@/core/state/pms-context";
 
 export function NightAuditWorkspace({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const queryClient = useQueryClient();
-  const money = useMoney();
   const { dateTime } = useRestaurantTime();
+  const [phone, setPhone] = useState(false);
+  const [note, setNote] = useState("");
+  const [closeError, setCloseError] = useState<string | null>(null);
+  const [historyTab, setHistoryTab] = useState<"history" | "summary">("history");
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => setPhone(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   const fetchAccess = useServerFn(getNightAuditAccess);
   const run = useServerFn(runNightAudit);
   const history = useServerFn(listNightAuditRuns);
-  const resolve = useServerFn(updateException);
-  const noShow = useServerFn(markNoShow);
   const close = useServerFn(closeBusinessDate);
 
   const accessQuery = useQuery({
@@ -43,7 +49,7 @@ export function NightAuditWorkspace({ membership }: { membership: RestaurantMemb
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
-  const canManage = accessQuery.data?.canManage === true;
+  const role = accessQuery.data?.role ?? membership.role;
 
   const auditQuery = useQuery({
     queryKey: ["night-audit", restaurantId],
@@ -59,47 +65,32 @@ export function NightAuditWorkspace({ membership }: { membership: RestaurantMemb
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["night-audit", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["night-audit-history", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["front-office"] });
+    void queryClient.invalidateQueries({ queryKey: [PROPERTY_BUSINESS_DATE_KEY, restaurantId] });
   };
 
-  const exceptionMutation = useMutation({
-    mutationFn: (v: { exceptionId: string; action: "resolve" | "ignore" }) =>
-      resolve({ data: { restaurantId, ...v } }),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success("Exception updated.");
-      refresh();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const noShowMutation = useMutation({
-    mutationFn: (reservationId: string) =>
-      noShow({ data: { restaurantId, reservationId, today: auditQuery.data?.businessDate ?? "" } }),
-    onSuccess: () => {
-      toast.success("Reservation marked as no-show.");
-      refresh();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const closeMutation = useMutation({
-    mutationFn: (runId: string) => close({ data: { restaurantId, runId } }),
+    mutationFn: (runId: string) =>
+      close({ data: { restaurantId, runId, ...(note.trim() ? { notes: note.trim() } : {}) } }),
     onSuccess: (result) => {
       if (!result.ok) {
+        setCloseError(result.message);
         toast.error(result.message);
         return;
       }
+      setCloseError(null);
+      setNote("");
       toast.success(
         result.alreadyClosed
-          ? `${formatStayDate(result.businessDate)} was already closed.`
-          : `Business date ${formatStayDate(result.businessDate)} closed. Now on ${formatStayDate(result.nextBusinessDate)}.`,
+          ? `${formatNa1Date(result.businessDate)} was already closed.`
+          : `Business date ${formatNa1Date(result.businessDate)} closed. Now on ${formatNa1Date(result.nextBusinessDate)}.`,
       );
       refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      setCloseError(e.message);
+      toast.error(e.message);
+    },
   });
 
   if (auditQuery.isLoading) return <p className="text-sm text-muted-foreground">Running night audit…</p>;
@@ -108,110 +99,90 @@ export function NightAuditWorkspace({ membership }: { membership: RestaurantMemb
   if (!state) return null;
 
   const closed = state.run.status === "closed";
-  const busy = exceptionMutation.isPending || noShowMutation.isPending || closeMutation.isPending;
+  const status = workspaceStatus({
+    closed,
+    inProgress: closeMutation.isPending,
+    rows: state.blockers,
+  });
+  const latestClosed =
+    historyQuery.data?.find((row) => row.status === "closed") ?? (closed ? state.run : null);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl"><PageHeading fallback="Night Audit" /></h1>
-          <p className="text-sm text-muted-foreground">End-of-day close for {membership.restaurant.name}.</p>
-          <p className="mt-2 text-3xl font-semibold">{formatStayDate(state.businessDate)}</p>
-          <p className="text-xs text-muted-foreground">Current business date</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <RunStatusBadge status={state.run.status} />
-          <Button variant="outline" disabled={auditQuery.isFetching} onClick={() => refresh()}>
-            {auditQuery.isFetching ? "Refreshing…" : "Run / refresh audit"}
-          </Button>
-          {canManage ? (
-          <Button
-            disabled={!state.canClose || busy || closed}
-            onClick={() => closeMutation.mutate(state.run.id)}
-          >
-            Close business date
-          </Button>
+          <h1 className="font-display text-2xl text-[#251605]">
+            <PageHeading fallback={NA1_TITLE} />
+          </h1>
+          <p className="mt-2 text-3xl font-semibold">{formatNa1Date(state.businessDate)}</p>
+          <p className="text-xs text-muted-foreground">Property business date</p>
+          {state.lastClosed ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Last closed {formatNa1Date(state.lastClosed.previousBusinessDate)} →{" "}
+              {formatNa1Date(state.lastClosed.nextBusinessDate)}
+              {state.lastClosed.who ? ` · ${state.lastClosed.who}` : ""}
+              {state.lastClosed.when ? ` · ${dateTime(state.lastClosed.when)}` : ""}
+            </p>
           ) : null}
         </div>
+        <NaStatusChip status={status} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Blocking exceptions</p>
-          <p className="text-2xl font-semibold">{state.blockingCount}</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Warnings</p>
-          <p className="text-2xl font-semibold">{state.warningCount}</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Audit started</p>
-          <p className="text-sm font-medium">{dateTime(state.run.startedAt)}</p>
-          <p className="text-xs text-muted-foreground">{state.run.startedBy ?? "—"}</p>
-        </div>
+      <div className="hidden gap-6 md:grid md:grid-cols-[minmax(0,1fr)_340px]">
+        <NaBlockerBoard rows={state.blockers} />
+        <NaClosePanel
+          businessDate={state.businessDate}
+          rows={state.blockers}
+          role={role}
+          phone={false}
+          closed={closed}
+          busy={closeMutation.isPending}
+          note={note}
+          onNoteChange={setNote}
+          onConfirm={() => closeMutation.mutate(state.run.id)}
+          error={closeError}
+        />
       </div>
 
-      {closed ? (
-        <p className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
-          This business date is closed and read-only. Closed by {state.run.closedBy ?? "—"} on{" "}
-          {dateTime(state.run.closedAt)}.
-        </p>
-      ) : null}
-
-      <ChecklistPanel checks={state.checks} />
-      <ExceptionsPanel
-        exceptions={state.exceptions}
-        busy={busy}
-        readOnly={!canManage}
-        onUpdate={(exceptionId, action) => exceptionMutation.mutate({ exceptionId, action })}
-      />
-      <NoShowPanel state={state} readOnly={!canManage} busy={busy} onNoShow={(id) => noShowMutation.mutate(id)} />
-      <ShiftsPanel state={state} />
-      <RevenuePanel state={state} />
+      <div className="space-y-4 md:hidden">
+        <NaBlockerBoard rows={state.blockers} readOnly />
+        <NaClosePanel
+          businessDate={state.businessDate}
+          rows={state.blockers}
+          role={role}
+          phone
+          closed={closed}
+          busy={false}
+          note=""
+          onNoteChange={() => undefined}
+          onConfirm={() => undefined}
+          error={null}
+        />
+      </div>
 
       <section className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="font-display text-lg">History</h2>
-        {historyQuery.data && historyQuery.data.length > 0 ? (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="py-2">Business date</th>
-                  <th>Status</th>
-                  <th>Started by</th>
-                  <th>Closed by</th>
-                  <th>Closed at</th>
-                  <th className="text-right">Room revenue</th>
-                  <th className="text-right">Payments</th>
-                  <th className="text-right">Refunds</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {historyQuery.data.map((r) => (
-                  <tr key={r.id} className="border-t border-border">
-                    <td className="py-2">{formatStayDate(r.businessDate)}</td>
-                    <td className="capitalize">{r.status}</td>
-                    <td>{r.startedBy ?? "—"}</td>
-                    <td>{r.closedBy ?? "—"}</td>
-                    <td>{r.closedAt ? dateTime(r.closedAt) : "—"}</td>
-                    <td className="text-right">{r.summary ? money(r.summary.finance.roomRevenue) : "—"}</td>
-                    <td className="text-right">{r.summary ? money(r.summary.finance.payments) : "—"}</td>
-                    <td className="text-right">{r.summary ? money(r.summary.finance.refunds) : "—"}</td>
-                    <td className="text-right">
-                      <Button asChild size="sm" variant="ghost">
-                        <Link to="/restaurant/cashiering/night-audit/$runId" params={{ runId: r.id }}>
-                          View
-                        </Link>
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={`rounded-full px-3 py-1 text-sm ${historyTab === "history" ? "bg-muted font-medium" : "text-muted-foreground"}`}
+            onClick={() => setHistoryTab("history")}
+          >
+            History
+          </button>
+          <button
+            type="button"
+            className={`rounded-full px-3 py-1 text-sm ${historyTab === "summary" ? "bg-muted font-medium" : "text-muted-foreground"}`}
+            onClick={() => setHistoryTab("summary")}
+          >
+            Summary
+          </button>
+        </div>
+        {historyTab === "history" ? (
+          <NaHistoryList runs={historyQuery.data ?? []} />
         ) : (
-          <p className="mt-2 text-sm text-muted-foreground">No audit history yet.</p>
+          <div className="mt-4">
+            <NaCloseSummary run={latestClosed} lastClosed={state.lastClosed} />
+          </div>
         )}
       </section>
     </div>

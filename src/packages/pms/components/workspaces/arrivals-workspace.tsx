@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -22,7 +22,7 @@ import { StayMoneyStrip } from "@/packages/pms/components/frontoffice/fo-stay-mo
 import { listFoStaySignals } from "@/packages/pms/lib/fo-exceptions.functions";
 import { listArrivals, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
@@ -47,9 +47,12 @@ export function ArrivalsWorkspace({
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
-  const today = propertyToday(timezone);
+  const today = usePropertyBusinessDate(restaurantId, timezone);
 
   const [date, setDate] = useState(today);
+  useEffect(() => {
+    setDate(today);
+  }, [today]);
   const [status, setStatus] = useState(variant === "checkin" ? "confirmed" : ALL);
   const [assignment, setAssignment] = useState(variant === "assignment" ? "unassigned" : ALL);
   const [checkIn, setCheckIn] = useState<FrontOfficeStay | null>(null);

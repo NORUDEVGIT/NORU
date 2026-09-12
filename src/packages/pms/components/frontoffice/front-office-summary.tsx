@@ -7,12 +7,12 @@ import { CalendarCheck, DoorClosed, DoorOpen, Hotel, LogIn, Search, UserPlus, Wr
 import { Button } from "@/shared/components/ui/button";
 import { CheckInDialog, WalkInDialog } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { getFrontOfficeDashboard, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 
 export function FrontOfficeSummary({ restaurantId }: { restaurantId: string }) {
   const timezone = useRestaurantTimezone();
-  const today = propertyToday(timezone);
+  const today = usePropertyBusinessDate(restaurantId, timezone);
   const [walkIn, setWalkIn] = useState(false);
   const [checkInStay, setCheckInStay] = useState<FrontOfficeStay | null>(null);
 
