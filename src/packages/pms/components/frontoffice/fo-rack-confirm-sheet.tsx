@@ -1,8 +1,11 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -11,7 +14,11 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
-import { changeStayDates, moveReservationRoom } from "@/packages/pms/lib/frontoffice.functions";
+import {
+  changeStayDates,
+  listOccupancy,
+  moveReservationRoom,
+} from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import {
   RACK_CONFIRM_WIDTH_PX,
@@ -24,8 +31,10 @@ import {
   formatFoDate,
   rackRateImpact,
   roomHasOverlap,
+  stayDateWriteInput,
   type AssignableLookup,
   type RackConfirmDraft,
+  type RackDatesDraft,
 } from "@/packages/pms/lib/fo-rack-power";
 
 function errorText(error: unknown): string {
@@ -38,6 +47,7 @@ export function FoRackConfirmSheet({
   open,
   overlappingStays,
   onOpenChange,
+  editableDates = false,
 }: {
   restaurantId: string;
   draft: RackConfirmDraft | null;
@@ -50,16 +60,42 @@ export function FoRackConfirmSheet({
     status: string;
   }>;
   onOpenChange: (open: boolean) => void;
+  editableDates?: boolean;
 }) {
   const money = useMoney();
   const queryClient = useQueryClient();
   const fetchAssignable = useServerFn(listAssignableRooms);
+  const fetchOccupancy = useServerFn(listOccupancy);
   const move = useServerFn(moveReservationRoom);
   const change = useServerFn(changeStayDates);
+  const [editArrival, setEditArrival] = useState(draft?.kind === "change_dates" ? draft.nextArrivalDate : "");
+  const [editDeparture, setEditDeparture] = useState(
+    draft?.kind === "change_dates" ? draft.nextDepartureDate : "",
+  );
 
-  const arrival = draft?.kind === "change_dates" ? draft.nextArrivalDate : draft?.arrivalDate;
-  const departure = draft?.kind === "change_dates" ? draft.nextDepartureDate : draft?.departureDate;
-  const roomTypeId = draft?.currentRoomTypeId ?? null;
+  const seedArrival = draft?.kind === "change_dates" ? draft.nextArrivalDate : "";
+  const seedDeparture = draft?.kind === "change_dates" ? draft.nextDepartureDate : "";
+  useEffect(() => {
+    if (!open) return;
+    setEditArrival(seedArrival);
+    setEditDeparture(seedDeparture);
+  }, [open, seedArrival, seedDeparture]);
+
+  const dateDraft: RackDatesDraft | null =
+    draft?.kind === "change_dates"
+      ? {
+          ...draft,
+          nextArrivalDate: editableDates ? editArrival : draft.nextArrivalDate,
+          nextDepartureDate: editableDates ? editDeparture : draft.nextDepartureDate,
+        }
+      : null;
+  const activeDraft: RackConfirmDraft | null = dateDraft ?? draft;
+
+  const arrival = dateDraft ? dateDraft.nextArrivalDate : activeDraft?.arrivalDate;
+  const departure = dateDraft ? dateDraft.nextDepartureDate : activeDraft?.departureDate;
+  const roomTypeId = activeDraft?.currentRoomTypeId ?? null;
+  const needsAssignable =
+    !!activeDraft && (activeDraft.kind === "move_room" || !!activeDraft.currentRoomId);
 
   const assignableQuery = useQuery({
     queryKey: [
@@ -81,35 +117,63 @@ export function FoRackConfirmSheet({
           excludeReservationId: draft!.reservationId,
         },
       }),
-    enabled: open && !!draft && !!roomTypeId && !!arrival && !!departure && departure > (arrival ?? ""),
+    enabled:
+      open &&
+      needsAssignable &&
+      !!roomTypeId &&
+      !!arrival &&
+      !!departure &&
+      departure > (arrival ?? ""),
     retry: false,
   });
 
-  const lookup: AssignableLookup | null = !draft
-    ? null
-    : assignableQuery.isPending
-      ? { state: "pending" }
-      : assignableQuery.isError
-        ? { state: "error" }
-        : assignableQuery.data
-          ? { state: "ready", roomIds: assignableQuery.data.map((room) => room.id) }
-          : { state: "pending" };
+  const occupancyQuery = useQuery({
+    queryKey: ["front-office", "occupancy", restaurantId],
+    queryFn: () => fetchOccupancy({ data: { restaurantId } }),
+    enabled: open && !!dateDraft?.currentRoomId && dateDraft.currentRoomStatus === undefined,
+    retry: false,
+  });
 
-  const overlapRoomId = draft?.kind === "move_room" ? draft.targetRoomId : draft?.currentRoomId;
+  const lookup: AssignableLookup | null = !activeDraft
+    ? null
+    : !needsAssignable
+      ? { state: "ready", roomIds: [] }
+      : assignableQuery.isPending
+        ? { state: "pending" }
+        : assignableQuery.isError
+          ? { state: "error" }
+          : assignableQuery.data
+            ? { state: "ready", roomIds: assignableQuery.data.map((room) => room.id) }
+            : { state: "pending" };
+
+  const overlapRoomId = activeDraft?.kind === "move_room" ? activeDraft.targetRoomId : activeDraft?.currentRoomId;
   const localOverlap =
-    !!draft &&
+    !!activeDraft &&
     !!overlapRoomId &&
     roomHasOverlap({
       roomId: overlapRoomId,
-      arrival: arrival ?? draft.arrivalDate,
-      departure: departure ?? draft.departureDate,
-      excludeReservationId: draft.reservationId,
+      arrival: arrival ?? activeDraft.arrivalDate,
+      departure: departure ?? activeDraft.departureDate,
+      excludeReservationId: activeDraft.reservationId,
       stays: overlappingStays,
     });
 
-  const checks = draft ? evaluateRackChecks(draft, lookup, localOverlap) : [];
+  const occupancyRoom =
+    dateDraft?.currentRoomId && occupancyQuery.data
+      ? occupancyQuery.data.find((room) => room.id === dateDraft.currentRoomId)
+      : undefined;
+  const evaluatedDraft: RackConfirmDraft | null =
+    dateDraft && dateDraft.currentRoomId && dateDraft.currentRoomStatus === undefined
+      ? occupancyQuery.isError
+        ? { ...dateDraft, currentRoomStatus: null }
+        : occupancyQuery.data
+          ? { ...dateDraft, currentRoomStatus: occupancyRoom?.status ?? null }
+          : dateDraft
+      : activeDraft;
+
+  const checks = evaluatedDraft ? evaluateRackChecks(evaluatedDraft, lookup, localOverlap) : [];
   const canConfirm = canConfirmRackChecks(checks);
-  const rate = draft?.kind === "change_dates" ? rackRateImpact(draft) : null;
+  const rate = dateDraft ? rackRateImpact(dateDraft) : null;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -128,7 +192,7 @@ export function FoRackConfirmSheet({
         data: {
           restaurantId,
           reservationId: draft.reservationId,
-          departure: draft.nextDepartureDate,
+          ...stayDateWriteInput(dateDraft ?? draft),
         },
       });
     },
@@ -164,6 +228,28 @@ export function FoRackConfirmSheet({
           </SheetHeader>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            {editableDates && dateDraft ? (
+              <div className="grid grid-cols-2 gap-3" data-testid="fo-stay-date-editors">
+                <div className="space-y-2">
+                  <Label htmlFor="fo-edit-arrival">Arrival</Label>
+                  <Input
+                    id="fo-edit-arrival"
+                    type="date"
+                    value={editArrival}
+                    onChange={(e) => setEditArrival(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="fo-edit-departure">Departure</Label>
+                  <Input
+                    id="fo-edit-departure"
+                    type="date"
+                    value={editDeparture}
+                    onChange={(e) => setEditDeparture(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : null}
             <div className="rounded-xl border border-border p-3" data-testid="fo-rack-before-after">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Before → After</p>
               {draft.kind === "move_room" ? (
@@ -188,7 +274,8 @@ export function FoRackConfirmSheet({
                   <div>
                     <dt className="text-xs text-muted-foreground">New dates</dt>
                     <dd>
-                      {formatFoDate(draft.nextArrivalDate)} → {formatFoDate(draft.nextDepartureDate)}
+                      {formatFoDate(dateDraft?.nextArrivalDate ?? draft.nextArrivalDate)} →{" "}
+                      {formatFoDate(dateDraft?.nextDepartureDate ?? draft.nextDepartureDate)}
                     </dd>
                   </div>
                 </dl>

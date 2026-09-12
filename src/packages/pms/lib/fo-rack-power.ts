@@ -2,9 +2,11 @@
  * FO-FS5 — Room Rack + Calendar confirm-before-write (pure).
  *
  * Drop / resize never write. Confirm is the only path that may invoke
- * moveReservationRoom or changeStayDates. Dirty / pickup block DnD Confirm
- * via isRoomReady; the menu Room Move dialog is unchanged. Never invent
- * badge flags, package math, or a green checklist while an API check is pending.
+ * moveReservationRoom or changeStayDates({ arrival, departure }). Dirty /
+ * pickup block DnD Confirm via isRoomReady; the menu Room Move dialog is
+ * unchanged. Date Confirm is eligible for pending / confirmed / checked_in.
+ * Never invent badge flags, package math, or a green checklist while an API
+ * check is pending.
  */
 import { isRoomReady, type RoomReadiness } from "./fo-check-in.ts";
 import { RATE_IMPACT_UNAVAILABLE, rateImpact, type RateImpact } from "./fo-amendments.ts";
@@ -29,9 +31,9 @@ export const NO_STAYS_MATCH_FILTERS = "No stays match these filters.";
 export const UNAVAILABLE_TO_VERIFY = "Unavailable to verify";
 export const RACK_LOAD_FAILED = "Room Rack + Calendar could not be loaded.";
 export const RACK_WINDOW_TRUNCATED = "Room Rack + Calendar could not load every stay in this window.";
-export const RACK_ARRIVAL_LOCKED =
-  "Arrival cannot be changed from Room Rack + Calendar. The live stay-date API updates departure only.";
 export const RACK_IN_HOUSE_ONLY = "This live action is only available for in-house guests.";
+export const DATE_CHANGE_ELIGIBLE = ["pending", "confirmed", "checked_in"] as const;
+export const CHOOSE_NEW_DATES = "Choose a new arrival or departure date.";
 export const RACK_LIST_PAGE_SIZE = 200;
 export const RACK_LIST_PAGE_SIZE_WIDE = 400;
 export const RACK_LIST_PAGE_SIZE_MAX = 500;
@@ -115,6 +117,9 @@ export type RackDatesDraft = {
   nextDepartureDate: string;
   roomSubtotal: number | null;
   nightlyRates: Array<{ date: string; rate: number }> | null;
+  currentRoomStatus?: string | null;
+  currentHousekeeping?: string | null;
+  hkKnown?: boolean;
 };
 
 export type RackConfirmDraft = RackMoveDraft | RackDatesDraft;
@@ -249,6 +254,31 @@ function inHouseCheck(status: string): ValidationCheck {
   return check("in_house", "In-house stay", "fail", RACK_IN_HOUSE_ONLY);
 }
 
+export function dateChangeIneligibleReason(status: string): string | null {
+  if ((DATE_CHANGE_ELIGIBLE as readonly string[]).includes(status)) return null;
+  if (status === "checked_out") return "This stay is checked out.";
+  if (status === "cancelled") return "This stay is cancelled.";
+  if (status === "no_show") return "This stay is a no-show.";
+  return "This stay cannot change dates.";
+}
+
+function eligibleStayCheck(status: string): ValidationCheck {
+  const reason = dateChangeIneligibleReason(status);
+  if (!reason) return check("eligible", "Eligible stay", "pass");
+  return check("eligible", "Eligible stay", "fail", reason);
+}
+
+function assignedRoomHousekeepingCheck(input: {
+  status: string | null;
+  housekeepingStatus: string | null;
+  hkKnown: boolean;
+}): ValidationCheck {
+  if (!input.hkKnown || !input.status) {
+    return check("housekeeping", "Housekeeping", "unknown", UNAVAILABLE_TO_VERIFY);
+  }
+  return check("housekeeping", "Housekeeping", "pass");
+}
+
 function housekeepingCheck(input: {
   status: string | null;
   housekeepingStatus: string | null;
@@ -330,20 +360,17 @@ export function evaluateDateChecks(
   lookup: AssignableLookup | null,
   localOverlap: boolean,
 ): ValidationCheck[] {
-  const arrivalLocked = draft.nextArrivalDate === draft.arrivalDate;
-  const departureChanged = draft.nextDepartureDate !== draft.departureDate;
   const datesValid = draft.nextDepartureDate > draft.nextArrivalDate;
+  const datesChanged =
+    draft.nextArrivalDate !== draft.arrivalDate || draft.nextDepartureDate !== draft.departureDate;
   const checks: ValidationCheck[] = [
-    inHouseCheck(draft.status),
+    eligibleStayCheck(draft.status),
     datesValid
       ? check("dates_valid", "Valid dates", "pass")
       : check("dates_valid", "Valid dates", "fail", "Departure must be after arrival."),
-    arrivalLocked
-      ? check("arrival", "Arrival unchanged", "pass")
-      : check("arrival", "Arrival unchanged", "fail", RACK_ARRIVAL_LOCKED),
-    departureChanged
-      ? check("departure", "Departure changed", "pass")
-      : check("departure", "Departure changed", "fail", "Choose a new departure date."),
+    datesChanged
+      ? check("dates_changed", "Dates changed", "pass")
+      : check("dates_changed", "Dates changed", "fail", CHOOSE_NEW_DATES),
   ];
   if (draft.currentRoomId) {
     checks.push(
@@ -353,8 +380,24 @@ export function evaluateDateChecks(
         targetRoomId: draft.currentRoomId,
       }),
     );
+    if (draft.currentRoomStatus !== undefined) {
+      checks.push(roomStatusCheck(draft.currentRoomStatus));
+    }
+    if (draft.hkKnown !== undefined) {
+      checks.push(
+        assignedRoomHousekeepingCheck({
+          status: draft.currentRoomStatus ?? null,
+          housekeepingStatus: draft.currentHousekeeping ?? null,
+          hkKnown: draft.hkKnown,
+        }),
+      );
+    }
   }
   return checks;
+}
+
+export function stayDateWriteInput(draft: RackDatesDraft): { arrival: string; departure: string } {
+  return { arrival: draft.nextArrivalDate, departure: draft.nextDepartureDate };
 }
 
 export function evaluateRackChecks(

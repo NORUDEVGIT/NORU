@@ -11,6 +11,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   assertDateOnly,
+  assertStayDates,
   nightsBetween,
   requireReservationManager,
   reservationError,
@@ -422,20 +423,28 @@ export const moveReservationRoom = createServerFn({ method: "POST" })
 export const changeStayDates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, reservationId: idSchema, departure: dateSchema }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        arrival: dateSchema,
+        departure: dateSchema,
+      })
+      .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string; departure: string }> => {
+  .handler(async ({ data, context }): Promise<{ id: string; arrival: string; departure: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
-    const departure = assertDateOnly(data.departure, "Departure date");
+    const { arrival, departure } = assertStayDates(data.arrival, data.departure);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("change_hotel_stay_dates", {
       _restaurant_id: data.restaurantId,
       _reservation_id: data.reservationId,
+      _arrival: arrival,
       _departure: departure,
       _membership_id: me.id,
     });
     if (error) throw reservationError(error.message);
-    return { id: data.reservationId, departure };
+    return { id: data.reservationId, arrival, departure };
   });
 
 export const markNoShow = createServerFn({ method: "POST" })

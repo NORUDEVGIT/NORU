@@ -5040,6 +5040,7 @@ export type Database = {
       }
       change_hotel_stay_dates: {
         Args: {
+          _arrival: string
           _departure: string
           _membership_id: string
           _reservation_id: string

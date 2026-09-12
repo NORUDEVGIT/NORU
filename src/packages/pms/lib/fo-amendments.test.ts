@@ -169,6 +169,7 @@ describe("FO-FS4 history labels", () => {
     assert.equal(amendmentEventLabel("room_moved"), "Room moved");
     assert.equal(amendmentEventLabel("stay_extended"), "Stay extended");
     assert.equal(amendmentEventLabel("stay_shortened"), "Stay shortened");
+    assert.equal(amendmentEventLabel("stay_dates_changed"), "Stay dates changed");
     assert.equal(amendmentEventLabel("check_in"), "Checked in");
     assert.equal(amendmentEventLabel("check_out"), "Checked out");
     assert.equal(amendmentEventLabel("repriced"), "Repriced");

@@ -645,6 +645,8 @@ function CalendarBoard({
       onPreview(null);
       return;
     }
+    const assigned = stay.roomId ? rooms.find((room) => room.id === stay.roomId) : undefined;
+    const hk = stay.roomId ? hkByRoom.get(stay.roomId) : undefined;
     onOpenConfirm({
       kind: "change_dates",
       reservationId: stay.id,
@@ -658,6 +660,9 @@ function CalendarBoard({
       departureDate: stay.departureDate,
       nextArrivalDate: nextArrival,
       nextDepartureDate: nextDeparture,
+      currentRoomStatus: assigned?.status ?? null,
+      currentHousekeeping: hk?.housekeepingStatus ?? null,
+      hkKnown: !!stay.roomId && hkAvailable && !!hk,
       roomSubtotal: stay.roomSubtotal,
       nightlyRates: stay.nightlyRates,
     });
