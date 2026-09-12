@@ -18,7 +18,15 @@ import { PageHeading, NonPmsOnly, PmsOnly } from "@/core/state/pms-context";
 const TABS = ["dashboard", "folios", "payments", "deposits", "refunds", "transfers", "shifts"] as const;
 type CashieringTabKey = (typeof TABS)[number];
 
-export function CashieringWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
+export function CashieringWorkspace({
+  membership,
+  initialTab,
+  initialFolioSearch,
+}: {
+  membership: RestaurantMembership;
+  initialTab?: string | undefined;
+  initialFolioSearch?: string | undefined;
+}) {
   const restaurantId = membership.restaurant.id;
   const today = propertyToday(membership.restaurant.timezone);
   const searchTab = initialTab;
@@ -76,7 +84,11 @@ export function CashieringWorkspace({ membership, initialTab }: { membership: Re
           <CashieringDashboardTab restaurantId={restaurantId} today={today} />
         </TabsContent>
         <TabsContent value="folios" className="mt-4">
-          <FoliosTab restaurantId={restaurantId} status="all" />
+          <FoliosTab
+            restaurantId={restaurantId}
+            status="all"
+            {...(initialFolioSearch ? { initialSearch: initialFolioSearch } : {})}
+          />
         </TabsContent>
         <TabsContent value="payments" className="mt-4">
           <LedgerTab

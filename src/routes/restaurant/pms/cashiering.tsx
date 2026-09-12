@@ -7,8 +7,10 @@ import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-l
 
 export const Route = createFileRoute("/restaurant/pms/cashiering")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) =>
-    typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
+    ...(typeof search["folio"] === "string" ? { folio: search["folio"] as string } : {}),
+  }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -35,11 +37,15 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
 });
 
 function CashieringPmsRoute() {
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const search = Route.useSearch() as { tab?: string; folio?: string };
   return (
     <RestaurantShell active="Cashiering" module="cashiering" pms pmsModule="cashiering">
       {(m) => <div className="space-y-8">
-          <CashieringWorkspace membership={m} initialTab={searchTab ?? "dashboard"} />
+          <CashieringWorkspace
+            membership={m}
+            initialTab={search.tab ?? "dashboard"}
+            {...(search.folio ? { initialFolioSearch: search.folio } : {})}
+          />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["accounting_finance"]} />
         </div>}
     </RestaurantShell>

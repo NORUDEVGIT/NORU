@@ -75,13 +75,15 @@ export function CashieringDashboardTab({
 export function FoliosTab({
   restaurantId,
   status,
+  initialSearch,
 }: {
   restaurantId: string;
   status: "all" | "open" | "closed";
+  initialSearch?: string;
 }) {
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch ?? "");
   const [statusFilter, setStatusFilter] = useState(status);
 
   const fetchFolios = useServerFn(listFolios);
