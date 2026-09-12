@@ -125,7 +125,7 @@ export const FO_ACTIONS: FoActionDef[] = [
   { id: "add_remove_guest", label: "Add / Remove Guest", lane: "live", write: "amendReservation", menus: ["sheet"] },
   { id: "add_service", label: "Add Service", lane: "live", menus: ["sheet"] },
   { id: "add_special_request", label: "Add Special Request", lane: "live", write: "amendReservation", menus: ["sheet"] },
-  { id: "cancel_fees", label: "Cancel policy / fees", lane: "coming_soon", menus: ["sheet"] },
+  { id: "cancel_fees", label: "Cancel policy / fees", lane: "live", menus: ["sheet"] },
   { id: "view_folio", label: "View Folio", lane: "live", menus: ["sheet"] },
 ];
 

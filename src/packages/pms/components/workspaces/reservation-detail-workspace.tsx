@@ -8,7 +8,6 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
+import { stayFromReservation } from "@/packages/pms/lib/front-office-shell";
 import {
   Select,
   SelectContent,
@@ -63,7 +64,6 @@ export function ReservationDetailWorkspace({
 
   const [amendOpen, setAmendOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -111,19 +111,16 @@ export function ReservationDetailWorkspace({
   }
 
   const statusMutation = useMutation({
-    mutationFn: (vars: { status: "pending" | "confirmed" | "cancelled"; reason?: string }) =>
+    mutationFn: (vars: { status: "pending" | "confirmed" }) =>
       submitStatus({
         data: {
           restaurantId,
           reservationId,
           status: vars.status,
-          ...(vars.reason ? { reason: vars.reason } : {}),
         },
       }),
     onSuccess: () => {
       toast.success("Reservation updated.");
-      setCancelOpen(false);
-      setCancelReason("");
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -205,7 +202,7 @@ export function ReservationDetailWorkspace({
                 Amend stay
               </Button>
               <Button variant="outline" onClick={() => setCancelOpen(true)}>
-                Cancel
+                Cancel reservation
               </Button>
             </>
           ) : (
@@ -325,41 +322,12 @@ export function ReservationDetailWorkspace({
         fetchRooms={fetchRooms}
       />
 
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel reservation</DialogTitle>
-            <DialogDescription>
-              The stay stops blocking availability. You can restore it later if space allows.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1">
-            <Label htmlFor="cancel-reason">Reason (optional)</Label>
-            <Textarea
-              id="cancel-reason"
-              rows={3}
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelOpen(false)}>
-              Keep reservation
-            </Button>
-            <Button
-              disabled={statusMutation.isPending}
-              onClick={() =>
-                statusMutation.mutate({
-                  status: "cancelled",
-                  ...(cancelReason.trim() ? { reason: cancelReason.trim() } : {}),
-                })
-              }
-            >
-              Cancel reservation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FoCancelStepper
+        restaurantId={restaurantId}
+        stay={stayFromReservation(reservation, reservation.arrivalDate)}
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+      />
     </div>
   );
 }
