@@ -384,12 +384,12 @@ export function isHighException(row: ExceptionRow): boolean {
 }
 
 export function auditActionLabel(eventType: string, newValues: Record<string, unknown> | null): string {
-  if (newValues?.checkout_override === true) return "Supervisor override";
-  if (newValues?.deposit_waived === true) return "Deposit waived";
-  if (newValues?.cancel_fee_waived === true) return "Cancel fee waived";
-  if (newValues?.noshow_fee_waived === true) return "No-show charge waived";
-  if (newValues?.registration_waived === true) return "Registration waived";
-  if (newValues?.key_waived === true) return "Key waived";
+  if (newValues?.["checkout_override"] === true) return "Supervisor override";
+  if (newValues?.["deposit_waived"] === true) return "Deposit waived";
+  if (newValues?.["cancel_fee_waived"] === true) return "Cancel fee waived";
+  if (newValues?.["noshow_fee_waived"] === true) return "No-show charge waived";
+  if (newValues?.["registration_waived"] === true) return "Registration waived";
+  if (newValues?.["key_waived"] === true) return "Key waived";
   const labels: Record<string, string> = {
     check_in: "Check-in",
     check_out: "Checkout settle",
