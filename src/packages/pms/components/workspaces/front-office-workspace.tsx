@@ -36,7 +36,7 @@ import { listArrivals, listInHouse, type FrontOfficeStay } from "@/packages/pms/
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import type { ExceptionCtaId, ExceptionRow, FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { useAuth } from "@/core/state/auth-store";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -66,7 +66,7 @@ export function FrontOfficeWorkspace({
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
-  const today = propertyToday(timezone);
+  const today = usePropertyBusinessDate(restaurantId, timezone);
   const { user } = useAuth();
   const navigate = useNavigate();
 

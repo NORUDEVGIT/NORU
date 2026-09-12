@@ -180,7 +180,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "night-audit",
     title: "Night Audit",
-    description: "Business date close, audit runs and exceptions.",
+    description: "Close of day — blocker board, Confirm date roll and audit history.",
     icon: MoonStar,
     group: "core",
     moduleKey: "accounting_finance",

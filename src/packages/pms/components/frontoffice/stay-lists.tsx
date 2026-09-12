@@ -5,7 +5,7 @@
  * routes. They are extracted here unchanged so the canonical Front Office
  * workspace can present them as tabs. No new data or write paths.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -22,7 +22,7 @@ import {
 import { StayMoneyStrip } from "@/packages/pms/components/frontoffice/fo-stay-money-cells";
 import { listFoStaySignals } from "@/packages/pms/lib/fo-exceptions.functions";
 import { listDepartures, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
-import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 
 function ConfirmationLink({ stay }: { stay: FrontOfficeStay }) {
@@ -39,7 +39,7 @@ function ConfirmationLink({ stay }: { stay: FrontOfficeStay }) {
 
 export function InHouseList({ restaurantId, propertyName }: { restaurantId: string; propertyName: string }) {
   const timezone = useRestaurantTimezone();
-  const today = propertyToday(timezone);
+  const today = usePropertyBusinessDate(restaurantId, timezone);
 
   const [search, setSearch] = useState("");
   const [move, setMove] = useState<FrontOfficeStay | null>(null);
@@ -161,9 +161,12 @@ export function InHouseList({ restaurantId, propertyName }: { restaurantId: stri
 
 export function DeparturesList({ restaurantId }: { restaurantId: string }) {
   const timezone = useRestaurantTimezone();
-  const today = propertyToday(timezone);
+  const today = usePropertyBusinessDate(restaurantId, timezone);
 
   const [date, setDate] = useState(today);
+  useEffect(() => {
+    setDate(today);
+  }, [today]);
   const [checkOut, setCheckOut] = useState<FrontOfficeStay | null>(null);
 
   const fetchDepartures = useServerFn(listDepartures);
