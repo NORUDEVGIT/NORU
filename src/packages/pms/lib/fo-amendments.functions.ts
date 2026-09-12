@@ -1,10 +1,10 @@
 /**
  * FO-FS4 — Amendment writes.
  *
- * Persist then audit. Upgrade uses unpriced amend_hotel_reservation (never
- * move_hotel_reservation_room, never priced/yield). Service charges reuse
- * post_folio_transaction type `charge` / category `manual` after opening a
- * folio — same honesty as FO-FS3.
+ * Persist then audit. Upgrade changes room type through
+ * amend_hotel_reservation, then assigns a room of the new type. Same-type
+ * room move is not used. Service charges reuse post_folio_transaction type
+ * `charge` / category `manual` after opening a folio — same honesty as FO-FS3.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -322,7 +322,7 @@ export const getAmendContext = createServerFn({ method: "POST" })
     };
   });
 
-async function persistUnpricedAmend(params: {
+async function persistStayFields(params: {
   restaurantId: string;
   reservationId: string;
   membershipId: string;
@@ -411,12 +411,12 @@ export const upgradeReservationType = createServerFn({ method: "POST" })
       room_subtotal: row.room_subtotal === null || row.room_subtotal === undefined ? null : Number(row.room_subtotal),
     };
 
-    // Type persist first (unpriced). Same-type move RPC is forbidden here.
+    // Persist the new type first. Same-type room move is not used.
     // After the type is the NEW type, a pending/confirmed room uses the same
     // assignReservationRoom / listAssignableRooms honesty (available, same-type
     // of the new type). Checked-in stays persist type + room together because
     // assignReservationRoom is pre-check-in only.
-    await persistUnpricedAmend({
+    await persistStayFields({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       membershipId: me.id,
@@ -503,7 +503,7 @@ export const amendStayGuests = createServerFn({ method: "POST" })
       guest_name: stay.guestName,
     };
 
-    await persistUnpricedAmend({
+    await persistStayFields({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       membershipId: me.id,
@@ -635,7 +635,7 @@ export const addSpecialRequest = createServerFn({ method: "POST" })
     const row = await loadStayRow(supabaseAdmin, data.restaurantId, data.reservationId);
     const stay = toStay(row as never);
 
-    await persistUnpricedAmend({
+    await persistStayFields({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       membershipId: me.id,

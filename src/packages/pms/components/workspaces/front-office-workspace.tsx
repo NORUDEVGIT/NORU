@@ -191,7 +191,7 @@ export function FrontOfficeWorkspace({
       setAmendKind(amend);
       return;
     }
-    const kind = map[action];
+    const kind = map[action as keyof typeof map];
     if (kind === "checkin") {
       setCheckInStep("stay");
       setSheetStay(null);

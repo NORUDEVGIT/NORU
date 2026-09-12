@@ -56,8 +56,8 @@ export function occupancyBlockMessage(adults: number, children: number, maxOccup
 }
 
 export function hasPersistedRate(input: {
-  roomSubtotal?: number | null;
-  nightlyRates?: Array<{ date: string; rate: number }> | null;
+  roomSubtotal?: number | null | undefined;
+  nightlyRates?: Array<{ date: string; rate: number }> | null | undefined;
 }): boolean {
   const subtotal = input.roomSubtotal;
   if (subtotal != null && Number.isFinite(subtotal) && subtotal > 0) return true;
@@ -69,9 +69,9 @@ export type RateImpact =
   | { kind: "unavailable"; label: typeof RATE_IMPACT_UNAVAILABLE };
 
 export function rateImpact(input: {
-  roomSubtotal?: number | null;
-  nightlyRates?: Array<{ date: string; rate: number }> | null;
-  nextRoomSubtotal?: number | null;
+  roomSubtotal?: number | null | undefined;
+  nightlyRates?: Array<{ date: string; rate: number }> | null | undefined;
+  nextRoomSubtotal?: number | null | undefined;
 }): RateImpact {
   if (!hasPersistedRate(input)) {
     return { kind: "unavailable", label: RATE_IMPACT_UNAVAILABLE };
@@ -174,8 +174,16 @@ export function canConfirmGuestRequest(input: { text: string }): boolean {
   return isRequestTextComplete(input.text);
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error && "message" in error) {
+    return String((error as { message: unknown }).message ?? "");
+  }
+  return String(error ?? "");
+}
+
 export function isMissingSchemaError(error: unknown, token: string): boolean {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
+  const msg = errorMessage(error);
   const code =
     typeof error === "object" && error && "code" in error ? String((error as { code?: string }).code ?? "") : "";
   if (code === "42P01" || code === "42703") return true;
@@ -186,14 +194,14 @@ export function guestRequestPersistError(error: unknown): Error {
   if (isMissingSchemaError(error, "fo_guest_requests")) {
     return new Error(GUEST_REQUESTS_UNAVAILABLE);
   }
-  return error instanceof Error ? error : new Error(String(error ?? "Guest request failed."));
+  return error instanceof Error ? error : new Error(errorMessage(error) || "Guest request failed.");
 }
 
 export function specialRequestCategoryError(error: unknown): Error {
   if (isMissingSchemaError(error, "special_request_category")) {
     return new Error(SPECIAL_REQUEST_CATEGORY_UNAVAILABLE);
   }
-  return error instanceof Error ? error : new Error(String(error ?? "Special request failed."));
+  return error instanceof Error ? error : new Error(errorMessage(error) || "Special request failed.");
 }
 
 export type SnapshotPair = { label: string; previous: string; next: string };
