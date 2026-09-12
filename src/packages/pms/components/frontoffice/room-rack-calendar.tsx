@@ -20,7 +20,6 @@ import {
   EMPTY_RACK_FILTERS,
   FO_BRAND,
   LIVE_HORIZONS,
-  OPS_STRIP_COMING_SOON,
   RESERVATION_LEGEND,
   ROOM_LEGEND,
   dateRange,
@@ -59,6 +58,7 @@ import {
 import { listRoomRack, type RackRoom } from "@/packages/pms/lib/housekeeping.functions";
 import { listReservations, type ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import { addDays, formatStayDate } from "@/packages/pms/lib/reservation-dates";
+import { deriveOpsStrip } from "@/packages/pms/lib/fo-exceptions";
 
 type Viewport = "phone" | "wide";
 
@@ -212,6 +212,13 @@ export function RoomRackCalendar({
       <OpsStrip
         {...(dashboardQuery.data ? { dashboard: dashboardQuery.data } : {})}
         loading={dashboardQuery.isLoading}
+        rooms={rooms.map((room) => ({
+          occupancy: room.occupancy,
+          status: room.status,
+          housekeepingStatus: hkByRoom.get(room.id)?.housekeepingStatus ?? null,
+        }))}
+        hkAvailable={hkAvailable}
+        onFilter={(next) => setFilters({ ...EMPTY_RACK_FILTERS, ...next })}
       />
 
       <FilterRow
@@ -305,6 +312,9 @@ function previewDates(
 function OpsStrip({
   dashboard,
   loading,
+  rooms,
+  hkAvailable,
+  onFilter,
 }: {
   dashboard?: {
     arrivalsToday: number;
@@ -316,30 +326,38 @@ function OpsStrip({
     outOfService: number;
   };
   loading: boolean;
+  rooms: Array<{ occupancy: "vacant" | "occupied"; status: string; housekeepingStatus?: string | null }>;
+  hkAvailable: boolean;
+  onFilter: (next: Partial<RackFilters>) => void;
 }) {
   const cards = dashboard
-    ? [
-        ["Arrivals", dashboard.arrivalsToday],
-        ["Departures", dashboard.departuresToday],
-        ["In-house", dashboard.inHouse],
-        ["Available", dashboard.availableRooms],
-        ["Occupied", dashboard.occupiedRooms],
-        ["OOO", dashboard.outOfOrder],
-        ["OOS", dashboard.outOfService],
-      ]
+    ? deriveOpsStrip({
+        arrivalsToday: dashboard.arrivalsToday,
+        departuresToday: dashboard.departuresToday,
+        inHouse: dashboard.inHouse,
+        availableRooms: dashboard.availableRooms,
+        occupiedRooms: dashboard.occupiedRooms,
+        outOfOrder: dashboard.outOfOrder,
+        outOfService: dashboard.outOfService,
+        rooms,
+        hkAvailable,
+      })
     : [];
 
   return (
     <div className="flex flex-wrap gap-2" data-testid="fo-ops-strip">
       {loading ? <p className="text-xs text-muted-foreground">Loading occupancy strip…</p> : null}
-      {cards.map(([label, value]) => (
-        <div key={String(label)} className="rounded-xl border border-border bg-card px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="font-display text-lg">{value}</p>
-        </div>
-      ))}
-      {OPS_STRIP_COMING_SOON.map((item) => (
-        <ComingSoonChip key={item.id} label={item.label} />
+      {cards.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          data-testid={`fo-ops-${item.id}`}
+          className="rounded-xl border border-border bg-card px-3 py-2 text-left hover:border-[#C89933]"
+          onClick={() => onFilter(item.filter)}
+        >
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{item.label}</p>
+          <p className="font-display text-lg">{item.value}</p>
+        </button>
       ))}
     </div>
   );

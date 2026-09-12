@@ -19,6 +19,8 @@ import {
   RoomMoveDialog,
   StayDatesDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import { StayMoneyStrip } from "@/packages/pms/components/frontoffice/fo-stay-money-cells";
+import { listFoStaySignals } from "@/packages/pms/lib/fo-exceptions.functions";
 import { listDepartures, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
@@ -45,6 +47,7 @@ export function InHouseList({ restaurantId, propertyName }: { restaurantId: stri
   const [checkOut, setCheckOut] = useState<FrontOfficeStay | null>(null);
 
   const fetchInHouse = useServerFn(listInHouse);
+  const fetchSignals = useServerFn(listFoStaySignals);
   const inHouseQuery = useQuery({
     queryKey: ["front-office", "in-house", restaurantId, today, search],
     queryFn: () =>
@@ -53,6 +56,14 @@ export function InHouseList({ restaurantId, propertyName }: { restaurantId: stri
   });
 
   const rows = inHouseQuery.data ?? [];
+  const signalsQuery = useQuery({
+    queryKey: ["front-office", "stay-signals", restaurantId, rows.map((r) => r.id).join(",")],
+    queryFn: () => fetchSignals({ data: { restaurantId, reservationIds: rows.map((r) => r.id) } }),
+    enabled: rows.length > 0,
+    retry: false,
+  });
+  const folioLane = signalsQuery.data?.folioLane ?? "coming_soon";
+  const signals = Object.values(signalsQuery.data?.byStay ?? {});
 
   return (
     <div className="space-y-4">
@@ -102,6 +113,11 @@ export function InHouseList({ restaurantId, propertyName }: { restaurantId: stri
                   {row.specialRequests ? (
                     <p className="mt-1 text-xs text-muted-foreground">Requests: {row.specialRequests}</p>
                   ) : null}
+                  <StayMoneyStrip
+                    folioLane={folioLane}
+                    signal={signalsQuery.data?.byStay?.[row.id]}
+                    signals={signals}
+                  />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" asChild>
@@ -151,6 +167,7 @@ export function DeparturesList({ restaurantId }: { restaurantId: string }) {
   const [checkOut, setCheckOut] = useState<FrontOfficeStay | null>(null);
 
   const fetchDepartures = useServerFn(listDepartures);
+  const fetchSignals = useServerFn(listFoStaySignals);
   const departuresQuery = useQuery({
     queryKey: ["front-office", "departures", restaurantId, date],
     queryFn: () => fetchDepartures({ data: { restaurantId, date } }),
@@ -158,6 +175,14 @@ export function DeparturesList({ restaurantId }: { restaurantId: string }) {
   });
 
   const rows = departuresQuery.data ?? [];
+  const signalsQuery = useQuery({
+    queryKey: ["front-office", "stay-signals", restaurantId, rows.map((r) => r.id).join(",")],
+    queryFn: () => fetchSignals({ data: { restaurantId, reservationIds: rows.map((r) => r.id) } }),
+    enabled: rows.length > 0,
+    retry: false,
+  });
+  const folioLane = signalsQuery.data?.folioLane ?? "coming_soon";
+  const signals = Object.values(signalsQuery.data?.byStay ?? {});
 
   return (
     <div className="space-y-4">
@@ -194,6 +219,11 @@ export function DeparturesList({ restaurantId }: { restaurantId: string }) {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {formatStayDate(row.arrivalDate)} → {formatStayDate(row.departureDate)}
                   </p>
+                  <StayMoneyStrip
+                    folioLane={folioLane}
+                    signal={signalsQuery.data?.byStay?.[row.id]}
+                    signals={signals}
+                  />
                 </div>
                 {row.status === "checked_in" ? (
                   <Button size="sm" onClick={() => setCheckOut(row)}>

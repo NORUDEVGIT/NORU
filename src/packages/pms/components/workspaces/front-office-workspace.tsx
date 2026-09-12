@@ -10,12 +10,13 @@ import { ReservationSideSheet, type SideSheetAction } from "@/packages/pms/compo
 import {
   AmendmentsFrame,
   CancellationsFrame,
-  ExceptionsFrame,
   GuestSearchDialog,
   NoShowsFrame,
   StayPickerDialog,
   WalkInsFrame,
 } from "@/packages/pms/components/frontoffice/front-office-frames";
+import { ExceptionsFrame, useFoExceptionDesk } from "@/packages/pms/components/frontoffice/fo-exceptions-frame";
+import { FoAuditViewer } from "@/packages/pms/components/frontoffice/fo-audit-viewer";
 import {
   AssignRoomDialog,
   CheckInDialog,
@@ -32,6 +33,8 @@ import { LIST_COMING_SOON_COLUMNS, invokeFoAction, resolveFoNav, type FoNavId } 
 import { ComingSoonChip } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { listArrivals, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
+import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
+import type { ExceptionCtaId } from "@/packages/pms/lib/fo-exceptions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { useAuth } from "@/core/state/auth-store";
@@ -78,6 +81,8 @@ export function FrontOfficeWorkspace({
   const [picker, setPicker] = useState<PickerKind>(null);
   const [amendKind, setAmendKind] = useState<FoAmendKind | null>(null);
   const [amendStay, setAmendStay] = useState<FrontOfficeStay | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   useEffect(() => {
     setView(resolveFoNav(initialTab));
@@ -98,6 +103,17 @@ export function FrontOfficeWorkspace({
     retry: false,
   });
   const canManage = accessQuery.data?.canManage ?? false;
+
+  const fetchCashiering = useServerFn(getCashieringAccess);
+  const cashieringQuery = useQuery({
+    queryKey: ["cashiering-access", restaurantId],
+    queryFn: () => fetchCashiering({ data: { restaurantId } }),
+    retry: false,
+    enabled: canManage,
+  });
+  const canOpenCashiering = !!cashieringQuery.data;
+
+  const exceptionDesk = useFoExceptionDesk(restaurantId, today, canManage);
 
   const fetchArrivals = useServerFn(listArrivals);
   const fetchInHouse = useServerFn(listInHouse);
@@ -142,6 +158,33 @@ export function FrontOfficeWorkspace({
     }
     if (actionId === "guest_request") {
       setPicker("guest_request");
+    }
+  }
+
+  function onExceptionAction(cta: ExceptionCtaId, stay: FrontOfficeStay) {
+    if (cta === "assign") {
+      openDialog("assign", stay);
+      return;
+    }
+    if (cta === "move") {
+      openDialog("move", stay);
+      return;
+    }
+    if (cta === "check_in") {
+      setCheckInStep("stay");
+      openDialog("checkin", stay);
+      return;
+    }
+    if (cta === "check_out") {
+      openDialog("checkout", stay);
+      return;
+    }
+    if (cta === "open_folio") {
+      if (canOpenCashiering) {
+        void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+        return;
+      }
+      setSheetStay(stay);
     }
   }
 
@@ -221,6 +264,17 @@ export function FrontOfficeWorkspace({
       }}
       onQuickAction={onQuickAction}
       onGuestSearch={() => setSearchOpen(true)}
+      exceptionBadge={exceptionDesk.failed ? 0 : exceptionDesk.badgeCount}
+      notificationCount={exceptionDesk.failed ? 0 : exceptionDesk.highCount}
+      notificationsComingSoon={exceptionDesk.failed}
+      onNotifications={() => {
+        setComingSoon(null);
+        setView("exceptions");
+      }}
+      onFoActivity={() => setAuditOpen(true)}
+      helpOpen={helpOpen}
+      onHelpOpenChange={setHelpOpen}
+      canOpenCashiering={canOpenCashiering}
     >
       {comingSoon ? (
         <ComingSoonPanel
@@ -256,7 +310,20 @@ export function FrontOfficeWorkspace({
       {view === "amendments" ? <AmendmentsFrame restaurantId={restaurantId} today={today} /> : null}
       {view === "cancellations" ? <CancellationsFrame restaurantId={restaurantId} /> : null}
       {view === "noshows" ? <NoShowsFrame restaurantId={restaurantId} today={today} /> : null}
-      {view === "exceptions" ? <ExceptionsFrame restaurantId={restaurantId} today={today} /> : null}
+      {view === "exceptions" ? (
+        <ExceptionsFrame
+          restaurantId={restaurantId}
+          today={today}
+          onAction={onExceptionAction}
+          onOpenSheet={setSheetStay}
+          onFocusRack={(stay) => {
+            setSheetStay(stay);
+            setView("rack");
+          }}
+          onOpenRack={() => setView("rack")}
+          onOpenAudit={() => setAuditOpen(true)}
+        />
+      ) : null}
 
       <ReservationSideSheet
         restaurantId={restaurantId}
@@ -277,6 +344,7 @@ export function FrontOfficeWorkspace({
         }}
       />
       <GuestSearchDialog restaurantId={restaurantId} open={searchOpen} onOpenChange={setSearchOpen} />
+      <FoAuditViewer restaurantId={restaurantId} open={auditOpen} onOpenChange={setAuditOpen} />
 
       <StayPickerDialog
         title={

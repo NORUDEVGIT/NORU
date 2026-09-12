@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import { ComingSoonChip, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
   FoAmendGuestsSheet,
   FoAmendServiceSheet,
@@ -37,14 +37,8 @@ import {
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import { WalkInsHistoryFrame } from "@/packages/pms/components/frontoffice/walk-ins-history-frame";
-import { deriveExceptionSlots, isPermissionDeniedMessage, stayFromReservation } from "@/packages/pms/lib/front-office-shell";
-import {
-  getFrontOfficeDashboard,
-  listArrivals,
-  listDepartures,
-  listInHouse,
-  type FrontOfficeStay,
-} from "@/packages/pms/lib/frontoffice.functions";
+import { isPermissionDeniedMessage, stayFromReservation } from "@/packages/pms/lib/front-office-shell";
+import { listArrivals, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import {
   amendReservation,
   getReservation,
@@ -500,83 +494,7 @@ export function NoShowsFrame({
   );
 }
 
-export function ExceptionsFrame({
-  restaurantId,
-  today,
-}: {
-  restaurantId: string;
-  today: string;
-}) {
-  const fetchArrivals = useServerFn(listArrivals);
-  const fetchInHouse = useServerFn(listInHouse);
-  const fetchDepartures = useServerFn(listDepartures);
-  const fetchDashboard = useServerFn(getFrontOfficeDashboard);
-
-  const arrivalsQuery = useQuery({
-    queryKey: ["front-office", "arrivals", restaurantId, today, "all", "unassigned"],
-    queryFn: () => fetchArrivals({ data: { restaurantId, date: today, assignment: "unassigned" } }),
-    retry: false,
-  });
-  const inHouseQuery = useQuery({
-    queryKey: ["front-office", "in-house", restaurantId, today, ""],
-    queryFn: () => fetchInHouse({ data: { restaurantId, today } }),
-    retry: false,
-  });
-  const departuresQuery = useQuery({
-    queryKey: ["front-office", "departures", restaurantId, today],
-    queryFn: () => fetchDepartures({ data: { restaurantId, date: today } }),
-    retry: false,
-  });
-  const dashboardQuery = useQuery({
-    queryKey: ["front-office", "dashboard", restaurantId, today],
-    queryFn: () => fetchDashboard({ data: { restaurantId, today } }),
-    retry: false,
-  });
-
-  const denied =
-    [arrivalsQuery, inHouseQuery, departuresQuery, dashboardQuery].find(
-      (q) => q.isError && isPermissionDeniedMessage(q.error),
-    )?.error ?? null;
-
-  if (denied) {
-    return (
-      <PermissionDeniedPanel
-        {...(denied instanceof Error ? { message: denied.message } : {})}
-      />
-    );
-  }
-
-  const slots = deriveExceptionSlots({
-    unassignedArrivals: arrivalsQuery.data?.length ?? 0,
-    overstays: (inHouseQuery.data ?? []).filter((s) => s.overstay).length,
-    dueOutInHouse: (departuresQuery.data ?? []).filter((s) => s.status === "checked_in").length,
-    outOfOrder: dashboardQuery.data?.outOfOrder ?? 0,
-    outOfService: dashboardQuery.data?.outOfService ?? 0,
-  });
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-display text-xl">Exceptions</h2>
-        <p className="text-sm text-muted-foreground">
-          Counts are derived from Live lists only. Missing exception types stay Coming soon.
-        </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {slots.map((slot) => (
-          <div key={slot.id} className="rounded-2xl border border-border bg-card p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">{slot.label}</p>
-            {slot.lane === "coming_soon" ? (
-              <ComingSoonChip className="mt-2" label="Count" />
-            ) : (
-              <p className="mt-2 font-display text-3xl">{slot.count ?? 0}</p>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+export { ExceptionsFrame } from "@/packages/pms/components/frontoffice/fo-exceptions-frame";
 
 export function GuestSearchDialog({
   restaurantId,

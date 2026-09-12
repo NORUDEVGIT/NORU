@@ -18,6 +18,8 @@ import {
   CheckInDialog,
   NoShowDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import { StayMoneyStrip } from "@/packages/pms/components/frontoffice/fo-stay-money-cells";
+import { listFoStaySignals } from "@/packages/pms/lib/fo-exceptions.functions";
 import { listArrivals, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
@@ -56,6 +58,7 @@ export function ArrivalsWorkspace({
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchArrivals = useServerFn(listArrivals);
+  const fetchSignals = useServerFn(listFoStaySignals);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -95,6 +98,14 @@ export function ArrivalsWorkspace({
   }
 
   const rows = arrivalsQuery.data ?? [];
+  const signalsQuery = useQuery({
+    queryKey: ["front-office", "stay-signals", restaurantId, rows.map((r) => r.id).join(",")],
+    queryFn: () => fetchSignals({ data: { restaurantId, reservationIds: rows.map((r) => r.id) } }),
+    enabled: canManage && rows.length > 0,
+    retry: false,
+  });
+  const folioLane = signalsQuery.data?.folioLane ?? "coming_soon";
+  const signals = Object.values(signalsQuery.data?.byStay ?? {});
   const emptyText =
     variant === "checkin"
       ? "No arrivals are waiting to be checked in for this date."
@@ -187,6 +198,11 @@ export function ArrivalsWorkspace({
                   {stay.walkInIncomplete ? (
                     <p className="mt-2 text-xs font-medium text-[#C89933]">Walk-in incomplete — finish check-in</p>
                   ) : null}
+                  <StayMoneyStrip
+                    folioLane={folioLane}
+                    signal={signalsQuery.data?.byStay?.[stay.id]}
+                    signals={signals}
+                  />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => setAssign(stay)}>
