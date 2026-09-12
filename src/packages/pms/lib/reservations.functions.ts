@@ -663,6 +663,9 @@ export interface ReservationAmendmentRow {
   eventType: ReservationEventType;
   notes: string | null;
   createdAt: string;
+  actorName: string | null;
+  previousValues: Record<string, JsonValue> | null;
+  newValues: Record<string, JsonValue> | null;
 }
 
 /**
@@ -681,7 +684,7 @@ export const listReservationAmendments = createServerFn({ method: "POST" })
 
     const { data: events, error } = await context.supabase
       .from("hotel_reservation_history")
-      .select("id, reservation_id, event_type, notes, created_at")
+      .select("id, reservation_id, event_type, notes, created_at, actor_membership_id, previous_values, new_values")
       .eq("restaurant_id", data.restaurantId)
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 100);
@@ -693,9 +696,13 @@ export const listReservationAmendments = createServerFn({ method: "POST" })
       event_type: string;
       notes: string | null;
       created_at: string;
+      actor_membership_id: string | null;
+      previous_values: Record<string, JsonValue> | null;
+      new_values: Record<string, JsonValue> | null;
     }[];
     const ids = [...new Set(rows.map((r) => r.reservation_id))];
     const meta = new Map<string, { confirmationNumber: string; guestName: string }>();
+    const actorNames = new Map<string, string>();
 
     if (ids.length > 0) {
       const { data: reservations } = await context.supabase
@@ -722,6 +729,28 @@ export const listReservationAmendments = createServerFn({ method: "POST" })
       }
     }
 
+    const actorIds = [...new Set(rows.map((r) => r.actor_membership_id).filter((id): id is string => !!id))];
+    if (actorIds.length > 0) {
+      const { data: members } = await context.supabase
+        .from("restaurant_users")
+        .select("id, user_id")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", actorIds);
+      const userIds = [...new Set((members ?? []).map((m: { user_id: string }) => m.user_id))];
+      const { data: profiles } =
+        userIds.length > 0
+          ? await context.supabase.from("profiles").select("id, first_name, last_name, email").in("id", userIds)
+          : { data: [] };
+      const profileByUser = new Map(
+        ((profiles ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>).map(
+          (p) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Staff member"],
+        ),
+      );
+      for (const member of (members ?? []) as Array<{ id: string; user_id: string }>) {
+        actorNames.set(member.id, profileByUser.get(member.user_id) ?? "Staff member");
+      }
+    }
+
     return rows.map((r) => ({
       id: r.id,
       reservationId: r.reservation_id,
@@ -730,5 +759,8 @@ export const listReservationAmendments = createServerFn({ method: "POST" })
       eventType: r.event_type as ReservationEventType,
       notes: r.notes,
       createdAt: r.created_at,
+      actorName: r.actor_membership_id ? (actorNames.get(r.actor_membership_id) ?? null) : null,
+      previousValues: r.previous_values ?? null,
+      newValues: r.new_values ?? null,
     }));
   });

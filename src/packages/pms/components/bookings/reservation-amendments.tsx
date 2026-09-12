@@ -3,28 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { listReservationAmendments } from "@/packages/pms/lib/reservations.functions";
-
-const EVENT_LABELS: Record<string, string> = {
-  created: "Created",
-  updated: "Modified",
-  status_changed: "Status changed",
-  cancelled: "Cancelled",
-  room_assigned: "Room assigned",
-  room_changed: "Room moved",
-  checked_in: "Checked in",
-  checked_out: "Checked out",
-  no_show: "No-show",
-  dates_changed: "Dates changed",
-  priced: "Repriced",
-};
-
-function label(eventType: string) {
-  return EVENT_LABELS[eventType] ?? eventType.replace(/_/g, " ");
-}
+import { amendmentEventLabel, beforeAfterFromHistory } from "@/packages/pms/lib/fo-amendments";
+import { formatFoDateTime } from "@/packages/pms/lib/fo-cancel-noshow";
 
 /**
- * Phase 7D.2F1 — read-only amendment feed built from the reservation history
- * that the reservation write paths already record. No new writes here.
+ * Reservation change feed from hotel_reservation_history.
+ * FO-FS4: type, who, when (en-GB), reason, before/after snapshots.
  */
 export function ReservationAmendmentsTab({ restaurantId }: { restaurantId: string }) {
   const fetchAmendments = useServerFn(listReservationAmendments);
@@ -47,31 +31,46 @@ export function ReservationAmendmentsTab({ restaurantId }: { restaurantId: strin
 
   return (
     <ul className="space-y-3">
-      {rows.map((row) => (
-        <li key={row.id} className="rounded-2xl border border-border bg-card p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/restaurant/pms/reservations/$reservationId"
-                  params={{ reservationId: row.reservationId }}
-                  className="font-medium underline-offset-4 hover:underline"
-                >
-                  {row.confirmationNumber}
-                </Link>
-                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
-                  {label(row.eventType)}
-                </span>
+      {rows.map((row) => {
+        const snapshots = beforeAfterFromHistory(row.previousValues, row.newValues);
+        return (
+          <li key={row.id} className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/restaurant/pms/reservations/$reservationId"
+                    params={{ reservationId: row.reservationId }}
+                    className="font-medium underline-offset-4 hover:underline"
+                  >
+                    {row.confirmationNumber}
+                  </Link>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize">
+                    {amendmentEventLabel(row.eventType)}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm">{row.guestName}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {row.actorName ?? "—"} · {formatFoDateTime(row.createdAt)}
+                </p>
+                {row.notes ? <p className="mt-1 text-xs text-muted-foreground">Reason: {row.notes}</p> : null}
+                {snapshots.length > 0 ? (
+                  <dl className="mt-2 grid gap-1 text-xs">
+                    {snapshots.map((pair) => (
+                      <div key={`${row.id}-${pair.label}`} className="flex flex-wrap gap-x-2">
+                        <dt className="capitalize text-muted-foreground">{pair.label}</dt>
+                        <dd>
+                          {pair.previous} → {pair.next}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
               </div>
-              <p className="mt-1 text-sm">{row.guestName}</p>
-              {row.notes ? <p className="mt-1 text-xs text-muted-foreground">{row.notes}</p> : null}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {new Date(row.createdAt).toLocaleString()}
-            </p>
-          </div>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }

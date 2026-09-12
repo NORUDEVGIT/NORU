@@ -166,7 +166,7 @@ describe("menus", () => {
     assert.equal(menuHasVoid("sheet"), false);
     const labels = FO_ACTIONS.map((a) => a.label.toLowerCase());
     assert.equal(labels.some((l) => l.includes("void")), false);
-    assert.ok(actionsForMenu("quick").some((a) => a.id === "guest_request" && a.lane === "coming_soon"));
+    assert.ok(actionsForMenu("quick").some((a) => a.id === "guest_request" && a.lane === "live"));
     assert.ok(actionsForMenu("quick").some((a) => a.id === "room_move" && a.lane === "live"));
   });
 });

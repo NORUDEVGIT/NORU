@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -24,6 +25,8 @@ import {
 } from "@/packages/pms/lib/front-office-shell";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { SPECIAL_REQUEST_CATEGORY_LABELS } from "@/packages/pms/lib/fo-amendments";
+import { getAmendContext, setGuestRequestStatus } from "@/packages/pms/lib/fo-amendments.functions";
 
 export type SideSheetAction =
   | "view"
@@ -34,6 +37,11 @@ export type SideSheetAction =
   | "check_out"
   | "no_show"
   | "amend_notes"
+  | "upgrade_downgrade"
+  | "add_remove_guest"
+  | "add_service"
+  | "add_special_request"
+  | "guest_request"
   | "view_folio";
 
 export function ReservationSideSheet({
@@ -50,8 +58,11 @@ export function ReservationSideSheet({
   onAction: (action: SideSheetAction, stay: FrontOfficeStay) => void;
 }) {
   const money = useMoney();
+  const queryClient = useQueryClient();
   const fetchDetail = useServerFn(getReservation);
   const fetchFolio = useServerFn(getReservationFolio);
+  const fetchAmend = useServerFn(getAmendContext);
+  const setRequestStatus = useServerFn(setGuestRequestStatus);
 
   const detailQuery = useQuery({
     queryKey: ["reservation", restaurantId, stay?.id],
@@ -65,6 +76,24 @@ export function ReservationSideSheet({
     queryFn: () => fetchFolio({ data: { restaurantId, reservationId: stay!.id } }),
     enabled: open && !!stay,
     retry: false,
+  });
+
+  const amendQuery = useQuery({
+    queryKey: ["fo-amend", restaurantId, stay?.id],
+    queryFn: () => fetchAmend({ data: { restaurantId, reservationId: stay!.id } }),
+    enabled: open && !!stay,
+    retry: false,
+  });
+
+  const toggleRequest = useMutation({
+    mutationFn: (input: { requestId: string; status: "open" | "done" }) =>
+      setRequestStatus({ data: { restaurantId, requestId: input.requestId, status: input.status } }),
+    onSuccess: () => {
+      toast.success("Guest request updated.");
+      void queryClient.invalidateQueries({ queryKey: ["fo-amend"] });
+      void queryClient.invalidateQueries({ queryKey: ["reservation-amendments"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Something went wrong."),
   });
 
   if (!stay) return null;
@@ -121,9 +150,47 @@ export function ReservationSideSheet({
           </dl>
 
           {reservation?.notes ? <p className="text-sm text-muted-foreground">Notes: {reservation.notes}</p> : null}
-          {stay.specialRequests ? (
-            <p className="text-sm text-muted-foreground">Requests: {stay.specialRequests}</p>
+          {stay.specialRequests || amendQuery.data?.specialRequestCategory ? (
+            <p className="text-sm text-muted-foreground">
+              Special request
+              {amendQuery.data?.specialRequestCategory
+                ? ` · ${SPECIAL_REQUEST_CATEGORY_LABELS[amendQuery.data.specialRequestCategory]}`
+                : ""}
+              : {stay.specialRequests ?? amendQuery.data?.stay.specialRequests ?? "—"}
+            </p>
           ) : null}
+
+          <div className="rounded-xl border border-border p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest requests</p>
+            {amendQuery.data?.guestRequestsError ? (
+              <p className="mt-2 text-sm text-destructive">{amendQuery.data.guestRequestsError}</p>
+            ) : (amendQuery.data?.guestRequests ?? []).length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No guest requests.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {amendQuery.data?.guestRequests.map((row) => (
+                  <li key={row.id} className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm">{row.requestText}</p>
+                      <p className="text-xs capitalize text-muted-foreground">{row.status}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        toggleRequest.mutate({
+                          requestId: row.id,
+                          status: row.status === "open" ? "done" : "open",
+                        })
+                      }
+                    >
+                      {row.status === "open" ? "Done" : "Open"}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div className="rounded-xl border border-border p-3">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Folio</p>
