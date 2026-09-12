@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { addDays, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { addDays } from "@/packages/pms/components/bookings/reservation-bits";
 import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
@@ -31,7 +31,6 @@ import {
   listAssignableRooms,
 } from "@/packages/pms/lib/reservations.functions";
 import {
-  changeStayDates,
   moveReservationRoom,
   type FrontOfficeStay,
 } from "@/packages/pms/lib/frontoffice.functions";
@@ -39,6 +38,8 @@ import { assignReservationRoom } from "@/packages/pms/lib/reservations.functions
 import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check-in-stepper";
 import { FoCheckOutStepper } from "@/packages/pms/components/frontoffice/fo-check-out-stepper";
 import { FoNoShowStepper } from "@/packages/pms/components/frontoffice/fo-no-show-stepper";
+import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
+import type { RackDatesDraft } from "@/packages/pms/lib/fo-rack-power";
 import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { CheckInStepId } from "@/packages/pms/lib/fo-check-in";
@@ -258,6 +259,7 @@ export function RoomMoveDialog({
   );
 }
 
+/** Phone/menu Confirm family — same changeStayDates writer as Room Rack + Calendar. */
 export function StayDatesDialog({
   restaurantId,
   stay,
@@ -269,56 +271,32 @@ export function StayDatesDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const [departure, setDeparture] = useState(stay.departureDate);
-  const refresh = useRefresh();
-  const change = useServerFn(changeStayDates);
-
-  useEffect(() => {
-    if (open) setDeparture(stay.departureDate);
-  }, [open, stay.departureDate]);
-
-  const mutation = useMutation({
-    mutationFn: () => change({ data: { restaurantId, reservationId: stay.id, departure } }),
-    onSuccess: () => {
-      toast.success("Stay updated.");
-      refresh();
-      onOpenChange(false);
-    },
-    onError: (error) => toast.error(errorText(error)),
-  });
+  const draft: RackDatesDraft = {
+    kind: "change_dates",
+    reservationId: stay.id,
+    guestName: stay.guestName,
+    confirmationNumber: stay.confirmationNumber,
+    status: stay.status,
+    currentRoomId: stay.roomId,
+    currentRoomNumber: stay.roomNumber,
+    currentRoomTypeId: stay.roomTypeId,
+    arrivalDate: stay.arrivalDate,
+    departureDate: stay.departureDate,
+    nextArrivalDate: stay.arrivalDate,
+    nextDepartureDate: stay.departureDate,
+    roomSubtotal: null,
+    nightlyRates: null,
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Extend or shorten stay</DialogTitle>
-          <DialogDescription>
-            {stay.guestName} · arrived {formatStayDate(stay.arrivalDate)}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="new-departure">New departure date</Label>
-          <Input
-            id="new-departure"
-            type="date"
-            value={departure}
-            min={addDays(stay.arrivalDate, 1)}
-            onChange={(e) => setDeparture(e.target.value)}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={mutation.isPending || departure === stay.departureDate || departure <= stay.arrivalDate}
-            onClick={() => mutation.mutate()}
-          >
-            {mutation.isPending ? "Saving…" : "Save stay"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FoRackConfirmSheet
+      restaurantId={restaurantId}
+      draft={open ? draft : null}
+      open={open}
+      overlappingStays={[]}
+      onOpenChange={onOpenChange}
+      editableDates
+    />
   );
 }
 

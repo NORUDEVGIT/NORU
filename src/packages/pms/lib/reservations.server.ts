@@ -33,6 +33,7 @@ export const RESERVATION_EVENT_TYPES = [
   "room_moved",
   "stay_extended",
   "stay_shortened",
+  "stay_dates_changed",
   "no_show",
   "repriced",
 ] as const;
@@ -99,7 +100,7 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   ROOM_REQUIRED: "Assign a room before completing check-in.",
   REASON_REQUIRED: "A reason is required for a room move.",
   SAME_ROOM: "The guest is already in that room.",
-  DATES_UNCHANGED: "Pick a different departure date.",
+  DATES_UNCHANGED: "Choose a new arrival or departure date.",
   NOT_PAST_DUE: "Only past-due arrivals can be marked as a no-show.",
 };
 

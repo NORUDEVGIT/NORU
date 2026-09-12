@@ -4,9 +4,9 @@ import { describe, it } from "node:test";
 
 import { shouldSuppressRestaurantPmsRail, LIVE_HORIZONS, RESERVED_BADGE_SLOTS } from "./front-office-shell.ts";
 import {
+  CHOOSE_NEW_DATES,
   HARD_ILLEGAL_TOAST,
   NO_STAYS_MATCH_FILTERS,
-  RACK_ARRIVAL_LOCKED,
   RACK_LIST_PAGE_SIZE_MAX,
   RATE_IMPACT_UNAVAILABLE_LABEL,
   UNAVAILABLE_TO_VERIFY,
@@ -14,6 +14,7 @@ import {
   cancelRackConfirm,
   classifyVerticalDrop,
   confirmRackAction,
+  dateChangeIneligibleReason,
   evaluateDateChecks,
   evaluateMoveChecks,
   liveStayBadges,
@@ -21,6 +22,7 @@ import {
   onRackResizeRelease,
   rackRateImpact,
   shouldShowDragHandle,
+  stayDateWriteInput,
   type RackDatesDraft,
   type RackMoveDraft,
 } from "./fo-rack-power.ts";
@@ -207,21 +209,112 @@ describe("FO-FS5 hard illegal snap-back", () => {
 });
 
 describe("FO-FS5 date honesty", () => {
-  it("blocks arrival changes and never invents rate math", () => {
+  it("enables Confirm for arrival change when eligible and checks pass", () => {
     const shifted = evaluateDateChecks(
       { ...baseDates(), nextArrivalDate: "2026-09-13", nextDepartureDate: "2026-09-16" },
       { state: "ready", roomIds: ["room-1"] },
       false,
     );
-    assert.equal(shifted.find((c) => c.id === "arrival")?.state, "fail");
-    assert.equal(shifted.find((c) => c.id === "arrival")?.detail, RACK_ARRIVAL_LOCKED);
-    assert.equal(canConfirmRackChecks(shifted), false);
+    assert.equal(shifted.find((c) => c.id === "eligible")?.state, "pass");
+    assert.equal(shifted.find((c) => c.id === "dates_valid")?.state, "pass");
+    assert.equal(shifted.find((c) => c.id === "dates_changed")?.state, "pass");
+    assert.equal(canConfirmRackChecks(shifted), true);
+    assert.deepEqual(stayDateWriteInput({ ...baseDates(), nextArrivalDate: "2026-09-13", nextDepartureDate: "2026-09-16" }), {
+      arrival: "2026-09-13",
+      departure: "2026-09-16",
+    });
 
+    const called: string[] = [];
+    const writes = { changeStayDates: () => called.push("changeStayDates") };
+    assert.equal(confirmRackAction("change_dates", shifted, writes).invokedWrite, "changeStayDates");
+    assert.deepEqual(called, ["changeStayDates"]);
+  });
+
+  it("Cancel and failed checks do not write", () => {
+    const called: string[] = [];
+    const writes = { changeStayDates: () => called.push("changeStayDates") };
+    assert.equal(cancelRackConfirm(writes).invokedWrite, null);
+
+    const unchanged = evaluateDateChecks( { ...baseDates(), nextDepartureDate: "2026-09-14" }, { state: "ready", roomIds: ["room-1"] }, false);
+    assert.equal(unchanged.find((c) => c.id === "dates_changed")?.detail, CHOOSE_NEW_DATES);
+    assert.equal(canConfirmRackChecks(unchanged), false);
+    assert.equal(confirmRackAction("change_dates", unchanged, writes).invokedWrite, null);
+    assert.deepEqual(called, []);
+  });
+
+  it("combined arrival + departure is one write payload", () => {
+    const combined = { ...baseDates(), nextArrivalDate: "2026-09-10", nextDepartureDate: "2026-09-18" };
+    const checks = evaluateDateChecks(combined, { state: "ready", roomIds: ["room-1"] }, false);
+    assert.equal(canConfirmRackChecks(checks), true);
+    assert.deepEqual(stayDateWriteInput(combined), { arrival: "2026-09-10", departure: "2026-09-18" });
+  });
+
+  it("departure-only stays Live", () => {
+    const departureOnly = evaluateDateChecks(baseDates(), { state: "ready", roomIds: ["room-1"] }, false);
+    assert.equal(canConfirmRackChecks(departureOnly), true);
+    assert.deepEqual(stayDateWriteInput(baseDates()), { arrival: "2026-09-11", departure: "2026-09-16" });
+  });
+
+  it("checked-out, cancelled and no_show disable Confirm with a reason", () => {
+    assert.equal(dateChangeIneligibleReason("checked_out"), "This stay is checked out.");
+    assert.equal(dateChangeIneligibleReason("cancelled"), "This stay is cancelled.");
+    assert.equal(dateChangeIneligibleReason("no_show"), "This stay is a no-show.");
+
+    for (const status of ["checked_out", "cancelled", "no_show"] as const) {
+      const checks = evaluateDateChecks({ ...baseDates(), status }, { state: "ready", roomIds: ["room-1"] }, false);
+      assert.equal(checks.find((c) => c.id === "eligible")?.state, "fail");
+      assert.equal(canConfirmRackChecks(checks), false);
+    }
+  });
+
+  it("reserved, assigned and in-house stays are eligible", () => {
+    for (const status of ["pending", "confirmed", "checked_in"] as const) {
+      const checks = evaluateDateChecks({ ...baseDates(), status }, { state: "ready", roomIds: ["room-1"] }, false);
+      assert.equal(checks.find((c) => c.id === "eligible")?.state, "pass");
+      assert.equal(canConfirmRackChecks(checks), true);
+    }
+
+    const unassigned = evaluateDateChecks(
+      { ...baseDates(), status: "confirmed", currentRoomId: null },
+      null,
+      false,
+    );
+    assert.equal(unassigned.find((c) => c.id === "eligible")?.state, "pass");
+    assert.equal(unassigned.some((c) => c.id === "availability"), false);
+    assert.equal(canConfirmRackChecks(unassigned), true);
+  });
+
+  it("missing snapshot shows Rate impact unavailable and still allows Confirm", () => {
     const missingRate = rackRateImpact({ ...baseDates(), roomSubtotal: null, nightlyRates: [] });
     assert.equal(missingRate.kind, "unavailable");
     if (missingRate.kind === "unavailable") {
       assert.equal(missingRate.label, RATE_IMPACT_UNAVAILABLE_LABEL);
     }
+    const checks = evaluateDateChecks(
+      { ...baseDates(), roomSubtotal: null, nightlyRates: [] },
+      { state: "ready", roomIds: ["room-1"] },
+      false,
+    );
+    assert.equal(canConfirmRackChecks(checks), true);
+  });
+
+  it("assigned OOO / unknown HK stay honest and never paint unknown green", () => {
+    const ooo = evaluateDateChecks(
+      { ...baseDates(), currentRoomStatus: "out_of_order", hkKnown: true, currentHousekeeping: "clean" },
+      { state: "ready", roomIds: ["room-1"] },
+      false,
+    );
+    assert.equal(ooo.find((c) => c.id === "room_status")?.state, "fail");
+    assert.equal(canConfirmRackChecks(ooo), false);
+
+    const unknownHk = evaluateDateChecks(
+      { ...baseDates(), currentRoomStatus: "available", hkKnown: false },
+      { state: "ready", roomIds: ["room-1"] },
+      false,
+    );
+    assert.equal(unknownHk.find((c) => c.id === "housekeeping")?.state, "unknown");
+    assert.equal(unknownHk.find((c) => c.id === "housekeeping")?.detail, UNAVAILABLE_TO_VERIFY);
+    assert.equal(canConfirmRackChecks(unknownHk), false);
   });
 });
 
@@ -278,12 +371,36 @@ describe("FO-FS5 source locks", () => {
     const sheet = readFileSync(new URL("../components/frontoffice/fo-rack-confirm-sheet.tsx", import.meta.url), "utf8");
     assert.match(sheet, /moveReservationRoom/);
     assert.match(sheet, /changeStayDates/);
+    assert.match(sheet, /stayDateWriteInput/);
     assert.match(sheet, /canConfirmRackChecks/);
     assert.match(sheet, /#C89933/);
+    assert.doesNotMatch(sheet, /amend_hotel_reservation_priced/);
 
     const dialogs = readFileSync(new URL("../components/frontoffice/front-office-dialogs.tsx", import.meta.url), "utf8");
     const moveFn = dialogs.slice(dialogs.indexOf("export function RoomMoveDialog"));
     assert.doesNotMatch(moveFn.slice(0, moveFn.indexOf("export function StayDatesDialog")), /isRoomReady/);
+    assert.match(dialogs, /FoRackConfirmSheet/);
+    assert.match(dialogs, /changeStayDates/);
+    assert.match(dialogs, /editableDates/);
+    assert.doesNotMatch(dialogs, /Save stay/);
+
+    const writer = readFileSync(new URL("./frontoffice.functions.ts", import.meta.url), "utf8");
+    const changeFn = writer.slice(writer.indexOf("export const changeStayDates"));
+    assert.match(changeFn, /arrival: dateSchema/);
+    assert.match(changeFn, /_arrival: arrival/);
+    assert.match(changeFn, /arrival, departure/);
+    assert.doesNotMatch(changeFn.slice(0, changeFn.indexOf("export const markNoShow")), /amend_hotel_reservation_priced/);
+
+    const migration = readFileSync(
+      new URL("../../../../supabase/migrations/0044_fo_change_stay_dates_arrival.sql", import.meta.url),
+      "utf8",
+    );
+    assert.match(migration, /change_hotel_stay_dates/);
+    assert.match(migration, /_arrival date/);
+    assert.match(migration, /arrival_date = _arrival/);
+    assert.match(migration, /pending.*confirmed.*checked_in/s);
+    assert.doesNotMatch(migration, /nightly_rate_snapshot/);
+    assert.doesNotMatch(migration, /room_subtotal/);
 
     const workspace = readFileSync(
       new URL("../components/workspaces/front-office-workspace.tsx", import.meta.url),

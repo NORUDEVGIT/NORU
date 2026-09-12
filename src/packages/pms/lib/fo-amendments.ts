@@ -228,6 +228,7 @@ export const AMENDMENT_EVENT_LABELS: Record<string, string> = {
   dates_changed: "Dates changed",
   stay_extended: "Stay extended",
   stay_shortened: "Stay shortened",
+  stay_dates_changed: "Stay dates changed",
   priced: "Repriced",
   repriced: "Repriced",
 };
