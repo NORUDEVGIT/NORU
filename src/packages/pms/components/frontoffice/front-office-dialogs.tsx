@@ -32,13 +32,13 @@ import {
 } from "@/packages/pms/lib/reservations.functions";
 import {
   changeStayDates,
-  markNoShow,
   moveReservationRoom,
   type FrontOfficeStay,
 } from "@/packages/pms/lib/frontoffice.functions";
 import { assignReservationRoom } from "@/packages/pms/lib/reservations.functions";
 import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check-in-stepper";
 import { FoCheckOutStepper } from "@/packages/pms/components/frontoffice/fo-check-out-stepper";
+import { FoNoShowStepper } from "@/packages/pms/components/frontoffice/fo-no-show-stepper";
 import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { CheckInStepId } from "@/packages/pms/lib/fo-check-in";
@@ -351,41 +351,14 @@ export function NoShowDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const refresh = useRefresh();
-  const noShow = useServerFn(markNoShow);
-
-  const mutation = useMutation({
-    mutationFn: () => noShow({ data: { restaurantId, reservationId: stay.id, today } }),
-    onSuccess: () => {
-      toast.success("Marked as no-show.");
-      refresh();
-      onOpenChange(false);
-    },
-    onError: (error) => toast.error(errorText(error)),
-  });
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Mark as no-show</DialogTitle>
-          <DialogDescription>
-            {stay.confirmationNumber} · {stay.guestName} · arrival {formatStayDate(stay.arrivalDate)}
-          </DialogDescription>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          The reservation stays in history and releases its room. No-show charges arrive in a later phase.
-        </p>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button variant="destructive" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? "Saving…" : "Mark no-show"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FoNoShowStepper
+      restaurantId={restaurantId}
+      stay={stay}
+      today={today}
+      open={open}
+      onOpenChange={onOpenChange}
+    />
   );
 }
 

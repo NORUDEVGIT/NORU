@@ -4254,6 +4254,10 @@ export type Database = {
           currency_code: string
           direct_booking_enabled: boolean
           email: string | null
+          fo_cancel_fee_default: number
+          fo_cancel_fee_required: boolean
+          fo_noshow_fee_default: number
+          fo_noshow_fee_required: boolean
           id: string
           logo_url: string | null
           name: string
@@ -4286,6 +4290,10 @@ export type Database = {
           currency_code?: string
           direct_booking_enabled?: boolean
           email?: string | null
+          fo_cancel_fee_default?: number
+          fo_cancel_fee_required?: boolean
+          fo_noshow_fee_default?: number
+          fo_noshow_fee_required?: boolean
           id?: string
           logo_url?: string | null
           name: string
@@ -4318,6 +4326,10 @@ export type Database = {
           currency_code?: string
           direct_booking_enabled?: boolean
           email?: string | null
+          fo_cancel_fee_default?: number
+          fo_cancel_fee_required?: boolean
+          fo_noshow_fee_default?: number
+          fo_noshow_fee_required?: boolean
           id?: string
           logo_url?: string | null
           name?: string
