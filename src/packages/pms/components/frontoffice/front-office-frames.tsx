@@ -44,7 +44,18 @@ import {
   getReservation,
   listReservations,
 } from "@/packages/pms/lib/reservations.functions";
-import { listGuests } from "@/packages/pms/lib/guests.functions";
+import { searchFrontOfficeStays } from "@/packages/pms/lib/fo-search1.functions";
+import {
+  FO_SEARCH_ACTION_LABELS,
+  FO_SEARCH_MATCH_LABELS,
+  NO_STAYS_FOUND,
+  SEARCH_DEBOUNCE_MS,
+  SEARCH_HINT,
+  companyGroupSoftLine,
+  isSearchReady,
+  searchEmpty,
+  type FoSearchActionId,
+} from "@/packages/pms/lib/fo-search1";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
@@ -498,104 +509,159 @@ export { ExceptionsFrame } from "@/packages/pms/components/frontoffice/fo-except
 
 export function GuestSearchDialog({
   restaurantId,
+  today,
   open,
   onOpenChange,
+  onOpenStay,
+  onShowOnRack,
+  onCheckIn,
+  onCheckOut,
+  onCancel,
 }: {
   restaurantId: string;
+  today: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onOpenStay: (stay: FrontOfficeStay) => void;
+  onShowOnRack: (stay: FrontOfficeStay) => void;
+  onCheckIn: (stay: FrontOfficeStay) => void;
+  onCheckOut: (stay: FrontOfficeStay) => void;
+  onCancel: (stay: FrontOfficeStay) => void;
 }) {
   const [term, setTerm] = useState("");
-  const fetchGuests = useServerFn(listGuests);
-  const fetchReservations = useServerFn(listReservations);
+  const [debounced, setDebounced] = useState("");
+  const fetchStays = useServerFn(searchFrontOfficeStays);
 
-  const guestsQuery = useQuery({
-    queryKey: ["front-office", "guest-search", restaurantId, term],
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebounced(term), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [term]);
+
+  useEffect(() => {
+    if (open) return;
+    setTerm("");
+    setDebounced("");
+  }, [open]);
+
+  const ready = isSearchReady(debounced);
+  const searchQuery = useQuery({
+    queryKey: ["front-office", "global-search", restaurantId, today, debounced.trim()],
     queryFn: () =>
-      fetchGuests({
-        data: {
-          restaurantId,
-          status: "active" as const,
-          limit: 8,
-          ...(term.trim() ? { search: term.trim() } : {}),
-        },
+      fetchStays({
+        data: { restaurantId, today, search: debounced.trim() },
       }),
-    enabled: open,
-    retry: false,
-  });
-  const reservationsQuery = useQuery({
-    queryKey: ["front-office", "reservation-search", restaurantId, term],
-    queryFn: () =>
-      fetchReservations({
-        data: {
-          restaurantId,
-          page: 1,
-          pageSize: 8,
-          ...(term.trim() ? { search: term.trim() } : {}),
-        },
-      }),
-    enabled: open && term.trim().length > 0,
+    enabled: open && ready,
     retry: false,
   });
 
-  if (guestsQuery.isError && isPermissionDeniedMessage(guestsQuery.error)) {
+  function runAction(action: FoSearchActionId, stay: FrontOfficeStay) {
+    if (action === "open_stay") onOpenStay(stay);
+    if (action === "show_on_rack") onShowOnRack(stay);
+    if (action === "check_in") onCheckIn(stay);
+    if (action === "check_out") onCheckOut(stay);
+    if (action === "cancel") onCancel(stay);
+  }
+
+  if (searchQuery.isError && isPermissionDeniedMessage(searchQuery.error)) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent data-testid="fo-global-search">
           <PermissionDeniedPanel message="You don't have access to guest search for this property." />
         </DialogContent>
       </Dialog>
     );
   }
 
+  const rows = searchQuery.data?.rows ?? [];
+  const empty = searchEmpty({ term: debounced, results: rows, loading: searchQuery.isLoading });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl" data-testid="fo-global-search">
         <DialogHeader>
           <DialogTitle>Guest search</DialogTitle>
-          <DialogDescription>Search guests and confirmation numbers already stored for this property.</DialogDescription>
+          <DialogDescription>
+            Search confirmation, guest, phone, email, room, company or group already stored for this property.
+          </DialogDescription>
         </DialogHeader>
         <Input
-          placeholder="Name, phone, email or confirmation"
+          data-testid="fo-global-search-input"
+          placeholder="Name, phone, email, confirmation, room, company or group"
           value={term}
           onChange={(e) => setTerm(e.target.value)}
         />
-        <div className="space-y-2">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Guests</p>
-          <ul className="max-h-40 space-y-1 overflow-y-auto">
-            {(guestsQuery.data ?? []).map((g) => (
-              <li key={g.id}>
-                <Link
-                  to="/restaurant/pms/reservations/guests/$guestId"
-                  params={{ guestId: g.id }}
-                  className="block rounded-lg px-3 py-2 text-sm hover:bg-accent"
-                  onClick={() => onOpenChange(false)}
+        {!ready ? <p className="text-sm text-muted-foreground">{SEARCH_HINT}</p> : null}
+        {ready && searchQuery.isLoading ? <p className="text-sm text-muted-foreground">Searching stays…</p> : null}
+        {empty ? (
+          <p data-testid="fo-search-empty" className="text-sm text-muted-foreground">
+            {NO_STAYS_FOUND}
+          </p>
+        ) : null}
+        {rows.length > 0 ? (
+          <ul className="max-h-80 space-y-2 overflow-y-auto" data-testid="fo-search-results">
+            {rows.map((hit) => {
+              const soft = companyGroupSoftLine(hit, hit.matches);
+              return (
+                <li
+                  key={hit.id}
+                  data-testid="fo-search-result"
+                  className="rounded-xl border border-border bg-card px-3 py-2.5"
                 >
-                  {g.fullName}
-                  <span className="ml-2 text-xs text-muted-foreground">{g.phone ?? g.email ?? ""}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-        {term.trim() ? (
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Reservations</p>
-            <ul className="max-h-40 space-y-1 overflow-y-auto">
-              {(reservationsQuery.data?.rows ?? []).map((r) => (
-                <li key={r.id}>
-                  <Link
-                    to="/restaurant/pms/reservations/$reservationId"
-                    params={{ reservationId: r.id }}
-                    className="block rounded-lg px-3 py-2 text-sm hover:bg-accent"
-                    onClick={() => onOpenChange(false)}
-                  >
-                    {r.confirmationNumber} · {r.guestName}
-                  </Link>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {hit.guestName} · {hit.confirmationNumber}
+                      </p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>{hit.roomNumber ? `Room ${hit.roomNumber}` : "Unassigned"}</span>
+                        <span>
+                          {formatStayDate(hit.arrivalDate)} → {formatStayDate(hit.departureDate)}
+                        </span>
+                        <ReservationStatusBadge status={hit.status} />
+                      </p>
+                      {hit.matches.length > 0 ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {hit.matches.map((field) => (
+                            <span
+                              key={field}
+                              data-testid={`fo-search-chip-${field}`}
+                              className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                            >
+                              {FO_SEARCH_MATCH_LABELS[field]}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {soft.company || soft.group ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {[soft.company, soft.group].filter(Boolean).join(" · ")}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {hit.actions.map((action) => (
+                      <Button
+                        key={action}
+                        type="button"
+                        size="sm"
+                        variant={action === "open_stay" ? "default" : "outline"}
+                        data-testid={`fo-search-action-${action}`}
+                        onClick={() => runAction(action, hit)}
+                      >
+                        {FO_SEARCH_ACTION_LABELS[action]}
+                      </Button>
+                    ))}
+                  </div>
                 </li>
-              ))}
-            </ul>
-          </div>
+              );
+            })}
+          </ul>
+        ) : null}
+        {searchQuery.data?.footer ? (
+          <p data-testid="fo-search-cap-footer" className="text-xs text-muted-foreground">
+            {searchQuery.data.footer}
+          </p>
         ) : null}
       </DialogContent>
     </Dialog>

@@ -27,6 +27,7 @@ import {
   WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { FoAmendKindSheet, type FoAmendKind } from "@/packages/pms/components/frontoffice/fo-amend-sheet";
+import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import { ArrivalsWorkspace } from "@/packages/pms/components/workspaces/arrivals-workspace";
 import { DeparturesList, InHouseList } from "@/packages/pms/components/frontoffice/stay-lists";
 import { LIST_COMING_SOON_COLUMNS, invokeFoAction, resolveFoNav, type FoNavId } from "@/packages/pms/lib/front-office-shell";
@@ -84,6 +85,7 @@ export function FrontOfficeWorkspace({
   const [helpOpen, setHelpOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [rackFocus, setRackFocus] = useState<FoRackFocus | null>(null);
+  const [searchCancelStay, setSearchCancelStay] = useState<FrontOfficeStay | null>(null);
 
   useEffect(() => {
     setView(resolveFoNav(initialTab));
@@ -367,7 +369,45 @@ export function FrontOfficeWorkspace({
           openDialog("checkin", created);
         }}
       />
-      <GuestSearchDialog restaurantId={restaurantId} open={searchOpen} onOpenChange={setSearchOpen} />
+      <GuestSearchDialog
+        restaurantId={restaurantId}
+        today={today}
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        onOpenStay={(stay) => {
+          setSearchOpen(false);
+          setSheetStay(stay);
+        }}
+        onShowOnRack={(stay) => {
+          setSearchOpen(false);
+          setRackFocus({
+            ...(stay.arrivalDate ? { focusDate: stay.arrivalDate } : {}),
+            ...(stay.roomId ? { roomId: stay.roomId } : {}),
+          });
+          setView("rack");
+        }}
+        onCheckIn={(stay) => {
+          setSearchOpen(false);
+          setCheckInStep("stay");
+          openDialog("checkin", stay);
+        }}
+        onCheckOut={(stay) => {
+          setSearchOpen(false);
+          openDialog("checkout", stay);
+        }}
+        onCancel={(stay) => {
+          setSearchOpen(false);
+          setSearchCancelStay(stay);
+        }}
+      />
+      {searchCancelStay ? (
+        <FoCancelStepper
+          restaurantId={restaurantId}
+          stay={searchCancelStay}
+          open
+          onOpenChange={(v) => !v && setSearchCancelStay(null)}
+        />
+      ) : null}
       <FoAuditViewer restaurantId={restaurantId} open={auditOpen} onOpenChange={setAuditOpen} />
 
       <StayPickerDialog
