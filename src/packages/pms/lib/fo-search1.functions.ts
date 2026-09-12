@@ -242,28 +242,26 @@ export const searchFrontOfficeStays = createServerFn({ method: "POST" })
     }
 
     const fetchIds = [...ids].slice(0, SEARCH_RESULT_CAP + 1);
-    const select = companyGroupAvailable ? STAY_SELECT_WITH_COMPANY : STAY_SELECT_CORE;
-    let fetched = await context.supabase
-      .from("hotel_reservations")
-      .select(select)
-      .eq("restaurant_id", data.restaurantId)
-      .in("id", fetchIds)
-      .order("arrival_date", { ascending: false })
-      .order("confirmation_number", { ascending: true });
 
-    if (fetched.error && companyGroupAvailable && isCompanyGroupColumnMissing(fetched.error)) {
-      companyGroupAvailable = false;
-      fetched = await context.supabase
+    async function loadRows(withCompany: boolean) {
+      const result = await context.supabase
         .from("hotel_reservations")
-        .select(STAY_SELECT_CORE)
+        .select(withCompany ? STAY_SELECT_WITH_COMPANY : STAY_SELECT_CORE)
         .eq("restaurant_id", data.restaurantId)
         .in("id", fetchIds)
         .order("arrival_date", { ascending: false })
         .order("confirmation_number", { ascending: true });
+      return { data: (result.data ?? null) as unknown as StaySearchRow[] | null, error: result.error };
+    }
+
+    let fetched = await loadRows(companyGroupAvailable);
+    if (fetched.error && companyGroupAvailable && isCompanyGroupColumnMissing(fetched.error)) {
+      companyGroupAvailable = false;
+      fetched = await loadRows(false);
     }
     if (fetched.error) throw new Error(fetched.error.message);
 
-    const hits = ((fetched.data ?? []) as unknown as StaySearchRow[]).map((row) =>
+    const hits = (fetched.data ?? []).map((row) =>
       toHit(row, data.today, data.search, companyGroupAvailable),
     );
     const capped = capSearchResults(hits, SEARCH_RESULT_CAP);

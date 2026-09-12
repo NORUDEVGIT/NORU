@@ -2,8 +2,8 @@
  * FO-SEARCH1 — typed global stay search (pure).
  *
  * Matches confirmation · guest · phone · email · room, plus company_name /
- * group_name when those columns have stored data. Never invents Company/Group
- * from hotel_reservations.source. Missing 0046 columns omit those chips only.
+ * group_name when those columns have stored data. Never invents Company/Group from
+ * hotel_reservations.source. Missing 0046 columns omit those chips only.
  */
 import { isStayCancellable } from "./fo-cancel-noshow.ts";
 import { isMissingSchemaError } from "./fo-amendments.ts";

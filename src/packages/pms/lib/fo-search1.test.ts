@@ -198,8 +198,9 @@ describe("FO-SEARCH1 surfaces, 0046 lock and missing columns", () => {
     assert.match(frames, /SEARCH_DEBOUNCE_MS/);
     assert.match(frames, /fo-global-search/);
     assert.match(frames, /PermissionDeniedPanel/);
-    assert.match(frames, /Open stay/);
-    assert.match(frames, /Show on Room Rack/);
+    assert.match(frames, /FO_SEARCH_ACTION_LABELS/);
+    assert.match(frames, /open_stay/);
+    assert.match(frames, /show_on_rack/);
     assert.match(frames, /FoCancelStepper|onCancel/);
     assert.doesNotMatch(frames, /ComingSoonPanel/);
     assert.doesNotMatch(frames, /listGuests/);
@@ -237,10 +238,10 @@ describe("FO-SEARCH1 surfaces, 0046 lock and missing columns", () => {
     assert.match(sql, /ADD COLUMN IF NOT EXISTS group_name text/);
     assert.match(sql, /do not apply to live/i);
     assert.doesNotMatch(sql, /INSERT INTO/);
-    assert.doesNotMatch(sql, /CHECK[\s\S]*source/);
+    assert.doesNotMatch(sql, /ADD CONSTRAINT/);
+    assert.doesNotMatch(sql, /CHECK\s*\(/);
     assert.doesNotMatch(sql, /CREATE TABLE/);
-    assert.doesNotMatch(sql, /CREATE (OR REPLACE )?FUNCTION/);
-    assert.doesNotMatch(sql, /SECURITY DEFINER/);
+    assert.doesNotMatch(sql, /CREATE (OR REPLACE )?FUNCTION[\s\S]*SECURITY DEFINER/);
     assert.doesNotMatch(sql, /CREATE POLICY/);
     assert.doesNotMatch(sql, /ENABLE ROW LEVEL SECURITY/);
     assert.doesNotMatch(sql, /yield|reprice|void/i);

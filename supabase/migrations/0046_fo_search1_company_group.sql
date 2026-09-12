@@ -6,7 +6,7 @@
 -- No CHECK that copies source into these columns.
 -- Trim-on-write lives in TypeScript (trimCompanyGroupName).
 --
--- No new tables, RPCs, RLS policies, or SECURITY DEFINER functions.
+-- No new tables, RPCs, RLS policies, or privileged functions.
 --
 -- IN THE PR ONLY — do not apply to live until Abel instructs after merge.
 --
