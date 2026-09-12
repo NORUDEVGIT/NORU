@@ -17,6 +17,14 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { ComingSoonChip, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import {
+  FoAmendGuestsSheet,
+  FoAmendServiceSheet,
+  FoAmendSpecialRequestSheet,
+  FoAmendUpgradeSheet,
+  FoGuestRequestSheet,
+  type FoAmendKind,
+} from "@/packages/pms/components/frontoffice/fo-amend-sheet";
 import { ReservationAmendmentsTab } from "@/packages/pms/components/bookings/reservation-amendments";
 import { ReservationCancellationsTab } from "@/packages/pms/components/bookings/reservation-cancellations";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
@@ -100,29 +108,62 @@ export function AmendmentsFrame({
     queryFn: () => fetchInHouse({ data: { restaurantId, today } }),
     retry: false,
   });
+  const fetchReservations = useServerFn(listReservations);
+  const [search, setSearch] = useState("");
   const [move, setMove] = useState<FrontOfficeStay | null>(null);
   const [dates, setDates] = useState<FrontOfficeStay | null>(null);
   const [amend, setAmend] = useState<FrontOfficeStay | null>(null);
+  const [sheet, setSheet] = useState<{ stay: FrontOfficeStay; kind: FoAmendKind } | null>(null);
   const rows = inHouseQuery.data ?? [];
+
+  const searchQuery = useQuery({
+    queryKey: ["front-office", "amend-search", restaurantId, search],
+    queryFn: () =>
+      fetchReservations({
+        data: {
+          restaurantId,
+          page: 1,
+          pageSize: 8,
+          ...(search.trim() ? { search: search.trim() } : {}),
+        },
+      }),
+    enabled: search.trim().length > 1,
+    retry: false,
+  });
+
+  const found = (searchQuery.data?.rows ?? []).map((row) => stayFromReservation(row, today));
+  const visible = search.trim().length > 1 ? found : rows;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-xl">Amendments</h2>
         <p className="text-sm text-muted-foreground">
-          Room Move and stay-date changes live here. There is no Room Moves sidebar item.
+          Find a stay, then Move, Extend, Upgrade / Downgrade, Guests, Add Service, Special Request, Guest Request or Notes.
         </p>
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="fo-amend-find">Find stay</Label>
+        <Input
+          id="fo-amend-find"
+          placeholder="Guest or confirmation"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       <div className="space-y-3">
-        <h3 className="text-sm font-medium">In-house stays</h3>
-        {inHouseQuery.isLoading ? (
+        <h3 className="text-sm font-medium">{search.trim().length > 1 ? "Matching stays" : "In-house stays"}</h3>
+        {inHouseQuery.isLoading && search.trim().length <= 1 ? (
           <p className="text-sm text-muted-foreground">Loading stays…</p>
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nobody is in-house to amend.</p>
+        ) : visible.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {search.trim().length > 1 ? "No matching stays." : "Nobody is in-house to amend."}
+          </p>
         ) : (
           <ul className="space-y-2">
-            {rows.map((stay) => (
+            {visible.map((stay) => (
               <li key={stay.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card p-3">
                 <div>
                   <p className="font-medium">{stay.guestName}</p>
@@ -132,13 +173,28 @@ export function AmendmentsFrame({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => setMove(stay)}>
-                    Room Move
+                    Move
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setDates(stay)}>
-                    Extend / shorten
+                    Extend
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSheet({ stay, kind: "upgrade" })}>
+                    Upgrade / Downgrade
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSheet({ stay, kind: "guests" })}>
+                    Guests
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSheet({ stay, kind: "service" })}>
+                    Add Service
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSheet({ stay, kind: "special" })}>
+                    Special Request
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSheet({ stay, kind: "guest_request" })}>
+                    Guest Request
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setAmend(stay)}>
-                    Amend notes
+                    Notes
                   </Button>
                 </div>
               </li>
@@ -160,6 +216,21 @@ export function AmendmentsFrame({
       ) : null}
       {amend ? (
         <AmendNotesDialog restaurantId={restaurantId} stay={amend} open onOpenChange={(v) => !v && setAmend(null)} />
+      ) : null}
+      {sheet?.kind === "upgrade" ? (
+        <FoAmendUpgradeSheet restaurantId={restaurantId} stay={sheet.stay} open onOpenChange={(v) => !v && setSheet(null)} />
+      ) : null}
+      {sheet?.kind === "guests" ? (
+        <FoAmendGuestsSheet restaurantId={restaurantId} stay={sheet.stay} open onOpenChange={(v) => !v && setSheet(null)} />
+      ) : null}
+      {sheet?.kind === "service" ? (
+        <FoAmendServiceSheet restaurantId={restaurantId} stay={sheet.stay} open onOpenChange={(v) => !v && setSheet(null)} />
+      ) : null}
+      {sheet?.kind === "special" ? (
+        <FoAmendSpecialRequestSheet restaurantId={restaurantId} stay={sheet.stay} open onOpenChange={(v) => !v && setSheet(null)} />
+      ) : null}
+      {sheet?.kind === "guest_request" ? (
+        <FoGuestRequestSheet restaurantId={restaurantId} stay={sheet.stay} open onOpenChange={(v) => !v && setSheet(null)} />
       ) : null}
     </div>
   );

@@ -25,6 +25,7 @@ import {
   StayDatesDialog,
   WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import { FoAmendKindSheet, type FoAmendKind } from "@/packages/pms/components/frontoffice/fo-amend-sheet";
 import { ArrivalsWorkspace } from "@/packages/pms/components/workspaces/arrivals-workspace";
 import { DeparturesList, InHouseList } from "@/packages/pms/components/frontoffice/stay-lists";
 import { LIST_COMING_SOON_COLUMNS, invokeFoAction, resolveFoNav, type FoNavId } from "@/packages/pms/lib/front-office-shell";
@@ -37,7 +38,15 @@ import { useAuth } from "@/core/state/auth-store";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 type LiveDialog = "assign" | "checkin" | "move" | "stay" | "checkout" | "noshow";
-type PickerKind = "check_in" | "room_move" | "extend_stay" | "check_out" | null;
+type PickerKind = "check_in" | "room_move" | "extend_stay" | "check_out" | "guest_request" | null;
+
+const SHEET_AMEND: Record<string, FoAmendKind> = {
+  upgrade_downgrade: "upgrade",
+  add_remove_guest: "guests",
+  add_service: "service",
+  add_special_request: "special",
+  guest_request: "guest_request",
+};
 
 /**
  * Issue #29 — Front Office command shell. Replaces the tab desk. Landing view
@@ -67,6 +76,8 @@ export function FrontOfficeWorkspace({
   const [dialogStay, setDialogStay] = useState<FrontOfficeStay | null>(null);
   const [dialog, setDialog] = useState<LiveDialog | null>(null);
   const [picker, setPicker] = useState<PickerKind>(null);
+  const [amendKind, setAmendKind] = useState<FoAmendKind | null>(null);
+  const [amendStay, setAmendStay] = useState<FrontOfficeStay | null>(null);
 
   useEffect(() => {
     setView(resolveFoNav(initialTab));
@@ -99,7 +110,7 @@ export function FrontOfficeWorkspace({
   const inHouseQuery = useQuery({
     queryKey: ["front-office", "in-house", restaurantId, today, ""],
     queryFn: () => fetchInHouse({ data: { restaurantId, today } }),
-    enabled: canManage && (picker === "room_move" || picker === "extend_stay" || picker === "check_out"),
+    enabled: canManage && (picker === "room_move" || picker === "extend_stay" || picker === "check_out" || picker === "guest_request"),
     retry: false,
   });
 
@@ -129,6 +140,9 @@ export function FrontOfficeWorkspace({
     if (actionId === "check_in" || actionId === "room_move" || actionId === "extend_stay" || actionId === "check_out") {
       setPicker(actionId);
     }
+    if (actionId === "guest_request") {
+      setPicker("guest_request");
+    }
   }
 
   function onSheetAction(action: SideSheetAction, stay: FrontOfficeStay) {
@@ -145,7 +159,20 @@ export function FrontOfficeWorkspace({
       setSheetStay(stay);
       return;
     }
-    const map: Record<Exclude<SideSheetAction, "view" | "view_folio" | "amend_notes">, LiveDialog> = {
+    const map: Record<
+      Exclude<
+        SideSheetAction,
+        | "view"
+        | "view_folio"
+        | "amend_notes"
+        | "upgrade_downgrade"
+        | "add_remove_guest"
+        | "add_service"
+        | "add_special_request"
+        | "guest_request"
+      >,
+      LiveDialog
+    > = {
       assign: "assign",
       room_move: "move",
       extend_stay: "stay",
@@ -158,7 +185,13 @@ export function FrontOfficeWorkspace({
       setSheetStay(null);
       return;
     }
-    const kind = map[action];
+    const amend = SHEET_AMEND[action];
+    if (amend) {
+      setAmendStay(stay);
+      setAmendKind(amend);
+      return;
+    }
+    const kind = map[action as keyof typeof map];
     if (kind === "checkin") {
       setCheckInStep("stay");
       setSheetStay(null);
@@ -253,7 +286,9 @@ export function FrontOfficeWorkspace({
               ? "Room Move"
               : picker === "extend_stay"
                 ? "Extend Stay"
-                : "Check-out"
+                : picker === "guest_request"
+                  ? "Guest Request"
+                  : "Check-out"
         }
         stays={picker === "check_in" ? (arrivalsQuery.data ?? []) : (inHouseQuery.data ?? [])}
         loading={picker === "check_in" ? arrivalsQuery.isLoading : inHouseQuery.isLoading}
@@ -267,6 +302,10 @@ export function FrontOfficeWorkspace({
           if (picker === "room_move") openDialog("move", stay);
           if (picker === "extend_stay") openDialog("stay", stay);
           if (picker === "check_out") openDialog("checkout", stay);
+          if (picker === "guest_request") {
+            setAmendStay(stay);
+            setAmendKind("guest_request");
+          }
         }}
       />
 
@@ -303,6 +342,20 @@ export function FrontOfficeWorkspace({
           today={today}
           open
           onOpenChange={(v) => !v && setDialog(null)}
+        />
+      ) : null}
+      {amendStay && amendKind ? (
+        <FoAmendKindSheet
+          kind={amendKind}
+          restaurantId={restaurantId}
+          stay={amendStay}
+          open
+          onOpenChange={(v) => {
+            if (!v) {
+              setAmendKind(null);
+              setAmendStay(null);
+            }
+          }}
         />
       ) : null}
     </FrontOfficeChrome>

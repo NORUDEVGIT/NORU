@@ -566,6 +566,61 @@ export type Database = {
           },
         ]
       }
+      fo_guest_requests: {
+        Row: {
+          actor_membership_id: string | null
+          created_at: string
+          id: string
+          request_text: string
+          reservation_id: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          created_at?: string
+          id?: string
+          request_text: string
+          reservation_id: string
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          created_at?: string
+          id?: string
+          request_text?: string
+          reservation_id?: string
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fo_guest_requests_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fo_guest_requests_reservation_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "fo_guest_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_folio_counters: {
         Row: {
           last_number: number
@@ -1254,6 +1309,7 @@ export type Database = {
           room_subtotal: number | null
           room_type_id: string
           source: string
+          special_request_category: string | null
           special_requests: string | null
           status: string
           updated_at: string
@@ -1279,6 +1335,7 @@ export type Database = {
           room_subtotal?: number | null
           room_type_id: string
           source?: string
+          special_request_category?: string | null
           special_requests?: string | null
           status?: string
           updated_at?: string
@@ -1304,6 +1361,7 @@ export type Database = {
           room_subtotal?: number | null
           room_type_id?: string
           source?: string
+          special_request_category?: string | null
           special_requests?: string | null
           status?: string
           updated_at?: string
