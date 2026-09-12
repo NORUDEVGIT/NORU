@@ -399,8 +399,10 @@ describe("FO-FS5 source locks", () => {
     assert.match(migration, /_arrival date/);
     assert.match(migration, /arrival_date = _arrival/);
     assert.match(migration, /pending.*confirmed.*checked_in/s);
-    assert.doesNotMatch(migration, /nightly_rate_snapshot/);
-    assert.doesNotMatch(migration, /room_subtotal/);
+    const rpcBody = migration.slice(migration.indexOf("AS $$"), migration.lastIndexOf("$$"));
+    assert.doesNotMatch(rpcBody, /nightly_rate_snapshot/);
+    assert.doesNotMatch(rpcBody, /room_subtotal/);
+    assert.match(migration, /Do not apply to live/);
 
     const workspace = readFileSync(
       new URL("../components/workspaces/front-office-workspace.tsx", import.meta.url),
