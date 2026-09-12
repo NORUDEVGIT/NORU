@@ -29,7 +29,9 @@ import { useMoney } from "@/packages/restaurant-management/state/restaurant-cont
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
-  COMPANIONS_DEFERRED,
+  CATALOGUE_EMPTY_HINT,
+  COMPANIONS_UNAVAILABLE,
+  NO_GUESTS_FOUND,
   RATE_IMPACT_UNAVAILABLE,
   SERVICE_ZERO_NO_POST,
   SPECIAL_REQUEST_CATEGORIES,
@@ -39,9 +41,13 @@ import {
   canConfirmService,
   canConfirmSpecialRequest,
   canConfirmUpgrade,
+  guestSearchEmpty,
+  namedPartyBlockMessage,
+  nextCompanionCount,
   occupancyBlockMessage,
   rateImpact,
   servicePostsToFolio,
+  stayGuestLine,
   targetRoomRequired,
   upgradeRoomBlocked,
   type SpecialRequestCategory,
@@ -50,10 +56,13 @@ import {
   addSpecialRequest,
   addStayService,
   amendStayGuests,
+  attachStayCompanion,
   createGuestRequest,
+  detachStayCompanion,
   getAmendContext,
   setGuestRequestStatus,
   upgradeReservationType,
+  type StayGuestRow,
 } from "@/packages/pms/lib/fo-amendments.functions";
 
 function errorText(error: unknown): string {
@@ -387,11 +396,16 @@ export function FoAmendGuestsSheet({
   const fetchContext = useServerFn(getAmendContext);
   const fetchGuests = useServerFn(listGuests);
   const save = useServerFn(amendStayGuests);
+  const attach = useServerFn(attachStayCompanion);
+  const detach = useServerFn(detachStayCompanion);
   const [adults, setAdults] = useState(stay.adults);
   const [children, setChildren] = useState(stay.children);
   const [reason, setReason] = useState("");
   const [guestSearch, setGuestSearch] = useState("");
   const [guest, setGuest] = useState<GuestSummary | null>(null);
+  const [companionSearch, setCompanionSearch] = useState("");
+  const [pendingAttach, setPendingAttach] = useState<GuestSummary | null>(null);
+  const [pendingDetach, setPendingDetach] = useState<StayGuestRow | null>(null);
   const [deny, setDeny] = useState<string | null>(null);
 
   const contextQuery = useQuery({
@@ -408,6 +422,9 @@ export function FoAmendGuestsSheet({
       setReason("");
       setGuestSearch("");
       setGuest(null);
+      setCompanionSearch("");
+      setPendingAttach(null);
+      setPendingDetach(null);
       setDeny(null);
     }
   }, [open, stay.adults, stay.children, stay.id]);
@@ -426,23 +443,95 @@ export function FoAmendGuestsSheet({
     enabled: open && guestSearch.trim().length > 0,
   });
 
-  const maxOccupancy = contextQuery.data?.maxOccupancy ?? 0;
-  const block = occupancyBlockMessage(adults, children, maxOccupancy);
-  const canConfirm = canConfirmGuests({ adults, children, maxOccupancy, reason });
-  const nextGuest = guest?.fullName ?? stay.guestName;
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      save({
+  const companionGuestsQuery = useQuery({
+    queryKey: ["fo-amend", "companion-guests", restaurantId, companionSearch],
+    queryFn: () =>
+      fetchGuests({
         data: {
           restaurantId,
-          reservationId: stay.id,
-          adults,
-          children,
-          reason: reason.trim(),
-          ...(guest ? { guestId: guest.id } : {}),
+          status: "active" as const,
+          limit: 6,
+          ...(companionSearch.trim() ? { search: companionSearch.trim() } : {}),
         },
       }),
+    enabled: open && companionSearch.trim().length > 0 && !pendingAttach,
+  });
+
+  const ctx = contextQuery.data;
+  const companions = ctx?.companions ?? [];
+  const companionsError = ctx?.companionsError ?? null;
+  const primaryGuest = ctx?.primaryGuest;
+  const maxOccupancy = ctx?.maxOccupancy ?? 0;
+  const occupancyChanged = adults !== stay.adults || children !== stay.children || !!guest;
+  const nextCount = nextCompanionCount({
+    currentCount: companions.length,
+    ...(pendingAttach ? { pendingAttach: true } : {}),
+    ...(pendingDetach ? { pendingDetach: true } : {}),
+  });
+  const block = occupancyBlockMessage(adults, children, maxOccupancy);
+  const namedBlock = pendingAttach ? namedPartyBlockMessage(nextCount, maxOccupancy) : null;
+  const canConfirm = canConfirmGuests({
+    adults,
+    children,
+    maxOccupancy,
+    reason,
+    companionCount: companions.length,
+    hasOccupancyChange: occupancyChanged || !!pendingAttach || !!pendingDetach,
+    ...(pendingAttach ? { pendingAttach: true } : {}),
+    ...(pendingDetach ? { pendingDetach: true } : {}),
+  });
+  const nextGuest = guest?.fullName ?? stay.guestName;
+  const attachedIds = new Set([stay.guestId, ...companions.map((c) => c.guestId)]);
+  const companionResults = (companionGuestsQuery.data ?? []).filter((g) => !attachedIds.has(g.id));
+  const primaryEmpty = guestSearchEmpty({
+    search: guestSearch,
+    results: guestsQuery.data ?? [],
+    loading: guestsQuery.isFetching,
+  });
+  const companionEmpty = guestSearchEmpty({
+    search: companionSearch,
+    results: companionResults,
+    loading: companionGuestsQuery.isFetching,
+  });
+  const contextDenied = contextQuery.isError && isPermissionDeniedMessage(contextQuery.error);
+  const denyMessage = deny ?? (contextDenied ? errorText(contextQuery.error) : null);
+  const companionsDenied = !!companionsError && isPermissionDeniedMessage(companionsError);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (occupancyChanged) {
+        await save({
+          data: {
+            restaurantId,
+            reservationId: stay.id,
+            adults,
+            children,
+            reason: reason.trim(),
+            ...(guest ? { guestId: guest.id } : {}),
+          },
+        });
+      }
+      if (pendingAttach) {
+        await attach({
+          data: {
+            restaurantId,
+            reservationId: stay.id,
+            guestId: pendingAttach.id,
+            reason: reason.trim(),
+          },
+        });
+      }
+      if (pendingDetach) {
+        await detach({
+          data: {
+            restaurantId,
+            reservationId: stay.id,
+            companionId: pendingDetach.id,
+            reason: reason.trim(),
+          },
+        });
+      }
+    },
     onSuccess: () => {
       toast.success("Guests updated.");
       refreshKeys(queryClient);
@@ -454,15 +543,21 @@ export function FoAmendGuestsSheet({
     },
   });
 
-  if (deny) {
+  if (denyMessage) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message={deny} />
+          <PermissionDeniedPanel message={denyMessage} />
         </SheetContent>
       </Sheet>
     );
   }
+
+  const nextCompanions = pendingDetach
+    ? companions.filter((c) => c.id !== pendingDetach.id).map((c) => c.name)
+    : pendingAttach
+      ? [...companions.map((c) => c.name), pendingAttach.fullName]
+      : companions.map((c) => c.name);
 
   return (
     <FoAmendSheet
@@ -502,6 +597,7 @@ export function FoAmendGuestsSheet({
         </div>
       </div>
       {block ? <p className="text-sm text-destructive">{block}</p> : null}
+      {namedBlock ? <p className="text-sm text-destructive">{namedBlock}</p> : null}
       <div className="space-y-2">
         <Label htmlFor="fo-amend-primary-guest">Primary guest (optional)</Label>
         <Input
@@ -514,21 +610,99 @@ export function FoAmendGuestsSheet({
           }}
         />
         {!guest && guestSearch.trim() ? (
-          <ul className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
-            {(guestsQuery.data ?? []).map((g) => (
-              <li key={g.id}>
-                <button
-                  type="button"
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
-                  onClick={() => setGuest(g)}
-                >
-                  {g.fullName}
-                </button>
-              </li>
-            ))}
-          </ul>
+          primaryEmpty ? (
+            <p className="text-sm text-muted-foreground">{NO_GUESTS_FOUND}</p>
+          ) : (
+            <ul className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
+              {(guestsQuery.data ?? []).map((g) => (
+                <li key={g.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                    onClick={() => setGuest(g)}
+                  >
+                    {g.fullName}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
         ) : null}
-        <p className="text-xs text-muted-foreground">{COMPANIONS_DEFERRED}</p>
+      </div>
+      <div className="space-y-2" data-testid="fo-named-companions">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Named guests</p>
+        {companionsDenied ? (
+          <PermissionDeniedPanel message={companionsError ?? COMPANIONS_UNAVAILABLE} />
+        ) : companionsError ? (
+          <div className="rounded-2xl border border-border bg-card p-4" data-testid="fo-companions-unavailable">
+            <p className="text-sm font-medium text-[#251605]">Unavailable</p>
+            <p className="mt-1 text-sm text-muted-foreground">{companionsError}</p>
+          </div>
+        ) : (
+          <>
+            <ul className="space-y-2">
+              <li className="rounded-xl border border-border px-3 py-2 text-sm">
+                {stayGuestLine(primaryGuest?.name ?? stay.guestName, primaryGuest?.type ?? null)} · Primary
+              </li>
+              {companions.map((row) => (
+                <li key={row.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+                  <span className="text-sm">{stayGuestLine(row.name, row.type)}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setPendingAttach(null);
+                      setPendingDetach(row);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <div className="space-y-2">
+              <Label htmlFor="fo-amend-companion">Add companion</Label>
+              <Input
+                id="fo-amend-companion"
+                placeholder="Search an existing guest profile"
+                value={pendingAttach ? pendingAttach.fullName : companionSearch}
+                onChange={(e) => {
+                  setPendingAttach(null);
+                  setCompanionSearch(e.target.value);
+                }}
+              />
+              {!pendingAttach && companionSearch.trim() ? (
+                companionEmpty ? (
+                  <p className="text-sm text-muted-foreground">{NO_GUESTS_FOUND}</p>
+                ) : (
+                  <ul className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
+                    {companionResults.map((g) => (
+                      <li key={g.id}>
+                        <button
+                          type="button"
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                          onClick={() => {
+                            setPendingDetach(null);
+                            setPendingAttach(g);
+                          }}
+                        >
+                          {g.fullName}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              ) : null}
+            </div>
+            {pendingAttach ? (
+              <p className="text-sm">Pending add: {pendingAttach.fullName}</p>
+            ) : null}
+            {pendingDetach ? (
+              <p className="text-sm">Pending remove: {stayGuestLine(pendingDetach.name, pendingDetach.type)}</p>
+            ) : null}
+          </>
+        )}
       </div>
       <ReasonField id="fo-guests-reason" value={reason} onChange={setReason} />
       <BeforeAfterCard
@@ -536,10 +710,15 @@ export function FoAmendGuestsSheet({
           { label: "adults", previous: String(stay.adults), next: String(adults) },
           { label: "children", previous: String(stay.children), next: String(children) },
           { label: "primary guest", previous: stay.guestName, next: nextGuest },
+          {
+            label: "companions",
+            previous: companions.map((c) => c.name).join(", ") || "—",
+            next: nextCompanions.join(", ") || "—",
+          },
         ]}
         rate={rateImpact({
-          roomSubtotal: contextQuery.data?.roomSubtotal,
-          nightlyRates: contextQuery.data?.nightlyRates,
+          roomSubtotal: ctx?.roomSubtotal,
+          nightlyRates: ctx?.nightlyRates,
         })}
       />
     </FoAmendSheet>
@@ -565,6 +744,8 @@ export function FoAmendServiceSheet({
   const [amount, setAmount] = useState("0");
   const [quantity, setQuantity] = useState("1");
   const [reason, setReason] = useState("");
+  const [catalogueSearch, setCatalogueSearch] = useState("");
+  const [selectedCatalogueId, setSelectedCatalogueId] = useState<string | null>(null);
   const [deny, setDeny] = useState<string | null>(null);
 
   const contextQuery = useQuery({
@@ -580,14 +761,24 @@ export function FoAmendServiceSheet({
       setAmount("0");
       setQuantity("1");
       setReason("");
+      setCatalogueSearch("");
+      setSelectedCatalogueId(null);
       setDeny(null);
     }
   }, [open, stay.id]);
 
+  const catalogue = contextQuery.data?.catalogue ?? [];
+  const pickFirst = catalogue.length > 0;
+  const catalogueHint = contextQuery.data?.catalogueHint ?? (pickFirst ? null : CATALOGUE_EMPTY_HINT);
+  const filteredCatalogue = catalogue.filter((item) =>
+    item.name.toLowerCase().includes(catalogueSearch.trim().toLowerCase()),
+  );
   const amountNumber = Number(amount);
   const qtyNumber = Number(quantity) || 1;
   const canConfirm = canConfirmService({ name, amount: amountNumber, quantity: qtyNumber, reason });
   const posts = servicePostsToFolio(amountNumber);
+  const contextDenied = contextQuery.isError && isPermissionDeniedMessage(contextQuery.error);
+  const denyMessage = deny ?? (contextDenied ? errorText(contextQuery.error) : null);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -613,11 +804,11 @@ export function FoAmendServiceSheet({
     },
   });
 
-  if (deny) {
+  if (denyMessage) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message={deny} />
+          <PermissionDeniedPanel message={denyMessage} />
         </SheetContent>
       </Sheet>
     );
@@ -634,15 +825,51 @@ export function FoAmendServiceSheet({
       pending={mutation.isPending}
       onConfirm={() => mutation.mutate()}
     >
-      <div className="space-y-2">
-        <Label htmlFor="fo-service-name">Service</Label>
-        <Input
-          id="fo-service-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Late checkout"
-        />
-      </div>
+      {pickFirst ? (
+        <div className="space-y-2" data-testid="fo-service-catalogue">
+          <Label htmlFor="fo-service-catalogue-search">Catalogue</Label>
+          <Input
+            id="fo-service-catalogue-search"
+            placeholder="Search catalogue"
+            value={catalogueSearch}
+            onChange={(e) => setCatalogueSearch(e.target.value)}
+          />
+          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
+            {filteredCatalogue.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={
+                    selectedCatalogueId === item.id
+                      ? "w-full rounded-lg bg-[#C89933]/15 px-3 py-2 text-left text-sm"
+                      : "w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                  }
+                  onClick={() => {
+                    setSelectedCatalogueId(item.id);
+                    setName(item.name);
+                    setAmount(String(item.defaultAmount));
+                  }}
+                >
+                  {item.name} · {money(item.defaultAmount)}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Label htmlFor="fo-service-name">Service</Label>
+          <Input id="fo-service-name" value={name} readOnly placeholder="Select a catalogue item" />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label htmlFor="fo-service-name">Service</Label>
+          <Input
+            id="fo-service-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Late checkout"
+          />
+          <p className="text-xs text-muted-foreground">{catalogueHint ?? CATALOGUE_EMPTY_HINT}</p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor="fo-service-amount">Amount ({contextQuery.data?.currency ?? "GBP"})</Label>

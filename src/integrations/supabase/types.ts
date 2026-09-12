@@ -621,6 +621,87 @@ export type Database = {
           },
         ]
       }
+      fo_service_catalogue: {
+        Row: {
+          active: boolean
+          default_amount: number
+          id: string
+          name: string
+          restaurant_id: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          default_amount?: number
+          id?: string
+          name: string
+          restaurant_id: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          default_amount?: number
+          id?: string
+          name?: string
+          restaurant_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fo_service_catalogue_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fo_stay_companions: {
+        Row: {
+          created_at: string
+          guest_id: string
+          id: string
+          reservation_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          guest_id: string
+          id?: string
+          reservation_id: string
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          guest_id?: string
+          id?: string
+          reservation_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fo_stay_companions_guest_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "fo_stay_companions_reservation_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "fo_stay_companions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_folio_counters: {
         Row: {
           last_number: number
