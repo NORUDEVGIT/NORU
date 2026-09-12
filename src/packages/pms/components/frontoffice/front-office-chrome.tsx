@@ -125,6 +125,7 @@ export function FrontOfficeChrome({
           <p className="text-xs text-white/80">{formatStayDate(businessDate)}</p>
           <button
             type="button"
+            data-testid="fo-guest-search"
             onClick={onGuestSearch}
             className="ml-auto inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white/90 hover:bg-white/15"
           >

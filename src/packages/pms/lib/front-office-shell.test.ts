@@ -117,6 +117,10 @@ describe("FO-FS0 single left nav", () => {
     assert.match(chrome, /FO_NAV_ITEMS/);
     assert.match(chrome, /#251605/);
     assert.match(chrome, /#C89933/);
+    assert.match(chrome, /onGuestSearch/);
+    assert.match(chrome, /fo-guest-search/);
+    assert.match(chrome, /Guest search/);
+    assert.doesNotMatch(chrome, /fo-nav-search/);
   });
 });
 

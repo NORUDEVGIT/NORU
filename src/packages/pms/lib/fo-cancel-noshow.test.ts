@@ -174,6 +174,14 @@ describe("FO-FS3 source locks", () => {
     const frames = readFileSync(new URL("../components/frontoffice/front-office-frames.tsx", import.meta.url), "utf8");
     assert.match(frames, /FoCancelStepper/);
     assert.match(frames, /WalkInsHistoryFrame/);
+    assert.match(frames, /onCancel/);
+
+    const workspace = readFileSync(
+      new URL("../components/workspaces/front-office-workspace.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(workspace, /searchCancelStay/);
+    assert.match(workspace, /FoCancelStepper/);
     assert.doesNotMatch(frames, /ComingSoonChip label="Cancel fees"/);
     assert.doesNotMatch(frames, /ComingSoonChip label="No-show charges"/);
     assert.doesNotMatch(frames, /Walk-in history is Coming soon/);
