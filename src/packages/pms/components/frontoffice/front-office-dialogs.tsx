@@ -25,8 +25,6 @@ import {
 } from "@/shared/components/ui/select";
 import { addDays, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
-import { getReservationFolio } from "@/packages/pms/lib/cashiering.functions";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import {
   createReservation,
   getRoomTypeAvailability,
@@ -34,13 +32,13 @@ import {
 } from "@/packages/pms/lib/reservations.functions";
 import {
   changeStayDates,
-  checkOutReservation,
   markNoShow,
   moveReservationRoom,
   type FrontOfficeStay,
 } from "@/packages/pms/lib/frontoffice.functions";
 import { assignReservationRoom } from "@/packages/pms/lib/reservations.functions";
 import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check-in-stepper";
+import { FoCheckOutStepper } from "@/packages/pms/components/frontoffice/fo-check-out-stepper";
 import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { CheckInStepId } from "@/packages/pms/lib/fo-check-in";
@@ -335,59 +333,8 @@ export function CheckOutDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const refresh = useRefresh();
-  const checkOut = useServerFn(checkOutReservation);
-  const fetchFolio = useServerFn(getReservationFolio);
-  const money = useMoney();
-
-  const folioQuery = useQuery({
-    queryKey: ["reservation-folio", restaurantId, stay.id],
-    queryFn: () => fetchFolio({ data: { restaurantId, reservationId: stay.id } }),
-    enabled: open,
-    retry: false,
-  });
-
-  const mutation = useMutation({
-    mutationFn: () => checkOut({ data: { restaurantId, reservationId: stay.id } }),
-    onSuccess: () => {
-      toast.success(`${stay.guestName} checked out.`);
-      refresh();
-      onOpenChange(false);
-    },
-    onError: (error) => toast.error(errorText(error)),
-  });
-
-  const balance = folioQuery.data?.balance ?? 0;
-  const outstanding = folioQuery.data !== null && folioQuery.data !== undefined && Math.abs(balance) >= 0.01;
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Check out</DialogTitle>
-          <DialogDescription>
-            {stay.guestName} · room {stay.roomNumber ?? "—"} · {stay.confirmationNumber}
-          </DialogDescription>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          The room becomes vacant immediately and housekeeping opens a departure cleaning task.
-        </p>
-        {outstanding ? (
-          <p className="text-sm text-destructive">
-            Folio {folioQuery.data?.folioNumber} still has a balance of {money(balance)}. You can still check
-            out — settle the folio in Accounting &amp; Finance.
-          </p>
-        ) : null}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? "Checking out…" : "Check out"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FoCheckOutStepper restaurantId={restaurantId} stay={stay} open={open} onOpenChange={onOpenChange} />
   );
 }
 
