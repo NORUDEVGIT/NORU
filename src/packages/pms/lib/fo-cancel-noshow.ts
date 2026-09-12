@@ -219,3 +219,8 @@ export function walkInCreatedByLabel(actorName: string | null | undefined): stri
 export function feeAmountAllowed(amount: number): boolean {
   return Number.isFinite(amount) && amount > 0;
 }
+
+/** Bookings / Side Sheet: pending or confirmed stays may open FoCancelStepper. */
+export function isStayCancellable(status: string): boolean {
+  return status === "pending" || status === "confirmed";
+}

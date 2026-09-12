@@ -178,14 +178,14 @@ describe("FO-FS4 history labels", () => {
 });
 
 describe("FO-FS4 action lanes", () => {
-  it("flips the five amend types Live and leaves cancel_fees Coming soon", () => {
+  it("flips the five amend types Live and cancel_fees Live", () => {
     const live = ["upgrade_downgrade", "add_remove_guest", "add_service", "add_special_request", "guest_request"];
     for (const id of live) {
       const action = FO_ACTIONS.find((a) => a.id === id);
       assert.ok(action, id);
       assert.equal(action?.lane, "live");
     }
-    assert.equal(FO_ACTIONS.find((a) => a.id === "cancel_fees")?.lane, "coming_soon");
+    assert.equal(FO_ACTIONS.find((a) => a.id === "cancel_fees")?.lane, "live");
     assert.equal(FO_ACTIONS.find((a) => a.id === "room_move")?.lane, "live");
     assert.equal(FO_ACTIONS.find((a) => a.id === "extend_stay")?.lane, "live");
     assert.equal(FO_ACTIONS.find((a) => a.id === "amend_notes")?.lane, "live");

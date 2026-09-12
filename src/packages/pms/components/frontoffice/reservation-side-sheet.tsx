@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
@@ -14,6 +15,7 @@ import {
 } from "@/shared/components/ui/sheet";
 import { ComingSoonButton, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { StayBadgeStrip } from "@/packages/pms/components/frontoffice/fo-stay-badges";
+import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { getReservationFolio } from "@/packages/pms/lib/cashiering.functions";
 import { getReservation } from "@/packages/pms/lib/reservations.functions";
@@ -23,6 +25,13 @@ import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { SPECIAL_REQUEST_CATEGORY_LABELS } from "@/packages/pms/lib/fo-amendments";
 import { getAmendContext, setGuestRequestStatus } from "@/packages/pms/lib/fo-amendments.functions";
+import { isStayCancellable } from "@/packages/pms/lib/fo-cancel-noshow";
+import {
+  FO_FEE_DEFAULTS_SECTION,
+  FO_FEE_DEFAULTS_SETTINGS_HREF,
+  requiredLabel,
+} from "@/packages/pms/lib/fo-fee-defaults";
+import { getFoFeeDefaults } from "@/packages/pms/lib/fo-fee-defaults.functions";
 
 export type SideSheetAction =
   | "view"
@@ -60,7 +69,16 @@ export function ReservationSideSheet({
   const fetchDetail = useServerFn(getReservation);
   const fetchFolio = useServerFn(getReservationFolio);
   const fetchAmend = useServerFn(getAmendContext);
+  const fetchFees = useServerFn(getFoFeeDefaults);
   const setRequestStatus = useServerFn(setGuestRequestStatus);
+  const [feeOpen, setFeeOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  useEffect(() => {
+    if (open) return;
+    setFeeOpen(false);
+    setCancelOpen(false);
+  }, [open]);
 
   const detailQuery = useQuery({
     queryKey: ["reservation", restaurantId, stay?.id],
@@ -83,6 +101,13 @@ export function ReservationSideSheet({
     retry: false,
   });
 
+  const feesQuery = useQuery({
+    queryKey: ["fo-fee-defaults", restaurantId],
+    queryFn: () => fetchFees({ data: { restaurantId } }),
+    enabled: open && !!stay && feeOpen,
+    retry: false,
+  });
+
   const toggleRequest = useMutation({
     mutationFn: (input: { requestId: string; status: "open" | "done" }) =>
       setRequestStatus({ data: { restaurantId, requestId: input.requestId, status: input.status } }),
@@ -101,6 +126,7 @@ export function ReservationSideSheet({
   const folioDenied = folioQuery.isError && isPermissionDeniedMessage(folioQuery.error);
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md" data-testid="fo-reservation-sheet">
         <SheetHeader>
@@ -224,10 +250,69 @@ export function ReservationSideSheet({
               <SheetActionButton
                 key={action.id}
                 action={action}
-                onLive={() => onAction(action.id as SideSheetAction, stay)}
+                onLive={() => {
+                  if (action.id === "cancel_fees") {
+                    setFeeOpen((open) => !open);
+                    return;
+                  }
+                  onAction(action.id as SideSheetAction, stay);
+                }}
               />
             ))}
           </div>
+
+          {feeOpen ? (
+            <div className="rounded-xl border border-border p-3" data-testid="fo-cancel-fee-summary">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{FO_FEE_DEFAULTS_SECTION}</p>
+              {feesQuery.isError && isPermissionDeniedMessage(feesQuery.error) ? (
+                <PermissionDeniedPanel
+                  className="mt-2 border-0 p-0"
+                  message="You don't have access to cancel and no-show fee defaults for this property."
+                />
+              ) : feesQuery.isLoading ? (
+                <p className="mt-2 text-sm text-muted-foreground">Loading fee policy…</p>
+              ) : feesQuery.data ? (
+                <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Cancel fee</dt>
+                    <dd>
+                      {requiredLabel(feesQuery.data.defaults.cancelFeeRequired)} ·{" "}
+                      {money(feesQuery.data.defaults.cancelFeeDefault)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">No-show charge</dt>
+                    <dd>
+                      {requiredLabel(feesQuery.data.defaults.noshowFeeRequired)} ·{" "}
+                      {money(feesQuery.data.defaults.noshowFeeDefault)}
+                    </dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">Fee defaults are unavailable.</p>
+              )}
+              {feesQuery.data?.canEdit ? (
+                <Button variant="outline" size="sm" className="mt-3" asChild>
+                  <a href={FO_FEE_DEFAULTS_SETTINGS_HREF}>{FO_FEE_DEFAULTS_SECTION}</a>
+                </Button>
+              ) : feesQuery.data && !feesQuery.data.canEdit ? (
+                <PermissionDeniedPanel
+                  className="mt-3 border-0 p-0"
+                  message="Only a supervisor, manager or property admin can edit cancel and no-show fee defaults."
+                />
+              ) : null}
+              {isStayCancellable(stay.status) ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setCancelOpen(true)}
+                >
+                  Cancel reservation
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
           <Button variant="outline" asChild>
             <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: stay.id }}>
@@ -237,6 +322,15 @@ export function ReservationSideSheet({
         </div>
       </SheetContent>
     </Sheet>
+    {cancelOpen ? (
+      <FoCancelStepper
+        restaurantId={restaurantId}
+        stay={stay}
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+      />
+    ) : null}
+    </>
   );
 }
 
