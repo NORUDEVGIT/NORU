@@ -288,6 +288,7 @@ export type RackFilters = {
   group: string;
   corporate: string;
   specialRequest: string;
+  discrepancy: string;
 };
 
 export const EMPTY_RACK_FILTERS: RackFilters = {
@@ -302,6 +303,7 @@ export const EMPTY_RACK_FILTERS: RackFilters = {
   group: "all",
   corporate: "all",
   specialRequest: "all",
+  discrepancy: "all",
 };
 
 export const RACK_LIVE_FILTERS = [
@@ -364,6 +366,9 @@ export const RESERVED_BADGE_SLOTS = [
   { id: "group_badge", label: "Group", lane: "live" as const },
   { id: "corporate_badge", label: "Corporate", lane: "live" as const },
   { id: "special_request_badge", label: "Special request", lane: "live" as const },
+  { id: "room_discrepancy_badge", label: "Discrepancy", lane: "live" as const },
+  { id: "early_arrival_badge", label: "Early arrival", lane: "empty" as const },
+  { id: "late_arrival_badge", label: "Late arrival", lane: "empty" as const },
 ] as const;
 
 export const LIST_COMING_SOON_COLUMNS = [
@@ -380,7 +385,7 @@ export const OPS_STRIP_LIVE_KEYS = [
   "outOfService",
 ] as const;
 
-/** Occupancy % is omitted rather than invented. Discrepancies stay hidden. */
+/** Occupancy % is Live when sellable > 0. Discrepancies Live only with the discrepancy feed. */
 export const OPS_STRIP_COMING_SOON = [] as const;
 
 export function shouldShowWeekGantt(viewport: "phone" | "tablet" | "desktop"): boolean {
@@ -398,12 +403,14 @@ export function roomMatchesFilters(
     occupancy: "vacant" | "occupied";
     status: string;
     housekeepingStatus?: string | null;
+    hasOpenDiscrepancy?: boolean;
   },
   filters: RackFilters,
 ): boolean {
   if (filters.floor !== "all" && (room.floor ?? "") !== filters.floor) return false;
   if (filters.roomType !== "all" && room.roomTypeName !== filters.roomType) return false;
   if (filters.hkStatus !== "all" && (room.housekeepingStatus ?? "") !== filters.hkStatus) return false;
+  if (filters.discrepancy === "open" && !room.hasOpenDiscrepancy) return false;
   if (filters.roomStatus !== "all") {
     if (filters.roomStatus === "vacant" || filters.roomStatus === "occupied") {
       if (room.occupancy !== filters.roomStatus) return false;

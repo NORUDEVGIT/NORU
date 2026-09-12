@@ -1,14 +1,24 @@
 /**
- * FO-FS6 — batch reads of existing folio / check-in progress / waive signals.
- * No new table, RPC or RLS.
+ * FO-FS6 + FO-EX1 — batch reads of existing folio / check-in / discrepancy /
+ * demand signals. No new table, RPC, RLS or migration.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { canManageHousekeeping } from "./housekeeping.server";
 import { requireCashieringAccess } from "./cashiering.server";
 import { isPermissionDeniedMessage } from "./front-office-shell";
+import { addDays } from "./reservation-dates";
 import { requireReservationManager } from "./reservations.server";
-import type { FolioSignalLane, StayMoneySignal } from "./fo-exceptions";
+import {
+  EXCEPTION_FEED_ROW_CAP,
+  OVERBOOKING_HORIZON_DAYS,
+  isOpenDiscrepancyStatus,
+  type ExceptionDiscrepancyLike,
+  type FolioSignalLane,
+  type OverbookStayLike,
+  type StayMoneySignal,
+} from "./fo-exceptions";
 
 const idSchema = z.string().uuid();
 
@@ -180,4 +190,137 @@ export const listFoStaySignals = createServerFn({ method: "POST" })
     } catch {
       return { folioLane: "coming_soon", byStay };
     }
+  });
+
+export type FoExceptionFeedsResult = {
+  overbookingLane: FolioSignalLane;
+  discrepancyLane: FolioSignalLane;
+  canResolveDiscrepancy: boolean;
+  demandStays: OverbookStayLike[];
+  discrepancies: ExceptionDiscrepancyLike[];
+};
+
+function classifyFeedError(error: unknown): FolioSignalLane {
+  return isPermissionDeniedMessage(error) ? "permission_denied" : "coming_soon";
+}
+
+export const listFoExceptionFeeds = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<FoExceptionFeedsResult> => {
+    const me = await requireReservationManager(context as never, data.restaurantId);
+    const canResolveDiscrepancy = canManageHousekeeping(me.role);
+    const endDate = addDays(data.businessDate, OVERBOOKING_HORIZON_DAYS - 1);
+
+    let overbookingLane: FolioSignalLane = "live";
+    let demandStays: OverbookStayLike[] = [];
+    try {
+      const { data: rows, error } = await context.supabase
+        .from("hotel_reservations")
+        .select(
+          `
+          id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, status,
+          guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name ),
+          room_types!hotel_reservations_type_same_property ( name ),
+          hotel_rooms!hotel_reservations_room_same_type ( room_number )
+        `,
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .in("status", ["pending", "confirmed", "checked_in"])
+        .lte("arrival_date", endDate)
+        .limit(EXCEPTION_FEED_ROW_CAP);
+      if (error) throw new Error(error.message);
+      const list = (rows ?? []) as unknown as Array<{
+        id: string;
+        confirmation_number: string;
+        guest_id: string;
+        room_type_id: string;
+        room_id: string | null;
+        arrival_date: string;
+        departure_date: string;
+        status: string;
+        guest_profiles: { first_name: string; last_name: string | null } | null;
+        room_types: { name: string } | null;
+        hotel_rooms: { room_number: string } | null;
+      }>;
+      if (list.length >= EXCEPTION_FEED_ROW_CAP) {
+        overbookingLane = "coming_soon";
+      } else {
+        demandStays = list.map((row) => ({
+          id: row.id,
+          confirmationNumber: row.confirmation_number,
+          guestName:
+            [row.guest_profiles?.first_name, row.guest_profiles?.last_name].filter(Boolean).join(" ").trim() ||
+            "Guest",
+          guestId: row.guest_id,
+          roomTypeId: row.room_type_id,
+          roomTypeName: row.room_types?.name ?? "Room type",
+          roomId: row.room_id,
+          roomNumber: row.hotel_rooms?.room_number ?? null,
+          arrivalDate: row.arrival_date,
+          departureDate: row.departure_date,
+          status: row.status,
+        }));
+      }
+    } catch (error) {
+      overbookingLane = classifyFeedError(error);
+      demandStays = [];
+    }
+
+    let discrepancyLane: FolioSignalLane = "live";
+    let discrepancies: ExceptionDiscrepancyLike[] = [];
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: rows, error } = await supabaseAdmin
+        .from("housekeeping_discrepancies")
+        .select(
+          "id, room_id, reported_occupancy, actual_occupancy, reported_hk_status, actual_hk_status, reason, status, hotel_rooms!inner ( room_number )",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .limit(200);
+      if (error) throw new Error(error.message);
+      discrepancies = (
+        (rows ?? []) as unknown as Array<{
+          id: string;
+          room_id: string;
+          reported_occupancy: string | null;
+          actual_occupancy: string | null;
+          reported_hk_status: string | null;
+          actual_hk_status: string | null;
+          reason: string | null;
+          status: string;
+          hotel_rooms: { room_number: string } | null;
+        }>
+      )
+        .filter((row) => isOpenDiscrepancyStatus(row.status))
+        .map((row) => ({
+          id: row.id,
+          roomId: row.room_id,
+          roomNumber: row.hotel_rooms?.room_number ?? "—",
+          reportedOccupancy: row.reported_occupancy,
+          actualOccupancy: row.actual_occupancy,
+          reportedHkStatus: row.reported_hk_status,
+          actualHkStatus: row.actual_hk_status,
+          reason: row.reason,
+          status: row.status,
+        }));
+    } catch (error) {
+      discrepancyLane = classifyFeedError(error);
+      discrepancies = [];
+    }
+
+    return {
+      overbookingLane,
+      discrepancyLane,
+      canResolveDiscrepancy,
+      demandStays: overbookingLane === "live" ? demandStays : [],
+      discrepancies: discrepancyLane === "live" ? discrepancies : [],
+    };
   });

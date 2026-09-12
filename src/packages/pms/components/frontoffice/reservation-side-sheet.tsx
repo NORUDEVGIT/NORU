@@ -44,12 +44,14 @@ export function ReservationSideSheet({
   restaurantId,
   stay,
   open,
+  hasOpenDiscrepancy = false,
   onOpenChange,
   onAction,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay | null;
   open: boolean;
+  hasOpenDiscrepancy?: boolean;
   onOpenChange: (open: boolean) => void;
   onAction: (action: SideSheetAction, stay: FrontOfficeStay) => void;
 }) {
@@ -121,6 +123,7 @@ export function ReservationSideSheet({
                 guestVip: stay.guestVip,
                 source: reservation?.source ?? stay.source ?? null,
                 specialRequests: stay.specialRequests,
+                hasOpenDiscrepancy,
               })}
               mode="full"
             />

@@ -34,7 +34,7 @@ import { ComingSoonChip } from "@/packages/pms/components/frontoffice/coming-soo
 import { listArrivals, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
-import type { ExceptionCtaId } from "@/packages/pms/lib/fo-exceptions";
+import type { ExceptionCtaId, ExceptionRow, FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { useAuth } from "@/core/state/auth-store";
@@ -83,6 +83,7 @@ export function FrontOfficeWorkspace({
   const [amendStay, setAmendStay] = useState<FrontOfficeStay | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [rackFocus, setRackFocus] = useState<FoRackFocus | null>(null);
 
   useEffect(() => {
     setView(resolveFoNav(initialTab));
@@ -161,7 +162,25 @@ export function FrontOfficeWorkspace({
     }
   }
 
-  function onExceptionAction(cta: ExceptionCtaId, stay: FrontOfficeStay) {
+  function onExceptionAction(cta: ExceptionCtaId, stay: FrontOfficeStay | null, row: ExceptionRow) {
+    if (cta === "open_rack") {
+      setRackFocus({
+        ...(row.focusDate ? { focusDate: row.focusDate } : {}),
+        ...(row.roomTypeName ? { roomType: row.roomTypeName } : {}),
+      });
+      setView("rack");
+      return;
+    }
+    if (cta === "open_room") {
+      setRackFocus({
+        discrepancy: "open",
+        ...(row.roomId ? { roomId: row.roomId } : {}),
+        ...(row.focusDate ? { focusDate: row.focusDate } : {}),
+      });
+      setView("rack");
+      return;
+    }
+    if (!stay) return;
     if (cta === "assign") {
       openDialog("assign", stay);
       return;
@@ -288,6 +307,7 @@ export function FrontOfficeWorkspace({
           restaurantId={restaurantId}
           today={today}
           viewport={phone ? "phone" : "wide"}
+          rackFocus={rackFocus}
           onSelectStay={(stay) => setSheetStay(stay)}
         />
       ) : null}
@@ -320,7 +340,10 @@ export function FrontOfficeWorkspace({
             setSheetStay(stay);
             setView("rack");
           }}
-          onOpenRack={() => setView("rack")}
+          onOpenRack={(focus) => {
+            setRackFocus(focus ?? null);
+            setView("rack");
+          }}
           onOpenAudit={() => setAuditOpen(true)}
         />
       ) : null}
@@ -329,6 +352,7 @@ export function FrontOfficeWorkspace({
         restaurantId={restaurantId}
         stay={sheetStay}
         open={!!sheetStay}
+        hasOpenDiscrepancy={Boolean(sheetStay?.roomId && exceptionDesk.openDiscrepancyRoomIds.has(sheetStay.roomId))}
         onOpenChange={(open) => !open && setSheetStay(null)}
         onAction={onSheetAction}
       />

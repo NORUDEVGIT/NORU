@@ -10,17 +10,25 @@ import {
 import {
   COMING_SOON_EXCEPTION_TYPES,
   EXCEPTION_EMPTY_COPY,
+  EXCEPTION_HONESTY_HELP,
+  LATE_ARRIVAL_AUTO_NOSHOW,
+  LATE_ARRIVAL_PRIMARY_CTA,
+  LATE_ARRIVAL_SECONDARY_CTA,
   LIVE_EXCEPTION_TYPES,
   MAINTENANCE_LIVE_TYPE,
   comingSoonExceptionTypes,
   deriveExceptionRows,
   deriveOpsStrip,
+  discrepancyBrief,
   exceptionBadgeCount,
   exceptionHighCount,
   folioUnavailableLabel,
   keyCellLabel,
+  occupancyPercent,
   stayMoneyCellsVisible,
+  type ExceptionDiscrepancyLike,
   type ExceptionStayLike,
+  type OverbookStayLike,
   type StayMoneySignal,
 } from "./fo-exceptions.ts";
 
@@ -62,14 +70,15 @@ describe("FO-FS6 exception honesty", () => {
       folioLane: "live",
       businessDate: "2026-09-12",
     });
+    assert.equal(rows.some((row) => row.type === "overbooking" || row.type === "room_discrepancy"), false);
     assert.deepEqual(rows, []);
     assert.equal(exceptionBadgeCount(rows), 0);
     assert.equal(exceptionHighCount(rows), 0);
     assert.equal(EXCEPTION_EMPTY_COPY, "No exceptions right now");
-    assert.equal(
-      comingSoon.some((item) => item.id === "overbooking" && !("count" in item)),
-      true,
-    );
+    assert.equal(comingSoon.some((item) => item.id === "early_arrival" && !("count" in item)), true);
+    assert.equal(comingSoon.some((item) => item.id === "late_arrival" && !("count" in item)), true);
+    assert.equal(comingSoon.some((item) => item.id === "overbooking"), false);
+    assert.equal(comingSoon.some((item) => item.id === "room_discrepancy"), false);
   });
 
   it("maps unassigned, OOO-assigned, payment, maintenance and overstay to Live rows with deep-links", () => {
@@ -173,9 +182,10 @@ describe("FO-FS6 exception honesty", () => {
       comingSoon.map((item) => item.id),
       COMING_SOON_EXCEPTION_TYPES.map((item) => item.id),
     );
-    assert.equal(comingSoon.some((item) => /overbook/i.test(item.label)), true);
-    assert.equal(comingSoon.some((item) => /discrepancy/i.test(item.label)), true);
     assert.equal(comingSoon.some((item) => /early/i.test(item.label)), true);
+    assert.equal(comingSoon.some((item) => /late/i.test(item.label)), true);
+    assert.equal(comingSoon.some((item) => /overbook/i.test(item.label)), false);
+    assert.equal(comingSoon.some((item) => /discrepancy/i.test(item.label)), false);
     assert.equal(
       comingSoon.every((item) => !("count" in item) && !("value" in item)),
       true,
@@ -201,7 +211,7 @@ describe("FO-FS6 exception honesty", () => {
     assert.equal(pay.primaryCta.id, "check_out");
   });
 
-  it("omits Occupancy % and discrepancy counts from the ops strip", () => {
+  it("shows Occupancy % and discrepancy counts only when those feeds are trusted", () => {
     const items = deriveOpsStrip({
       arrivalsToday: 2,
       departuresToday: 1,
@@ -214,11 +224,18 @@ describe("FO-FS6 exception honesty", () => {
         { occupancy: "vacant", status: "available", housekeepingStatus: "dirty" },
         { occupancy: "vacant", status: "available", housekeepingStatus: "clean" },
         { occupancy: "occupied", status: "available", housekeepingStatus: "dirty" },
+        { occupancy: "occupied", status: "available", housekeepingStatus: "dirty" },
+        { occupancy: "occupied", status: "available", housekeepingStatus: "clean" },
+        { occupancy: "vacant", status: "out_of_order", housekeepingStatus: "dirty" },
       ],
       hkAvailable: true,
+      openDiscrepancies: 2,
     });
-    assert.equal(items.some((item) => /occupancy/i.test(item.label)), false);
-    assert.equal(items.some((item) => /discrep/i.test(item.label)), false);
+    const occupancy = items.find((item) => item.id === "occupancy_pct");
+    assert.ok(occupancy);
+    assert.equal(occupancy.value, 100);
+    assert.equal(occupancy.display, "100%");
+    assert.ok(items.some((item) => item.id === "discrepancies" && item.value === 2));
     assert.ok(items.some((item) => item.id === "vacant_dirty" && item.value === 1));
     assert.ok(items.some((item) => item.id === "vacant_clean" && item.value === 1));
 
@@ -235,6 +252,8 @@ describe("FO-FS6 exception honesty", () => {
     });
     assert.equal(noHk.some((item) => item.id === "vacant_dirty"), false);
     assert.ok(noHk.some((item) => item.id === "vacant"));
+    assert.equal(noHk.some((item) => item.id === "discrepancies"), false);
+    assert.ok(noHk.some((item) => item.id === "occupancy_pct" && item.value === 0));
   });
 
   it("lists money columns only when the signal exists; key stays empty without FO-FS1 state", () => {
@@ -276,9 +295,11 @@ describe("FO-FS0 / chrome locks", () => {
     const help = readFileSync(new URL("../components/frontoffice/fo-help-sheet.tsx", import.meta.url), "utf8");
     assert.match(help, /Room Rack/);
     assert.match(help, /Exceptions/);
+    assert.match(help, /empty means clear/);
     assert.match(help, /Cashiering/);
     assert.match(help, /Void/);
     assert.doesNotMatch(help, /fake success/i);
+    assert.equal(EXCEPTION_HONESTY_HELP, "Exceptions only show real feeds — empty means clear.");
 
     const audit = readFileSync(new URL("../components/frontoffice/fo-audit-viewer.tsx", import.meta.url), "utf8");
     assert.match(audit, /FO activity/);
@@ -294,6 +315,247 @@ describe("FO-FS0 / chrome locks", () => {
     assert.match(fns, /guest_folios/);
     assert.match(fns, /fo_checkin_progress/);
     assert.match(fns, /hotel_reservation_history/);
-    assert.doesNotMatch(fns, /apply_migration|create table/i);
+    assert.match(fns, /housekeeping_discrepancies/);
+    assert.doesNotMatch(fns, /apply_migration|create table|0044|fo_checkin_time/i);
+  });
+});
+
+function demand(partial: Partial<OverbookStayLike> & Pick<OverbookStayLike, "id" | "roomTypeId">): OverbookStayLike {
+  return {
+    confirmationNumber: `NORU-${partial.id}`,
+    guestName: "Ada Smith",
+    roomTypeName: "Deluxe",
+    roomId: null,
+    roomNumber: null,
+    arrivalDate: "2026-09-12",
+    departureDate: "2026-09-14",
+    status: "confirmed",
+    ...partial,
+  };
+}
+
+function openDiscrepancy(partial: Partial<ExceptionDiscrepancyLike> & Pick<ExceptionDiscrepancyLike, "id">): ExceptionDiscrepancyLike {
+  return {
+    roomId: "room-1",
+    roomNumber: "101",
+    reportedOccupancy: "vacant",
+    actualOccupancy: "occupied",
+    reportedHkStatus: null,
+    actualHkStatus: null,
+    reason: null,
+    status: "open",
+    ...partial,
+  };
+}
+
+describe("FO-EX1 exception feeds", () => {
+  it("does not invent an Overbooking row when demand equals sellable", () => {
+    const { rows, comingSoon } = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [
+        { id: "r1", status: "available", roomTypeId: "deluxe", roomTypeName: "Deluxe" },
+        { id: "r2", status: "available", roomTypeId: "deluxe", roomTypeName: "Deluxe" },
+      ],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      demandStays: [
+        demand({ id: "d1", roomTypeId: "deluxe" }),
+        demand({ id: "d2", roomTypeId: "deluxe", roomId: "r2", roomNumber: "102" }),
+      ],
+    });
+    assert.equal(rows.some((row) => row.type === "overbooking"), false);
+    assert.equal(comingSoon.some((item) => item.id === "overbooking"), false);
+  });
+
+  it("emits one High Overbooking row when demand exceeds sellable", () => {
+    const { rows } = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [
+        { id: "r1", status: "available", roomTypeId: "deluxe", roomTypeName: "Deluxe" },
+        { id: "ooo", status: "out_of_order", roomTypeId: "deluxe", roomTypeName: "Deluxe" },
+      ],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      demandStays: [
+        demand({
+          id: "held",
+          roomTypeId: "deluxe",
+          roomId: "r1",
+          roomNumber: "101",
+          departureDate: "2026-09-13",
+        }),
+        demand({ id: "extra", roomTypeId: "deluxe", departureDate: "2026-09-13" }),
+      ],
+    });
+    const over = rows.filter((row) => row.type === "overbooking");
+    assert.equal(over.length, 1);
+    assert.equal(over[0]?.severity, "high");
+    assert.equal(over[0]?.reason, "Demand exceeds sellable for Deluxe on 2026-09-12");
+    assert.equal(over[0]?.primaryCta.id, "open_rack");
+    assert.equal(over[0]?.stayId, "extra");
+    assert.equal(over[0]?.secondaryCta?.id, "assign");
+  });
+
+  it("does not count OOO/OOS rooms as sellable and ignores a soft occupancy threshold", () => {
+    const { rows } = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [
+        { id: "r1", status: "available", roomTypeId: "deluxe", roomTypeName: "Deluxe" },
+        { id: "oos", status: "out_of_service", roomTypeId: "deluxe", roomTypeName: "Deluxe" },
+      ],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      demandStays: [demand({ id: "only", roomTypeId: "deluxe", roomId: "r1", roomNumber: "101" })],
+    });
+    assert.equal(rows.some((row) => row.type === "overbooking"), false);
+  });
+
+  it("keeps Overbooking Coming soon when that feed is untrusted", () => {
+    const { rows, comingSoon } = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [{ id: "r1", status: "available", roomTypeId: "deluxe", roomTypeName: "Deluxe" }],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      overbookingLane: "coming_soon",
+      demandStays: [demand({ id: "a", roomTypeId: "deluxe" }), demand({ id: "b", roomTypeId: "deluxe" })],
+    });
+    assert.equal(rows.some((row) => row.type === "overbooking"), false);
+    assert.ok(comingSoon.some((item) => item.id === "overbooking" && !("count" in item)));
+  });
+
+  it("maps an open discrepancy to a Live row with resolve or Unavailable", () => {
+    const live = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [{ id: "room-1", status: "available" }],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      discrepancies: [openDiscrepancy({ id: "disc-1" })],
+      canResolveDiscrepancy: true,
+    });
+    const row = live.rows.find((item) => item.type === "room_discrepancy");
+    assert.ok(row);
+    assert.equal(row.reason, "Room 101 discrepancy open — reported vacant, actual occupied");
+    assert.equal(row.primaryCta.id, "open_room");
+    assert.equal(row.resolveAvailable, true);
+    assert.equal(row.secondaryCta?.id, "resolve");
+    assert.equal(live.comingSoon.some((item) => item.id === "room_discrepancy"), false);
+
+    const viewOnly = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      discrepancies: [openDiscrepancy({ id: "disc-2", reason: "Sleep-out" })],
+      canResolveDiscrepancy: false,
+    });
+    const locked = viewOnly.rows.find((item) => item.type === "room_discrepancy");
+    assert.ok(locked);
+    assert.equal(locked.reason, "Room 101 discrepancy open — Sleep-out");
+    assert.equal(locked.resolveAvailable, false);
+    assert.equal(locked.secondaryCta, null);
+  });
+
+  it("does not treat discrepancy permission denied as Coming soon", () => {
+    const { rows, comingSoon } = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      discrepancyLane: "permission_denied",
+      discrepancies: [openDiscrepancy({ id: "hidden" })],
+    });
+    assert.equal(rows.some((row) => row.type === "room_discrepancy"), false);
+    assert.equal(comingSoon.some((item) => item.id === "room_discrepancy"), false);
+  });
+
+  it("keeps discrepancy Coming soon when the table is unavailable", () => {
+    const { comingSoon, rows } = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      discrepancyLane: "coming_soon",
+    });
+    assert.equal(rows.some((row) => row.type === "room_discrepancy"), false);
+    assert.ok(comingSoon.some((item) => item.id === "room_discrepancy" && !("count" in item)));
+  });
+
+  it("omits Occupancy % when sellable is 0 or counts are untrusted", () => {
+    assert.equal(occupancyPercent(4, 0), null);
+    assert.equal(occupancyPercent(0, 0), null);
+    assert.equal(occupancyPercent(3, 4), 75);
+    const zeroSellable = deriveOpsStrip({
+      arrivalsToday: 0,
+      departuresToday: 0,
+      inHouse: 0,
+      availableRooms: 0,
+      occupiedRooms: 2,
+      outOfOrder: 1,
+      outOfService: 1,
+      rooms: [
+        { occupancy: "vacant", status: "out_of_order" },
+        { occupancy: "vacant", status: "out_of_service" },
+      ],
+      hkAvailable: false,
+    });
+    assert.equal(zeroSellable.some((item) => item.id === "occupancy_pct"), false);
+    const untrusted = deriveOpsStrip({
+      arrivalsToday: 0,
+      departuresToday: 0,
+      inHouse: 0,
+      availableRooms: 4,
+      occupiedRooms: 2,
+      outOfOrder: 0,
+      outOfService: 0,
+      rooms: [{ occupancy: "occupied", status: "available" }, { occupancy: "vacant", status: "available" }],
+      hkAvailable: false,
+      occupancyTrusted: false,
+    });
+    assert.equal(untrusted.some((item) => item.id === "occupancy_pct"), false);
+    assert.doesNotMatch(JSON.stringify(untrusted), /78%/);
+  });
+
+  it("never auto no-shows Late arrival and does not invent Early/Late rows", () => {
+    assert.equal(LATE_ARRIVAL_AUTO_NOSHOW, false);
+    assert.equal(LATE_ARRIVAL_PRIMARY_CTA, "check_in");
+    assert.equal(LATE_ARRIVAL_SECONDARY_CTA, "no_show");
+    const { rows, comingSoon } = deriveExceptionRows({
+      arrivals: [stay({ id: "late-1", status: "confirmed" })],
+      inHouse: [],
+      departures: [],
+      rooms: [],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+    });
+    assert.equal(rows.some((row) => /early|late/i.test(row.type)), false);
+    assert.ok(comingSoon.some((item) => item.id === "early_arrival" && !("count" in item)));
+    assert.ok(comingSoon.some((item) => item.id === "late_arrival" && !("count" in item)));
+    const fns = readFileSync(new URL("./fo-exceptions.functions.ts", import.meta.url), "utf8");
+    const frame = readFileSync(new URL("../components/frontoffice/fo-exceptions-frame.tsx", import.meta.url), "utf8");
+    assert.doesNotMatch(fns, /markNoShow|mark_hotel_reservation_no_show/);
+    assert.doesNotMatch(frame, /markNoShow/);
+    assert.equal(discrepancyBrief({
+      reportedOccupancy: null,
+      actualOccupancy: null,
+      reportedHkStatus: "dirty",
+      actualHkStatus: "clean",
+      reason: null,
+    }), "HK reported dirty, actual clean");
   });
 });
