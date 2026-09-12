@@ -23,7 +23,7 @@ import { actionsForMenu, isPermissionDeniedMessage, type FoActionDef } from "@/p
 import { liveStayBadges, onRackDrop } from "@/packages/pms/lib/fo-rack-power";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
-import { SPECIAL_REQUEST_CATEGORY_LABELS } from "@/packages/pms/lib/fo-amendments";
+import { COMPANIONS_UNAVAILABLE, SPECIAL_REQUEST_CATEGORY_LABELS, stayGuestLine } from "@/packages/pms/lib/fo-amendments";
 import { getAmendContext, setGuestRequestStatus } from "@/packages/pms/lib/fo-amendments.functions";
 import { isStayCancellable } from "@/packages/pms/lib/fo-cancel-noshow";
 import {
@@ -178,6 +178,33 @@ export function ReservationSideSheet({
               <dd>{stay.guestPhone ?? "—"}</dd>
             </div>
           </dl>
+
+          <div className="rounded-xl border border-border p-3" data-testid="fo-side-named-guests">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Named guests</p>
+            {amendQuery.data?.companionsError && isPermissionDeniedMessage(amendQuery.data.companionsError) ? (
+              <PermissionDeniedPanel
+                className="mt-2 border-0 p-0"
+                message={amendQuery.data.companionsError}
+              />
+            ) : amendQuery.data?.companionsError ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {amendQuery.data.companionsError || COMPANIONS_UNAVAILABLE}
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                <li>
+                  {stayGuestLine(
+                    amendQuery.data?.primaryGuest.name ?? stay.guestName,
+                    amendQuery.data?.primaryGuest.type ?? null,
+                  )}{" "}
+                  · Primary
+                </li>
+                {(amendQuery.data?.companions ?? []).map((row) => (
+                  <li key={row.id}>{stayGuestLine(row.name, row.type)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {reservation?.notes ? <p className="text-sm text-muted-foreground">Notes: {reservation.notes}</p> : null}
           {stay.specialRequests || amendQuery.data?.specialRequestCategory ? (

@@ -13,8 +13,14 @@ export const GUEST_REQUESTS_UNAVAILABLE =
   "Guest requests are not available until migration 0043 is applied.";
 export const SPECIAL_REQUEST_CATEGORY_UNAVAILABLE =
   "Special request category is not available until migration 0043 is applied.";
-export const COMPANIONS_DEFERRED = "Named extra companions are not available in this wave.";
+export const COMPANIONS_UNAVAILABLE =
+  "Named companions are not available until migration 0045 is applied.";
+export const CATALOGUE_EMPTY_HINT = "No catalogue items — enter a service manually.";
+export const NO_GUESTS_FOUND = "No guests found";
+export const NAMED_PARTY_EXCEEDED =
+  "Primary guest plus named companions would exceed this room type's maximum occupancy.";
 export const SERVICE_ZERO_NO_POST = "Amount 0 is recorded on the stay only — nothing is posted to the folio.";
+export const CHILD_AGE_YEARS = 18;
 
 export const SPECIAL_REQUEST_CATEGORIES = ["bed", "diet", "accessibility", "other"] as const;
 export type SpecialRequestCategory = (typeof SPECIAL_REQUEST_CATEGORIES)[number];
@@ -53,6 +59,63 @@ export function occupancyExceeded(adults: number, children: number, maxOccupancy
 export function occupancyBlockMessage(adults: number, children: number, maxOccupancy: number): string | null {
   if (!occupancyExceeded(adults, children, maxOccupancy)) return null;
   return `${OCCUPANCY_EXCEEDED} (${occupancyTotal(adults, children)} of ${maxOccupancy}).`;
+}
+
+export function namedPartyExceeded(companionCount: number, maxOccupancy: number): boolean {
+  if (!Number.isFinite(maxOccupancy) || maxOccupancy <= 0) return false;
+  return 1 + Math.max(0, companionCount) > maxOccupancy;
+}
+
+export function namedPartyBlockMessage(companionCount: number, maxOccupancy: number): string | null {
+  if (!namedPartyExceeded(companionCount, maxOccupancy)) return null;
+  return `${NAMED_PARTY_EXCEEDED} (${1 + Math.max(0, companionCount)} of ${maxOccupancy}).`;
+}
+
+export type CompanionKind = "Adult" | "Child";
+
+export function companionTypeFromDob(
+  dateOfBirth: string | null | undefined,
+  asOfDate?: string | null,
+): CompanionKind | null {
+  const dob = (dateOfBirth ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+  const asOfRaw = (asOfDate ?? "").slice(0, 10);
+  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(asOfRaw) ? asOfRaw : new Date().toISOString().slice(0, 10);
+  const [y, m, d] = dob.split("-").map(Number);
+  const [ay, am, ad] = asOf.split("-").map(Number);
+  if (![y, m, d, ay, am, ad].every((n) => Number.isInteger(n))) return null;
+  let age = (ay as number) - (y as number);
+  if ((am as number) < (m as number) || ((am as number) === (m as number) && (ad as number) < (d as number))) {
+    age -= 1;
+  }
+  if (age < 0 || age > 130) return null;
+  return age < CHILD_AGE_YEARS ? "Child" : "Adult";
+}
+
+export function stayGuestLine(name: string, type: CompanionKind | null | undefined): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "—";
+  return type ? `${trimmed} · ${type}` : trimmed;
+}
+
+export function formatCompanionParty(names: Array<string | null | undefined>): string {
+  const cleaned = names.map((n) => (n ?? "").trim()).filter(Boolean);
+  return cleaned.length ? cleaned.join(", ") : "—";
+}
+
+export function guestSearchEmpty(input: { search: string; results: readonly unknown[]; loading?: boolean }): boolean {
+  return input.search.trim().length > 0 && !input.loading && input.results.length === 0;
+}
+
+export function nextCompanionCount(input: {
+  currentCount: number;
+  pendingAttach?: boolean;
+  pendingDetach?: boolean;
+}): number {
+  const current = Math.max(0, input.currentCount);
+  if (input.pendingDetach) return Math.max(0, current - 1);
+  if (input.pendingAttach) return current + 1;
+  return current;
 }
 
 export function hasPersistedRate(input: {
@@ -143,10 +206,22 @@ export function canConfirmGuests(input: {
   children: number;
   maxOccupancy: number;
   reason: string;
+  companionCount?: number;
+  pendingAttach?: boolean;
+  pendingDetach?: boolean;
+  hasOccupancyChange?: boolean;
 }): boolean {
   const countsOk = Number.isInteger(input.adults) && input.adults >= 1 && Number.isInteger(input.children) && input.children >= 0;
+  const occupancyOk = !occupancyExceeded(input.adults, input.children, input.maxOccupancy);
+  const nextCount = nextCompanionCount({
+    currentCount: input.companionCount ?? 0,
+    ...(input.pendingAttach ? { pendingAttach: true } : {}),
+    ...(input.pendingDetach ? { pendingDetach: true } : {}),
+  });
+  const namedOk = !input.pendingAttach || !namedPartyExceeded(nextCount, input.maxOccupancy);
+  const hasChange = input.hasOccupancyChange ?? true;
   return canConfirmAmend({
-    formValid: countsOk && !occupancyExceeded(input.adults, input.children, input.maxOccupancy),
+    formValid: countsOk && occupancyOk && namedOk && hasChange,
     reasonOk: isReasonComplete(input.reason),
   });
 }
@@ -202,6 +277,17 @@ export function specialRequestCategoryError(error: unknown): Error {
     return new Error(SPECIAL_REQUEST_CATEGORY_UNAVAILABLE);
   }
   return error instanceof Error ? error : new Error(errorMessage(error) || "Special request failed.");
+}
+
+export function companionsPersistError(error: unknown): Error {
+  if (isMissingSchemaError(error, "fo_stay_companions")) {
+    return new Error(COMPANIONS_UNAVAILABLE);
+  }
+  return error instanceof Error ? error : new Error(errorMessage(error) || "Companion update failed.");
+}
+
+export function isCatalogueUnreadable(error: unknown): boolean {
+  return isMissingSchemaError(error, "fo_service_catalogue");
 }
 
 export type SnapshotPair = { label: string; previous: string; next: string };

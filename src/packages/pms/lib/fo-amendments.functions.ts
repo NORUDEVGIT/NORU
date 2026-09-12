@@ -19,16 +19,22 @@ import { parseSnapshot } from "./rates.server";
 import { nightsBetween } from "./reservation-dates";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import {
+  CATALOGUE_EMPTY_HINT,
   GUEST_REQUESTS_UNAVAILABLE,
   SPECIAL_REQUEST_CATEGORIES,
-  occupancyBlockMessage,
+  companionTypeFromDob,
+  companionsPersistError,
+  formatCompanionParty,
   guestRequestPersistError,
   isReasonComplete,
+  namedPartyBlockMessage,
+  occupancyBlockMessage,
   serviceLineTotal,
   servicePostsToFolio,
   specialRequestCategoryError,
   targetRoomRequired,
   upgradeRoomBlocked,
+  type CompanionKind,
   type GuestRequestStatus,
   type SpecialRequestCategory,
 } from "./fo-amendments";
@@ -61,6 +67,21 @@ export type FoGuestRequestRow = {
   actorName: string | null;
 };
 
+export type StayGuestRow = {
+  id: string;
+  guestId: string;
+  name: string;
+  dateOfBirth: string | null;
+  type: CompanionKind | null;
+  role: "primary" | "companion";
+};
+
+export type ServiceCatalogueItem = {
+  id: string;
+  name: string;
+  defaultAmount: number;
+};
+
 export type AmendContext = {
   stay: FrontOfficeStay;
   currency: string;
@@ -73,6 +94,11 @@ export type AmendContext = {
   specialRequestCategory: SpecialRequestCategory | null;
   guestRequests: FoGuestRequestRow[];
   guestRequestsError: string | null;
+  primaryGuest: StayGuestRow;
+  companions: StayGuestRow[];
+  companionsError: string | null;
+  catalogue: ServiceCatalogueItem[];
+  catalogueHint: string | null;
   actorName: string;
 };
 
@@ -248,6 +274,116 @@ async function loadSpecialRequestCategory(
     : null;
 }
 
+async function loadGuestIdentity(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  restaurantId: string,
+  guestId: string,
+): Promise<{ id: string; name: string; dateOfBirth: string | null } | null> {
+  const { data } = await supabaseAdmin
+    .from("guest_profiles")
+    .select("id, first_name, last_name, date_of_birth")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", guestId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id,
+    name: joinName(data.first_name, data.last_name),
+    dateOfBirth: data.date_of_birth ?? null,
+  };
+}
+
+function toStayGuest(input: {
+  id: string;
+  guestId: string;
+  name: string;
+  dateOfBirth: string | null;
+  role: "primary" | "companion";
+  asOfDate?: string | null;
+}): StayGuestRow {
+  return {
+    id: input.id,
+    guestId: input.guestId,
+    name: input.name,
+    dateOfBirth: input.dateOfBirth,
+    type: companionTypeFromDob(input.dateOfBirth, input.asOfDate),
+    role: input.role,
+  };
+}
+
+async function loadStayCompanions(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  restaurantId: string,
+  reservationId: string,
+  asOfDate: string,
+): Promise<{ rows: StayGuestRow[]; error: string | null }> {
+  const { data, error } = await supabaseAdmin
+    .from("fo_stay_companions")
+    .select("id, guest_id, created_at")
+    .eq("restaurant_id", restaurantId)
+    .eq("reservation_id", reservationId)
+    .order("created_at", { ascending: true });
+  if (error) {
+    return { rows: [], error: companionsPersistError(error).message };
+  }
+  const rows = data ?? [];
+  const guestIds = [...new Set(rows.map((r) => r.guest_id))];
+  const names = new Map<string, { name: string; dateOfBirth: string | null }>();
+  if (guestIds.length > 0) {
+    const { data: guests } = await supabaseAdmin
+      .from("guest_profiles")
+      .select("id, first_name, last_name, date_of_birth")
+      .eq("restaurant_id", restaurantId)
+      .in("id", guestIds);
+    for (const guest of guests ?? []) {
+      names.set(guest.id, {
+        name: joinName(guest.first_name, guest.last_name) || "Guest",
+        dateOfBirth: guest.date_of_birth ?? null,
+      });
+    }
+  }
+  return {
+    rows: rows.map((row) => {
+      const guest = names.get(row.guest_id);
+      return toStayGuest({
+        id: row.id,
+        guestId: row.guest_id,
+        name: guest?.name ?? "Guest",
+        dateOfBirth: guest?.dateOfBirth ?? null,
+        role: "companion",
+        asOfDate,
+      });
+    }),
+    error: null,
+  };
+}
+
+async function loadServiceCatalogue(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  restaurantId: string,
+): Promise<{ items: ServiceCatalogueItem[]; hint: string | null }> {
+  const { data, error } = await supabaseAdmin
+    .from("fo_service_catalogue")
+    .select("id, name, default_amount, active, sort_order")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+  if (error) {
+    return { items: [], hint: CATALOGUE_EMPTY_HINT };
+  }
+  const items = (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    defaultAmount: Number(row.default_amount) || 0,
+  }));
+  return { items, hint: items.length === 0 ? CATALOGUE_EMPTY_HINT : null };
+}
+
+function companionSnapshot(primaryName: string, companions: Array<{ name: string }>): string {
+  return formatCompanionParty([primaryName, ...companions.map((c) => c.name)]);
+}
+
 export const getAmendContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -297,14 +433,26 @@ export const getAmendContext = createServerFn({ method: "POST" })
       });
     }
 
-    const [currentRoom, guestRequests, specialRequestCategory, actorName] = await Promise.all([
-      loadCurrentRoom(supabaseAdmin, data.restaurantId, stay.roomId),
-      loadGuestRequests(supabaseAdmin, data.restaurantId, stay.id),
-      loadSpecialRequestCategory(supabaseAdmin, data.restaurantId, stay.id),
-      actorDisplayName(supabaseAdmin, me.id, data.restaurantId),
-    ]);
+    const [currentRoom, guestRequests, specialRequestCategory, actorName, companions, catalogue, primaryIdentity] =
+      await Promise.all([
+        loadCurrentRoom(supabaseAdmin, data.restaurantId, stay.roomId),
+        loadGuestRequests(supabaseAdmin, data.restaurantId, stay.id),
+        loadSpecialRequestCategory(supabaseAdmin, data.restaurantId, stay.id),
+        actorDisplayName(supabaseAdmin, me.id, data.restaurantId),
+        loadStayCompanions(supabaseAdmin, data.restaurantId, stay.id, stay.arrivalDate),
+        loadServiceCatalogue(supabaseAdmin, data.restaurantId),
+        loadGuestIdentity(supabaseAdmin, data.restaurantId, stay.guestId),
+      ]);
 
     const currentType = roomTypes.find((t) => t.id === stay.roomTypeId);
+    const primaryGuest = toStayGuest({
+      id: stay.guestId,
+      guestId: stay.guestId,
+      name: primaryIdentity?.name || stay.guestName,
+      dateOfBirth: primaryIdentity?.dateOfBirth ?? null,
+      role: "primary",
+      asOfDate: stay.arrivalDate,
+    });
 
     return {
       stay,
@@ -318,6 +466,11 @@ export const getAmendContext = createServerFn({ method: "POST" })
       specialRequestCategory,
       guestRequests: guestRequests.rows,
       guestRequestsError: guestRequests.error,
+      primaryGuest,
+      companions: companions.rows,
+      companionsError: companions.error,
+      catalogue: catalogue.items,
+      catalogueHint: catalogue.hint,
       actorName,
     };
   });
@@ -545,6 +698,141 @@ export const amendStayGuests = createServerFn({ method: "POST" })
       actorMembershipId: me.id,
     });
     return { id: data.reservationId };
+  });
+
+export const attachStayCompanion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        guestId: idSchema,
+        reason: z.string().trim().min(3).max(500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ id: string }> => {
+    const me = await requireReservationManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const row = await loadStayRow(supabaseAdmin, data.restaurantId, data.reservationId);
+    const stay = toStay(row as never);
+    if (data.guestId === stay.guestId) {
+      throw new Error("The primary guest cannot be attached as a companion.");
+    }
+    const guest = await loadGuestIdentity(supabaseAdmin, data.restaurantId, data.guestId);
+    if (!guest) throw new Error("That guest is not on this property.");
+
+    const { data: roomType } = await supabaseAdmin
+      .from("room_types")
+      .select("max_occupancy")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", stay.roomTypeId)
+      .maybeSingle();
+    const maxOccupancy = roomType?.max_occupancy ?? 0;
+    const countsBlocked = occupancyBlockMessage(stay.adults, stay.children, maxOccupancy);
+    if (countsBlocked) throw new Error(countsBlocked);
+
+    const loaded = await loadStayCompanions(supabaseAdmin, data.restaurantId, stay.id, stay.arrivalDate);
+    if (loaded.error) throw new Error(loaded.error);
+    if (loaded.rows.some((c) => c.guestId === data.guestId)) {
+      throw new Error("That guest is already a companion on this stay.");
+    }
+    const namedBlocked = namedPartyBlockMessage(loaded.rows.length + 1, maxOccupancy);
+    if (namedBlocked) throw new Error(namedBlocked);
+
+    const previous = {
+      companions: companionSnapshot(stay.guestName, loaded.rows),
+      companion_count: loaded.rows.length,
+    };
+
+    const { data: created, error } = await supabaseAdmin
+      .from("fo_stay_companions")
+      .insert({
+        restaurant_id: data.restaurantId,
+        reservation_id: data.reservationId,
+        guest_id: data.guestId,
+      })
+      .select("id")
+      .maybeSingle();
+    if (error) throw companionsPersistError(error);
+    if (!created) throw new Error("Companion could not be attached.");
+
+    const after = await loadStayCompanions(supabaseAdmin, data.restaurantId, stay.id, stay.arrivalDate);
+    await recordReservationEvent({
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      eventType: "amended",
+      previousValues: previous,
+      newValues: {
+        companions: companionSnapshot(stay.guestName, after.rows),
+        companion_count: after.rows.length,
+      },
+      notes: data.reason,
+      actorMembershipId: me.id,
+    });
+    return { id: created.id };
+  });
+
+export const detachStayCompanion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        companionId: idSchema,
+        reason: z.string().trim().min(3).max(500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ id: string }> => {
+    const me = await requireReservationManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const row = await loadStayRow(supabaseAdmin, data.restaurantId, data.reservationId);
+    const stay = toStay(row as never);
+
+    const { data: existing, error: readError } = await supabaseAdmin
+      .from("fo_stay_companions")
+      .select("id, guest_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId)
+      .eq("id", data.companionId)
+      .maybeSingle();
+    if (readError) throw companionsPersistError(readError);
+    if (!existing) throw new Error("Companion not found on this stay.");
+    if (existing.guest_id === stay.guestId) {
+      throw new Error("The primary guest cannot be detached from this path.");
+    }
+
+    const before = await loadStayCompanions(supabaseAdmin, data.restaurantId, stay.id, stay.arrivalDate);
+    if (before.error) throw new Error(before.error);
+
+    const { error } = await supabaseAdmin
+      .from("fo_stay_companions")
+      .delete()
+      .eq("id", data.companionId)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId);
+    if (error) throw companionsPersistError(error);
+
+    const after = await loadStayCompanions(supabaseAdmin, data.restaurantId, stay.id, stay.arrivalDate);
+    await recordReservationEvent({
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      eventType: "amended",
+      previousValues: {
+        companions: companionSnapshot(stay.guestName, before.rows),
+        companion_count: before.rows.length,
+      },
+      newValues: {
+        companions: companionSnapshot(stay.guestName, after.rows),
+        companion_count: after.rows.length,
+      },
+      notes: data.reason,
+      actorMembershipId: me.id,
+    });
+    return { id: data.companionId };
   });
 
 export const addStayService = createServerFn({ method: "POST" })

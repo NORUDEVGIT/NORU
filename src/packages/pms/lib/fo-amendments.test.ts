@@ -8,8 +8,9 @@ import {
   shouldSuppressRestaurantPmsRail,
 } from "./front-office-shell.ts";
 import {
-  COMPANIONS_DEFERRED,
+  COMPANIONS_UNAVAILABLE,
   GUEST_REQUESTS_UNAVAILABLE,
+  NAMED_PARTY_EXCEEDED,
   RATE_IMPACT_UNAVAILABLE,
   REASON_MIN_CHARS,
   SPECIAL_REQUEST_CATEGORY_UNAVAILABLE,
@@ -20,13 +21,18 @@ import {
   canConfirmService,
   canConfirmSpecialRequest,
   canConfirmUpgrade,
+  companionTypeFromDob,
+  companionsPersistError,
   guestRequestPersistError,
+  guestSearchEmpty,
   hasPersistedRate,
   isReasonComplete,
+  namedPartyExceeded,
   occupancyBlockMessage,
   occupancyExceeded,
   rateImpact,
   servicePostsToFolio,
+  stayGuestLine,
   targetRoomRequired,
   upgradeRoomBlocked,
 } from "./fo-amendments.ts";
@@ -81,7 +87,31 @@ describe("FO-FS4 capacity block", () => {
       canConfirmGuests({ adults: 2, children: 1, maxOccupancy: 3, reason: "Family arrived" }),
       true,
     );
-    assert.equal(COMPANIONS_DEFERRED.includes("companions"), true);
+    assert.equal(namedPartyExceeded(3, 3), true);
+    assert.equal(namedPartyExceeded(2, 3), false);
+    assert.equal(
+      canConfirmGuests({
+        adults: 2,
+        children: 0,
+        maxOccupancy: 2,
+        reason: "Add companion",
+        companionCount: 2,
+        pendingAttach: true,
+      }),
+      false,
+    );
+    assert.match(NAMED_PARTY_EXCEEDED, /companions/);
+    assert.equal(companionTypeFromDob(null), null);
+    assert.equal(companionTypeFromDob("2010-01-01", "2026-09-12"), "Child");
+    assert.equal(companionTypeFromDob("1990-01-01", "2026-09-12"), "Adult");
+    assert.equal(stayGuestLine("Jane Doe", null), "Jane Doe");
+    assert.equal(stayGuestLine("Jane Doe", "Adult"), "Jane Doe · Adult");
+    assert.equal(guestSearchEmpty({ search: "xyz", results: [], loading: false }), true);
+    assert.equal(
+      companionsPersistError({ message: "Could not find the table 'public.fo_stay_companions' in the schema cache" })
+        .message,
+      COMPANIONS_UNAVAILABLE,
+    );
   });
 });
 
