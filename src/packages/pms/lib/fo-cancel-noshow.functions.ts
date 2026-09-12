@@ -2,7 +2,7 @@
  * FO-FS3 — Cancel / No-show money writes.
  *
  * Fee/charge posts through post_folio_transaction type `charge` before the
- * Live status flip. No Cashiering RPC rewrite. No deposit-forfeit type.
+ * Live status flip. No Cashiering RPC rewrite. Deposits stay visible only.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";

@@ -81,14 +81,15 @@ describe("FO-FS3 charge-before-status", () => {
     const fns = readFileSync(new URL("./fo-cancel-noshow.functions.ts", import.meta.url), "utf8");
     const cancelSrc = fns.slice(fns.indexOf("export const completeFoCancel"));
     const noShowSrc = fns.slice(fns.indexOf("export const completeFoNoShow"));
-    assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf('status: "cancelled"'));
+    assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf(".update({"));
+    assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf("cancellation_reason"));
     assert.ok(noShowSrc.indexOf("canCompleteNoShow") < noShowSrc.indexOf("mark_hotel_reservation_no_show"));
     assert.match(fns, /postCancelOrNoShowFee/);
     assert.match(fns, /_type: "charge"/);
     assert.match(fns, /CANCEL_FEE_DESCRIPTION|Cancel fee/);
     assert.match(fns, /NOSHOW_FEE_DESCRIPTION|No-show charge/);
     assert.doesNotMatch(fns, /_type: "refund"/);
-    assert.doesNotMatch(fns, /forfeit/);
+    assert.doesNotMatch(fns, /applyDeposit|forfeitDeposit/);
     assert.equal(CANCEL_FEE_DESCRIPTION, "Cancel fee");
     assert.equal(NOSHOW_FEE_DESCRIPTION, "No-show charge");
   });

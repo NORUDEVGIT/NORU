@@ -45,10 +45,10 @@ import {
   isCreditBalance,
   isFeeSatisfied,
   noFeeRequiredLabel,
-  stepRailState,
   type CancelNoShowKind,
   type CancelNoShowStepId,
 } from "@/packages/pms/lib/fo-cancel-noshow";
+import { stepRailState } from "@/packages/pms/lib/fo-check-in";
 import {
   completeFoCancel,
   completeFoNoShow,
@@ -216,17 +216,19 @@ export function FoCancelNoShowStepper({
   });
 
   const completeMut = useMutation({
-    mutationFn: () =>
-      kind === "cancel"
-        ? completeCancel({ data: { restaurantId, reservationId: stay.id, reason: reason.trim() } })
-        : completeNoShow({
-            data: {
-              restaurantId,
-              reservationId: stay.id,
-              reason: reason.trim(),
-              today: today ?? stay.arrivalDate,
-            },
-          }),
+    mutationFn: async (): Promise<{ id: string; status: "cancelled" | "no_show" }> => {
+      if (kind === "cancel") {
+        return completeCancel({ data: { restaurantId, reservationId: stay.id, reason: reason.trim() } });
+      }
+      return completeNoShow({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          reason: reason.trim(),
+          today: today ?? stay.arrivalDate,
+        },
+      });
+    },
     onSuccess: () => {
       toast.success(kind === "cancel" ? "Reservation cancelled." : "Marked as no-show.");
       refreshDesk();

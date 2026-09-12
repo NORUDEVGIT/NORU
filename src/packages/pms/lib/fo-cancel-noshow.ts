@@ -6,11 +6,13 @@
  * posted before the status flip (cancelled / no-show cannot be billed).
  */
 
-import { cashieringRefundHref, REFUND_IN_CASHIERING_CTA } from "./fo-check-out";
-import { stepRailState, type StepRailState } from "./fo-check-in";
+export const REFUND_IN_CASHIERING_CTA = "Refund in Cashiering";
+export const CASHIERING_REFUND_PATH = "/restaurant/pms/cashiering";
 
-export { cashieringRefundHref, REFUND_IN_CASHIERING_CTA, stepRailState };
-export type { StepRailState };
+export function cashieringRefundHref(folioNumber?: string | null): string {
+  const path = `${CASHIERING_REFUND_PATH}?tab=folios`;
+  return folioNumber ? `${path}&folio=${encodeURIComponent(folioNumber)}` : path;
+}
 
 export const CANCEL_NOSHOW_STEPS = ["stay", "reason", "money", "confirm"] as const;
 export type CancelNoShowStepId = (typeof CANCEL_NOSHOW_STEPS)[number];
