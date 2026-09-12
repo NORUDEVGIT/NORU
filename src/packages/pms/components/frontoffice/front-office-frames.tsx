@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import { ComingSoonChip, ComingSoonPanel, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { ComingSoonChip, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { ReservationAmendmentsTab } from "@/packages/pms/components/bookings/reservation-amendments";
 import { ReservationCancellationsTab } from "@/packages/pms/components/bookings/reservation-cancellations";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
@@ -27,6 +27,8 @@ import {
   StayDatesDialog,
   WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
+import { WalkInsHistoryFrame } from "@/packages/pms/components/frontoffice/walk-ins-history-frame";
 import { deriveExceptionSlots, isPermissionDeniedMessage, stayFromReservation } from "@/packages/pms/lib/front-office-shell";
 import {
   getFrontOfficeDashboard,
@@ -39,7 +41,6 @@ import {
   amendReservation,
   getReservation,
   listReservations,
-  setReservationStatus,
 } from "@/packages/pms/lib/reservations.functions";
 import { listGuests } from "@/packages/pms/lib/guests.functions";
 
@@ -65,10 +66,7 @@ export function WalkInsFrame({
         </p>
       </div>
       <Button onClick={() => setOpen(true)}>New walk-in</Button>
-      <ComingSoonPanel
-        title="Walk-in history is Coming soon"
-        description="Existing reservations are not tagged as walk-ins, so this frame does not invent a walk-in list."
-      />
+      <WalkInsHistoryFrame restaurantId={restaurantId} today={today} />
       <WalkInDialog
         restaurantId={restaurantId}
         today={today}
@@ -270,13 +268,8 @@ export function CancellationsFrame({ restaurantId }: { restaurantId: string }) {
       <div>
         <h2 className="font-display text-xl">Cancellations</h2>
         <p className="text-sm text-muted-foreground">
-          Status cancel is live. Policy and fee posting are Coming soon — this screen will not invent a charge.
+          Cancel a confirmed stay. Post the cancel fee or a supervisor may waive it, then confirm.
         </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <ComingSoonChip label="Cancel policy" />
-        <ComingSoonChip label="Cancel fees" />
       </div>
 
       <div className="space-y-3">
@@ -327,53 +320,7 @@ function CancelStayDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const queryClient = useQueryClient();
-  const submit = useServerFn(setReservationStatus);
-  const [reason, setReason] = useState("");
-  const mutation = useMutation({
-    mutationFn: () =>
-      submit({
-        data: {
-          restaurantId,
-          reservationId: stay.id,
-          status: "cancelled",
-          ...(reason.trim() ? { reason: reason.trim() } : {}),
-        },
-      }),
-    onSuccess: () => {
-      toast.success("Reservation cancelled.");
-      void queryClient.invalidateQueries({ queryKey: ["front-office"] });
-      void queryClient.invalidateQueries({ queryKey: ["reservations"] });
-      void queryClient.invalidateQueries({ queryKey: ["reservations-cancelled"] });
-      onOpenChange(false);
-    },
-    onError: (error) => toast.error(errorText(error)),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Cancel reservation</DialogTitle>
-          <DialogDescription>
-            {stay.confirmationNumber} · status only. No cancellation fee is posted.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="fo-cancel-reason">Reason (optional)</Label>
-          <Textarea id="fo-cancel-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Keep reservation
-          </Button>
-          <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? "Cancelling…" : "Cancel stay"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+  return <FoCancelStepper restaurantId={restaurantId} stay={stay} open={open} onOpenChange={onOpenChange} />;
 }
 
 export function NoShowsFrame({
@@ -406,10 +353,9 @@ export function NoShowsFrame({
       <div>
         <h2 className="font-display text-xl">No-Shows</h2>
         <p className="text-sm text-muted-foreground">
-          Mark today&apos;s confirmed arrivals with the existing no-show action. Charges stay Coming soon.
+          Mark today&apos;s confirmed arrivals as no-show. Post the no-show charge or a supervisor may waive it, then confirm.
         </p>
       </div>
-      <ComingSoonChip label="No-show charges" />
 
       <div className="space-y-3">
         <h3 className="text-sm font-medium">Today&apos;s confirmed arrivals</h3>

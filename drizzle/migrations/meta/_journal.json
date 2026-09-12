@@ -267,6 +267,13 @@
       "when": 1789200000000,
       "tag": "0041_fo_checkin_stepper",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789286400000,
+      "tag": "0042_fo_cancel_noshow_fee_defaults",
+      "breakpoints": true
     }
   ]
 }
