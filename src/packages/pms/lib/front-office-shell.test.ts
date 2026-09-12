@@ -11,7 +11,8 @@ import {
   FO_PRIMARY_TITLE,
   actionsForMenu,
   classifyUnavailable,
-  deriveExceptionSlots,
+  deriveExceptionRows,
+  exceptionBadgeCount,
   handleReservationBarDrop,
   invokeFoAction,
   isLiveHorizon,
@@ -233,19 +234,40 @@ describe("calendar helpers", () => {
 });
 
 describe("exceptions", () => {
-  it("derives honest Live counts and leaves the rest Coming soon", () => {
-    const slots = deriveExceptionSlots({
-      unassignedArrivals: 2,
-      overstays: 1,
-      dueOutInHouse: 3,
-      outOfOrder: 0,
-      outOfService: 4,
+  it("derives Live stay rows and treats an empty queue as badge 0", () => {
+    const empty = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [],
+      folioLane: "live",
+      businessDate: "2026-09-12",
     });
-    const live = slots.filter((s) => s.lane === "live");
-    const soon = slots.filter((s) => s.lane === "coming_soon");
-    assert.equal(live.length, 5);
-    assert.ok(soon.length >= 5);
-    assert.equal(slots.find((s) => s.id === "unassigned_arrivals")?.count, 2);
-    assert.equal(slots.find((s) => s.id === "occupancy_discrepancy")?.count, null);
+    assert.equal(exceptionBadgeCount(empty.rows), 0);
+    assert.equal(empty.comingSoon.every((item) => !("count" in item)), true);
+
+    const live = deriveExceptionRows({
+      arrivals: [
+        {
+          id: "a1",
+          confirmationNumber: "NORU-1",
+          guestName: "Ada",
+          roomId: null,
+          roomNumber: null,
+          arrivalDate: "2026-09-12",
+          departureDate: "2026-09-13",
+          status: "confirmed",
+          overstay: false,
+        },
+      ],
+      inHouse: [],
+      departures: [],
+      rooms: [],
+      folioLane: "coming_soon",
+      businessDate: "2026-09-12",
+    });
+    assert.equal(live.rows.length, 1);
+    assert.equal(live.rows[0]?.type, "unassigned");
+    assert.ok(live.comingSoon.some((item) => item.id === "payment_issue"));
   });
 });

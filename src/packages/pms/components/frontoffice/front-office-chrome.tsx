@@ -12,6 +12,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { ComingSoonChip } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { FoHelpSheet } from "@/packages/pms/components/frontoffice/fo-help-sheet";
 import {
   FO_BRAND,
   FO_ESCAPE_MODULES,
@@ -76,6 +77,14 @@ export function FrontOfficeChrome({
   onNavigate,
   onQuickAction,
   onGuestSearch,
+  exceptionBadge = 0,
+  notificationCount = 0,
+  notificationsComingSoon = false,
+  onNotifications,
+  onFoActivity,
+  helpOpen,
+  onHelpOpenChange,
+  canOpenCashiering = false,
   children,
 }: {
   propertyName: string;
@@ -86,6 +95,14 @@ export function FrontOfficeChrome({
   onNavigate: (id: FoNavId) => void;
   onQuickAction: (actionId: string) => void;
   onGuestSearch: () => void;
+  exceptionBadge?: number;
+  notificationCount?: number;
+  notificationsComingSoon?: boolean;
+  onNotifications?: () => void;
+  onFoActivity?: () => void;
+  helpOpen?: boolean;
+  onHelpOpenChange?: (open: boolean) => void;
+  canOpenCashiering?: boolean;
   children: ReactNode;
 }) {
   const quick = actionsForMenu("quick");
@@ -114,14 +131,40 @@ export function FrontOfficeChrome({
             <Search className="size-3.5" />
             <span className="hidden sm:inline">Guest search</span>
           </button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" className="rounded-lg p-1.5 text-white/70 hover:bg-white/10" aria-label="Notifications">
-                <Bell className="size-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Notifications — Coming soon</TooltipContent>
-          </Tooltip>
+          {notificationsComingSoon ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  data-testid="fo-notifications"
+                  className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+                  aria-label="Notifications"
+                >
+                  <Bell className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Notifications — Coming soon</TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              type="button"
+              data-testid="fo-notifications"
+              className="relative rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+              aria-label="Notifications"
+              onClick={onNotifications}
+            >
+              <Bell className="size-4" />
+              {notificationCount > 0 ? (
+                <span
+                  data-testid="fo-notifications-badge"
+                  className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[10px] leading-4 text-[#251605]"
+                  style={{ backgroundColor: FO_BRAND.gold }}
+                >
+                  {notificationCount}
+                </span>
+              ) : null}
+            </button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90">
@@ -153,20 +196,40 @@ export function FrontOfficeChrome({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="hidden text-right sm:block">
-            <p className="max-w-[160px] truncate text-xs">{userLabel}</p>
-            <p className="text-[11px] capitalize text-white/60">{roleLabel}</p>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" className="rounded-lg p-1.5 text-white/70 hover:bg-white/10" aria-label="Help">
-                <HelpCircle className="size-4" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                data-testid="fo-user-menu"
+                className="rounded-lg px-2 py-1 text-right hover:bg-white/10"
+              >
+                <p className="max-w-[160px] truncate text-xs">{userLabel}</p>
+                <p className="text-[11px] capitalize text-white/60">{roleLabel}</p>
               </button>
-            </TooltipTrigger>
-            <TooltipContent>Help — Coming soon</TooltipContent>
-          </Tooltip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem data-testid="fo-activity" onSelect={() => onFoActivity?.()}>
+                FO activity
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            type="button"
+            data-testid="fo-help"
+            className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+            aria-label="Help"
+            onClick={() => onHelpOpenChange?.(true)}
+          >
+            <HelpCircle className="size-4" />
+          </button>
           <NoruLogo size="sm" wordmarkClassName="text-white" />
         </header>
+        <FoHelpSheet
+          open={!!helpOpen}
+          onOpenChange={(open) => onHelpOpenChange?.(open)}
+          onNavigate={onNavigate}
+          canOpenCashiering={canOpenCashiering}
+        />
 
         <div className="flex min-h-0 flex-1">
           <aside
@@ -182,11 +245,22 @@ export function FrontOfficeChrome({
                   data-testid={`fo-nav-${item.id}`}
                   onClick={() => onNavigate(item.id)}
                   className={cn(
-                    "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition-colors",
+                    "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors",
                     active === item.id ? "bg-[#C89933] text-[#251605]" : "text-white/75 hover:bg-white/10 hover:text-white",
                   )}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {item.id === "exceptions" ? (
+                    <span
+                      data-testid="fo-exceptions-badge"
+                      className={cn(
+                        "min-w-5 rounded-full px-1.5 text-center text-[10px] leading-5",
+                        active === item.id ? "bg-[#251605] text-white" : "bg-white/15 text-white",
+                      )}
+                    >
+                      {exceptionBadge}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </nav>
@@ -209,7 +283,7 @@ export function FrontOfficeChrome({
               >
                 {FO_NAV_ITEMS.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.label}
+                    {item.id === "exceptions" ? `${item.label} (${exceptionBadge})` : item.label}
                   </option>
                 ))}
               </select>

@@ -353,35 +353,11 @@ export function reservationBarColor(status: ReservationStatus): string {
   return RESERVATION_LEGEND.find((item) => item.key === status)?.color ?? FO_BRAND.gold;
 }
 
-export type ExceptionSlot = {
-  id: string;
-  label: string;
-  lane: ActionLane;
-  count: number | null;
-};
-
-export function deriveExceptionSlots(input: {
-  unassignedArrivals: number;
-  overstays: number;
-  dueOutInHouse: number;
-  outOfOrder: number;
-  outOfService: number;
-}): ExceptionSlot[] {
-  return [
-    { id: "unassigned_arrivals", label: "Unassigned arrivals", lane: "live", count: input.unassignedArrivals },
-    { id: "overstays", label: "Overstays", lane: "live", count: input.overstays },
-    { id: "due_out_in_house", label: "Due out, still in-house", lane: "live", count: input.dueOutInHouse },
-    { id: "out_of_order", label: "Out of order rooms", lane: "live", count: input.outOfOrder },
-    { id: "out_of_service", label: "Out of service rooms", lane: "live", count: input.outOfService },
-    { id: "occupancy_discrepancy", label: "Occupancy discrepancy", lane: "coming_soon", count: null },
-    { id: "rate_exception", label: "Rate exception", lane: "coming_soon", count: null },
-    { id: "credit_hold", label: "Credit / folio hold", lane: "coming_soon", count: null },
-    { id: "group_block", label: "Group block leak", lane: "coming_soon", count: null },
-    { id: "room_type_mismatch", label: "Room type mismatch", lane: "coming_soon", count: null },
-    { id: "key_not_issued", label: "Key not issued", lane: "coming_soon", count: null },
-    { id: "deposit_outstanding", label: "Deposit outstanding", lane: "coming_soon", count: null },
-  ];
-}
+export {
+  deriveExceptionRows,
+  exceptionBadgeCount,
+  exceptionHighCount,
+} from "./fo-exceptions";
 
 export const RESERVED_BADGE_SLOTS = [
   { id: "vip_badge", label: "VIP", lane: "live" as const },
@@ -391,11 +367,7 @@ export const RESERVED_BADGE_SLOTS = [
 ] as const;
 
 export const LIST_COMING_SOON_COLUMNS = [
-  { id: "balance", label: "Balance" },
-  { id: "folio_settle", label: "Folio settle" },
   { id: "registration", label: "Registration card" },
-  { id: "deposit", label: "Deposit" },
-  { id: "key", label: "Key issued" },
 ] as const;
 
 export const OPS_STRIP_LIVE_KEYS = [
@@ -408,10 +380,8 @@ export const OPS_STRIP_LIVE_KEYS = [
   "outOfService",
 ] as const;
 
-export const OPS_STRIP_COMING_SOON = [
-  { id: "occupancy_pct", label: "Occupancy %" },
-  { id: "group_arrivals", label: "Group arrivals" },
-] as const;
+/** Occupancy % is omitted rather than invented. Discrepancies stay hidden. */
+export const OPS_STRIP_COMING_SOON = [] as const;
 
 export function shouldShowWeekGantt(viewport: "phone" | "tablet" | "desktop"): boolean {
   return viewport !== "phone";
