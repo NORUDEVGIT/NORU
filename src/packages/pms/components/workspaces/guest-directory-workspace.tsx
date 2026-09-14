@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search, Star } from "lucide-react";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
+import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
+import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { GUEST_PROFILE_DETAIL_PATH } from "@/packages/pms/lib/guest-profile-wave1";
 import { Button } from "@/shared/components/ui/button";
@@ -40,6 +42,7 @@ export function GuestDirectoryWorkspace({
   const [status, setStatus] = useState<string>(ALL);
   const [vipOnly, setVipOnly] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
@@ -95,10 +98,15 @@ export function GuestDirectoryWorkspace({
             Search and open individual guest profiles for {membership.restaurant.name}.
           </p>
         </div>
-        <Button onClick={() => setFormOpen(true)}>
-          <Plus className="size-4 sm:mr-2" />
-          <span className="hidden sm:inline">New Guest</span>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setMergeOpen(true)}>
+            Merge guests
+          </Button>
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="size-4 sm:mr-2" />
+            <span className="hidden sm:inline">New Guest</span>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -143,6 +151,7 @@ export function GuestDirectoryWorkspace({
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Nationality</th>
+                  <th className="px-4 py-3">ID number</th>
                   <th className="px-4 py-3">VIP</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Last updated</th>
@@ -161,6 +170,9 @@ export function GuestDirectoryWorkspace({
                     <td className="px-4 py-3 text-muted-foreground">{g.phone ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{g.email ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{g.nationality ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <MaskedIdNumber value={g.idDocumentNumber} />
+                    </td>
                     <td className="px-4 py-3">{g.vipStatus ? <VipBadge /> : "—"}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={g.guestStatus} />
@@ -191,7 +203,8 @@ export function GuestDirectoryWorkspace({
                     {[g.phone, g.email].filter(Boolean).join(" · ") || "No contact details"}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {g.nationality ?? "—"} · updated {date(g.updatedAt)}
+                    {g.nationality ?? "—"} · ID <MaskedIdNumber value={g.idDocumentNumber} /> ·
+                    updated {date(g.updatedAt)}
                   </p>
                 </button>
               </li>
@@ -206,6 +219,13 @@ export function GuestDirectoryWorkspace({
         onOpenChange={setFormOpen}
         onSaved={openGuest}
         onOpenExisting={openGuest}
+      />
+
+      <GuestMergeDialog
+        restaurantId={restaurantId}
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        onMerged={openGuest}
       />
     </div>
   );

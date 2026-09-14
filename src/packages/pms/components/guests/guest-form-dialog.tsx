@@ -107,6 +107,7 @@ export function GuestFormDialog({
   guest,
   onSaved,
   onOpenExisting,
+  onMergeRequested,
 }: {
   restaurantId: string;
   open: boolean;
@@ -116,6 +117,8 @@ export function GuestFormDialog({
   onSaved?: (guestId: string) => void;
   /** Called when staff choose an existing duplicate instead of creating a new guest. */
   onOpenExisting?: (guestId: string) => void;
+  /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
+  onMergeRequested?: (duplicateId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const create = useServerFn(createGuest);
@@ -128,7 +131,9 @@ export function GuestFormDialog({
     retry: false,
     enabled: open,
   });
-  const savedRules = rulesQuery.data?.snapshot.guestRules.savedAt ? rulesQuery.data.snapshot.guestRules : null;
+  const savedRules = rulesQuery.data?.snapshot.guestRules.savedAt
+    ? rulesQuery.data.snapshot.guestRules
+    : null;
 
   const [form, setForm] = useState<GuestFormValues>(EMPTY);
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
@@ -231,6 +236,7 @@ export function GuestFormDialog({
             <p className="text-sm text-muted-foreground">
               A guest with this email or phone already exists at this property. Nothing is merged
               automatically — open the existing guest, or continue and create a separate profile.
+              Merge is optional and always asks for an explicit confirm.
             </p>
             <ul className="space-y-2">
               {duplicates.map((d) => (
@@ -244,18 +250,32 @@ export function GuestFormDialog({
                       {[d.phone, d.email].filter(Boolean).join(" · ") || "No contact details"}
                     </span>
                   </span>
-                  {onOpenExisting ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        onOpenChange(false);
-                        onOpenExisting(d.id);
-                      }}
-                    >
-                      Open existing guest
-                    </Button>
-                  ) : null}
+                  <span className="flex flex-wrap gap-2">
+                    {onOpenExisting ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          onOpenChange(false);
+                          onOpenExisting(d.id);
+                        }}
+                      >
+                        Open existing guest
+                      </Button>
+                    ) : null}
+                    {guest && onMergeRequested ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          onOpenChange(false);
+                          onMergeRequested(d.id);
+                        }}
+                      >
+                        Merge…
+                      </Button>
+                    ) : null}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -357,7 +377,8 @@ export function GuestFormDialog({
             />
           </Field>
           <p className="sm:col-span-2 text-xs text-muted-foreground">
-            ID text only — no document upload in Wave 1.
+            ID numbers are masked on Directory and Information. Document images and staff
+            verification live on the Identity & Documents card.
           </p>
           <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
             <Label htmlFor="guest-vip">VIP guest</Label>

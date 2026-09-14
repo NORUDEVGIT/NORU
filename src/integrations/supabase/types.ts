@@ -865,6 +865,72 @@ export type Database = {
           },
         ]
       }
+      guest_documents: {
+        Row: {
+          created_at: string
+          guest_id: string
+          id: string
+          kind: string
+          mime_type: string
+          rejection_reason: string | null
+          restaurant_id: string
+          size_bytes: number
+          storage_path: string
+          updated_at: string
+          uploaded_by_membership_id: string | null
+          verification_status: string
+          verified_at: string | null
+          verified_by_membership_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          guest_id: string
+          id?: string
+          kind: string
+          mime_type: string
+          rejection_reason?: string | null
+          restaurant_id: string
+          size_bytes: number
+          storage_path: string
+          updated_at?: string
+          uploaded_by_membership_id?: string | null
+          verification_status?: string
+          verified_at?: string | null
+          verified_by_membership_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          guest_id?: string
+          id?: string
+          kind?: string
+          mime_type?: string
+          rejection_reason?: string | null
+          restaurant_id?: string
+          size_bytes?: number
+          storage_path?: string
+          updated_at?: string
+          uploaded_by_membership_id?: string | null
+          verification_status?: string
+          verified_at?: string | null
+          verified_by_membership_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_documents_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_documents_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       guest_profile_history: {
         Row: {
           actor_membership_id: string | null
@@ -943,6 +1009,10 @@ export type Database = {
           language: string | null
           last_name: string | null
           linked_customer_user_id: string | null
+          marketing_consent: string
+          marketing_consent_recorded_at: string | null
+          marketing_consent_recorded_by: string | null
+          merged_into_guest_id: string | null
           nationality: string | null
           notes: string | null
           phone: string | null
@@ -952,6 +1022,9 @@ export type Database = {
           restaurant_id: string
           updated_at: string
           vip_status: boolean
+          data_processing_consent: string
+          data_processing_consent_recorded_at: string | null
+          data_processing_consent_recorded_by: string | null
         }
         Insert: {
           address_line1?: string | null
@@ -972,6 +1045,10 @@ export type Database = {
           language?: string | null
           last_name?: string | null
           linked_customer_user_id?: string | null
+          marketing_consent?: string
+          marketing_consent_recorded_at?: string | null
+          marketing_consent_recorded_by?: string | null
+          merged_into_guest_id?: string | null
           nationality?: string | null
           notes?: string | null
           phone?: string | null
@@ -981,6 +1058,9 @@ export type Database = {
           restaurant_id: string
           updated_at?: string
           vip_status?: boolean
+          data_processing_consent?: string
+          data_processing_consent_recorded_at?: string | null
+          data_processing_consent_recorded_by?: string | null
         }
         Update: {
           address_line1?: string | null
@@ -1001,6 +1081,10 @@ export type Database = {
           language?: string | null
           last_name?: string | null
           linked_customer_user_id?: string | null
+          marketing_consent?: string
+          marketing_consent_recorded_at?: string | null
+          marketing_consent_recorded_by?: string | null
+          merged_into_guest_id?: string | null
           nationality?: string | null
           notes?: string | null
           phone?: string | null
@@ -1010,6 +1094,9 @@ export type Database = {
           restaurant_id?: string
           updated_at?: string
           vip_status?: boolean
+          data_processing_consent?: string
+          data_processing_consent_recorded_at?: string | null
+          data_processing_consent_recorded_by?: string | null
         }
         Relationships: [
           {
@@ -3575,6 +3662,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pms_packages_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_preference_options: {
+        Row: {
+          active: boolean
+          category: string
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_preference_options_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"

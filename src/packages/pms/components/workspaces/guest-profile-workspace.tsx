@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
+import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
+import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-preferences-card";
 import {
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -13,6 +17,7 @@ import {
   guestProfileCard,
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
+import { getGuest } from "@/packages/pms/lib/guests.functions";
 import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
@@ -26,6 +31,14 @@ export function GuestProfileWorkspace({
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(defaultGuestProfileCard(Boolean(guestId)));
   const selected = guestProfileCard(card);
+  const restaurantId = membership.restaurant.id;
+  const fetchGuest = useServerFn(getGuest);
+  const guestQuery = useQuery({
+    queryKey: ["guest", restaurantId, guestId],
+    queryFn: () => fetchGuest({ data: { restaurantId, guestId: guestId! } }),
+    enabled: Boolean(guestId) && (card === "identity" || card === "preferences"),
+    retry: false,
+  });
 
   function selectCard(next: GuestProfileCardId) {
     if (next === "directory" && guestId) {
@@ -40,7 +53,8 @@ export function GuestProfileWorkspace({
       <div>
         <h1 className="font-display text-2xl">{GUEST_PROFILE_TITLE}</h1>
         <p className="text-sm text-muted-foreground">
-          Individual directory and information. Other cards are labelled until their wave is LIVE.
+          Individual directory, information, identity documents and preferences. Later cards stay
+          labelled until their wave is LIVE.
         </p>
       </div>
 
@@ -108,6 +122,27 @@ export function GuestProfileWorkspace({
         <ComingCard
           title="Information"
           copy="Open a guest from Directory to view and edit Information. No guest is selected yet."
+        />
+      ) : card === "identity" && guestId && guestQuery.data ? (
+        <GuestIdentityCard restaurantId={restaurantId} guest={guestQuery.data.guest} />
+      ) : card === "preferences" && guestId && guestQuery.data ? (
+        <GuestPreferencesCard
+          restaurantId={restaurantId}
+          guestId={guestId}
+          preferences={guestQuery.data.preferences}
+          onSaved={() => void guestQuery.refetch()}
+        />
+      ) : (card === "identity" || card === "preferences") && !guestId ? (
+        <ComingCard
+          title={selected.title}
+          copy="Open a guest from Directory to use this card. No guest is selected yet."
+        />
+      ) : (card === "identity" || card === "preferences") && guestQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading guest…</p>
+      ) : (card === "identity" || card === "preferences") && guestQuery.isError ? (
+        <ComingCard
+          title={selected.title}
+          copy="That guest could not be found for this property."
         />
       ) : (
         <ComingCard

@@ -35,17 +35,20 @@ describe("Guest Profile Wave 1 catalogue", () => {
     assert.match(modules, /key: "guest-services"/);
     assert.match(modules, /title: "Guest Services"/);
     assert.match(modules, /Guest requests and concierge tracking/);
-    assert.doesNotMatch(modules, /Guest profiles today; requests and concierge tracking are planned/);
+    assert.doesNotMatch(
+      modules,
+      /Guest profiles today; requests and concierge tracking are planned/,
+    );
     assert.equal(GUEST_PROFILE_MODULE_KEY, "guest-profile");
     assert.equal(GUEST_PROFILE_TITLE, "Guest Profile");
     assert.equal(GUEST_PROFILE_DIRECTORY_PATH, "/restaurant/pms/guests");
     assert.equal(GUEST_PROFILE_DETAIL_PATH, "/restaurant/pms/guests/$guestId");
   });
 
-  it("exposes ten individual cards with only Directory and Information LIVE", () => {
+  it("exposes ten individual cards with Directory, Information, Identity and Preferences LIVE", () => {
     assert.equal(GUEST_PROFILE_CARDS.length, 10);
     const live = GUEST_PROFILE_CARDS.filter((card) => card.live).map((card) => card.id);
-    assert.deepEqual(live, ["directory", "information"]);
+    assert.deepEqual(live, ["directory", "information", "identity", "preferences"]);
     for (const card of GUEST_PROFILE_CARDS) {
       if (card.live) continue;
       assert.match(card.copy ?? "", /Coming in Wave \d/);
@@ -90,7 +93,8 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.match(form, /Open existing guest/);
     assert.match(form, /Create anyway/);
     assert.match(form, /Nothing is merged/);
-    assert.doesNotMatch(form, /Confirm merge|Merge guests|merge control/i);
+    assert.match(form, /Merge is optional and always asks for an explicit confirm/);
+    assert.doesNotMatch(form, /automatically merge|one-click merge|silent merge/i);
     assert.match(detail, /idDocumentType/);
     assert.match(functions, /from\("guest_profiles"\)/);
     assert.doesNotMatch(functions, /guest_profiles_wave|guest_profile_v2/);
@@ -99,7 +103,9 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
   it("keeps compatibility paths pointing at the new canonical guest profile", () => {
     const guestsIndex = readRel("../../../routes/restaurant/guests/index.tsx");
     const guestsDetail = readRel("../../../routes/restaurant/guests/$guestId.tsx");
-    const reservationGuest = readRel("../../../routes/restaurant/pms/reservations.guests.$guestId.tsx");
+    const reservationGuest = readRel(
+      "../../../routes/restaurant/pms/reservations.guests.$guestId.tsx",
+    );
     const directoryRoute = readRel("../../../routes/restaurant/pms/guests.index.tsx");
     const profileRoute = readRel("../../../routes/restaurant/pms/guests.$guestId.tsx");
     const guestServices = readRel("../../../routes/restaurant/pms/guest-services.tsx");

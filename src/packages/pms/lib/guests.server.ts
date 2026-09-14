@@ -21,8 +21,26 @@ export const GUEST_EVENT_TYPES = [
   "status_changed",
   "preference_updated",
   "note_added",
+  "document_uploaded",
+  "document_verified",
+  "document_rejected",
+  "merged_from",
+  "merged_into",
+  "consent_updated",
 ] as const;
 export type GuestEventType = (typeof GUEST_EVENT_TYPES)[number];
+
+export const GUEST_IMAGE_EXT_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+};
+
+/** Storage object path inside this property's guest namespace. */
+export function guestDocumentPath(restaurantId: string, guestId: string, ext: string): string {
+  return `${restaurantId}/guests/${guestId}/${crypto.randomUUID()}.${ext}`;
+}
 
 export function canManageGuests(role: string): boolean {
   return (GUEST_MANAGE_ROLES as readonly string[]).includes(role);
