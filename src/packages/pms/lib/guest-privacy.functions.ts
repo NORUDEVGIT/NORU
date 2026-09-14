@@ -557,7 +557,7 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
     if (guest.error) throw wave5Error(guest.error);
     if (!guest.data) throw new Error("That guest could not be found.");
 
-    const [prefs, history, documents, links] = await Promise.all([
+    const [prefs, history, documents, links, emergency] = await Promise.all([
       supabaseAdmin
         .from("guest_preferences")
         .select("*")
@@ -581,6 +581,11 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
         .select("id, master_id, role, created_at")
         .eq("restaurant_id", data.restaurantId)
         .eq("guest_id", data.guestId),
+      db(supabaseAdmin)
+        .from("guest_emergency_contacts")
+        .select("id, name, relationship, phone, email, sort_order")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", data.guestId),
     ]);
 
     const json = {
@@ -592,6 +597,7 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
       history: history.data ?? [],
       documents: documents.data ?? [],
       relationships: links.data ?? [],
+      emergencyContacts: emergency.error ? [] : (emergency.data ?? []),
     };
     await recordGuestEvent({
       restaurantId: data.restaurantId,
@@ -680,33 +686,60 @@ export const anonymiseGuest = createServerFn({ method: "POST" })
     }
 
     const now = new Date().toISOString();
-    const { error } = await db(supabaseAdmin)
+    const baseAnonymise = {
+      first_name: WAVE5_ANONYMISED_GUEST_LABEL,
+      last_name: null,
+      phone: null,
+      email: null,
+      nationality: null,
+      language: null,
+      date_of_birth: null,
+      address_line1: null,
+      address_line2: null,
+      city: null,
+      region: null,
+      country: null,
+      postal_code: null,
+      id_document_type: null,
+      id_document_number: null,
+      id_document_expiry: null,
+      notes: null,
+      linked_customer_user_id: null,
+      anonymised_at: now,
+      anonymised_by_membership_id: me.id,
+    };
+    let { error } = await db(supabaseAdmin)
       .from("guest_profiles")
       .update({
-        first_name: WAVE5_ANONYMISED_GUEST_LABEL,
-        last_name: null,
-        phone: null,
-        email: null,
-        nationality: null,
-        language: null,
-        date_of_birth: null,
-        address_line1: null,
-        address_line2: null,
-        city: null,
-        region: null,
-        country: null,
-        postal_code: null,
-        id_document_type: null,
-        id_document_number: null,
-        id_document_expiry: null,
-        notes: null,
-        linked_customer_user_id: null,
-        anonymised_at: now,
-        anonymised_by_membership_id: me.id,
+        ...baseAnonymise,
+        title: null,
+        middle_name: null,
+        preferred_name: null,
+        gender: null,
+        phone_alt: null,
+        email_alt: null,
+        employment_position: null,
+        department: null,
+        source_of_business: null,
+        restriction_reason: null,
       } as never)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId);
+    if (error && isMissingSchemaError(error)) {
+      const retry = await db(supabaseAdmin)
+        .from("guest_profiles")
+        .update(baseAnonymise as never)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.guestId);
+      error = retry.error;
+    }
     if (error) throw wave5Error(error);
+
+    await db(supabaseAdmin)
+      .from("guest_emergency_contacts")
+      .delete()
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId);
 
     await supabaseAdmin
       .from("guest_preferences")

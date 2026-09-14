@@ -20,6 +20,7 @@ import {
 import { addDays, formatStayDate, propertyToday } from "@/packages/pms/components/bookings/reservation-bits";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { GuestRestrictionBadges, GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
@@ -194,7 +195,10 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
         {guest ? (
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-border p-3">
             <div>
-              <p className="font-medium">{guest.fullName}</p>
+              <p className="flex flex-wrap items-center gap-2 font-medium">
+                {guest.fullName}
+                <GuestRestrictionBadges guest={guest} />
+              </p>
               <p className="text-xs text-muted-foreground">
                 {[guest.phone, guest.email].filter(Boolean).join(" · ") || "No contact details"}
               </p>
@@ -203,7 +207,9 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               Change guest
             </Button>
           </div>
-        ) : (
+        ) : null}
+        {guest ? <div className="mt-3"><GuestRestrictionWarn guest={guest} /></div> : null}
+        {!guest ? (
           <div className="mt-3 space-y-3">
             <div className="flex flex-wrap gap-3">
               <div className="relative min-w-56 flex-1">
@@ -230,7 +236,10 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
                     onClick={() => setGuest(g)}
                     className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
                   >
-                    <span className="font-medium">{g.fullName}</span>
+                    <span className="inline-flex flex-wrap items-center gap-2 font-medium">
+                      {g.fullName}
+                      <GuestRestrictionBadges guest={g} />
+                    </span>
                     <span className="ml-2 text-xs text-muted-foreground">
                       {[g.phone, g.email].filter(Boolean).join(" · ")}
                     </span>
@@ -242,7 +251,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               ) : null}
             </ul>
           </div>
-        )}
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-4">

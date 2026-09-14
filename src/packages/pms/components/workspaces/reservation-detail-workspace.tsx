@@ -40,7 +40,9 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.functions";
 import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { ReservationGuestMastersCard } from "@/packages/pms/components/guests/reservation-guest-masters";
+import { getGuest } from "@/packages/pms/lib/guests.functions";
 import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 
@@ -60,6 +62,7 @@ export function ReservationDetailWorkspace({
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchReservation = useServerFn(getReservation);
+  const fetchGuest = useServerFn(getGuest);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitAmend = useServerFn(amendReservation);
@@ -84,6 +87,13 @@ export function ReservationDetailWorkspace({
   });
 
   const reservation = detailQuery.data?.reservation;
+
+  const guestQuery = useQuery({
+    queryKey: ["guest", restaurantId, reservation?.guestId],
+    queryFn: () => fetchGuest({ data: { restaurantId, guestId: reservation!.guestId } }),
+    enabled: canManage && Boolean(reservation?.guestId),
+    retry: false,
+  });
 
   const roomsQuery = useQuery({
     queryKey: [
@@ -275,6 +285,11 @@ export function ReservationDetailWorkspace({
 
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg">Guest</h2>
+          {guestQuery.data ? (
+            <div className="mt-3">
+              <GuestRestrictionWarn guest={guestQuery.data.guest} />
+            </div>
+          ) : null}
           <dl className="mt-3 space-y-3">
             <Field label="Name" value={reservation.guestName} />
             <Field label="Phone" value={reservation.guestPhone ?? "—"} />

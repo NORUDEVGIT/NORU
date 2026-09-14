@@ -7,7 +7,7 @@ import { Plus, Search, Star } from "lucide-react";
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
-import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import { GuestRestrictionBadges, StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   guestProfileCardSearch,
@@ -177,7 +177,12 @@ export function GuestDirectoryWorkspace({
                     onKeyDown={(e) => e.key === "Enter" && openGuest(g.id)}
                     className="cursor-pointer border-t border-border transition-colors hover:bg-accent/40"
                   >
-                    <td className="px-4 py-3 font-medium">{g.fullName}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <span className="flex flex-wrap items-center gap-2">
+                        {g.fullName}
+                        <GuestRestrictionBadges guest={g} />
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{g.phone ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{g.email ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{g.nationality ?? "—"}</td>
@@ -207,6 +212,7 @@ export function GuestDirectoryWorkspace({
                     <p className="font-medium">{g.fullName}</p>
                     <div className="flex items-center gap-1">
                       {g.vipStatus ? <VipBadge /> : null}
+                      <GuestRestrictionBadges guest={g} />
                       <StatusBadge status={g.guestStatus} />
                     </div>
                   </div>
