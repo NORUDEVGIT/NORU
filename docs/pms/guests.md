@@ -5,15 +5,15 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | **Waves 1–3 IMPLEMENTED ON MAIN**. Wave 1: issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14. Wave 2: issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · follow-up PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z. Wave 3: issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z (#88 CLOSED via #90). Wave 4 **code LIVE on `main`** (PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED) — formal docs recon / issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) close may still be in flight. Wave 5 Spec **READY FOR ENGINEERING PLANNING** (gate OPENED). Wave 5 is **not** implemented. The module is **not** COMPLETE. |
+| **STATUS** | **Waves 1–3 IMPLEMENTED ON MAIN**. Wave 1: issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14. Wave 2: issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · follow-up PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z. Wave 3: issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z (#88 CLOSED via #90). Wave 4 **code LIVE on `main`** (PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING **IMPLEMENTATION IN PROGRESS** (Rekik plan APPROVED 2026-09-14). Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Wave 5 is **not** implemented. The module is **not** COMPLETE. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — see [specs/guest-profile-module.md](./specs/guest-profile-module.md) |
 | **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (#72 / #76 / #79). OPERATIONALLY ACCEPTED / closed after Independent QA PASS. |
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90). OPERATIONALLY ACCEPTED / closed after Independent QA PASS. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. |
-| **Wave 4 Spec** | **Code LIVE on `main`** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) OPEN (formal close / docs recon may still be in flight). This Wave 5 planning pass does **not** reopen Wave 4. |
-| **Wave 5 Spec** | **READY FOR ENGINEERING PLANNING** — gate OPENED by Rekik 2026-09-14 via Advisor. ENGINEERING **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. **Not** implemented. |
+| **Wave 4 Spec** | **Code LIVE on `main`** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. This Wave 5 catch-up does **not** reopen Wave 4. |
+| **Wave 5 Spec** | **ACCEPTED for Engineering** (Rekik 2026-09-14) — Eng-ready catch-up. Gate **OPENED**; plan **APPROVED**. ENGINEERING **IMPLEMENTATION IN PROGRESS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Branch `feature/98-guest-profile-wave-5`. **Not** implemented (no PASS / LIVE / COMPLETE). |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Waves 1–3 complete. Wave 4 code LIVE (#97). Wave 5 awaits issue + tech plan + Rekik plan approval. Wave 5 is **not** automatic. |
-| **Classification** | Functional Spec / programme — Waves 1–3 CURRENT on `main`; Wave 4 **code LIVE** (#97); Wave 5 Spec planning only; **not** CURRENT that every card is LIVE |
+| **Engineering assignment** | Waves 1–3 complete. Wave 4 code LIVE (#97). Wave 5 coding **AUTHORIZED / IN PROGRESS** on #98 after Rekik plan approval. Wave 5 is **not** implemented. |
+| **Classification** | Functional Spec / programme — Waves 1–3 CURRENT on `main`; Wave 4 **code LIVE** (#97); Wave 5 Spec **ACCEPTED for Engineering** (implementation in progress); **not** CURRENT that every card is LIVE |
 
 > **Wave 1 IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z. Wave 1 is OPERATIONALLY ACCEPTED / closed.
 >
@@ -21,11 +21,11 @@
 >
 > **Wave 3 IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z; PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85), [#87](https://github.com/NORUDEVGIT/NORU/pull/87), and [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed via #90. Wave 3 delivered Stay History LIVE, honest Dashboard KPIs, quick actions, guest-context naming, and Directory-back on guest-required cards. Wave 3 is OPERATIONALLY ACCEPTED / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**.
 >
-> **Wave 4 code LIVE on `main`** (Rekik 2026-09-14). PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) OPEN — formal close / docs recon may still be in flight. Do **not** claim Wave 4 unimplemented. This Wave 5 planning pass does **not** reopen Wave 4.
+> **Wave 4 code LIVE on `main`** (Rekik 2026-09-14). PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Do **not** claim Wave 4 unimplemented. This Wave 5 catch-up does **not** reopen Wave 4.
 >
-> **Wave 5 Spec READY FOR ENGINEERING PLANNING** (Rekik 2026-09-14). Gate **OPENED** via Advisor. ENGINEERING STATUS **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Wave 5 is **not** implemented.
+> **Wave 5 Spec ACCEPTED for Engineering** (Rekik 2026-09-14). Gate **OPENED**. Technical Implementation Plan **APPROVED** via Advisor. ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Coding AUTHORIZED on `feature/98-guest-profile-wave-5`. Wave 5 is **not** implemented.
 >
-> Create once → use everywhere → enrich. The module is **COMPLETE** only after Waves 1–5 **and** hotel UAT. Do **not** treat Wave 1–4 merge as module COMPLETE. Do **not** treat this Wave 5 planning Spec as implementation.
+> Create once → use everywhere → enrich. The module is **COMPLETE** only after Waves 1–5 **and** hotel UAT. Do **not** treat Wave 1–4 merge as module COMPLETE. Do **not** treat this Wave 5 Spec catch-up as Wave 5 PASS / LIVE / COMPLETE.
 >
 > Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit from this page. Code wins on conflict with catalogue copy.
 
@@ -88,15 +88,15 @@ Until a card’s wave exits, the shell may show **Coming in Wave N**. It must **
 
 ## 4. Waves programme
 
-Engineering works **wave-by-wave**. A later wave does not start until the prior wave has exited (docs + product exit criteria). Full testable Wave 1–5 ACs (Wave 5 = planning contract) are in the [Functional Spec](./specs/guest-profile-module.md).
+Engineering works **wave-by-wave**. A later wave does not start until the prior wave has exited (docs + product exit criteria). Full testable Wave 1–5 ACs (Wave 5 = **accepted engineering contract**; implementation **in progress**) are in the [Functional Spec](./specs/guest-profile-module.md).
 
 | Wave | Title | Engineering status | Exit (summary) |
 |---|---|---|---|
 | **1** | Shell + Directory + Information (Individuals) | **COMPLETE / MERGED** — issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14. OPERATIONALLY ACCEPTED / closed. | First-class Guest module; individual create / find / edit is the default path; 10-card shell honest |
 | **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | **COMPLETE / MERGED** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z. OPERATIONALLY ACCEPTED / closed. | Docs on file, prefs complete (Setup-owned dropdowns), merge works (never silent), consent recorded |
 | **3** | Stay History from real reservations; 360 Dashboard KPIs real-derived; quick actions to Res / FO / Folio | **COMPLETE / MERGED** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z. OPERATIONALLY ACCEPTED / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. | Real history + honest KPIs + guest-context + Directory-back |
-| **4** | (A) Company / Group / TA masters; (B) Relationships with roles; (C) Loyalty & Value real-derived | **CODE LIVE ON MAIN** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) OPEN (formal close / docs recon may still be in flight). Do **not** claim unimplemented. | Masters + associations + honest loyalty |
-| **5** | Comms / Activity + Privacy finish (export / anonymise / unmerge) for individuals and masters as appropriate | **GATE OPENED** / Spec **READY FOR ENGINEERING PLANNING** — ENGINEERING **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. **Not** implemented. | Full hub + privacy honesty + hotel UAT-ready |
+| **4** | (A) Company / Group / TA masters; (B) Relationships with roles; (C) Loyalty & Value real-derived | **CODE LIVE ON MAIN** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Do **not** claim unimplemented. | Masters + associations + honest loyalty |
+| **5** | Comms / Activity + Privacy finish (export / anonymise / unmerge) for individuals and masters as appropriate | **IMPLEMENTATION IN PROGRESS** — Spec **ACCEPTED for Engineering**. Gate **OPENED**; Rekik plan **APPROVED** 2026-09-14. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Branch `feature/98-guest-profile-wave-5`. **Not** implemented. | Full hub + privacy honesty + hotel UAT-ready |
 
 > **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).** Wave 2 Preferences: room / bed / view / floor (and food / communication if Property Setup has catalogues) use **dropdown / multi-select** from that hotel’s Setup lists — not open free-text as the primary control. Optional **Other**; accessibility and special requests stay textarea. **Delivered on `main`.** Detail: [Functional Spec §4](./specs/guest-profile-module.md#4-wave-2--identity-preferences-controlled-merge-consent). Preference values persist as `id:<uuid>` / `other:<text>` in the existing text columns — see §7.5.
 
@@ -104,7 +104,7 @@ Engineering works **wave-by-wave**. A later wave does not start until the prior 
 
 ## 5. CURRENT vs EXPECTED (summary)
 
-Grounded in `main` at documentation time (`37af44d`, after #97 Wave 4 code merge). **Code wins.** Detail: [Functional Spec — CURRENT behaviour](./specs/guest-profile-module.md#2-current-behaviour-code-wins). Wave 5 CURRENT vs EXPECTED: [Spec §7.2–§7.3](./specs/guest-profile-module.md#72-current-behaviour-wave-5-surfaces--code-wins). Wave 4 **code is LIVE**; a full Wave 4 docs recon may still be in flight — do not treat stale Wave 4 planning copy as a claim that masters are unimplemented.
+Grounded in `main` at documentation time (`37af44d`, after #97 Wave 4 code merge). **Code wins.** Detail: [Functional Spec — CURRENT behaviour](./specs/guest-profile-module.md#2-current-behaviour-code-wins). Wave 5 CURRENT vs EXPECTED: [Spec §7.2–§7.3](./specs/guest-profile-module.md#72-current-behaviour-wave-5-surfaces--code-wins). Wave 4 **code is LIVE**; issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed — do not treat stale Wave 4 planning CURRENT tables as a claim that masters are unimplemented.
 
 | Topic | CURRENT | EXPECTED (module complete) |
 |---|---|---|
@@ -142,7 +142,7 @@ The Guest Profile Module is **COMPLETE** only when **all** of the following are 
 
 **Process (locked):** Spec → Engineering **wave-by-wave** → QA → human merge → Design Execution Report → Docs reconciliation → Advisor review.
 
-This overview plus the Functional Spec remain the programme record. Waves 1–3 are implemented on `main`. Wave 4 **code is LIVE on `main`** (#97); docs recon / issue close may still be in flight. Wave 5 Spec is **READY FOR ENGINEERING PLANNING** (gate OPENED; **not** implemented). The module is **not** COMPLETE until Wave 5 and hotel UAT also pass.
+This overview plus the Functional Spec remain the programme record. Waves 1–3 are implemented on `main`. Wave 4 **code is LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec is **ACCEPTED for Engineering** (gate OPENED; plan APPROVED; implementation **IN PROGRESS**; **not** implemented). The module is **not** COMPLETE until Wave 5 and hotel UAT also pass.
 
 ---
 
@@ -226,12 +226,12 @@ Wave 3 residual / Guest shell UX (post–Wave 3) — **not** Waves 4–5 product
 
 | Record | Role |
 |---|---|
-| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | Master Spec: Wave 1–3 ACs + DER results; Wave 4 code LIVE (#97); Wave 5 planning ACs (gate OPENED) |
+| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | Master Spec: Wave 1–3 ACs + DER results; Wave 4 code LIVE (#97); Wave 5 **ACCEPTED for Engineering** (AC-W5-1…23) |
 | [S1 + M1 Product Plan — Option A](./product-roadmap-s1-m1.md) | Wider programme. Guest Waves are **not** E-S01 and do **not** authorise that cycle. |
 | [Commercial Readiness (2026-09-11)](./commercial-readiness.md) | Advisory baseline. Groups / company bill-to are **not** CURRENT as cashiering products. |
-| [decisions/README.md](./decisions/README.md) | Short note: Waves 1–3 implemented; Wave 4 code LIVE; Wave 5 Spec planning. |
-| Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) | Wave 5 tracking issue — **OPEN**. Awaiting tech plan + Rekik plan approval. **Not** implementation. |
-| Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) | Wave 4 tracking issue — **OPEN**. Code LIVE via PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. Formal close / docs recon may still be in flight. |
+| [decisions/README.md](./decisions/README.md) | Short note: Waves 1–3 implemented; Wave 4 code LIVE; Wave 5 ACCEPTED for Engineering / implementation in progress. |
+| Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) | Wave 5 tracking issue — **OPEN**. Rekik plan **APPROVED**. Coding AUTHORIZED on `feature/98-guest-profile-wave-5`. **Not** implemented. |
+| Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) | Wave 4 tracking issue — **CLOSED** completed. Code LIVE via PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. |
 | PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) | Wave 4 implementation — **MERGED** 2026-09-14. |
 | Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) | Wave 1 implementation issue — **CLOSED** completed. |
 | PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) | Wave 1 implementation — **MERGED** 2026-09-14T09:15:10Z. |
@@ -274,7 +274,7 @@ Grounded in the Wave 1 Design Execution Report after merge. **`NOT RUN` is not `
 
 - Receptionist vs owner/manager inconsistency (helper vs RLS vs denied-copy) is **PRESERVED**, not fixed (AC-W1-8 / SEC-W1-8).
 - Wave 1 delivered Directory + Information. Wave 2 later delivered the Preferences **card** and Identity **card** (see §10).
-- Wave 4 **code is LIVE on `main`** (#97). Wave 5 Spec is recorded as **READY FOR ENGINEERING PLANNING** (see §4 / Spec §7). Hotel UAT is still required for **module COMPLETE**.
+- Wave 4 **code is LIVE on `main`** (#97). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec is **ACCEPTED for Engineering** (implementation **IN PROGRESS**; see §4 / Spec §7). Hotel UAT is still required for **module COMPLETE**.
 
 ---
 
@@ -319,7 +319,7 @@ Grounded in the Wave 2 Design Execution Report after #76 + #79. **`NOT RUN` is n
 
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
 - Production migration `0051_pms_guest_profile_wave2` **Abel-gated**. Non-prod **PASS** on `qcwptraosaudcbjasmul` (version `20260914110546`).
-- Wave 4 **code is LIVE on `main`** (#97). Wave 5 Spec is recorded as **READY FOR ENGINEERING PLANNING** (see §4 / Spec §7). Hotel UAT is still required for **module COMPLETE**.
+- Wave 4 **code is LIVE on `main`** (#97). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec is **ACCEPTED for Engineering** (implementation **IN PROGRESS**; see §4 / Spec §7). Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ---
@@ -371,13 +371,13 @@ Grounded in the Wave 3 Design Execution Report after #85 + #87 + #90. **`NOT RUN
 - Production migration `0051_pms_guest_profile_wave2` remains **Abel-gated** (Wave 2 leftover). Wave 3 added **no** migration.
 - Guest-context (#87) and Directory-back (#90 / #88) residuals are **RESOLVED on `main`**.
 - Empty-state Open Directory CTA (#91 / #93) is **RESOLVED on `main`**. Do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
-- Wave 4 **code is LIVE on `main`** (#97); docs recon / issue close may still be in flight. Wave 5 Spec is **READY FOR ENGINEERING PLANNING** (gate OPENED; **not** implemented). Hotel UAT is still required for **module COMPLETE**.
+- Wave 4 **code is LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec is **ACCEPTED for Engineering** (gate OPENED; plan APPROVED; implementation **IN PROGRESS**; **not** implemented). Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ---
 
 ## Closing
 
-> **Wave 1 IMPLEMENTED ON MAIN** (#66 / #67). **Wave 2 IMPLEMENTED ON MAIN** (#72 / #76 / #79). **Wave 3 IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90). Wave 3 is OPERATIONALLY ACCEPTED / closed. Wave 4 **code LIVE on `main`** (#97). Wave 5 Spec **READY FOR ENGINEERING PLANNING** (gate OPENED; **not** implemented). Module COMPLETE only after Waves 1–5 + hotel UAT.
+> **Wave 1 IMPLEMENTED ON MAIN** (#66 / #67). **Wave 2 IMPLEMENTED ON MAIN** (#72 / #76 / #79). **Wave 3 IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90). Wave 3 is OPERATIONALLY ACCEPTED / closed. Wave 4 **code LIVE on `main`** (#97). Wave 5 Spec **ACCEPTED for Engineering** (implementation **IN PROGRESS**; **not** implemented). Module COMPLETE only after Waves 1–5 + hotel UAT.
 >
 > Extend existing guest code. Create once → use everywhere → enrich.
