@@ -5,7 +5,7 @@ import { Pencil } from "lucide-react";
 
 import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
-import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import { getGuestAccount, listGuestAccountHistory } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
   WAVE4_GROUP_ACCOUNT_COPY,
@@ -24,10 +24,16 @@ export function GuestAccountDetail({
   expectedType: GuestAccountType;
 }) {
   const fetchAccount = useServerFn(getGuestAccount);
+  const fetchHistory = useServerFn(listGuestAccountHistory);
   const [formOpen, setFormOpen] = useState(false);
   const query = useQuery({
     queryKey: ["guest-account", restaurantId, accountId],
     queryFn: () => fetchAccount({ data: { restaurantId, accountId } }),
+    retry: false,
+  });
+  const historyQuery = useQuery({
+    queryKey: ["guest-account-history", restaurantId, accountId],
+    queryFn: () => fetchHistory({ data: { restaurantId, accountId } }),
     retry: false,
   });
 
@@ -69,7 +75,7 @@ export function GuestAccountDetail({
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={account.accountStatus} />
-          <Button variant="outline" onClick={() => setFormOpen(true)}>
+          <Button variant="outline" data-testid="guest-account-edit" onClick={() => setFormOpen(true)}>
             <Pencil className="size-4 sm:mr-2" />
             Edit
           </Button>
@@ -84,6 +90,24 @@ export function GuestAccountDetail({
         <Field label="Country" value={account.country ?? "—"} />
         <Field label="Notes" value={account.notes ?? "—"} />
       </dl>
+      <div className="rounded-2xl border border-border bg-card p-4" data-testid="guest-account-history">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">History</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Master and relationship events. This is not the Wave 5 Comms card.
+        </p>
+        {(historyQuery.data ?? []).length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">No master history yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-1 text-sm">
+            {(historyQuery.data ?? []).map((row) => (
+              <li key={row.id}>
+                <span className="font-medium">{row.eventType.replaceAll("_", " ")}</span>
+                {row.notes ? ` — ${row.notes}` : ""}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <GuestAccountFormDialog
         restaurantId={restaurantId}
         accountType={account.accountType}

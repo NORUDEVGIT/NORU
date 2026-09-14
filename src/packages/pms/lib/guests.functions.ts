@@ -1370,6 +1370,41 @@ export const mergeGuests = createServerFn({ method: "POST" })
       .eq("guest_id", data.retiredId);
     if (reservations.error) throw new Error(reservations.error.message);
 
+    const wave4 = supabaseAdmin as unknown as { from: (table: string) => any };
+    const retiredLinks = await wave4
+      .from("guest_account_links")
+      .select("id, master_id, role")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.retiredId);
+    if (retiredLinks.error && !isMissingSchemaError(retiredLinks.error)) {
+      throw new Error(retiredLinks.error.message);
+    }
+    for (const link of (retiredLinks.data ?? []) as Array<{ id: string; master_id: string; role: string }>) {
+      const existing = await wave4
+        .from("guest_account_links")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", data.survivorId)
+        .eq("master_id", link.master_id)
+        .eq("role", link.role)
+        .maybeSingle();
+      if (existing.error && !isMissingSchemaError(existing.error)) throw new Error(existing.error.message);
+      if (existing.data) {
+        await wave4
+          .from("guest_account_links")
+          .delete()
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", link.id);
+      } else {
+        const moved = await wave4
+          .from("guest_account_links")
+          .update({ guest_id: data.survivorId })
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", link.id);
+        if (moved.error && !isMissingSchemaError(moved.error)) throw new Error(moved.error.message);
+      }
+    }
+
     const { error: retireError } = await supabaseAdmin
       .from("guest_profiles")
       .update({

@@ -1036,17 +1036,35 @@ Comms product, privacy finish, offline, MICE ops, LIVE OTA, TA commission settle
 
 Masters + associations + honest loyalty/value; Independent QA recorded.
 
-### 6.4 Wave 4 AC seeds
+### 6.4 Wave 4 acceptance criteria (AC-W4-1…23)
 
-| ID | Criterion |
-|---|---|
-| **AC-W4-1** | Staff can create a Company master in Guest and find it by search. |
-| **AC-W4-2** | Same for Group account master and Travel Agent master. |
-| **AC-W4-3** | Staff can link an individual as employer / bill-to / booker TA / group member and see the link on Relationships. |
-| **AC-W4-4** | Removing a link does not delete the individual or the master. |
-| **AC-W4-5** | Reservations / FO consume the same master IDs — no typed-only “company name” presented as a master. |
-| **AC-W4-6** | Loyalty & Value shows only derived figures or honest empty; no placeholder “12,500 points”. |
-| **AC-W4-7** | Sales & Events is not required to implement group **blocks** for this wave to exit. |
+Planning contract from Spec expansion PR [#96](https://github.com/NORUDEVGIT/NORU/pull/96). Staff in the ACs are authorised: signed-in, property membership, package **pms**, and they pass the existing guest manage gate.
+
+| ID | Criterion | Pass |
+|---|---|---|
+| **AC-W4-1** | Staff can **create a Company master** in Guest and **find it by search**. | Create with a required display name. Reload Directory (Company type). Search returns that master. Source is the Guest-owned Company register — not a typed FO `company_name` label. |
+| **AC-W4-2** | Staff can **create / find** a **Group account** master and a **Travel Agent** master the same way. | Same as AC-W4-1 for Group and TA. Both types are operational in Guest. S&E is not the create path. |
+| **AC-W4-3** | Staff can **link** an individual as **employer** / **bill-to** / **booker TA** / **group member** and see the link on **Relationships**. | Each minimum role can be set. Relationships card shows the master + role. The master shows the individual. |
+| **AC-W4-4** | **Removing a link** does not delete the individual or the master. | Unlink → individual still in Individual Directory; master still in its Directory; relationship gone. |
+| **AC-W4-5** | Reservations / FO **consume the same master IDs** — no typed-only “company name” presented as a master. | Where a stay attaches Company / Group / TA after Wave 4, the picker uses Guest master IDs. FO `company_name` / `group_name` remain labels — they are not retitled “master” and history is not silently rewritten. |
+| **AC-W4-6** | **Loyalty & Value** shows only **derived** figures or **honest empty**; no placeholder “12,500 points”. | Visible numbers trace to Wave 3 stay / folio sources (or are omitted). No points ledger. VIP is not converted into invented points. |
+| **AC-W4-7** | Sales & Events is **not** required to implement group **blocks** for this wave to exit. | Group **account** CRUD + member links work. `/restaurant/pms/sales-events` may remain a placeholder. Allotments / rooming lists absent is **PASS**, not a defect. |
+| **AC-W4-8** | Staff can **edit** a Company / Group / TA master and see updates **persist** after reload. | Change name (or an allowed contact field); reopen; values match. Same Guest writer — no parallel store. |
+| **AC-W4-9** | Wave 1 **profile-type hook** is **LIVE** for Company \| Group \| TA (switcher or nested Accounts). | Staff can select each type and reach that type’s Directory. Individual remains default. Disabled “not LIVE” labels are removed for types that are operational. |
+| **AC-W4-10** | Associations are **visible from both sides**. | Open the individual → Relationships shows the master. Open the master → the individual + role appear. |
+| **AC-W4-11** | **No** second company / group / TA master owned by Reservations, Cashiering, or Sales & Events. | Diff does not add peer-package master tables. Consumers read Guest IDs. |
+| **AC-W4-12** | **Bill-to** is stored as an **association**. UI does **not** claim folio split / routing while `transfersSupported: false`. | Role persists. No “folio routed to company” success. Cashiering transfer flag unchanged. |
+| **AC-W4-13** | Group **account** master is **not** an S&E block / allotment / rooming list. | Group Information / Relationships have no pickup, allotment, or rooming-list editor. Copy does not call the account a “block”. |
+| **AC-W4-14** | **VIP** remains the staff flag unless a later programme is specified. | `setGuestVip` / Information VIP still work. Loyalty does not invent a points-for-VIP conversion. |
+| **AC-W4-15** | A guest with **no** honest derived value sees **empty / not available** on Loyalty — not a decorative score. | Zero stays → no invented points or lifetime spend. Stays without amounts omit revenue. |
+| **AC-W4-16** | FO `company_name` / `group_name` and SET3 `companyRelationshipEnabled` are **not** presented as Guest masters. | Labels / flag remain what they are. Creating a Company master does not require those fields to already hold data. |
+| **AC-W4-17** | Wave 5 cards stay **Coming in Wave 5**. Wave 4 does **not** ship comms / export / anonymise / unmerge. | Notes / Comms / Activity and Admin & Privacy remain placeholders. Wave 2 consent / notes remain on Information. |
+| **AC-W4-18** | Denied staff cannot list or mutate masters or relationships. | Same property, role outside the working gate: no master data, no links. Other-property IDs fail. Public / unauthenticated users redirect to login. |
+| **AC-W4-19** | Masters and links are **tenant-scoped**. | Property 2 does not see property 1 Company / Group / TA or links. `restaurantId` from the client is not trusted alone. |
+| **AC-W4-20** | Creating / updating a master or changing a relationship writes **history** (additive event types). | History is not deleted. Wave 4 does not need the Wave 5 Comms card. |
+| **AC-W4-21** | Wave 4 does **not** invent LIVE OTA, gateway settlement, classic nightly NA, or TA commission settlement. | No “channel points”, “commission due”, or “NA room+tax loyalty” widgets. |
+| **AC-W4-22** | **No** DB entitlement / auth architecture change beyond the existing guest manage gate, unless Abel-flagged. | Additive RLS on new Guest-owned tables that **matches** existing guest-table roles is expected and is **not** a model change. |
+| **AC-W4-23** | When Loyalty / Relationships (or master Information) are LIVE guest-required cards, **Directory-back** and empty-state **Open Directory** inherit the Wave 3 shell rules. | Selected guest: sticky **← Directory**. No guest: primary **Open Directory**. Coming-in-Wave cards stay copy-only. |
 
 ### 6.5 OUT-OF-SCOPE FINDING (AC-W4-5 residual)
 

@@ -8,6 +8,7 @@
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
+import type { GuestAccountEventType } from "./guest-profile-wave4";
 
 export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 
@@ -80,6 +81,29 @@ export function normalizeEmail(value: string | null | undefined): string | null 
 export function normalizePhone(value: string | null | undefined): string | null {
   const digits = (value ?? "").replace(/[^0-9]/g, "");
   return digits === "" ? null : digits;
+}
+
+/** Append-only master history. Written with the service role: the table has no INSERT policy. */
+export async function recordGuestAccountEvent(entry: {
+  restaurantId: string;
+  masterId: string;
+  eventType: GuestAccountEventType;
+  previousValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
+  notes?: string | null;
+  actorMembershipId: string | null;
+}): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const history = supabaseAdmin as unknown as { from: (table: string) => any };
+  await history.from("guest_account_history").insert({
+    restaurant_id: entry.restaurantId,
+    master_id: entry.masterId,
+    event_type: entry.eventType,
+    previous_values: (entry.previousValues ?? null) as never,
+    new_values: (entry.newValues ?? null) as never,
+    notes: entry.notes ?? null,
+    actor_membership_id: entry.actorMembershipId,
+  });
 }
 
 /** Append-only history row. Written with the service role: the table has no INSERT policy. */

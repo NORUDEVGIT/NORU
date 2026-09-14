@@ -378,7 +378,7 @@ Grounded in issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95). **`NOT RU
 |---|---|
 | DESIGN COMPLETION | **IN IMPLEMENTATION** (Wave 4) |
 | IMPLEMENTATION STATUS | Developer QA in this PR |
-| AC-W4-1 … AC-W4-7 | Locked in `guest-profile-wave4.test.ts` |
+| AC-W4-1 … AC-W4-23 | Locked in `guest-profile-wave4.test.ts` (Spec expansion PR [#96](https://github.com/NORUDEVGIT/NORU/pull/96)) |
 | Backend / DB | Dual-lane `0053_pms_guest_profile_wave4.sql` **APPLY HELD** — not applied from this agent |
 | RPC / RLS | Existing `pms` + `requireGuestManager`. Wave 4 RLS matches `guest_profiles` (owner/manager). Receptionist residual **PRESERVED**. No SECURITY DEFINER. Entitlement architecture **not** redesigned. |
 | Honesty | No invented points. Bill-to association only (`transfersSupported: false`). Group account ≠ S&E blocks. Wave 5 still Coming. |

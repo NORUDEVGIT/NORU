@@ -5,7 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { blankToNull, normalizeEmail, recordGuestEvent, requireGuestManager } from "./guests.server";
+import { blankToNull, normalizeEmail, recordGuestAccountEvent, recordGuestEvent, requireGuestManager } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { propertyToday, requireReservationManager } from "./reservations.server";
 import { deriveStayOverview } from "./guest-profile-wave3";
@@ -168,6 +168,42 @@ export const getGuestAccount = createServerFn({ method: "POST" })
     return toProfile(result.data as MasterRow);
   });
 
+export type GuestAccountHistoryEntry = {
+  id: string;
+  eventType: string;
+  notes: string | null;
+  createdAt: string;
+};
+
+export const listGuestAccountHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<GuestAccountHistoryEntry[]> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const result = await db(context)
+      .from("guest_account_history")
+      .select("id, event_type, notes, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("master_id", data.accountId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
+    if (result.error) throw new Error(result.error.message);
+    return ((result.data ?? []) as Array<{
+      id: string;
+      event_type: string;
+      notes: string | null;
+      created_at: string;
+    }>).map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      notes: row.notes,
+      createdAt: row.created_at,
+    }));
+  });
+
 export const createGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -194,6 +230,14 @@ export const createGuestAccount = createServerFn({ method: "POST" })
       .single();
     if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (error || !inserted) throw new Error(error?.message ?? "Could not create this account master.");
+    await recordGuestAccountEvent({
+      restaurantId: data.restaurantId,
+      masterId: inserted.id,
+      eventType: "created",
+      newValues: { name: columns.name, accountType: data.accountType },
+      notes: `Created ${data.accountType} master ${columns.name}`,
+      actorMembershipId: me.id,
+    });
     return { id: inserted.id };
   });
 
@@ -209,7 +253,16 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const existing = await db(context)
+      .from("guest_account_masters")
+      .select(MASTER_COLUMNS)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.accountId)
+      .maybeSingle();
+    if (wave4Unavailable(existing.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
+    if (existing.error) throw new Error(existing.error.message);
+    if (!existing.data) throw new Error("That account master could not be found.");
     const columns = toMasterColumns(data.account);
     const { error } = await db(context)
       .from("guest_account_masters")
@@ -218,6 +271,16 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
       .eq("id", data.accountId);
     if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (error) throw new Error(error.message);
+    const before = existing.data as MasterRow;
+    await recordGuestAccountEvent({
+      restaurantId: data.restaurantId,
+      masterId: data.accountId,
+      eventType: "profile_updated",
+      previousValues: { name: before.name, email: before.email, phone: before.phone },
+      newValues: { name: columns.name, email: columns.email, phone: columns.phone },
+      notes: `Updated ${before.name}`,
+      actorMembershipId: me.id,
+    });
     return { id: data.accountId };
   });
 
@@ -343,6 +406,14 @@ export const linkGuestAccount = createServerFn({ method: "POST" })
       notes: `Linked as ${data.role} to ${master.name}`,
       actorMembershipId: me.id,
     });
+    await recordGuestAccountEvent({
+      restaurantId: data.restaurantId,
+      masterId: data.accountId,
+      eventType: "relationship_linked",
+      newValues: { guestId: data.guestId, role: data.role, guestName: [guest.first_name, guest.last_name].filter(Boolean).join(" ") },
+      notes: `Linked ${data.role}`,
+      actorMembershipId: me.id,
+    });
 
     return { id: inserted.id };
   });
@@ -403,6 +474,16 @@ export const unlinkGuestAccount = createServerFn({ method: "POST" })
         notes: `Unlinked ${link.role}. The individual and the master were not deleted.`,
         actorMembershipId: me.id,
       });
+      if (master) {
+        await recordGuestAccountEvent({
+          restaurantId: data.restaurantId,
+          masterId: link.master_id,
+          eventType: "relationship_unlinked",
+          previousValues: { guestId: link.guest_id, role: link.role },
+          notes: `Unlinked ${link.role}. The individual and the master were not deleted.`,
+          actorMembershipId: me.id,
+        });
+      }
 
       return { guestRemaining: Boolean(guest), masterRemaining: Boolean(master) };
     },

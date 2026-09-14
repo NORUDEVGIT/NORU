@@ -32,6 +32,7 @@
 --       'document_uploaded','document_verified','document_rejected','merged_from','merged_into','consent_updated'
 --     )
 --   );
+--   DROP TABLE IF EXISTS public.guest_account_history;
 --   DROP TABLE IF EXISTS public.guest_account_links;
 --   DROP TABLE IF EXISTS public.guest_account_masters;
 
@@ -232,3 +233,41 @@ CREATE INDEX IF NOT EXISTS hotel_reservations_group_account_master_idx
 CREATE INDEX IF NOT EXISTS hotel_reservations_travel_agent_master_idx
   ON public.hotel_reservations(restaurant_id, travel_agent_master_id)
   WHERE travel_agent_master_id IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- guest_account_history — append-only master / relationship events (AC-W4-20)
+-- Matches guest_profile_history: SELECT for owner/manager; INSERT via service role.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.guest_account_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON DELETE CASCADE,
+  master_id uuid NOT NULL,
+  event_type text NOT NULL,
+  previous_values jsonb,
+  new_values jsonb,
+  notes text,
+  actor_membership_id uuid REFERENCES public.restaurant_users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT guest_account_history_master_same_property FOREIGN KEY (master_id, restaurant_id)
+    REFERENCES public.guest_account_masters(id, restaurant_id),
+  CONSTRAINT guest_account_history_event_check CHECK (
+    event_type IN ('created','profile_updated','relationship_linked','relationship_unlinked')
+  )
+);
+
+CREATE INDEX IF NOT EXISTS guest_account_history_master_idx
+  ON public.guest_account_history(restaurant_id, master_id, created_at DESC);
+
+COMMENT ON TABLE public.guest_account_history IS
+  'Wave 4 append-only history for Guest account masters. Not the Wave 5 Comms card.';
+
+GRANT SELECT ON public.guest_account_history TO authenticated;
+GRANT ALL ON public.guest_account_history TO service_role;
+ALTER TABLE public.guest_account_history ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Managers read guest account history" ON public.guest_account_history;
+CREATE POLICY "Managers read guest account history" ON public.guest_account_history
+  FOR SELECT TO authenticated USING (
+    public.has_restaurant_role(restaurant_id, 'owner') OR public.has_restaurant_role(restaurant_id, 'manager')
+  );

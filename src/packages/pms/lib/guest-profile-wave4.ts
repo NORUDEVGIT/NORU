@@ -76,6 +76,9 @@ export const WAVE4_RESERVATION_MASTER_COPY =
 
 export const WAVE4_NO_POINTS_COPY = "No points balance is shown.";
 
+export const WAVE4_SET3_FLAG_COPY =
+  "Setup flag only — not a Guest Company master. Creating a Company master does not require this flag.";
+
 export const WAVE4_ACCEPTANCE_CRITERIA = [
   "AC-W4-1",
   "AC-W4-2",
@@ -84,7 +87,31 @@ export const WAVE4_ACCEPTANCE_CRITERIA = [
   "AC-W4-5",
   "AC-W4-6",
   "AC-W4-7",
+  "AC-W4-8",
+  "AC-W4-9",
+  "AC-W4-10",
+  "AC-W4-11",
+  "AC-W4-12",
+  "AC-W4-13",
+  "AC-W4-14",
+  "AC-W4-15",
+  "AC-W4-16",
+  "AC-W4-17",
+  "AC-W4-18",
+  "AC-W4-19",
+  "AC-W4-20",
+  "AC-W4-21",
+  "AC-W4-22",
+  "AC-W4-23",
 ] as const;
+
+export const GUEST_ACCOUNT_EVENT_TYPES = [
+  "created",
+  "profile_updated",
+  "relationship_linked",
+  "relationship_unlinked",
+] as const;
+export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 
 export function isGuestAccountType(value: string): value is GuestAccountType {
   return (GUEST_ACCOUNT_TYPES as readonly string[]).includes(value);

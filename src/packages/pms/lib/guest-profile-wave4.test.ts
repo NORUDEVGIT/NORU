@@ -25,6 +25,7 @@ import {
   WAVE4_MIGRATION_FILE,
   WAVE4_NO_POINTS_COPY,
   WAVE4_RESERVATION_MASTER_COPY,
+  WAVE4_SET3_FLAG_COPY,
   WAVE4_TYPED_LABEL_COPY,
   WAVE4_UNLINK_COPY,
   WAVE4_VIP_STAFF_FLAG_COPY,
@@ -44,8 +45,8 @@ function readRel(rel: string) {
 
 const FULL_ACCESS: GuestStayAccess = { reservation: true, frontOffice: true, folio: true };
 
-describe("Guest Profile Wave 4 lock — AC-W4-1…7", () => {
-  it("locks AC-W4-1…7", () => {
+describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
+  it("locks AC-W4-1…23", () => {
     assert.deepEqual([...WAVE4_ACCEPTANCE_CRITERIA], [
       "AC-W4-1",
       "AC-W4-2",
@@ -54,6 +55,22 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…7", () => {
       "AC-W4-5",
       "AC-W4-6",
       "AC-W4-7",
+      "AC-W4-8",
+      "AC-W4-9",
+      "AC-W4-10",
+      "AC-W4-11",
+      "AC-W4-12",
+      "AC-W4-13",
+      "AC-W4-14",
+      "AC-W4-15",
+      "AC-W4-16",
+      "AC-W4-17",
+      "AC-W4-18",
+      "AC-W4-19",
+      "AC-W4-20",
+      "AC-W4-21",
+      "AC-W4-22",
+      "AC-W4-23",
     ]);
   });
 
@@ -191,6 +208,194 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…7", () => {
     assert.match(reservations, /WAVE4_GROUP_ACCOUNT_COPY/);
     assert.match(sales, /Group blocks linked to room availability/);
     assert.doesNotMatch(directory, /rooming list|allotment live/i);
+  });
+
+  it("AC-W4-8 staff can edit a master and persist after reload", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const form = readRel("../components/guests/guest-account-form-dialog.tsx");
+    const detail = readRel("../components/guests/guest-account-detail.tsx");
+    assert.match(functions, /export const updateGuestAccount/);
+    assert.match(functions, /export const getGuestAccount/);
+    assert.match(form, /updateGuestAccount/);
+    assert.match(form, /account \? `Edit/);
+    assert.match(detail, /guest-account-edit/);
+    assert.match(detail, /GuestAccountFormDialog/);
+  });
+
+  it("AC-W4-9 profile-type switcher is LIVE for Company Group TA", () => {
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    assert.equal(GUEST_PROFILE_TYPES.every((type) => type.live), true);
+    assert.match(shell, /guest-profile-type-switcher/);
+    assert.match(shell, /selectType/);
+    assert.match(shell, /disabled=\{!type\.live\}/);
+    assert.doesNotMatch(shell, /not LIVE · Wave 4/);
+    assert.equal(parseGuestProfileSearch({}).type, undefined);
+    assert.deepEqual(parseGuestProfileSearch({ type: "group" }), { type: "group" });
+  });
+
+  it("AC-W4-10 associations are visible from both sides", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const card = readRel("../components/guests/guest-relationships-card.tsx");
+    assert.match(functions, /guestId: idSchema\.optional\(\)/);
+    assert.match(functions, /accountId: idSchema\.optional\(\)/);
+    assert.match(card, /visible from both/);
+    assert.match(card, /link\.masterName/);
+    assert.match(card, /link\.guestName/);
+    assert.match(card, /GUEST_PROFILE_DETAIL_PATH/);
+  });
+
+  it("AC-W4-11 no peer-package second masters", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const migration = readRel("../../../../supabase/migrations/0053_pms_guest_profile_wave4.sql");
+    assert.match(functions, /from\("guest_account_masters"\)/);
+    assert.doesNotMatch(functions, /from\("sales_event_companies"|from\("cashiering_companies"|from\("reservation_companies"/);
+    assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS public\.(reservation_companies|cashiering_companies|sales_event_companies)/);
+  });
+
+  it("AC-W4-12 bill-to is association only while transfersSupported is false", () => {
+    const relationships = readRel("../components/guests/guest-relationships-card.tsx");
+    const cashiering = readRel("./cashiering.functions.ts");
+    assert.equal(ROLE_ACCOUNT_TYPE.bill_to, "company");
+    assert.match(WAVE4_BILL_TO_COPY, /association only/);
+    assert.doesNotMatch(WAVE4_BILL_TO_COPY, /folio routed to company|split-folio is live/i);
+    assert.match(relationships, /WAVE4_BILL_TO_COPY/);
+    assert.match(cashiering, /transfersSupported: false/);
+  });
+
+  it("AC-W4-13 Group account is not an S&E block", () => {
+    const directory = readRel("../components/guests/guest-account-directory.tsx");
+    const detail = readRel("../components/guests/guest-account-detail.tsx");
+    const card = readRel("../components/guests/guest-relationships-card.tsx");
+    assert.match(WAVE4_GROUP_ACCOUNT_COPY, /not a Sales & Events group block/);
+    assert.match(directory, /WAVE4_GROUP_ACCOUNT_COPY/);
+    assert.match(detail, /WAVE4_GROUP_ACCOUNT_COPY/);
+    assert.doesNotMatch(directory, /allotment|rooming list|pickup/i);
+    assert.doesNotMatch(detail, /allotment|rooming list|pickup/i);
+    assert.doesNotMatch(card, /allotment|rooming list/i);
+  });
+
+  it("AC-W4-14 VIP remains the staff flag on Information", () => {
+    const loyalty = readRel("../components/guests/guest-loyalty-card.tsx");
+    const functions = readRel("./guests.functions.ts");
+    const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
+    assert.match(functions, /export const setGuestVip/);
+    assert.match(detail, /setGuestVip/);
+    assert.match(WAVE4_VIP_STAFF_FLAG_COPY, /staff flag on Information/);
+    assert.match(loyalty, /WAVE4_VIP_STAFF_FLAG_COPY/);
+    assert.doesNotMatch(loyalty, /points-for-VIP|VIP tier score|12,500/i);
+  });
+
+  it("AC-W4-15 Loyalty empty-honest when no derived value", () => {
+    const loyalty = readRel("../components/guests/guest-loyalty-card.tsx");
+    const empty = loyaltyFromStayOverview(deriveStayOverview([], "2026-09-14", FULL_ACCESS), false);
+    assert.equal(hasDerivedLoyaltyFigures(empty), false);
+    assert.match(loyalty, /WAVE4_LOYALTY_EMPTY/);
+    assert.match(loyalty, /WAVE3_KPI_NOT_AVAILABLE/);
+    assert.doesNotMatch(loyalty, /lifetime spend|decorative score|12,500/i);
+  });
+
+  it("AC-W4-16 FO labels and SET3 companyRelationshipEnabled are not masters", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const fo = readRel("./fo-search1.functions.ts");
+    const set3 = readRel("../components/settings/pms-set3-section.tsx");
+    const set3Lib = readRel("./pms-set3-rates-guest.ts");
+    assert.doesNotMatch(functions, /companyRelationshipEnabled|company_name/);
+    assert.match(WAVE4_TYPED_LABEL_COPY, /not Guest masters/);
+    assert.match(WAVE4_SET3_FLAG_COPY, /not a Guest Company master/);
+    assert.match(set3, /WAVE4_SET3_FLAG_COPY/);
+    assert.match(set3Lib, /companyRelationshipEnabled: rec\.companyRelationshipEnabled === true/);
+    assert.match(fo, /company_name, group_name/);
+    assert.doesNotMatch(fo, /rewrite typed labels as masters|migrate company_name into company_master_id/);
+  });
+
+  it("AC-W4-17 Wave 5 cards stay Coming", () => {
+    const byId = new Map(GUEST_PROFILE_CARDS.map((card) => [card.id, card]));
+    assert.equal(byId.get("notes-comms")?.live, false);
+    assert.equal(byId.get("admin-privacy")?.live, false);
+    assert.match(byId.get("notes-comms")?.copy ?? "", /Coming in Wave 5/);
+    assert.match(byId.get("admin-privacy")?.copy ?? "", /Coming in Wave 5/);
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    assert.match(shell, /comingInWaveLabel/);
+    assert.doesNotMatch(shell, /exportGuest|anonymiseGuest|unmergeGuest/);
+  });
+
+  it("AC-W4-18 denied staff cannot list or mutate masters or relationships", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const routes = [
+      readRel("../../../routes/restaurant/pms/guests.index.tsx"),
+      readRel("../../../routes/restaurant/pms/guests.\$guestId.tsx"),
+    ].join("\n");
+    assert.match(functions, /requireSupabaseAuth/);
+    assert.match(functions, /requireGuestManager/);
+    assert.doesNotMatch(functions, /createServerFn\(\{ method: "GET" \}\)/);
+    assert.match(routes, /requireRoutePackage\("pms"\)/);
+    assert.match(routes, /supabase\.auth\.getUser\(\)/);
+    assert.match(routes, /\/restaurant\/login/);
+  });
+
+  it("AC-W4-19 masters and links are tenant-scoped", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const migration = readRel("../../../../supabase/migrations/0053_pms_guest_profile_wave4.sql");
+    assert.match(functions, /requireGuestManager\(context as never, data\.restaurantId\)/);
+    assert.match(functions, /\.eq\("restaurant_id", data\.restaurantId\)/);
+    assert.match(migration, /restaurant_id uuid NOT NULL REFERENCES public\.restaurants\(id\)/);
+    assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
+  });
+
+  it("AC-W4-20 creating updating a master or changing a relationship writes history", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const merge = readRel("./guests.functions.ts");
+    const detail = readRel("../components/guests/guest-account-detail.tsx");
+    const migration = readRel("../../../../supabase/migrations/0053_pms_guest_profile_wave4.sql");
+    assert.match(functions, /recordGuestAccountEvent/);
+    assert.match(functions, /eventType: "created"/);
+    assert.match(functions, /eventType: "profile_updated"/);
+    assert.match(functions, /relationship_linked/);
+    assert.match(functions, /relationship_unlinked/);
+    assert.match(functions, /export const listGuestAccountHistory/);
+    assert.match(detail, /guest-account-history/);
+    assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.guest_account_history/);
+    assert.match(merge, /from\("guest_account_links"\)/);
+    assert.match(merge, /guest_id: data\.survivorId/);
+  });
+
+  it("AC-W4-21 does not invent OTA NA or commission widgets", () => {
+    const loyalty = readRel("../components/guests/guest-loyalty-card.tsx");
+    const relationships = readRel("../components/guests/guest-relationships-card.tsx");
+    const wave4 = readRel("./guest-profile-wave4.ts");
+    for (const source of [loyalty, relationships, wave4]) {
+      assert.doesNotMatch(source, /channel points|commission due|NA room\+tax loyalty|gateway settlement/i);
+    }
+  });
+
+  it("AC-W4-22 no entitlement or RLS model change", () => {
+    const functions = readRel("./guest-accounts.functions.ts");
+    const migration = readRel("../../../../supabase/migrations/0053_pms_guest_profile_wave4.sql");
+    const modules = readRel("./pms-modules.ts");
+    assert.match(functions, /requireGuestManager/);
+    assert.doesNotMatch(functions, /requirePackage\("guest-accounts"|newGuestRole/);
+    assert.match(migration, /has_restaurant_role\(restaurant_id, 'owner'\) OR public\.has_restaurant_role\(restaurant_id, 'manager'\)/);
+    assert.doesNotMatch(migration, /SECURITY DEFINER/i);
+    assert.match(modules, /moduleKey: "front_office"/);
+    assert.doesNotMatch(modules, /key: "guest-accounts"/);
+  });
+
+  it("AC-W4-23 Directory-back and Open Directory inherit for LIVE Wave 4 cards", () => {
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    assert.equal(isGuestRequiredProfileCard("loyalty"), true);
+    assert.equal(isGuestRequiredProfileCard("relationships"), true);
+    assert.equal(isGuestRequiredProfileCard("information"), true);
+    assert.equal(showEmptyDirectoryCta(false, "loyalty"), true);
+    assert.equal(showEmptyDirectoryCta(false, "relationships"), true);
+    assert.equal(showEmptyDirectoryCta(false, "notes-comms"), false);
+    assert.match(shell, /GuestDirectoryBackLink/);
+    assert.match(shell, /showEmptyDirectoryCta/);
+    assert.match(shell, /GuestDirectoryOpenButton/);
+    assert.deepEqual(parseGuestProfileCardSearch({ card: "loyalty" }), { card: "loyalty" });
+    assert.deepEqual(parseGuestProfileSearch({ type: "company", card: "relationships" }), {
+      card: "relationships",
+      type: "company",
+    });
   });
 });
 
