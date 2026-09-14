@@ -125,6 +125,7 @@ Grounded in `main` at documentation time (`37af44d`, after #97 Wave 4 code merge
 | Comms / privacy suite | Add-note + `guest_profiles.notes` + profile history + Wave 2 consent. Notes / Comms / Activity and Admin & Privacy cards **Coming in Wave 5**. No export / anonymise / unmerge product. No send channel (`notifications` **planned**). | Wave 5 hub + privacy finish. No fake send. Unmerge never silent. Anonymise removes live PII from Directory. |
 | Access | Package `pms` + existing guest manage gate. Receptionist vs owner/manager inconsistency **PRESERVED** (see §7.3). | Later waves keep that gate unless PM expands. Flag Abel if the entitlement **model** must change. |
 | Migration 0051 | Non-prod applied on `qcwptraosaudcbjasmul` (version `20260914110546` / `pms_guest_profile_wave2`). **Production 0051 NOT applied** (Abel / PM gate). Surfaces that need the schema degrade to an unavailable message until apply. | Production apply after Abel / PM explicit approval. |
+| Migration 0053 | Non-prod **APPLY PASS** on `qcwptraosaudcbjasmul` (version `20260914134631` / `pms_guest_profile_wave4`). **Production 0053 NOT applied** (Abel-gated). Surfaces that need Wave 4 tables degrade to unavailable until apply. | Production apply after Abel / PM explicit approval. |
 
 ---
 
@@ -174,7 +175,7 @@ This overview plus the Functional Spec remain the programme record. Waves 1–3 
 | File comments + denied-state UI copy | “Owner/manager only” / “Only owners and managers…” |
 | RLS on `guest_profiles`, `guest_preferences`, `guest_profile_history`, `guest_documents` | `owner` **or** `manager` only — **not** receptionist |
 
-Waves 1–3 **preserved** this existing gate. Do **not** silently expand or shrink roles. If a later wave requires an entitlement-**model** change, **flag Abel**.
+Waves 1–4 **preserved** this existing gate. Wave 4 additive RLS on `guest_account_masters` / `guest_account_links` / `guest_account_history` matches `guest_profiles` (owner/manager). Do **not** silently expand or shrink roles. If a later wave requires an entitlement-**model** change, **flag Abel**.
 
 ### 7.4 Distribution catalogue (mention only)
 
@@ -201,6 +202,17 @@ File: `supabase/migrations/0051_pms_guest_profile_wave2.sql` (dual-lane `drizzle
 | Production | **NOT applied** — Abel / PM gate |
 
 Until production apply, Identity / merge / consent / preference-options surfaces that need the new schema degrade to an unavailable message (`WAVE2_MIGRATION_UNAVAILABLE`). Do **not** treat code merge as production schema apply.
+
+### 7.9 Production migration 0053 hold
+
+File: `supabase/migrations/0053_pms_guest_profile_wave4.sql` (dual-lane `drizzle/migrations/0053_pms_guest_profile_wave4.sql`).
+
+| Environment | Status |
+|---|---|
+| Non-prod `qcwptraosaudcbjasmul` | **Applied** — version `20260914134631` / `pms_guest_profile_wave4` — **APPLY PASS** |
+| Production | **NOT applied** — Abel / PM gate |
+
+Until production apply, Company / Group / TA masters, Relationships, Loyalty reads that need the new schema, and reservation-detail master attach degrade to an unavailable message (`WAVE4_MIGRATION_UNAVAILABLE`). Do **not** treat PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) merge as production schema apply.
 
 ### 7.7 Directory-back shell UX — **ON MAIN** (Rekik 2026-09-14)
 
@@ -373,6 +385,55 @@ Grounded in the Wave 3 Design Execution Report after #85 + #87 + #90. **`NOT RUN
 - Empty-state Open Directory CTA (#91 / #93) is **RESOLVED on `main`**. Do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
 - Wave 4 **code is LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec is **ACCEPTED for Engineering** (gate OPENED; plan APPROVED; implementation **IN PROGRESS**; **not** implemented). Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
+
+---
+
+## 12. QA / implementation status (Wave 4)
+
+Grounded in the Wave 4 Design Execution Report after #96 + #97. **`NOT RUN` is not `PASS`.** Developer PARTIAL does not become PASS because Independent QA later passed.
+
+| Item | Status |
+|---|---|
+| DESIGN COMPLETION | **COMPLETE** (Wave 4) |
+| IMPLEMENTATION STATUS | **PASS** (AC-W4-5 **PARTIAL** residual documented) |
+| AC-W4-1 … AC-W4-4 | **IMPLEMENTED AS SPECIFIED / PASS** |
+| AC-W4-5 | **PARTIAL** — reservation **detail** + FO search consume Guest master IDs; `create_hotel_reservation_priced` / new-reservation forms do **not** take master IDs (attach on detail). FO typed labels stay labels. OUT-OF-SCOPE FINDING. |
+| AC-W4-6 … AC-W4-23 | **IMPLEMENTED AS SPECIFIED / PASS** |
+| Approved deviations | **TWO** — see list below (AC-W4-5 create-RPC residual; Developer browser PARTIAL) |
+| Backend / DB | Additive dual-lane `0053_pms_guest_profile_wave4.sql`. Non-prod **APPLY PASS** on `qcwptraosaudcbjasmul` (`20260914134631`); production **Abel-gated NOT applied**. |
+| RPC / RLS | Existing guest manage gate. Receptionist residual **PRESERVED**. Additive RLS on Wave 4 tables matches `guest_profiles` (owner/manager). No entitlement redesign. Abel was not flagged for a model change. |
+| Spec PR | [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED |
+| Implementation PR | [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14T13:42:29Z |
+| Issue | [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. OPERATIONALLY ACCEPTED / closed. |
+
+| Lane | Result | Notes |
+|---|---|---|
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; Wave 1–4 lock tests **PASS** (69/69 including AC-W4-1…23). Browser QA-W4 / SEC-W4 **NOT RUN** in the developer environment. Approved deviation 2. |
+| Independent QA | **PASS** | Rekik via Advisor, 2026-09-14. Evidence: [issue #95 Independent QA](https://github.com/NORUDEVGIT/NORU/issues/95#issuecomment-5665047773). |
+
+**Wave 4 delivered ONLY:**
+
+1. Company / Group / Travel Agent **masters** in Guest — create / edit / list / search
+2. Relationships with roles: employer, bill-to, booker TA, group member — visible both sides; unlink does not delete parties
+3. Loyalty & Value LIVE from Wave 3 stay / folio reads — **no invented points**; VIP stays a staff flag
+4. Profile-type switcher LIVE for Individual \| Company \| Group \| Travel Agent
+5. Honesty rules: bill-to ≠ folio split; Group account ≠ S&E blocks; FO typed labels stay labels; Wave 5 cards stay Coming
+
+**Approved deviations (DER):**
+
+| # | Deviation | Class |
+|---|---|---|
+| 1 | **AC-W4-5 PARTIAL.** Create-reservation RPC / new-reservation forms do not take master IDs. Staff attach Guest masters on reservation **detail**. FO typed `company_name` / `group_name` remain search labels. | **OUT-OF-SCOPE FINDING** — documented residual, not a Wave 4 defect. Guest masters are fully implemented. |
+| 2 | Developer browser QA remained **PARTIAL** | Independent QA covered Wave 4 on non-prod after 0053 apply. Developer PARTIAL does not become PASS. |
+
+**Residuals / FINAL (not Wave 4 defects):**
+
+- Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
+- Production migration `0053_pms_guest_profile_wave4` **Abel-gated NOT applied**. Non-prod **PASS** on `qcwptraosaudcbjasmul` (version `20260914134631`). Production `0051` remains Abel-gated (Wave 2 leftover).
+- **AC-W4-5 residual:** create-reservation does not take master IDs (attach on detail); FO typed labels stay labels.
+- Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed.
+- Wave 5 gate **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. Hotel UAT is still required for **module COMPLETE**.
+- DESIGN COMPLETION: **COMPLETE** (Wave 4). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ---
 
