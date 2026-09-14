@@ -32,6 +32,7 @@ import {
   type GuestProfileTypeId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { profileTypeToAccountType } from "@/packages/pms/lib/guest-profile-wave4";
+import { GuestRestrictionBadges } from "@/packages/pms/components/guests/guest-bits";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
 import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { cn } from "@/shared/lib/utils";
@@ -63,16 +64,7 @@ export function GuestProfileWorkspace({
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: guestId! } }),
-    enabled:
-      Boolean(guestId) &&
-      !isAccount &&
-      (card === "identity" ||
-        card === "dashboard" ||
-        card === "stay-history" ||
-        card === "loyalty" ||
-        card === "relationships" ||
-        card === "notes-comms" ||
-        card === "admin-privacy"),
+    enabled: Boolean(guestId) && !isAccount,
     retry: false,
   });
   const accountQuery = useQuery({
@@ -127,6 +119,11 @@ export function GuestProfileWorkspace({
     <div className="space-y-6" data-testid="guest-profile-shell">
       <div>
         <h1 className="font-display text-2xl">{GUEST_PROFILE_TITLE}</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {!isAccount && guestQuery.data ? (
+            <GuestRestrictionBadges guest={guestQuery.data.guest} />
+          ) : null}
+        </div>
         <p className="text-sm text-muted-foreground">
           Individual directory plus Company, Group account and Travel Agent masters. Loyalty uses
           real stay figures only. Notes / Comms / Activity and Admin & Privacy are LIVE.

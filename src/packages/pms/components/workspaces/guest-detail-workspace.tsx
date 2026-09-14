@@ -6,13 +6,21 @@ import { toast } from "sonner";
 import { ArrowLeft, Pencil, Power, StickyNote } from "lucide-react";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
-import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import { GuestFormIdentityUpload } from "@/packages/pms/components/guests/guest-form-identity-upload";
+import { GuestIndividualLinks } from "@/packages/pms/components/guests/guest-individual-links";
+import {
+  GuestRestrictionBadges,
+  GuestRestrictionWarn,
+  StatusBadge,
+  VipBadge,
+} from "@/packages/pms/components/guests/guest-bits";
 import { GuestConsentPanel } from "@/packages/pms/components/guests/guest-consent-panel";
 import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-preferences-card";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
+import { STAFF_VERIFY_COPY } from "@/packages/pms/lib/guest-profile-wave2";
 import { WAVE3_PROFILE_HISTORY_COPY } from "@/packages/pms/lib/guest-profile-wave3";
 import { Button } from "@/shared/components/ui/button";
 import { Switch } from "@/shared/components/ui/switch";
@@ -29,9 +37,17 @@ import {
   addGuestNote,
   getGuest,
   getGuestsAccess,
+  liftGuestRestriction,
   setGuestStatus,
   setGuestVip,
 } from "@/packages/pms/lib/guests.functions";
+import {
+  GUEST_GENDER_LABELS,
+  GUEST_TITLE_LABELS,
+  INDIVIDUAL_LIFT_REASON_REQUIRED,
+  RESTRICTION_SEVERITY_LABELS,
+  guestRestrictionActive,
+} from "@/packages/pms/lib/guest-profile-individual";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
@@ -56,6 +72,9 @@ const EVENT_LABEL: Record<string, string> = {
   anonymised: "Profile anonymised",
   unmerged: "Unmerged",
   unmerge_blocked: "Unmerge not available",
+  restriction_set: "Restriction set",
+  restriction_cleared: "Restriction cleared",
+  restriction_lifted: "Restriction lifted",
 };
 
 export type GuestDetailSection = "overview" | "preferences";
@@ -89,6 +108,7 @@ export function GuestDetailWorkspace({
   const toggleVip = useServerFn(setGuestVip);
   const changeStatus = useServerFn(setGuestStatus);
   const addNote = useServerFn(addGuestNote);
+  const liftRestriction = useServerFn(liftGuestRestriction);
 
   const [editOpen, setEditOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -96,6 +116,8 @@ export function GuestDetailWorkspace({
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeRetiredId, setMergeRetiredId] = useState<string | undefined>(undefined);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [liftOpen, setLiftOpen] = useState(false);
+  const [liftReason, setLiftReason] = useState("");
 
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
@@ -146,6 +168,20 @@ export function GuestDetailWorkspace({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const liftMutation = useMutation({
+    mutationFn: () => {
+      if (liftReason.trim() === "") throw new Error(INDIVIDUAL_LIFT_REASON_REQUIRED);
+      return liftRestriction({ data: { restaurantId, guestId, reason: liftReason } });
+    },
+    onSuccess: () => {
+      toast.success("Restriction lifted.");
+      setLiftReason("");
+      setLiftOpen(false);
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (accessQuery.isLoading || guestQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading guest…</p>;
   }
@@ -189,9 +225,10 @@ export function GuestDetailWorkspace({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <h1 className="font-display text-2xl">{guest.fullName}</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {guest.vipStatus ? <VipBadge /> : null}
             <StatusBadge status={guest.guestStatus} />
+            <GuestRestrictionBadges guest={guest} />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -253,13 +290,22 @@ export function GuestDetailWorkspace({
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
+          <GuestRestrictionWarn guest={guest} />
           <div className="grid gap-4 md:grid-cols-2">
-            <Panel title="Contact">
-              <Row label="Phone" value={guest.phone} />
-              <Row label="Email" value={guest.email} />
+            <Panel title="Basic">
+              <Row label="Title" value={guest.title ? GUEST_TITLE_LABELS[guest.title] : null} />
+              <Row label="Preferred name" value={guest.preferredName} />
+              <Row label="Middle name" value={guest.middleName} />
+              <Row label="Gender" value={guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null} />
               <Row label="Language" value={guest.language} />
               <Row label="Nationality" value={guest.nationality} />
               <Row label="Date of birth" value={guest.dateOfBirth} />
+            </Panel>
+            <Panel title="Contact">
+              <Row label="Phone" value={guest.phone} />
+              <Row label="Alternate phone" value={guest.phoneAlt} />
+              <Row label="Email" value={guest.email} />
+              <Row label="Alternate email" value={guest.emailAlt} />
             </Panel>
             <Panel title="Address">
               <Row label="Address line 1" value={guest.addressLine1} />
@@ -280,16 +326,66 @@ export function GuestDetailWorkspace({
                   <MaskedIdNumber value={guest.idDocumentNumber} />
                 </div>
                 <Row label="ID expiry" value={guest.idDocumentExpiry} />
+                <GuestRestrictionBadges guest={guest} />
                 <p className="text-xs text-muted-foreground">
-                  Ordinary views show the last four digits only. Staff verify on Identity &
-                  Documents is not government verification.
+                  Ordinary views show the last four digits only.
                 </p>
+                <div data-testid="individual-information-identity-upload">
+                  <GuestFormIdentityUpload restaurantId={restaurantId} guestId={guestId} />
+                </div>
+                <p className="text-xs text-muted-foreground">{STAFF_VERIFY_COPY}</p>
               </Panel>
             </div>
+            <Panel title="Employment">
+              <Row label="Position" value={guest.position} />
+              <Row label="Department" value={guest.department} />
+            </Panel>
+            <Panel title="Emergency">
+              {guest.emergencyContacts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No emergency contacts yet.</p>
+              ) : (
+                guest.emergencyContacts.map((contact) => (
+                  <div key={contact.id} className="rounded-xl border border-border px-3 py-2 text-sm">
+                    <p className="font-medium">{contact.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[contact.relationship, contact.phone, contact.email].filter(Boolean).join(" · ") ||
+                        "No extra details"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </Panel>
           </div>
+          {guestRestrictionActive(guest) ? (
+            <Panel title="Restrictions">
+              <Row
+                label="Severity"
+                value={
+                  guest.restrictionSeverity
+                    ? RESTRICTION_SEVERITY_LABELS[guest.restrictionSeverity]
+                    : null
+                }
+              />
+              <Row label="Reason" value={guest.restrictionReason} />
+              <Row label="Set by" value={guest.restrictionSetByName} />
+              <Row label="Set at" value={guest.restrictionSetAt} />
+              <Row label="Until" value={guest.restrictionUntil} />
+              <Button
+                variant="outline"
+                data-testid="individual-restriction-lift"
+                onClick={() => setLiftOpen(true)}
+              >
+                Lift restriction…
+              </Button>
+            </Panel>
+          ) : null}
           <Panel title="Notes">
             <p className="text-sm text-muted-foreground">{guest.notes ?? "No notes yet."}</p>
+            {guest.sourceOfBusiness ? (
+              <Row label="Source of business" value={guest.sourceOfBusiness} />
+            ) : null}
           </Panel>
+          <GuestIndividualLinks restaurantId={restaurantId} guestId={guestId} />
           <GuestConsentPanel
             restaurantId={restaurantId}
             guestId={guestId}
@@ -380,6 +476,33 @@ export function GuestDetailWorkspace({
           void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
         }}
       />
+
+      <Dialog open={liftOpen} onOpenChange={setLiftOpen}>
+        <DialogContent data-testid="individual-restriction-lift-dialog">
+          <DialogHeader>
+            <DialogTitle>Lift restriction</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{INDIVIDUAL_LIFT_REASON_REQUIRED}</p>
+          <Textarea
+            rows={3}
+            data-testid="individual-restriction-lift-reason"
+            value={liftReason}
+            onChange={(e) => setLiftReason(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLiftOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              data-testid="individual-restriction-lift-confirm"
+              onClick={() => liftMutation.mutate()}
+              disabled={liftMutation.isPending || liftReason.trim() === ""}
+            >
+              Confirm lift
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
         <DialogContent>
