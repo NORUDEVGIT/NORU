@@ -18,6 +18,12 @@ import {
   Set5NotificationsSection,
   Set5SecuritySection,
 } from "@/packages/pms/components/settings/pms-set5-section";
+import {
+  Set6DistributionSection,
+  Set6OfflineSyncSection,
+  Set6ReportsSection,
+  Set6SalesEventsSection,
+} from "@/packages/pms/components/settings/pms-set6-section";
 import { getPmsSet1Foundation, listPmsSet1Audit } from "@/packages/pms/lib/pms-set1-foundation.functions";
 import {
   SET1_COMING_SOON,
@@ -31,6 +37,7 @@ import {
   SET3_LIVE_HASHES,
   SET4_LIVE_HASHES,
   SET5_LIVE_HASHES,
+  SET6_LIVE_HASHES,
   canOpenSet1Hub,
   isSet1SectionHash,
   type Set1SectionId,
@@ -39,6 +46,7 @@ import { emptySet2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { emptySet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { emptySet4Snapshot } from "@/packages/pms/lib/pms-set4-hk-inventory";
 import { emptySet5Snapshot } from "@/packages/pms/lib/pms-set5-depts-guestsvc";
+import { emptySet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
@@ -82,7 +90,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return <p className="text-sm text-destructive">{(query.error as Error | undefined)?.message ?? "Settings are unavailable."}</p>;
   }
 
-  const { snapshot, checklist, canEdit, role, set2, set3, set4, set5 } = query.data;
+  const { snapshot, checklist, canEdit, role, set2, set3, set4, set5, set6 } = query.data;
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
@@ -100,7 +108,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, departments, guest services types, notifications, admin, integrations and security for {membership.restaurant.name}.
+          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, departments, guest services types, notifications, admin, integrations, security, sales, distribution, reports and offline posture for {membership.restaurant.name}.
         </p>
       </div>
 
@@ -211,6 +219,36 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               <Set5SecuritySection
                 restaurantId={restaurantId}
                 snapshot={set5 ?? emptySet5Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            )
+          ) : (SET6_LIVE_HASHES as readonly string[]).includes(section) ? (
+            section === "sales-events" ? (
+              <Set6SalesEventsSection
+                restaurantId={restaurantId}
+                snapshot={set6 ?? emptySet6Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "distribution" ? (
+              <Set6DistributionSection
+                restaurantId={restaurantId}
+                snapshot={set6 ?? emptySet6Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "reports" ? (
+              <Set6ReportsSection
+                restaurantId={restaurantId}
+                snapshot={set6 ?? emptySet6Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : (
+              <Set6OfflineSyncSection
+                restaurantId={restaurantId}
+                snapshot={set6 ?? emptySet6Snapshot()}
                 checklist={checklist}
                 canEdit={canEdit}
               />

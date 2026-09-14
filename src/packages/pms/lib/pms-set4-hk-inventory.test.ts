@@ -18,6 +18,7 @@ import {
 import { completeSet2Activate } from "./pms-set2-structure.ts";
 import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
 import { completeSet5Activate } from "./pms-set5-depts-guestsvc.ts";
+import { completeSet6Activate } from "./pms-set6-sales-distribution.ts";
 import {
   SET4_AUDIT_CATEGORY,
   SET4_AUDIT_HK_CLEANING,
@@ -89,6 +90,7 @@ function foundationReady(set4 = completeSet4Activate(), role = "owner") {
     set3: completeSet3Activate(),
     set4,
     set5: completeSet5Activate(),
+    set6: completeSet6Activate(),
   });
 }
 
@@ -218,8 +220,7 @@ describe("PMS-SET4 hub unmute and deep-links", () => {
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Departments"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Banks"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Roles"));
-    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
-    assert.ok(!SET1_COMING_SOON.some((card) => ["Housekeeping rules", "Room inventory rules", "Maintenance rules"].includes(card.title)));
+    assert.deepEqual(SET1_COMING_SOON, []);
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /Set4HousekeepingSection/);

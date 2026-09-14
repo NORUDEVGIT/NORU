@@ -68,6 +68,7 @@ import {
   set5MandatoryMissing,
   whatsappStaysDisabled,
 } from "./pms-set5-depts-guestsvc.ts";
+import { completeSet6Activate } from "./pms-set6-sales-distribution.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -102,6 +103,7 @@ function foundationReady(set5 = completeSet5Activate(), role = "owner") {
     set3: completeSet3Activate(),
     set4: completeSet4Activate(),
     set5,
+    set6: completeSet6Activate(),
   });
 }
 
@@ -205,11 +207,7 @@ describe("PMS-SET5 hub unmute and deep-links", () => {
     assert.ok(!SET1_LIVE_CARDS.some((card) => card.title === "Banks"));
     assert.ok(!SET1_LIVE_CARDS.some((card) => card.title === "Roles"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.wave === "SET5"));
-    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
-    assert.deepEqual(
-      SET1_COMING_SOON.map((card) => card.title),
-      ["Sales", "Distribution", "Reports", "Offline"],
-    );
+    assert.deepEqual(SET1_COMING_SOON, []);
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /Set5DepartmentsSection/);

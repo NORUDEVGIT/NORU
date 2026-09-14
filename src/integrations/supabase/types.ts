@@ -3332,6 +3332,270 @@ export type Database = {
           },
         ]
       }
+      pms_account_type_labels: {
+        Row: {
+          active: boolean
+          attrs: Json
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          attrs?: Json
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          attrs?: Json
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_account_type_labels_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_event_types: {
+        Row: {
+          active: boolean
+          attrs: Json
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          attrs?: Json
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          attrs?: Json
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_event_types_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_function_space_labels: {
+        Row: {
+          active: boolean
+          attrs: Json
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          attrs?: Json
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          attrs?: Json
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_function_space_labels_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_market_segments: {
+        Row: {
+          active: boolean
+          attrs: Json
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          attrs?: Json
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          attrs?: Json
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_market_segments_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_sales_channel_labels: {
+        Row: {
+          active: boolean
+          attrs: Json
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          attrs?: Json
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          attrs?: Json
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_sales_channel_labels_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_source_codes: {
+        Row: {
+          active: boolean
+          attrs: Json
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          attrs?: Json
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          attrs?: Json
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_source_codes_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_departments: {
         Row: {
           active: boolean
@@ -5274,14 +5538,20 @@ export type Database = {
           phone: string | null
           pms_admin_controls: Json
           pms_audit_retention_posture: Json
+          pms_distribution_channel_posture: Json
+          pms_distribution_mapping_posture: Json
           pms_guest_profile_rules: Json
           pms_hk_cleaning_posture: Json
           pms_hk_status_rules: Json
           pms_maintenance_sla: Json
           pms_notification_channels: Json
           pms_notification_event_rules: Json
+          pms_offline_enablement_posture: Json
+          pms_offline_sync_posture: Json
           pms_ooo_oos_posture: Json
           pms_rate_package_rules: Json
+          pms_reports_catalogue_posture: Json
+          pms_reports_schedule_access_posture: Json
           pms_routing_defaults: Json
           pms_session_access_posture: Json
           pms_set1_live: boolean
@@ -5344,14 +5614,20 @@ export type Database = {
           phone?: string | null
           pms_admin_controls?: Json
           pms_audit_retention_posture?: Json
+          pms_distribution_channel_posture?: Json
+          pms_distribution_mapping_posture?: Json
           pms_guest_profile_rules?: Json
           pms_hk_cleaning_posture?: Json
           pms_hk_status_rules?: Json
           pms_maintenance_sla?: Json
           pms_notification_channels?: Json
           pms_notification_event_rules?: Json
+          pms_offline_enablement_posture?: Json
+          pms_offline_sync_posture?: Json
           pms_ooo_oos_posture?: Json
           pms_rate_package_rules?: Json
+          pms_reports_catalogue_posture?: Json
+          pms_reports_schedule_access_posture?: Json
           pms_routing_defaults?: Json
           pms_session_access_posture?: Json
           pms_set1_live?: boolean
@@ -5414,14 +5690,20 @@ export type Database = {
           phone?: string | null
           pms_admin_controls?: Json
           pms_audit_retention_posture?: Json
+          pms_distribution_channel_posture?: Json
+          pms_distribution_mapping_posture?: Json
           pms_guest_profile_rules?: Json
           pms_hk_cleaning_posture?: Json
           pms_hk_status_rules?: Json
           pms_maintenance_sla?: Json
           pms_notification_channels?: Json
           pms_notification_event_rules?: Json
+          pms_offline_enablement_posture?: Json
+          pms_offline_sync_posture?: Json
           pms_ooo_oos_posture?: Json
           pms_rate_package_rules?: Json
+          pms_reports_catalogue_posture?: Json
+          pms_reports_schedule_access_posture?: Json
           pms_routing_defaults?: Json
           pms_session_access_posture?: Json
           pms_set1_live?: boolean

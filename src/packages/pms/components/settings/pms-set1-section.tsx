@@ -787,14 +787,14 @@ export function Set1GoLiveSection({
         <div>
           <h2 className="font-display text-lg text-[#251605]">Go-live</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance and SET5 catalogues. One owner Activate. SET5 warnings do not block. Never a fake Complete.
+            Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, SET5 catalogues and SET6 posture. One owner Activate. SET5–SET6 warnings do not block. Never a fake Complete.
           </p>
         </div>
         <ReadinessChip readiness={checklist.overall === "ready" ? "complete" : checklist.overall === "warning" ? "warning" : "blocked"} />
       </div>
       <p className="text-sm font-medium text-[#251605]">Overall {overallLabel(checklist.overall)}</p>
       <ul className="space-y-3">
-        {(["identity", "ops", "taxes", "policies", "structure", "rooms", "outlets", "rates", "guest-profile", "housekeeping-rules", "room-inventory-rules", "maintenance-rules", "departments", "guest-services-types", "notifications", "admin-controls", "integrations", "security-audit"] as Set1SectionId[]).map((id) => {
+        {(["identity", "ops", "taxes", "policies", "structure", "rooms", "outlets", "rates", "guest-profile", "housekeeping-rules", "room-inventory-rules", "maintenance-rules", "departments", "guest-services-types", "notifications", "admin-controls", "integrations", "security-audit", "sales-events", "distribution", "reports", "offline-sync"] as Set1SectionId[]).map((id) => {
           const domain = checklist.domains[id];
           const title =
             id === "ops"
@@ -819,7 +819,11 @@ export function Set1GoLiveSection({
                                 ? "Admin controls"
                                 : id === "security-audit"
                                   ? "Security & audit"
-                                  : id;
+                                  : id === "sales-events"
+                                    ? "Sales & events"
+                                    : id === "offline-sync"
+                                      ? "Offline & sync"
+                                      : id;
           return (
             <li key={id} className="rounded-xl border border-border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">

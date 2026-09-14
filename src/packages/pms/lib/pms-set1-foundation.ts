@@ -47,6 +47,15 @@ import {
   set5MandatoryMissing,
   type Set5ActivateInput,
 } from "./pms-set5-depts-guestsvc.ts";
+import {
+  emptySet6Activate,
+  evaluateDistribution,
+  evaluateOfflineSync,
+  evaluateReports,
+  evaluateSalesEvents,
+  set6MandatoryMissing,
+  type Set6ActivateInput,
+} from "./pms-set6-sales-distribution.ts";
 
 function calendarToday(timezone: string): string {
   try {
@@ -102,6 +111,10 @@ export const SET1_SECTION_HASHES = [
   "admin-controls",
   "integrations",
   "security-audit",
+  "sales-events",
+  "distribution",
+  "reports",
+  "offline-sync",
   "golive",
 ] as const;
 export type Set1SectionId = (typeof SET1_SECTION_HASHES)[number];
@@ -117,6 +130,7 @@ export const SET5_LIVE_HASHES = [
   "integrations",
   "security-audit",
 ] as const;
+export const SET6_LIVE_HASHES = ["sales-events", "distribution", "reports", "offline-sync"] as const;
 
 export type Set1Readiness = "complete" | "warning" | "incomplete" | "blocked";
 export type Set1Overall = "ready" | "warning" | "blocked";
@@ -152,13 +166,8 @@ export const DEPOSIT_TYPE_LABELS: Record<DepositType, string> = {
 
 export type TaxIdentity = { label: string; value: string };
 
-// After SET5 Live, Coming soon is SET6 only. Banks and Roles are not SET5 Live.
-export const SET1_COMING_SOON: { wave: string; title: string; purpose: string }[] = [
-  { wave: "SET6", title: "Sales", purpose: "Group sales and events — no forms in this wave." },
-  { wave: "SET6", title: "Distribution", purpose: "Channel and direct-booking distribution — no forms in this wave." },
-  { wave: "SET6", title: "Reports", purpose: "Property reports beyond today’s live modules — no forms in this wave." },
-  { wave: "SET6", title: "Offline", purpose: "Offline operations — no forms in this wave." },
-];
+// After SET6 Live the Settings Hub is closed. No SET7 Coming soon cards.
+export const SET1_COMING_SOON: { wave: string; title: string; purpose: string }[] = [];
 
 export const SET1_LIVE_CARDS: {
   id: Set1SectionId;
@@ -183,7 +192,11 @@ export const SET1_LIVE_CARDS: {
   { id: "admin-controls", title: "Admin controls", purpose: "Thin numbering, approvals and override. Deep-link to Administration — not a second staff manager." },
   { id: "integrations", title: "Integrations", purpose: "Connection status on Settings. POS charge-to-room is live; other connectors stay Foundation." },
   { id: "security-audit", title: "Security & audit", purpose: "Session and retention posture plus thin sensitive-data flags. Not IAM." },
-  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance and SET5 catalogues. One owner Activate. SET5 warnings do not block." },
+  { id: "sales-events", title: "Sales & events", purpose: "Thin market-segment, source-code and event-type catalogues. Deep-link is planned honesty — not a sales CRM." },
+  { id: "distribution", title: "Distribution", purpose: "Channel-class and mapping posture. Direct booking is live; OTA stays Not Connected / Foundation." },
+  { id: "reports", title: "Reports", purpose: "Catalogue and schedule/access posture aligned with live report tabs. Not a BI rebuild." },
+  { id: "offline-sync", title: "Offline & sync", purpose: "Intent flags and conflict labels only. Saving does not ship a runtime and never reads Offline Ready." },
+  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, SET5 catalogues and SET6 posture. One owner Activate. SET5–SET6 warnings do not block." },
 ];
 
 export type Set1IdentityDraft = {
@@ -506,7 +519,7 @@ export function evaluateGoLive(
     ...domains["room-inventory-rules"].missing,
     ...domains["maintenance-rules"].missing,
   ];
-  // SET5 missing (dual-hub honesty) is checklist honesty only — never Activate mandatory.
+  // SET5 missing (dual-hub honesty) and SET6 warnings are checklist honesty only — never Activate mandatory.
   const blocked = !foundationColumnsAvailable && Boolean(domains.ops.missing.length || domains.taxes.missing.includes("Tax name"));
   const warnings = Object.values(domains).flatMap((d) => d.warnings);
   if (pmsSet1Live && !mandatory.length) {
@@ -532,11 +545,13 @@ export function evaluateSet1Checklist(input: {
   set3?: Set3ActivateInput;
   set4?: Set4ActivateInput;
   set5?: Set5ActivateInput;
+  set6?: Set6ActivateInput;
 }): Set1Checklist {
   const set2 = input.set2 ?? emptySet2Activate();
   const set3 = input.set3 ?? emptySet3Activate();
   const set4 = input.set4 ?? emptySet4Activate();
   const set5 = input.set5 ?? emptySet5Activate();
+  const set6 = input.set6 ?? emptySet6Activate();
   const identity = evaluateIdentity(input.identity, input.foundationColumnsAvailable);
   const ops = evaluateOps(input.ops, input.foundationColumnsAvailable);
   const taxes = evaluateTaxes(input.taxes, input.foundationColumnsAvailable);
@@ -555,6 +570,10 @@ export function evaluateSet1Checklist(input: {
   const adminControls = evaluateAdminControls(set5);
   const integrations = evaluateIntegrations(set5);
   const securityAudit = evaluateSecurityAudit(set5);
+  const salesEvents = evaluateSalesEvents(set6);
+  const distribution = evaluateDistribution(set6);
+  const reports = evaluateReports(set6);
+  const offlineSync = evaluateOfflineSync(set6);
   const golive = evaluateGoLive(
     {
       identity,
@@ -575,6 +594,10 @@ export function evaluateSet1Checklist(input: {
       "admin-controls": adminControls,
       integrations,
       "security-audit": securityAudit,
+      "sales-events": salesEvents,
+      distribution,
+      reports,
+      "offline-sync": offlineSync,
     },
     input.foundationColumnsAvailable,
     input.pmsSet1Live,
@@ -588,6 +611,7 @@ export function evaluateSet1Checklist(input: {
     ...set3MandatoryMissing(set3),
     ...set4MandatoryMissing(set4),
     ...set5MandatoryMissing(set5),
+    ...set6MandatoryMissing(set6),
   ];
   const domains = {
     identity,
@@ -608,6 +632,10 @@ export function evaluateSet1Checklist(input: {
     "admin-controls": adminControls,
     integrations,
     "security-audit": securityAudit,
+    "sales-events": salesEvents,
+    distribution,
+    reports,
+    "offline-sync": offlineSync,
     golive,
   };
   const hasWarning = Object.values(domains).some((d) => d.readiness === "warning" || d.warnings.length);
