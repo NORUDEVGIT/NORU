@@ -10,6 +10,8 @@ import { getRoomsAccess } from "@/packages/pms/lib/rooms.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/core/state/pms-context";
 
+// Live RI: dashboard | room-types | rooms. Settings Rooms card deep-links here.
+// Receptionist may open this FO view (canAccessFrontOffice). Writes stay owner/manager.
 const TABS = ["dashboard", "room-types", "rooms"] as const;
 type RoomsTabKey = (typeof TABS)[number];
 

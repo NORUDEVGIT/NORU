@@ -25,6 +25,8 @@ import {
   SET2_STRUCTURE_UNAVAILABLE,
   completeSet2Activate,
   emptySet2Activate,
+  inferMasterFromFreeText,
+  roomNeedsStructureAssign,
   structureDeleteBlocked,
   structureDeleteMessage,
   wingParentXor,
@@ -62,6 +64,22 @@ function foundationReady(set2 = completeSet2Activate(), role = "owner") {
     set2,
   });
 }
+
+describe("PMS-SET2 live free-text is not silently rewritten", () => {
+  it("treats 1 vs f1 as unassigned until an explicit assign and never infers a master", () => {
+    assert.equal(roomNeedsStructureAssign(null), true);
+    assert.equal(roomNeedsStructureAssign(""), true);
+    assert.equal(roomNeedsStructureAssign("building-1"), false);
+    assert.equal(inferMasterFromFreeText("1"), null);
+    assert.equal(inferMasterFromFreeText("f1"), null);
+    assert.equal(inferMasterFromFreeText("Floor 1"), null);
+
+    const fns = readFileSync(new URL("./pms-set2-structure.functions.ts", import.meta.url), "utf8");
+    assert.doesNotMatch(fns, /inferMasterFromFreeText\(/);
+    assert.doesNotMatch(fns, /floor === "f1"|building === "1"/);
+    assert.match(fns, /roomNeedsStructureAssign/);
+  });
+});
 
 describe("PMS-SET2 structure delete/reassign guard", () => {
   it("blocks delete while rooms are assigned and allows after reassign", () => {
@@ -118,13 +136,19 @@ describe("PMS-SET2 single Activate mandatory expand", () => {
 });
 
 describe("PMS-SET2 role gate", () => {
-  it("lets owner and manager edit; receptionist is Permission denied, not Coming soon", () => {
+  it("lets owner and manager edit Settings; receptionist may open FO rooms but not Settings", () => {
     assert.equal(canEditSet1("owner"), true);
     assert.equal(canEditSet1("manager"), true);
     assert.equal(canEditSet1("receptionist"), false);
+    const roomsServer = readFileSync(new URL("./rooms.server.ts", import.meta.url), "utf8");
+    assert.match(roomsServer, /ROOM_MANAGE_ROLES = \["owner", "manager"\]/);
+    assert.match(roomsServer, /ROOM_ACCESS_ROLES = FRONT_OFFICE_ROLES/);
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /PermissionDeniedPanel/);
     assert.doesNotMatch(hub, /Coming soon.*receptionist/i);
+    const workspace = readFileSync(new URL("../components/workspaces/rooms-workspace.tsx", import.meta.url), "utf8");
+    assert.match(workspace, /Receptionist may open/);
+    assert.match(workspace, /room-types/);
   });
 });
 
@@ -141,12 +165,23 @@ describe("PMS-SET2 RI deep-link and hub unmute", () => {
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /SET1_HUB_HREF}#\$\{card\.id/);
+    assert.match(hub, /Configure/);
     assert.match(hub, /section === "structure"/);
     assert.match(hub, /section === "rooms"/);
     assert.match(hub, /Set2StructureSection/);
     assert.match(hub, /Set2RoomsSection/);
     assert.match(hub, /Set2OutletsSection/);
     assert.doesNotMatch(hub, /FO-CHROME1/);
+    const comingSoon = hub.slice(hub.indexOf("SET1_COMING_SOON.map"));
+    assert.match(comingSoon, /Coming soon/);
+    assert.doesNotMatch(comingSoon, /Configure/);
+
+    const attach = readFileSync(new URL("../components/rooms/room-type-dialogs.tsx", import.meta.url), "utf8");
+    assert.match(attach, /amenityIds/);
+    assert.match(attach, /Settings · Rooms/);
+    const settingsRooms = readFileSync(new URL("../components/settings/pms-set2-section.tsx", import.meta.url), "utf8");
+    assert.match(settingsRooms, /Amenities catalogue/);
+    assert.doesNotMatch(settingsRooms, /amenityIds/);
 
     const rooms = readFileSync(new URL("../components/settings/pms-set2-section.tsx", import.meta.url), "utf8");
     assert.match(rooms, /SET2_RI_HREF/);
@@ -195,6 +230,11 @@ describe("PMS-SET2 migration 0048 dual-lane", () => {
     assert.match(drizzleSql, /room_amenities/);
     assert.doesNotMatch(drizzleSql, /CREATE FUNCTION/i);
     assert.doesNotMatch(drizzleSql, /ALTER TABLE public\.folio_transactions/);
+    assert.doesNotMatch(drizzleSql, /Managers delete rooms/);
+    assert.doesNotMatch(drizzleSql, /ON public\.hotel_rooms\s+FOR DELETE/);
+    assert.doesNotMatch(drizzleSql, /UPDATE public\.hotel_rooms\s+SET/);
+    assert.match(drizzleSql, /AFTER Abel merged/);
+    assert.match(drizzleSql, /20260914084725/);
     assert.doesNotMatch(drizzleSql, /INSERT INTO public\.hotel_buildings/);
     assert.match(drizzleSql, /do not apply to production from an agent/i);
     assert.equal(SET2_AUDIT_STRUCTURE, "pms_set2_structure_updated");

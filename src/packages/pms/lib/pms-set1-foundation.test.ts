@@ -307,6 +307,11 @@ describe("PMS-SET1 hub locks", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "structure"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rooms"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "outlets"));
+    assert.equal(
+      SET1_LIVE_CARDS.some((card) => card.id === "outlets"),
+      true,
+      "Outlets is SET2 Spec, not SET3 Coming soon",
+    );
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /Coming soon/);

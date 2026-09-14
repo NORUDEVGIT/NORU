@@ -1,7 +1,19 @@
 /**
  * PMS-SET2 — Structure · Rooms deep-link · Amenities · Outlets (Issue #62).
  *
+ * Live inspect 2026-09-14 (qcwptraosaudcbjasmul / main, after #63 + 0048):
+ * - hotel_buildings / hotel_floors / hotel_wings / pms_outlets exist and are empty.
+ * - hotel_rooms has text building/floor/wing plus nullable FKs (all FK-null).
+ * - Live free-text still mixes "1" and "f1". Do not infer masters from it.
+ * - hotel_rooms RLS is SELECT/INSERT/UPDATE — no DELETE. Soft-deactivate rooms.
+ * - room_types, room_amenities (24), room_type_amenities, room_type_images exist.
+ * - pms_set1_live exists and is false on every restaurant.
+ * - folio_transactions has no outlet_id.
+ * - Pre-merge hub labelled Outlets as SET3 Coming soon with no href. Spec puts
+ *   Outlets in SET2 — unmute as a Live card with Configure #outlets.
+ *
  * Single expanding Activate on pms_set1_live. Amenities empty = Warning.
+ * Sync text labels only on assign/reassign. Never backfill FKs from "1"/"f1".
  * 0048 tables/columns are additive and may be absent — never crash.
  */
 
@@ -219,6 +231,16 @@ export function outletsMandatoryComplete(input: Pick<Set2ActivateInput, "outlets
 
 export function amenitiesEmptyWarning(amenityCount: number): boolean {
   return amenityCount === 0;
+}
+
+/** Unassigned to a master = no FK. Historical free-text is ignored. */
+export function roomNeedsStructureAssign(buildingId: string | null | undefined): boolean {
+  return !buildingId;
+}
+
+/** Live floor labels include "1" and "f1". Never invent a master from that text. */
+export function inferMasterFromFreeText(_label: string | null | undefined): null {
+  return null;
 }
 
 function domain(

@@ -23,6 +23,7 @@ import {
   emptySet2Snapshot,
   isMissingSchemaError,
   parseOutletType,
+  roomNeedsStructureAssign,
   structureDeleteBlocked,
   structureDeleteMessage,
   wingParentXor,
@@ -196,7 +197,7 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
       snapshot.assignedByBuilding = countBy(rows.map((row) => row.building_id));
       snapshot.assignedByFloor = countBy(rows.map((row) => row.floor_id));
       snapshot.assignedByWing = countBy(rows.map((row) => row.wing_id));
-      snapshot.unassignedActiveRoomCount = rows.filter((row) => row.active && !row.building_id).length;
+      snapshot.unassignedActiveRoomCount = rows.filter((row) => row.active && roomNeedsStructureAssign(row.building_id)).length;
     }
   }
 

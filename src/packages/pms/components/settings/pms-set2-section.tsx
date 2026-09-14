@@ -214,6 +214,9 @@ export function Set2StructureSection({
             <p className="text-sm text-[#251605]">
               {snapshot.unassignedActiveRoomCount} unassigned active room
               {snapshot.unassignedActiveRoomCount === 1 ? "" : "s"}
+              <span className="block text-xs text-muted-foreground">
+                No building master. Existing floor text such as 1 or f1 is left as-is until you assign.
+              </span>
             </p>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" asChild>
