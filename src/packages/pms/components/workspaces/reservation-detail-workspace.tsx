@@ -40,6 +40,8 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.functions";
 import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 
 const UNASSIGNED = "unassigned";
 
@@ -51,6 +53,7 @@ export function ReservationDetailWorkspace({
   reservationId: string;
 }) {
   const restaurantId = membership.restaurant.id;
+  const set1 = usePmsSet1Foundation(restaurantId);
   const queryClient = useQueryClient();
   const { dateTime } = useRestaurantTime();
 
@@ -168,6 +171,7 @@ export function ReservationDetailWorkspace({
 
   return (
     <div className="space-y-6">
+      {set1.data ? <PmsDocumentHeader identity={set1.data.snapshot.identity} /> : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link

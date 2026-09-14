@@ -58,6 +58,7 @@ import { RestaurantSettingsProvider } from "@/packages/restaurant-management/sta
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { HK_STATUS_TAB_LABEL } from "@/packages/pms/lib/housekeeping-labels";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
+import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
 
 export type RestaurantNavLabel =
   | "Home"
@@ -435,7 +436,7 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
   cashiering: "Accounting & Finance",
   reports: "Reports & Analytics",
   configuration: "Configuration",
-  settings: "Property Settings & Integrations",
+  settings: "Settings",
 };
 
 /** Which workspace a page belongs to, derived from its nav label. */
@@ -566,6 +567,7 @@ export function RestaurantShell({
   // Phase 8C — package entitlement hides package-level entry points only.
   const packages = usePackageEntitlements(membership?.restaurantId);
   const pmsPackage = packages.has("pms");
+  const showSettingsNav = !pmsPackage || canEditSet1(membership?.role ?? "");
 
   const workspace = module ?? LABEL_MODULE[active];
   // Restaurant Management is a package-level nav group: it disappears from
@@ -592,7 +594,7 @@ export function RestaurantShell({
     ? `Restaurant Management · ${rmMod.title}`
     : pmsMod
     ? `PMS · ${pmsMod.title}`
-    : pms && workspace !== "pms"
+    : pms && pmsPackage && workspace !== "pms"
       ? `PMS · ${MODULE_TITLE[workspace]}`
       : MODULE_TITLE[workspace];
 
@@ -771,13 +773,15 @@ export function RestaurantShell({
         </ul>
       </nav>
       <div className="space-y-1">
-        <Link
-          to="/restaurant/settings"
-          onClick={() => setNavOpen(false)}
-          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          <Settings className="size-4 shrink-0" /> Settings
-        </Link>
+        {showSettingsNav ? (
+          <Link
+            to="/restaurant/settings"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Settings className="size-4 shrink-0" /> Settings
+          </Link>
+        ) : null}
         <Button
           variant="ghost"
           size="sm"
@@ -874,12 +878,12 @@ export function RestaurantShell({
       ) : workspace !== "home" ? (
         <div className="space-y-2">
           <Link
-            to={pms && pmsPackage ? "/restaurant/pms" : "/restaurant/home"}
+            to={pmsPackage && (pms || active === "Settings") ? "/restaurant/pms" : "/restaurant/home"}
             onClick={() => setNavOpen(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <ArrowLeft className="size-4 shrink-0" />{" "}
-            {pms && pmsPackage ? "PMS Home" : "Property Home"}
+            {pmsPackage && (pms || active === "Settings") ? "PMS Home" : "Property Home"}
           </Link>
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
             {contextLabel}
@@ -926,13 +930,15 @@ export function RestaurantShell({
       </nav>
 
       <div className="space-y-1">
-        <Link
-          to="/restaurant/settings"
-          onClick={() => setNavOpen(false)}
-          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          <Settings className="size-4 shrink-0" /> Settings
-        </Link>
+        {showSettingsNav ? (
+          <Link
+            to="/restaurant/settings"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Settings className="size-4 shrink-0" /> Settings
+          </Link>
+        ) : null}
         <Button
           variant="ghost"
           size="sm"

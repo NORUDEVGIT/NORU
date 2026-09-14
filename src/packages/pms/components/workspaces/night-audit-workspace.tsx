@@ -21,9 +21,12 @@ import { PROPERTY_BUSINESS_DATE_KEY } from "@/packages/pms/lib/use-property-busi
 import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
+import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 
 export function NightAuditWorkspace({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
+  const set1 = usePmsSet1Foundation(restaurantId);
   const queryClient = useQueryClient();
   const { dateTime } = useRestaurantTime();
   const [phone, setPhone] = useState(false);
@@ -109,6 +112,7 @@ export function NightAuditWorkspace({ membership }: { membership: RestaurantMemb
 
   return (
     <div className="space-y-6">
+      {set1.data ? <PmsDocumentHeader identity={set1.data.snapshot.identity} /> : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl text-[#251605]">

@@ -14,7 +14,7 @@ export const FO_FEE_DEFAULTS_HINT = "Used when FO cancel / no-show runs (policy 
 
 export const FO_FEE_DEFAULTS_SECTION = "Cancel & no-show fees";
 
-export const FO_FEE_DEFAULTS_SETTINGS_HREF = "/restaurant/settings#cancel-noshow-fees";
+export const FO_FEE_DEFAULTS_SETTINGS_HREF = "/restaurant/settings#policies";
 
 export const FO_FEE_DEFAULTS_AUDIT_ACTION = "fo_fee_defaults_updated";
 

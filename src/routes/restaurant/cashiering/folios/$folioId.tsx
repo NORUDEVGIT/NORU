@@ -14,6 +14,9 @@ import { FolioStatusBadge, labelTransactionType, splitLedger } from "@/packages/
 import { CloseFolioDialog, FolioEntryDialog } from "@/packages/pms/components/cashiering/folio-dialogs";
 import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import { SET1_TAX_HONESTY } from "@/packages/pms/lib/pms-set1-foundation";
 
 export const Route = createFileRoute("/restaurant/cashiering/folios/$folioId")({
   ssr: false,
@@ -51,6 +54,7 @@ function FolioRoute() {
 
 function FolioPage({ membership, folioId }: { membership: RestaurantMembership; folioId: string }) {
   const restaurantId = membership.restaurant.id;
+  const set1 = usePmsSet1Foundation(restaurantId);
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
   const queryClient = useQueryClient();
@@ -102,6 +106,16 @@ function FolioPage({ membership, folioId }: { membership: RestaurantMembership; 
           </Button>
         </div>
       </div>
+
+      {set1.data ? (
+        <div className="space-y-2">
+          <PmsDocumentHeader identity={set1.data.snapshot.identity} />
+          <p className="text-xs text-muted-foreground">
+            New postings use {set1.data.snapshot.taxes.taxName || "the property tax"}{" "}
+            {set1.data.snapshot.taxes.taxRate}% {set1.data.snapshot.taxes.taxInclusive ? "inclusive" : "exclusive"}. {SET1_TAX_HONESTY}
+          </p>
+        </div>
+      ) : null}
 
       {isOpen ? (
         <div className="flex flex-wrap gap-2 print:hidden">

@@ -114,7 +114,7 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
 
           <TabsContent value="configuration" className="mt-6 space-y-4">
             <p className="text-sm text-muted-foreground">
-              PMS configuration lives in Property Setup; these are the areas an administrator most
+              PMS configuration lives in Settings; these are the areas an administrator most
               often changes.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -122,7 +122,7 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
                 icon={Users}
                 title="Property information"
                 description="Property details, timezone and currency."
-                to="/restaurant/pms/property-setup"
+                to="/restaurant/settings"
               />
               <AdminCard
                 icon={BedDouble}

@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { closeFolio, postFolioEntry } from "@/packages/pms/lib/cashiering.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import { SET1_TAX_HONESTY } from "@/packages/pms/lib/pms-set1-foundation";
 
 const PAYMENT_METHODS = ["Cash", "Card", "Bank transfer", "Mobile money", "Other"];
 
@@ -72,6 +74,7 @@ export function FolioEntryDialog({
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [method, setMethod] = useState(PAYMENT_METHODS[0]!);
+  const set1 = usePmsSet1Foundation(restaurantId);
 
   const post = useServerFn(postFolioEntry);
   const copy = type ? COPY[type] : null;
@@ -136,6 +139,12 @@ export function FolioEntryDialog({
               placeholder={type === "charge" ? "Laundry service" : "Reference or note"}
             />
           </div>
+          {type === "charge" && set1.data ? (
+            <p className="text-xs text-muted-foreground">
+              New charges follow {set1.data.snapshot.taxes.taxName || "the property tax"}{" "}
+              {set1.data.snapshot.taxes.taxRate}% {set1.data.snapshot.taxes.taxInclusive ? "inclusive" : "exclusive"}. {SET1_TAX_HONESTY}
+            </p>
+          ) : null}
           {needsMethod ? (
             <div>
               <Label htmlFor="entry-method">Method</Label>

@@ -68,7 +68,8 @@ export function FoFeeDefaultsEditor({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (window.location.hash === "#cancel-noshow-fees") {
+    if (window.location.hash === "#policies" || window.location.hash === "#cancel-noshow-fees") {
+      document.getElementById("policies")?.scrollIntoView({ behavior: "smooth", block: "start" });
       document.getElementById("cancel-noshow-fees")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [query.data]);

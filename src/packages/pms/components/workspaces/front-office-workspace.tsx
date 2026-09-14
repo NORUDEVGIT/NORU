@@ -37,6 +37,8 @@ import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import type { ExceptionCtaId, ExceptionRow, FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import { formatClockLabel } from "@/packages/pms/lib/pms-set1-foundation";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { useAuth } from "@/core/state/auth-store";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -67,6 +69,11 @@ export function FrontOfficeWorkspace({
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = usePropertyBusinessDate(restaurantId, timezone);
+  const set1 = usePmsSet1Foundation(restaurantId);
+  const deskHours =
+    set1.data?.snapshot.ops.checkInTime && set1.data.snapshot.ops.checkOutTime
+      ? `CI ${formatClockLabel(set1.data.snapshot.ops.checkInTime, set1.data.snapshot.timezone)} · CO ${formatClockLabel(set1.data.snapshot.ops.checkOutTime, set1.data.snapshot.timezone)}`
+      : null;
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -278,6 +285,7 @@ export function FrontOfficeWorkspace({
       userLabel={user?.email ?? membership.restaurant.name}
       roleLabel={membership.role}
       businessDate={today}
+      deskHours={deskHours}
       active={view}
       onNavigate={(id) => {
         setComingSoon(null);

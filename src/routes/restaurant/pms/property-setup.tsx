@@ -1,12 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { PmsPropertySetupWorkspace } from "@/packages/pms/components/workspaces/pms-property-setup-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { propertySetupRedirectHref } from "@/packages/pms/lib/pms-set1-foundation";
 
 export const Route = createFileRoute("/restaurant/pms/property-setup")({
   ssr: false,
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
       throw redirect({
@@ -16,25 +15,11 @@ export const Route = createFileRoute("/restaurant/pms/property-setup")({
     }
 
     await requireRoutePackage("pms");
+    const target = propertySetupRedirectHref(location.hash);
+    const hash = target.includes("#") ? target.split("#")[1] : undefined;
+    throw redirect(hash ? { to: "/restaurant/settings", hash } : { to: "/restaurant/settings" });
   },
-  head: () => ({
-    meta: [
-      { title: "Property Setup — NORU PMS" },
-      { name: "description", content: "Rooms, rates, distribution and operational master data for your property." },
-      { property: "og:title", content: "Property Setup — NORU PMS" },
-      { property: "og:description", content: "Rooms, rates, distribution and operational master data for your property." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "robots", content: "noindex" },
-    ],
-  }),
-  component: PropertySetupPmsRoute,
+  component: function PropertySetupRedirect() {
+    return null;
+  },
 });
-
-function PropertySetupPmsRoute() {
-  return (
-    <RestaurantShell active="Configuration" module="configuration" pms pmsModule="property-setup">
-      {(m) => <PmsPropertySetupWorkspace membership={m} />}
-    </RestaurantShell>
-  );
-}
