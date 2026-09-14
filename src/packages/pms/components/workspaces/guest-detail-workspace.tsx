@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Pencil, Power, StickyNote } from "lucide-react";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
+import { GuestFormIdentityUpload } from "@/packages/pms/components/guests/guest-form-identity-upload";
 import { GuestIndividualLinks } from "@/packages/pms/components/guests/guest-individual-links";
 import {
   GuestRestrictionBadges,
@@ -19,6 +20,7 @@ import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-pre
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
+import { STAFF_VERIFY_COPY } from "@/packages/pms/lib/guest-profile-wave2";
 import { WAVE3_PROFILE_HISTORY_COPY } from "@/packages/pms/lib/guest-profile-wave3";
 import { Button } from "@/shared/components/ui/button";
 import { Switch } from "@/shared/components/ui/switch";
@@ -326,9 +328,12 @@ export function GuestDetailWorkspace({
                 <Row label="ID expiry" value={guest.idDocumentExpiry} />
                 <GuestRestrictionBadges guest={guest} />
                 <p className="text-xs text-muted-foreground">
-                  Ordinary views show the last four digits only. Staff verify on Identity &
-                  Documents is not government verification.
+                  Ordinary views show the last four digits only.
                 </p>
+                <div data-testid="individual-information-identity-upload">
+                  <GuestFormIdentityUpload restaurantId={restaurantId} guestId={guestId} />
+                </div>
+                <p className="text-xs text-muted-foreground">{STAFF_VERIFY_COPY}</p>
               </Panel>
             </div>
             <Panel title="Employment">

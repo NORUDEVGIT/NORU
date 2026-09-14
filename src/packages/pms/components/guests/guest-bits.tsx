@@ -62,13 +62,21 @@ export function GuestRestrictionWarn({
 }) {
   const message = guestRestrictionWarning(guest);
   if (!message) return null;
+  const reason = (guest?.restrictionReason ?? "").trim();
   return (
     <div
       data-testid="guest-restriction-warn"
       className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
     >
       <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-      <p>{message}</p>
+      <div>
+        <p>{message}</p>
+        {reason ? (
+          <p className="mt-1 text-xs" data-testid="guest-restriction-warn-reason">
+            Reason: {reason}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

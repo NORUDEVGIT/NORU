@@ -45,7 +45,7 @@ import {
   GUEST_GENDERS,
   GUEST_TITLE_LABELS,
   GUEST_TITLES,
-  INDIVIDUAL_EMERGENCY_REQUIRED,
+  INDIVIDUAL_EMERGENCY_COPY,
   INDIVIDUAL_IDENTITY_AFTER_SAVE_COPY,
   INDIVIDUAL_IDENTITY_UPLOAD_COPY,
   INDIVIDUAL_LINKING_AFTER_SAVE_COPY,
@@ -699,7 +699,7 @@ export function GuestFormDialog({
           </Section>
 
           <Section id="emergency" title="Emergency">
-            <p className="text-xs text-muted-foreground">{INDIVIDUAL_EMERGENCY_REQUIRED}</p>
+            <p className="text-xs text-muted-foreground">{INDIVIDUAL_EMERGENCY_COPY}</p>
             {form.emergencyContacts.map((contact, index) => (
               <div
                 key={index}

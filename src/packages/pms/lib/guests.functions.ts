@@ -543,8 +543,8 @@ async function replaceEmergencyContacts(
   contacts: EmergencyContactInput[] | undefined,
 ): Promise<void> {
   const named = namedEmergencyContacts(contacts);
-  const required = validateEmergencyContacts(named);
-  if (required) throw new Error(required);
+  const invalid = validateEmergencyContacts(contacts ?? []);
+  if (invalid) throw new Error(invalid);
   const table = fromTable(client, "guest_emergency_contacts");
   const deleted = await table.delete().eq("restaurant_id", restaurantId).eq("guest_id", guestId);
   if (deleted.error && isMissingSchemaError(deleted.error)) {
@@ -956,7 +956,11 @@ export const createGuest = createServerFn({ method: "POST" })
         const value = (insertRow as Record<string, unknown>)[key];
         return value !== null && value !== undefined && value !== false && value !== "";
       });
-      if (data.guest.emergencyContacts?.length || restrictionOn || usedEnrichment) {
+      if (
+        namedEmergencyContacts(data.guest.emergencyContacts).length ||
+        restrictionOn ||
+        usedEnrichment
+      ) {
         throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
       }
       const legacy = { ...insertRow } as Record<string, unknown>;

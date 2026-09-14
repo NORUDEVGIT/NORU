@@ -7,6 +7,8 @@
  * Identity files reuse Wave 2 guest_documents — no second store.
  * Linking reuses Wave 4 guest_account_links — no second link table.
  * Stay paths warn; they do not hard-block Reservations / Front Office.
+ * No Import/Folio/loyalty/rich Comms/Group-TA enrichment/Company further edits.
+ * Additive RLS matching guest tables OK. Entitlement model is not changed.
  */
 
 import type { GuestRelationshipRole } from "./guest-profile-wave4.ts";
@@ -71,9 +73,46 @@ export const INDIVIDUAL_ACCEPTANCE_CRITERIA = [
   "AC-GE2-11",
   "AC-GE2-12",
   "AC-GE2-13",
+  "AC-GE2-14",
+  "AC-GE2-15",
+  "AC-GE2-16",
+  "AC-GE2-17",
+  "AC-GE2-18",
+  "AC-GE2-19",
+  "AC-GE2-20",
+  "AC-GE2-21",
+  "AC-GE2-22",
+  "AC-GE2-23",
+  "AC-GE2-24",
+  "AC-GE2-25",
+  "AC-GE2-26",
+  "AC-GE2-27",
+  "AC-GE2-28",
+  "AC-GE2-29",
+  "AC-GE2-30",
+  "AC-GE2-31",
+  "AC-GE2-32",
+  "AC-GE2-33",
+  "AC-GE2-34",
 ] as const;
 
-/** Eng-ready Spec AC-GE2-* had not landed when this lock was written. Plan IDs are the contract. */
+/**
+ * Amended TIP used AC-GE2-1…13 as seed names. Spec #110 remapped the same
+ * prefix to AC-GE2-1…34. Spec IDs win.
+ */
+export const INDIVIDUAL_TIP_AC_MAP = {
+  "plan-sectioned-form": ["AC-GE2-1"],
+  "plan-first-name-fields": ["AC-GE2-2", "AC-GE2-3", "AC-GE2-4", "AC-GE2-5", "AC-GE2-16", "AC-GE2-18"],
+  "plan-identity-upload": ["AC-GE2-6", "AC-GE2-7", "AC-GE2-8", "AC-GE2-14", "AC-GE2-15"],
+  "plan-emergency": ["AC-GE2-17"],
+  "plan-restriction-set": ["AC-GE2-19", "AC-GE2-20", "AC-GE2-21"],
+  "plan-restriction-lift": ["AC-GE2-22"],
+  "plan-restriction-warn": ["AC-GE2-23", "AC-GE2-24"],
+  "plan-waves-closed": ["AC-GE2-25", "AC-GE2-28", "AC-GE2-29", "AC-GE2-30", "AC-GE2-31"],
+  "plan-linking": ["AC-GE2-9", "AC-GE2-10", "AC-GE2-11", "AC-GE2-12", "AC-GE2-13"],
+} as const;
+
+/** Spec #110 §9 IDs are the contract. */
 export const INDIVIDUAL_SPEC_AC_IDS = [...INDIVIDUAL_ACCEPTANCE_CRITERIA] as const;
 
 export const INDIVIDUAL_IDENTITY_UPLOAD_COPY =
@@ -97,8 +136,11 @@ export const INDIVIDUAL_RESTRICTION_REASON_REQUIRED =
 export const INDIVIDUAL_LIFT_REASON_REQUIRED =
   "A reason is required to lift a restriction.";
 
-export const INDIVIDUAL_EMERGENCY_REQUIRED =
-  "Add at least one emergency contact with a name.";
+export const INDIVIDUAL_EMERGENCY_COPY =
+  "Add or remove emergency contacts. First-name-only create can save with none.";
+
+export const INDIVIDUAL_EMERGENCY_NAME_REQUIRED =
+  "Emergency contacts need a name when other details are filled.";
 
 export const INDIVIDUAL_HARD_BLOCK_FINDING =
   "OUT-OF-SCOPE FINDING: a Reservations / Front Office hard block would need an entitlement or RLS model change. Flag Abel — do not invent it. This batch warns only.";
@@ -106,6 +148,7 @@ export const INDIVIDUAL_HARD_BLOCK_FINDING =
 export type GuestRestrictionFlags = {
   restricted: boolean;
   blacklisted: boolean;
+  restrictionReason?: string | null;
 };
 
 export function isGuestTitle(value: string): value is GuestTitle {
@@ -159,8 +202,19 @@ export function countNamedEmergencyContacts(
 }
 
 export function validateEmergencyContacts(
-  contacts: Array<{ name?: string | null }>,
+  contacts: Array<{
+    name?: string | null | undefined;
+    relationship?: string | null | undefined;
+    phone?: string | null | undefined;
+    email?: string | null | undefined;
+  }>,
 ): string | null {
-  if (countNamedEmergencyContacts(contacts) < 1) return INDIVIDUAL_EMERGENCY_REQUIRED;
-  return null;
+  const incomplete = contacts.some((contact) => {
+    const named = (contact.name ?? "").trim() !== "";
+    const extra = [contact.relationship, contact.phone, contact.email].some(
+      (value) => (value ?? "").trim() !== "",
+    );
+    return extra && !named;
+  });
+  return incomplete ? INDIVIDUAL_EMERGENCY_NAME_REQUIRED : null;
 }
