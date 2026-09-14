@@ -195,7 +195,7 @@ export const PMS_MODULES: PmsModule[] = [
     key: "guest-profile",
     title: "Guest Profile",
     description:
-      "Individual guest directory and information. Company, group and travel-agent masters come later.",
+      "Guest directory, Company / Group / Travel Agent masters, relationships and honest loyalty.",
     icon: UserRound,
     group: "commercial",
     moduleKey: "front_office",

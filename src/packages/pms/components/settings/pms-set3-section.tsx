@@ -57,6 +57,7 @@ import {
   savePmsMealPlan,
   savePmsPackage,
 } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
+import { WAVE4_SET3_FLAG_COPY } from "@/packages/pms/lib/guest-profile-wave4";
 import { PmsPreferenceOptionsEditor } from "@/packages/pms/components/settings/pms-preference-options-editor";
 
 function refreshSet3(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
@@ -762,6 +763,7 @@ export function Set3GuestSection({
               setDraft((prev) => ({ ...prev, companyRelationshipEnabled: checked }))
             }
           />
+          <p className="text-xs text-muted-foreground">{WAVE4_SET3_FLAG_COPY}</p>
           {canEdit ? (
             <Button
               className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"

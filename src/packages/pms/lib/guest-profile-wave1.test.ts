@@ -63,6 +63,8 @@ describe("Guest Profile Wave 1 catalogue", () => {
       "identity",
       "stay-history",
       "preferences",
+      "loyalty",
+      "relationships",
     ]);
     for (const card of GUEST_PROFILE_CARDS) {
       if (card.live) continue;
@@ -75,19 +77,20 @@ describe("Guest Profile Wave 1 catalogue", () => {
     assert.equal(defaultGuestProfileCard(true), "information");
   });
 
-  it("keeps Company, Group and TA as not LIVE with no master CRUD hook", () => {
+  it("keeps Company, Group and TA LIVE with Guest-owned master CRUD", () => {
     assert.deepEqual(
       GUEST_PROFILE_TYPES.map((t) => [t.id, t.live, t.wave]),
       [
         ["individual", true, 1],
-        ["company", false, 4],
-        ["group", false, 4],
-        ["travel-agent", false, 4],
+        ["company", true, 4],
+        ["group", true, 4],
+        ["travel-agent", true, 4],
       ],
     );
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
-    assert.match(shell, /not LIVE/);
-    assert.doesNotMatch(shell, /createCompany|createGroup|createTravelAgent/);
+    assert.match(shell, /selectType/);
+    assert.match(shell, /GuestAccountDirectory/);
+    assert.match(shell, /createGuestAccount|GuestAccountFormDialog|GuestAccountDirectory/);
   });
 });
 
@@ -160,7 +163,8 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     assert.equal(isGuestRequiredProfileCard("stay-history"), true);
     assert.equal(isGuestRequiredProfileCard("identity"), true);
     assert.equal(isGuestRequiredProfileCard("preferences"), true);
-    assert.equal(isGuestRequiredProfileCard("loyalty"), false);
+    assert.equal(isGuestRequiredProfileCard("loyalty"), true);
+    assert.equal(isGuestRequiredProfileCard("relationships"), true);
     assert.equal(isGuestRequiredProfileCard("notes-comms"), false);
   });
 
@@ -186,7 +190,7 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
       card: "stay-history",
     });
     assert.deepEqual(parseGuestProfileCardSearch({ card: "directory" }), {});
-    assert.deepEqual(parseGuestProfileCardSearch({ card: "loyalty" }), {});
+    assert.deepEqual(parseGuestProfileCardSearch({ card: "loyalty" }), { card: "loyalty" });
     assert.deepEqual(guestProfileCardSearch("dashboard"), { card: "dashboard" });
     assert.deepEqual(guestProfileCardSearch("directory"), {});
     assert.equal(initialGuestProfileCard(true, "identity"), "identity");
@@ -198,11 +202,11 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const indexRoute = readRel("../../../routes/restaurant/pms/guests.index.tsx");
     const detailRoute = readRel("../../../routes/restaurant/pms/guests.$guestId.tsx");
-    assert.match(back, /guestProfileCardSearch\(fromCard\)/);
+    assert.match(back, /guestProfileSearch\(\{ card: fromCard, type: profileType \}\)/);
     assert.match(directory, /guestProfileCardSearch\(returnCard\)/);
     assert.match(shell, /initialGuestProfileCard/);
-    assert.match(indexRoute, /parseGuestProfileCardSearch/);
-    assert.match(detailRoute, /parseGuestProfileCardSearch/);
+    assert.match(indexRoute, /parseGuestProfileSearch/);
+    assert.match(detailRoute, /parseGuestProfileSearch/);
     assert.match(indexRoute, /returnCard=\{card\}/);
     assert.match(detailRoute, /returnCard=\{card\}/);
   });
@@ -236,7 +240,7 @@ describe("Guest Profile empty guest — AC-EMPTY-1…6 (Spec §5.16)", () => {
     assert.equal(showEmptyDirectoryCta(false, "information"), true);
     assert.equal(showEmptyDirectoryCta(true, "dashboard"), false);
     assert.equal(showEmptyDirectoryCta(false, "directory"), false);
-    assert.equal(showEmptyDirectoryCta(false, "loyalty"), false);
+    assert.equal(showEmptyDirectoryCta(false, "loyalty"), true);
     assert.equal(showEmptyDirectoryCta(false, "notes-comms"), false);
   });
 
@@ -265,7 +269,7 @@ describe("Guest Profile empty guest — AC-EMPTY-1…6 (Spec §5.16)", () => {
     const open = readRel("../components/guests/guest-directory-open-button.tsx");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
-    assert.match(open, /guestProfileCardSearch\(fromCard\)/);
+    assert.match(open, /guestProfileSearch\(\{ card: fromCard, type: profileType \}\)/);
     assert.match(shell, /setCard\("directory"\)/);
     assert.match(shell, /returnCard \?\? emptyReturnCard/);
     assert.match(directory, /guestProfileCardSearch\(returnCard\)/);

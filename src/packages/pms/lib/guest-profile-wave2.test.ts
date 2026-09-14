@@ -55,14 +55,14 @@ describe("Guest Profile Wave 2 mask and preference encoding", () => {
 });
 
 describe("Guest Profile Wave 2 lock", () => {
-  it("activates Identity and Preferences cards and keeps Waves 4–5 gated", () => {
+  it("activates Identity and Preferences cards and keeps Wave 5 Coming", () => {
     const byId = new Map(GUEST_PROFILE_CARDS.map((card) => [card.id, card]));
     assert.equal(byId.get("identity")?.live, true);
     assert.equal(byId.get("preferences")?.live, true);
     assert.equal(byId.get("stay-history")?.live, true);
     assert.equal(byId.get("dashboard")?.live, true);
-    assert.equal(byId.get("loyalty")?.live, false);
-    assert.equal(byId.get("relationships")?.live, false);
+    assert.equal(byId.get("loyalty")?.live, true);
+    assert.equal(byId.get("relationships")?.live, true);
     assert.equal(byId.get("notes-comms")?.live, false);
     assert.equal(byId.get("admin-privacy")?.live, false);
     assert.match(byId.get("admin-privacy")?.copy ?? "", /Coming in Wave 5/);

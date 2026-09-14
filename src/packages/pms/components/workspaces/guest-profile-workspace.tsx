@@ -3,13 +3,17 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { GuestAccountDetail } from "@/packages/pms/components/guests/guest-account-detail";
+import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
 import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
 import { GuestDirectoryBackLink } from "@/packages/pms/components/guests/guest-directory-back-link";
 import { GuestDirectoryOpenButton } from "@/packages/pms/components/guests/guest-directory-open-button";
+import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
+import { GuestLoyaltyCard } from "@/packages/pms/components/guests/guest-loyalty-card";
+import { GuestRelationshipsCard } from "@/packages/pms/components/guests/guest-relationships-card";
+import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
-import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
-import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import {
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DETAIL_PATH,
@@ -18,13 +22,16 @@ import {
   GUEST_PROFILE_TYPES,
   comingInWaveLabel,
   guestProfileCard,
-  guestProfileCardSearch,
+  guestProfileSearch,
   initialGuestProfileCard,
   isGuestRequiredProfileCard,
   showEmptyDirectoryCta,
   type GuestProfileCardId,
+  type GuestProfileTypeId,
 } from "@/packages/pms/lib/guest-profile-wave1";
+import { profileTypeToAccountType } from "@/packages/pms/lib/guest-profile-wave4";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
+import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
@@ -32,11 +39,13 @@ export function GuestProfileWorkspace({
   membership,
   guestId,
   returnCard,
+  profileType = "individual",
 }: {
   membership: RestaurantMembership;
-  guestId?: string;
+  guestId?: string | undefined;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
   returnCard?: GuestProfileCardId | undefined;
+  profileType?: GuestProfileTypeId | undefined;
 }) {
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(
@@ -45,20 +54,45 @@ export function GuestProfileWorkspace({
   const [emptyReturnCard, setEmptyReturnCard] = useState<GuestProfileCardId | undefined>();
   const selected = guestProfileCard(card);
   const restaurantId = membership.restaurant.id;
+  const accountType = profileTypeToAccountType(profileType);
+  const isAccount = accountType !== null;
   const fetchGuest = useServerFn(getGuest);
+  const fetchAccount = useServerFn(getGuestAccount);
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: guestId! } }),
     enabled:
-      Boolean(guestId) && (card === "identity" || card === "dashboard" || card === "stay-history"),
+      Boolean(guestId) &&
+      !isAccount &&
+      (card === "identity" ||
+        card === "dashboard" ||
+        card === "stay-history" ||
+        card === "loyalty" ||
+        card === "relationships"),
     retry: false,
   });
+  const accountQuery = useQuery({
+    queryKey: ["guest-account", restaurantId, guestId],
+    queryFn: () => fetchAccount({ data: { restaurantId, accountId: guestId! } }),
+    enabled: Boolean(guestId) && isAccount && (card === "loyalty" || card === "relationships"),
+    retry: false,
+  });
+
+  function selectType(next: GuestProfileTypeId) {
+    const live = GUEST_PROFILE_TYPES.find((type) => type.id === next)?.live;
+    if (!live) return;
+    setCard("directory");
+    void navigate({
+      to: GUEST_PROFILE_DIRECTORY_PATH,
+      search: guestProfileSearch({ type: next }),
+    });
+  }
 
   function selectCard(next: GuestProfileCardId) {
     if (next === "directory" && guestId) {
       void navigate({
         to: GUEST_PROFILE_DIRECTORY_PATH,
-        search: guestProfileCardSearch(card),
+        search: guestProfileSearch({ card, type: profileType }),
       });
       return;
     }
@@ -67,7 +101,7 @@ export function GuestProfileWorkspace({
       void navigate({
         to: GUEST_PROFILE_DETAIL_PATH,
         params: { guestId },
-        search: guestProfileCardSearch(next),
+        search: guestProfileSearch({ card: next, type: profileType }),
       });
     }
   }
@@ -75,6 +109,9 @@ export function GuestProfileWorkspace({
   const detailSection = card === "preferences" ? "preferences" : "overview";
   const showDirectoryBack = Boolean(guestId) && isGuestRequiredProfileCard(card);
   const emptyDirectoryFrom = showEmptyDirectoryCta(Boolean(guestId), card) ? card : undefined;
+  const partyName = isAccount
+    ? (accountQuery.data?.name ?? "")
+    : (guestQuery.data?.guest.fullName ?? "");
 
   function openDirectoryFromEmpty() {
     if (!emptyDirectoryFrom) return;
@@ -87,8 +124,8 @@ export function GuestProfileWorkspace({
       <div>
         <h1 className="font-display text-2xl">{GUEST_PROFILE_TITLE}</h1>
         <p className="text-sm text-muted-foreground">
-          Individual directory, information, identity, preferences, stay history and honest
-          dashboard figures. Later cards stay labelled until their wave is LIVE.
+          Individual directory plus Company, Group account and Travel Agent masters. Loyalty uses
+          real stay figures only. Wave 5 cards stay labelled until LIVE.
         </p>
       </div>
 
@@ -98,29 +135,36 @@ export function GuestProfileWorkspace({
         role="tablist"
         aria-label="Profile type"
       >
-        {GUEST_PROFILE_TYPES.map((type) => (
-          <button
-            key={type.id}
-            type="button"
-            role="tab"
-            aria-selected={type.live}
-            disabled={!type.live}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-sm font-medium",
-              type.live
-                ? "border-primary bg-primary text-primary-foreground"
-                : "cursor-not-allowed border-dashed border-border text-muted-foreground",
-            )}
-            title={type.live ? "Individual profiles are LIVE" : `${type.title} is not LIVE`}
-          >
-            {type.title}
-            {type.live ? null : (
-              <span className="ml-2 text-[11px] uppercase tracking-wide">
-                not LIVE · Wave {type.wave}
-              </span>
-            )}
-          </button>
-        ))}
+        {GUEST_PROFILE_TYPES.map((type) => {
+          const active = type.id === profileType;
+          return (
+            <button
+              key={type.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              disabled={!type.live}
+              data-testid={`guest-profile-type-${type.id}`}
+              onClick={() => selectType(type.id)}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-sm font-medium",
+                type.live && active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : type.live
+                    ? "border-border bg-card text-foreground hover:border-primary/50"
+                    : "cursor-not-allowed border-dashed border-border text-muted-foreground",
+              )}
+              title={type.live ? `${type.title} profiles are LIVE` : `${type.title} is not LIVE`}
+            >
+              {type.title}
+              {type.live ? null : (
+                <span className="ml-2 text-[11px] uppercase tracking-wide">
+                  not LIVE · Wave {type.wave}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <nav aria-label="Guest profile cards" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -149,15 +193,23 @@ export function GuestProfileWorkspace({
       </nav>
 
       {card === "directory" ? (
-        <GuestDirectoryWorkspace
-          membership={membership}
-          compact
-          returnCard={returnCard ?? emptyReturnCard}
-        />
+        isAccount ? (
+          <GuestAccountDirectory
+            membership={membership}
+            accountType={accountType}
+            returnCard={returnCard ?? emptyReturnCard}
+          />
+        ) : (
+          <GuestDirectoryWorkspace
+            membership={membership}
+            compact
+            returnCard={returnCard ?? emptyReturnCard}
+          />
+        )
       ) : (
         <>
-          {showDirectoryBack ? <GuestDirectoryBackLink fromCard={card} /> : null}
-          {(card === "information" || card === "preferences") && guestId ? (
+          {showDirectoryBack ? <GuestDirectoryBackLink fromCard={card} profileType={profileType} /> : null}
+          {(card === "information" || card === "preferences") && guestId && !isAccount ? (
             <GuestDetailWorkspace
               membership={membership}
               guestId={guestId}
@@ -169,24 +221,41 @@ export function GuestProfileWorkspace({
                 void navigate({
                   to: GUEST_PROFILE_DETAIL_PATH,
                   params: { guestId },
-                  search: guestProfileCardSearch(nextCard),
+                  search: guestProfileSearch({ card: nextCard, type: profileType }),
                 });
               }}
+            />
+          ) : card === "information" && guestId && isAccount ? (
+            <GuestAccountDetail
+              restaurantId={restaurantId}
+              accountId={guestId}
+              expectedType={accountType}
             />
           ) : card === "information" || card === "preferences" ? (
             <ComingCard
               title={selected.title}
-              copy="Open a guest from Directory to view and edit this card. No guest is selected yet."
+              copy={
+                isAccount && card === "preferences"
+                  ? "Preferences are for individual guests. Open an Individual from Directory or Relationships."
+                  : "Open a guest from Directory to view and edit this card. No guest is selected yet."
+              }
               directoryFromCard={emptyDirectoryFrom}
+              profileType={profileType}
               onOpenDirectory={openDirectoryFromEmpty}
             />
-          ) : card === "identity" && guestId && guestQuery.data ? (
+          ) : card === "identity" && guestId && !isAccount && guestQuery.data ? (
             <GuestIdentityCard restaurantId={restaurantId} guest={guestQuery.data.guest} />
+          ) : card === "identity" && isAccount ? (
+            <ComingCard
+              title={selected.title}
+              copy="Identity & Documents is for individual guests. Open an Individual from Directory."
+            />
           ) : card === "identity" && !guestId ? (
             <ComingCard
               title={selected.title}
               copy="Open a guest from Directory to use this card. No guest is selected yet."
               directoryFromCard={emptyDirectoryFrom}
+              profileType={profileType}
               onOpenDirectory={openDirectoryFromEmpty}
             />
           ) : card === "identity" && guestQuery.isLoading ? (
@@ -195,6 +264,11 @@ export function GuestProfileWorkspace({
             <ComingCard
               title={selected.title}
               copy="That guest could not be found for this property."
+            />
+          ) : (card === "dashboard" || card === "stay-history") && isAccount ? (
+            <ComingCard
+              title={selected.title}
+              copy="Dashboard and Stay History are for individual guests. Linked members appear on Relationships and Loyalty & Value."
             />
           ) : (card === "dashboard" || card === "stay-history") && guestId && guestQuery.data ? (
             card === "dashboard" ? (
@@ -223,6 +297,37 @@ export function GuestProfileWorkspace({
                   : "Open a guest from Directory to view this card. No guest is selected yet."
               }
               directoryFromCard={emptyDirectoryFrom}
+              profileType={profileType}
+              onOpenDirectory={openDirectoryFromEmpty}
+            />
+          ) : card === "loyalty" && guestId && !isAccount && guestQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading guest…</p>
+          ) : card === "relationships" && guestId && !isAccount && guestQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading guest…</p>
+          ) : card === "loyalty" && guestId && (isAccount || guestQuery.data) ? (
+            <GuestLoyaltyCard
+              restaurantId={restaurantId}
+              guestId={isAccount ? undefined : guestId}
+              accountId={isAccount ? guestId : undefined}
+              partyName={partyName || (isAccount ? "Account" : "Guest")}
+            />
+          ) : card === "relationships" && guestId && (isAccount || guestQuery.data) ? (
+            <GuestRelationshipsCard
+              restaurantId={restaurantId}
+              guestId={isAccount ? undefined : guestId}
+              accountId={isAccount ? guestId : undefined}
+              accountType={accountType ?? undefined}
+            />
+          ) : card === "loyalty" || card === "relationships" ? (
+            <ComingCard
+              title={selected.title}
+              copy={
+                guestId
+                  ? "That profile could not be found for this property."
+                  : "Open a guest or account from Directory to use this card."
+              }
+              directoryFromCard={emptyDirectoryFrom}
+              profileType={profileType}
               onOpenDirectory={openDirectoryFromEmpty}
             />
           ) : (
@@ -230,6 +335,7 @@ export function GuestProfileWorkspace({
               title={selected.title}
               copy={selected.copy ?? comingInWaveLabel(selected.wave)}
               directoryFromCard={emptyDirectoryFrom}
+              profileType={profileType}
               onOpenDirectory={openDirectoryFromEmpty}
             />
           )}
@@ -243,11 +349,13 @@ function ComingCard({
   title,
   copy,
   directoryFromCard,
+  profileType,
   onOpenDirectory,
 }: {
   title: string;
   copy: string;
   directoryFromCard?: GuestProfileCardId | undefined;
+  profileType?: GuestProfileTypeId | undefined;
   onOpenDirectory?: (() => void) | undefined;
 }) {
   return (
@@ -258,7 +366,11 @@ function ComingCard({
       <p className="font-display text-lg">{title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy}</p>
       {directoryFromCard ? (
-        <GuestDirectoryOpenButton fromCard={directoryFromCard} onOpen={onOpenDirectory} />
+        <GuestDirectoryOpenButton
+          fromCard={directoryFromCard}
+          profileType={profileType}
+          onOpen={onOpenDirectory}
+        />
       ) : null}
     </div>
   );

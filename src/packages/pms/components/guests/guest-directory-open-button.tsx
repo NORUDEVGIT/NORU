@@ -3,8 +3,9 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   GUEST_PROFILE_DIRECTORY_PATH,
   GUEST_PROFILE_OPEN_DIRECTORY_LABEL,
-  guestProfileCardSearch,
+  guestProfileSearch,
   type GuestProfileCardId,
+  type GuestProfileTypeId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { Button } from "@/shared/components/ui/button";
 
@@ -15,9 +16,11 @@ import { Button } from "@/shared/components/ui/button";
  */
 export function GuestDirectoryOpenButton({
   fromCard,
+  profileType,
   onOpen,
 }: {
   fromCard: GuestProfileCardId;
+  profileType?: GuestProfileTypeId | undefined;
   /** Switch the shell to Directory when already on the directory path. */
   onOpen?: (() => void) | undefined;
 }) {
@@ -32,7 +35,7 @@ export function GuestDirectoryOpenButton({
         onOpen?.();
         void navigate({
           to: GUEST_PROFILE_DIRECTORY_PATH,
-          search: guestProfileCardSearch(fromCard),
+          search: guestProfileSearch({ card: fromCard, type: profileType }),
         });
       }}
     >
