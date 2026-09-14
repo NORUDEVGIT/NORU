@@ -1,5 +1,5 @@
 import { cloneElement, useEffect, useId, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
@@ -32,6 +32,8 @@ import {
   type GuestProfile,
   type GuestSummary,
 } from "@/packages/pms/lib/guests.functions";
+import { guestCreateBlocked } from "@/packages/pms/lib/pms-set3-rates-guest";
+import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 
 export interface GuestFormValues {
   firstName: string;
@@ -119,6 +121,14 @@ export function GuestFormDialog({
   const create = useServerFn(createGuest);
   const update = useServerFn(updateGuest);
   const checkDuplicates = useServerFn(findGuestDuplicates);
+  const loadRules = useServerFn(getPmsSet3Snapshot);
+  const rulesQuery = useQuery({
+    queryKey: ["pms-set3-snapshot", restaurantId],
+    queryFn: () => loadRules({ data: { restaurantId } }),
+    retry: false,
+    enabled: open,
+  });
+  const savedRules = rulesQuery.data?.snapshot.guestRules.savedAt ? rulesQuery.data.snapshot.guestRules : null;
 
   const [form, setForm] = useState<GuestFormValues>(EMPTY);
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
@@ -177,6 +187,8 @@ export function GuestFormDialog({
   const submit = useMutation({
     mutationFn: async () => {
       if (form.firstName.trim() === "") throw new Error("First name is required.");
+      const rulesBlock = guestCreateBlocked(savedRules, form);
+      if (rulesBlock) throw new Error(rulesBlock);
       const matches = await checkDuplicates({
         data: {
           restaurantId,
@@ -205,7 +217,9 @@ export function GuestFormDialog({
         <DialogHeader>
           <DialogTitle>{guest ? "Edit guest" : "New guest"}</DialogTitle>
           <DialogDescription>
-            Only a first name is required — walk-in guests often have incomplete details.
+            {savedRules
+              ? "First name plus a phone number or email address are required after guest rules were saved."
+              : "Only a first name is required — walk-in guests often have incomplete details."}
           </DialogDescription>
         </DialogHeader>
 
@@ -260,13 +274,13 @@ export function GuestFormDialog({
           <Field label="First name" required>
             <Input value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
           </Field>
-          <Field label="Last name">
+          <Field label="Last name" required={Boolean(savedRules?.requiredFields.lastName)}>
             <Input value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
           </Field>
-          <Field label="Phone">
+          <Field label="Phone" required={Boolean(savedRules)}>
             <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} />
           </Field>
-          <Field label="Email">
+          <Field label="Email" required={Boolean(savedRules)}>
             <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
           </Field>
           <Field label="Nationality">
