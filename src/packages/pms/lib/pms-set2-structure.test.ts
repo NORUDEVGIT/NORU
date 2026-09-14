@@ -33,6 +33,7 @@ import {
 } from "./pms-set2-structure.ts";
 import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
 import { completeSet4Activate } from "./pms-set4-hk-inventory.ts";
+import { completeSet5Activate } from "./pms-set5-depts-guestsvc.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -66,6 +67,7 @@ function foundationReady(set2 = completeSet2Activate(), role = "owner") {
     set2,
     set3: completeSet3Activate(),
     set4: completeSet4Activate(),
+    set5: completeSet5Activate(),
   });
 }
 
@@ -126,7 +128,7 @@ describe("PMS-SET2 single Activate mandatory expand", () => {
 
     const owner = foundationReady();
     assert.equal(owner.canActivate, true);
-    assert.equal(owner.overall, "ready");
+    assert.equal(owner.overall, "warning");
     assert.equal(canActivateSet1("owner"), true);
 
     const manager = foundationReady(completeSet2Activate(), "manager");
@@ -164,8 +166,9 @@ describe("PMS-SET2 RI deep-link and hub unmute", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "outlets"));
     assert.ok(!SET1_COMING_SOON.some((card) => ["Structure", "Rooms", "Rooms & amenities", "Outlets"].includes(card.title)));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rates" || card.title === "Rates & meal plans"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks" && card.wave === "SET5"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles" && card.wave === "SET5"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Banks"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Roles"));
+    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /SET1_HUB_HREF}#\$\{card\.id/);
