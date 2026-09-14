@@ -37,6 +37,8 @@ export const SET1_BUSINESS_DATE_COPY =
 export const SET1_OPS_HELPER =
   "Front Office uses these times to judge early check-in and late check-out. Night Audit owns the business-date roll.";
 export const SET1_TAX_HONESTY = "Changes apply to new postings only. Closed folios are not rewritten.";
+export const SET1_TAX_RM_SHARE =
+  "This is the same 0038 property tax the Restaurant Management till uses. Extra named rates are not in this wave.";
 export const SET1_CI_CO_EQUAL_WARNING = "Check-out is the same as check-in. Confirm this is intended.";
 export const SET1_COLUMNS_UNAVAILABLE = "Unavailable — foundation columns are not applied yet.";
 export const SET1_ACTIVATE_LABEL = "Go live / Activate property";

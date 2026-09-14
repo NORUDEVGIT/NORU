@@ -73,7 +73,6 @@ export function FrontOfficeChrome({
   userLabel,
   roleLabel,
   businessDate,
-  deskHours,
   active,
   onNavigate,
   onQuickAction,
@@ -92,7 +91,6 @@ export function FrontOfficeChrome({
   userLabel: string;
   roleLabel: string;
   businessDate: string;
-  deskHours?: string | null;
   active: FoNavId;
   onNavigate: (id: FoNavId) => void;
   onQuickAction: (actionId: string) => void;
@@ -124,10 +122,7 @@ export function FrontOfficeChrome({
             <p className="truncate font-display text-base leading-tight">{propertyName}</p>
             <p className="text-[11px] text-white/70">{FO_PRIMARY_TITLE}</p>
           </div>
-          <div className="text-xs text-white/80">
-            <p>{formatStayDate(businessDate)}</p>
-            {deskHours ? <p className="text-[11px] text-white/60">{deskHours}</p> : null}
-          </div>
+          <p className="text-xs text-white/80">{formatStayDate(businessDate)}</p>
           <button
             type="button"
             data-testid="fo-guest-search"

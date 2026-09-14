@@ -1,12 +1,15 @@
 -- PMS-SET1 — Foundation Settings columns on restaurants (Issue #59).
 --
+-- Sequential after 0046. Lives with 0038 / 0042 under drizzle/migrations/.
 -- Additive only. No new tables, RPCs, privileged functions, seed hotel data,
--- or RLS changes.
+-- or RLS changes. Reuses 0038 tax_inclusive / tax_rate / service_* and 0042
+-- fee columns. Adds tax_name only for the one named room/folio rate.
 --
 -- IN THE PR ONLY — do not apply to live until Abel instructs after merge.
 --
 -- Apply (do not run against production from an agent):
---   psql "$DATABASE_URL" -f supabase/migrations/0047_pms_set1_foundation_settings.sql
+--   psql "$DATABASE_URL" -f drizzle/migrations/0047_pms_set1_foundation_settings.sql
+--   or the project's usual drizzle / Supabase migration apply path.
 --
 -- Rollback:
 --   ALTER TABLE public.restaurants
@@ -83,7 +86,34 @@ COMMENT ON COLUMN public.restaurants.property_code IS
   'PMS-SET1 optional property code. Null until stored.';
 COMMENT ON COLUMN public.restaurants.legal_name IS
   'PMS-SET1 legal name for documents. Null until stored.';
+COMMENT ON COLUMN public.restaurants.tax_name IS
+  'PMS-SET1 display name for the 0038 restaurants.tax_rate room/folio rate. Extra named rates deferred.';
 COMMENT ON COLUMN public.restaurants.business_date IS
   'Night Audit business date. Read-only in Settings. Advances only via close_business_date.';
 COMMENT ON COLUMN public.restaurants.pms_set1_live IS
   'PMS-SET1 owner Activate flag. Distinct from platform approval.';
+
+GRANT SELECT (
+  property_code,
+  legal_name,
+  property_type,
+  tax_identities,
+  check_in_time,
+  check_out_time,
+  hotel_day_open,
+  tax_name,
+  cancel_window_hours,
+  cancel_fee_basis,
+  noshow_fee_basis,
+  deposit_required,
+  deposit_type,
+  deposit_value,
+  early_checkin_allowed,
+  early_checkin_fee,
+  early_checkin_needs_approval,
+  late_checkout_allowed,
+  late_checkout_fee,
+  late_checkout_needs_approval,
+  pms_set1_live
+)
+  ON public.restaurants TO authenticated;
