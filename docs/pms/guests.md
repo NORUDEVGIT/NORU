@@ -257,6 +257,9 @@ Wave 3 residual / Guest shell UX (post–Wave 3) — **not** Waves 4–5 product
 | Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) | Wave 5 tracking issue — **CLOSED** completed 2026-09-14T17:18:19Z. Rekik formal closure YES / Advisor Outcome Review. **OPERATIONALLY ACCEPTED** / closed. Programme **READY FOR HOTEL UAT**. PR [#101](https://github.com/NORUDEVGIT/NORU/pull/101) Relates (did not Closes). |
 | PR [#101](https://github.com/NORUDEVGIT/NORU/pull/101) | Wave 5 implementation — **MERGED** 2026-09-14T14:22:35Z. |
 | Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) | Wave 4 tracking issue — **CLOSED** completed. Code LIVE via PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. |
+| [Functional Spec §8 — Gap-edit 1](./specs/guest-profile-module.md#8-gap-edit-1--company-registration-enrichment) | Company registration enrichment — **ACCEPTED for Engineering**. ENGINEERING **IN PROGRESS** on [#103](https://github.com/NORUDEVGIT/NORU/issues/103). AC-GE1-1…24. Additive; **not** implemented; does not reopen Waves 1–5. Migration `0055` Abel/PM gated. |
+| Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) | Gap-edit 1 tracking issue — **OPEN**. Rekik tech plan **APPROVED**. Coding AUTHORIZED on `feature/103-company-registration-enrichment`. **Not** implemented. |
+| PR [#102](https://github.com/NORUDEVGIT/NORU/pull/102) | Wave 5 docs recon — **may still be OPEN**. Gap-edit 1 does **not** rewrite that recon. |
 | PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) | Wave 4 implementation — **MERGED** 2026-09-14. |
 | Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) | Wave 1 implementation issue — **CLOSED** completed. |
 | PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) | Wave 1 implementation — **MERGED** 2026-09-14T09:15:10Z. |
@@ -447,6 +450,7 @@ Grounded in the Wave 4 Design Execution Report after #96 + #97. **`NOT RUN` is n
 - Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed.
 - Wave 5 **IMPLEMENTED ON MAIN** (#101); issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed. Programme **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 4). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
+- **Gap-edit 1** (Company registration enrichment) is an **additive** follow-on — Spec **ACCEPTED for Engineering**; engineering **IN PROGRESS** on [#103](https://github.com/NORUDEVGIT/NORU/issues/103). **Not** a Wave 4 defect and **not** a reopen of AC-W4-1…23. **Not** implemented. Migration `0055` Abel/PM gated.
 
 ---
 
