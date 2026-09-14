@@ -102,6 +102,8 @@ export const DEPOSIT_TYPE_LABELS: Record<DepositType, string> = {
 
 export type TaxIdentity = { label: string; value: string };
 
+// Live main still lists Outlets as SET3 Coming soon with no href. Abel-approved
+// SET2 Spec puts Outlets in this wave — promote with Structure and Rooms.
 export const SET1_COMING_SOON: { wave: string; title: string; purpose: string }[] = [
   { wave: "SET4", title: "Rates", purpose: "Rate plans and stay restrictions." },
   { wave: "SET5", title: "Banks", purpose: "Bank accounts and settlement rails." },
@@ -118,7 +120,7 @@ export const SET1_LIVE_CARDS: {
   { id: "taxes", title: "Taxes", purpose: "Inclusive or exclusive room-stay rate and service charge." },
   { id: "policies", title: "Policies & fees", purpose: "Cancel, no-show, deposit, early check-in and late check-out." },
   { id: "structure", title: "Structure", purpose: "Buildings, floors and wings." },
-  { id: "rooms", title: "Rooms & amenities", purpose: "Room types and rooms live in Room Inventory. Amenities catalogue is here." },
+  { id: "rooms", title: "Rooms & amenities", purpose: "Deep-link to Room Inventory. Amenities catalogue CRUD is here; attach stays on room types." },
   { id: "outlets", title: "Outlets", purpose: "Revenue outlets. Folio posting routes stay on the existing engine." },
   { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms and outlets. One owner Activate." },
 ];

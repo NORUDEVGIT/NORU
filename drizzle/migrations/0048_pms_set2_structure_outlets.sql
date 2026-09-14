@@ -5,8 +5,15 @@
 -- Additive only. No privileged functions. No seed hotel sample data.
 -- RLS on new tables matches rooms: members read; owner/manager write.
 --
--- IN THE PR ONLY — Abel authorised apply 2026-09-14; Afrobel applies live
--- from this SQL. Do not apply to production from an agent.
+-- Afrobel applied live AFTER Abel merged PR #63
+-- (pms_set2_structure_outlets · 20260914084725).
+-- Do not apply to production from an agent. Do not re-apply.
+--
+-- Live inspect 2026-09-14 (qcwptraosaudcbjasmul): tables exist and are empty
+-- (0 buildings / floors / wings / outlets). hotel_rooms now has nullable FKs;
+-- all 7 rooms still have building_id NULL. Text building/floor/wing still
+-- mixes "1" and "f1". Do not backfill FKs from that text. hotel_rooms RLS is
+-- SELECT/INSERT/UPDATE only — no DELETE policy. Soft-deactivate rooms.
 --
 -- Apply (do not run against production from an agent):
 --   psql "$DATABASE_URL" -f drizzle/migrations/0048_pms_set2_structure_outlets.sql
