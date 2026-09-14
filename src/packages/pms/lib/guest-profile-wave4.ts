@@ -157,6 +157,8 @@ export type GuestAccountSummary = {
   accountStatus: GuestAccountStatus;
   updatedAt: string;
   anonymisedAt: string | null;
+  tradeName: string | null;
+  companyType: string | null;
 };
 
 export type GuestAccountProfile = GuestAccountSummary & {
@@ -165,6 +167,20 @@ export type GuestAccountProfile = GuestAccountSummary & {
   country: string | null;
   notes: string | null;
   createdAt: string;
+  companyTypeOther: string | null;
+  taxId: string | null;
+  businessRegistrationNumber: string | null;
+  phoneAlt: string | null;
+  emailAlt: string | null;
+  primaryContactName: string | null;
+  addressLine2: string | null;
+  region: string | null;
+  postalCode: string | null;
+  corporateAccountReference: string | null;
+  negotiatedRateReference: string | null;
+  defaultTravelAgentMasterId: string | null;
+  defaultTravelAgentMasterName: string | null;
+  sourceOfBusiness: string | null;
 };
 
 export type GuestAccountLink = {

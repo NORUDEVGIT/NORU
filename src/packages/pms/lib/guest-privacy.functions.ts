@@ -753,21 +753,44 @@ export const anonymiseGuestAccount = createServerFn({ method: "POST" })
     if (existing.data.anonymised_at) throw new Error("This profile is already anonymised.");
     const accountType = existing.data.account_type as GuestAccountType;
     const now = new Date().toISOString();
-    const { error } = await admin
+    const baseClear = {
+      name: WAVE5_ANONYMISED_MASTER_LABELS[accountType] ?? `Anonymised ${GUEST_ACCOUNT_TYPE_LABELS[accountType]}`,
+      email: null,
+      phone: null,
+      address_line1: null,
+      city: null,
+      country: null,
+      notes: null,
+      anonymised_at: now,
+      anonymised_by_membership_id: me.id,
+    };
+    let { error } = await admin
       .from("guest_account_masters")
       .update({
-        name: WAVE5_ANONYMISED_MASTER_LABELS[accountType] ?? `Anonymised ${GUEST_ACCOUNT_TYPE_LABELS[accountType]}`,
-        email: null,
-        phone: null,
-        address_line1: null,
-        city: null,
-        country: null,
-        notes: null,
-        anonymised_at: now,
-        anonymised_by_membership_id: me.id,
+        ...baseClear,
+        trade_name: null,
+        tax_id: null,
+        business_registration_number: null,
+        phone_alt: null,
+        email_alt: null,
+        primary_contact_name: null,
+        address_line2: null,
+        region: null,
+        postal_code: null,
+        corporate_account_reference: null,
+        negotiated_rate_reference: null,
+        source_of_business: null,
       })
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.accountId);
+    if (error && isMissingSchemaError(error)) {
+      const retry = await admin
+        .from("guest_account_masters")
+        .update(baseClear)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId);
+      error = retry.error;
+    }
     if (error) throw wave5Error(error);
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
