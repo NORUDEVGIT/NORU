@@ -112,6 +112,7 @@ Grounded in `main` at documentation time (after #85 / #87 / #90). **Code wins.**
 | Dashboard Overview | **LIVE** honest KPIs: stays + nights first (`nightsBetween`, same helper as Reservations); in-house / upcoming counts; last stay when a checked-out reservation exists. Quoted `room_subtotal` and posted folio balance only when amounts exist — otherwise **Not available**, never fake `0.00`. Header names the selected guest (#87): **This guest's overview**. | Same honest 360. Loyalty points stay Wave 4. |
 | Quick actions | Reservation / Front Office / Folio jump to **existing** surfaces when the record exists **and** the caller has access. Hidden when the surface is out of role; disabled when the record is missing (no invented “open folio” success). | Same read + jump only — no Guest-owned reservation / folio writers. |
 | Directory-back | Shell-level sticky **← Directory** on every LIVE guest-required card (#90). `?card=` restores the same card after picking another guest. Directory itself has no back-to-Directory control. | Same affordance on later LIVE cards via `isGuestRequiredProfileCard`. |
+| Empty-state Directory CTA | Primary **Open Directory** button on guest-required cards when no guest is selected (#91 / #93). `?card=` restores the same card after pick. Coming-in-Wave cards stay copy-only. Directory itself has no Open Directory dead-end. | Same CTA on later LIVE cards via `showEmptyDirectoryCta`. |
 | Duplicates / merge | Wave 1 warn remains: Open existing / Create anyway — **no auto-merge**. Controlled `mergeGuests` behind explicit confirm. Soft-retire (`inactive` + `merged_into_guest_id`); reassign `hotel_reservations.guest_id`; move documents; history `merged_from` / `merged_into`. | Unmerge is Wave 5. |
 | Consent | Data-processing and marketing: `granted` / `refused` / `not_asked` + recorded at / by. Visible on Information. SET3 `consentDefaults` are guidance only when `not_asked`. History `consent_updated`. | Wave 5 privacy suite (export / anonymise / unmerge / audit) builds on this record. |
 | Masters / relationships | **None.** Individuals only. | Wave 4. |
@@ -204,15 +205,15 @@ Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope. Full not
 
 | Item | Status on `main` |
 |---|---|
-| Guest-context headers (#87) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) |
-| Directory-back on guest-required cards | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) |
-| Empty / no-guest-selected Directory CTA | **OPEN** — see §7.8 / Spec §5.16 |
+| Guest-context headers (#87) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED |
+| Directory-back on guest-required cards | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed. |
+| Empty / no-guest-selected Directory CTA | **ON MAIN** — PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) MERGED. Issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed. See §7.8 / Spec §5.16. |
 
-### 7.8 Empty / no-guest-selected Directory CTA — **OPEN** residual (Rekik 2026-09-14)
+### 7.8 Empty / no-guest-selected Directory CTA — **RESOLVED on `main`** (Rekik 2026-09-14)
 
 Wave 3 residual / Guest shell UX (post–Wave 3) — **not** Waves 4–5 product scope. Full note: [Functional Spec §5.16](./specs/guest-profile-module.md#516-wave-3-residuals--ux-consistency--empty-state-directory-cta-rekik-2026-09-14).
 
-**REQUIRED.** Every guest-required card empty / no-guest-selected state must include a **primary CTA** (e.g. Open Directory / Select a guest) that navigates to Guest Directory — copy alone is not enough. Aligns with Directory-back ([#90](https://github.com/NORUDEVGIT/NORU/pull/90)): after guest selected, sticky **← Directory**; before selection, empty-state CTA into Directory.
+**DELIVERED.** Every LIVE guest-required card empty / no-guest-selected state includes a primary **Open Directory** button (`GuestDirectoryOpenButton`, `data-testid="guest-profile-open-directory"`) that navigates to Guest Directory — copy alone is not enough. Aligns with Directory-back ([#90](https://github.com/NORUDEVGIT/NORU/pull/90)): after guest selected, sticky **← Directory**; before selection, empty-state CTA into Directory (`?card=` restore). Issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed via PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93). AC-EMPTY-1…6 **PASS**.
 
 ---
 
@@ -229,9 +230,16 @@ Wave 3 residual / Guest shell UX (post–Wave 3) — **not** Waves 4–5 product
 | Issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) | Wave 2 implementation issue — **CLOSED** completed. |
 | PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) | Wave 2 implementation — **MERGED** 2026-09-14T10:57:47Z. |
 | PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) | Wave 2 Preferences tab sync — **MERGED** 2026-09-14T11:20:17Z. |
-| PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) | Wave 3 guest-context headers — **MERGED**. |
-| PR [#89](https://github.com/NORUDEVGIT/NORU/pull/89) | Directory-back shell UX — **MERGED**. |
-| PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) | Directory-back on guest-required cards — **MERGED**. Empty-state Directory CTA residual still **OPEN** (§7.8 / Spec §5.16). |
+| Issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) | Wave 3 implementation issue — **CLOSED** completed 2026-09-14T12:37:18Z. |
+| PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) | Wave 3 Stay History / honest KPIs / quick actions — **MERGED** 2026-09-14T11:53:26Z. |
+| PR [#86](https://github.com/NORUDEVGIT/NORU/pull/86) | Wave 3 guest-context duplicate — **CLOSED** (not merged); superseded by #87. |
+| PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) | Wave 3 guest-context headers — **MERGED** 2026-09-14T12:12:30Z. |
+| Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) | Directory-back residual — **CLOSED** completed via #90. |
+| PR [#89](https://github.com/NORUDEVGIT/NORU/pull/89) | Directory-back shell UX docs — **MERGED**. |
+| PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) | Directory-back on guest-required cards — **MERGED** 2026-09-14T12:32:41Z. |
+| Issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) | Empty-state Open Directory CTA — **CLOSED** completed via #93. |
+| PR [#92](https://github.com/NORUDEVGIT/NORU/pull/92) | Empty-state Directory CTA docs residual — **MERGED**. |
+| PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) | Empty-state Open Directory button — **MERGED** 2026-09-14T12:48:14Z. |
 
 ---
 
@@ -354,7 +362,7 @@ Grounded in the Wave 3 Design Execution Report after #85 + #87 + #90. **`NOT RUN
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
 - Production migration `0051_pms_guest_profile_wave2` remains **Abel-gated** (Wave 2 leftover). Wave 3 added **no** migration.
 - Guest-context (#87) and Directory-back (#90 / #88) residuals are **RESOLVED on `main`**.
-- Empty-state Open Directory CTA is a separate residual ([#91](https://github.com/NORUDEVGIT/NORU/issues/91)) — do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
+- Empty-state Open Directory CTA (#91 / #93) is **RESOLVED on `main`**. Do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
 - Waves 4–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 

@@ -75,7 +75,7 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 |---|---|
 | Server functions | `src/packages/pms/lib/guests.functions.ts` |
 | Access helpers | `src/packages/pms/lib/guests.server.ts` |
-| Wave 1 catalogue / card lock | `src/packages/pms/lib/guest-profile-wave1.ts` — Directory / Information / Identity / Preferences / Dashboard / Stay History `live: true`; Directory-back helpers (`isGuestRequiredProfileCard`, `?card=`) |
+| Wave 1 catalogue / card lock | `src/packages/pms/lib/guest-profile-wave1.ts` — Directory / Information / Identity / Preferences / Dashboard / Stay History `live: true`; Directory-back helpers (`isGuestRequiredProfileCard`, `?card=`); empty-state CTA (`showEmptyDirectoryCta`) |
 | Wave 1 lock tests | `src/packages/pms/lib/guest-profile-wave1.test.ts` (includes AC-DIR-1…7) |
 | Wave 2 helpers / encoding | `src/packages/pms/lib/guest-profile-wave2.ts` (`id:<uuid>` / `other:<text>` prefixes; ID mask) |
 | Wave 2 lock tests | `src/packages/pms/lib/guest-profile-wave2.test.ts` |
@@ -87,6 +87,7 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 | Dashboard Overview card | `src/packages/pms/components/guests/guest-dashboard-card.tsx` |
 | Stay quick actions | `src/packages/pms/components/guests/guest-stay-actions.tsx` |
 | Directory-back control | `src/packages/pms/components/guests/guest-directory-back-link.tsx` |
+| Empty-state Directory CTA | `src/packages/pms/components/guests/guest-directory-open-button.tsx` |
 | Consent panel | `src/packages/pms/components/guests/guest-consent-panel.tsx` |
 | Merge dialog | `src/packages/pms/components/guests/guest-merge-dialog.tsx` |
 | Setup preference options | `src/packages/pms/components/settings/pms-preference-options-editor.tsx` |
@@ -173,6 +174,7 @@ Stay rows live on the **Stay History** card via `listGuestStays` (`hotel_reserva
 | Dashboard Overview card | LIVE. Selected guest’s **full name** + **This guest's overview**. KPIs: stays, nights, in-house, upcoming, last stay (or **Not available**), quoted room total / posted folio balance only when stored — never fake `0.00`. Featured in-house/upcoming stay quick actions. |
 | Quick actions | Reservation → `/restaurant/pms/reservations/$reservationId`. Front Office → `/restaurant/pms/front-office?tab=inhouse\|arrivals`. Folio → `/restaurant/pms/cashiering?tab=folios&folio=`. Hidden without surface access; disabled when the record is missing. |
 | Directory-back | Shell-level sticky **← Directory** (`GuestDirectoryBackLink`) on every LIVE guest-required card when a guest is selected. Directory itself has no back-to-Directory control. `#90` / AC-DIR-1…7. |
+| Empty-state Directory CTA | Primary **Open Directory** button (`GuestDirectoryOpenButton`) on every LIVE guest-required card when no guest is selected. `#91` / `#93` / AC-EMPTY-1…6. |
 | Setup | `/restaurant/settings#guest-profile` — `pms_preference_options` CRUD. |
 | `guest-bits.tsx` | `VipBadge` and `StatusBadge` only — not a preferences form. |
 | Catalogue | `guest-profile` — title **Guest Profile**, group `commercial`, `moduleKey` `front_office`, `implementationStatus` `partial`. |
@@ -733,6 +735,7 @@ Grounded in `main` after #85 / #87 / #90 (`0545232`). **Code wins.**
 | **Quick actions** | Per stay (and featured Dashboard stay): Reservation / Front Office / Folio. Hidden without surface access; Front Office enabled only for in-house or upcoming; Folio enabled only when `folioId` exists. Targets: `/restaurant/pms/reservations/$reservationId`, `/restaurant/pms/front-office?tab=inhouse\|arrivals`, `/restaurant/pms/cashiering?tab=folios&folio=`. |
 | **Guest-context (#87)** | Switching guests updates Dashboard / Stay History names. Empty Stay History names the current guest. |
 | **Directory-back (#90)** | Shell-level sticky **← Directory** on every LIVE guest-required card (`isGuestRequiredProfileCard`). `?card=` restores the same card after picking another guest. Directory has no back-to-Directory control. AC-DIR-1…7 **PASS**. |
+| **Empty-state Directory CTA (#91 / #93)** | Primary **Open Directory** button on guest-required cards when no guest is selected (`showEmptyDirectoryCta`). `?card=` restore. AC-EMPTY-1…6 **PASS**. |
 | **Inbound guest link** | Reservation detail and FO stay lists still link **to** Guest Profile. Wave 3 adds the reverse jumps above. |
 | **Merge residual** | `mergeGuests` still reassigns `hotel_reservations.guest_id` and does **not** rewrite `guest_folios.guest_id`. Wave 3 folio amounts follow **reservation_id**, so reassigned stays remain honest. |
 | **Migration / RLS** | **No Wave 3 migration.** Reservation RLS failure throws `WAVE3_RESERVATION_RLS_BLOCKED` (flag Abel). Existing guest-table RLS unchanged. |
@@ -886,7 +889,7 @@ DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS** (after
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
 - Wave 3 added **no** migration. Production `0051_pms_guest_profile_wave2` remains **Abel-gated** (Wave 2 leftover).
 - Guest-context (#87) and Directory-back (#90 / #88) residuals are **RESOLVED on `main`**.
-- Empty-state Open Directory CTA is a separate residual ([#91](https://github.com/NORUDEVGIT/NORU/issues/91)) — do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
+- Empty-state Open Directory CTA (#91 / #93) is **RESOLVED on `main`**. Do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
 - Waves 4–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
@@ -971,32 +974,30 @@ Passing Wave 3 implementation does **not** start Waves 4–5 — they remain **W
 
 | Item | Status on `main` |
 |---|---|
-| Guest-context headers (selected guest named on Dashboard / Stay History) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) |
-| Directory-back arrow (or shell-level sticky back-to-Directory) on guest-required cards | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) |
-| Empty / no-guest-selected Directory CTA | **OPEN** — see §5.16 |
+| Guest-context headers (selected guest named on Dashboard / Stay History) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED |
+| Directory-back arrow (or shell-level sticky back-to-Directory) on guest-required cards | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed. |
+| Empty / no-guest-selected Directory CTA | **ON MAIN** — PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) MERGED. Issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed. See §5.16. |
 
-**CURRENT.** After [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90), guest-required cards with a selected guest show a sticky **← Directory** (`GuestDirectoryBackLink`) to `/restaurant/pms/guests` (with `?card=` so Directory reopens the same card). Empty / no-guest-selected states still tell staff to open Directory in **copy only** — no primary CTA; see §5.16.
+**CURRENT.** After [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90), guest-required cards with a selected guest show a sticky **← Directory** (`GuestDirectoryBackLink`) to `/restaurant/pms/guests` (with `?card=` so Directory reopens the same card). Empty / no-guest-selected states use the §5.16 primary **Open Directory** CTA (#91 / #93).
 
-**EXPECTED.** The same Directory-back control as Information, **or** one sticky shell-level back-to-Directory, on every guest-required card — including later live cards. After Directory, staff pick another guest and land on that guest’s **same** card. No dead-end. Empty / no-guest-selected states need a primary CTA — §5.16.
+**EXPECTED.** The same Directory-back control as Information, **or** one sticky shell-level back-to-Directory, on every guest-required card — including later live cards. After Directory, staff pick another guest and land on that guest’s **same** card. No dead-end. Empty / no-guest-selected states have a primary CTA — §5.16.
 
 This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 stay / KPI / quick-action product scope.
 
 ### 5.16 Wave 3 residuals / UX consistency — Empty-state Directory CTA (Rekik 2026-09-14)
 
-> **Guest shell UX residual** (Rekik 2026-09-14, post–Wave 3). This is a Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope.
+> **Guest shell UX residual** (Rekik 2026-09-14, post–Wave 3). This is a Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope. **RESOLVED on `main`** via PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) (issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed).
 
-**REQUIRED.** Every guest-required card (Dashboard, Stay History, Identity, Preferences, and later LIVE cards) must include a **primary CTA button** in the empty / no-guest-selected state (e.g. **Open Directory** / **Select a guest**) that navigates to Guest Directory. Copy alone is not enough.
+**DELIVERED.** Every LIVE guest-required card (Dashboard, Stay History, Identity, Preferences, Information, and later LIVE cards via `showEmptyDirectoryCta`) includes a primary **Open Directory** button (`GuestDirectoryOpenButton`) in the empty / no-guest-selected state that navigates to Guest Directory. Copy alone is not enough. AC-EMPTY-1…6 **PASS**.
 
-Align with Directory-back ([#90](https://github.com/NORUDEVGIT/NORU/pull/90)): after a guest is selected, sticky **← Directory**; before selection, the empty-state CTA into Directory.
+Align with Directory-back ([#90](https://github.com/NORUDEVGIT/NORU/pull/90)): after a guest is selected, sticky **← Directory**; before selection, the empty-state CTA into Directory (`?card=` restore).
 
 | Item | Status on `main` |
 |---|---|
-| Directory-back on guest-required cards (after guest selected) | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) |
-| Empty / no-guest-selected primary CTA into Directory | **OPEN** — Engineering follow-up |
+| Directory-back on guest-required cards (after guest selected) | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90). Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed. |
+| Empty / no-guest-selected primary CTA into Directory | **ON MAIN** — PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) MERGED 2026-09-14T12:48:14Z. Issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed. |
 
-**CURRENT.** When no guest is selected, guest-required cards render `ComingCard` copy such as *“Open a guest from Directory to view this card. No guest is selected yet.”* There is **no** primary button. The 10-card nav can still select Directory, but that is not the same empty-state CTA. Directory-back (`GuestDirectoryBackLink`) appears only when `guestId` is set (`showDirectoryBack`).
-
-**EXPECTED.** The same empty-state primary CTA on every guest-required card — including later LIVE cards. Staff who land on Dashboard / Stay History / Identity / Preferences with no guest selected can press the button and go to Directory. After they pick a guest, they get the §5.15 sticky **← Directory**. No dead-end; copy-only is not sufficient.
+**CURRENT.** When no guest is selected, guest-required cards show a primary **Open Directory** button (`data-testid="guest-profile-open-directory"`) plus honest empty copy. The button navigates to `/restaurant/pms/guests` and keeps `?card=` so Directory reopens the same card after staff pick a guest. Coming-in-Wave cards stay copy-only. Directory itself has no Open Directory dead-end. After selection, §5.15 sticky **← Directory** remains.
 
 This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 stay / KPI / quick-action product scope.
 
@@ -1098,8 +1099,8 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | No invented LIVE OTA / gateway / classic NA | Every wave |
 | Tenant + `pms` + guest manage gate | Every wave unless Abel-approved change |
 | Extend existing tables / functions | Every wave |
-| Directory-back on guest-required cards | Every wave — same Information back-arrow pattern, or a shell-level sticky back-to-Directory. Wave 3 residual; see §5.15. Not Waves 4–5 product scope. |
-| Empty / no-guest-selected Directory CTA | Every wave — guest-required cards must include a primary CTA into Directory (copy alone is not enough). Wave 3 residual; see §5.16. Aligns with §5.15 / #90. Not Waves 4–5 product scope. |
+| Directory-back on guest-required cards | Every wave — same Information back-arrow pattern, or a shell-level sticky back-to-Directory. Wave 3 residual **delivered** (#90); see §5.15. Not Waves 4–5 product scope. |
+| Empty / no-guest-selected Directory CTA | Every wave — guest-required cards must include a primary CTA into Directory (copy alone is not enough). Wave 3 residual **delivered** (#91 / #93); see §5.16. Aligns with §5.15 / #90. Not Waves 4–5 product scope. |
 
 ---
 
