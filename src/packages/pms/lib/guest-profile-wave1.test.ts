@@ -6,12 +6,14 @@ import { fileURLToPath } from "node:url";
 
 import {
   DIRECTORY_BACK_ACCEPTANCE_CRITERIA,
+  EMPTY_GUEST_ACCEPTANCE_CRITERIA,
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
   GUEST_PROFILE_LEGACY_DETAIL,
   GUEST_PROFILE_LEGACY_DIRECTORY,
   GUEST_PROFILE_MODULE_KEY,
+  GUEST_PROFILE_OPEN_DIRECTORY_LABEL,
   GUEST_PROFILE_TITLE,
   GUEST_PROFILE_TYPES,
   comingInWaveLabel,
@@ -20,6 +22,7 @@ import {
   initialGuestProfileCard,
   isGuestRequiredProfileCard,
   parseGuestProfileCardSearch,
+  showEmptyDirectoryCta,
 } from "./guest-profile-wave1.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -208,6 +211,74 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     assert.doesNotMatch(directory, /GuestDirectoryBackLink|guest-profile-directory-back/);
+    assert.match(shell, /card === "directory"/);
+    assert.match(shell, /showDirectoryBack \? <GuestDirectoryBackLink/);
+  });
+});
+
+describe("Guest Profile empty guest — AC-EMPTY-1…6 (Spec §5.16)", () => {
+  it("locks AC-EMPTY-1…6", () => {
+    assert.deepEqual([...EMPTY_GUEST_ACCEPTANCE_CRITERIA], [
+      "AC-EMPTY-1",
+      "AC-EMPTY-2",
+      "AC-EMPTY-3",
+      "AC-EMPTY-4",
+      "AC-EMPTY-5",
+      "AC-EMPTY-6",
+    ]);
+  });
+
+  it("shows the empty-state CTA on every guest-required card and not on Directory or Coming cards", () => {
+    assert.equal(showEmptyDirectoryCta(false, "dashboard"), true);
+    assert.equal(showEmptyDirectoryCta(false, "stay-history"), true);
+    assert.equal(showEmptyDirectoryCta(false, "identity"), true);
+    assert.equal(showEmptyDirectoryCta(false, "preferences"), true);
+    assert.equal(showEmptyDirectoryCta(false, "information"), true);
+    assert.equal(showEmptyDirectoryCta(true, "dashboard"), false);
+    assert.equal(showEmptyDirectoryCta(false, "directory"), false);
+    assert.equal(showEmptyDirectoryCta(false, "loyalty"), false);
+    assert.equal(showEmptyDirectoryCta(false, "notes-comms"), false);
+  });
+
+  it("AC-EMPTY-1…5 guest-required empty states render a primary Open Directory button", () => {
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    const open = readRel("../components/guests/guest-directory-open-button.tsx");
+    assert.match(shell, /GuestDirectoryOpenButton/);
+    assert.match(shell, /showEmptyDirectoryCta/);
+    assert.match(shell, /emptyDirectoryFrom/);
+    assert.match(shell, /card === "dashboard"/);
+    assert.match(shell, /card === "stay-history"/);
+    assert.match(shell, /card === "identity"/);
+    assert.match(shell, /card === "information" \|\| card === "preferences"/);
+    assert.match(shell, /directoryFromCard=\{emptyDirectoryFrom\}/);
+    assert.match(open, /from "@\/shared\/components\/ui\/button"/);
+    assert.match(open, /GUEST_PROFILE_OPEN_DIRECTORY_LABEL/);
+    assert.match(open, /guest-profile-open-directory/);
+    assert.match(open, /GUEST_PROFILE_DIRECTORY_PATH/);
+    assert.match(open, /Spec §5\.16/);
+    assert.match(open, /not Waves 4–5/);
+    assert.equal(GUEST_PROFILE_OPEN_DIRECTORY_LABEL, "Open Directory");
+    assert.doesNotMatch(open, /variant=/);
+  });
+
+  it("AC-EMPTY-6 button opens Directory and reopens the same card after a guest is picked", () => {
+    const open = readRel("../components/guests/guest-directory-open-button.tsx");
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    assert.match(open, /guestProfileCardSearch\(fromCard\)/);
+    assert.match(shell, /setCard\("directory"\)/);
+    assert.match(shell, /returnCard \?\? emptyReturnCard/);
+    assert.match(directory, /guestProfileCardSearch\(returnCard\)/);
+    assert.deepEqual(guestProfileCardSearch("dashboard"), { card: "dashboard" });
+    assert.deepEqual(guestProfileCardSearch("stay-history"), { card: "stay-history" });
+    assert.equal(initialGuestProfileCard(true, "identity"), "identity");
+    assert.equal(initialGuestProfileCard(false, "dashboard"), "directory");
+  });
+
+  it("Directory itself does not render the empty-state Open Directory CTA", () => {
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    assert.doesNotMatch(directory, /GuestDirectoryOpenButton|guest-profile-open-directory/);
     assert.match(shell, /card === "directory"/);
     assert.match(shell, /showDirectoryBack \? <GuestDirectoryBackLink/);
   });

@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
 import { GuestDirectoryBackLink } from "@/packages/pms/components/guests/guest-directory-back-link";
+import { GuestDirectoryOpenButton } from "@/packages/pms/components/guests/guest-directory-open-button";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
@@ -20,6 +21,7 @@ import {
   guestProfileCardSearch,
   initialGuestProfileCard,
   isGuestRequiredProfileCard,
+  showEmptyDirectoryCta,
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
@@ -40,6 +42,7 @@ export function GuestProfileWorkspace({
   const [card, setCard] = useState<GuestProfileCardId>(
     initialGuestProfileCard(Boolean(guestId), returnCard),
   );
+  const [emptyReturnCard, setEmptyReturnCard] = useState<GuestProfileCardId | undefined>();
   const selected = guestProfileCard(card);
   const restaurantId = membership.restaurant.id;
   const fetchGuest = useServerFn(getGuest);
@@ -71,6 +74,13 @@ export function GuestProfileWorkspace({
 
   const detailSection = card === "preferences" ? "preferences" : "overview";
   const showDirectoryBack = Boolean(guestId) && isGuestRequiredProfileCard(card);
+  const emptyDirectoryFrom = showEmptyDirectoryCta(Boolean(guestId), card) ? card : undefined;
+
+  function openDirectoryFromEmpty() {
+    if (!emptyDirectoryFrom) return;
+    setEmptyReturnCard(emptyDirectoryFrom);
+    setCard("directory");
+  }
 
   return (
     <div className="space-y-6" data-testid="guest-profile-shell">
@@ -142,7 +152,7 @@ export function GuestProfileWorkspace({
         <GuestDirectoryWorkspace
           membership={membership}
           compact
-          returnCard={returnCard}
+          returnCard={returnCard ?? emptyReturnCard}
         />
       ) : (
         <>
@@ -167,6 +177,8 @@ export function GuestProfileWorkspace({
             <ComingCard
               title={selected.title}
               copy="Open a guest from Directory to view and edit this card. No guest is selected yet."
+              directoryFromCard={emptyDirectoryFrom}
+              onOpenDirectory={openDirectoryFromEmpty}
             />
           ) : card === "identity" && guestId && guestQuery.data ? (
             <GuestIdentityCard restaurantId={restaurantId} guest={guestQuery.data.guest} />
@@ -174,6 +186,8 @@ export function GuestProfileWorkspace({
             <ComingCard
               title={selected.title}
               copy="Open a guest from Directory to use this card. No guest is selected yet."
+              directoryFromCard={emptyDirectoryFrom}
+              onOpenDirectory={openDirectoryFromEmpty}
             />
           ) : card === "identity" && guestQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading guest…</p>
@@ -208,11 +222,15 @@ export function GuestProfileWorkspace({
                     : "That guest could not be found for this property."
                   : "Open a guest from Directory to view this card. No guest is selected yet."
               }
+              directoryFromCard={emptyDirectoryFrom}
+              onOpenDirectory={openDirectoryFromEmpty}
             />
           ) : (
             <ComingCard
               title={selected.title}
               copy={selected.copy ?? comingInWaveLabel(selected.wave)}
+              directoryFromCard={emptyDirectoryFrom}
+              onOpenDirectory={openDirectoryFromEmpty}
             />
           )}
         </>
@@ -221,7 +239,17 @@ export function GuestProfileWorkspace({
   );
 }
 
-function ComingCard({ title, copy }: { title: string; copy: string }) {
+function ComingCard({
+  title,
+  copy,
+  directoryFromCard,
+  onOpenDirectory,
+}: {
+  title: string;
+  copy: string;
+  directoryFromCard?: GuestProfileCardId | undefined;
+  onOpenDirectory?: (() => void) | undefined;
+}) {
   return (
     <div
       className="rounded-2xl border border-dashed border-border bg-card p-6"
@@ -229,6 +257,9 @@ function ComingCard({ title, copy }: { title: string; copy: string }) {
     >
       <p className="font-display text-lg">{title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy}</p>
+      {directoryFromCard ? (
+        <GuestDirectoryOpenButton fromCard={directoryFromCard} onOpen={onOpenDirectory} />
+      ) : null}
     </div>
   );
 }

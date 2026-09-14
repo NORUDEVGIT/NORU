@@ -114,6 +114,11 @@ export function isGuestRequiredProfileCard(id: GuestProfileCardId): boolean {
   return id !== "directory" && guestProfileCard(id).live;
 }
 
+/** Empty / no-guest-selected CTA (Spec §5.16). Later LIVE cards inherit this. */
+export function showEmptyDirectoryCta(hasGuest: boolean, card: GuestProfileCardId): boolean {
+  return !hasGuest && isGuestRequiredProfileCard(card);
+}
+
 /** Optional `?card=` so Directory-back can reopen the same guest-required card. */
 export type GuestProfileCardSearch = {
   card?: GuestProfileCardId;
@@ -152,6 +157,18 @@ export const DIRECTORY_BACK_ACCEPTANCE_CRITERIA = [
   "AC-DIR-5",
   "AC-DIR-6",
   "AC-DIR-7",
+] as const;
+
+/** Empty / no-guest CTA on guest-required cards (Wave 3 residual / #91). */
+export const GUEST_PROFILE_OPEN_DIRECTORY_LABEL = "Open Directory";
+
+export const EMPTY_GUEST_ACCEPTANCE_CRITERIA = [
+  "AC-EMPTY-1",
+  "AC-EMPTY-2",
+  "AC-EMPTY-3",
+  "AC-EMPTY-4",
+  "AC-EMPTY-5",
+  "AC-EMPTY-6",
 ] as const;
 
 export function comingInWaveLabel(wave: number): string {
