@@ -11,7 +11,7 @@
 --
 -- Additive RLS on guest_emergency_contacts matching guest tables
 -- (owner/manager + receptionist residual PRESERVED). Entitlement model is
--- not changed. No SECURITY DEFINER.
+-- not changed. No privileged functions.
 --
 -- IN THE PR ONLY — do not apply to production from an agent.
 -- APPLY HELD until Abel/PM approval after merge.

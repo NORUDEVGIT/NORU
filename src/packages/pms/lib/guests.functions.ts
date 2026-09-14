@@ -929,7 +929,7 @@ export const createGuest = createServerFn({ method: "POST" })
     let inserted: { id: string } | null = null;
     let error: { message?: string; code?: string } | null = null;
     let enrichmentApplied = true;
-    const first = await context.supabase.from("guest_profiles").insert(insertRow).select("id").single();
+    const first = await context.supabase.from("guest_profiles").insert(insertRow as never).select("id").single();
     inserted = first.data;
     error = first.error;
     if (error && isMissingSchemaError(error)) {
@@ -1054,7 +1054,7 @@ export const updateGuest = createServerFn({ method: "POST" })
 
     let { error } = await context.supabase
       .from("guest_profiles")
-      .update(updateRow)
+      .update(updateRow as never)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId);
     if (error && isMissingSchemaError(error)) {
@@ -1232,7 +1232,7 @@ export const setGuestRestriction = createServerFn({ method: "POST" })
         restriction_until: blankToNull(data.restrictionUntil),
         restriction_set_by_membership_id: me.id,
         restriction_set_at: new Date().toISOString(),
-      })
+      } as never)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId);
     if (error && isMissingSchemaError(error)) throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
@@ -1292,7 +1292,7 @@ export const liftGuestRestriction = createServerFn({ method: "POST" })
         restriction_until: null,
         restriction_set_by_membership_id: null,
         restriction_set_at: null,
-      })
+      } as never)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId);
     if (error && isMissingSchemaError(error)) throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);

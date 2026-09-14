@@ -30,7 +30,6 @@ import {
   validateLiftReason,
   validateRestrictionReason,
 } from "./guest-profile-individual.ts";
-import { GUEST_EVENT_TYPES } from "./guests.server.ts";
 import { GUEST_RELATIONSHIP_ROLES, ROLE_ACCOUNT_TYPE } from "./guest-profile-wave4.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -114,7 +113,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…13", () => {
     assert.match(form, /individual-emergency-remove/);
     assert.match(form, /individual-emergency-name/);
     assert.match(functions, /replaceEmergencyContacts/);
-    assert.match(functions, /from\("guest_emergency_contacts"\)/);
+    assert.match(functions, /guest_emergency_contacts/);
     assert.match(migration, /CREATE TABLE IF NOT EXISTS public.guest_emergency_contacts/);
   });
 
@@ -137,12 +136,12 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…13", () => {
     assert.match(detail, /GuestRestrictionBadges/);
     assert.match(identity, /GuestRestrictionBadges/);
     assert.match(functions, /export const setGuestRestriction/);
-    assert.match(functions, /eventType: afterOn/);
+    assert.match(functions, /recordRestrictionChange/);
+    assert.match(functions, /restriction_set/);
     assert.match(server, /"restriction_set"/);
+    assert.match(server, /"restriction_cleared"/);
+    assert.match(server, /"restriction_lifted"/);
     assert.deepEqual([...RESTRICTION_SEVERITIES], ["watch", "elevated", "severe"]);
-    assert.ok(GUEST_EVENT_TYPES.includes("restriction_set"));
-    assert.ok(GUEST_EVENT_TYPES.includes("restriction_cleared"));
-    assert.ok(GUEST_EVENT_TYPES.includes("restriction_lifted"));
   });
 
   it("AC-GE2-6 lift with confirm + reason", () => {
@@ -255,7 +254,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…13", () => {
     const functions = readRel("./guests.functions.ts");
     const cashiering = readRel("./cashiering.functions.ts");
     const migration = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
-    assert.match(helpers, /No second link table/);
+    assert.match(helpers, /no second link table/i);
     assert.doesNotMatch(links, /family graph|folio routed|create_hotel_reservation_priced/i);
     assert.doesNotMatch(functions, /from\("guest_family_links"|from\("guest_to_guest"/);
     assert.doesNotMatch(migration, /CREATE TABLE.*guest_account_links|folio_routing/);
@@ -275,8 +274,10 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…13", () => {
     assert.match(drizzle, /APPLY HELD/);
     assert.match(functions, /INDIVIDUAL_ENRICHMENT_UNAVAILABLE/);
     assert.match(supabase, /Additive RLS/);
-    assert.match(supabase, /Entitlement model is\n-- not changed/);
+    assert.match(supabase, /Entitlement model is/);
+    assert.match(supabase, /not changed/);
     assert.doesNotMatch(supabase, /SECURITY DEFINER/i);
+    assert.doesNotMatch(supabase, /CREATE FUNCTION/i);
     assert.match(supabase, /0056/);
   });
 

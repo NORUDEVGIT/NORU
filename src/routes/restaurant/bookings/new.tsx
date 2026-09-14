@@ -251,7 +251,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               ) : null}
             </ul>
           </div>
-        )}
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-4">
