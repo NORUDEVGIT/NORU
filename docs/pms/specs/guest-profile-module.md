@@ -820,7 +820,7 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12 at Wave 1 depth. When 
 | Lock Waves 3–5 product intent behind wave gates | Start Stay History / masters / privacy finish from this reconciliation |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
 | Record that Waves 1–2 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
-| Record preference `id:` / `other:` prefix honesty and production 0051 hold | Pretend stored prefixes are Setup FKs, or treat code merge as production apply |
+| Record Wave 2 approved deviations (prefix honesty; #76 / #79 process note; Developer browser PARTIAL) and production 0051 hold | Pretend stored prefixes are Setup FKs, treat #79 as a new wave, or treat code merge as production apply |
 
 ---
 
