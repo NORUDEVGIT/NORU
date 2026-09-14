@@ -11,6 +11,7 @@
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
 | **Wave 4 Spec** | Wave 4 **code LIVE on `main`** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. This Wave 5 recon does **not** reopen Wave 4. |
 | **Wave 5 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN**. ENGINEERING STATUS **COMPLETE / MERGED** (eng exited). IMPLEMENTATION STATUS **PASS**. **OPERATIONALLY ACCEPTED** / closed. Programme **READY FOR HOTEL UAT**. PR [#101](https://github.com/NORUDEVGIT/NORU/pull/101) MERGED 2026-09-14T14:22:35Z. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed (Rekik formal closure YES). Module COMPLETE remains **NO**. |
+| **Gap-edit 2 Spec** | **Eng-ready** (Rekik HOLD 2026-09-15 — staged-create). ENGINEERING **IMPLEMENTATION IN PROGRESS** on [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA PASS on #111 is **HELD** until staged-create is Spec’d and implemented. Linking **AC-GE2-9…13** + Identity **AC-GE2-14** require staged-create on New Guest. Does **not** claim implemented / PASS / LIVE / COMPLETE. Does **not** reopen Waves 1–5 or Gap-edit 1 (§8). Migration **`0057`** Abel/PM gated (0056 is Polish Wave 1). Module COMPLETE remains **NO**. |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
 | **Engineering assignment** | Waves 1–5 engineering complete / exited on `main`. Wave 5 **OPERATIONALLY ACCEPTED**. Programme **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**. |
 | **Product requirement** | Rekik 2026-09-14 — Waves 1–5 accepted and implemented; programme **READY FOR HOTEL UAT**; module COMPLETE remains **NO** |
@@ -29,11 +30,13 @@
 >
 > **Gap-edit 1 Spec ACCEPTED for Engineering** (Rekik 2026-09-14 via Hospitality Product Advisor). Eng-ready catch-up. Gate **OPENED**. Technical Implementation Plan **APPROVED** 2026-09-14. ENGINEERING **IMPLEMENTATION IN PROGRESS**. Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) OPEN. Coding AUTHORIZED on `feature/103-company-registration-enrichment`. Gap-edit 1 is **not** implemented (no PASS / LIVE / COMPLETE). Additive Company master UX/schema on Wave 4 `guest_account_masters` / `guest_account_links`. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. This addendum does **not** reopen those waves. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)) — do **not** treat this section as a Wave 5 rewrite. Migration `0055` Abel/PM gated. The module is **not** COMPLETE (hotel UAT still required).
 >
+> **Gap-edit 2 Spec Eng-ready** (Rekik HOLD 2026-09-15 — staged-create amendment). ENGINEERING **IMPLEMENTATION IN PROGRESS** on issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA PASS on #111 is **HELD** until staged-create UX is Spec’d and implemented. Gap-edit 2 is **not** implemented (no PASS / LIVE / COMPLETE). New Guest **Create** must stage ID files and Company/Group/TA + role **before** submit, then create → upload (Wave 2) → link (Wave 4) under one action. **After-save-only on create is no longer the product bar.** Edit-after-save Identity / Linking paths remain. See **§9**. This addendum does **not** reopen Waves 1–5 as incomplete. It does **not** reopen or rewrite Gap-edit 1 (§8 / #103 / #105) as incomplete. Migration **`0057`** Abel/PM gated (Eng used 0057; 0056 is Polish Wave 1 on `main`). The module is **not** COMPLETE (hotel UAT still required).
+>
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 remain the accepted contract (now implemented; AC-W4-5 PARTIAL residual). Wave 5 ACs in §7 are the accepted contract and are **IMPLEMENTED ON MAIN** (#101). Wave 5 is **OPERATIONALLY ACCEPTED** / engineering exited. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed. Programme is **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 remain the accepted contract (now implemented; AC-W4-5 PARTIAL residual). Wave 5 ACs in §7 are the accepted contract and are **IMPLEMENTED ON MAIN** (#101). Wave 5 is **OPERATIONALLY ACCEPTED** / engineering exited. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed. Gap-edit 1 ACs in §8 remain that batch’s contract — this document does **not** rewrite them. Gap-edit 2 ACs in **§9** are **Eng-ready**; ENGINEERING **IMPLEMENTATION IN PROGRESS** on PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) — Independent QA is **HELD** until staged-create. They are **not** implemented / PASS / LIVE / COMPLETE. Programme is **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**.
 
 ---
 
@@ -247,6 +250,8 @@ Waves 1–5 **preserved** this inconsistency. It is a documented residual, not a
 | Production schema 0053 | Non-prod `qcwptraosaudcbjasmul` applied (`20260914134631`). **Production NOT applied** (Abel-gated). Wave 4 surfaces degrade to `WAVE4_MIGRATION_UNAVAILABLE` until apply. |
 | Production schema 0054 | Non-prod `qcwptraosaudcbjasmul` applied (`20260914142046`). **Production NOT applied** (Abel / PM gated). Wave 5 surfaces degrade to `WAVE5_MIGRATION_UNAVAILABLE` until apply. |
 | Preference id mapping | Stored as `id:` / `other:` prefixes in text columns — honesty item, not a Setup FK. |
+| Sectioned Individual form + emergency / employment / alt contact | **Not LIVE.** Flat `GuestFormDialog` (Wave 1–2). Gap-edit 2 EXPECTED — see **§9**. Not a Wave 1–2 defect. |
+| Blacklist / restricted product flag | **Not LIVE.** No Directory / Information restriction badge. Gap-edit 2 EXPECTED — see **§9**. |
 
 ### 2.8 Must-not-claim (CURRENT)
 
@@ -2037,9 +2042,420 @@ Exit product summary: sectioned Company form (Basic open); required legal name +
 
 ---
 
-## 9. Cross-wave QA / security / regression (Wave 5)
+## 9. Gap-edit 2 — Individual form enrichment + blacklist / restricted
 
-Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. Wave 4 QA / Security / Regression live in §6.12–§6.14 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Wave 5 QA / Security / Regression live in §7.15–§7.17 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Gap-edit 1 QA / Security / Regression live in §8.10–§8.12 at Wave 1 depth (`NOT RUN` ≠ `PASS`). These rules hold:
+| Field | Value |
+|---|---|
+| **TITLE** | Guest Profile Module — Gap-edit 2 Individual form enrichment + blacklist / restricted |
+| **PACKAGE** | PMS |
+| **PMS AREA** | Guests |
+| **SPEC STATUS** | **Eng-ready** (Rekik HOLD 2026-09-15 — staged-create amendment). Linking Scope C **REQUIRED** on New Guest **before** submit. |
+| **ENGINEERING STATUS** | **IMPLEMENTATION IN PROGRESS** on [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA PASS on #111 is **HELD** until staged-create is Spec’d and implemented. Gap-edit 2 is **not** implemented (no PASS / LIVE / COMPLETE). Migration **`0057`** Abel/PM gated (APPLY HELD). Eng used **0057** because **0056** is Polish Wave 1 on `main`. |
+| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. Receptionist residual **PRESERVED**. Additive RLS that **matches** existing guest-table roles is expected and is **not** a model change. |
+| **Depends on** | Waves 1–2 Individual form + Identity **LIVE on `main`**. Wave 2 `guest_documents` APIs **LIVE**. Wave 4 Relationships card **LIVE** (not rewritten here). Wave 5 privacy suite **LIVE** (export / anonymise field lists extend — Wave 5 is **not** reopened). Gap-edit 1 (§8 / #103 / #105) is a **separate Company batch** — do **not** reopen or rewrite it. |
+| **REQUIREMENTS** | **Locked** from the product requirement (Rekik APPROVED 2026-09-15) + **HOLD amendment** (Rekik 2026-09-15): staged-create on New Guest (**AC-GE2-9…14**) |
+
+> **Gap-edit 2 Spec Eng-ready** (Rekik HOLD 2026-09-15 — staged-create). ENGINEERING **IMPLEMENTATION IN PROGRESS** on [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA on #111 is **HELD** until staged-create ships.
+>
+> This section is the testable engineering contract (**AC-GE2-1…34**, Linking create-path = **AC-GE2-9…13**, staged Identity = **AC-GE2-14**). It does **not** claim Gap-edit 2 implemented / PASS / LIVE / COMPLETE. Do **not** reopen Waves 1–5 as incomplete. Do **not** reopen or rewrite Gap-edit 1 (§8) as incomplete. Do **not** claim the **module** COMPLETE (hotel UAT still required). Migration **`0057`** Abel/PM gated (APPLY HELD).
+>
+> Wave 1–2 delivered a **flat** Individual `GuestFormDialog` plus a **separate** Identity & Documents **card**. That contract **remains accepted**. Gap-edit 2 **enriches** the Individual create/edit path (including **staged-create**), adds a front-desk restriction flag, and adds Individual-side **Linking / Relationships** that reuses Wave 4 `guest_account_links`. **After-save-only on create is no longer the product bar.**
+
+### 9.1 Business purpose
+
+Give authorised staff a **sectioned Individual create/edit modal** (basic identity, contact, address, collocated ID upload, employment, emergency contacts, light commercial notes), a **blacklist / restricted** product flag that is obvious on Directory and Information, and an Individual-side **Linking / Relationships** section that attaches existing Company / Group / Travel Agent masters **on New Guest / Create** (staged) **and** after save — so front desk can register a complete individual, attach ID files and commercial links in **one Create**, see a clear stay-path warning, and keep Relationships in sync without inventing KYC, police export, Import, folio routing, a guest↔guest family graph, or new reservation / Front Office products. **After-save-only on create is no longer the product bar.**
+
+Gap-edit 2 is Guest-owned **Individual enrichment**. It is **not** Company further edits, **not** Group/TA form enrichment, **not** Import, **not** a Folio tab, **not** loyalty points, **not** rich Comms, **not** AC-W4-5 create-reservation boil-in, **not** government KYC, **not** a guest-to-guest family graph, and **not** a Wave 1–5 reopen.
+
+### 9.2 CURRENT behaviour (code wins)
+
+Grounded in `main` at `6b6ac0e` (after [#101](https://github.com/NORUDEVGIT/NORU/pull/101) Wave 5; after [#105](https://github.com/NORUDEVGIT/NORU/pull/105) Company enrichment code; after [#107](https://github.com/NORUDEVGIT/NORU/pull/107) Polish Wave 1). **Code wins.** Inspected: `guest-form-dialog.tsx`, `guest-detail-workspace.tsx` Information Identity panel, `guest-identity-card.tsx`, `guest-bits.tsx`, `guest-directory-workspace.tsx`, `guest-relationships-card.tsx`, `guest-accounts.functions.ts`, `guest-profile-wave4.ts` (`GUEST_RELATIONSHIP_ROLES` / `ROLE_ACCOUNT_TYPE`), `guests.functions.ts` `GuestProfile` / Wave 2 document APIs, `guest-profile-wave2.ts` (`STAFF_VERIFY_COPY`), `fo-check-in.functions.ts` guest joins, `reservations.functions.ts` `create_hotel_reservation_priced`.
+
+| Surface | CURRENT |
+|---|---|
+| **Individual create / edit** | Flat `GuestFormDialog`. Fields: first name\* (Wave 1; SET3 may also require last name / phone-or-email), last name, phone, email, nationality, language, date of birth, address line1/2, city, region, country, postal, ID **text** (type / number / expiry), VIP switch, notes. **No** collapsible sections. **No** title, middle name, preferred name, gender. **No** alternative phone/email. **No** guest-status control on the form (deactivate / reactivate lives on Information). **No** Position / Department. **No** emergency contacts. **No** source of business. Helper copy sends document images to the Identity **card**. |
+| **Information** | Overview panels: contact / address / **masked** Identity **text** + Reveal / notes / VIP / consent. Identity panel is text-only — **no** upload. History tab is profile events, not stay history. |
+| **Identity & Documents card** | **LIVE** (Wave 2): `createGuestDocumentUpload` / `registerGuestDocument` / `listGuestDocuments` / `reviewGuestDocument`. Storage `guest_documents` + `property-images` at `{restaurantId}/guests/{guestId}/{uuid}.{ext}`. Staff verify / reject with actor + time. Copy: *“Staff confirmation only. This is not government verification or KYC.”* Upload is **card-discovered**, not on the form or Information Identity panel. |
+| **Directory** | `listGuests` + `VipBadge` / `StatusBadge` only. **No** restricted / blacklisted badge. |
+| **Restriction** | **No** product flag. `guest_profiles` has no restriction / blacklist columns. No set / lift UI, no history events, no stay-path warn. |
+| **Emergency / employment** | **Not** on `GuestProfile` / `GuestFormDialog`. **Not** on Company (Gap-edit 1 correctly kept Position / Department **off** Company — AC-GE1-16). |
+| **Stay paths that already touch this guest** | `create_hotel_reservation_priced` takes `_guest_id`. FO check-in stepper **reads / writes** the same ID **text** + core profile columns. FO stay lists join `guest_profiles` for name / VIP. Reservation **detail** links to the Guest profile. **No** restriction warn on those paths. AC-W4-5 residual **stands** (create-reservation does **not** take master IDs). |
+| **Wave 2 duplicate warn** | Open existing / Create anyway / optional Merge CTA — **no** Compare UI. |
+| **Relationships** | Wave 4 `GuestRelationshipsCard` **LIVE** on the individual **and** the master (`?card=relationships`). Search + single-select + one role + **Link relationship**. Roles: `employer` / `bill_to` / `booker_ta` / `group_member` via `guest_account_links`. Unlink deletes the **link** only. **Not** on `GuestFormDialog`. Gap-edit 1 Company multi-link is a **separate** Company-side batch (§8). |
+| **Migrations on `main`** | `0051` Wave 2 · `0053` Wave 4 · `0054` Wave 5 · `0055` Company enrichment · `0056` Polish Wave 1 payment/admin/fee presets **already on `main`**. Authorized Gap-edit 2 migration is **`0057` Abel/PM gated (APPLY HELD)**. Eng used **0057** because **0056** is Polish Wave 1. Do **not** overwrite `0056_pms_polish1_payment_methods_admin_fee_presets.sql`. |
+
+#### Must-not-claim (CURRENT)
+
+- The flat Wave 1–2 Individual form is **not** a defect and is **not** reopened as incomplete.
+- Wave 2 Identity **card** upload / mask / staff verify is **LIVE** and **accepted**. Gap-edit 2 **collocates** upload; it does **not** invent a second document store.
+- Gap-edit 1 Company enrichment is a **separate** batch (§8). This section does **not** rewrite §8 or treat #103 / #105 as incomplete.
+- Staff verify is **not** government KYC today and must not become that.
+- This Spec does **not** implement Gap-edit 2.
+
+### 9.3 EXPECTED behaviour (Gap-edit 2)
+
+#### Scope A — Sectioned Individual create / edit modal
+
+Replace the **flat** Individual `GuestFormDialog` with a **collapsible sectioned** modal. Company / Group / TA dialogs are **out of this batch** (Company already has its own sectioned form from Gap-edit 1 — do not restyle or reopen it here).
+
+| Section | Default | Fields |
+|---|---|---|
+| **1. Basic** | **Open** | Title; first name\* ; middle name; last name; preferred name; gender; date of birth; nationality; language; VIP; status `active` / `inactive` |
+| **2. Contact** | Collapsed | Primary phone; alternative phone; primary email; alternative email |
+| **3. Address** | Collapsed | Line 1; line 2; city; region / state; country; postal code (**mostly LIVE** — keep these fields in this section; do not drop them) |
+| **4. Identity** | Collapsed | ID type / number / expiry (**LIVE** text) **+ file upload collocated** (reuse Wave 2 `guest_documents` APIs — **no second store**). Staff verify only — **not** government KYC. |
+| **5. Employment** | Collapsed | Position; Department (**intentionally on the individual**, not on Company) |
+| **6. Emergency** | Collapsed | Emergency contact(s): name, relationship, phone, email. Add / remove. Multiple contacts **OK** if the UI stays simple. |
+| **7. Notes / commercial light** | Collapsed | Notes (reuse `notes`); source of business (**optional**) |
+| **8. Linking / Relationships** | Collapsed · **staged on Create** + after save | Staff may pick Company / Group / TA + role **before** first submit. One **Create** writes Wave 4 `guest_account_links` after the guest row exists. Edit-after-save Linking **remains**. See **Scope C** and **Staged create**. |
+
+Staff can create and edit an Individual with these sections. Values persist. Reload shows the same values. Wave 1 **first name required** and walk-in first-name-only (AC-W1-15) **remain**, including any saved SET3 overlay (phone-or-email / last name). Do **not** invent a new “all sections required” rule that blocks walk-ins.
+
+**Identity upload (locked honesty):**
+
+| Rule | Expected |
+|---|---|
+| **Store** | Reuse Wave 2 `createGuestDocumentUpload` / `registerGuestDocument` / `listGuestDocuments` / `reviewGuestDocument` and `guest_documents`. **No** second bucket, table, or parallel writer. |
+| **Where** | Upload must work from the **form Identity section** and from the **Information Identity section** — not card-only discovery. The Identity & Documents **card remains** (Wave 2 not reopened). Sharing one widget / helper is preferred. |
+| **Create vs edit** | Wave 2 APIs require a `guestId`. On **New Guest**, staff **must** be able to **stage ID file(s) before submit**. One **Create** inserts the guest, then uploads staged files via Wave 2 `guest_documents`. **Eng-chooses save-first-only is no longer enough.** Edit-after-save upload **remains**. **No silent drop.** If insert succeeds but upload fails, the guest **exists** — show **retry**, never silent full success. |
+| **Verify** | Staff verify / reject stays the Wave 2 staff-confirmation flow (actor + time). Form upload may leave the document `unverified` until review. Copy must stay *staff confirmation only — not government KYC*. |
+| **Mask** | Ordinary Directory / Information still **mask** the ID number (last four + Reveal). |
+
+**Emergency contacts:**
+
+| Rule | Expected |
+|---|---|
+| **Capability** | The Emergency section can store **one or more** contacts (name, relationship, phone, email). Add / remove works. |
+| **Walk-in** | An empty Emergency section is **allowed** on create (preserves AC-W1-15). Do **not** block first-name-only create because no emergency contact was entered. |
+| **Partial row** | If staff start a contact row, require **name** and **at least one** of phone / email (same email validation as primary email when present). Discard truly empty rows honestly — no silent junk rows. |
+| **Persistence** | Prefer a **normalized** `guest_emergency_contacts` table (multi). JSON on `guest_profiles` is acceptable only if Eng proves multi add/remove is simpler that way — default is the table. |
+
+**Employment:** Position and Department are free-text on the **individual**. They must **not** appear on the Company form (AC-GE1-16 stands).
+
+#### Scope B — Blacklist / restricted (IN THIS BATCH)
+
+Staff mark an **individual** as **restricted** or **blacklisted** so front desk sees a clear restriction. One flag + severity / reason type is OK.
+
+| Behaviour | Expected |
+|---|---|
+| **Model** | One status: `none` \| `restricted` \| `blacklisted` (or equivalent flag + severity). Intent: a **clear front-desk restriction**, not two unrelated products. `blacklisted` is the stronger badge. |
+| **Set** | Required **reason**. Recorded **by** + **at**. Optional **until / expiry** if cheap (display metadata; auto-clear on read vs hotel-today is OK if cheap — **do not** invent a background job). |
+| **Visible** | Badge **and** alert on **Directory** and **Information** (and Identity / profile header). Coexists with VIP and active/inactive badges — does not replace them. |
+| **History** | `guest_profile_history` event on **set** and on **clear / lift** (suggested types `restriction_set` / `restriction_cleared`). Information History tab shows them. |
+| **Lift** | Clear / lift requires **confirm + reason**. Not a silent toggle. |
+| **Stay paths** | **Warn** (minimum) on stay paths that **already** touch this guest if easy: create-reservation guest pick (`create_hotel_reservation_priced` / New reservation), FO check-in stepper when it loads this guest, and FO stay-list / amend attach if those surfaces already show VIP/name. Strong, visible UI (banner / alert), not a one-shot toast only. |
+| **Hard block** | **Do not** invent a new reservation or Front Office product. Hard block on create-reservation / check-in **only if** this Spec **and Abel** agree. **Prefer warn + strong UI first.** **Flag Abel** if a hard block needs an entitlement / RLS **model** change. If Eng cannot warn on a path without a new product, record an **OUT-OF-SCOPE FINDING** — do not invent the path. |
+| **Findability** | Restricted / blacklisted individuals remain **findable** in Directory (badged). Do not hide them from authorised staff. |
+| **Not** | Not Import. Not police / government export. Not a KYC claim. Not a Company / Group / TA flag in this batch. |
+
+#### Scope C — Linking / Relationships (Rekik amendment 2026-09-15; staged-create HOLD 2026-09-15)
+
+Individual-side counterpart to Gap-edit 1’s Company multi-link. **Reuse Wave 4 `guest_account_links` only.** **Staged-create on New Guest is the product bar.** After-save-only on create is **no longer** enough. Edit-after-save Linking **remains**.
+
+| Behaviour | Expected |
+|---|---|
+| **Where** | A **Linking / Relationships** section on Individual **create and edit**. On **New Guest**, staff **may** search + pick Company / Group / TA + role **before** submit (staged). After first save, Linking stays available (edit-after-save). **Do not** hide Linking on unsaved New Guest. |
+| **Pick** | Search + pick an **existing** same-property Company, Group, or Travel Agent master (`listGuestAccounts`). Do **not** create a master from this section. |
+| **Roles** | Reuse Wave 4 only: `employer` \| `bill_to` \| `booker_ta` \| `group_member`. Role must match master type (`ROLE_ACCOUNT_TYPE`: employer/bill-to → Company; `booker_ta` → Travel Agent; `group_member` → Group). **No new roles.** |
+| **Write** | On Create: staged picks write **after** the guest row exists, via `linkGuestAccount` (or a thin wrapper that inserts the **same** rows + history). On edit: confirm writes immediately. Unique `(restaurant_id, guest_id, master_id, role)` stands. Duplicate pair: reject or skip honestly. **Do not** invent a pre-id link table. |
+| **List + unlink** | After create / on edit, section lists linked masters + role. Unlink uses `unlinkGuestAccount` — **deletes the link only**; individual and master **remain**. |
+| **Relationships card** | **Remains.** Links created here (including staged-create) appear on `GuestRelationshipsCard` and on the master side. Links created on the card appear here. **Same store.** |
+| **Company multi-link** | Gap-edit 1 Company-side linker **remains** and is **not** rewritten. This is the Individual-side counterpart. |
+| **Not** | **No** second link table. **No** folio routing invent (`transfersSupported: false` stands). **No** guest↔guest family graph. **No** AC-W4-5 create-reservation boil-in. |
+
+#### Staged create (Rekik HOLD 2026-09-15)
+
+On **New Guest / Create**, staff may attach ID file(s) **and** choose Company / Group / TA + role **before** submit. One **Create** must, under the hood:
+
+1. **Create the guest** (same validation — first name required, walk-in first-name-only still works).
+2. **If files staged:** upload via Wave 2 `guest_documents` (no second store).
+3. **If masters / roles chosen:** write Wave 4 `guest_account_links` (`employer` \| `bill_to` \| `booker_ta` \| `group_member`).
+4. **Navigate** to profile / success with **links + docs visible**.
+
+Eng implements this on the **same PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111)**. Independent QA PASS on #111 is **HELD** until this ships.
+
+**Honesty on partial failure:** If create succeeds but upload or link fails, the guest **still exists**. Show **clear retry UI** (retry upload / retry link). **Never** silent full success.
+
+Edit-after-save Linking + Identity upload paths **remain**. **After-save-only on create is no longer the product bar.**
+
+| CURRENT vs EXPECTED | |
+|---|---|
+| **CURRENT (`main` / #111 at HOLD)** | Identity upload and Linking on Individual **create** are after-save-only (or hidden until the guest exists). That is **no longer enough**. |
+| **EXPECTED** | Same Wave 2 / Wave 4 stores. **Plus** staged ID files + staged Linking **on Create**, then edit-after-save on the same modal and Relationships card. |
+
+#### Honesty / reuse
+
+| Rule | Expected |
+|---|---|
+| **Reuse** | Extend `guest_profiles`, `GuestFormDialog`, Information, Directory badges, Wave 2 document APIs, and `guest_profile_history`. Do **not** restart. Do **not** add a peer guest package. |
+| **Wave 2 Identity card** | Remains LIVE. Collocation **adds** upload to form / Information Identity — it does **not** delete the card. |
+| **Wave 2 consent** | Stays on Information (+ Privacy). **Not** moved into this form. |
+| **Preferences** | Stay on the Preferences **card**. **Not** moved into this form. |
+| **Wave 4 Relationships** | Individual Relationships **card remains** and stays in sync with Scope C (same `guest_account_links` store). Do **not** hide or replace the card. |
+| **Wave 5 privacy** | When Eng ships new Individual PII (alt contact, employment, emergency contacts, restriction reason), extend the **existing** export / anonymise field lists. Do **not** reopen Wave 5 ACs as failed. |
+| **Merge** | Controlled merge still moves documents. Emergency contacts move to the survivor (or are copied then retired). A restriction on either party must **not** disappear silently — keep the more severe status on the survivor and write history. |
+| **Waves 1–5 + GE1** | LIVE / accepted surfaces stay. This gap-edit **extends** Individual only. |
+| **Scope C links** | Reuse `guest_account_links` / `linkGuestAccount` / `unlinkGuestAccount`. No second table. No folio routing. No guest↔guest family. |
+| **Duplicates** | Wave 1 warn remains. **Compare** on duplicates is out unless trivial — do not invent a compare product. |
+
+### 9.4 Locked requirements
+
+| Part | EXPECTED |
+|---|---|
+| **(A) Sectioned Individual form** | Seven collapsible profile sections; Basic open by default; first name still required; address stays in Address; Identity upload collocated via Wave 2 APIs; employment on individual; emergency add/remove; notes + optional source of business. |
+| **(B) Restriction** | Restricted / blacklisted with required reason, actor + time, optional until; badges on Directory + Information (+ header / Identity); history on set/clear; lift with confirm + reason; warn on existing stay paths if easy; no KYC / Import / police export. |
+| **(C) Linking / Relationships** | On **New Guest**, staff may stage Company / Group / TA + role **before** submit. One **Create** writes Wave 4 `guest_account_links` after the guest exists. Edit-after-save Linking **remains**. Relationships card stays in sync. No second table; no folio routing; no guest↔guest family. Partial upload/link failure after create → retry UI, never silent full success. |
+| **(D) Honesty** | No second document store. No entitlement-model change unless Abel-flagged. Waves 1–5 and Gap-edit 1 not reopened. Module not COMPLETE. Hard block only with Abel. |
+
+### 9.5 Field inventory (Individual)
+
+Wave 1 required **first name** stays on `first_name`. New columns are **additive** and nullable.
+
+| Section | UI label | API (camelCase) | DB column | Req. | Persistence |
+|---|---|---|---|---|---|
+| Basic | Title | `title` | `title` | No | Additive. Enum: `mr` \| `mrs` \| `ms` \| `miss` \| `mx` \| `dr` \| `other` (nullable) |
+| Basic | First name | `firstName` | `first_name` | **Yes** | Reuse Wave 1 |
+| Basic | Middle name | `middleName` | `middle_name` | No | Additive |
+| Basic | Last name | `lastName` | `last_name` | No (SET3 may require) | Reuse |
+| Basic | Preferred name | `preferredName` | `preferred_name` | No | Additive |
+| Basic | Gender | `gender` | `gender` | No | Additive. Enum: `female` \| `male` \| `non_binary` \| `unspecified` \| `prefer_not_to_say` (nullable) |
+| Basic | Date of birth | `dateOfBirth` | `date_of_birth` | No | Reuse |
+| Basic | Nationality | `nationality` | `nationality` | No | Reuse |
+| Basic | Language | `language` | `language` | No | Reuse |
+| Basic | VIP | `vipStatus` | `vip_status` | No (default false) | Reuse |
+| Basic | Status | `guestStatus` | `guest_status` | Yes (default `active`) | Reuse — also expose on the form (today deactivate is Information-only) |
+| Contact | Primary phone | `phone` | `phone` | No (SET3 overlay) | Reuse |
+| Contact | Alternative phone | `phoneAlt` | `phone_alt` | No | Additive |
+| Contact | Primary email | `email` | `email` | No (SET3 overlay) | Reuse (existing validation) |
+| Contact | Alternative email | `emailAlt` | `email_alt` | No | Additive (same email validation if present) |
+| Address | Line 1 … postal | existing | existing | No | **Reuse** — keep in Address section |
+| Identity | ID type / number / expiry | existing | existing | No | **Reuse** |
+| Identity | File upload | Wave 2 document APIs | `guest_documents` | No | **Reuse Wave 2** — no second store |
+| Employment | Position | `position` | `job_position` | No | Additive (avoid SQL `position` clash if needed — Eng may use `employment_position`) |
+| Employment | Department | `department` | `department` | No | Additive — **individual only** |
+| Emergency | Name / relationship / phone / email | `emergencyContacts[]` | `guest_emergency_contacts` | No on create | **Prefer normalized table** |
+| Notes | Notes | `notes` | `notes` | No | Reuse |
+| Notes | Source of business | `sourceOfBusiness` | `source_of_business` | No | Additive — text only |
+| Restriction | Status | `restrictionStatus` | `restriction_status` | Default `none` | Additive. `none` \| `restricted` \| `blacklisted` |
+| Restriction | Reason | `restrictionReason` | `restriction_reason` | **Yes if** status ≠ `none` | Additive |
+| Restriction | Recorded at | `restrictionRecordedAt` | `restriction_recorded_at` | Set by server | Additive |
+| Restriction | Recorded by | `restrictionRecordedBy` | `restriction_recorded_by` | Set by server | Additive — staff membership id |
+| Restriction | Until | `restrictionUntil` | `restriction_until` | No | Additive date, optional |
+| Restriction | Lift reason | history only | `guest_profile_history` | **Yes on lift** | Do **not** require a second live column if history holds it |
+| Linking | Linked masters + role | Wave 4 `linkGuestAccount` | `guest_account_links` | Staged on Create + after save | **Reuse Wave 4** — no new columns. Roles `employer` \| `bill_to` \| `booker_ta` \| `group_member`. Staged picks write after guest insert. |
+
+**Suggested title labels (UI):** Mr · Mrs · Ms · Miss · Mx · Dr · Other.
+
+**Suggested gender labels (UI):** Female · Male · Non-binary · Unspecified · Prefer not to say.
+
+**Suggested restriction labels (UI):** Restricted (warn) · Blacklisted (stronger warn). Do not use “KYC failed”, “police hold”, or “government blocked”.
+
+**Directory display seed:** show restriction badge next to VIP / status. Preferred name may display as secondary (`preferredName` or `preferredName (first last)`) — pick one honest pattern. Search still finds first / last / preferred / phone / email.
+
+**Not in this inventory:** Import mapping, folio routing, loyalty points, Compare-duplicates UI, Company/Group/TA form fields, police export payload, guest↔guest family edges.
+
+### 9.6 Restriction + stay-path rules (Scope B)
+
+| Rule | Expected |
+|---|---|
+| **Who can set / lift** | Same guest manage gate as `updateGuest` / `setGuestVip`. Do **not** invent a new “security officer” role unless Abel-flagged. |
+| **Reason** | Non-blank trimmed text on set **and** on lift. |
+| **Actor + time** | Server-stamped from the signed-in membership — client-supplied “by / at” is not trusted. |
+| **Until** | Optional. If set and hotel-today is after until, Eng **may** treat the flag as lapsed on read (honest “expired” badge) **or** leave it until staff lift. Pick one; document it. No cron required. |
+| **Badges** | Directory row + Information header / Identity area. Colour stronger for `blacklisted` than `restricted`. Include a short alert with reason (authorised staff only). |
+| **History** | Append-only. Set payload includes status + reason (+ until if set). Lift payload includes lift reason. |
+| **Warn (minimum)** | When staff select this guest on **New reservation** / `create_hotel_reservation_priced` guest pick, and when **FO check-in** loads this guest’s profile, show the restriction alert **before** or **with** the save / check-in action. If FO arrivals already render VIP, adding the badge there is in-scope **if easy**. |
+| **Hard block** | **Out** unless Abel + this Spec agree in writing on the implementation PR. Default pass is **warn**. Flag Abel if RLS / create-reservation RPC must change to enforce a block. |
+| **Anonymise** | Scrub restriction **reason** and emergency / employment / alt contact PII. Restriction **status** may remain as operational or be cleared — Eng picks one honest behaviour and extends Wave 5 anonymise lists. |
+
+### 9.6a Linking / Relationships rules (Scope C)
+
+| Rule | Expected |
+|---|---|
+| **When** | On **New Guest / Create** (stage Company / Group / TA + role **before** submit) **and** after the guest is saved (edit-after-save). Linking is **not** hidden on unsaved New Guest. Staged picks do **not** write until Create inserts the guest. |
+| **Who** | Same-property Company / Group / Travel Agent masters (`listGuestAccounts`). Retired / anonymised masters follow existing Wave 4–5 list honesty. |
+| **Select** | Search + pick one master, choose a Wave 4 role that matches that master’s type, confirm. Confirm with no master selected is an honest no-op or validation — **not** a silent success. Multi-pick in one confirm is OK if simple; not required. |
+| **Role map** | `employer` / `bill_to` → Company; `booker_ta` → Travel Agent; `group_member` → Group. A mismatched type is rejected with the existing Wave 4 `assertRoleMatchesType` honesty. |
+| **Write** | One `guest_account_links` row per guest + master + role. Reuse `linkGuestAccount`. History `relationship_linked` on guest + master (Wave 4). |
+| **Visible both sides** | Individual Linking section **and** Relationships card **and** the master’s Relationships / Gap-edit 1 Company list (AC-W4-10 / AC-GE1-14 stand). |
+| **Unlink** | Per link, existing `unlinkGuestAccount`. Individual and master remain. History `relationship_unlinked`. |
+| **Schema** | **No** new links table. Scope C does **not** by itself require `0057` columns. |
+
+### 9.7 Migration note
+
+| Item | Rule |
+|---|---|
+| **Shape** | **Additive columns** on `guest_profiles` + **normalized** `guest_emergency_contacts` (preferred for multi) **or** JSON if Eng records why the table is worse. Restriction columns on `guest_profiles`. History event types additive on the existing check/constraint if one exists. |
+| **File** | Authorized: dual-lane **`0057`** Abel/PM gated (APPLY HELD) — additive `guest_profiles` columns + `guest_emergency_contacts`. Mirror `supabase/migrations/` and `drizzle/migrations/`. **Honesty:** Eng used **0057** because `main` already has Polish Wave 1 `0056_pms_polish1_payment_methods_admin_fee_presets.sql`. Do **not** overwrite that file. Do **not** claim the GE2 gate is still 0056. |
+| **Emergency table (preferred)** | `id`, `restaurant_id`, `guest_id`, `name`, `relationship`, `phone`, `email`, `sort_order`, timestamps. Composite tenant FK / `restaurant_id` match on `guest_profiles`. Cascade or explicit delete with the guest (including Wave 5 anonymise). |
+| **RLS** | Additive policies on `guest_emergency_contacts` **matching** `guest_profiles` (owner / manager). Additive columns inherit `guest_profiles` RLS. **Additive RLS OK.** **Flag Abel** if the entitlement **model** must change (new roles, receptionist expansion, security-definer in an exposed schema, hard-block RPC). |
+| **Non-prod apply** | Expected on `qcwptraosaudcbjasmul` during Eng after Abel path. Record version. **Not** claimed from this Spec. |
+| **Production apply** | **0057 Abel / PM gated (APPLY HELD).** Same hold as 0051 / 0053 / 0054 / 0055. Do **not** treat Spec merge or Eng code merge as production schema apply. |
+| **Degrade** | Surfaces that need the new columns / table show an honest unavailable message until apply (follow `WAVE2_MIGRATION_UNAVAILABLE` / Wave 4–5 pattern). Suggested token `WAVE_GE2_MIGRATION_UNAVAILABLE`. |
+| **Wave 5 columns** | Do **not** drop or rewrite `anonymised_at` / merge ledger / privacy behaviour. |
+
+### 9.8 Out of this batch
+
+| Out | Belongs |
+|---|---|
+| Import | Out |
+| Folio tab on the individual | Cashiering / later |
+| Loyalty points | Never invent (Wave 4 Loyalty honesty stands) |
+| Rich Comms / marketing cloud | Wave 5 hub honesty stands — do not invent send |
+| AC-W4-5 create-reservation master-ID boil-in | **Stands.** Do **not** boil `create_hotel_reservation_priced` master IDs from this gap-edit |
+| Group / TA form enrichment | Later — **not** this batch |
+| Company further edits | Gap-edit 1 (§8) is separate. Do **not** reopen or extend Company here |
+| Compare on duplicates | Out unless trivial; Wave 1 warn remains |
+| Guest-to-guest family graph | Later — **not** this batch. Linking is individual → existing Company / Group / TA masters only |
+| Folio split / routing from a link | Cashiering / later. Bill-to remains an **association** (`transfersSupported: false`) |
+| Hard block on create-reservation / check-in | Only if Spec + Abel agree; prefer warn |
+| Police / government export | Never invent |
+| KYC / government identity verification claim | Never invent — staff verify only |
+| Production migration `0057` apply | Abel / PM — APPLY HELD; not this Spec. (`0056` is Polish Wave 1 on `main` — do not overwrite.) |
+| Entitlement / RLS **model** change | Flag Abel; additive matching RLS is OK |
+| Reopening Waves 1–5 as incomplete | Forbidden |
+| Reopening / rewriting Gap-edit 1 as incomplete | Forbidden |
+| Claiming **module COMPLETE** | Hotel UAT + docs + Advisor close still required |
+
+### 9.9 Acceptance criteria (testable)
+
+Staff in the ACs are **authorised**: signed-in, property membership, package **pms**, and they pass the existing guest manage gate. “Denied staff” fail that gate or lack `pms`.
+
+`NOT RUN` is never `PASS`. Do **not** record AC-GE2-\* as PASS from this Spec.
+
+| ID | Criterion | Pass |
+|---|---|---|
+| **AC-GE2-1** | Individual create / edit uses a **sectioned** modal (Basic, Contact, Address, Identity, Employment, Emergency, Notes / commercial light). Linking / Relationships is **Scope C** (staged on Create + after save). | Open New Guest and Edit guest. Seven named profile sections are present. Basic is **expanded** by default. Other profile sections are **collapsed** by default and can be opened. Linking is **available on unsaved New Guest** (stage picks) and after save (**AC-GE2-9**). Company / Group / TA dialogs are not restyled by this batch. |
+| **AC-GE2-2** | **First name** remains required; walk-in first-name-only still works. | Save with empty first name → validation, no row (or no update). Create with first name only → guest exists in Directory. SET3 overlay (if saved) still applies — this batch does not remove it. |
+| **AC-GE2-3** | **Basic** fields persist (title, middle, last, preferred name, gender, DOB, nationality, language, VIP, status). | Set each; reload Information / Edit; values match. Status `inactive` is findable with the Directory status filter (AC-W1-9 stands). |
+| **AC-GE2-4** | **Contact** fields persist (primary + alternative phone / email). | All four save and reload. Primary and alternative email use existing email validation when present. Invalid alternative email is rejected. |
+| **AC-GE2-5** | **Address** stays in the Address section and still persists. | Line1/2, city, region, country, postal save and reload. Wave 1 address columns are **not** dropped. |
+| **AC-GE2-6** | **Identity text** (type / number / expiry) lives in the Identity section and still persists. | Same columns as Wave 1–2. Directory / Information still **mask** the number (last four + Reveal). |
+| **AC-GE2-7** | Identity **file upload is collocated** on the create/edit form Identity section and **reuses Wave 2 `guest_documents` APIs**. | From New / Edit guest, staff attach an allowed file (jpeg/png/webp/pdf, Wave 2 size cap). A `guest_documents` row exists for that guest. Diff adds **no** peer documents table or bucket. Identity **card** still lists the same document. |
+| **AC-GE2-8** | Upload also works from the **Information Identity** section — not card-only discovery. | On Information, Identity panel can start the same Wave 2 upload. Card-only helper copy that sends staff away is removed or replaced with an in-section control. |
+| **AC-GE2-9** | On **New Guest**, staff may **search + pick** existing same-property Company / Group / Travel Agent masters **and a role before submit**. Edit-after-save Linking **remains**. | Unsaved New Guest can **stage** a master + role (Linking is **not** hidden). Staged picks do **not** write a link until Create inserts the guest. After create or on Edit, staff can still search and pick. Other-property masters are not listed / are rejected. A type-mismatched role (e.g. Group + `employer`) is rejected. **After-save-only on create fails this AC.** |
+| **AC-GE2-10** | One **Create** (and edit confirm) **writes `guest_account_links`** with a Wave 4 role only: `employer` \| `bill_to` \| `booker_ta` \| `group_member`. | Staged Company + `employer` or `bill_to` on Create → link row after guest insert. TA + `booker_ta` and Group + `group_member` succeed. Diff adds **no** peer links table and **no** pre-id link table. History matches Wave 4 (`relationship_linked`). Duplicate guest+master+role is rejected or skipped honestly. If guest create succeeds but the link write fails, show **retry** — never silent full success. |
+| **AC-GE2-11** | After create / on edit, the section **lists** linked masters + role and can **unlink** without deleting the guest or master. | After staged-create, profile / success shows the link. List shows master name + type + role. Unlink → row gone; individual still in Individual Directory; Company / Group / TA still in their Directory. |
+| **AC-GE2-12** | **Relationships card remains** and shows the **same links** (same store; no second system), including links written by staged-create. | A link created in Scope C (Create or edit) appears on `GuestRelationshipsCard`. A link created on the card appears in the Linking section. Gap-edit 1 Company multi-link still works and is **not** rewritten. |
+| **AC-GE2-13** | Scope C create-path and edit-path do **not** invent a guest↔guest family graph, folio split / routing, or AC-W4-5 boil-in. | No individual-to-individual family picker. No “folio routed” success. `transfersSupported: false` unchanged. `create_hotel_reservation_priced` still does not take master IDs. Staged-create does not invent a second store. |
+| **AC-GE2-14** | Create-path Identity upload is **staged**: staff attach file(s) **before** submit; one **Create** uploads via Wave 2 after guest insert. | Creating a guest **and** attaching a file from the form succeeds without a silent “upload ignored”. The file is held until `createGuest` returns, then uploaded via `guest_documents` (no second store). Profile / success shows the document. **Save-first-only (hide upload until after save) fails this AC.** If insert succeeds but upload fails, the guest **exists** — show **clear retry UI**; never silent full success. Edit-after-save upload **remains**. |
+| **AC-GE2-15** | Staff verify remains **staff confirmation only** — **no KYC claim**. | Verify / reject still uses Wave 2 review APIs + actor + time. Visible copy does **not** say government verification, KYC, or police check. `STAFF_VERIFY_COPY` honesty stands. |
+| **AC-GE2-16** | **Employment** Position and Department persist on the **individual** and are **not** on Company. | Both save and reload on that guest. Company modal still has no Position / Department (AC-GE1-16). |
+| **AC-GE2-17** | **Emergency** contacts: add / remove; fields persist; multi allowed. | Add one contact (name + phone or email); reload; row matches. Add a second; both remain. Remove one; the other remains. Empty Emergency on first-name-only create still succeeds. |
+| **AC-GE2-18** | **Notes** and optional **source of business** persist. | Notes still use `notes`. Source of business saves and reloads. No rate-plan picker, no “source applied” commercial engine. |
+| **AC-GE2-19** | Staff can set **restricted** or **blacklisted** only with a **reason**; server records **by + at**. | Set with blank reason → blocked. Set with reason → status persists; recorded by / at are populated from the session, not a client spoof. Optional until persists when provided. |
+| **AC-GE2-20** | Restriction is **visible** on Directory and Information (and Identity / header). | Directory row shows a Restricted or Blacklisted badge (with VIP/status still visible). Information shows badge + alert including reason. Header / Identity area also shows the badge or the same alert. |
+| **AC-GE2-21** | **History** records set and clear. | After set, Information History (or hub feed) shows a restriction-set event with reason. After lift, a restriction-cleared event with lift reason. Events are not stay-history rows. |
+| **AC-GE2-22** | **Lift / clear** requires confirm + reason. | Lift without confirm does not clear. Lift with reason → status `none`; badge gone; guest still in Directory. Silent toggle is a fail. |
+| **AC-GE2-23** | Stay paths that **already** touch this guest **warn** (minimum) if easy. | New reservation guest pick and FO check-in stepper (when that guest is loaded) show a visible restriction warning. No new reservation / FO module is created. AC-W4-5 residual is **not** boiled. |
+| **AC-GE2-24** | **No hard block** unless Abel + Spec agree; prefer warn + strong UI. | Create-reservation / check-in still complete after the warning (staff can proceed). If Eng adds a hard block, the PR must record Abel agreement. If a path cannot warn without a new product, Eng records OUT-OF-SCOPE FINDING — not a silent miss presented as PASS. |
+| **AC-GE2-25** | Gap-edit 2 does **not** invent Import, Folio tab, loyalty points, rich Comms, police export, or a KYC claim. | No import wizard, no folio-routing success, no points widget, no marketing send, no police-export download, no “government verified” copy. |
+| **AC-GE2-26** | Denied staff cannot read or write enrichment fields, emergency contacts, documents, restriction state, or Scope C links. | Same property, role outside the working gate: no new PII, no restriction reason, no links. Other-property guest / master ids fail. Public / unauthenticated users redirect to login. |
+| **AC-GE2-27** | Individual data, emergency contacts, documents, restriction, and links stay **tenant-scoped**. | Property 2 does not see property 1 guests, contacts, files, restriction reason, or `guest_account_links`. `restaurantId` from the client is not trusted alone. |
+| **AC-GE2-28** | **No** entitlement / RLS **model** change unless Abel-flagged. | Diff has no new package and no new RLS role model. Additive RLS matching guest-table roles is OK. Receptionist residual **PRESERVED**. Hard-block RPC / security-definer in an exposed schema **flags Abel**. |
+| **AC-GE2-29** | Waves 1–5 LIVE surfaces **remain**. Gap-edit 1 is **not** reopened or rewritten as incomplete. | Individual Directory / Information, Identity card, Preferences, merge, consent, Stay History, Dashboard, Loyalty, Relationships, Wave 5 hub / privacy (as documented on `main`), and Company / Group / TA masters still work on the same routes. §8 ACs are not edited by this section. AC-W4-5 residual is **not** boiled. |
+| **AC-GE2-30** | Production schema apply is **not** claimed from this Spec or from Eng merge. | Migration **`0057`** is Abel/PM-gated (APPLY HELD). Surfaces degrade honestly until apply. Production 0051 / 0053 / 0054 / 0055 holds are untouched. Do **not** overwrite Polish Wave 1 file `0056_pms_polish1_payment_methods_admin_fee_presets.sql` already on `main`. Eng used **0057** because **0056** is Polish Wave 1. |
+| **AC-GE2-31** | This gap-edit does **not** claim the **module COMPLETE**. | Copy / DER / PR do not mark Guest Profile COMPLETE. Hotel UAT remains required. |
+| **AC-GE2-32** | Wave 5 export / anonymise **extend** to new Individual PII without failing Wave 5. | Export JSON includes new profile fields / emergency contacts / restriction reason (authorised privacy officer). Anonymise scrubs that PII. Wave 5 ACs stay PASS — this is an extension, not a reopen. |
+| **AC-GE2-33** | Preferences stay on the Preferences card; consent stays on Information (+ Privacy); Identity **card** remains. | Edit guest does not become the Preferences editor. Consent panel still works. Identity card still lists / verifies the same `guest_documents`. |
+| **AC-GE2-34** | Wave 1 duplicate **warn** remains; Compare is **not** required. | Email/phone match still offers Open existing / Create anyway / optional Merge. No silent merge. No new Compare product unless Eng lands a trivial extra and records it as approved deviation. |
+
+#### Gap-edit 2 AC results
+
+DESIGN COMPLETION: **Eng-ready** (Gap-edit 2 Spec — Rekik HOLD 2026-09-15 staged-create amendment; plan APPROVED with Linking). IMPLEMENTATION STATUS: **IN PROGRESS** on PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) (not PASS). Independent QA on #111 is **HELD** until staged-create ships. Approved deviations: **NONE** yet.
+
+`NOT RUN` is never `PASS`. Do **not** record AC-GE2-\* as PASS from this Spec. Do **not** claim Gap-edit 2 implemented / LIVE / COMPLETE.
+
+### 9.10 QA (Gap-edit 2)
+
+`NOT RUN` is never `PASS`. Live PMS UI that is not exercised stays **NOT VERIFIED**.
+
+| ID | Check | Notes |
+|---|---|---|
+| **QA-GE2-1** | Authorised happy path: Directory → New Guest → sectioned form → first name → create → find in Directory. | Browser, signed-in PMS session. |
+| **QA-GE2-2** | Basic open by default; other profile sections collapsed; all seven profile sections can be opened. Linking **available on New Guest** (stage Company / Group / TA + role before submit). | Screenshot + note. After-save-only Linking on create is a **fail**. |
+| **QA-GE2-3** | Required-field validation: empty first name. Walk-in first-name-only still creates. | |
+| **QA-GE2-4** | Persist / reload: title, middle, preferred, gender, both phones, both emails, full address, employment, notes, source of business, status. | |
+| **QA-GE2-5** | Identity upload from **form** and from **Information** Identity section; same document on Identity card; no second store. | Create-path **must** stage file(s) before submit; one Create uploads via Wave 2. If upload fails after create, retry UI — not silent success. |
+| **QA-GE2-6** | Staff verify copy is not KYC; mask still on Directory / Information. | Screenshot + note. |
+| **QA-GE2-7** | Emergency: add two contacts; remove one; walk-in with zero contacts still works. | |
+| **QA-GE2-8** | Set restricted with reason → badges on Directory + Information + header/Identity → history event. | |
+| **QA-GE2-9** | Set blacklisted; lift with confirm + reason; badge gone; history has clear event. | |
+| **QA-GE2-10** | New reservation guest pick **and** FO check-in (if that guest is loaded) show a restriction **warn**. No new Res/FO product. | If a path is skipped, record OUT-OF-SCOPE FINDING. |
+| **QA-GE2-11** | Company form still has no Position / Department. Group/TA not enriched by this batch. | |
+| **QA-GE2-12** | **Staged-create:** New Guest → stage Company + employer → Create. Link + docs (if staged) visible on profile / Relationships card **and** Company detail. Also exercise edit-after-save Linking. Unlink; both parties remain. | Partial link failure after create → retry, not silent success. |
+| **QA-GE2-13** | Link a TA as booker and a Group as member; type-mismatch role is rejected. No guest↔guest picker. | |
+| **QA-GE2-14** | `tsc --noEmit` (or project equivalent) + lock tests on the implementation PR. | Developer lane. |
+| **QA-GE2-15** | Independent QA after Developer QA — **HELD** until staged-create is implemented on [#111](https://github.com/NORUDEVGIT/NORU/pull/111). | Do **not** record Independent QA PASS on #111 while Create is after-save-only. Hotel UAT is **module** DoD. |
+
+### 9.11 Security (Gap-edit 2)
+
+| ID | Check |
+|---|---|
+| **SEC-GE2-1** | Unauthenticated visit to Guest canonical routes (including Individual create / edit / restriction / Linking) redirects to login. |
+| **SEC-GE2-2** | Membership **without** package `pms` cannot use enriched Individual fields, emergency contacts, restriction, or Scope C links. |
+| **SEC-GE2-3** | Staff who fail `canManageGuests` / `requireGuestManager` cannot read or write enrichment, documents, restriction reason, or links. |
+| **SEC-GE2-4** | Tenant isolation: new columns, emergency contacts, documents, restriction, and links re-derive `restaurantId` from membership. Property 1 guest / master is not returned for property 2. |
+| **SEC-GE2-5** | No new public / customer route exposes ID numbers, emergency contacts, restriction reason, or employment. |
+| **SEC-GE2-6** | Lift is not a silent clear. Restriction set is not a silent no-op presented as success when reason is blank. Linking confirm with zero masters selected is not a silent success. Unlink is not a silent delete of people or masters. Create succeeding while upload or link fails is **not** presented as full success. |
+| **SEC-GE2-7** | Do not log full ID numbers, restriction reasons, or emergency phones in client telemetry if that channel does not already. |
+| **SEC-GE2-8** | RLS / role model unchanged unless Abel-flagged. Receptionist vs owner/manager inconsistency remains **documented**, not silently “fixed”. Additive policies must not widen receptionist access beyond the documented residual. |
+| **SEC-GE2-9** | No KYC / government-verification claim in UI, API errors, or export filenames. |
+
+### 9.12 Regression (Gap-edit 2)
+
+| ID | Check |
+|---|---|
+| **REG-GE2-1** | Wave 1 Individual Directory / Information create / find / edit still work on the same routes. First name required. Duplicate warn still Open existing / Create anyway. |
+| **REG-GE2-2** | Wave 2 Identity **card** / Preferences / merge / consent still work. Merge still reassigns `hotel_reservations.guest_id` and documents; emergency contacts follow the survivor. |
+| **REG-GE2-3** | Wave 3 Stay History, Dashboard Overview, quick actions, guest-context, Directory-back, and empty-state Open Directory still work. |
+| **REG-GE2-4** | Wave 4 Company / Group / TA masters, Relationships both sides, honest Loyalty, and profile-type switcher still work. Scope C links use the same card/store. AC-W4-5 residual **untouched**. |
+| **REG-GE2-5** | Wave 5 Notes / Comms / Activity and Admin & Privacy remain as documented on `main` (do **not** mark Wave 5 incomplete). Export / anonymise still run; Eng extends field lists to new Individual PII. |
+| **REG-GE2-6** | Gap-edit 1 Company sectioned form + multi-link **not** rewritten or treated as incomplete. Position / Department stay off Company. Company-side Link guests still works. |
+| **REG-GE2-7** | Sales & Events placeholder remains planned. Cashiering `transfersSupported: false` unchanged. |
+| **REG-GE2-8** | No new package; no second `guest_documents` store; no second relationship table; no guest↔guest family graph. |
+| **REG-GE2-9** | No invented LIVE OTA, gateway settlement, classic nightly NA, Import, Folio tab, loyalty points, police export, or KYC. |
+| **REG-GE2-10** | Guest Services placeholder remains requests / concierge — not this module. |
+| **REG-GE2-11** | Individual `vipStatus`, status deactivate/reactivate, and existing badges still work alongside the new restriction badge. |
+| **REG-GE2-12** | Production 0051 / 0053 / 0054 Abel-gates remain; this gap-edit does not apply them. Production **`0057`** (Gap-edit 2) is Abel/PM gated (APPLY HELD) and is **not** claimed applied. Polish 0056 file on `main` is not overwritten. |
+
+### 9.13 Gap-edit 2 permissions (summary)
+
+| Check | Rule |
+|---|---|
+| Package | **pms** |
+| Module access | Existing `front_office` role check inside `requireGuestManager` |
+| Manage flag | Existing `getGuestsAccess` → `canManageGuests` |
+| RLS | Existing owner / manager policies on `guest_profiles` / `guest_documents` / `guest_profile_history`; additive columns inherit. `guest_emergency_contacts` additive RLS **matches**. Additive RLS that matches is **not** a model change |
+| Gap-edit 2 change | Individual enrichment **writes**, document upload, restriction set/lift, emergency CRUD, and Scope C links use the same chain (`linkGuestAccount` / `unlinkGuestAccount`). **Flag Abel** if a new entitlement type, RLS role, or hard-block RPC is proposed |
+| Reservations / FO | Warn on existing guest-touch paths only. This batch does **not** widen reservation-create or check-in entitlements |
+
+### 9.14 Gap-edit 2 exit
+
+Gap-edit 2 **exits for engineering-gate purposes** only after:
+
+1. Rekik **approval** of this Spec — **DONE** 2026-09-15 via Hospitality Product Advisor (this document)
+2. Rekik **tech-plan approval** (issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109)) — **DONE** (CONDITIONAL PLAN APPROVAL satisfied; Linking REQUIRED already on the amended TIP; coding AUTHORIZED)
+3. Implementation against this §9 contract (extend Individual form / `guest_profiles` / Wave 2 documents / history / Wave 4 `guest_account_links` — do **not** restart; do **not** reopen Waves 1–5 or Gap-edit 1) — **IN PROGRESS** on PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) / `feature/109-individual-form-enrichment`. **Must include staged-create** (one Create: guest → upload → links → navigate). After-save-only on create is **not** exit-ready.
+4. Developer QA recorded (`NOT RUN` ≠ `PASS`)
+5. Independent QA **PASS** — **HELD** until staged-create is Spec’d and implemented on #111
+6. Human merge of the implementation PR
+7. Design Execution Report
+8. Docs reconciliation to `main` (code wins)
+
+Migration `0057` remains **Abel / PM gated** for production (APPLY HELD). (`0056` is Polish Wave 1 on `main`.)
+
+**Hotel UAT** is **not** required to start Gap-edit 2 engineering. Hotel UAT **is** required for **module COMPLETE**.
+
+This Spec records that Gap-edit 2 is **Eng-ready** and coding is **AUTHORIZED / IN PROGRESS** (HOLD QA until staged-create). It does **not** claim Gap-edit 2 implemented / PASS / LIVE / COMPLETE. It does **not** claim Waves 1–5 incomplete. It does **not** rewrite Gap-edit 1 as incomplete. The module is **not** COMPLETE.
+
+Exit product summary: sectioned Individual form (Basic open); first name still required; Contact / Address / collocated Identity upload (Wave 2 store); **staged ID files + staged Linking on New Guest Create** (one action: create → upload → link → navigate; partial-failure retry); edit-after-save Identity / Linking remain; Employment on individual; emergency contacts add/remove; notes + optional source of business; restricted / blacklisted with reason, badges, history, lift; warn on existing stay paths; Wave 4 `guest_account_links` (**AC-GE2-9…13**); Relationships card stays in sync; no KYC / Import / police export / folio routing / guest↔guest family; tenant/auth honesty; production migration `0057` Abel-gated (APPLY HELD).
+
+---
+
+## 10. Cross-wave QA / security / regression (Wave 5)
+
+Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. Wave 4 QA / Security / Regression live in §6.12–§6.14 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Wave 5 QA / Security / Regression live in §7.15–§7.17 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Gap-edit 1 QA / Security / Regression live in §8.10–§8.12 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Gap-edit 2 QA / Security / Regression live in §9.10–§9.12 at Wave 1 depth (`NOT RUN` ≠ `PASS`). These rules hold:
 
 | Rule | Apply |
 |---|---|
@@ -2058,11 +2474,19 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Empty / no-guest-selected Directory CTA | Every wave — guest-required cards must include a primary CTA into Directory (copy alone is not enough). Wave 3 residual **delivered** (#91 / #93); see §5.16. Aligns with §5.15 / #90. Later LIVE cards inherit. |
 | No second relationship system | Gap-edit 1 — reuse `guest_account_links` |
 | No Company rate engine | Gap-edit 1 — negotiated rate is name/code text only |
-| Do not reopen Waves 1–5 as incomplete | Gap-edit 1 (and later gap-edits) |
+| Do not reopen Waves 1–5 as incomplete | Gap-edit 1 and Gap-edit 2 |
+| Do not reopen or rewrite Gap-edit 1 as incomplete | Gap-edit 2 (§9) — §8 remains that batch’s contract |
+| No second document store | Gap-edit 2 — reuse Wave 2 `guest_documents` |
+| No KYC / government-verification claim | Gap-edit 2 — staff verify only |
+| Prefer restriction **warn**, not hard block | Gap-edit 2 — flag Abel if hard block needs a model change |
+| Individual Linking reuses `guest_account_links` | Gap-edit 2 Scope C — no second table; Relationships card remains |
+| Emergency contacts prefer a normalized table | Gap-edit 2 — JSON only if Eng records why |
+| Gap-edit 2 migration **0057** Abel/PM gated (APPLY HELD) | Do **not** claim applied; do **not** overwrite Polish 0056 file on `main`. Eng used 0057 because 0056 is Polish Wave 1. |
+| Staged-create on New Guest (ID files + Linking before submit) | Gap-edit 2 — after-save-only on create is **not** the product bar; partial failure → retry, never silent full success |
 
 ---
 
-## 10. What this Spec does not do
+## 11. What this Spec does not do
 
 | This Spec does | This Spec does **not** |
 |---|---|
@@ -2078,6 +2502,7 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Record that Waves 1–4 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
 | Record Wave 3 approved deviations (#85 early merge → #87; #86 duplicate of #87; Developer browser PARTIAL) | Treat those process notes as product defects, or treat Developer PARTIAL as PASS |
 | Record Wave 4 approved deviations (AC-W4-5 create-RPC residual; Developer browser PARTIAL) and production 0053 hold | Treat the create-RPC residual as a defect, apply production 0053 without Abel/PM, or treat Developer PARTIAL as PASS |
+| Record Gap-edit 2 as **Eng-ready** with ENGINEERING **IN PROGRESS** and Independent QA **HELD** until staged-create (§9, Linking **AC-GE2-9…13**, Identity **AC-GE2-14**) | Claim Gap-edit 2 implemented / PASS / LIVE / COMPLETE, treat after-save-only create as the bar, reopen Waves 1–5 or Gap-edit 1, invent KYC / Import / police export / folio routing / guest↔guest family / hard-block Res-FO products, or claim the module COMPLETE |
 
 ---
 
@@ -2092,6 +2517,8 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 > Wave 4 **code LIVE on `main`** (#97). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Do **not** claim Wave 4 unimplemented. This recon does **not** reopen Wave 4.
 >
 > Wave 5 **IMPLEMENTED ON MAIN** (#101). ENGINEERING STATUS **COMPLETE / MERGED** (eng exited). IMPLEMENTATION STATUS **PASS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed (Rekik formal closure YES). Wave 5 is **OPERATIONALLY ACCEPTED** / closed. Programme **READY FOR HOTEL UAT**.
+>
+> **Gap-edit 2 Spec Eng-ready** (§9). Rekik HOLD 2026-09-15 — staged-create. ENGINEERING **IMPLEMENTATION IN PROGRESS** on #109 / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA on #111 is **HELD** until staged-create. Linking **AC-GE2-9…13** + Identity **AC-GE2-14**. Does **not** claim implemented / PASS / LIVE / COMPLETE. Does **not** reopen Waves 1–5 or Gap-edit 1. Migration `0057` Abel/PM gated (0056 is Polish Wave 1). Module COMPLETE remains **NO**.
 >
 > Module COMPLETE remains **NO** until hotel UAT PASS + this docs recon merge + Advisor module close.
 >
