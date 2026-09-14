@@ -216,7 +216,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
                 />
               </div>
               <Button asChild variant="outline">
-                <Link to="/restaurant/guests">
+                <Link to="/restaurant/pms/guests">
                   <UserPlus className="size-4 sm:mr-2" />
                   <span className="hidden sm:inline">Create guest</span>
                 </Link>

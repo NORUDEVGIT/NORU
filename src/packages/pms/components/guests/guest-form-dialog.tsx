@@ -18,6 +18,14 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { ID_DOCUMENT_LABELS, ID_DOCUMENT_TYPES } from "@/packages/pms/lib/fo-check-in";
+import {
   createGuest,
   findGuestDuplicates,
   updateGuest,
@@ -39,6 +47,9 @@ export interface GuestFormValues {
   region: string;
   country: string;
   postalCode: string;
+  idDocumentType: "" | "passport" | "national_id" | "driving_licence" | "other";
+  idDocumentNumber: string;
+  idDocumentExpiry: string;
   vipStatus: boolean;
   notes: string;
 }
@@ -57,6 +68,9 @@ const EMPTY: GuestFormValues = {
   region: "",
   country: "",
   postalCode: "",
+  idDocumentType: "",
+  idDocumentNumber: "",
+  idDocumentExpiry: "",
   vipStatus: false,
   notes: "",
 };
@@ -76,6 +90,9 @@ function fromProfile(guest: GuestProfile): GuestFormValues {
     region: guest.region ?? "",
     country: guest.country ?? "",
     postalCode: guest.postalCode ?? "",
+    idDocumentType: guest.idDocumentType ?? "",
+    idDocumentNumber: guest.idDocumentNumber ?? "",
+    idDocumentExpiry: guest.idDocumentExpiry ?? "",
     vipStatus: guest.vipStatus,
     notes: guest.notes ?? "",
   };
@@ -131,6 +148,9 @@ export function GuestFormDialog({
     region: form.region,
     country: form.country,
     postalCode: form.postalCode,
+    idDocumentType: form.idDocumentType || null,
+    idDocumentNumber: form.idDocumentNumber,
+    idDocumentExpiry: form.idDocumentExpiry,
     vipStatus: form.vipStatus,
     notes: form.notes,
   };
@@ -256,16 +276,26 @@ export function GuestFormDialog({
             <Input value={form.language} onChange={(e) => set("language", e.target.value)} />
           </Field>
           <Field label="Date of birth">
-            <Input type="date" value={form.dateOfBirth} onChange={(e) => set("dateOfBirth", e.target.value)} />
+            <Input
+              type="date"
+              value={form.dateOfBirth}
+              onChange={(e) => set("dateOfBirth", e.target.value)}
+            />
           </Field>
           <Field label="Country">
             <Input value={form.country} onChange={(e) => set("country", e.target.value)} />
           </Field>
           <Field label="Address line 1">
-            <Input value={form.addressLine1} onChange={(e) => set("addressLine1", e.target.value)} />
+            <Input
+              value={form.addressLine1}
+              onChange={(e) => set("addressLine1", e.target.value)}
+            />
           </Field>
           <Field label="Address line 2">
-            <Input value={form.addressLine2} onChange={(e) => set("addressLine2", e.target.value)} />
+            <Input
+              value={form.addressLine2}
+              onChange={(e) => set("addressLine2", e.target.value)}
+            />
           </Field>
           <Field label="City">
             <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
@@ -276,6 +306,45 @@ export function GuestFormDialog({
           <Field label="Postal code">
             <Input value={form.postalCode} onChange={(e) => set("postalCode", e.target.value)} />
           </Field>
+          <Field label="ID type">
+            <Select
+              value={form.idDocumentType || "none"}
+              onValueChange={(value) =>
+                set(
+                  "idDocumentType",
+                  value === "none" ? "" : (value as GuestFormValues["idDocumentType"]),
+                )
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Not recorded" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not recorded</SelectItem>
+                {ID_DOCUMENT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {ID_DOCUMENT_LABELS[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="ID number">
+            <Input
+              value={form.idDocumentNumber}
+              onChange={(e) => set("idDocumentNumber", e.target.value)}
+            />
+          </Field>
+          <Field label="ID expiry">
+            <Input
+              type="date"
+              value={form.idDocumentExpiry}
+              onChange={(e) => set("idDocumentExpiry", e.target.value)}
+            />
+          </Field>
+          <p className="sm:col-span-2 text-xs text-muted-foreground">
+            ID text only — no document upload in Wave 1.
+          </p>
           <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
             <Label htmlFor="guest-vip">VIP guest</Label>
             <Switch
@@ -286,7 +355,11 @@ export function GuestFormDialog({
           </div>
           <div className="sm:col-span-2">
             <Field label="Notes">
-              <Textarea rows={3} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+              <Textarea
+                rows={3}
+                value={form.notes}
+                onChange={(e) => set("notes", e.target.value)}
+              />
             </Field>
           </div>
         </div>

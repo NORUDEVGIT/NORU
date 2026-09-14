@@ -37,23 +37,23 @@ export const Route = createFileRoute("/restaurant/pms/guest-services")({
     <RestaurantShell active="PMS" pmsModule="guest-services">
       {(m) => (
         <div className="space-y-8">
-        <PmsPlaceholder
-          title="Guest Services"
-          icon={ConciergeBell}
-          description="Requests, concierge tasks and guest preferences across the stay."
-          planned={[
-            "Guest requests with ownership and follow-up",
-            "Concierge task board tied to the stay",
-            "Preferences and VIP handling on the guest profile",
-          ]}
-        >
-          <Link
-            to="/restaurant/guests"
-            className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
+          <PmsPlaceholder
+            title="Guest Services"
+            icon={ConciergeBell}
+            description="Requests, concierge tasks and guest preferences across the stay."
+            planned={[
+              "Guest requests with ownership and follow-up",
+              "Concierge task board tied to the stay",
+              "Preferences and VIP handling on the guest profile",
+            ]}
           >
-            <UserRound className="size-4" /> Open guest profiles
-          </Link>
-        </PmsPlaceholder>
+            <Link
+              to="/restaurant/pms/guests"
+              className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
+            >
+              <UserRound className="size-4" /> Open Guest Profile
+            </Link>
+          </PmsPlaceholder>
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["inventory"]} />
         </div>
       )}

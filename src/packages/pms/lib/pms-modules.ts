@@ -15,6 +15,7 @@ import {
   TrendingUp,
   MoonStar,
   ConciergeBell,
+  UserRound,
   PartyPopper,
   Globe,
   BarChart3,
@@ -191,9 +192,22 @@ export const PMS_MODULES: PmsModule[] = [
     implementationStatus: "existing",
   },
   {
+    key: "guest-profile",
+    title: "Guest Profile",
+    description:
+      "Individual guest directory and information. Company, group and travel-agent masters come later.",
+    icon: UserRound,
+    group: "commercial",
+    moduleKey: "front_office",
+    canonicalRoute: "/restaurant/pms/guests",
+    legacyRoutes: ["/restaurant/guests", "/restaurant/pms/reservations/guests"],
+    domain: "pms",
+    implementationStatus: "partial",
+  },
+  {
     key: "guest-services",
     title: "Guest Services",
-    description: "Guest profiles today; requests and concierge tracking are planned.",
+    description: "Guest requests and concierge tracking — planned.",
     icon: ConciergeBell,
     group: "commercial",
     moduleKey: "front_office",
@@ -230,8 +244,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "reports",
     title: "Reports & Analytics",
-    description:
-      "Hotel reporting: occupancy, revenue and rooms-side operations.",
+    description: "Hotel reporting: occupancy, revenue and rooms-side operations.",
     icon: BarChart3,
     group: "intelligence",
     moduleKey: "reports_analytics",

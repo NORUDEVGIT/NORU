@@ -7,6 +7,8 @@ import { ArrowLeft, Pencil, Power, StickyNote } from "lucide-react";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
+import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -44,16 +46,17 @@ const EVENT_LABEL: Record<string, string> = {
 export function GuestDetailWorkspace({
   membership,
   guestId,
-  backTo = "guests",
+  backTo = "guest-profile",
 }: {
   membership: RestaurantMembership;
   guestId: string;
-  backTo?: "guests" | "reservations";
+  backTo?: "guests" | "reservations" | "guest-profile";
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const goBack = () => {
     if (backTo === "reservations") void navigate({ to: "/restaurant/pms/reservations" });
+    else if (backTo === "guest-profile") void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
     else void navigate({ to: "/restaurant/guests" });
   };
   const queryClient = useQueryClient();
@@ -149,7 +152,9 @@ export function GuestDetailWorkspace({
   if (guestQuery.isError || !guestQuery.data) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <p className="text-sm text-muted-foreground">That guest could not be found for this property.</p>
+        <p className="text-sm text-muted-foreground">
+          That guest could not be found for this property.
+        </p>
         <Button className="mt-4" variant="outline" onClick={() => goBack()}>
           Back to guests
         </Button>
@@ -170,7 +175,12 @@ export function GuestDetailWorkspace({
         onClick={() => goBack()}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> {backTo === "reservations" ? "Reservations" : "Guests"}
+        <ArrowLeft className="size-4" />{" "}
+        {backTo === "reservations"
+          ? "Reservations"
+          : backTo === "guest-profile"
+            ? "Directory"
+            : "Guests"}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -193,7 +203,9 @@ export function GuestDetailWorkspace({
           <Button
             variant="outline"
             disabled={statusMutation.isPending}
-            onClick={() => statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")}
+            onClick={() =>
+              statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")
+            }
           >
             <Power className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">
@@ -227,6 +239,19 @@ export function GuestDetailWorkspace({
               <Row label="Country" value={guest.country} />
               <Row label="Postal code" value={guest.postalCode} />
             </Panel>
+            <div className="md:col-span-2">
+              <Panel title="Identity">
+                <Row
+                  label="ID type"
+                  value={guest.idDocumentType ? ID_DOCUMENT_LABELS[guest.idDocumentType] : null}
+                />
+                <Row label="ID number" value={guest.idDocumentNumber} />
+                <Row label="ID expiry" value={guest.idDocumentExpiry} />
+                <p className="text-xs text-muted-foreground">
+                  ID text only — document images, masking and verification come in Wave 2.
+                </p>
+              </Panel>
+            </div>
           </div>
           <Panel title="Notes">
             <p className="text-sm text-muted-foreground">{guest.notes ?? "No notes yet."}</p>
@@ -247,11 +272,31 @@ export function GuestDetailWorkspace({
         <TabsContent value="preferences" className="mt-4">
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <PrefField label="Room preference" value={prefs?.roomPreference} onChange={(v) => setPref("roomPreference", v)} />
-              <PrefField label="Bed preference" value={prefs?.bedPreference} onChange={(v) => setPref("bedPreference", v)} />
-              <PrefField label="Floor preference" value={prefs?.floorPreference} onChange={(v) => setPref("floorPreference", v)} />
-              <PrefField label="View preference" value={prefs?.viewPreference} onChange={(v) => setPref("viewPreference", v)} />
-              <PrefField label="Food preference" value={prefs?.foodPreference} onChange={(v) => setPref("foodPreference", v)} />
+              <PrefField
+                label="Room preference"
+                value={prefs?.roomPreference}
+                onChange={(v) => setPref("roomPreference", v)}
+              />
+              <PrefField
+                label="Bed preference"
+                value={prefs?.bedPreference}
+                onChange={(v) => setPref("bedPreference", v)}
+              />
+              <PrefField
+                label="Floor preference"
+                value={prefs?.floorPreference}
+                onChange={(v) => setPref("floorPreference", v)}
+              />
+              <PrefField
+                label="View preference"
+                value={prefs?.viewPreference}
+                onChange={(v) => setPref("viewPreference", v)}
+              />
+              <PrefField
+                label="Food preference"
+                value={prefs?.foodPreference}
+                onChange={(v) => setPref("foodPreference", v)}
+              />
               <PrefField
                 label="Communication preference"
                 value={prefs?.communicationPreference}

@@ -1,41 +1,26 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
-import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
+/**
+ * Compatibility path from Reservations. Canonical Guest Profile is /restaurant/pms/guests/$guestId.
+ */
 export const Route = createFileRoute("/restaurant/pms/reservations/guests/$guestId")({
   ssr: false,
-  beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
-      throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/pms/reservations" } });
-    }
-
-    await requireRoutePackage("pms");
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/restaurant/pms/guests/$guestId",
+      params: { guestId: params.guestId },
+      replace: true,
+    });
   },
   head: () => ({
     meta: [
-      { title: "Guest profile — NORU PMS" },
+      { title: "Redirecting — NORU PMS" },
       {
         name: "description",
-        content: "Guest identity, preferences, stay history and profile history inside PMS Reservations.",
+        content: "Guest profiles now live in the NORU PMS Guest Profile module.",
       },
-      { property: "og:title", content: "Guest profile — NORU PMS" },
-      { property: "og:description", content: "Guest overview, preferences and history." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: GuestDetailPmsRoute,
+  component: () => null,
 });
-
-function GuestDetailPmsRoute() {
-  const { guestId } = Route.useParams();
-  return (
-    <RestaurantShell active="Reservations" module="rooms" pms pmsModule="reservations" pmsLeaf="Guest Profile">
-      {(m) => <GuestDetailWorkspace membership={m} guestId={guestId} backTo="reservations" />}
-    </RestaurantShell>
-  );
-}
