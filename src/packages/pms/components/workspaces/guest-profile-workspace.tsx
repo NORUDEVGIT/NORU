@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
+import { GuestDirectoryBackLink } from "@/packages/pms/components/guests/guest-directory-back-link";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
@@ -14,8 +15,10 @@ import {
   GUEST_PROFILE_TITLE,
   GUEST_PROFILE_TYPES,
   comingInWaveLabel,
-  defaultGuestProfileCard,
   guestProfileCard,
+  guestProfileCardSearch,
+  initialGuestProfileCard,
+  isGuestRequiredProfileCard,
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
@@ -25,12 +28,17 @@ import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 export function GuestProfileWorkspace({
   membership,
   guestId,
+  returnCard,
 }: {
   membership: RestaurantMembership;
   guestId?: string;
+  /** Guest-required card to reopen after Directory-back (Spec §5.15). */
+  returnCard?: GuestProfileCardId;
 }) {
   const navigate = useNavigate();
-  const [card, setCard] = useState<GuestProfileCardId>(defaultGuestProfileCard(Boolean(guestId)));
+  const [card, setCard] = useState<GuestProfileCardId>(
+    initialGuestProfileCard(Boolean(guestId), returnCard),
+  );
   const selected = guestProfileCard(card);
   const restaurantId = membership.restaurant.id;
   const fetchGuest = useServerFn(getGuest);
@@ -44,13 +52,20 @@ export function GuestProfileWorkspace({
 
   function selectCard(next: GuestProfileCardId) {
     if (next === "directory" && guestId) {
-      void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
+      void navigate({
+        to: GUEST_PROFILE_DIRECTORY_PATH,
+        search: guestProfileCardSearch(card),
+      });
       return;
     }
     setCard(next);
+    if (guestId && isGuestRequiredProfileCard(next)) {
+      void navigate({ search: guestProfileCardSearch(next) });
+    }
   }
 
   const detailSection = card === "preferences" ? "preferences" : "overview";
+  const showDirectoryBack = Boolean(guestId) && isGuestRequiredProfileCard(card);
 
   return (
     <div className="space-y-6" data-testid="guest-profile-shell">
@@ -119,68 +134,79 @@ export function GuestProfileWorkspace({
       </nav>
 
       {card === "directory" ? (
-        <GuestDirectoryWorkspace membership={membership} compact />
-      ) : (card === "information" || card === "preferences") && guestId ? (
-        <GuestDetailWorkspace
+        <GuestDirectoryWorkspace
           membership={membership}
-          guestId={guestId}
-          backTo="guest-profile"
-          section={detailSection}
-          onSectionChange={(next) =>
-            setCard(next === "preferences" ? "preferences" : "information")
-          }
-        />
-      ) : card === "information" || card === "preferences" ? (
-        <ComingCard
-          title={selected.title}
-          copy="Open a guest from Directory to view and edit this card. No guest is selected yet."
-        />
-      ) : card === "identity" && guestId && guestQuery.data ? (
-        <GuestIdentityCard restaurantId={restaurantId} guest={guestQuery.data.guest} />
-      ) : card === "identity" && !guestId ? (
-        <ComingCard
-          title={selected.title}
-          copy="Open a guest from Directory to use this card. No guest is selected yet."
-        />
-      ) : card === "identity" && guestQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading guest…</p>
-      ) : card === "identity" && guestQuery.isError ? (
-        <ComingCard
-          title={selected.title}
-          copy="That guest could not be found for this property."
-        />
-      ) : (card === "dashboard" || card === "stay-history") && guestId && guestQuery.data ? (
-        card === "dashboard" ? (
-          <GuestDashboardCard
-            restaurantId={restaurantId}
-            guestId={guestId}
-            guestName={guestQuery.data.guest.fullName}
-            timezone={membership.restaurant.timezone}
-          />
-        ) : (
-          <GuestStayHistoryCard
-            restaurantId={restaurantId}
-            guestId={guestId}
-            guestName={guestQuery.data.guest.fullName}
-            timezone={membership.restaurant.timezone}
-          />
-        )
-      ) : card === "dashboard" || card === "stay-history" ? (
-        <ComingCard
-          title={selected.title}
-          copy={
-            guestId
-              ? guestQuery.isLoading
-                ? "Loading guest…"
-                : "That guest could not be found for this property."
-              : "Open a guest from Directory to view this card. No guest is selected yet."
-          }
+          compact
+          returnCard={returnCard}
         />
       ) : (
-        <ComingCard
-          title={selected.title}
-          copy={selected.copy ?? comingInWaveLabel(selected.wave)}
-        />
+        <>
+          {showDirectoryBack ? <GuestDirectoryBackLink fromCard={card} /> : null}
+          {(card === "information" || card === "preferences") && guestId ? (
+            <GuestDetailWorkspace
+              membership={membership}
+              guestId={guestId}
+              backTo="guest-profile"
+              section={detailSection}
+              onSectionChange={(next) => {
+                const nextCard = next === "preferences" ? "preferences" : "information";
+                setCard(nextCard);
+                void navigate({ search: guestProfileCardSearch(nextCard) });
+              }}
+            />
+          ) : card === "information" || card === "preferences" ? (
+            <ComingCard
+              title={selected.title}
+              copy="Open a guest from Directory to view and edit this card. No guest is selected yet."
+            />
+          ) : card === "identity" && guestId && guestQuery.data ? (
+            <GuestIdentityCard restaurantId={restaurantId} guest={guestQuery.data.guest} />
+          ) : card === "identity" && !guestId ? (
+            <ComingCard
+              title={selected.title}
+              copy="Open a guest from Directory to use this card. No guest is selected yet."
+            />
+          ) : card === "identity" && guestQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading guest…</p>
+          ) : card === "identity" && guestQuery.isError ? (
+            <ComingCard
+              title={selected.title}
+              copy="That guest could not be found for this property."
+            />
+          ) : (card === "dashboard" || card === "stay-history") && guestId && guestQuery.data ? (
+            card === "dashboard" ? (
+              <GuestDashboardCard
+                restaurantId={restaurantId}
+                guestId={guestId}
+                guestName={guestQuery.data.guest.fullName}
+                timezone={membership.restaurant.timezone}
+              />
+            ) : (
+              <GuestStayHistoryCard
+                restaurantId={restaurantId}
+                guestId={guestId}
+                guestName={guestQuery.data.guest.fullName}
+                timezone={membership.restaurant.timezone}
+              />
+            )
+          ) : card === "dashboard" || card === "stay-history" ? (
+            <ComingCard
+              title={selected.title}
+              copy={
+                guestId
+                  ? guestQuery.isLoading
+                    ? "Loading guest…"
+                    : "That guest could not be found for this property."
+                  : "Open a guest from Directory to view this card. No guest is selected yet."
+              }
+            />
+          ) : (
+            <ComingCard
+              title={selected.title}
+              copy={selected.copy ?? comingInWaveLabel(selected.wave)}
+            />
+          )}
+        </>
       )}
     </div>
   );

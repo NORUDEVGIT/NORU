@@ -158,7 +158,7 @@ export function GuestDetailWorkspace({
           That guest could not be found for this property.
         </p>
         <Button className="mt-4" variant="outline" onClick={() => goBack()}>
-          Back to guests
+          {backTo === "guest-profile" ? "Directory" : "Back to guests"}
         </Button>
       </div>
     );
@@ -168,18 +168,15 @@ export function GuestDetailWorkspace({
 
   return (
     <div className="space-y-6">
-      <button
-        type="button"
-        onClick={() => goBack()}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />{" "}
-        {backTo === "reservations"
-          ? "Reservations"
-          : backTo === "guest-profile"
-            ? "Directory"
-            : "Guests"}
-      </button>
+      {backTo === "guest-profile" ? null : (
+        <button
+          type="button"
+          onClick={() => goBack()}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> {backTo === "reservations" ? "Reservations" : "Guests"}
+        </button>
+      )}
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">

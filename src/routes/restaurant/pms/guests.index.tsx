@@ -1,11 +1,13 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { GuestProfileWorkspace } from "@/packages/pms/components/workspaces/guest-profile-workspace";
+import { parseGuestProfileCardSearch } from "@/packages/pms/lib/guest-profile-wave1";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/guests/")({
   ssr: false,
+  validateSearch: parseGuestProfileCardSearch,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -35,9 +37,10 @@ export const Route = createFileRoute("/restaurant/pms/guests/")({
 });
 
 function GuestProfileDirectoryRoute() {
+  const { card } = Route.useSearch();
   return (
     <RestaurantShell active="Guests" module="rooms" pms pmsModule="guest-profile">
-      {(m) => <GuestProfileWorkspace membership={m} />}
+      {(m) => <GuestProfileWorkspace membership={m} returnCard={card} />}
     </RestaurantShell>
   );
 }
