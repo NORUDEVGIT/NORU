@@ -83,16 +83,16 @@ export const GUEST_PROFILE_CARDS = [
   {
     id: "notes-comms",
     title: "Notes / Comms / Activity",
-    live: false,
+    live: true,
     wave: 5,
-    copy: "Coming in Wave 5. A communications hub is not LIVE. Profile notes and history remain on Information.",
+    copy: "Notes, profile history and recorded operational communications. Send is offered only when a real channel is configured.",
   },
   {
     id: "admin-privacy",
     title: "Admin & Privacy",
-    live: false,
+    live: true,
     wave: 5,
-    copy: "Coming in Wave 5. Consent, export, anonymise and unmerge are not available. VIP and status remain on Information.",
+    copy: "Export, anonymise and unmerge (or a recorded exception). Wave 2 consent stays on Information. VIP and status remain there too.",
   },
 ] as const;
 

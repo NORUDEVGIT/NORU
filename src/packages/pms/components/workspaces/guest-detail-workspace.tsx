@@ -50,6 +50,12 @@ const EVENT_LABEL: Record<string, string> = {
   consent_updated: "Consent updated",
   relationship_linked: "Relationship linked",
   relationship_unlinked: "Relationship unlinked",
+  comms_logged: "Communication recorded",
+  comms_sent: "Email sent",
+  exported: "Profile exported",
+  anonymised: "Profile anonymised",
+  unmerged: "Unmerged",
+  unmerge_blocked: "Unmerge not available",
 };
 
 export type GuestDetailSection = "overview" | "preferences";

@@ -12,9 +12,14 @@ import {
   normalizePhone,
   recordGuestEvent,
   requireGuestManager,
+  canManageGuestPrivacy,
   type GuestEventType,
   type GuestStatus,
 } from "./guests.server";
+import {
+  WAVE5_ANONYMISED_GUEST_LABEL,
+  type GuestMergeLedgerPayload,
+} from "./guest-profile-wave5";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
@@ -45,6 +50,10 @@ import type { ReservationStatus } from "./reservation-dates";
 
 const idSchema = z.string().uuid();
 
+function fromTable(client: { from: (table: string) => unknown }, table: string) {
+  return (client as unknown as { from: (name: string) => any }).from(table);
+}
+
 export interface GuestConsentRecord {
   state: GuestConsentState;
   recordedAt: string | null;
@@ -71,6 +80,7 @@ export interface GuestSummary {
   updatedAt: string;
   idDocumentNumber: string | null;
   mergedIntoGuestId: string | null;
+  anonymisedAt: string | null;
 }
 
 export interface GuestProfile extends GuestSummary {
@@ -127,6 +137,7 @@ const EMPTY_PREFERENCES: GuestPreferences = {
 const GUEST_COLUMNS_BASE =
   "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, id_document_type, id_document_number, id_document_expiry, guest_status, vip_status, notes, linked_customer_user_id, created_at, updated_at";
 const GUEST_COLUMNS_W2 = `${GUEST_COLUMNS_BASE}, merged_into_guest_id, data_processing_consent, data_processing_consent_recorded_at, data_processing_consent_recorded_by, marketing_consent, marketing_consent_recorded_at, marketing_consent_recorded_by`;
+const GUEST_COLUMNS_W5 = `${GUEST_COLUMNS_W2}, anonymised_at, anonymised_by_membership_id`;
 
 type GuestRow = {
   id: string;
@@ -159,6 +170,8 @@ type GuestRow = {
   marketing_consent?: string | null;
   marketing_consent_recorded_at?: string | null;
   marketing_consent_recorded_by?: string | null;
+  anonymised_at?: string | null;
+  anonymised_by_membership_id?: string | null;
 };
 
 function toConsentState(value: string | null | undefined): GuestConsentState {
@@ -172,19 +185,21 @@ function fullName(first: string, last: string | null): string {
 }
 
 function toSummary(row: GuestRow): GuestSummary {
+  const anonymisedAt = row.anonymised_at ?? null;
   return {
     id: row.id,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    fullName: fullName(row.first_name, row.last_name),
-    phone: row.phone,
-    email: row.email,
-    nationality: row.nationality,
+    firstName: anonymisedAt ? WAVE5_ANONYMISED_GUEST_LABEL : row.first_name,
+    lastName: anonymisedAt ? null : row.last_name,
+    fullName: anonymisedAt ? WAVE5_ANONYMISED_GUEST_LABEL : fullName(row.first_name, row.last_name),
+    phone: anonymisedAt ? null : row.phone,
+    email: anonymisedAt ? null : row.email,
+    nationality: anonymisedAt ? null : row.nationality,
     vipStatus: row.vip_status,
     guestStatus: row.guest_status as GuestStatus,
     updatedAt: row.updated_at,
-    idDocumentNumber: row.id_document_number ?? null,
+    idDocumentNumber: anonymisedAt ? null : (row.id_document_number ?? null),
     mergedIntoGuestId: row.merged_into_guest_id ?? null,
+    anonymisedAt,
   };
 }
 
@@ -366,7 +381,11 @@ export const getGuestsAccess = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context as never, data.restaurantId);
-    return { role: me.role, canManage: canManageGuests(me.role) };
+    return {
+      role: me.role,
+      canManage: canManageGuests(me.role),
+      canPrivacy: canManageGuestPrivacy(me.role),
+    };
   });
 
 /* ----------------------------------------------------------------- list */
@@ -413,7 +432,10 @@ export const listGuests = createServerFn({ method: "POST" })
       return query;
     };
 
-    let result = await applyFilters(GUEST_COLUMNS_W2, true);
+    let result = await applyFilters(GUEST_COLUMNS_W5, true);
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await applyFilters(GUEST_COLUMNS_W2, true);
+    }
     if (result.error && isMissingSchemaError(result.error)) {
       result = await applyFilters(GUEST_COLUMNS_BASE, false);
     }
@@ -458,7 +480,10 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
       return query;
     };
 
-    let result = await run(GUEST_COLUMNS_W2, true);
+    let result = await run(GUEST_COLUMNS_W5, true);
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await run(GUEST_COLUMNS_W2, true);
+    }
     if (result.error && isMissingSchemaError(result.error)) {
       result = await run(GUEST_COLUMNS_BASE, false);
     }
@@ -485,12 +510,19 @@ export const getGuest = createServerFn({ method: "POST" })
       await requireGuestManager(context as never, data.restaurantId);
 
       let wave2 = true;
-      let rowResult = await context.supabase
-        .from("guest_profiles")
-        .select(GUEST_COLUMNS_W2)
+      let rowResult = await fromTable(context.supabase, "guest_profiles")
+        .select(GUEST_COLUMNS_W5)
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.guestId)
         .maybeSingle();
+      if (rowResult.error && isMissingSchemaError(rowResult.error)) {
+        rowResult = await context.supabase
+          .from("guest_profiles")
+          .select(GUEST_COLUMNS_W2)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.guestId)
+          .maybeSingle();
+      }
       if (rowResult.error && isMissingSchemaError(rowResult.error)) {
         wave2 = false;
         rowResult = await context.supabase
@@ -502,7 +534,7 @@ export const getGuest = createServerFn({ method: "POST" })
       }
       if (rowResult.error) throw new Error(rowResult.error.message);
       if (!rowResult.data) throw new Error("That guest could not be found.");
-      const row = rowResult.data as GuestRow;
+      const row = rowResult.data as unknown as GuestRow;
 
       const [{ data: prefRow }, { data: historyRows }] = await Promise.all([
         context.supabase
@@ -622,13 +654,15 @@ export const updateGuest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
 
-    const { data: before } = await context.supabase
-      .from("guest_profiles")
-      .select(GUEST_COLUMNS_BASE)
+    const { data: before } = await fromTable(context.supabase, "guest_profiles")
+      .select(`${GUEST_COLUMNS_BASE}, anonymised_at`)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId)
       .maybeSingle();
     if (!before) throw new Error("That guest could not be found.");
+    if ((before as { anonymised_at?: string | null }).anonymised_at) {
+      throw new Error("This profile has been anonymised and cannot be changed.");
+    }
 
     const columns = toColumns(data.guest);
     const { error } = await context.supabase
@@ -653,7 +687,7 @@ export const updateGuest = createServerFn({ method: "POST" })
         actorMembershipId: me.id,
       });
     }
-    if ((before as GuestRow).vip_status !== columns.vip_status) {
+    if ((before as unknown as GuestRow).vip_status !== columns.vip_status) {
       await recordGuestEvent({
         restaurantId: data.restaurantId,
         guestId: data.guestId,
@@ -1259,33 +1293,45 @@ export const mergeGuests = createServerFn({ method: "POST" })
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await supabaseAdmin
-      .from("guest_profiles")
-      .select(GUEST_COLUMNS_W2)
+    let rowsResult = await fromTable(supabaseAdmin, "guest_profiles")
+      .select(GUEST_COLUMNS_W5)
       .eq("restaurant_id", data.restaurantId)
       .in("id", [data.survivorId, data.retiredId]);
+    if (rowsResult.error && isMissingSchemaError(rowsResult.error)) {
+      rowsResult = await fromTable(supabaseAdmin, "guest_profiles")
+        .select(GUEST_COLUMNS_W2)
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", [data.survivorId, data.retiredId]);
+    }
+    const { data: rows, error } = rowsResult;
     if (error) {
       if (isMissingSchemaError(error)) throw new Error(WAVE2_MIGRATION_UNAVAILABLE);
       throw new Error(error.message);
     }
-    const survivor = (rows ?? []).find((row) => row.id === data.survivorId) as unknown as
-      GuestRow | undefined;
-    const retired = (rows ?? []).find((row) => row.id === data.retiredId) as unknown as
-      GuestRow | undefined;
+    const survivor = ((rows ?? []) as GuestRow[]).find((row) => row.id === data.survivorId);
+    const retired = ((rows ?? []) as GuestRow[]).find((row) => row.id === data.retiredId);
     if (!survivor || !retired) throw new Error("Both guests must belong to this property.");
     if (survivor.merged_into_guest_id || retired.merged_into_guest_id) {
       throw new Error("A merged guest cannot be merged again.");
     }
+    if (survivor.anonymised_at || retired.anonymised_at) {
+      throw new Error("An anonymised profile cannot be merged.");
+    }
 
     const winner: Record<string, unknown> = {};
+    const previousSurvivorProfile: Record<string, unknown> = {};
     for (const key of MERGE_PROFILE_KEYS) {
       const current = (survivor as Record<string, unknown>)[key];
       const incoming = (retired as Record<string, unknown>)[key];
       if ((current == null || current === "") && incoming != null && incoming !== "") {
         winner[key] = incoming;
+        previousSurvivorProfile[key] = current ?? null;
       }
     }
-    if (!survivor.vip_status && retired.vip_status) winner["vip_status"] = true;
+    if (!survivor.vip_status && retired.vip_status) {
+      winner["vip_status"] = true;
+      previousSurvivorProfile["vip_status"] = false;
+    }
 
     if (Object.keys(winner).length > 0) {
       const { error: updateError } = await supabaseAdmin
@@ -1303,13 +1349,15 @@ export const mergeGuests = createServerFn({ method: "POST" })
       .in("guest_id", [data.survivorId, data.retiredId]);
     const survivorPrefs = (prefRows ?? []).find((row) => row.guest_id === data.survivorId);
     const retiredPrefs = (prefRows ?? []).find((row) => row.guest_id === data.retiredId);
+    const prefWinner: Record<string, unknown> = {};
+    const previousSurvivorPrefs: Record<string, unknown> = {};
     if (retiredPrefs) {
-      const prefWinner: Record<string, unknown> = {};
       for (const key of MERGE_PREF_KEYS) {
         const current = survivorPrefs?.[key];
         const incoming = retiredPrefs[key];
         if ((current == null || current === "") && incoming != null && incoming !== "") {
           prefWinner[key] = incoming;
+          previousSurvivorPrefs[key] = current ?? null;
         }
       }
       if (Object.keys(prefWinner).length > 0) {
@@ -1330,10 +1378,16 @@ export const mergeGuests = createServerFn({ method: "POST" })
     }
 
     const consentWinner: Record<string, unknown> = {};
+    const previousSurvivorConsent: Record<string, unknown> = {};
     if (
       toConsentState(survivor.data_processing_consent) === "not_asked" &&
       toConsentState(retired.data_processing_consent) !== "not_asked"
     ) {
+      previousSurvivorConsent["data_processing_consent"] = survivor.data_processing_consent;
+      previousSurvivorConsent["data_processing_consent_recorded_at"] =
+        survivor.data_processing_consent_recorded_at;
+      previousSurvivorConsent["data_processing_consent_recorded_by"] =
+        survivor.data_processing_consent_recorded_by;
       consentWinner["data_processing_consent"] = retired.data_processing_consent;
       consentWinner["data_processing_consent_recorded_at"] =
         retired.data_processing_consent_recorded_at;
@@ -1344,6 +1398,9 @@ export const mergeGuests = createServerFn({ method: "POST" })
       toConsentState(survivor.marketing_consent) === "not_asked" &&
       toConsentState(retired.marketing_consent) !== "not_asked"
     ) {
+      previousSurvivorConsent["marketing_consent"] = survivor.marketing_consent;
+      previousSurvivorConsent["marketing_consent_recorded_at"] = survivor.marketing_consent_recorded_at;
+      previousSurvivorConsent["marketing_consent_recorded_by"] = survivor.marketing_consent_recorded_by;
       consentWinner["marketing_consent"] = retired.marketing_consent;
       consentWinner["marketing_consent_recorded_at"] = retired.marketing_consent_recorded_at;
       consentWinner["marketing_consent_recorded_by"] = retired.marketing_consent_recorded_by;
@@ -1356,12 +1413,26 @@ export const mergeGuests = createServerFn({ method: "POST" })
         .eq("id", data.survivorId);
     }
 
+    const { data: documentRows } = await supabaseAdmin
+      .from("guest_documents")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.retiredId);
+    const movedDocumentIds = ((documentRows ?? []) as Array<{ id: string }>).map((row) => row.id);
+
     const docs = await supabaseAdmin
       .from("guest_documents")
       .update({ guest_id: data.survivorId })
       .eq("restaurant_id", data.restaurantId)
       .eq("guest_id", data.retiredId);
     if (docs.error && !isMissingSchemaError(docs.error)) throw new Error(docs.error.message);
+
+    const { data: reservationRows } = await supabaseAdmin
+      .from("hotel_reservations")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.retiredId);
+    const movedReservationIds = ((reservationRows ?? []) as Array<{ id: string }>).map((row) => row.id);
 
     const reservations = await supabaseAdmin
       .from("hotel_reservations")
@@ -1379,6 +1450,8 @@ export const mergeGuests = createServerFn({ method: "POST" })
     if (retiredLinks.error && !isMissingSchemaError(retiredLinks.error)) {
       throw new Error(retiredLinks.error.message);
     }
+    const movedLinkIds: string[] = [];
+    const deletedLinkIds: string[] = [];
     for (const link of (retiredLinks.data ?? []) as Array<{ id: string; master_id: string; role: string }>) {
       const existing = await wave4
         .from("guest_account_links")
@@ -1390,12 +1463,14 @@ export const mergeGuests = createServerFn({ method: "POST" })
         .maybeSingle();
       if (existing.error && !isMissingSchemaError(existing.error)) throw new Error(existing.error.message);
       if (existing.data) {
+        deletedLinkIds.push(link.id);
         await wave4
           .from("guest_account_links")
           .delete()
           .eq("restaurant_id", data.restaurantId)
           .eq("id", link.id);
       } else {
+        movedLinkIds.push(link.id);
         const moved = await wave4
           .from("guest_account_links")
           .update({ guest_id: data.survivorId })
@@ -1442,6 +1517,30 @@ export const mergeGuests = createServerFn({ method: "POST" })
       notes: `Merged into ${fullName(survivor.first_name, survivor.last_name)}`,
       actorMembershipId: me.id,
     });
+
+    const ledgerPayload: GuestMergeLedgerPayload = {
+      copiedProfile: winner,
+      previousSurvivorProfile,
+      copiedPrefs: prefWinner,
+      previousSurvivorPrefs: Object.keys(previousSurvivorPrefs).length > 0 ? previousSurvivorPrefs : null,
+      copiedConsent: consentWinner,
+      previousSurvivorConsent,
+      movedReservationIds,
+      movedDocumentIds,
+      movedLinkIds,
+      deletedLinkIds,
+      retiredStatus: retired.guest_status,
+    };
+    const ledger = await (supabaseAdmin as unknown as { from: (table: string) => any })
+      .from("guest_merge_ledger")
+      .insert({
+        restaurant_id: data.restaurantId,
+        survivor_id: data.survivorId,
+        retired_id: data.retiredId,
+        payload: ledgerPayload,
+        created_by_staff_membership_id: me.id,
+      });
+    if (ledger.error && !isMissingSchemaError(ledger.error)) throw new Error(ledger.error.message);
 
     return { ok: true as const, survivorId: data.survivorId, retiredId: data.retiredId };
   });
