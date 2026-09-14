@@ -117,6 +117,13 @@ describe("FO-CLEAN1 fee editor source locks", () => {
     );
     assert.match(policies, /FoFeeDefaultsEditor/);
     assert.equal(FO_FEE_DEFAULTS_SETTINGS_HREF, "/restaurant/settings#policies");
+
+    const sheet = readFileSync(
+      new URL("../components/frontoffice/reservation-side-sheet.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(sheet, /FO_FEE_DEFAULTS_SETTINGS_HREF/);
+    assert.match(sheet, />Settings</);
   });
 
   it("FO-FS0 rail lock is unchanged", () => {

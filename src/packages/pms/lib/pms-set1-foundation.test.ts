@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 import {
   SET1_ACTIVATE_DENIED,
@@ -263,6 +265,7 @@ describe("PMS-SET1 business date is not editable", () => {
       "utf8",
     );
     assert.match(section, /SET1_BUSINESS_DATE_COPY/);
+    assert.match(section, /usePropertyBusinessDate/);
     assert.match(section, /read-only|readOnly|Business date/);
     assert.doesNotMatch(section, /id="business-date"/);
     assert.doesNotMatch(section, /name="businessDate"/);
@@ -272,6 +275,12 @@ describe("PMS-SET1 business date is not editable", () => {
     assert.doesNotMatch(fns, /business_date:/);
     assert.match(fns, /SET1_AUDIT_ACTION/);
     assert.equal(SET1_AUDIT_ACTION, "pms_set1_updated");
+    assert.match(fns, /restaurant_staff_audit_log/);
+    assert.match(fns, /FO_FEE_DEFAULTS_AUDIT_ACTION/);
+
+    const identity = readFileSync(new URL("../../../core/lib/restaurant.functions.ts", import.meta.url), "utf8");
+    assert.doesNotMatch(identity, /business_date/);
+    assert.doesNotMatch(identity, /restaurant_staff_audit_log/);
   });
 });
 
@@ -291,17 +300,43 @@ describe("PMS-SET1 hub locks", () => {
     assert.match(hub, /PermissionDeniedPanel/);
     assert.doesNotMatch(hub, /FO-CHROME1/);
     assert.match(hub, /SET1_PMS_BACK_HREF/);
+    assert.match(hub, /to=\{SET1_PMS_BACK_HREF/);
 
-    const migration = readFileSync(
-      new URL("../../../../supabase/migrations/0047_pms_set1_foundation_settings.sql", import.meta.url),
-      "utf8",
-    );
+    const here = dirname(fileURLToPath(import.meta.url));
+    const drizzle047 = join(here, "../../../../drizzle/migrations/0047_pms_set1_foundation_settings.sql");
+    const supabase047 = join(here, "../../../../supabase/migrations/0047_pms_set1_foundation_settings.sql");
+    assert.equal(existsSync(drizzle047), true);
+    assert.equal(existsSync(supabase047), false);
+
+    const migration = readFileSync(drizzle047, "utf8");
     assert.match(migration, /pms_set1_live/);
+    assert.match(migration, /tax_name/);
     assert.match(migration, /do not apply to live/i);
+    assert.match(migration, /drizzle\/migrations\/0047_pms_set1_foundation_settings\.sql/);
     assert.doesNotMatch(migration, /CREATE TABLE/);
     assert.doesNotMatch(migration, /CREATE FUNCTION/);
     assert.doesNotMatch(migration, /CREATE POLICY/);
     assert.doesNotMatch(migration, /SET active/);
+
+    const chrome = readFileSync(
+      new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(chrome, /deskHours/);
+    assert.match(chrome, /FO_ESCAPE_MODULES/);
+
+    const rmTax = readFileSync(
+      new URL("../../restaurant-management/lib/rm-tax.functions.ts", import.meta.url),
+      "utf8",
+    );
+    assert.match(rmTax, /tax_inclusive/);
+    assert.match(rmTax, /tax_rate/);
+    assert.match(rmTax, /service_enabled/);
+    assert.match(rmTax, /service_rate/);
+
+    const feeFns = readFileSync(new URL("./fo-cancel-noshow.functions.ts", import.meta.url), "utf8");
+    assert.match(feeFns, /async function loadFeePolicy/);
+    assert.match(feeFns, /fo_cancel_fee_required, fo_cancel_fee_default, fo_noshow_fee_required, fo_noshow_fee_default/);
   });
 
   it("detects missing-column honesty", () => {

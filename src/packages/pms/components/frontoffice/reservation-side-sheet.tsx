@@ -320,7 +320,7 @@ export function ReservationSideSheet({
               )}
               {feesQuery.data?.canEdit ? (
                 <Button variant="outline" size="sm" className="mt-3" asChild>
-                  <a href={FO_FEE_DEFAULTS_SETTINGS_HREF}>{FO_FEE_DEFAULTS_SECTION}</a>
+                  <a href={FO_FEE_DEFAULTS_SETTINGS_HREF}>Settings</a>
                 </Button>
               ) : feesQuery.data && !feesQuery.data.canEdit ? (
                 <PermissionDeniedPanel
