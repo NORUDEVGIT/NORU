@@ -55,7 +55,7 @@ describe("Guest Profile Wave 2 mask and preference encoding", () => {
 });
 
 describe("Guest Profile Wave 2 lock", () => {
-  it("activates Identity and Preferences cards and keeps Wave 5 Coming", () => {
+  it("activates Identity and Preferences cards; later waves may flip remaining cards LIVE", () => {
     const byId = new Map(GUEST_PROFILE_CARDS.map((card) => [card.id, card]));
     assert.equal(byId.get("identity")?.live, true);
     assert.equal(byId.get("preferences")?.live, true);
@@ -63,9 +63,8 @@ describe("Guest Profile Wave 2 lock", () => {
     assert.equal(byId.get("dashboard")?.live, true);
     assert.equal(byId.get("loyalty")?.live, true);
     assert.equal(byId.get("relationships")?.live, true);
-    assert.equal(byId.get("notes-comms")?.live, false);
-    assert.equal(byId.get("admin-privacy")?.live, false);
-    assert.match(byId.get("admin-privacy")?.copy ?? "", /Coming in Wave 5/);
+    assert.equal(byId.get("notes-comms")?.live, true);
+    assert.equal(byId.get("admin-privacy")?.live, true);
   });
 
   it("reuses saveGuestPreferences and guest_preferences with no second prefs table", () => {

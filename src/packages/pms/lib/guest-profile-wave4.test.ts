@@ -308,15 +308,18 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     assert.doesNotMatch(fo, /rewrite typed labels as masters|migrate company_name into company_master_id/);
   });
 
-  it("AC-W4-17 Wave 5 cards stay Coming", () => {
+  it("AC-W4-17 Wave 4 files do not invent comms / privacy product", () => {
     const byId = new Map(GUEST_PROFILE_CARDS.map((card) => [card.id, card]));
-    assert.equal(byId.get("notes-comms")?.live, false);
-    assert.equal(byId.get("admin-privacy")?.live, false);
-    assert.match(byId.get("notes-comms")?.copy ?? "", /Coming in Wave 5/);
-    assert.match(byId.get("admin-privacy")?.copy ?? "", /Coming in Wave 5/);
-    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
-    assert.match(shell, /comingInWaveLabel/);
-    assert.doesNotMatch(shell, /exportGuest|anonymiseGuest|unmergeGuest/);
+    assert.equal(byId.get("notes-comms")?.wave, 5);
+    assert.equal(byId.get("admin-privacy")?.wave, 5);
+    const wave4 = readRel("./guest-profile-wave4.ts");
+    const accounts = readRel("./guest-accounts.functions.ts");
+    const loyalty = readRel("../components/guests/guest-loyalty-card.tsx");
+    const relationships = readRel("../components/guests/guest-relationships-card.tsx");
+    for (const source of [wave4, accounts, loyalty, relationships]) {
+      assert.doesNotMatch(source, /exportGuestProfile|anonymiseGuest\b|unmergeGuests|sendGuestMessage/);
+      assert.doesNotMatch(source, /marketing cloud|email sent successfully/i);
+    }
   });
 
   it("AC-W4-18 denied staff cannot list or mutate masters or relationships", () => {
@@ -387,7 +390,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     assert.equal(isGuestRequiredProfileCard("information"), true);
     assert.equal(showEmptyDirectoryCta(false, "loyalty"), true);
     assert.equal(showEmptyDirectoryCta(false, "relationships"), true);
-    assert.equal(showEmptyDirectoryCta(false, "notes-comms"), false);
+    assert.equal(isGuestRequiredProfileCard("notes-comms"), true);
     assert.match(shell, /GuestDirectoryBackLink/);
     assert.match(shell, /showEmptyDirectoryCta/);
     assert.match(shell, /GuestDirectoryOpenButton/);
@@ -400,14 +403,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
 });
 
 describe("Guest Profile Wave 4 catalogue, honesty and gates", () => {
-  it("flips Company / Group / TA and loyalty / relationships LIVE and keeps Wave 5 Coming", () => {
+  it("flips Company / Group / TA and loyalty / relationships LIVE", () => {
     const byId = new Map(GUEST_PROFILE_CARDS.map((card) => [card.id, card]));
     assert.equal(byId.get("loyalty")?.live, true);
     assert.equal(byId.get("relationships")?.live, true);
-    assert.equal(byId.get("notes-comms")?.live, false);
-    assert.equal(byId.get("admin-privacy")?.live, false);
-    assert.match(byId.get("notes-comms")?.copy ?? "", /Coming in Wave 5/);
-    assert.match(byId.get("admin-privacy")?.copy ?? "", /Coming in Wave 5/);
     assert.equal(isGuestRequiredProfileCard("loyalty"), true);
     assert.equal(isGuestRequiredProfileCard("relationships"), true);
     assert.equal(showEmptyDirectoryCta(false, "loyalty"), true);

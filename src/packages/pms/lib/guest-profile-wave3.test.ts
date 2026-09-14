@@ -361,16 +361,16 @@ describe("Guest Profile Wave 3 lock — AC-W3-1…17", () => {
     assert.match(wave3, /no second stay store/);
   });
 
-  it("AC-W3-15 keeps Wave 5 Coming with no fabricated comms metrics after Wave 4 loyalty LIVE", () => {
+  it("AC-W3-15 does not invent fabricated comms metrics; Wave 5 owns the hub after later waves", () => {
     const byId = new Map(GUEST_PROFILE_CARDS.map((card) => [card.id, card]));
     assert.equal(byId.get("dashboard")?.live, true);
     assert.equal(byId.get("stay-history")?.live, true);
     assert.equal(byId.get("loyalty")?.live, true);
     assert.equal(byId.get("relationships")?.live, true);
-    assert.equal(byId.get("notes-comms")?.live, false);
-    assert.equal(byId.get("admin-privacy")?.live, false);
+    assert.equal(byId.get("notes-comms")?.wave, 5);
+    assert.equal(byId.get("admin-privacy")?.wave, 5);
     assert.doesNotMatch(byId.get("loyalty")?.copy ?? "", /Coming in Wave 4|12,500|8[05]% occupied|occupancy %/i);
-    assert.match(byId.get("notes-comms")?.copy ?? "", /Coming in Wave 5/);
+    assert.doesNotMatch(byId.get("notes-comms")?.copy ?? "", /12,500|occupancy %|8[05]% occupied/i);
     assert.deepEqual(
       GUEST_PROFILE_TYPES.filter((type) => type.live).map((type) => type.id),
       ["individual", "company", "group", "travel-agent"],

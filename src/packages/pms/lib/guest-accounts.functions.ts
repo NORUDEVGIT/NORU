@@ -11,6 +11,9 @@ import { propertyToday, requireReservationManager } from "./reservations.server"
 import { deriveStayOverview } from "./guest-profile-wave3";
 import { guestStayAccessForRole, loadGuestStaysForProfile } from "./guests.functions";
 import {
+  WAVE5_ANONYMISED_MASTER_LABELS,
+} from "./guest-profile-wave5";
+import {
   GUEST_ACCOUNT_STATUSES,
   GUEST_ACCOUNT_TYPES,
   GUEST_RELATIONSHIP_ROLES,
@@ -33,8 +36,9 @@ function db(context: { supabase: { from: (table: string) => unknown } }) {
   return context.supabase as unknown as { from: (table: string) => any };
 }
 
-const MASTER_COLUMNS =
+const MASTER_COLUMNS_BASE =
   "id, account_type, name, code, email, phone, address_line1, city, country, notes, account_status, created_at, updated_at";
+const MASTER_COLUMNS = `${MASTER_COLUMNS_BASE}, anonymised_at`;
 
 type MasterRow = {
   id: string;
@@ -50,28 +54,34 @@ type MasterRow = {
   account_status: string;
   created_at: string;
   updated_at: string;
+  anonymised_at?: string | null;
 };
 
 function toSummary(row: MasterRow): GuestAccountSummary {
+  const anonymisedAt = row.anonymised_at ?? null;
+  const accountType = row.account_type as GuestAccountType;
   return {
     id: row.id,
-    accountType: row.account_type as GuestAccountType,
-    name: row.name,
-    code: row.code,
-    phone: row.phone,
-    email: row.email,
+    accountType,
+    name: anonymisedAt ? WAVE5_ANONYMISED_MASTER_LABELS[accountType] : row.name,
+    code: anonymisedAt ? null : row.code,
+    phone: anonymisedAt ? null : row.phone,
+    email: anonymisedAt ? null : row.email,
     accountStatus: row.account_status as GuestAccountStatus,
     updatedAt: row.updated_at,
+    anonymisedAt,
   };
 }
 
 function toProfile(row: MasterRow): GuestAccountProfile {
+  const summary = toSummary(row);
+  const anonymised = Boolean(row.anonymised_at);
   return {
-    ...toSummary(row),
-    addressLine1: row.address_line1,
-    city: row.city,
-    country: row.country,
-    notes: row.notes,
+    ...summary,
+    addressLine1: anonymised ? null : row.address_line1,
+    city: anonymised ? null : row.city,
+    country: anonymised ? null : row.country,
+    notes: anonymised ? null : row.notes,
     createdAt: row.created_at,
   };
 }
@@ -138,7 +148,22 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
       const like = `%${term.replace(/[%,]/g, "")}%`;
       query = query.or(`name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like}`);
     }
-    const result = await query;
+    let result = await query;
+    if (result.error && isMissingSchemaError(result.error)) {
+      let fallback = db(context)
+        .from("guest_account_masters")
+        .select(MASTER_COLUMNS_BASE)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("account_type", data.accountType)
+        .order("updated_at", { ascending: false })
+        .limit(data.limit ?? 100);
+      if (data.status) fallback = fallback.eq("account_status", data.status);
+      if (term) {
+        const like = `%${term.replace(/[%,]/g, "")}%`;
+        fallback = fallback.or(`name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like}`);
+      }
+      result = await fallback;
+    }
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
     return ((result.data ?? []) as MasterRow[]).map(toSummary);
@@ -156,12 +181,20 @@ export const getGuestAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<GuestAccountProfile> => {
     await requireGuestManager(context as never, data.restaurantId);
-    const result = await db(context)
+    let result = await db(context)
       .from("guest_account_masters")
       .select(MASTER_COLUMNS)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.accountId)
       .maybeSingle();
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await db(context)
+        .from("guest_account_masters")
+        .select(MASTER_COLUMNS_BASE)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId)
+        .maybeSingle();
+    }
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
     if (!result.data) throw new Error("That account master could not be found.");
@@ -254,15 +287,26 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
-    const existing = await db(context)
+    let existing = await db(context)
       .from("guest_account_masters")
       .select(MASTER_COLUMNS)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.accountId)
       .maybeSingle();
+    if (existing.error && isMissingSchemaError(existing.error)) {
+      existing = await db(context)
+        .from("guest_account_masters")
+        .select(MASTER_COLUMNS_BASE)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId)
+        .maybeSingle();
+    }
     if (wave4Unavailable(existing.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (existing.error) throw new Error(existing.error.message);
     if (!existing.data) throw new Error("That account master could not be found.");
+    if ((existing.data as MasterRow).anonymised_at) {
+      throw new Error("This profile has been anonymised and cannot be changed.");
+    }
     const columns = toMasterColumns(data.account);
     const { error } = await db(context)
       .from("guest_account_masters")

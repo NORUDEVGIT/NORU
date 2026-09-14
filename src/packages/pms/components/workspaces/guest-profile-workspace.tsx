@@ -5,11 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { GuestAccountDetail } from "@/packages/pms/components/guests/guest-account-detail";
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
+import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
 import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
 import { GuestDirectoryBackLink } from "@/packages/pms/components/guests/guest-directory-back-link";
 import { GuestDirectoryOpenButton } from "@/packages/pms/components/guests/guest-directory-open-button";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
 import { GuestLoyaltyCard } from "@/packages/pms/components/guests/guest-loyalty-card";
+import { GuestPrivacyCard } from "@/packages/pms/components/guests/guest-privacy-card";
 import { GuestRelationshipsCard } from "@/packages/pms/components/guests/guest-relationships-card";
 import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
@@ -68,13 +70,15 @@ export function GuestProfileWorkspace({
         card === "dashboard" ||
         card === "stay-history" ||
         card === "loyalty" ||
-        card === "relationships"),
+        card === "relationships" ||
+        card === "notes-comms" ||
+        card === "admin-privacy"),
     retry: false,
   });
   const accountQuery = useQuery({
     queryKey: ["guest-account", restaurantId, guestId],
     queryFn: () => fetchAccount({ data: { restaurantId, accountId: guestId! } }),
-    enabled: Boolean(guestId) && isAccount && (card === "loyalty" || card === "relationships"),
+    enabled: Boolean(guestId) && isAccount && (card === "loyalty" || card === "relationships" || card === "notes-comms" || card === "admin-privacy"),
     retry: false,
   });
 
@@ -125,7 +129,7 @@ export function GuestProfileWorkspace({
         <h1 className="font-display text-2xl">{GUEST_PROFILE_TITLE}</h1>
         <p className="text-sm text-muted-foreground">
           Individual directory plus Company, Group account and Travel Agent masters. Loyalty uses
-          real stay figures only. Wave 5 cards stay labelled until LIVE.
+          real stay figures only. Notes / Comms / Activity and Admin & Privacy are LIVE.
         </p>
       </div>
 
@@ -318,7 +322,31 @@ export function GuestProfileWorkspace({
               accountId={isAccount ? guestId : undefined}
               accountType={accountType ?? undefined}
             />
-          ) : card === "loyalty" || card === "relationships" ? (
+          ) : (card === "notes-comms" || card === "admin-privacy") &&
+            guestId &&
+            !isAccount &&
+            guestQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading guest…</p>
+          ) : (card === "notes-comms" || card === "admin-privacy") &&
+            guestId &&
+            isAccount &&
+            accountQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading account…</p>
+          ) : card === "notes-comms" && guestId && (isAccount || guestQuery.data) ? (
+            <GuestActivityHubCard
+              restaurantId={restaurantId}
+              guestId={isAccount ? undefined : guestId}
+              accountId={isAccount ? guestId : undefined}
+              partyName={partyName || (isAccount ? "Account" : "Guest")}
+            />
+          ) : card === "admin-privacy" && guestId && (isAccount || guestQuery.data) ? (
+            <GuestPrivacyCard
+              restaurantId={restaurantId}
+              guestId={isAccount ? undefined : guestId}
+              accountId={isAccount ? guestId : undefined}
+              partyName={partyName || (isAccount ? "Account" : "Guest")}
+            />
+          ) : card === "loyalty" || card === "relationships" || card === "notes-comms" || card === "admin-privacy" ? (
             <ComingCard
               title={selected.title}
               copy={
