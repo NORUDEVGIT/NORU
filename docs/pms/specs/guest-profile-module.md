@@ -5,14 +5,15 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Waves 4–5 still **WAVE-GATED**. |
+| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Wave 4 Spec **READY FOR ENGINEERING PLANNING** (gate OPENED). Wave 5 still **WAVE-GATED**. Wave 4 is **not** implemented. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
 | **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z |
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
-| **Waves 4–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
+| **Wave 4 Spec** | **READY FOR ENGINEERING PLANNING** — gate OPENED by Rekik 2026-09-14 via Advisor. ENGINEERING STATUS **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL**. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) OPEN. **Not** implemented. |
+| **Wave 5 Spec** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Waves 1–3 complete. Waves 4–5 are **not** automatic. |
-| **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented |
+| **Engineering assignment** | Waves 1–3 complete. Wave 4 awaits issue + tech plan + Rekik plan approval. Wave 5 is **not** automatic. |
+| **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented; Wave 4 Spec gate OPENED |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
@@ -20,13 +21,13 @@
 >
 > **Wave 2 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED completed; PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z; follow-up PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z. Wave 2 is **OPERATIONALLY ACCEPTED** / closed.
 >
-> **Wave 3 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z; PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85), [#87](https://github.com/NORUDEVGIT/NORU/pull/87), and [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED via #90. Wave 3 is **OPERATIONALLY ACCEPTED** / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. Waves 4–5 stay **WAVE-GATED**. The module is **not** COMPLETE.
+> **Wave 3 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z; PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85), [#87](https://github.com/NORUDEVGIT/NORU/pull/87), and [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED via #90. Wave 3 is **OPERATIONALLY ACCEPTED** / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. Wave 4 Spec gate **OPENED** 2026-09-14 by Rekik via Advisor — Spec **READY FOR ENGINEERING PLANNING**. Wave 4 is **not** implemented. Wave 5 stays **WAVE-GATED**. The module is **not** COMPLETE.
 >
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Waves 4–5 stay wave-gated.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 are the planning contract (gate OPENED; **not** implemented). Wave 5 stays wave-gated.
 
 ---
 
@@ -81,6 +82,12 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 | Wave 2 lock tests | `src/packages/pms/lib/guest-profile-wave2.test.ts` |
 | Wave 3 helpers / KPIs / quick actions | `src/packages/pms/lib/guest-profile-wave3.ts` (`nightsBetween`, honest money, guest-context copy) |
 | Wave 3 lock tests | `src/packages/pms/lib/guest-profile-wave3.test.ts` (AC-W3-1…17) |
+| Wave 4 CURRENT hook | `GUEST_PROFILE_TYPES` + Loyalty / Relationships cards in `guest-profile-wave1.ts` — Company / Group / TA `live: false`; cards `live: false` |
+| Wave 4 CURRENT switcher | `src/packages/pms/components/workspaces/guest-profile-workspace.tsx` — `data-testid="guest-profile-type-switcher"`; non-Individual tabs disabled and labelled **not LIVE · Wave 4** |
+| FO company / group **labels** | `hotel_reservations.company_name` / `group_name` (`0046_fo_search1_company_group.sql`) — optional stay text, **not** Guest masters |
+| SET3 company flag | `restaurants.pms_guest_profile_rules.companyRelationshipEnabled` — Setup boolean, **not** a Company register |
+| Cashiering transfers | `src/packages/pms/lib/cashiering.functions.ts` — `transfersSupported: false` |
+| Sales & Events | `src/routes/restaurant/pms/sales-events.tsx` — planned placeholder (blocks / corporate / TA accounts); **not** Guest masters |
 | Identity card | `src/packages/pms/components/guests/guest-identity-card.tsx` |
 | Preferences card | `src/packages/pms/components/guests/guest-preferences-card.tsx` |
 | Stay History card | `src/packages/pms/components/guests/guest-stay-history-card.tsx` |
@@ -710,9 +717,9 @@ Passing Wave 2 implementation did **not** start Waves 3–5 automatically. Wave 
 >
 > Delivered ONLY: Stay History LIVE; honest Dashboard KPIs; quick actions to Res / FO / Folio; guest-context naming (#87); Directory-back on guest-required cards (#90); profile History remains separate. **No migration.** RLS not weakened.
 >
-> Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 does **not** ungate Waves 4–5.
+> Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 does **not** implement Wave 4 and does **not** ungate Wave 5.
 >
-> Waves 4–5 remain **WAVE-GATED**. The module is **not** COMPLETE.
+> Wave 4 Spec is recorded in §6 (**READY FOR ENGINEERING PLANNING**; **not** implemented). Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
 
 ### 5.1 Business purpose
 
@@ -890,7 +897,7 @@ DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS** (after
 - Wave 3 added **no** migration. Production `0051_pms_guest_profile_wave2` remains **Abel-gated** (Wave 2 leftover).
 - Guest-context (#87) and Directory-back (#90 / #88) residuals are **RESOLVED on `main`**.
 - Empty-state Open Directory CTA (#91 / #93) is **RESOLVED on `main`**. Do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
-- Waves 4–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- Wave 4 Spec is in §6 (**READY FOR ENGINEERING PLANNING**; **not** implemented). Wave 5 stays **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 5.10 QA (Wave 3)
@@ -958,13 +965,13 @@ DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS** (after
 
 Wave 3 **exited for engineering-gate purposes** after Independent QA PASS (Rekik 2026-09-14, including #87 guest-context and #90 Directory-back residuals), human merge of PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85), [#87](https://github.com/NORUDEVGIT/NORU/pull/87), and [#90](https://github.com/NORUDEVGIT/NORU/pull/90), issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED, issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z, and the Design Execution Report. This docs reconciliation updates [../guests.md](../guests.md) CURRENT / EXPECTED for Stay History, Dashboard Overview, quick actions, guest-context, and Directory-back.
 
-Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 does **not** ungate Waves 4–5 and does **not** make the module COMPLETE.
+Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 does **not** make the module COMPLETE.
 
-Approved deviations: **THREE** (#85 merged before guest-context / #87 follow-up; #86 CLOSED as duplicate of #87; Developer browser PARTIAL with Independent QA covering residuals). Residuals / FINAL: receptionist RLS **PRESERVED**; no Wave 3 migration; #87 and #90 residuals **RESOLVED**; Waves 4–5 **WAVE-GATED**. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**.
+Approved deviations: **THREE** (#85 merged before guest-context / #87 follow-up; #86 CLOSED as duplicate of #87; Developer browser PARTIAL with Independent QA covering residuals). Residuals / FINAL: receptionist RLS **PRESERVED**; no Wave 3 migration; #87 and #90 residuals **RESOLVED**. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. Wave 4 Spec is recorded in §6 (planning only). Wave 5 remains **WAVE-GATED**.
 
 **Hotel UAT is not required to start Wave 4** but **is** required for **module COMPLETE**.
 
-Passing Wave 3 implementation does **not** start Waves 4–5 — they remain **WAVE-GATED**. The module is **not** COMPLETE.
+Closing #81 did **not** ungate Wave 4 by itself. Wave 4 Spec gate was later **OPENED** by Rekik (2026-09-14 via Advisor) — see §6. Wave 4 is **not** implemented. Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
 
 ### 5.15 Wave 3 residuals / UX consistency — Directory-back (Rekik 2026-09-14)
 
@@ -1007,12 +1014,78 @@ This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 sta
 
 | Field | Value |
 |---|---|
+| **TITLE** | Guest Profile Module — Wave 4 Masters, Relationships, Loyalty & Value |
+| **PACKAGE** | PMS |
+| **PMS AREA** | Guests |
+| **SPEC STATUS** | **READY FOR ENGINEERING PLANNING** |
+| **ENGINEERING STATUS** | **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL** — gate OPENED by Rekik 2026-09-14 via Advisor; Wave 3 exited. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) OPEN. Tech plan posted on #95 (READY for Rekik review). **No implementation** until Rekik plan approval. |
+| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. Receptionist residual **PRESERVED**. |
+| **Depends on** | Wave 3 engineering gate **exited** (issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) / PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85) + [#87](https://github.com/NORUDEVGIT/NORU/pull/87) + [#90](https://github.com/NORUDEVGIT/NORU/pull/90)). Wave 4 Spec gate **OPENED** (Rekik 2026-09-14 via Advisor). |
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
-| **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING WAVE GATE** |
-| **Depends on** | Wave 3 exited |
 
-### 6.1 Locked requirements
+> **Wave 4 Spec READY FOR ENGINEERING PLANNING** (Rekik 2026-09-14). Gate **OPENED** via Advisor. Wave 3 is **OPERATIONALLY ACCEPTED** / closed.
+>
+> This section expands the Wave 4 AC seeds into a testable planning contract. It does **not** start Wave 4 code. It does **not** ungate Wave 5. It does **not** claim Company / Group / TA masters, Relationships, or Loyalty & Value are LIVE.
+>
+> Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
+
+### 6.1 Business purpose
+
+Give authorised staff **Company**, **Group**, and **Travel Agent** registers **inside the Guest module**; let them **link individuals** to those masters with named roles; and show **Loyalty & Value** from figures that already exist on `main` — **extending** the Guest Profile shell, not inventing a second CRM in Reservations, Cashiering, or Sales & Events, and **not** inventing a points programme.
+
+Wave 4 is the Guest-owned **account master + association + honest value** layer. It is **not** folio split / city-ledger routing, **not** Sales & Events group blocks / allotments / rooming lists, **not** TA commission settlement, and **not** Wave 5 comms / privacy.
+
+### 6.2 CURRENT behaviour (Wave 4 surfaces — code wins)
+
+Grounded in `main` at `cb2724f` (Wave 3 reconciliation after #85 / #87 / #90 / #91 / #93). **Code wins.** Inspected: **no** Guest-owned Company / Group / TA master tables, **no** relationship-link table, **no** loyalty-points store.
+
+| Surface | CURRENT |
+|---|---|
+| **Profile-type hook** | `GUEST_PROFILE_TYPES` in `guest-profile-wave1.ts`: `individual` `live: true` (wave 1); `company` / `group` / `travel-agent` `live: false` (wave 4). Shell switcher (`data-testid="guest-profile-type-switcher"`) renders all four tabs; non-Individual tabs are **disabled** and labelled **not LIVE · Wave 4**. No create-company / create-group / create-TA success path. |
+| **Directory** | Individual `listGuests` only. No Company / Group / TA directory, search, or list. |
+| **Relationships card** | `GUEST_PROFILE_CARDS` id `relationships`: `live: false`, `wave: 4`. Copy: *“Coming in Wave 4. Company, group and travel-agent links are not LIVE. No master accounts can be created here.”* |
+| **Loyalty & Value card** | id `loyalty`: `live: false`, `wave: 4`. Copy: *“Coming in Wave 4. Loyalty and value will use real-derived stay and folio figures only. No points balance is shown.”* Lock tests forbid invented numbers (no `12,500` / occupancy %). |
+| **Individual VIP** | `guest_profiles.vip_status` boolean + `setGuestVip`. Staff flag only. **Not** a points balance or tier programme. |
+| **SET3 VIP levels** | `pms_guest_vip_levels` is a Setup **catalogue** (code / name). It is **not** wired as a Guest loyalty product and is **not** a points store. |
+| **SET3 company flag** | `restaurants.pms_guest_profile_rules.companyRelationshipEnabled` — Setup boolean on guest rules. **Not** a Company master, **not** a relationship row. |
+| **FO / stay labels** | `hotel_reservations.company_name` / `group_name` (`0046_fo_search1_company_group.sql`) — optional **text labels** for FO search. Comments: *“optional company/group label. Null until stored. Never derived from source.”* **Not** FKs to a Guest master. |
+| **Bill-to / folio routing** | **None.** Cashiering dashboard exposes `transfersSupported: false`. Ledger has no folio-to-folio transfer, split, or company bill-to product. |
+| **Sales & Events** | `/restaurant/pms/sales-events` is a **planned placeholder** (*“Group blocks, corporate accounts and event bookings”*). No group-block / allotment / rooming-list product. |
+| **TA commission** | **None.** Source-of-business may exist as a stay label; agent billing / commission is not a product. |
+| **Catalogue** | `guest-profile` description: *“Individual guest directory and information. Company, group and travel-agent masters come later.”* `implementationStatus` `partial`. |
+| **Server functions** | Individual CRUD / merge / consent / stay reads only (`guests.functions.ts`). **No** `createCompany` / `listTravelAgents` / relationship link APIs. |
+| **Tables** | `guest_profiles`, `guest_preferences`, `guest_profile_history`, `guest_documents`. **No** `guest_companies`, `guest_groups`, `guest_travel_agents`, or link table on `main`. |
+
+#### Must-not-claim (CURRENT)
+
+- FO `company_name` / `group_name` are **not** Company / Group masters.
+- SET3 `companyRelationshipEnabled` is **not** a Company register.
+- SET3 `pms_guest_vip_levels` and `vipStatus` are **not** a loyalty-points programme.
+- Wave 3 Dashboard stays / nights / folio amounts are **stay figures**, not Loyalty & Value LIVE.
+- Sales & Events placeholder copy is **not** a live corporate / TA CRM.
+- `transfersSupported: false` means Wave 4 must **not** claim folio split / routing / city-ledger as delivered.
+- Wave 4 cards and types are **not** LIVE. This Spec does **not** implement them.
+
+### 6.3 EXPECTED behaviour (Wave 4)
+
+| Area | Expected |
+|---|---|
+| **(A) Masters** | Company, Group, and Travel Agent **registers** in the Guest module: **create / edit / list / search**. Ownership stays in Guest. **No** second company / group / TA table owned by Reservations, Cashiering, or Sales & Events. |
+| **Profile-type hook → LIVE** | Wave 1 switcher (or nested Accounts under Guest) becomes **operational** for Company \| Group \| TA. Individual remains default and LIVE. Staff can switch type and use that type’s Directory / Information (or equivalent) without inferring a second module. |
+| **Master Directory** | List / search / open for each master type. A created master is findable by search after create. Empty-honest when none — **no** sample companies. |
+| **(B) Relationships** | Individuals can be associated with masters with **roles** (minimum: employer, bill-to, booker TA, group member). Associations are **visible from both sides** (individual Relationships card **and** the master). |
+| **Unlink** | Removing a link does **not** delete the individual or the master. |
+| **Consumer IDs** | Reservations / FO that attach a company / group / TA to a stay **consume the same Guest master IDs**. Typed-only `company_name` / `group_name` labels are **not** presented as masters. Existing labels stay labels until a written tech-plan migration (do **not** silently rewrite history as masters). |
+| **(C) Loyalty & Value** | The north-star card is operational. Figures are **real-derived** from stored stays / nights / folio amounts (same honesty as Wave 3) **or** honest empty. **No invented points balance.** **No** placeholder “12,500 points”. Segments, if shown, are real-derived or omitted — do **not** invent a marketing taxonomy. |
+| **VIP** | Remains the existing staff flag (`vipStatus`) unless a later requirement defines a programme. SET3 VIP **levels** stay a Setup catalogue unless the tech plan explicitly maps them — still **not** points. |
+| **Bill-to honesty** | Store the **association** (role `bill-to`). Do **not** claim split-folio routing, city-ledger, or transfer-to-company if Cashiering still exposes `transfersSupported: false`. Copy must say association, not routing. |
+| **Group honesty** | Group **account master** ≠ Sales & Events group **block**. Allotments, rooming lists, and MICE ops stay out. Wave 4 exit does **not** require S&E blocks. |
+| **Access** | Preserve CURRENT `canManageGuests` / `requireGuestManager` / RLS behaviour unless Abel-flagged. Masters and links stay staff-only and tenant-scoped. |
+| **Reuse** | Extend the Guest stack and 10-card shell. Do **not** introduce a parallel individual guest table, a new package, or peer-package masters. Persistence is proposed in the tech plan (this Spec does **not** invent table names). |
+| **Shell UX** | When Loyalty / Relationships (or master Information) become LIVE guest-required cards, they inherit Directory-back (`isGuestRequiredProfileCard`) and empty-state **Open Directory** (`showEmptyDirectoryCta`). |
+| **Honesty** | Wave 5 cards stay **Coming in Wave 5**. Do not claim the **module** COMPLETE from Wave 4. Do not claim Wave 4 implemented from this Spec. |
+
+### 6.4 Locked requirements
 
 | Part | EXPECTED |
 |---|---|
@@ -1024,25 +1097,206 @@ Group **account** ≠ Sales & Events group **block**. Allotments / rooming lists
 
 Company **bill-to as a folio routing product** may still depend on cashiering / M1 work. Wave 4 must store the **association** honestly; it must **not** claim split-folio routing if Cashiering still exposes `transfersSupported: false`.
 
-### 6.2 Out of Wave 4
+### 6.5 Master register (planning — no invented schema)
 
-Comms product, privacy finish, offline, MICE ops, LIVE OTA, TA commission settlement unless a later Spec says so.
+This Spec does **not** invent table names or columns. The tech plan proposes Guest-owned persistence (additive tables **or** an equivalent Guest-owned design). **Must not** create peer-package masters.
 
-### 6.3 Exit
+| Master type | Wave 4 capability | Not this wave |
+|---|---|---|
+| **Company** | Create / edit / list / search in Guest. Link individuals (employer, bill-to as applicable). | City-ledger / folio routing product; a second company table in Cashiering or Reservations |
+| **Group (account)** | Create / edit / list / search in Guest. Link individuals (group member). | S&E group **blocks**, allotments, rooming lists, MICE ops |
+| **Travel Agent** | Create / edit / list / search in Guest. Link individuals (booker TA). | TA commission settlement; GDS / IATA full settlement |
 
-Masters + associations + honest loyalty/value; Independent QA recorded.
+**Minimum identity for search:** a display **name** (required) so staff can find the master they just created. Optional contact / notes: tech plan names the field list; do not invent a worldwide company schema here.
 
-### 6.4 Wave 4 AC seeds
+**SET3 `companyRelationshipEnabled`:** remains a Setup **flag**. Wave 4 must **not** treat the flag as the Company register. The tech plan may consume it as a property capability switch or leave it Setup-only — write the choice.
 
-| ID | Criterion |
+### 6.6 Relationship roles (minimum set)
+
+| Role | Typical pair | Meaning |
+|---|---|---|
+| **employer** | Individual ↔ Company | The company employs (or sponsors) this guest. |
+| **bill-to** | Individual ↔ Company (or other master if the tech plan allows) | **Association** of who is billed — **not** folio split / routing unless Cashiering later supports it. |
+| **booker TA** | Individual ↔ Travel Agent | The travel agent booked (or represents) this guest. |
+| **group member** | Individual ↔ Group account | The guest belongs to this Group **account** — **not** an S&E rooming-list assignment. |
+
+Rules:
+
+- Visible on the individual’s **Relationships** card and on the master.
+- Unlink does not delete either party.
+- One individual may hold more than one role (tech plan names uniqueness: e.g. one employer vs many group memberships).
+- Wave 2 **individual** merge must not silently delete masters. The tech plan writes what happens to links when an individual is merged (reassign to survivor, or explicit staff choice) — never a silent wipe presented as success.
+
+### 6.7 Loyalty & Value honesty matrix
+
+| Figure | Honest on `main`? | Wave 4 Loyalty rule |
+|---|---|---|
+| **Stay count** | **Yes** (Wave 3) | May appear, labelled as stays — **not** “points”. |
+| **Nights** | **Yes** (`nightsBetween`) | May appear, labelled as nights. |
+| **Quoted room total** | **Partial** | Same as Wave 3: only where stored; not posted revenue; omit / not available if none. |
+| **Posted folio balance** | **Partial** | Same as Wave 3: only when a folio exists. |
+| **VIP flag** | **Yes** (boolean) | Remains the staff flag on Information. Loyalty must **not** convert VIP into invented points. |
+| **SET3 VIP level catalogue** | Setup list only | Not a points programme. Do not display fake tier scores. |
+| **Points balance / earn / burn** | **Does not exist** | **Omit.** Never invent `12,500 points` or a placeholder ledger. |
+| **Marketing segments** | **Does not exist** as a product | If shown, derive from real stays (e.g. stay-count band) **and** label the derivation — or omit. Do not invent personas. |
+| **Lifetime “true revenue”** | **Not a single honest source** | Do **not** ship one invented lifetime spend. |
+| **Folio transfers / company routing** | **N/A** (`transfersSupported: false`) | Do not show transfer / split-to-company KPIs. |
+| **OTA / gateway / classic NA** | **Does not exist** | Omit. Never invent. |
+
+**Default Loyalty set (locked preference):** reuse Wave 3 honest stay / night (and optional stored amounts) **or** honest empty. Prefer empty-honest over a decorative points widget.
+
+### 6.8 Bill-to vs folio routing (honesty)
+
+| Claim | Wave 4 |
 |---|---|
-| **AC-W4-1** | Staff can create a Company master in Guest and find it by search. |
-| **AC-W4-2** | Same for Group account master and Travel Agent master. |
-| **AC-W4-3** | Staff can link an individual as employer / bill-to / booker TA / group member and see the link on Relationships. |
-| **AC-W4-4** | Removing a link does not delete the individual or the master. |
-| **AC-W4-5** | Reservations / FO consume the same master IDs — no typed-only “company name” presented as a master. |
-| **AC-W4-6** | Loyalty & Value shows only derived figures or honest empty; no placeholder “12,500 points”. |
-| **AC-W4-7** | Sales & Events is not required to implement group **blocks** for this wave to exit. |
+| Staff can store **bill-to** as a relationship role | **Yes** — association on the profile |
+| Folio header routes charges to that company | **Not from this wave** while `transfersSupported: false` |
+| Split folio / city-ledger / transfer-to-master | **Out** — Cashiering / later M1 (E-M02 / E-M03). Flag if a later Spec reopens it. |
+| UI copy “billed to {Company}” as **routing success** | **Forbidden** while transfers are unsupported. Allowed: “Bill-to association: {Company}” (or equivalent honest label) |
+
+### 6.9 Group account vs Sales & Events blocks (honesty)
+
+| Surface | Wave 4 |
+|---|---|
+| Guest **Group account** master (name, list, member links) | **In** — Guest module |
+| S&E group **block** / allotment / pickup / rooming list | **Out** — `/restaurant/pms/sales-events` stays the planned placeholder |
+| MICE / event / meeting-space ops | **Out** |
+| Wave 4 exit depends on S&E blocks | **No** (AC-W4-7) |
+
+### 6.10 Out of Wave 4
+
+| Out | Belongs |
+|---|---|
+| Notes / Comms / Activity hub | Wave 5 |
+| Export / anonymise / unmerge / privacy audit | Wave 5 |
+| Offline-first Guest UX | Out of this module |
+| Full Sales & Events group-block operations / allotments / rooming lists | Out of this module |
+| MICE ops | Out |
+| Second company / group / TA master outside Guest | Never invent |
+| LIVE OTA / channel-manager sync | Never invent |
+| Payment-gateway settlement | Never invent |
+| Classic nightly room-and-tax night audit as a Guest capability | Never invent |
+| TA commission settlement | Out unless a later Spec says so |
+| Folio split / routing / city-ledger product | Cashiering / M1 — not Guest Wave 4 |
+| Invented loyalty points / fake segments | Never invent |
+| Entitlement-architecture redesign | Flag Abel; not assumed |
+| Wave 4 **code** from this Spec alone | Issue + tech plan + **Rekik plan approval** first |
+
+### 6.11 Acceptance criteria (testable)
+
+Staff in the ACs are **authorised**: signed-in, property membership, package **pms**, and they pass the existing guest manage gate. “Denied staff” fail that gate or lack `pms`.
+
+| ID | Criterion | Pass |
+|---|---|---|
+| **AC-W4-1** | Staff can **create a Company master** in Guest and **find it by search**. | Create with a required display name. Reload Directory (Company type). Search returns that master. Source is the Guest-owned Company register — not a typed FO `company_name` label. |
+| **AC-W4-2** | Staff can **create / find** a **Group account** master and a **Travel Agent** master the same way. | Same as AC-W4-1 for Group and TA. Both types are operational in Guest. S&E is not the create path. |
+| **AC-W4-3** | Staff can **link** an individual as **employer** / **bill-to** / **booker TA** / **group member** and see the link on **Relationships**. | Each minimum role can be set. Relationships card shows the master + role. The master shows the individual. |
+| **AC-W4-4** | **Removing a link** does not delete the individual or the master. | Unlink → individual still in Individual Directory; master still in its Directory; relationship gone. |
+| **AC-W4-5** | Reservations / FO **consume the same master IDs** — no typed-only “company name” presented as a master. | Where a stay attaches Company / Group / TA after Wave 4, the picker uses Guest master IDs. FO `company_name` / `group_name` remain labels unless the tech plan migrates them — they are not retitled “master”. |
+| **AC-W4-6** | **Loyalty & Value** shows only **derived** figures or **honest empty**; no placeholder “12,500 points”. | Visible numbers trace to Wave 3 stay / folio sources (or are omitted). No points ledger. VIP is not converted into invented points. |
+| **AC-W4-7** | Sales & Events is **not** required to implement group **blocks** for this wave to exit. | Group **account** CRUD + member links work. `/restaurant/pms/sales-events` may remain a placeholder. Allotments / rooming lists absent is **PASS**, not a defect. |
+| **AC-W4-8** | Staff can **edit** a Company / Group / TA master and see updates **persist** after reload. | Change name (or an allowed contact field); reopen; values match. Same Guest writer — no parallel store. |
+| **AC-W4-9** | Wave 1 **profile-type hook** is **LIVE** for Company \| Group \| TA (switcher or nested Accounts). | Staff can select each type and reach that type’s Directory. Individual remains default. Disabled “not LIVE” labels are removed for types that are operational. |
+| **AC-W4-10** | Associations are **visible from both sides**. | Open the individual → Relationships shows the master. Open the master → the individual + role appear. |
+| **AC-W4-11** | **No** second company / group / TA master owned by Reservations, Cashiering, or Sales & Events. | Diff does not add peer-package master tables. Consumers read Guest IDs. |
+| **AC-W4-12** | **Bill-to** is stored as an **association**. UI does **not** claim folio split / routing while `transfersSupported: false`. | Role persists. No “folio routed to company” success. Cashiering transfer flag unchanged unless a later cashiering Spec says otherwise. |
+| **AC-W4-13** | Group **account** master is **not** an S&E block / allotment / rooming list. | Group Information / Relationships have no pickup, allotment, or rooming-list editor. Copy does not call the account a “block”. |
+| **AC-W4-14** | **VIP** remains the staff flag unless a later programme is specified. | `setGuestVip` / Information VIP still work. Loyalty does not invent a points-for-VIP conversion. |
+| **AC-W4-15** | A guest with **no** honest derived value sees **empty / not available** on Loyalty — not a decorative score. | Zero stays → no invented points or lifetime spend. Stays without amounts omit revenue. |
+| **AC-W4-16** | FO `company_name` / `group_name` and SET3 `companyRelationshipEnabled` are **not** presented as Guest masters. | Labels / flag remain what they are. Creating a Company master does not require those fields to already hold data. |
+| **AC-W4-17** | Wave 5 cards stay **Coming in Wave 5**. Wave 4 does **not** ship comms / export / anonymise / unmerge. | Notes / Comms / Activity and Admin & Privacy remain placeholders. Wave 2 consent / notes remain on Information. |
+| **AC-W4-18** | Denied staff cannot list or mutate masters or relationships. | Same property, role outside the working gate: no master data, no links. Other-property IDs fail. Public / unauthenticated users redirect to login. |
+| **AC-W4-19** | Masters and links are **tenant-scoped**. | Property 2 does not see property 1 Company / Group / TA or links. `restaurantId` from the client is not trusted alone. |
+| **AC-W4-20** | Creating / updating a master or changing a relationship writes **history** (additive event types as the tech plan names). | History is not deleted. Wave 4 does not need the Wave 5 Comms card. |
+| **AC-W4-21** | Wave 4 does **not** invent LIVE OTA, gateway settlement, classic nightly NA, or TA commission settlement. | No “channel points”, “commission due”, or “NA room+tax loyalty” widgets. |
+| **AC-W4-22** | **No** DB entitlement / auth architecture change beyond the existing guest manage gate, unless Abel-flagged. | Diff has no new package and no new RLS role model unless a Spec addendum flags Abel. Additive RLS on new Guest-owned tables that **matches** existing guest-table roles is expected and is **not** a model change. |
+| **AC-W4-23** | When Loyalty / Relationships (or master Information) are LIVE guest-required cards, **Directory-back** and empty-state **Open Directory** inherit the Wave 3 shell rules. | Selected guest: sticky **← Directory**. No guest: primary **Open Directory**. Coming-in-Wave cards stay copy-only. |
+
+#### Wave 4 AC results
+
+DESIGN COMPLETION: **READY FOR ENGINEERING PLANNING** (Wave 4 Spec). IMPLEMENTATION STATUS: **NOT STARTED**. Approved deviations: **NONE** (planning only).
+
+`NOT RUN` is never `PASS`. Do **not** record AC-W4-* as PASS from this Spec.
+
+### 6.12 QA (Wave 4)
+
+`NOT RUN` is never `PASS`. Live PMS UI that is not exercised stays **NOT VERIFIED**.
+
+| ID | Check | Notes |
+|---|---|---|
+| **QA-W4-1** | Authorised happy path: switch to Company → create → search → open → edit → persist. | Browser, signed-in PMS session. |
+| **QA-W4-2** | Same happy path for Group account and Travel Agent. | |
+| **QA-W4-3** | Link individual as employer, bill-to, booker TA, and group member; confirm both sides. | |
+| **QA-W4-4** | Unlink each role; individual and masters still exist. | |
+| **QA-W4-5** | Profile-type switcher / Accounts: Individual + Company + Group + TA all operational. | Screenshot + note. |
+| **QA-W4-6** | Loyalty: guest with stays shows only derived figures; guest with zero stays is empty-honest — no points. | Compare to Wave 3 Dashboard sources. |
+| **QA-W4-7** | Bill-to association visible; **no** folio-routing / split success copy while `transfersSupported: false`. | |
+| **QA-W4-8** | Group account has **no** S&E block / allotment / rooming-list controls. S&E placeholder unchanged. | |
+| **QA-W4-9** | FO search still matches stored `company_name` / `group_name` **labels**; those rows are not retitled as masters. | |
+| **QA-W4-10** | SET3 `companyRelationshipEnabled` toggle still saves as a Setup flag — not a Company row. | |
+| **QA-W4-11** | Wave 5 cards still Coming in Wave 5; no fabricated comms / privacy metrics. | Screenshot + note. |
+| **QA-W4-12** | `tsc --noEmit` (or project equivalent) on the implementation PR. | Developer lane. |
+| **QA-W4-13** | Independent QA after Developer QA. | Required before Wave 4 exit. Hotel UAT is **module** DoD, not Wave 4 alone. |
+
+### 6.13 Security (Wave 4)
+
+| ID | Check |
+|---|---|
+| **SEC-W4-1** | Unauthenticated visit to Guest canonical routes (including any new master / relationship URL) redirects to login. |
+| **SEC-W4-2** | Membership **without** package `pms` cannot use Company / Group / TA masters, Relationships, or Loyalty. |
+| **SEC-W4-3** | Staff who fail `canManageGuests` / `requireGuestManager` cannot read or write masters or links for that property. |
+| **SEC-W4-4** | Tenant isolation: master and relationship reads re-derive `restaurantId` from membership. Property 1 Company is not returned for property 2. |
+| **SEC-W4-5** | No new public / customer route exposes company contact PII, TA contacts, or relationship graphs. |
+| **SEC-W4-6** | Unlink is not a silent delete of people or masters. No unique-constraint “upsert” that hides a second company. |
+| **SEC-W4-7** | Do not log full company tax IDs, TA credentials, or ID numbers in client telemetry if that channel does not already. |
+| **SEC-W4-8** | RLS / role model unchanged unless Abel-flagged. Receptionist vs owner/manager inconsistency remains **documented**, not silently “fixed”. Additive policies on new Guest-owned tables must not widen receptionist access beyond the documented residual. |
+
+### 6.14 Regression (Wave 4)
+
+| ID | Check |
+|---|---|
+| **REG-W4-1** | Wave 1 Individual Directory / Information create / find / edit still work on the same routes. |
+| **REG-W4-2** | Wave 2 Identity / Preferences / merge / consent still work. Merge still reassigns `hotel_reservations.guest_id`. |
+| **REG-W4-3** | Wave 3 Stay History, Dashboard Overview, quick actions, guest-context, Directory-back, and empty-state Open Directory still work. |
+| **REG-W4-4** | Information History tab still lists `guest_profile_history` and is not replaced by Relationships or Loyalty. |
+| **REG-W4-5** | FO-SEARCH1 `company_name` / `group_name` label search still functions. |
+| **REG-W4-6** | SET3 guest rules (`companyRelationshipEnabled`, consent defaults, required fields) still save. |
+| **REG-W4-7** | Sales & Events placeholder remains planned — Wave 4 must not ship fake group blocks there. |
+| **REG-W4-8** | Cashiering `transfersSupported: false` unchanged. Wave 4 must not claim folio transfers. |
+| **REG-W4-9** | Wave 5 cards stay honest placeholders. |
+| **REG-W4-10** | No new package; no Back Office / Reservations / Cashiering guest or company master; no second `guest_profiles` table. |
+| **REG-W4-11** | Distribution / OTA labels unchanged — this wave must not add “live channel” claims. |
+| **REG-W4-12** | Individual `vipStatus` toggle and badges still work. |
+| **REG-W4-13** | Guest Services placeholder remains requests / concierge — not this module. |
+
+### 6.15 Wave 4 permissions (summary)
+
+| Check | Rule |
+|---|---|
+| Package | **pms** |
+| Module access | Existing `front_office` role check inside `requireGuestManager` |
+| Manage flag | Existing `getGuestsAccess` → `canManageGuests` |
+| RLS | Existing owner / manager policies on guest tables; new Guest-owned master / link tables match that model unless Abel-flagged |
+| Wave 4 change | New master / relationship **writes** use the same chain. **Flag Abel** if a new entitlement type or RLS role is proposed. |
+| Cashiering / S&E | Wave 4 does **not** widen folio-transfer or S&E entitlements. |
+
+### 6.16 Wave 4 exit
+
+Wave 4 **exits for engineering-gate purposes** only after:
+
+1. Rekik **plan approval** (issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) tech plan)
+2. Implementation against this §6 contract (extend existing guest code — do **not** restart)
+3. Developer QA recorded (`NOT RUN` ≠ `PASS`)
+4. Independent QA **PASS**
+5. Human merge of the implementation PR
+6. Design Execution Report
+7. Docs reconciliation to `main` (code wins)
+
+**Hotel UAT is not required to start Wave 5** but **is** required for **module COMPLETE**.
+
+Passing this planning Spec does **not** start Wave 4 code and does **not** ungate Wave 5. Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
+
+Exit product summary: masters + associations + honest loyalty/value; Independent QA recorded; bill-to stored without a folio-routing claim; Group account delivered without S&E blocks.
 
 ---
 
@@ -1085,9 +1339,9 @@ Full hub + privacy finish + Independent QA; property ready for hotel UAT. **Modu
 
 ---
 
-## 8. Cross-wave QA / security / regression (Waves 4–5)
+## 8. Cross-wave QA / security / regression (Wave 5)
 
-Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. When a later wave is ungated, its tech plan **must** include the same depth. Until then, these rules hold:
+Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. Wave 4 QA / Security / Regression live in §6.12–§6.14 at Wave 1 depth (`NOT RUN` ≠ `PASS`). When Wave 5 is ungated, its tech plan **must** include the same depth. Until then, these rules hold:
 
 | Rule | Apply |
 |---|---|
@@ -1112,9 +1366,10 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Keep Wave 1 ACs as the accepted contract | Reopen Wave 1 engineering |
 | Record Wave 2 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#72 / #76 / #79) | Reopen Wave 2 engineering or treat #79 as a new wave |
 | Keep Wave 2 ACs as the accepted contract | Treat Wave 2 residuals as Wave 3 defects |
-| Record Wave 3 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90) | Reopen #81, ungate Waves 4–5, or claim the module COMPLETE |
+| Record Wave 3 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90) | Reopen #81 or claim the module COMPLETE |
 | Keep Wave 3 ACs as the accepted contract | Reopen Stay History / KPI / Directory-back engineering |
-| Lock Waves 4–5 product intent behind wave gates | Start masters / loyalty / comms / privacy finish from this reconciliation |
+| Record Wave 4 Spec as **READY FOR ENGINEERING PLANNING** (gate OPENED; §6 ACs) | Claim Wave 4 **implemented**, start Wave 4 **code** from this Spec alone, or ungate Wave 5 |
+| Keep Wave 5 product intent **WAVE-GATED** | Start comms / privacy finish from this planning pass |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
 | Record that Waves 1–3 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
 | Record Wave 3 approved deviations (#85 early merge → #87; #86 duplicate of #87; Developer browser PARTIAL) | Treat those process notes as product defects, or treat Developer PARTIAL as PASS |
@@ -1129,7 +1384,9 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 >
 > **Wave 3 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90). **ENGINEERING STATUS: COMPLETE / MERGED.** Wave 3 is OPERATIONALLY ACCEPTED / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**.
 >
-> Waves 4–5: **SPECIFIED / WAVE-GATED**.
+> Wave 4 Spec: **READY FOR ENGINEERING PLANNING**. ENGINEERING STATUS **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL**. Gate OPENED by Rekik (2026-09-14 via Advisor). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) OPEN. Wave 4 is **not** implemented.
+>
+> Wave 5: **SPECIFIED / WAVE-GATED**.
 >
 > The module is **not** COMPLETE. Hotel UAT is still required after Waves 4–5.
 >
