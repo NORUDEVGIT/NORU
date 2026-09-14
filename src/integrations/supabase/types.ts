@@ -4387,28 +4387,49 @@ export type Database = {
           booking_contact_phone: string | null
           booking_message: string | null
           business_date: string | null
+          cancel_fee_basis: string | null
+          cancel_window_hours: number | null
+          check_in_time: string | null
+          check_out_time: string | null
           city: string | null
           country: string | null
           created_at: string
           currency_code: string
+          deposit_required: boolean | null
+          deposit_type: string | null
+          deposit_value: number | null
           direct_booking_enabled: boolean
+          early_checkin_allowed: boolean | null
+          early_checkin_fee: number | null
+          early_checkin_needs_approval: boolean | null
           email: string | null
           fo_cancel_fee_default: number
           fo_cancel_fee_required: boolean
           fo_noshow_fee_default: number
           fo_noshow_fee_required: boolean
+          hotel_day_open: boolean | null
           id: string
+          late_checkout_allowed: boolean | null
+          late_checkout_fee: number | null
+          late_checkout_needs_approval: boolean | null
+          legal_name: string | null
           logo_url: string | null
           name: string
+          noshow_fee_basis: string | null
           phone: string | null
+          pms_set1_live: boolean
           postcode: string | null
+          property_code: string | null
+          property_type: string | null
           rejection_reason: string | null
           service_enabled: boolean
           service_rate: number
           slug: string
           status_updated_at: string | null
           suspension_reason: string | null
+          tax_identities: Json
           tax_inclusive: boolean
+          tax_name: string | null
           tax_rate: number
           timezone: string
           updated_at: string
@@ -4423,28 +4444,49 @@ export type Database = {
           booking_contact_phone?: string | null
           booking_message?: string | null
           business_date?: string | null
+          cancel_fee_basis?: string | null
+          cancel_window_hours?: number | null
+          check_in_time?: string | null
+          check_out_time?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
           currency_code?: string
+          deposit_required?: boolean | null
+          deposit_type?: string | null
+          deposit_value?: number | null
           direct_booking_enabled?: boolean
+          early_checkin_allowed?: boolean | null
+          early_checkin_fee?: number | null
+          early_checkin_needs_approval?: boolean | null
           email?: string | null
           fo_cancel_fee_default?: number
           fo_cancel_fee_required?: boolean
           fo_noshow_fee_default?: number
           fo_noshow_fee_required?: boolean
+          hotel_day_open?: boolean | null
           id?: string
+          late_checkout_allowed?: boolean | null
+          late_checkout_fee?: number | null
+          late_checkout_needs_approval?: boolean | null
+          legal_name?: string | null
           logo_url?: string | null
           name: string
+          noshow_fee_basis?: string | null
           phone?: string | null
+          pms_set1_live?: boolean
           postcode?: string | null
+          property_code?: string | null
+          property_type?: string | null
           rejection_reason?: string | null
           service_enabled?: boolean
           service_rate?: number
           slug: string
           status_updated_at?: string | null
           suspension_reason?: string | null
+          tax_identities?: Json
           tax_inclusive?: boolean
+          tax_name?: string | null
           tax_rate?: number
           timezone?: string
           updated_at?: string
@@ -4459,28 +4501,49 @@ export type Database = {
           booking_contact_phone?: string | null
           booking_message?: string | null
           business_date?: string | null
+          cancel_fee_basis?: string | null
+          cancel_window_hours?: number | null
+          check_in_time?: string | null
+          check_out_time?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
           currency_code?: string
+          deposit_required?: boolean | null
+          deposit_type?: string | null
+          deposit_value?: number | null
           direct_booking_enabled?: boolean
+          early_checkin_allowed?: boolean | null
+          early_checkin_fee?: number | null
+          early_checkin_needs_approval?: boolean | null
           email?: string | null
           fo_cancel_fee_default?: number
           fo_cancel_fee_required?: boolean
           fo_noshow_fee_default?: number
           fo_noshow_fee_required?: boolean
+          hotel_day_open?: boolean | null
           id?: string
+          late_checkout_allowed?: boolean | null
+          late_checkout_fee?: number | null
+          late_checkout_needs_approval?: boolean | null
+          legal_name?: string | null
           logo_url?: string | null
           name?: string
+          noshow_fee_basis?: string | null
           phone?: string | null
+          pms_set1_live?: boolean
           postcode?: string | null
+          property_code?: string | null
+          property_type?: string | null
           rejection_reason?: string | null
           service_enabled?: boolean
           service_rate?: number
           slug?: string
           status_updated_at?: string | null
           suspension_reason?: string | null
+          tax_identities?: Json
           tax_inclusive?: boolean
+          tax_name?: string | null
           tax_rate?: number
           timezone?: string
           updated_at?: string

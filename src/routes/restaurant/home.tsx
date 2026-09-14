@@ -35,6 +35,7 @@ import { localDateInZone } from "@/shared/lib/property-time";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import type { ModuleKey } from "@/core/lib/module-access";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
+import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
 import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/home")({
@@ -157,7 +158,7 @@ const BACK_OFFICE_LINKS: {
 const SETUP_LINKS: { title: string; moduleKey: ModuleKey; to: string; icon: LucideIcon }[] = [
   { title: "Configuration", moduleKey: "configuration", to: "/restaurant/configuration", icon: SlidersHorizontal },
   {
-    title: "Property Settings & Integrations",
+    title: "Settings",
     moduleKey: "property_settings",
     to: "/restaurant/settings",
     icon: Settings,
@@ -245,7 +246,13 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const backOfficeLinks = showBackOffice
     ? BACK_OFFICE_LINKS.filter((l) => allowed.includes(l.moduleKey))
     : [];
-  const setupLinks = SETUP_LINKS.filter((l) => allowed.includes(l.moduleKey));
+  const setupLinks = SETUP_LINKS.filter((l) => {
+    if (!allowed.includes(l.moduleKey)) return false;
+    if (l.to === "/restaurant/settings" && packages.has("pms") && !canEditSet1(membership.role)) {
+      return false;
+    }
+    return true;
+  });
   const nothingVisible =
     !showRestaurant && !showPms && !showBackOffice && !showStandalonePos && !packages.loading;
 

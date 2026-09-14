@@ -9,6 +9,7 @@ import {
   FO_FEE_DEFAULTS_DENIED,
   FO_FEE_DEFAULTS_HINT,
   FO_FEE_DEFAULTS_SECTION,
+  FO_FEE_DEFAULTS_SETTINGS_HREF,
   FO_FEE_REQUIRED_UNSET,
   canEditFoFeeDefaults,
   feeDefaultAmountAllowed,
@@ -109,7 +110,13 @@ describe("FO-CLEAN1 fee editor source locks", () => {
       new URL("../../../core/components/workspaces/settings-workspace.tsx", import.meta.url),
       "utf8",
     );
-    assert.match(settings, /FoFeeDefaultsEditor/);
+    assert.doesNotMatch(settings, /FoFeeDefaultsEditor/);
+    const policies = readFileSync(
+      new URL("../components/settings/pms-set1-section.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(policies, /FoFeeDefaultsEditor/);
+    assert.equal(FO_FEE_DEFAULTS_SETTINGS_HREF, "/restaurant/settings#policies");
   });
 
   it("FO-FS0 rail lock is unchanged", () => {
