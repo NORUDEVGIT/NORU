@@ -26,6 +26,16 @@ import {
   set3MandatoryMissing,
   type Set3ActivateInput,
 } from "./pms-set3-rates-guest.ts";
+import {
+  emptySet4Activate,
+  evaluateHousekeeping,
+  evaluateMaintenance,
+  evaluateRoomInventory,
+  hkStatusesMandatoryComplete,
+  oooOosMandatoryComplete,
+  set4MandatoryMissing,
+  type Set4ActivateInput,
+} from "./pms-set4-hk-inventory.ts";
 
 function calendarToday(timezone: string): string {
   try {
@@ -72,12 +82,16 @@ export const SET1_SECTION_HASHES = [
   "outlets",
   "rates",
   "guest-profile",
+  "housekeeping-rules",
+  "room-inventory-rules",
+  "maintenance-rules",
   "golive",
 ] as const;
 export type Set1SectionId = (typeof SET1_SECTION_HASHES)[number];
 export const SET1_FOUNDATION_HASHES = ["identity", "ops", "taxes", "policies"] as const;
 export const SET2_LIVE_HASHES = ["structure", "rooms", "outlets"] as const;
 export const SET3_LIVE_HASHES = ["rates", "guest-profile"] as const;
+export const SET4_LIVE_HASHES = ["housekeeping-rules", "room-inventory-rules", "maintenance-rules"] as const;
 
 export type Set1Readiness = "complete" | "warning" | "incomplete" | "blocked";
 export type Set1Overall = "ready" | "warning" | "blocked";
@@ -113,10 +127,10 @@ export const DEPOSIT_TYPE_LABELS: Record<DepositType, string> = {
 
 export type TaxIdentity = { label: string; value: string };
 
-// Live main still lists Rates as SET4 Coming soon. Abel-approved SET3 Spec
-// puts Rates & meal plans and Guest profile rules in this wave.
+// After SET4 Live, Coming soon is SET5+ only. Banks is no longer labelled SET4.
 export const SET1_COMING_SOON: { wave: string; title: string; purpose: string }[] = [
-  { wave: "SET4", title: "Banks", purpose: "Bank accounts and settlement rails." },
+  { wave: "SET5", title: "Departments", purpose: "Department catalogue for posting and staffing." },
+  { wave: "SET5", title: "Banks", purpose: "Bank accounts and settlement rails." },
   { wave: "SET5", title: "Roles", purpose: "Property roles beyond today’s memberships." },
 ];
 
@@ -134,7 +148,10 @@ export const SET1_LIVE_CARDS: {
   { id: "outlets", title: "Outlets", purpose: "Revenue outlets. Folio posting routes stay on the existing engine." },
   { id: "rates", title: "Rates & meal plans", purpose: "Deep-link to the rates workspace. Meal and package catalogues live here." },
   { id: "guest-profile", title: "Guest profile rules", purpose: "Required fields, consent defaults, ID types and VIP levels. Profiles stay on the guest directory." },
-  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates and guest rules. One owner Activate." },
+  { id: "housekeeping-rules", title: "Housekeeping rules", purpose: "Status labels and cleaning posture. Deep-link to Housekeeping — no second board." },
+  { id: "room-inventory-rules", title: "Room inventory rules", purpose: "OOO and OOS meaning. Deep-link to Room Inventory. This is not stock inventory." },
+  { id: "maintenance-rules", title: "Maintenance rules", purpose: "Categories, priorities, type tags and thin SLA. Deep-link to Maintenance — not a work-order system." },
+  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory and maintenance. One owner Activate." },
 ];
 
 export type Set1IdentityDraft = {
@@ -453,6 +470,9 @@ export function evaluateGoLive(
     ...domains.outlets.missing,
     ...domains.rates.missing,
     ...domains["guest-profile"].missing,
+    ...domains["housekeeping-rules"].missing,
+    ...domains["room-inventory-rules"].missing,
+    ...domains["maintenance-rules"].missing,
   ];
   const blocked = !foundationColumnsAvailable && Boolean(domains.ops.missing.length || domains.taxes.missing.includes("Tax name"));
   const warnings = Object.values(domains).flatMap((d) => d.warnings);
@@ -477,9 +497,11 @@ export function evaluateSet1Checklist(input: {
   role: string;
   set2?: Set2ActivateInput;
   set3?: Set3ActivateInput;
+  set4?: Set4ActivateInput;
 }): Set1Checklist {
   const set2 = input.set2 ?? emptySet2Activate();
   const set3 = input.set3 ?? emptySet3Activate();
+  const set4 = input.set4 ?? emptySet4Activate();
   const identity = evaluateIdentity(input.identity, input.foundationColumnsAvailable);
   const ops = evaluateOps(input.ops, input.foundationColumnsAvailable);
   const taxes = evaluateTaxes(input.taxes, input.foundationColumnsAvailable);
@@ -489,8 +511,24 @@ export function evaluateSet1Checklist(input: {
   const outlets = evaluateOutlets(set2);
   const rates = evaluateRates(set3);
   const guestProfile = evaluateGuestProfile(set3);
+  const housekeeping = evaluateHousekeeping(set4);
+  const roomInventory = evaluateRoomInventory(set4);
+  const maintenance = evaluateMaintenance(set4);
   const golive = evaluateGoLive(
-    { identity, ops, taxes, policies, structure, rooms, outlets, rates, "guest-profile": guestProfile },
+    {
+      identity,
+      ops,
+      taxes,
+      policies,
+      structure,
+      rooms,
+      outlets,
+      rates,
+      "guest-profile": guestProfile,
+      "housekeeping-rules": housekeeping,
+      "room-inventory-rules": roomInventory,
+      "maintenance-rules": maintenance,
+    },
     input.foundationColumnsAvailable,
     input.pmsSet1Live,
   );
@@ -501,6 +539,7 @@ export function evaluateSet1Checklist(input: {
     ...policies.missing,
     ...set2MandatoryMissing(set2),
     ...set3MandatoryMissing(set3),
+    ...set4MandatoryMissing(set4),
   ];
   const domains = {
     identity,
@@ -512,12 +551,15 @@ export function evaluateSet1Checklist(input: {
     outlets,
     rates,
     "guest-profile": guestProfile,
+    "housekeeping-rules": housekeeping,
+    "room-inventory-rules": roomInventory,
+    "maintenance-rules": maintenance,
     golive,
   };
   const hasWarning = Object.values(domains).some((d) => d.readiness === "warning" || d.warnings.length);
   const blocked =
     mandatoryMissing.length > 0 ||
-    [identity, ops, taxes, policies, structure, rooms, outlets, rates, guestProfile].some(
+    [identity, ops, taxes, policies, structure, rooms, outlets, rates, guestProfile, housekeeping, roomInventory].some(
       (d) => d.readiness === "blocked" || d.readiness === "incomplete",
     );
   const overall: Set1Overall = blocked ? "blocked" : hasWarning ? "warning" : "ready";
@@ -533,7 +575,9 @@ export function evaluateSet1Checklist(input: {
       taxesMandatoryComplete(input.taxes, input.foundationColumnsAvailable) &&
       feeDefaultsPresent(input.policies.fees) &&
       ratesMandatoryComplete(set3) &&
-      set3.guestMinComplete,
+      set3.guestMinComplete &&
+      hkStatusesMandatoryComplete(set4) &&
+      oooOosMandatoryComplete(set4),
   };
 }
 

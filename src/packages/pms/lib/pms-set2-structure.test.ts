@@ -32,6 +32,7 @@ import {
   wingParentXor,
 } from "./pms-set2-structure.ts";
 import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
+import { completeSet4Activate } from "./pms-set4-hk-inventory.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -64,6 +65,7 @@ function foundationReady(set2 = completeSet2Activate(), role = "owner") {
     role,
     set2,
     set3: completeSet3Activate(),
+    set4: completeSet4Activate(),
   });
 }
 
@@ -162,8 +164,8 @@ describe("PMS-SET2 RI deep-link and hub unmute", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "outlets"));
     assert.ok(!SET1_COMING_SOON.some((card) => ["Structure", "Rooms", "Rooms & amenities", "Outlets"].includes(card.title)));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rates" || card.title === "Rates & meal plans"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles"));
+    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks" && card.wave === "SET5"));
+    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles" && card.wave === "SET5"));
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /SET1_HUB_HREF}#\$\{card\.id/);
