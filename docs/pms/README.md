@@ -1,6 +1,6 @@
 # PMS documentation
 
-Official NORU Property Management System (PMS) docs. Some pages record features that have completed a coordination cycle (Advisor → Spec → Developer → QA → Docs). This tree also holds Functional Specs that stay **WAVE-GATED** until the named wave is accepted (Guest Profile Waves 1–3 are on `main`; Waves 4–5 are still gated).
+Official NORU Property Management System (PMS) docs. Some pages record features that have completed a coordination cycle (Advisor → Spec → Developer → QA → Docs). This tree also holds Functional Specs that stay **WAVE-GATED** until the named wave is accepted (Guest Profile Waves 1–3 are on `main`; Wave 4 Spec is **READY FOR ENGINEERING PLANNING**; Wave 5 is still gated).
 
 Package boundaries, route ownership, and shared-service rules live in [`../architecture-ownership.md`](../architecture-ownership.md). This tree does not redefine them. PMS source lives under `src/packages/pms/` per [`../code-organization.md`](../code-organization.md).
 
@@ -13,21 +13,21 @@ Package boundaries, route ownership, and shared-service rules live in [`../archi
 
 The commercial-readiness record is advice from a read-only review of `main`. The Option A product plan packages that baseline into an S1 + M1 programme. Neither file is CURRENT feature documentation for each PMS area.
 
-## Guest Profile Module — Waves 1–3 on main; Waves 4–5 still gated
+## Guest Profile Module — Waves 1–3 on main; Wave 4 Spec planning; Wave 5 still gated
 
 | Record | Classification |
 |---|---|
-| [Guest Profile Module — programme overview](./guests.md) | **Functional Spec / programme** — Waves 1–3 **IMPLEMENTED ON MAIN**. Wave 1: issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED. Wave 2: issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED. Wave 3: issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed · PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85) + [#87](https://github.com/NORUDEVGIT/NORU/pull/87) + [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Waves 4–5 still **WAVE-GATED**. Module is **not** COMPLETE. |
-| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | **Functional Spec** — Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN**. Waves 4–5 **SPECIFIED / WAVE-GATED**. |
+| [Guest Profile Module — programme overview](./guests.md) | **Functional Spec / programme** — Waves 1–3 **IMPLEMENTED ON MAIN**. Wave 1: issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED. Wave 2: issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED. Wave 3: issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed · PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85) + [#87](https://github.com/NORUDEVGIT/NORU/pull/87) + [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Wave 4 Spec **READY FOR ENGINEERING PLANNING** (gate OPENED; issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) OPEN). Wave 4 is **not** implemented. Wave 5 still **WAVE-GATED**. Module is **not** COMPLETE. |
+| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | **Functional Spec** — Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN**. Wave 4 Spec **READY FOR ENGINEERING PLANNING**. Wave 5 **SPECIFIED / WAVE-GATED**. |
 
-Wave 1, Wave 2, and Wave 3 engineering gates exited after Independent QA PASS (Rekik), merge, and DER. Canonical routes: `/restaurant/pms/guests` and `/restaurant/pms/guests/$guestId`. Catalogue key `guest-profile` (`partial`). Guest Services (`guest-services`) was not repurposed. Wave 3 CURRENT: Stay History LIVE, Dashboard KPIs LIVE (honest), quick actions, guest-context naming (#87), Directory-back on guest-required cards (#90 / #88 CLOSED), empty-state Open Directory CTA (#91 / #93 CLOSED); profile History remains separate. No Wave 3 migration. RLS not weakened. Production migration `0051_pms_guest_profile_wave2` remains **held** (Abel / PM); non-prod applied. Waves 4–5 wait for explicit ungating. Hotel UAT is still required for module COMPLETE. Closing #81 does not ungate Waves 4–5.
+Wave 1, Wave 2, and Wave 3 engineering gates exited after Independent QA PASS (Rekik), merge, and DER. Canonical routes: `/restaurant/pms/guests` and `/restaurant/pms/guests/$guestId`. Catalogue key `guest-profile` (`partial`). Guest Services (`guest-services`) was not repurposed. Wave 3 CURRENT: Stay History LIVE, Dashboard KPIs LIVE (honest), quick actions, guest-context naming (#87), Directory-back on guest-required cards (#90 / #88 CLOSED), empty-state Open Directory CTA (#91 / #93 CLOSED); profile History remains separate. No Wave 3 migration. RLS not weakened. Production migration `0051_pms_guest_profile_wave2` remains **held** (Abel / PM); non-prod applied. Wave 4 Spec gate **OPENED** 2026-09-14 by Rekik via Advisor — **READY FOR ENGINEERING PLANNING**; ENGINEERING **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL**. Do **not** claim Wave 4 implemented. Wave 5 waits for explicit ungating. Hotel UAT is still required for module COMPLETE.
 
 ## Surfaces documented in this cycle
 
 | Surface | Doc |
 |---|---|
 | PMS Dashboard (`/restaurant/pms/dashboard` → `RoomsDashboardTab`) | [dashboard.md](./dashboard.md) |
-| Guest Profile (`/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`) | [guests.md](./guests.md) — Waves 1–3 CURRENT on `main`; Waves 4–5 still gated; module **not** COMPLETE |
+| Guest Profile (`/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`) | [guests.md](./guests.md) — Waves 1–3 CURRENT on `main`; Wave 4 Spec **READY FOR ENGINEERING PLANNING** (not implemented); Wave 5 still gated; module **not** COMPLETE |
 
 Other PMS area docs (reservations, rates, housekeeping, cashiering, night audit, and the rest) will be added here as those features complete their own cycles. Absence of a file is not a claim that the surface does not exist in the product.
 
