@@ -10,6 +10,7 @@ import {
   SET1_BUSINESS_DATE_COPY,
   SET1_COLUMNS_UNAVAILABLE,
   SET1_COMING_SOON,
+  SET1_LIVE_CARDS,
   SET1_DENIED,
   SET1_HUB_HREF,
   SET1_PMS_BACK_HREF,
@@ -30,6 +31,7 @@ import {
   propertySetupRedirectHref,
 } from "./pms-set1-foundation.ts";
 import { FO_FEE_DEFAULTS_SETTINGS_HREF } from "./fo-fee-defaults.ts";
+import { completeSet2Activate } from "./pms-set2-structure.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -51,6 +53,11 @@ const completePolicies = emptyPolicies({
     noshowFeeDefault: 25,
   },
 });
+const completeSet2 = completeSet2Activate();
+
+function checklist(input: Parameters<typeof evaluateSet1Checklist>[0]) {
+  return evaluateSet1Checklist({ set2: completeSet2, ...input });
+}
 
 describe("PMS-SET1 role gate", () => {
   it("lets manager save and blocks Activate; owner can Activate; receptionist cannot edit", () => {
@@ -66,7 +73,7 @@ describe("PMS-SET1 role gate", () => {
     assert.equal(canActivateSet1("manager"), false);
     assert.equal(canActivateSet1("receptionist"), false);
 
-    const managerReady = evaluateSet1Checklist({
+    const managerReady = checklist({
       identity: completeIdentity,
       ops: completeOps,
       taxes: completeTaxes,
@@ -78,7 +85,7 @@ describe("PMS-SET1 role gate", () => {
     assert.equal(managerReady.overall, "ready");
     assert.equal(managerReady.canActivate, false);
 
-    const owner = evaluateSet1Checklist({
+    const owner = checklist({
       identity: completeIdentity,
       ops: completeOps,
       taxes: completeTaxes,
@@ -89,7 +96,7 @@ describe("PMS-SET1 role gate", () => {
     });
     assert.equal(owner.canActivate, true);
 
-    const receptionist = evaluateSet1Checklist({
+    const receptionist = checklist({
       identity: completeIdentity,
       ops: completeOps,
       taxes: completeTaxes,
@@ -107,7 +114,7 @@ describe("PMS-SET1 role gate", () => {
 
 describe("PMS-SET1 mandatory checklist", () => {
   it("requires name, timezone, currency, CI and CO, tax mode + named rate, and 0042 defaults", () => {
-    const missingName = evaluateSet1Checklist({
+    const missingName = checklist({
       identity: emptyIdentity({ timezone: "Europe/London", currencyCode: "GBP" }),
       ops: completeOps,
       taxes: completeTaxes,
@@ -121,7 +128,7 @@ describe("PMS-SET1 mandatory checklist", () => {
     assert.equal(missingName.canActivate, false);
     assert.equal(missingName.overall, "blocked");
 
-    const missingTimes = evaluateSet1Checklist({
+    const missingTimes = checklist({
       identity: completeIdentity,
       ops: emptyOps(),
       taxes: completeTaxes,
@@ -135,7 +142,7 @@ describe("PMS-SET1 mandatory checklist", () => {
     assert.ok(missingTimes.mandatoryMissing.includes("Check-out time"));
     assert.equal(missingTimes.canActivate, false);
 
-    const missingTaxName = evaluateSet1Checklist({
+    const missingTaxName = checklist({
       identity: completeIdentity,
       ops: completeOps,
       taxes: emptyTaxes({ taxInclusive: true, taxRate: 10 }),
@@ -148,7 +155,7 @@ describe("PMS-SET1 mandatory checklist", () => {
     assert.ok(missingTaxName.mandatoryMissing.includes("Tax name"));
     assert.equal(missingTaxName.canActivate, false);
 
-    const missingFees = evaluateSet1Checklist({
+    const missingFees = checklist({
       identity: completeIdentity,
       ops: completeOps,
       taxes: completeTaxes,
@@ -168,7 +175,7 @@ describe("PMS-SET1 mandatory checklist", () => {
     assert.equal(missingFees.domains.policies.readiness, "incomplete");
     assert.equal(missingFees.canActivate, false);
 
-    const ready = evaluateSet1Checklist({
+    const ready = checklist({
       identity: completeIdentity,
       ops: completeOps,
       taxes: completeTaxes,
@@ -187,7 +194,7 @@ describe("PMS-SET1 mandatory checklist", () => {
   });
 
   it("treats equal CI/CO as warning, not a block", () => {
-    const same = evaluateSet1Checklist({
+    const same = checklist({
       identity: completeIdentity,
       ops: emptyOps({ checkInTime: "12:00", checkOutTime: "12:00" }),
       taxes: completeTaxes,
@@ -203,7 +210,7 @@ describe("PMS-SET1 mandatory checklist", () => {
   });
 
   it("shows Incomplete/Unavailable when 0047 columns are missing and never fakes Complete", () => {
-    const missingCols = evaluateSet1Checklist({
+    const missingCols = checklist({
       identity: completeIdentity,
       ops: emptyOps(),
       taxes: emptyTaxes({ taxInclusive: false, taxRate: 20 }),
@@ -232,6 +239,9 @@ describe("PMS-SET1 fee-defaults single home", () => {
     assert.equal(propertySetupRedirectHref("#cancel-noshow-fees"), "/restaurant/settings#policies");
     assert.equal(isSet1SectionHash("policies"), true);
     assert.equal(isSet1SectionHash("#golive"), true);
+    assert.equal(isSet1SectionHash("structure"), true);
+    assert.equal(isSet1SectionHash("#rooms"), true);
+    assert.equal(isSet1SectionHash("#outlets"), true);
 
     const setup = readFileSync(new URL("../../../routes/restaurant/pms/property-setup.tsx", import.meta.url), "utf8");
     assert.match(setup, /propertySetupRedirectHref/);
@@ -288,12 +298,15 @@ describe("PMS-SET1 hub locks", () => {
   it("keeps Coming soon as labels only and permission denied is not Coming soon", () => {
     assert.equal(SET1_TITLE, "Settings");
     assert.equal(SET1_PMS_BACK_HREF, "/restaurant/pms");
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Structure"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Rooms"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Outlets"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Structure"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rooms" || card.title === "Rooms & amenities"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Outlets"));
     assert.ok(SET1_COMING_SOON.some((card) => card.title === "Rates"));
     assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks"));
     assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "structure"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rooms"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "outlets"));
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /Coming soon/);

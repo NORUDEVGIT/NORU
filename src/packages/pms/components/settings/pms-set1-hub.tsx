@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { ReadinessChip, Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
+import { Set2OutletsSection, Set2RoomsSection, Set2StructureSection } from "@/packages/pms/components/settings/pms-set2-section";
 import { getPmsSet1Foundation, listPmsSet1Audit } from "@/packages/pms/lib/pms-set1-foundation.functions";
 import {
   SET1_COMING_SOON,
@@ -16,10 +17,12 @@ import {
   SET1_LIVE_CARDS,
   SET1_PMS_BACK_HREF,
   SET1_TITLE,
+  SET2_LIVE_HASHES,
   canOpenSet1Hub,
   isSet1SectionHash,
   type Set1SectionId,
 } from "@/packages/pms/lib/pms-set1-foundation";
+import { emptySet2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
@@ -62,7 +65,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return <p className="text-sm text-destructive">{(query.error as Error | undefined)?.message ?? "Settings are unavailable."}</p>;
   }
 
-  const { snapshot, checklist, canEdit, role } = query.data;
+  const { snapshot, checklist, canEdit, role, set2 } = query.data;
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
@@ -80,7 +83,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Identity, times, taxes and policies for {membership.restaurant.name}.
+          Identity, times, taxes, structure, rooms and outlets for {membership.restaurant.name}.
         </p>
       </div>
 
@@ -89,14 +92,39 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           <Button variant="outline" size="sm" asChild>
             <a href={SET1_HUB_HREF}>Back to Settings</a>
           </Button>
-          <Set1SectionView
-            section={section}
-            restaurantId={restaurantId}
-            role={role}
-            snapshot={snapshot}
-            checklist={checklist}
-            canEdit={canEdit}
-          />
+          {(SET2_LIVE_HASHES as readonly string[]).includes(section) ? (
+            section === "structure" ? (
+              <Set2StructureSection
+                restaurantId={restaurantId}
+                snapshot={set2 ?? emptySet2Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "rooms" ? (
+              <Set2RoomsSection
+                restaurantId={restaurantId}
+                snapshot={set2 ?? emptySet2Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : (
+              <Set2OutletsSection
+                restaurantId={restaurantId}
+                snapshot={set2 ?? emptySet2Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            )
+          ) : (
+            <Set1SectionView
+              section={section}
+              restaurantId={restaurantId}
+              role={role}
+              snapshot={snapshot}
+              checklist={checklist}
+              canEdit={canEdit}
+            />
+          )}
         </div>
       ) : (
         <>

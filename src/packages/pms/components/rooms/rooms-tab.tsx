@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { listRoomTypes, listRooms, saveRoom, setRoomActive, type HotelRoom, type RoomType } from "@/packages/pms/lib/rooms.functions";
+import { getPmsSet2Snapshot } from "@/packages/pms/lib/pms-set2-structure.functions";
+import { emptySet2Snapshot, type Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import type { RoomStatus } from "@/packages/pms/lib/rooms.server";
 import { cn } from "@/shared/lib/utils";
 
@@ -46,6 +48,7 @@ export function RoomsTab({ restaurantId }: { restaurantId: string }) {
   const queryClient = useQueryClient();
   const fetchRooms = useServerFn(listRooms);
   const fetchTypes = useServerFn(listRoomTypes);
+  const fetchStructure = useServerFn(getPmsSet2Snapshot);
   const save = useServerFn(saveRoom);
   const toggleActive = useServerFn(setRoomActive);
 
@@ -75,6 +78,12 @@ export function RoomsTab({ restaurantId }: { restaurantId: string }) {
         },
       }),
   });
+  const structureQuery = useQuery({
+    queryKey: ["pms-set2-structure", restaurantId],
+    queryFn: () => fetchStructure({ data: { restaurantId } }),
+    retry: false,
+  });
+  const structure = structureQuery.data?.snapshot ?? emptySet2Snapshot();
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["rooms", restaurantId] });
@@ -93,6 +102,9 @@ export function RoomsTab({ restaurantId }: { restaurantId: string }) {
           floor: values.floor,
           building: values.building,
           wing: values.wing,
+          buildingId: values.buildingId || null,
+          floorId: values.floorId || null,
+          wingId: values.wingId || null,
           smoking: values.smoking,
           accessible: values.accessible,
           status: values.status,
@@ -276,6 +288,7 @@ export function RoomsTab({ restaurantId }: { restaurantId: string }) {
         }}
         room={editing}
         types={types}
+        structure={structure}
         saving={saveMutation.isPending}
         onSubmit={(values) => saveMutation.mutate(values)}
       />
@@ -314,6 +327,9 @@ interface RoomFormValues {
   floor: string;
   building: string;
   wing: string;
+  buildingId: string;
+  floorId: string;
+  wingId: string;
   smoking: boolean;
   accessible: boolean;
   status: RoomStatus;
@@ -326,6 +342,7 @@ function RoomFormDialog({
   onOpenChange,
   room,
   types,
+  structure,
   saving,
   onSubmit,
 }: {
@@ -333,6 +350,7 @@ function RoomFormDialog({
   onOpenChange: (open: boolean) => void;
   room: HotelRoom | null;
   types: RoomType[];
+  structure: Set2Snapshot;
   saving: boolean;
   onSubmit: (values: RoomFormValues) => void;
 }) {
@@ -342,6 +360,9 @@ function RoomFormDialog({
     floor: "",
     building: "",
     wing: "",
+    buildingId: "",
+    floorId: "",
+    wingId: "",
     smoking: false,
     accessible: false,
     status: "available",
@@ -360,6 +381,9 @@ function RoomFormDialog({
             floor: room.floor ?? "",
             building: room.building ?? "",
             wing: room.wing ?? "",
+            buildingId: room.buildingId ?? "",
+            floorId: room.floorId ?? "",
+            wingId: room.wingId ?? "",
             smoking: room.smoking,
             accessible: room.accessible,
             status: room.status,
@@ -372,6 +396,9 @@ function RoomFormDialog({
             floor: "",
             building: "",
             wing: "",
+            buildingId: "",
+            floorId: "",
+            wingId: "",
             smoking: false,
             accessible: false,
             status: "available",
@@ -414,18 +441,100 @@ function RoomFormDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="room-floor">Floor</Label>
-            <Input id="room-floor" value={values.floor} onChange={(e) => set("floor", e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="room-building">Building</Label>
-            <Input id="room-building" value={values.building} onChange={(e) => set("building", e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="room-wing">Wing</Label>
-            <Input id="room-wing" value={values.wing} onChange={(e) => set("wing", e.target.value)} />
-          </div>
+          {structure.structureColumnsAvailable && structure.buildings.length > 0 ? (
+            <>
+              <div className="space-y-1.5">
+                <Label>Building</Label>
+                <Select
+                  value={values.buildingId || "none"}
+                  onValueChange={(buildingId) =>
+                    setValues((prev) => ({
+                      ...prev,
+                      buildingId: buildingId === "none" ? "" : buildingId,
+                      floorId: "",
+                      wingId: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {structure.buildings.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {row.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Floor</Label>
+                <Select
+                  value={values.floorId || "none"}
+                  onValueChange={(floorId) => set("floorId", floorId === "none" ? "" : floorId)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {structure.floors
+                      .filter((row) => !values.buildingId || row.buildingId === values.buildingId)
+                      .map((row) => (
+                        <SelectItem key={row.id} value={row.id}>
+                          {row.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Wing</Label>
+                <Select
+                  value={values.wingId || "none"}
+                  onValueChange={(wingId) => set("wingId", wingId === "none" ? "" : wingId)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {structure.wings
+                      .filter(
+                        (row) =>
+                          !values.buildingId ||
+                          row.parentBuildingId === values.buildingId ||
+                          structure.floors.some(
+                            (floor) => floor.id === row.parentFloorId && floor.buildingId === values.buildingId,
+                          ),
+                      )
+                      .map((row) => (
+                        <SelectItem key={row.id} value={row.id}>
+                          {row.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="room-floor">Floor</Label>
+                <Input id="room-floor" value={values.floor} onChange={(e) => set("floor", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="room-building">Building</Label>
+                <Input id="room-building" value={values.building} onChange={(e) => set("building", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="room-wing">Wing</Label>
+                <Input id="room-wing" value={values.wing} onChange={(e) => set("wing", e.target.value)} />
+              </div>
+            </>
+          )}
           <div className="space-y-1.5">
             <Label>Status</Label>
             <Select value={values.status} onValueChange={(v) => set("status", v as RoomStatus)}>
