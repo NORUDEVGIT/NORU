@@ -322,38 +322,71 @@ Passing Wave 1 does **not** start Wave 2 engineering automatically — Wave 2 re
 |---|---|
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
 | **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING WAVE GATE** (prior wave exit) |
+| **ENGINEERING STATUS** | **NOT STARTED / AWAITING PRIOR WAVE EXIT** |
 | **Depends on** | Wave 1 exited |
+
+> **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).**
+>
+> Wave 2 Preferences primary controls are Property Setup option lists (dropdown / multi-select) for that hotel — **not** open free-text. This addendum does **not** change Wave 1 Spec content, issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) scope, or PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67). The current free-text Preferences tab stays until Wave 2. Waves 3–5 intent is unchanged except this Preferences detail.
 
 ### 4.1 Locked requirements
 
 | Theme | EXPECTED |
 |---|---|
 | **Identity documents** | Staff can **upload** ID / document images (or equivalent stored files) on the guest, **mask** sensitive values in ordinary UI, and **verify** (staff-confirmed, reason/timestamp — **not** a government KYC claim). Retrieval from the profile must work. Align with Option A arrival-ID intent (E-S13) **without** inventing MRZ hardware or police export. |
-| **Preferences UI complete** | The north-star **Preferences** card exposes the existing preference fields as a first-class Guest card (reuse `saveGuestPreferences`). Accessibility and special requests remain first-class. Do not invent a second preferences table. |
+| **Preferences UI complete** | The north-star **Preferences** card exposes the existing preference fields as a first-class Guest card (reuse `saveGuestPreferences` / `guest_preferences` — **no** second preferences table). Room / bed / view / floor (and food / communication **if** Property Setup has catalogues) use **Setup-owned dropdown / multi-select** as the primary control. Optional **Other** free-text only when staff need a value outside the hotel’s list. **Accessibility requirements** and **special requests** stay free-text (textarea). See §4.2. |
 | **Controlled merge** | Staff may merge two **individual** profiles only through an explicit, confirmed action. **Never silent.** Surviving and retired IDs are recorded on `guest_profile_history` (or an additive history event type). Reservations and other consumers must not be left pointing at a deleted survivor without a written engineering plan in that wave’s tech plan. **No** unique-constraint auto-collapse. |
 | **Consent recorded** | A recorded consent (or explicit refuse / not-asked) exists on the individual before Wave 2 exit. Minimum: what was consented, when, who recorded it. Not a full privacy suite (export / anonymise / unmerge are Wave 5). |
 
-### 4.2 Out of Wave 2
+### 4.2 Preferences UX (product addendum)
+
+Property Setup **owns** clean option catalogues (or exposes reusable lists). Guest Profile **consumes** those hotel-scoped options. Do **not** invent fake global enums that ignore the hotel.
+
+| Field | Wave 2 primary control | Optional Other | Notes |
+|---|---|---|---|
+| Room preference | Dropdown / multi-select from Property Setup for **this** hotel | Yes — free-text only when staff need a value outside the list | Consume Setup-owned room / room-type (or equivalent) options. |
+| Bed preference | Same | Yes | Today `bed_type` on room types is also **free-text**, not a catalogue. |
+| View preference | Same | Yes | Today `room_view` on room types is also **free-text**, not a catalogue. |
+| Floor preference | Same | Yes | `hotel_floors` exists (SET2). Prefer those ids. |
+| Food preference | Dropdown / multi-select **only if** Property Setup has a food / meal catalogue | Yes, if the field is LIVE | SET3 meal-plan catalogue may be the source **if** product treats it as the food list. If no catalogue: **gate** the field or add the **minimal** Setup list in the Wave 2 tech plan. |
+| Communication preference | Same rule as food | Yes, if the field is LIVE | **No** communication catalogue on `main` today. Gate or add a **minimal** Setup list — do not hard-code a global enum. |
+| Accessibility requirements | **Free-text** (textarea) | — | Unchanged. Not a Setup dropdown. |
+| Special requests | **Free-text** (textarea) | — | Unchanged. Not a Setup dropdown. |
+
+**Catalogue dependency (honesty).** Floors and room-amenities catalogues exist in part (SET2). Dedicated bed-type / room-view / room-preference / communication option lists do **not**. Guest dropdowns must consume Setup-owned options for that property. If a catalogue is missing, the Wave 2 tech plan may include the **minimal** Property Setup option list needed for that field — **or** gate the field until Setup provides it. Either choice must be written in the tech plan. Do **not** ship a fake worldwide enum.
+
+**Persistence.** Persist the selected option so Engineering can map it: **code / id preferred**. The Spec **may** allow storing the display label if no stable id exists yet. If Wave 2 stores label-only, flag it as a **DOCUMENTATION / IMPLEMENTATION** honesty item (same class as [../guests.md](../guests.md) §7) and plan a later id mapping — do not pretend a label is a Setup id.
+
+**Wave 1 unchanged.** Issue #66 / PR #67 keep the free-text Preferences tab until this wave. Wave 2 replaces that primary UX; it does not rewrite Wave 1 ACs.
+
+### 4.3 Out of Wave 2
 
 Stay KPIs, loyalty derivation, masters, relationships, comms product, export / anonymise / unmerge, offline, Sales & Events blocks, LIVE OTA.
 
-### 4.3 Exit
+This addendum does **not** pull Property Setup rebuild, meal-plan product, or a global preferences taxonomy into Guest Wave 2. Minimal Setup option lists are allowed **only** for a missing Guest dropdown dependency, and only when documented in that wave’s tech plan.
 
-Documents on file; Preferences card complete; merge works and is never silent; consent is recorded; history shows merge / document / consent actions; Independent QA recorded.
+### 4.4 Exit
 
-### 4.4 Wave 2 AC seeds (locked intent; expand at wave gate)
+Documents on file; Preferences card complete per §4.2 (Setup-owned options, optional Other, accessibility / special requests still free-text); merge works and is never silent; consent is recorded; history shows merge / document / consent actions; Independent QA recorded.
+
+### 4.5 Wave 2 AC seeds (locked intent; expand at wave gate)
 
 | ID | Criterion |
 |---|---|
 | **AC-W2-1** | Staff can attach at least one document to an individual and see it again after reload. |
 | **AC-W2-2** | Ordinary Directory / Information views **mask** ID number (e.g. last four only) unless a reveal control is used. |
 | **AC-W2-3** | Staff can mark a document verified or rejected with actor + time; UI never says “government verified”. |
-| **AC-W2-4** | Preferences card save persists all eight existing fields. |
+| **AC-W2-4** | Preferences card save persists all eight existing fields (Setup-selected values and/or Other / free-text per §4.2). |
 | **AC-W2-5** | Merge requires explicit confirm; cancelled merge leaves both profiles. |
 | **AC-W2-6** | After merge, Directory does not show the retired profile as an equal live duplicate; history on the survivor records the merge. |
 | **AC-W2-7** | Consent (or refuse / not-asked) can be recorded and is visible on the profile. |
 | **AC-W2-8** | Duplicate warning from Wave 1 remains; it does **not** auto-merge. |
+| **AC-W2-9** | For each LIVE catalogue-backed preference, options **load from Property Setup for that property** — not a hard-coded global enum. |
+| **AC-W2-10** | Selecting a Setup **bed type** (or the hotel’s equivalent bed option) **saves** and **reloads** as the stored preference. |
+| **AC-W2-11** | The optional **Other** path accepts a value outside the Setup list, saves, and reloads. |
+| **AC-W2-12** | **Accessibility requirements** remain free-text (textarea) — not a Setup dropdown. |
+| **AC-W2-13** | **Special requests** remain free-text (textarea) — not a Setup dropdown. |
+| **AC-W2-14** | If a catalogue is **missing**, that field is **gated** **or** the Wave 2 tech plan includes the **minimal** Property Setup option list in the same wave — and the choice is documented. |
 
 ---
 

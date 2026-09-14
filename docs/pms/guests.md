@@ -65,7 +65,7 @@ UI default: Guest sidebar with a profile-type switcher **Individual \| Company \
 | 3 | **Information** | **1** (individuals) | Align to existing `GuestProfile`; prefer surfacing API ID **text** fields |
 | 4 | **Identity & Documents** | 2 (upload / mask / verify); Wave 1 may show ID **text** only | No implied government verification |
 | 5 | **Stay History** | 3 | From **real** reservations — not profile-event history alone |
-| 6 | **Preferences** | 2 (complete product card); API + a Preferences tab already exist | Do not claim Wave 2 complete because a tab already saves |
+| 6 | **Preferences** | 2 (complete product card; Setup-owned dropdowns — see Wave 2 addendum); API + a Preferences tab already exist | Do not claim Wave 2 complete because a tab already saves |
 | 7 | **Loyalty & Value** | 4 | Real-derived only — no invented points or spend |
 | 8 | **Relationships** | 4 | Roles to Company / Group / TA masters |
 | 9 | **Notes / Comms / Activity** | 5 (product hub); notes + profile history exist today | Notes ≠ comms product |
@@ -82,10 +82,12 @@ Engineering works **wave-by-wave**. A later wave does not start until the prior 
 | Wave | Title | Engineering status | Exit (summary) |
 |---|---|---|---|
 | **1** | Shell + Directory + Information (Individuals) | **NOT STARTED** — Spec ready for Rekik review; **not** handed to Engineering until accepted | First-class Guest module; individual create / find / edit is the default path; 10-card shell honest |
-| **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | **NOT STARTED / AWAITING WAVE GATE** | Docs on file, prefs complete, merge works (never silent), consent recorded |
+| **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | **NOT STARTED / AWAITING PRIOR WAVE EXIT** | Docs on file, prefs complete, merge works (never silent), consent recorded |
 | **3** | Stay History from real reservations; 360 Dashboard KPIs real-derived; quick actions to Res / FO / Folio | **NOT STARTED / AWAITING WAVE GATE** | Real history + honest KPIs |
 | **4** | (A) Company / Group / TA masters; (B) Relationships with roles; (C) Loyalty & Value real-derived | **NOT STARTED / AWAITING WAVE GATE** | Masters + associations + loyalty |
 | **5** | Comms / Activity + Privacy finish (export / anonymise / unmerge) for individuals and masters as appropriate | **NOT STARTED / AWAITING WAVE GATE** | Full hub + hotel UAT-ready |
+
+> **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).** Wave 2 Preferences: room / bed / view / floor (and food / communication if Property Setup has catalogues) use **dropdown / multi-select** from that hotel’s Setup lists — not open free-text as the primary control. Optional **Other**; accessibility and special requests stay textarea. Detail: [Functional Spec §4](./specs/guest-profile-module.md#4-wave-2--identity-preferences-controlled-merge-consent). Wave 1 / issue #66 / PR #67 free-text tab is unchanged until this wave.
 
 ---
 
@@ -99,7 +101,7 @@ Grounded in `main` at documentation time. **Code wins.** Detail and file evidenc
 | Directory | `listGuests` + list UI: search name / phone / email, status, VIP only. | Same capabilities as the default operational Directory for **individuals**. |
 | Information | `GuestFormDialog` create / edit personal, address, VIP, notes. First name required. | Same fields as the Information card, extended to surface existing API ID **text** in Wave 1 (images in Wave 2). |
 | Identity | API + FO check-in can persist `id_document_*`. Guest form / overview **do not** expose ID fields. No upload / mask / verify. | Wave 2: documents on file, masked, verifiable by staff. |
-| Preferences | Table + `saveGuestPreferences`. Full field form on the guest-detail **Preferences** tab (not in `guest-bits.tsx` — that file is VIP / status badges only). | Wave 2: complete Preferences **card** in the 10-card shell. |
+| Preferences | Table + `saveGuestPreferences`. Full field form on the guest-detail **Preferences** tab (not in `guest-bits.tsx` — that file is VIP / status badges only). Wave 1 / PR #67 remains **free-text** until Wave 2. | Wave 2: complete Preferences **card** in the 10-card shell. Primary room / bed / view / floor (and food / communication if catalogues exist) are **Setup-owned** dropdowns; optional Other; accessibility / special requests stay free-text. |
 | History | `guest_profile_history` on create / update / VIP / status / preference / note. | Wave 3 adds **stay** history from real reservations. Profile history remains. |
 | Duplicates | `findGuestDuplicates` — warn; Open existing / Create anyway. **No merge.** | Wave 2: **controlled** merge, never silent. |
 | Masters / relationships | **None.** Individuals only. | Wave 4. |
