@@ -14,6 +14,12 @@ import {
   WAVE5_ANONYMISED_MASTER_LABELS,
 } from "./guest-profile-wave5";
 import {
+  COMPANY_ENRICHMENT_UNAVAILABLE,
+  COMPANY_LINK_ROLES,
+  companyLegalName,
+  validateCompanyType,
+} from "./guest-profile-company";
+import {
   GUEST_ACCOUNT_STATUSES,
   GUEST_ACCOUNT_TYPES,
   GUEST_RELATIONSHIP_ROLES,
@@ -39,6 +45,7 @@ function db(context: { supabase: { from: (table: string) => unknown } }) {
 const MASTER_COLUMNS_BASE =
   "id, account_type, name, code, email, phone, address_line1, city, country, notes, account_status, created_at, updated_at";
 const MASTER_COLUMNS = `${MASTER_COLUMNS_BASE}, anonymised_at`;
+const MASTER_COLUMNS_COMPANY = `${MASTER_COLUMNS}, trade_name, company_type, company_type_other, tax_id, business_registration_number, phone_alt, email_alt, primary_contact_name, address_line2, region, postal_code, corporate_account_reference, negotiated_rate_reference, default_travel_agent_master_id, source_of_business`;
 
 type MasterRow = {
   id: string;
@@ -55,7 +62,43 @@ type MasterRow = {
   created_at: string;
   updated_at: string;
   anonymised_at?: string | null;
+  trade_name?: string | null;
+  company_type?: string | null;
+  company_type_other?: string | null;
+  tax_id?: string | null;
+  business_registration_number?: string | null;
+  phone_alt?: string | null;
+  email_alt?: string | null;
+  primary_contact_name?: string | null;
+  address_line2?: string | null;
+  region?: string | null;
+  postal_code?: string | null;
+  corporate_account_reference?: string | null;
+  negotiated_rate_reference?: string | null;
+  default_travel_agent_master_id?: string | null;
+  source_of_business?: string | null;
 };
+
+function emptyCompanyFields() {
+  return {
+    tradeName: null as string | null,
+    companyType: null as string | null,
+    companyTypeOther: null as string | null,
+    taxId: null as string | null,
+    businessRegistrationNumber: null as string | null,
+    phoneAlt: null as string | null,
+    emailAlt: null as string | null,
+    primaryContactName: null as string | null,
+    addressLine2: null as string | null,
+    region: null as string | null,
+    postalCode: null as string | null,
+    corporateAccountReference: null as string | null,
+    negotiatedRateReference: null as string | null,
+    defaultTravelAgentMasterId: null as string | null,
+    defaultTravelAgentMasterName: null as string | null,
+    sourceOfBusiness: null as string | null,
+  };
+}
 
 function toSummary(row: MasterRow): GuestAccountSummary {
   const anonymisedAt = row.anonymised_at ?? null;
@@ -70,12 +113,15 @@ function toSummary(row: MasterRow): GuestAccountSummary {
     accountStatus: row.account_status as GuestAccountStatus,
     updatedAt: row.updated_at,
     anonymisedAt,
+    tradeName: anonymisedAt ? null : (row.trade_name ?? null),
+    companyType: row.company_type ?? null,
   };
 }
 
-function toProfile(row: MasterRow): GuestAccountProfile {
+function toProfile(row: MasterRow, defaultTravelAgentMasterName: string | null = null): GuestAccountProfile {
   const summary = toSummary(row);
   const anonymised = Boolean(row.anonymised_at);
+  const empty = emptyCompanyFields();
   return {
     ...summary,
     addressLine1: anonymised ? null : row.address_line1,
@@ -83,7 +129,47 @@ function toProfile(row: MasterRow): GuestAccountProfile {
     country: anonymised ? null : row.country,
     notes: anonymised ? null : row.notes,
     createdAt: row.created_at,
+    ...empty,
+    ...(anonymised
+      ? {}
+      : {
+          companyTypeOther: row.company_type_other ?? null,
+          taxId: row.tax_id ?? null,
+          businessRegistrationNumber: row.business_registration_number ?? null,
+          phoneAlt: row.phone_alt ?? null,
+          emailAlt: row.email_alt ?? null,
+          primaryContactName: row.primary_contact_name ?? null,
+          addressLine2: row.address_line2 ?? null,
+          region: row.region ?? null,
+          postalCode: row.postal_code ?? null,
+          corporateAccountReference: row.corporate_account_reference ?? null,
+          negotiatedRateReference: row.negotiated_rate_reference ?? null,
+          defaultTravelAgentMasterId: row.default_travel_agent_master_id ?? null,
+          defaultTravelAgentMasterName,
+          sourceOfBusiness: row.source_of_business ?? null,
+        }),
   };
+}
+
+async function selectMaster(
+  context: { supabase: { from: (table: string) => unknown } },
+  restaurantId: string,
+  extra: (query: any) => any,
+) {
+  let result = await extra(
+    db(context).from("guest_account_masters").select(MASTER_COLUMNS_COMPANY).eq("restaurant_id", restaurantId),
+  );
+  if (result.error && isMissingSchemaError(result.error)) {
+    result = await extra(
+      db(context).from("guest_account_masters").select(MASTER_COLUMNS).eq("restaurant_id", restaurantId),
+    );
+  }
+  if (result.error && isMissingSchemaError(result.error)) {
+    result = await extra(
+      db(context).from("guest_account_masters").select(MASTER_COLUMNS_BASE).eq("restaurant_id", restaurantId),
+    );
+  }
+  return result;
 }
 
 function wave4Unavailable(error: { message?: string; code?: string } | null | undefined): boolean {
@@ -100,15 +186,38 @@ const accountInputSchema = z.object({
   country: z.string().max(120).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
   accountStatus: z.enum(GUEST_ACCOUNT_STATUSES).optional(),
+  tradeName: z.string().max(200).optional().nullable(),
+  companyType: z.string().max(40).optional().nullable(),
+  companyTypeOther: z.string().max(200).optional().nullable(),
+  taxId: z.string().max(80).optional().nullable(),
+  businessRegistrationNumber: z.string().max(80).optional().nullable(),
+  phoneAlt: z.string().max(60).optional().nullable(),
+  emailAlt: z.string().max(200).optional().nullable(),
+  primaryContactName: z.string().max(200).optional().nullable(),
+  addressLine2: z.string().max(200).optional().nullable(),
+  region: z.string().max(120).optional().nullable(),
+  postalCode: z.string().max(40).optional().nullable(),
+  corporateAccountReference: z.string().max(120).optional().nullable(),
+  negotiatedRateReference: z.string().max(120).optional().nullable(),
+  defaultTravelAgentMasterId: z.string().uuid().optional().nullable(),
+  sourceOfBusiness: z.string().max(200).optional().nullable(),
 });
 
-function toMasterColumns(input: z.infer<typeof accountInputSchema>) {
-  const email = normalizeEmail(input.email);
+function assertEmail(email: string | null, label: string) {
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    throw new Error("Enter a valid email address.");
+    throw new Error(`Enter a valid ${label}.`);
   }
-  return {
-    name: input.name.trim(),
+  return email;
+}
+
+function toMasterColumns(
+  input: z.infer<typeof accountInputSchema>,
+  options?: { includeCompany?: boolean },
+) {
+  const email = assertEmail(normalizeEmail(input.email), "email address");
+  const emailAlt = assertEmail(normalizeEmail(input.emailAlt), "alternate email address");
+  const base = {
+    name: companyLegalName(input.name),
     code: blankToNull(input.code),
     email,
     phone: blankToNull(input.phone),
@@ -118,6 +227,50 @@ function toMasterColumns(input: z.infer<typeof accountInputSchema>) {
     notes: blankToNull(input.notes),
     account_status: input.accountStatus ?? "active",
   };
+  if (!options?.includeCompany) return base;
+  return {
+    ...base,
+    trade_name: blankToNull(input.tradeName),
+    company_type: blankToNull(input.companyType),
+    company_type_other:
+      input.companyType === "other" ? blankToNull(input.companyTypeOther) : null,
+    tax_id: blankToNull(input.taxId),
+    business_registration_number: blankToNull(input.businessRegistrationNumber),
+    phone_alt: blankToNull(input.phoneAlt),
+    email_alt: emailAlt,
+    primary_contact_name: blankToNull(input.primaryContactName),
+    address_line2: blankToNull(input.addressLine2),
+    region: blankToNull(input.region),
+    postal_code: blankToNull(input.postalCode),
+    corporate_account_reference: blankToNull(input.corporateAccountReference),
+    negotiated_rate_reference: blankToNull(input.negotiatedRateReference),
+    default_travel_agent_master_id: input.defaultTravelAgentMasterId || null,
+    source_of_business: blankToNull(input.sourceOfBusiness),
+  };
+}
+
+async function assertDefaultTravelAgent(
+  context: { supabase: { from: (table: string) => unknown } },
+  restaurantId: string,
+  masterId: string | null | undefined,
+  companyId?: string,
+) {
+  if (!masterId) return;
+  if (companyId && masterId === companyId) {
+    throw new Error("Default travel agent must be a Travel Agent master, not this Company.");
+  }
+  const result = await db(context)
+    .from("guest_account_masters")
+    .select("id, account_type")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", masterId)
+    .maybeSingle();
+  if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
+  if (result.error) throw new Error(result.error.message);
+  if (!result.data) throw new Error("That travel agent master could not be found.");
+  if (result.data.account_type !== "travel_agent") {
+    throw new Error("Default travel agent must be an existing Travel Agent master.");
+  }
 }
 
 export const listGuestAccounts = createServerFn({ method: "POST" })
@@ -135,34 +288,47 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<GuestAccountSummary[]> => {
     await requireGuestManager(context as never, data.restaurantId);
-    let query = db(context)
-      .from("guest_account_masters")
-      .select(MASTER_COLUMNS)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("account_type", data.accountType)
-      .order("updated_at", { ascending: false })
-      .limit(data.limit ?? 100);
-    if (data.status) query = query.eq("account_status", data.status);
     const term = (data.search ?? "").trim();
-    if (term) {
-      const like = `%${term.replace(/[%,]/g, "")}%`;
-      query = query.or(`name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like}`);
-    }
-    let result = await query;
-    if (result.error && isMissingSchemaError(result.error)) {
-      let fallback = db(context)
-        .from("guest_account_masters")
-        .select(MASTER_COLUMNS_BASE)
-        .eq("restaurant_id", data.restaurantId)
+    const like = term ? `%${term.replace(/[%,]/g, "")}%` : "";
+    function applyFilters(query: any, includeTrade: boolean) {
+      let next = query
         .eq("account_type", data.accountType)
         .order("updated_at", { ascending: false })
         .limit(data.limit ?? 100);
-      if (data.status) fallback = fallback.eq("account_status", data.status);
+      if (data.status) next = next.eq("account_status", data.status);
       if (term) {
-        const like = `%${term.replace(/[%,]/g, "")}%`;
-        fallback = fallback.or(`name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like}`);
+        next = next.or(
+          includeTrade
+            ? `name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like},trade_name.ilike.${like}`
+            : `name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like}`,
+        );
       }
-      result = await fallback;
+      return next;
+    }
+    let result = await applyFilters(
+      db(context)
+        .from("guest_account_masters")
+        .select(MASTER_COLUMNS_COMPANY)
+        .eq("restaurant_id", data.restaurantId),
+      true,
+    );
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await applyFilters(
+        db(context)
+          .from("guest_account_masters")
+          .select(MASTER_COLUMNS)
+          .eq("restaurant_id", data.restaurantId),
+        false,
+      );
+    }
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await applyFilters(
+        db(context)
+          .from("guest_account_masters")
+          .select(MASTER_COLUMNS_BASE)
+          .eq("restaurant_id", data.restaurantId),
+        false,
+      );
     }
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
@@ -181,24 +347,29 @@ export const getGuestAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<GuestAccountProfile> => {
     await requireGuestManager(context as never, data.restaurantId);
-    let result = await db(context)
-      .from("guest_account_masters")
-      .select(MASTER_COLUMNS)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.accountId)
-      .maybeSingle();
-    if (result.error && isMissingSchemaError(result.error)) {
-      result = await db(context)
-        .from("guest_account_masters")
-        .select(MASTER_COLUMNS_BASE)
-        .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.accountId)
-        .maybeSingle();
-    }
+    const result = await selectMaster(context, data.restaurantId, (query) =>
+      query.eq("id", data.accountId).maybeSingle(),
+    );
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
     if (!result.data) throw new Error("That account master could not be found.");
-    return toProfile(result.data as MasterRow);
+    const row = result.data as MasterRow;
+    let defaultTravelAgentMasterName: string | null = null;
+    if (row.default_travel_agent_master_id) {
+      const ta = await db(context)
+        .from("guest_account_masters")
+        .select("name, account_type, anonymised_at")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.default_travel_agent_master_id)
+        .maybeSingle();
+      if (ta.data) {
+        const accountType = ta.data.account_type as GuestAccountType;
+        defaultTravelAgentMasterName = ta.data.anonymised_at
+          ? WAVE5_ANONYMISED_MASTER_LABELS[accountType]
+          : ta.data.name;
+      }
+    }
+    return toProfile(row, defaultTravelAgentMasterName);
   });
 
 export type GuestAccountHistoryEntry = {
@@ -250,8 +421,20 @@ export const createGuestAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
-    const columns = toMasterColumns(data.account);
-    const { data: inserted, error } = await db(context)
+    const isCompany = data.accountType === "company";
+    if (isCompany) {
+      const typeError = validateCompanyType(data.account.companyType, data.account.companyTypeOther);
+      if (typeError) throw new Error(typeError);
+      await assertDefaultTravelAgent(
+        context,
+        data.restaurantId,
+        data.account.defaultTravelAgentMasterId,
+      );
+    }
+    const columns = toMasterColumns(data.account, { includeCompany: isCompany });
+    let inserted: { id: string } | null = null;
+    let error: { message?: string; code?: string } | null = null;
+    const first = await db(context)
       .from("guest_account_masters")
       .insert({
         ...columns,
@@ -261,6 +444,25 @@ export const createGuestAccount = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
+    inserted = first.data as { id: string } | null;
+    error = first.error;
+    if (error && isMissingSchemaError(error) && isCompany) {
+      throw new Error(COMPANY_ENRICHMENT_UNAVAILABLE);
+    }
+    if (error && isMissingSchemaError(error) && !isCompany) {
+      const retry = await db(context)
+        .from("guest_account_masters")
+        .insert({
+          ...toMasterColumns(data.account),
+          restaurant_id: data.restaurantId,
+          account_type: data.accountType,
+          created_by_staff_membership_id: me.id,
+        })
+        .select("id")
+        .single();
+      inserted = retry.data as { id: string } | null;
+      error = retry.error;
+    }
     if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (error || !inserted) throw new Error(error?.message ?? "Could not create this account master.");
     await recordGuestAccountEvent({
@@ -287,35 +489,46 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
-    let existing = await db(context)
-      .from("guest_account_masters")
-      .select(MASTER_COLUMNS)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.accountId)
-      .maybeSingle();
-    if (existing.error && isMissingSchemaError(existing.error)) {
-      existing = await db(context)
-        .from("guest_account_masters")
-        .select(MASTER_COLUMNS_BASE)
-        .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.accountId)
-        .maybeSingle();
-    }
+    const existing = await selectMaster(context, data.restaurantId, (query) =>
+      query.eq("id", data.accountId).maybeSingle(),
+    );
     if (wave4Unavailable(existing.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (existing.error) throw new Error(existing.error.message);
     if (!existing.data) throw new Error("That account master could not be found.");
     if ((existing.data as MasterRow).anonymised_at) {
       throw new Error("This profile has been anonymised and cannot be changed.");
     }
-    const columns = toMasterColumns(data.account);
-    const { error } = await db(context)
+    const before = existing.data as MasterRow;
+    const isCompany = before.account_type === "company";
+    if (isCompany) {
+      const typeError = validateCompanyType(data.account.companyType, data.account.companyTypeOther);
+      if (typeError) throw new Error(typeError);
+      await assertDefaultTravelAgent(
+        context,
+        data.restaurantId,
+        data.account.defaultTravelAgentMasterId,
+        data.accountId,
+      );
+    }
+    const columns = toMasterColumns(data.account, { includeCompany: isCompany });
+    let { error } = await db(context)
       .from("guest_account_masters")
       .update(columns)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.accountId);
+    if (error && isMissingSchemaError(error) && isCompany) {
+      throw new Error(COMPANY_ENRICHMENT_UNAVAILABLE);
+    }
+    if (error && isMissingSchemaError(error) && !isCompany) {
+      const retry = await db(context)
+        .from("guest_account_masters")
+        .update(toMasterColumns(data.account))
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId);
+      error = retry.error;
+    }
     if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (error) throw new Error(error.message);
-    const before = existing.data as MasterRow;
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
       masterId: data.accountId,
@@ -460,6 +673,91 @@ export const linkGuestAccount = createServerFn({ method: "POST" })
     });
 
     return { id: inserted.id };
+  });
+
+export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        accountId: idSchema,
+        guestIds: z.array(idSchema).min(1).max(50),
+        role: z.enum(COMPANY_LINK_ROLES),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ linked: number; skipped: number }> => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { data: master, error: masterError } = await db(context)
+      .from("guest_account_masters")
+      .select("id, name, account_type")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.accountId)
+      .maybeSingle();
+    if (wave4Unavailable(masterError)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
+    if (masterError) throw new Error(masterError.message);
+    if (!master) throw new Error("That account master could not be found.");
+    if (master.account_type !== "company") {
+      throw new Error("Multi-guest link is available on Company masters only.");
+    }
+    const typeMismatch = assertRoleMatchesType(data.role, "company");
+    if (typeMismatch) throw new Error(typeMismatch);
+
+    const uniqueGuestIds = [...new Set(data.guestIds)];
+    let linked = 0;
+    let skipped = 0;
+    for (const guestId of uniqueGuestIds) {
+      const { data: guest, error: guestError } = await db(context)
+        .from("guest_profiles")
+        .select("id, first_name, last_name")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", guestId)
+        .maybeSingle();
+      if (guestError) throw new Error(guestError.message);
+      if (!guest) throw new Error("That guest could not be found.");
+
+      const { data: inserted, error } = await db(context)
+        .from("guest_account_links")
+        .insert({
+          restaurant_id: data.restaurantId,
+          guest_id: guestId,
+          master_id: data.accountId,
+          role: data.role,
+          created_by_staff_membership_id: me.id,
+        })
+        .select("id")
+        .single();
+      if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
+      if (error?.code === "23505") {
+        skipped += 1;
+        continue;
+      }
+      if (error || !inserted) throw new Error(error?.message ?? "Could not link this relationship.");
+
+      await recordGuestEvent({
+        restaurantId: data.restaurantId,
+        guestId,
+        eventType: "relationship_linked",
+        newValues: { masterId: data.accountId, role: data.role, masterName: master.name },
+        notes: `Linked as ${data.role} to ${master.name}`,
+        actorMembershipId: me.id,
+      });
+      await recordGuestAccountEvent({
+        restaurantId: data.restaurantId,
+        masterId: data.accountId,
+        eventType: "relationship_linked",
+        newValues: {
+          guestId,
+          role: data.role,
+          guestName: [guest.first_name, guest.last_name].filter(Boolean).join(" "),
+        },
+        notes: `Linked ${data.role}`,
+        actorMembershipId: me.id,
+      });
+      linked += 1;
+    }
+    return { linked, skipped };
   });
 
 export const unlinkGuestAccount = createServerFn({ method: "POST" })

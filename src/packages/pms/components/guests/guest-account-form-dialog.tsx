@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
 import { createGuestAccount, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
@@ -124,6 +125,18 @@ export function GuestAccountFormDialog({
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  if (accountType === "company") {
+    return (
+      <GuestCompanyFormDialog
+        restaurantId={restaurantId}
+        open={open}
+        onOpenChange={onOpenChange}
+        account={account}
+        onSaved={onSaved}
+      />
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

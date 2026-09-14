@@ -4,12 +4,20 @@ import { useServerFn } from "@tanstack/react-start";
 import { Pencil } from "lucide-react";
 
 import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
+import { GuestCompanyGuestLinks } from "@/packages/pms/components/guests/guest-company-guest-links";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import { getGuestAccount, listGuestAccountHistory } from "@/packages/pms/lib/guest-accounts.functions";
+import {
+  COMPANY_RATE_REFERENCE_COPY,
+  COMPANY_TYPE_LABELS,
+  companyDirectorySecondary,
+  isCompanyType,
+} from "@/packages/pms/lib/guest-profile-company";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
   WAVE4_GROUP_ACCOUNT_COPY,
   WAVE4_MIGRATION_UNAVAILABLE,
+  type GuestAccountProfile,
   type GuestAccountType,
 } from "@/packages/pms/lib/guest-profile-wave4";
 import { Button } from "@/shared/components/ui/button";
@@ -71,6 +79,10 @@ export function GuestAccountDetail({
           <p className="mt-1 text-sm text-muted-foreground">
             {GUEST_ACCOUNT_TYPE_LABELS[account.accountType]} master
             {account.accountType === "group" ? ` — ${WAVE4_GROUP_ACCOUNT_COPY}` : ""}
+            {account.accountType === "company" &&
+            companyDirectorySecondary(account.tradeName, account.companyType)
+              ? ` — ${companyDirectorySecondary(account.tradeName, account.companyType)}`
+              : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -81,15 +93,22 @@ export function GuestAccountDetail({
           </Button>
         </div>
       </div>
-      <dl className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
-        <Field label="Code" value={account.code ?? "—"} />
-        <Field label="Phone" value={account.phone ?? "—"} />
-        <Field label="Email" value={account.email ?? "—"} />
-        <Field label="Address" value={account.addressLine1 ?? "—"} />
-        <Field label="City" value={account.city ?? "—"} />
-        <Field label="Country" value={account.country ?? "—"} />
-        <Field label="Notes" value={account.notes ?? "—"} />
-      </dl>
+      {account.accountType === "company" ? (
+        <CompanyProfileFields account={account} />
+      ) : (
+        <dl className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
+          <Field label="Code" value={account.code ?? "—"} />
+          <Field label="Phone" value={account.phone ?? "—"} />
+          <Field label="Email" value={account.email ?? "—"} />
+          <Field label="Address" value={account.addressLine1 ?? "—"} />
+          <Field label="City" value={account.city ?? "—"} />
+          <Field label="Country" value={account.country ?? "—"} />
+          <Field label="Notes" value={account.notes ?? "—"} />
+        </dl>
+      )}
+      {account.accountType === "company" ? (
+        <GuestCompanyGuestLinks restaurantId={restaurantId} accountId={account.id} />
+      ) : null}
       <div className="rounded-2xl border border-border bg-card p-4" data-testid="guest-account-history">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">History</p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -125,6 +144,48 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm">{value}</dd>
+    </div>
+  );
+}
+
+function CompanyProfileFields({ account }: { account: GuestAccountProfile }) {
+  const typeLabel = account.companyType && isCompanyType(account.companyType)
+    ? COMPANY_TYPE_LABELS[account.companyType]
+    : account.companyType ?? "—";
+  return (
+    <div className="space-y-3" data-testid="company-profile-fields">
+      <dl className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
+        <Field label="Legal / company name" value={account.name} />
+        <Field label="Trade / display name" value={account.tradeName ?? "—"} />
+        <Field label="Code" value={account.code ?? "—"} />
+        <Field
+          label="Company type"
+          value={
+            account.companyType === "other"
+              ? `Other${account.companyTypeOther ? ` — ${account.companyTypeOther}` : ""}`
+              : typeLabel
+          }
+        />
+        <Field label="Tax ID / TIN" value={account.taxId ?? "—"} />
+        <Field label="Business registration" value={account.businessRegistrationNumber ?? "—"} />
+        <Field label="Primary phone" value={account.phone ?? "—"} />
+        <Field label="Alternate phone" value={account.phoneAlt ?? "—"} />
+        <Field label="Business email" value={account.email ?? "—"} />
+        <Field label="Alternate email" value={account.emailAlt ?? "—"} />
+        <Field label="Primary contact" value={account.primaryContactName ?? "—"} />
+        <Field label="Address line 1" value={account.addressLine1 ?? "—"} />
+        <Field label="Address line 2" value={account.addressLine2 ?? "—"} />
+        <Field label="City" value={account.city ?? "—"} />
+        <Field label="Region / state" value={account.region ?? "—"} />
+        <Field label="Country" value={account.country ?? "—"} />
+        <Field label="Postal code" value={account.postalCode ?? "—"} />
+        <Field label="Corporate account reference" value={account.corporateAccountReference ?? "—"} />
+        <Field label="Negotiated rate reference" value={account.negotiatedRateReference ?? "—"} />
+        <Field label="Default travel agent" value={account.defaultTravelAgentMasterName ?? "—"} />
+        <Field label="Source of business" value={account.sourceOfBusiness ?? "—"} />
+        <Field label="Notes" value={account.notes ?? "—"} />
+      </dl>
+      <p className="text-xs text-muted-foreground">{COMPANY_RATE_REFERENCE_COPY}</p>
     </div>
   );
 }

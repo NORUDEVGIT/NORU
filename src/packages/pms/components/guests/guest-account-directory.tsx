@@ -11,6 +11,7 @@ import {
   guestProfileSearch,
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
+import { companyDirectorySecondary } from "@/packages/pms/lib/guest-profile-company";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
   WAVE4_GROUP_ACCOUNT_COPY,
@@ -174,7 +175,14 @@ export function GuestAccountDirectory({
                   onKeyDown={(e) => e.key === "Enter" && openAccount(row.id)}
                   className="cursor-pointer border-t border-border transition-colors hover:bg-accent/40"
                 >
-                  <td className="px-4 py-3 font-medium">{row.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <div>{row.name}</div>
+                    {accountType === "company" && companyDirectorySecondary(row.tradeName, row.companyType) ? (
+                      <div className="text-xs font-normal text-muted-foreground">
+                        {companyDirectorySecondary(row.tradeName, row.companyType)}
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{row.code ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{row.phone ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{row.email ?? "—"}</td>
