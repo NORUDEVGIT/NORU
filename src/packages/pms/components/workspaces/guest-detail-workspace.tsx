@@ -9,6 +9,7 @@ import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dia
 import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { GuestConsentPanel } from "@/packages/pms/components/guests/guest-consent-panel";
 import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
+import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-preferences-card";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
@@ -48,14 +49,21 @@ const EVENT_LABEL: Record<string, string> = {
   consent_updated: "Consent updated",
 };
 
+export type GuestDetailSection = "overview" | "preferences";
+
 export function GuestDetailWorkspace({
   membership,
   guestId,
   backTo = "guest-profile",
+  section = "overview",
+  onSectionChange,
 }: {
   membership: RestaurantMembership;
   guestId: string;
   backTo?: "guests" | "reservations" | "guest-profile";
+  /** Overview vs Preferences — kept in sync with the shell card selection. */
+  section?: GuestDetailSection;
+  onSectionChange?: (section: GuestDetailSection) => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -78,6 +86,7 @@ export function GuestDetailWorkspace({
   const [note, setNote] = useState("");
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeRetiredId, setMergeRetiredId] = useState<string | undefined>(undefined);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
@@ -214,11 +223,27 @@ export function GuestDetailWorkspace({
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs
+        value={historyOpen ? "history" : section}
+        onValueChange={(next) => {
+          if (next === "history") {
+            setHistoryOpen(true);
+            return;
+          }
+          setHistoryOpen(false);
+          onSectionChange?.(next === "preferences" ? "preferences" : "overview");
+        }}
+      >
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="overview" data-testid="guest-detail-tab-overview">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="preferences" data-testid="guest-detail-tab-preferences">
+            Preferences
+          </TabsTrigger>
+          <TabsTrigger value="history" data-testid="guest-detail-tab-history">
+            History
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -278,18 +303,17 @@ export function GuestDetailWorkspace({
           </div>
         </TabsContent>
 
-        <TabsContent value="preferences" className="mt-4">
-          <div
-            className="rounded-2xl border border-dashed border-border bg-card p-5"
-            data-testid="guest-preferences-tab-demoted"
-          >
-            <p className="font-medium">Preferences moved to the Preferences card</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Room, bed, view, floor, food and communication now use this hotel’s Property Setup
-              lists. Accessibility and special requests stay free-text there. This tab no longer
-              writes a second preferences store.
-            </p>
-          </div>
+        <TabsContent
+          value="preferences"
+          className="mt-4"
+          data-testid="guest-detail-preferences-panel"
+        >
+          <GuestPreferencesCard
+            restaurantId={restaurantId}
+            guestId={guestId}
+            preferences={guestQuery.data.preferences}
+            onSaved={refresh}
+          />
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">

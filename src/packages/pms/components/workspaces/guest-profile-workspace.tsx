@@ -6,7 +6,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
-import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-preferences-card";
 import {
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -36,7 +35,7 @@ export function GuestProfileWorkspace({
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: guestId! } }),
-    enabled: Boolean(guestId) && (card === "identity" || card === "preferences"),
+    enabled: Boolean(guestId) && card === "identity",
     retry: false,
   });
 
@@ -47,6 +46,8 @@ export function GuestProfileWorkspace({
     }
     setCard(next);
   }
+
+  const detailSection = card === "preferences" ? "preferences" : "overview";
 
   return (
     <div className="space-y-6" data-testid="guest-profile-shell">
@@ -116,30 +117,31 @@ export function GuestProfileWorkspace({
 
       {card === "directory" ? (
         <GuestDirectoryWorkspace membership={membership} compact />
-      ) : card === "information" && guestId ? (
-        <GuestDetailWorkspace membership={membership} guestId={guestId} backTo="guest-profile" />
-      ) : card === "information" ? (
+      ) : (card === "information" || card === "preferences") && guestId ? (
+        <GuestDetailWorkspace
+          membership={membership}
+          guestId={guestId}
+          backTo="guest-profile"
+          section={detailSection}
+          onSectionChange={(next) =>
+            setCard(next === "preferences" ? "preferences" : "information")
+          }
+        />
+      ) : card === "information" || card === "preferences" ? (
         <ComingCard
-          title="Information"
-          copy="Open a guest from Directory to view and edit Information. No guest is selected yet."
+          title={selected.title}
+          copy="Open a guest from Directory to view and edit this card. No guest is selected yet."
         />
       ) : card === "identity" && guestId && guestQuery.data ? (
         <GuestIdentityCard restaurantId={restaurantId} guest={guestQuery.data.guest} />
-      ) : card === "preferences" && guestId && guestQuery.data ? (
-        <GuestPreferencesCard
-          restaurantId={restaurantId}
-          guestId={guestId}
-          preferences={guestQuery.data.preferences}
-          onSaved={() => void guestQuery.refetch()}
-        />
-      ) : (card === "identity" || card === "preferences") && !guestId ? (
+      ) : card === "identity" && !guestId ? (
         <ComingCard
           title={selected.title}
           copy="Open a guest from Directory to use this card. No guest is selected yet."
         />
-      ) : (card === "identity" || card === "preferences") && guestQuery.isLoading ? (
+      ) : card === "identity" && guestQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading guest…</p>
-      ) : (card === "identity" || card === "preferences") && guestQuery.isError ? (
+      ) : card === "identity" && guestQuery.isError ? (
         <ComingCard
           title={selected.title}
           copy="That guest could not be found for this property."
