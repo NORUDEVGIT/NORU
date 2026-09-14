@@ -5,25 +5,28 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Waves 1–2 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79). Waves 3–5 still **WAVE-GATED**. |
+| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Waves 4–5 still **WAVE-GATED**. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
 | **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z |
-| **Waves 3–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
+| **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
+| **Waves 4–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Waves 1–2 complete. Waves 3–5 are **not** automatic. |
-| **Product requirement** | Rekik 2026-09-14 — Waves 1–2 accepted and implemented |
+| **Engineering assignment** | Waves 1–3 complete. Waves 4–5 are **not** automatic. |
+| **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
 > **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z. Wave 1 is **OPERATIONALLY ACCEPTED** / closed.
 >
-> **Wave 2 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED completed; PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z; follow-up PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z. Wave 2 is **OPERATIONALLY ACCEPTED** / closed. Waves 3–5 stay **WAVE-GATED**. The module is **not** COMPLETE.
+> **Wave 2 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED completed; PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z; follow-up PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z. Wave 2 is **OPERATIONALLY ACCEPTED** / closed.
+>
+> **Wave 3 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z; PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85), [#87](https://github.com/NORUDEVGIT/NORU/pull/87), and [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED via #90. Wave 3 is **OPERATIONALLY ACCEPTED** / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. Waves 4–5 stay **WAVE-GATED**. The module is **not** COMPLETE.
 >
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Waves 3–5 stay wave-gated.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Waves 4–5 stay wave-gated.
 
 ---
 
@@ -49,11 +52,11 @@ Create once → use everywhere → enrich. Other PMS (and later Sales & Events) 
 
 | # | Card | First LIVE wave |
 |---|---|---|
-| 1 | Dashboard Overview | 3 (real KPIs); Wave 1 = shell / placeholder |
+| 1 | Dashboard Overview | **3** LIVE (honest KPIs) |
 | 2 | Directory | **1** |
 | 3 | Information | **1** |
-| 4 | Identity & Documents | 2 (images); Wave 1 may surface ID **text** |
-| 5 | Stay History | 3 |
+| 4 | Identity & Documents | **2** LIVE (images); Wave 1 surfaces ID **text** |
+| 5 | Stay History | **3** LIVE |
 | 6 | Preferences | 2 (complete card) |
 | 7 | Loyalty & Value | 4 |
 | 8 | Relationships | 4 |
@@ -72,12 +75,19 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 |---|---|
 | Server functions | `src/packages/pms/lib/guests.functions.ts` |
 | Access helpers | `src/packages/pms/lib/guests.server.ts` |
-| Wave 1 catalogue / card lock | `src/packages/pms/lib/guest-profile-wave1.ts` — Identity + Preferences cards `live: true` |
-| Wave 1 lock tests | `src/packages/pms/lib/guest-profile-wave1.test.ts` |
+| Wave 1 catalogue / card lock | `src/packages/pms/lib/guest-profile-wave1.ts` — Directory / Information / Identity / Preferences / Dashboard / Stay History `live: true`; Directory-back helpers (`isGuestRequiredProfileCard`, `?card=`); empty-state CTA (`showEmptyDirectoryCta`) |
+| Wave 1 lock tests | `src/packages/pms/lib/guest-profile-wave1.test.ts` (includes AC-DIR-1…7) |
 | Wave 2 helpers / encoding | `src/packages/pms/lib/guest-profile-wave2.ts` (`id:<uuid>` / `other:<text>` prefixes; ID mask) |
 | Wave 2 lock tests | `src/packages/pms/lib/guest-profile-wave2.test.ts` |
+| Wave 3 helpers / KPIs / quick actions | `src/packages/pms/lib/guest-profile-wave3.ts` (`nightsBetween`, honest money, guest-context copy) |
+| Wave 3 lock tests | `src/packages/pms/lib/guest-profile-wave3.test.ts` (AC-W3-1…17) |
 | Identity card | `src/packages/pms/components/guests/guest-identity-card.tsx` |
 | Preferences card | `src/packages/pms/components/guests/guest-preferences-card.tsx` |
+| Stay History card | `src/packages/pms/components/guests/guest-stay-history-card.tsx` |
+| Dashboard Overview card | `src/packages/pms/components/guests/guest-dashboard-card.tsx` |
+| Stay quick actions | `src/packages/pms/components/guests/guest-stay-actions.tsx` |
+| Directory-back control | `src/packages/pms/components/guests/guest-directory-back-link.tsx` |
+| Empty-state Directory CTA | `src/packages/pms/components/guests/guest-directory-open-button.tsx` |
 | Consent panel | `src/packages/pms/components/guests/guest-consent-panel.tsx` |
 | Merge dialog | `src/packages/pms/components/guests/guest-merge-dialog.tsx` |
 | Setup preference options | `src/packages/pms/components/settings/pms-preference-options-editor.tsx` |
@@ -115,8 +125,10 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 | `createGuestDocumentUpload` / `registerGuestDocument` / `listGuestDocuments` / `reviewGuestDocument` | Identity files under existing `property-images` at `{restaurantId}/guests/{guestId}/{uuid}.{ext}`. Staff verify / reject with actor + time. |
 | `mergeGuests` | Explicit confirm only. Soft-retire retired (`inactive` + `merged_into_guest_id`); reassign `hotel_reservations.guest_id`; move documents; history `merged_from` / `merged_into`. |
 | `saveGuestConsent` | Data-processing + marketing: `granted` \| `refused` \| `not_asked` + recorded at / by. History `consent_updated`. |
+| `listGuestStays` | Tenant-scoped `hotel_reservations` for one `guest_id` (arrival desc). Maps confirmation, dates, nights (`nightsBetween`), status, room type / room # as stored. Attaches folio id / number / balance **only** when cashiering access allows and a folio exists for that reservation. RLS block on reservations surfaces `WAVE3_RESERVATION_RLS_BLOCKED` (flag Abel — do **not** weaken RLS). |
+| `getGuestStayOverview` | Derives Dashboard KPIs from `listGuestStays`: stay / night / in-house / upcoming counts; last checked-out stay; quoted room total and posted folio balance only from stored amounts (`knownMoneyTotal` — missing values omitted, never treated as 0). |
 
-`requireGuestManager` wraps `withPmsPackage` + `requireModuleRole(..., "front_office", GUEST_MANAGE_ROLES, ...)`.
+`requireGuestManager` wraps `withPmsPackage` + `requireModuleRole(..., "front_office", GUEST_MANAGE_ROLES, ...)`. Stay / Dashboard reads use the same gate. Quick-action enablement additionally checks reservation / FO / cashiering access (`guestStayAccessForRole`) — Wave 3 does **not** widen those entitlements.
 
 ### 2.2 `GuestProfile` fields (API)
 
@@ -142,20 +154,27 @@ Catalogue-backed fields persist as `id:<uuid>` or `other:<text>` in those text c
 
 `created`, `profile_updated`, `vip_changed`, `status_changed`, `preference_updated`, `note_added`, `document_uploaded`, `document_verified`, `document_rejected`, `merged_from`, `merged_into`, `consent_updated`.
 
-This is **profile activity**, not reservation stay history. Wave 2 also records merge / document / consent events on the same table. Stay rows do **not** appear here.
+This is **profile activity**, not reservation stay history. Wave 2 also records merge / document / consent events on the same table. Stay rows do **not** appear here. The Information History tab is labelled *“Profile activity for this guest. This is not stay history.”*
 
-### 2.5 Live UI (post–Wave 2 `main`)
+Stay rows live on the **Stay History** card via `listGuestStays` (`hotel_reservations.guest_id`).
+
+### 2.5 Live UI (post–Wave 3 `main`)
 
 | Surface | What staff see |
 |---|---|
 | `/restaurant/pms/guests` | Canonical Guest Profile directory. 10-card shell; landing card is **Directory**. Profile-type hook: Individual LIVE; Company / Group / TA disabled and labelled **not LIVE**. Masked ID numbers. Merge guests. |
-| `/restaurant/pms/guests/$guestId` | Canonical profile. Shell defaults to **Information**. Directory + Information + **Identity** + **Preferences** LIVE. Waves 3–5 cards **Coming in Wave N** with no fabricated KPIs. |
+| `/restaurant/pms/guests/$guestId` | Canonical profile. Shell defaults to **Information**. Directory + Information + **Identity** + **Preferences** + **Dashboard Overview** + **Stay History** LIVE. Waves 4–5 cards **Coming in Wave N** with no fabricated KPIs. Optional `?card=` restores the same guest-required card after Directory-back. |
 | FR-9 redirects | `/restaurant/guests`, `/restaurant/guests/$guestId`, and `/restaurant/pms/reservations/guests/$guestId` redirect to the canonical Guest Profile routes. |
 | Individual Directory | `listGuests`: search, status filter, VIP-only, New Guest, open row → profile route. Retired (merged) profiles excluded from the default list. Denied copy still: “Only owners and managers…”. |
 | `GuestFormDialog` | Create / edit: personal, address, VIP, notes, and ID **text** (type / number / expiry). Duplicate warning: **Open existing guest** / **Create anyway** / Back to form. Optional Merge CTA when editing a duplicate — **never** auto-merge. |
-| Information workspace | Overview (contact / address / **masked** Identity text + Reveal / notes / VIP switch / **consent**). **Preferences** tab selects the Preferences **card** and renders `GuestPreferencesCard` (#79). History tab, Edit, Add note, Deactivate / Reactivate, Merge. |
+| Information workspace | Overview (contact / address / **masked** Identity text + Reveal / notes / VIP switch / **consent**). **Preferences** tab selects the Preferences **card** and renders `GuestPreferencesCard` (#79). History tab (profile events — **not** stay history), Edit, Add note, Deactivate / Reactivate, Merge. |
 | Identity & Documents card | Upload / list (signed URLs), staff verify / reject with actor + time. Copy: staff confirmation only — never government KYC. |
 | Preferences card | Setup-owned dropdowns: Room → `room_types`; Floor → `hotel_floors` (gated if empty); Bed / View / Food / Communication → `pms_preference_options`. Optional Other. Accessibility / special requests textarea. Empty catalogue gates the field with a Setup link. Meal plans are not food prefs. |
+| Stay History card | LIVE. Selected guest’s **full name** + **This guest's stays**. Table/list of real `hotel_reservations` for that `guest_id`: confirmation #, dates, nights, status, room type · room # or **Unassigned**. Honest empty names that guest. Quick actions per stay. |
+| Dashboard Overview card | LIVE. Selected guest’s **full name** + **This guest's overview**. KPIs: stays, nights, in-house, upcoming, last stay (or **Not available**), quoted room total / posted folio balance only when stored — never fake `0.00`. Featured in-house/upcoming stay quick actions. |
+| Quick actions | Reservation → `/restaurant/pms/reservations/$reservationId`. Front Office → `/restaurant/pms/front-office?tab=inhouse\|arrivals`. Folio → `/restaurant/pms/cashiering?tab=folios&folio=`. Hidden without surface access; disabled when the record is missing. |
+| Directory-back | Shell-level sticky **← Directory** (`GuestDirectoryBackLink`) on every LIVE guest-required card when a guest is selected. Directory itself has no back-to-Directory control. `#90` / AC-DIR-1…7. |
+| Empty-state Directory CTA | Primary **Open Directory** button (`GuestDirectoryOpenButton`) on every LIVE guest-required card when no guest is selected. `#91` / `#93` / AC-EMPTY-1…6. |
 | Setup | `/restaurant/settings#guest-profile` — `pms_preference_options` CRUD. |
 | `guest-bits.tsx` | `VipBadge` and `StatusBadge` only — not a preferences form. |
 | Catalogue | `guest-profile` — title **Guest Profile**, group `commercial`, `moduleKey` `front_office`, `implementationStatus` `partial`. |
@@ -171,14 +190,13 @@ This is **profile activity**, not reservation stay history. Wave 2 also records 
 | Comments + denied UI | Speak of **owner / manager only**. |
 | RLS (`0012` + `0051`) | `guest_profiles`, `guest_preferences`, `guest_profile_history`, `guest_documents`: **owner or manager** only. Receptionist is **not** in these policies. |
 
-Waves 1–2 **preserved** this inconsistency. It is a documented residual, not a Wave 1 or Wave 2 defect. Do not change the entitlement **architecture** unless a later wave strictly requires it — then **flag Abel**.
+Waves 1–3 **preserved** this inconsistency. It is a documented residual, not a Wave 1, Wave 2, or Wave 3 defect. Do not change the entitlement **architecture** unless a later wave strictly requires it — then **flag Abel**. Wave 3 stay reads use the same guest manage gate; reservation RLS failure must **flag Abel**, not weaken RLS.
 
 ### 2.7 CURRENT gaps vs the north star
 
 | Missing | Notes |
 |---|---|
-| Stay History KPIs from real reservations | History tab is profile events. Dashboard Overview card is Coming in Wave 3. |
-| Loyalty & Value real-derived | VIP boolean only. Card Coming in Wave 4. |
+| Loyalty & Value real-derived | VIP boolean only. Card Coming in Wave 4. Stay count / nights on Dashboard are stay figures, not a loyalty product. |
 | Company / Group / TA masters + Relationships | Switcher present and disabled / not LIVE. Wave 4. |
 | Comms / Activity product | Notes + profile history only. Card Coming in Wave 5. |
 | Privacy suite | Wave 2 records data-processing / marketing consent only. Export / anonymise / unmerge stay Wave 5. Admin & Privacy card remains Coming in Wave 5. |
@@ -356,7 +374,7 @@ Wave 1 **exited for engineering-gate purposes** after Independent QA PASS (Rekik
 
 **Hotel UAT is not required to start Wave 2** but **is** required for **module COMPLETE**.
 
-Passing Wave 1 did **not** start Wave 2 automatically. Wave 2 was ungated separately, implemented via issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PRs [#76](https://github.com/NORUDEVGIT/NORU/pull/76) + [#79](https://github.com/NORUDEVGIT/NORU/pull/79), and is recorded in §4. Waves 3–5 product intent is unchanged and remains **WAVE-GATED**.
+Passing Wave 1 did **not** start Wave 2 automatically. Wave 2 was ungated separately, implemented via issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PRs [#76](https://github.com/NORUDEVGIT/NORU/pull/76) + [#79](https://github.com/NORUDEVGIT/NORU/pull/79), and is recorded in §4. Wave 3 was later ungated and implemented (see §5). Waves 4–5 product intent is unchanged and remains **WAVE-GATED**.
 
 ---
 
@@ -377,7 +395,7 @@ Passing Wave 1 did **not** start Wave 2 automatically. Wave 2 was ungated separa
 >
 > Delivered ONLY: Identity upload / mask / staff verify; Preferences card (Setup-owned); controlled merge; consent; #79 Preferences tab → Preferences card sync.
 >
-> Waves 3–5 remain **WAVE-GATED**. The module is **not** COMPLETE.
+> Waves 4–5 remain **WAVE-GATED**. Wave 3 is recorded in §5. The module is **not** COMPLETE.
 
 > **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).**
 >
@@ -597,7 +615,7 @@ DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS** (after
 
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
 - Production migration `0051_pms_guest_profile_wave2` **Abel-gated**. Non-prod **PASS** on `qcwptraosaudcbjasmul` (version `20260914110546`).
-- Waves 3–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- Waves 4–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 4.10 QA (Wave 2)
@@ -665,11 +683,11 @@ DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS** (after
 
 Wave 2 **exited for engineering-gate purposes** after Independent QA PASS (Rekik 2026-09-14, including #79 Preferences-tab residual), human merge of PRs [#76](https://github.com/NORUDEVGIT/NORU/pull/76) and [#79](https://github.com/NORUDEVGIT/NORU/pull/79), issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED, and the Design Execution Report. This docs reconciliation updates [../guests.md](../guests.md) CURRENT / EXPECTED for Wave 2 surfaces.
 
-Approved deviations: **THREE** (prefix storage honesty; #76 merged before Preferences Independent QA / #79 after #72 CLOSED — process note; Developer browser PARTIAL with Independent QA covering Preferences selection). Residuals / FINAL: receptionist RLS **PRESERVED**; production 0051 **Abel-gated** (non-prod PASS `qcwptraosaudcbjasmul` / `20260914110546`); Waves 3–5 **WAVE-GATED**. DESIGN COMPLETION **COMPLETE** (Wave 2). IMPLEMENTATION STATUS **PASS**.
+Approved deviations: **THREE** (prefix storage honesty; #76 merged before Preferences Independent QA / #79 after #72 CLOSED — process note; Developer browser PARTIAL with Independent QA covering Preferences selection). Residuals / FINAL: receptionist RLS **PRESERVED**; production 0051 **Abel-gated** (non-prod PASS `qcwptraosaudcbjasmul` / `20260914110546`); Waves 4–5 **WAVE-GATED**. DESIGN COMPLETION **COMPLETE** (Wave 2). IMPLEMENTATION STATUS **PASS**.
 
-**Hotel UAT is not required to start Wave 3** but **is** required for **module COMPLETE**.
+**Hotel UAT is not required to start Wave 4** but **is** required for **module COMPLETE**.
 
-Passing Wave 2 implementation does **not** start Waves 3–5 — they remain **WAVE-GATED**. The module is **not** COMPLETE.
+Passing Wave 2 implementation did **not** start Waves 3–5 automatically. Wave 3 was later ungated and implemented (see §5). Waves 4–5 remain **WAVE-GATED**. The module is **not** COMPLETE.
 
 ---
 
@@ -680,19 +698,21 @@ Passing Wave 2 implementation does **not** start Waves 3–5 — they remain **W
 | **TITLE** | Guest Profile Module — Wave 3 Stay History + honest 360 Dashboard |
 | **PACKAGE** | PMS |
 | **PMS AREA** | Guests |
-| **SPEC STATUS** | **READY FOR ENGINEERING PLANNING** |
-| **ENGINEERING STATUS** | **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL** (gate **OPENED** by Rekik 2026-09-14 via Advisor; Wave 2 exited) |
-| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). Folio jumps reuse existing Cashiering routes / access — do **not** invent a Guest-owned folio writer. No new entitlement model unless Abel-flagged. |
-| **Depends on** | Wave 2 engineering gate **exited** (issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) / PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79)). Wave 3 gate **OPENED** (Rekik 2026-09-14 via Advisor). |
+| **SPEC STATUS** | **ACCEPTED** (Rekik 2026-09-14) |
+| **ENGINEERING STATUS** | **COMPLETE / MERGED** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. |
+| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). Folio jumps reuse existing Cashiering routes / access — do **not** invent a Guest-owned folio writer. No new entitlement model. Abel was not flagged. Receptionist residual **PRESERVED**. RLS **not** weakened. |
+| **Depends on** | Wave 2 engineering gate **exited** (issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) / PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79)). Wave 3 gate **OPENED** then **implemented** (Rekik 2026-09-14). |
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
 
-> **Wave 3 gate OPENED (Rekik 2026-09-14 via Advisor).**
+> **Wave 3 IMPLEMENTED ON MAIN** (Rekik 2026-09-14).
 >
-> Wave 2 is **OPERATIONALLY ACCEPTED** / closed (#72 / #76 / #79). This Wave 3 Functional Spec is **READY FOR ENGINEERING PLANNING**.
+> Issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z. PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85) + [#87](https://github.com/NORUDEVGIT/NORU/pull/87) + [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed via #90. PR [#86](https://github.com/NORUDEVGIT/NORU/pull/86) CLOSED as duplicate of #87.
 >
-> **Code starts only after** a GitHub issue, a Wave 3 tech plan, and **Rekik plan approval**. This Spec does **not** authorise implementation by itself.
+> Delivered ONLY: Stay History LIVE; honest Dashboard KPIs; quick actions to Res / FO / Folio; guest-context naming (#87); Directory-back on guest-required cards (#90); profile History remains separate. **No migration.** RLS not weakened.
 >
-> Waves 4–5 remain **WAVE-GATED**. Do **not** treat this ungating as module COMPLETE or as Wave 3 implemented.
+> Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 does **not** ungate Waves 4–5.
+>
+> Waves 4–5 remain **WAVE-GATED**. The module is **not** COMPLETE.
 
 ### 5.1 Business purpose
 
@@ -702,32 +722,31 @@ Wave 3 is the guest-side **read** of stays that Reservations and Front Office al
 
 ### 5.2 CURRENT behaviour (Wave 3 surfaces — code wins)
 
-Grounded in `main` after Wave 2 merge (`0f9356b`). **Code wins.**
+Grounded in `main` after #85 / #87 / #90 (`0545232`). **Code wins.**
 
 | Surface | CURRENT |
 |---|---|
-| **Stay History card** | `GUEST_PROFILE_CARDS` id `stay-history`: `live: false`, `wave: 3`. Shell renders `ComingCard`: *“Coming in Wave 3. Stay history will list real reservations for this guest. This card does not invent stays.”* |
-| **Dashboard Overview card** | id `dashboard`: `live: false`, `wave: 3`. `ComingCard`: *“Coming in Wave 3. Real stay figures will appear here only when they can be derived from reservations. Nothing is shown yet.”* No KPI numbers. |
-| **Information History tab** | `guest-detail-workspace.tsx` lists `guest_profile_history` (create / update / VIP / status / preference / note / Wave 2 merge / document / consent). **Not** reservation stays. |
-| **`getGuest`** | Profile + preferences + last 100 profile-history rows. **No** `hotel_reservations` or `guest_folios` query. |
-| **Guest-scoped stay API** | **Does not exist.** No `listReservationsByGuest`, `getGuestStayHistory`, or `listFoliosByGuestId`. |
-| **Reservation list by guest** | `listReservations` may fall back to `hotel_reservations.guest_id IN (…)` when search matches guest names — a **Reservations search** path, not a Guest Profile stay list. |
-| **Stay store** | `hotel_reservations` (`0013`). Required `guest_id` FK to `guest_profiles`. Fields already selected by `RESERVATION_SELECT`: `confirmation_number`, `arrival_date`, `departure_date`, `status`, `room_type_id` / `room_types.name`, `room_id` / `hotel_rooms.room_number`, `rate_plan_id`, `currency`, `room_subtotal` (nullable), `nightly_rate_snapshot`, `priced_at`. Statuses: `pending`, `confirmed`, `cancelled`, `checked_in`, `checked_out`, `no_show`. Nights are **derived** via `nightsBetween(arrival_date, departure_date)` — not a stored column. |
-| **Companions** | `fo_stay_companions` links additional `guest_id`s to a reservation. Wave 3 locked source is **`hotel_reservations.guest_id`** (primary guest). Companion-only stays are **out** unless the tech plan documents including that junction — never invent rows. |
-| **Folio store** | `guest_folios` + `folio_transactions` (`0017`). Folio opens on check-in (or `initializeFolio`). **No stored balance** — `folio_balance()` / `totals()` sum transaction amounts. `getReservationFolio` returns `{ id, folioNumber, balance }` **or `null`** if none. `listFolios` is property-wide (limit 200), not guest-scoped. `transfersSupported: false`. |
-| **Reservation amounts** | `room_subtotal` is a **quoted** priced subtotal when a rate plan was applied; **nullable** if unpriced. There is **no** reservation `total_amount` or `deposit_amount`. Deposit lives on `fo_checkin_progress` and/or folio `deposit` lines. |
-| **Quick actions on Guest Profile** | **None.** No jump to reservation, FO, or folio. |
-| **Inbound guest link** | Reservation detail and FO stay lists link **to** Guest Profile (`/restaurant/pms/reservations/guests/$guestId` → canonical). One-way today. |
-| **Existing jump targets** | Reservation: `/restaurant/pms/reservations/$reservationId`. Front Office: `/restaurant/pms/front-office` (optional `?tab=`). Folio: `/restaurant/pms/cashiering?tab=folios&folio={folioNumber}` via `cashieringRefundHref`. Legacy `/restaurant/cashiering/folios/$folioId` also exists — tech plan picks the **existing** Cashiering surface; do not invent a Guest folio page. |
-| **Merge residual** | `mergeGuests` reassigns `hotel_reservations.guest_id` to the survivor; it does **not** update `guest_folios.guest_id`. Folio amounts for a merged guest must be derived honestly (prefer reservation → `getReservationFolio`, not a silent guest_id-only folio sum that misses reassigned stays). |
+| **Stay History card** | `GUEST_PROFILE_CARDS` id `stay-history`: `live: true`, `wave: 3`. `GuestStayHistoryCard` lists real `hotel_reservations` for the selected `guest_id`. Header is the guest’s **full name** (`getGuest`); subtitle **This guest's stays**. Empty copy: *“No stays yet for {name}. Stay history lists real reservations only — this card does not invent stays.”* |
+| **Dashboard Overview card** | id `dashboard`: `live: true`, `wave: 3`. `GuestDashboardCard` shows stays, nights, in-house, upcoming, last stay, quoted room total, posted folio balance. Header is the guest’s **full name**; subtitle **This guest's overview**. Amounts without a stored source render **Not available** — never fake `0.00`. |
+| **Information History tab** | Still `guest_profile_history` (create / update / VIP / status / preference / note / Wave 2 merge / document / consent). Labelled *“Profile activity for this guest. This is not stay history.”* **Not** reservation stays. |
+| **Guest-scoped stay API** | `listGuestStays` + `getGuestStayOverview` in `guests.functions.ts`. Read-only; gated by `requireGuestManager`. |
+| **Stay store** | Unchanged: `hotel_reservations` (`0013`) filtered by `restaurant_id` + `guest_id`, ordered by arrival desc. Nights via shared `nightsBetween`. Room number only when `room_id` is assigned; otherwise **Unassigned**. Companion-only stays (`fo_stay_companions`) are **out**. |
+| **Folio attach** | When cashiering access allows, folio id / number / balance are joined by **reservation_id** (not a silent `guest_folios.guest_id` sum). No folio → Folio action disabled; posted-folio KPI **Not available**. |
+| **Quick actions** | Per stay (and featured Dashboard stay): Reservation / Front Office / Folio. Hidden without surface access; Front Office enabled only for in-house or upcoming; Folio enabled only when `folioId` exists. Targets: `/restaurant/pms/reservations/$reservationId`, `/restaurant/pms/front-office?tab=inhouse\|arrivals`, `/restaurant/pms/cashiering?tab=folios&folio=`. |
+| **Guest-context (#87)** | Switching guests updates Dashboard / Stay History names. Empty Stay History names the current guest. |
+| **Directory-back (#90)** | Shell-level sticky **← Directory** on every LIVE guest-required card (`isGuestRequiredProfileCard`). `?card=` restores the same card after picking another guest. Directory has no back-to-Directory control. AC-DIR-1…7 **PASS**. |
+| **Empty-state Directory CTA (#91 / #93)** | Primary **Open Directory** button on guest-required cards when no guest is selected (`showEmptyDirectoryCta`). `?card=` restore. AC-EMPTY-1…6 **PASS**. |
+| **Inbound guest link** | Reservation detail and FO stay lists still link **to** Guest Profile. Wave 3 adds the reverse jumps above. |
+| **Merge residual** | `mergeGuests` still reassigns `hotel_reservations.guest_id` and does **not** rewrite `guest_folios.guest_id`. Wave 3 folio amounts follow **reservation_id**, so reassigned stays remain honest. |
+| **Migration / RLS** | **No Wave 3 migration.** Reservation RLS failure throws `WAVE3_RESERVATION_RLS_BLOCKED` (flag Abel). Existing guest-table RLS unchanged. |
 
 #### Must-not-claim (CURRENT)
 
-- Guest Profile does **not** list stays today.
-- Dashboard Overview does **not** show stay counts, nights, or revenue.
 - Profile History is **not** stay history.
-- `getBookingsDashboard` / `getCashieringDashboard` / `getRoomsDashboard` are **property-wide** — not this guest’s 360.
+- Quoted `room_subtotal` is **not** posted revenue. Posted folio balance is **not** lifetime spend.
+- `getBookingsDashboard` / `getCashieringDashboard` / `getRoomsDashboard` remain **property-wide** — not this guest’s 360.
 - No LIVE OTA stay feed, payment-gateway settlement total, or classic nightly room-and-tax night-audit revenue as a Guest KPI.
+- Waves 4–5 cards are **not** LIVE. The module is **not** COMPLETE.
 
 ### 5.3 EXPECTED behaviour (Wave 3)
 
@@ -740,7 +759,7 @@ Grounded in `main` after Wave 2 merge (`0f9356b`). **Code wins.**
 | **Profile-event History** | Information History tab (Waves 1–2 `guest_profile_history`) **remains**. It must **not** be relabelled or presented as Stay History. |
 | **Access** | Preserve CURRENT `canManageGuests` / `requireGuestManager` / RLS behaviour unless Abel-flagged. Stay and folio reads stay staff-only and tenant-scoped. |
 | **Reuse** | Extend guests + reservation / folio **read** paths. Do **not** introduce a parallel individual guest table, a new package, or a Guest-owned reservation writer. |
-| **Honesty** | Cards for Waves 4–5 stay **Coming in Wave N**. No fabricated loyalty points. Do not claim Wave 3 implemented from this Spec. |
+| **Honesty** | Cards for Waves 4–5 stay **Coming in Wave N**. No fabricated loyalty points. Do not claim the **module** COMPLETE from Wave 3. |
 
 ### 5.4 Locked requirements
 
@@ -813,7 +832,7 @@ Quick actions **read** existing records. They do **not** create a reservation, c
 | Offline-first Guest UX | Out of this module |
 | Sales & Events group blocks / allotments | Out of this module |
 | Entitlement-architecture redesign | Flag Abel; not assumed |
-| Wave 3 **code** from this Spec alone | Needs issue + tech plan + Rekik plan approval |
+| Wave 3 **code** from this Spec alone | Historical — implementation later landed via issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) / PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85) + [#87](https://github.com/NORUDEVGIT/NORU/pull/87) + [#90](https://github.com/NORUDEVGIT/NORU/pull/90) |
 
 ### 5.9 Acceptance criteria (testable)
 
@@ -838,6 +857,41 @@ Staff in the ACs are **authorised**: signed-in, property membership, package **p
 | **AC-W3-15** | Waves 4–5 cards stay **Coming in Wave N** with **no fabricated** loyalty / comms metrics. | Loyalty does not show invented points. Company / Group / TA remain not LIVE. |
 | **AC-W3-16** | Denied staff cannot read another guest’s stays or folio amounts through the new Guest surfaces. | Same gate as `getGuest` / guest manage. No new public PII route. |
 | **AC-W3-17** | Wave 3 does **not** invent LIVE OTA stays, gateway settlement, or classic nightly NA revenue. | No “channel stay” or “NA room+tax total” KPI unless that source already exists on `main` for this guest (it does not). |
+
+#### Wave 3 AC results (DER after merge)
+
+DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS** (after #87 + #90). Approved deviations: **THREE** (see below).
+
+| ID | Result |
+|---|---|
+| **AC-W3-1** … **AC-W3-17** | All **IMPLEMENTED AS SPECIFIED / PASS** per the Wave 3 Design Execution Report (#85 + #87 + #90) |
+| **AC-DIR-1** … **AC-DIR-7** | All **IMPLEMENTED AS SPECIFIED / PASS** per DER (#90 / issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED) |
+
+#### Wave 3 approved deviations (DER)
+
+| # | Deviation | Class |
+|---|---|---|
+| 1 | PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) merged **before** the guest-context UX fix. Residual shipped as PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) | **Process note only.** Not a product defect. |
+| 2 | PR [#86](https://github.com/NORUDEVGIT/NORU/pull/86) CLOSED as **duplicate** of #87 (same residual, older branch tip) | **Process note only.** Canonical guest-context follow-up is #87. |
+| 3 | Developer browser QA remained **PARTIAL** | Independent QA covered guest-context and Directory-back after residuals. Developer PARTIAL does not become PASS. |
+
+#### Wave 3 QA lanes recorded
+
+| Lane | Result | Notes |
+|---|---|---|
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; Wave 1 + Wave 2 + Wave 3 lock tests PASS (36/36 after #90). Browser QA-W3 / SEC-W3 / guest A vs B **NOT RUN** in the developer environment. Independent QA covered residuals (approved deviation 3). |
+| Independent QA | **PASS** | Rekik 2026-09-14 after residuals — [issue #81 DER](https://github.com/NORUDEVGIT/NORU/issues/81#issuecomment-5664019733) and [PR #90](https://github.com/NORUDEVGIT/NORU/pull/90#issuecomment-5664008291). |
+
+`NOT RUN` is never `PASS`. Developer PARTIAL does not become PASS because Independent QA later passed.
+
+#### Wave 3 residuals / FINAL (not defects)
+
+- Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
+- Wave 3 added **no** migration. Production `0051_pms_guest_profile_wave2` remains **Abel-gated** (Wave 2 leftover).
+- Guest-context (#87) and Directory-back (#90 / #88) residuals are **RESOLVED on `main`**.
+- Empty-state Open Directory CTA (#91 / #93) is **RESOLVED on `main`**. Do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
+- Waves 4–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 5.10 QA (Wave 3)
 
@@ -902,59 +956,48 @@ Staff in the ACs are **authorised**: signed-in, property membership, package **p
 
 ### 5.14 Wave 3 exit
 
-Wave 3 may exit only when:
+Wave 3 **exited for engineering-gate purposes** after Independent QA PASS (Rekik 2026-09-14, including #87 guest-context and #90 Directory-back residuals), human merge of PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85), [#87](https://github.com/NORUDEVGIT/NORU/pull/87), and [#90](https://github.com/NORUDEVGIT/NORU/pull/90), issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED, issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z, and the Design Execution Report. This docs reconciliation updates [../guests.md](../guests.md) CURRENT / EXPECTED for Stay History, Dashboard Overview, quick actions, guest-context, and Directory-back.
 
-1. Rekik (or Abel) accepts the implemented wave against **AC-W3-1 … AC-W3-17**.
-2. Independent QA is recorded (`NOT RUN` is never `PASS`).
-3. [../guests.md](../guests.md) CURRENT / EXPECTED is reconciled for Stay History, Dashboard Overview, and quick actions.
-4. Stay History lists only real `hotel_reservations` for that `guest_id`; empty is honest.
-5. Dashboard KPIs that appear are traceable; missing amounts are omitted or **not available**; stays/nights ship first if revenue is not ready.
-6. Quick actions open existing Res / FO / Folio surfaces only when records exist.
-7. Profile-event History remains and is not presented as stay history.
-8. Design Execution Report records approved deviations (or **NONE**).
+Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 does **not** ungate Waves 4–5 and does **not** make the module COMPLETE.
+
+Approved deviations: **THREE** (#85 merged before guest-context / #87 follow-up; #86 CLOSED as duplicate of #87; Developer browser PARTIAL with Independent QA covering residuals). Residuals / FINAL: receptionist RLS **PRESERVED**; no Wave 3 migration; #87 and #90 residuals **RESOLVED**; Waves 4–5 **WAVE-GATED**. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**.
 
 **Hotel UAT is not required to start Wave 4** but **is** required for **module COMPLETE**.
 
-Passing this Spec / planning cycle does **not** start Wave 3 **code**. Code waits for issue + tech plan + Rekik plan approval.
-
-Passing Wave 3 implementation does **not** start Waves 4–5 — they remain **WAVE-GATED**.
-
-This Spec does **not** claim Wave 3 implemented.
+Passing Wave 3 implementation does **not** start Waves 4–5 — they remain **WAVE-GATED**. The module is **not** COMPLETE.
 
 ### 5.15 Wave 3 residuals / UX consistency — Directory-back (Rekik 2026-09-14)
 
-> **Guest shell UX residual** (Rekik 2026-09-14). This is a Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope.
+> **Guest shell UX residual** (Rekik 2026-09-14). This is a Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope. **RESOLVED on `main`** via PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) (issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed).
 
-**REQUIRED.** Any Guest Profile card that requires a selected guest first (Dashboard, Stay History, Identity, Preferences, and later live cards) must provide the same easy **Directory back arrow** pattern as Information (or a shell-level sticky back-to-Directory). Staff must always be able to return to Directory, pick another guest, and see that guest’s same card without dead-ends.
+**DELIVERED.** Any LIVE Guest Profile card that requires a selected guest first (Dashboard, Stay History, Identity, Preferences, and later LIVE cards via `isGuestRequiredProfileCard`) provides the same easy **Directory back arrow** as Information (shell-level sticky `GuestDirectoryBackLink`). Staff return to Directory, pick another guest, and see that guest’s **same** card (`?card=` restore). Directory itself has no back-to-Directory control.
 
 | Item | Status on `main` |
 |---|---|
-| Guest-context headers (selected guest named on Dashboard / Stay History) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) |
-| Directory-back arrow (or shell-level sticky back-to-Directory) on guest-required cards | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) |
-| Empty / no-guest-selected Directory CTA | **OPEN** — see §5.16 |
+| Guest-context headers (selected guest named on Dashboard / Stay History) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED |
+| Directory-back arrow (or shell-level sticky back-to-Directory) on guest-required cards | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed. |
+| Empty / no-guest-selected Directory CTA | **ON MAIN** — PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) MERGED. Issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed. See §5.16. |
 
-**CURRENT.** After [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90), guest-required cards with a selected guest show a sticky **← Directory** (`GuestDirectoryBackLink`) to `/restaurant/pms/guests` (with `?card=` so Directory reopens the same card). Empty / no-guest-selected states still tell staff to open Directory in **copy only** — no primary CTA; see §5.16.
+**CURRENT.** After [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90), guest-required cards with a selected guest show a sticky **← Directory** (`GuestDirectoryBackLink`) to `/restaurant/pms/guests` (with `?card=` so Directory reopens the same card). Empty / no-guest-selected states use the §5.16 primary **Open Directory** CTA (#91 / #93).
 
-**EXPECTED.** The same Directory-back control as Information, **or** one sticky shell-level back-to-Directory, on every guest-required card — including later live cards. After Directory, staff pick another guest and land on that guest’s **same** card. No dead-end. Empty / no-guest-selected states need a primary CTA — §5.16.
+**EXPECTED.** The same Directory-back control as Information, **or** one sticky shell-level back-to-Directory, on every guest-required card — including later live cards. After Directory, staff pick another guest and land on that guest’s **same** card. No dead-end. Empty / no-guest-selected states have a primary CTA — §5.16.
 
 This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 stay / KPI / quick-action product scope.
 
 ### 5.16 Wave 3 residuals / UX consistency — Empty-state Directory CTA (Rekik 2026-09-14)
 
-> **Guest shell UX residual** (Rekik 2026-09-14, post–Wave 3). This is a Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope.
+> **Guest shell UX residual** (Rekik 2026-09-14, post–Wave 3). This is a Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope. **RESOLVED on `main`** via PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) (issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed).
 
-**REQUIRED.** Every guest-required card (Dashboard, Stay History, Identity, Preferences, and later LIVE cards) must include a **primary CTA button** in the empty / no-guest-selected state (e.g. **Open Directory** / **Select a guest**) that navigates to Guest Directory. Copy alone is not enough.
+**DELIVERED.** Every LIVE guest-required card (Dashboard, Stay History, Identity, Preferences, Information, and later LIVE cards via `showEmptyDirectoryCta`) includes a primary **Open Directory** button (`GuestDirectoryOpenButton`) in the empty / no-guest-selected state that navigates to Guest Directory. Copy alone is not enough. AC-EMPTY-1…6 **PASS**.
 
-Align with Directory-back ([#90](https://github.com/NORUDEVGIT/NORU/pull/90)): after a guest is selected, sticky **← Directory**; before selection, the empty-state CTA into Directory.
+Align with Directory-back ([#90](https://github.com/NORUDEVGIT/NORU/pull/90)): after a guest is selected, sticky **← Directory**; before selection, the empty-state CTA into Directory (`?card=` restore).
 
 | Item | Status on `main` |
 |---|---|
-| Directory-back on guest-required cards (after guest selected) | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90) |
-| Empty / no-guest-selected primary CTA into Directory | **OPEN** — Engineering follow-up |
+| Directory-back on guest-required cards (after guest selected) | **ON MAIN** — PRs [#89](https://github.com/NORUDEVGIT/NORU/pull/89) / [#90](https://github.com/NORUDEVGIT/NORU/pull/90). Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED completed. |
+| Empty / no-guest-selected primary CTA into Directory | **ON MAIN** — PR [#93](https://github.com/NORUDEVGIT/NORU/pull/93) MERGED 2026-09-14T12:48:14Z. Issue [#91](https://github.com/NORUDEVGIT/NORU/issues/91) CLOSED completed. |
 
-**CURRENT.** When no guest is selected, guest-required cards render `ComingCard` copy such as *“Open a guest from Directory to view this card. No guest is selected yet.”* There is **no** primary button. The 10-card nav can still select Directory, but that is not the same empty-state CTA. Directory-back (`GuestDirectoryBackLink`) appears only when `guestId` is set (`showDirectoryBack`).
-
-**EXPECTED.** The same empty-state primary CTA on every guest-required card — including later LIVE cards. Staff who land on Dashboard / Stay History / Identity / Preferences with no guest selected can press the button and go to Directory. After they pick a guest, they get the §5.15 sticky **← Directory**. No dead-end; copy-only is not sufficient.
+**CURRENT.** When no guest is selected, guest-required cards show a primary **Open Directory** button (`data-testid="guest-profile-open-directory"`) plus honest empty copy. The button navigates to `/restaurant/pms/guests` and keeps `?card=` so Directory reopens the same card after staff pick a guest. Coming-in-Wave cards stay copy-only. Directory itself has no Open Directory dead-end. After selection, §5.15 sticky **← Directory** remains.
 
 This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 stay / KPI / quick-action product scope.
 
@@ -1056,8 +1099,8 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | No invented LIVE OTA / gateway / classic NA | Every wave |
 | Tenant + `pms` + guest manage gate | Every wave unless Abel-approved change |
 | Extend existing tables / functions | Every wave |
-| Directory-back on guest-required cards | Every wave — same Information back-arrow pattern, or a shell-level sticky back-to-Directory. Wave 3 residual; see §5.15. Not Waves 4–5 product scope. |
-| Empty / no-guest-selected Directory CTA | Every wave — guest-required cards must include a primary CTA into Directory (copy alone is not enough). Wave 3 residual; see §5.16. Aligns with §5.15 / #90. Not Waves 4–5 product scope. |
+| Directory-back on guest-required cards | Every wave — same Information back-arrow pattern, or a shell-level sticky back-to-Directory. Wave 3 residual **delivered** (#90); see §5.15. Not Waves 4–5 product scope. |
+| Empty / no-guest-selected Directory CTA | Every wave — guest-required cards must include a primary CTA into Directory (copy alone is not enough). Wave 3 residual **delivered** (#91 / #93); see §5.16. Aligns with §5.15 / #90. Not Waves 4–5 product scope. |
 
 ---
 
@@ -1068,11 +1111,13 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Record Wave 1 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#66 / #67) | Claim the **module** is COMPLETE |
 | Keep Wave 1 ACs as the accepted contract | Reopen Wave 1 engineering |
 | Record Wave 2 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#72 / #76 / #79) | Reopen Wave 2 engineering or treat #79 as a new wave |
-| Keep Wave 2 ACs as the accepted contract | Ungate or authorise Waves 3–5 engineering |
-| Lock Waves 3–5 product intent behind wave gates | Start Stay History / masters / privacy finish from this reconciliation |
+| Keep Wave 2 ACs as the accepted contract | Treat Wave 2 residuals as Wave 3 defects |
+| Record Wave 3 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90) | Reopen #81, ungate Waves 4–5, or claim the module COMPLETE |
+| Keep Wave 3 ACs as the accepted contract | Reopen Stay History / KPI / Directory-back engineering |
+| Lock Waves 4–5 product intent behind wave gates | Start masters / loyalty / comms / privacy finish from this reconciliation |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
-| Record that Waves 1–2 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
-| Record Wave 2 approved deviations (prefix honesty; #76 / #79 process note; Developer browser PARTIAL) and production 0051 hold | Pretend stored prefixes are Setup FKs, treat #79 as a new wave, or treat code merge as production apply |
+| Record that Waves 1–3 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
+| Record Wave 3 approved deviations (#85 early merge → #87; #86 duplicate of #87; Developer browser PARTIAL) | Treat those process notes as product defects, or treat Developer PARTIAL as PASS |
 
 ---
 
@@ -1082,8 +1127,10 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 >
 > **Wave 2 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#72 / #76 / #79). **ENGINEERING STATUS: COMPLETE / MERGED.** Wave 2 is OPERATIONALLY ACCEPTED / closed.
 >
+> **Wave 3 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90). **ENGINEERING STATUS: COMPLETE / MERGED.** Wave 3 is OPERATIONALLY ACCEPTED / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**.
+>
 > Waves 4–5: **SPECIFIED / WAVE-GATED**.
 >
-> The module is **not** COMPLETE. Hotel UAT is still required after Waves 3–5.
+> The module is **not** COMPLETE. Hotel UAT is still required after Waves 4–5.
 >
 > Extend existing guest code. Create once → use everywhere → enrich.
