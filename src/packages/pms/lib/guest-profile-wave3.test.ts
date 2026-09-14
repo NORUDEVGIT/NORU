@@ -7,11 +7,13 @@ import { fileURLToPath } from "node:url";
 import { GUEST_PROFILE_CARDS, GUEST_PROFILE_TYPES } from "./guest-profile-wave1.ts";
 import {
   WAVE3_ACCEPTANCE_CRITERIA,
+  WAVE3_DASHBOARD_CONTEXT,
   WAVE3_KPI_NOT_AVAILABLE,
   WAVE3_POSTED_FOLIO_LABEL,
   WAVE3_PROFILE_HISTORY_COPY,
   WAVE3_QUOTED_ROOM_TOTAL_LABEL,
   WAVE3_ROOM_UNASSIGNED,
+  WAVE3_STAY_HISTORY_CONTEXT,
   WAVE3_STAY_HISTORY_EMPTY,
   deriveStayOverview,
   folioHref,
@@ -21,6 +23,7 @@ import {
   reservationHref,
   stayQuickActions,
   stayRoomNumberLabel,
+  wave3StayHistoryEmpty,
   type GuestStay,
   type GuestStayAccess,
 } from "./guest-profile-wave3.ts";
@@ -98,8 +101,9 @@ describe("Guest Profile Wave 3 lock — AC-W3-1…17", () => {
     assert.equal(overview.stayCount, 0);
     assert.equal(overview.featuredStay, null);
     assert.match(WAVE3_STAY_HISTORY_EMPTY, /does not invent stays/);
+    assert.match(wave3StayHistoryEmpty("Ada Guest"), /Ada Guest/);
     const history = readRel("../components/guests/guest-stay-history-card.tsx");
-    assert.match(history, /WAVE3_STAY_HISTORY_EMPTY/);
+    assert.match(history, /wave3StayHistoryEmpty/);
     assert.match(history, /guest-stay-history-empty/);
     assert.doesNotMatch(history, /NORU-1001|12,500|demo confirmation/);
   });
@@ -150,6 +154,24 @@ describe("Guest Profile Wave 3 lock — AC-W3-1…17", () => {
     assert.match(shell, /card === "stay-history"/);
     assert.doesNotMatch(history, /guest_profile_history|eventType|note_added|consent_updated/);
     assert.doesNotMatch(detail, /Stay History/);
+  });
+
+  it("scopes Dashboard Overview and Stay History headers to the selected guest's full name", () => {
+    const dashboard = readRel("../components/guests/guest-dashboard-card.tsx");
+    const history = readRel("../components/guests/guest-stay-history-card.tsx");
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    assert.equal(WAVE3_DASHBOARD_CONTEXT, "This guest's overview");
+    assert.equal(WAVE3_STAY_HISTORY_CONTEXT, "This guest's stays");
+    assert.match(dashboard, /guestName/);
+    assert.match(dashboard, /guest-dashboard-guest-name/);
+    assert.match(dashboard, /WAVE3_DASHBOARD_CONTEXT/);
+    assert.match(history, /guestName/);
+    assert.match(history, /guest-stay-history-guest-name/);
+    assert.match(history, /WAVE3_STAY_HISTORY_CONTEXT/);
+    assert.match(shell, /guestQuery\.data\.guest\.fullName/);
+    assert.match(shell, /card === "dashboard"/);
+    assert.match(shell, /card === "stay-history"/);
+    assert.match(shell, /card === "identity"/);
   });
 
   it("AC-W3-6 shows stored status and room/type, and Unassigned when room_id is missing", () => {

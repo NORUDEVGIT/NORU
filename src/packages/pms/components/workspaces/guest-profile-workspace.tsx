@@ -37,7 +37,8 @@ export function GuestProfileWorkspace({
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: guestId! } }),
-    enabled: Boolean(guestId) && card === "identity",
+    enabled:
+      Boolean(guestId) && (card === "identity" || card === "dashboard" || card === "stay-history"),
     retry: false,
   });
 
@@ -148,24 +149,32 @@ export function GuestProfileWorkspace({
           title={selected.title}
           copy="That guest could not be found for this property."
         />
-      ) : (card === "dashboard" || card === "stay-history") && guestId ? (
+      ) : (card === "dashboard" || card === "stay-history") && guestId && guestQuery.data ? (
         card === "dashboard" ? (
           <GuestDashboardCard
             restaurantId={restaurantId}
             guestId={guestId}
+            guestName={guestQuery.data.guest.fullName}
             timezone={membership.restaurant.timezone}
           />
         ) : (
           <GuestStayHistoryCard
             restaurantId={restaurantId}
             guestId={guestId}
+            guestName={guestQuery.data.guest.fullName}
             timezone={membership.restaurant.timezone}
           />
         )
       ) : card === "dashboard" || card === "stay-history" ? (
         <ComingCard
           title={selected.title}
-          copy="Open a guest from Directory to view this card. No guest is selected yet."
+          copy={
+            guestId
+              ? guestQuery.isLoading
+                ? "Loading guest…"
+                : "That guest could not be found for this property."
+              : "Open a guest from Directory to view this card. No guest is selected yet."
+          }
         />
       ) : (
         <ComingCard
