@@ -27,8 +27,71 @@ import {
 } from "@/packages/pms/lib/guests.functions";
 import { supabase } from "@/integrations/supabase/client";
 
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
-const MAX_BYTES = 8 * 1024 * 1024;
+export const IDENTITY_UPLOAD_ACCEPT = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
+export const IDENTITY_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+
+export type IdentityUploadFns = {
+  startUpload: (input: {
+    data: {
+      restaurantId: string;
+      guestId: string;
+      contentType: (typeof IDENTITY_UPLOAD_ACCEPT)[number];
+      size: number;
+    };
+  }) => Promise<{ ok: true; path: string; token: string } | { ok: false; message: string }>;
+  register: (input: {
+    data: {
+      restaurantId: string;
+      guestId: string;
+      storagePath: string;
+      kind: GuestDocumentKind;
+      mimeType: (typeof IDENTITY_UPLOAD_ACCEPT)[number];
+      size: number;
+    };
+  }) => Promise<{ ok: true } | { ok: false; message: string }>;
+};
+
+export async function attachGuestDocumentFile(params: {
+  restaurantId: string;
+  guestId: string;
+  file: File;
+  kind: GuestDocumentKind;
+  startUpload: IdentityUploadFns["startUpload"];
+  register: IdentityUploadFns["register"];
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { restaurantId, guestId, file, kind, startUpload, register } = params;
+  if (!(IDENTITY_UPLOAD_ACCEPT as readonly string[]).includes(file.type)) {
+    return { ok: false, message: `${file.name}: only JPG, PNG, WebP or PDF.` };
+  }
+  if (file.size > IDENTITY_UPLOAD_MAX_BYTES) {
+    return { ok: false, message: `${file.name}: files must be 8 MB or smaller.` };
+  }
+  const ticket = await startUpload({
+    data: {
+      restaurantId,
+      guestId,
+      contentType: file.type as (typeof IDENTITY_UPLOAD_ACCEPT)[number],
+      size: file.size,
+    },
+  });
+  if (!ticket.ok) return { ok: false, message: ticket.message };
+  const { error } = await supabase.storage
+    .from("property-images")
+    .uploadToSignedUrl(ticket.path, ticket.token, file);
+  if (error) return { ok: false, message: `${file.name}: upload failed.` };
+  const saved = await register({
+    data: {
+      restaurantId,
+      guestId,
+      storagePath: ticket.path,
+      kind,
+      mimeType: file.type as (typeof IDENTITY_UPLOAD_ACCEPT)[number],
+      size: file.size,
+    },
+  });
+  if (!saved.ok) return { ok: false, message: saved.message };
+  return { ok: true };
+}
 
 export function GuestFormIdentityUpload({
   restaurantId,
@@ -56,44 +119,15 @@ export function GuestFormIdentityUpload({
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
-        if (!(ACCEPTED as readonly string[]).includes(file.type)) {
-          toast.error(`${file.name}: only JPG, PNG, WebP or PDF.`);
-          continue;
-        }
-        if (file.size > MAX_BYTES) {
-          toast.error(`${file.name}: files must be 8 MB or smaller.`);
-          continue;
-        }
-        const ticket = await startUpload({
-          data: {
-            restaurantId,
-            guestId,
-            contentType: file.type as (typeof ACCEPTED)[number],
-            size: file.size,
-          },
+        const attached = await attachGuestDocumentFile({
+          restaurantId,
+          guestId,
+          file,
+          kind,
+          startUpload,
+          register,
         });
-        if (!ticket.ok) {
-          toast.error(ticket.message);
-          continue;
-        }
-        const { error } = await supabase.storage
-          .from("property-images")
-          .uploadToSignedUrl(ticket.path, ticket.token, file);
-        if (error) {
-          toast.error(`${file.name}: upload failed.`);
-          continue;
-        }
-        const saved = await register({
-          data: {
-            restaurantId,
-            guestId,
-            storagePath: ticket.path,
-            kind,
-            mimeType: file.type as (typeof ACCEPTED)[number],
-            size: file.size,
-          },
-        });
-        if (!saved.ok) toast.error(saved.message);
+        if (!attached.ok) toast.error(attached.message);
       }
       toast.success("Document attached.");
       void queryClient.invalidateQueries({ queryKey: ["guest-documents", restaurantId, guestId] });
@@ -139,7 +173,7 @@ export function GuestFormIdentityUpload({
         <input
           ref={fileRef}
           type="file"
-          accept={ACCEPTED.join(",")}
+          accept={IDENTITY_UPLOAD_ACCEPT.join(",")}
           className="hidden"
           onChange={(event) => void onFiles(event.target.files)}
         />
