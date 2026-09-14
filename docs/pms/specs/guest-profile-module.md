@@ -5,9 +5,9 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67). Wave 2 Spec **READY FOR ENGINEERING PLANNING**. Waves 3–5 still **WAVE-GATED**. |
+| **STATUS** | Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67). Wave 2 **IMPLEMENTING** on `feature/72-guest-profile-wave-2` (#72). Waves 3–5 still **WAVE-GATED**. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
-| **Wave 2 Spec** | **READY FOR ENGINEERING PLANNING** — gate **OPENED** (Rekik intent 2026-09-14 via Advisor) |
+| **Wave 2 Spec** | **READY FOR ENGINEERING** — gate **OPENED**; Rekik approved the tech plan. Code is on the Wave 2 branch. Migration apply **held**. |
 | **Waves 3–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
 | **Engineering assignment** | Wave 1 complete. Wave 2 gate **OPENED** — **code** only after issue + tech plan + Rekik plan approval. Waves 3–5 are **not** automatic. |
@@ -160,14 +160,14 @@ Wave 1 **preserved** this inconsistency. It is a documented residual, not a Wave
 
 | Missing | Notes |
 |---|---|
-| Identity upload / mask / verify | ID **text** is on the form and Information. Identity & Documents **card** is Coming in Wave 2. |
-| Preferences **card** complete | Preferences tab / free-text still lives on Information. Card is Coming in Wave 2. |
-| Controlled merge | Warn-only. Never silent today; also never a merge action. |
+| Identity upload / mask / verify | Wave 2 branch: Identity card LIVE (upload / list / staff verify). ID numbers masked on Directory / Information. **Not** on `main` until the Wave 2 PR merges. Migration apply **held**. |
+| Preferences **card** complete | Wave 2 branch: Preferences card LIVE (Setup-owned options + Other + textareas). Information free-text tab demoted. **Not** on `main` until the Wave 2 PR merges. |
+| Controlled merge | Wave 2 branch: `mergeGuests` + explicit confirm. Wave 1 warn-only Open existing / Create anyway preserved. **Not** on `main` until the Wave 2 PR merges. |
 | Stay History KPIs from real reservations | History tab is profile events. Dashboard Overview card is Coming in Wave 3. |
 | Loyalty & Value real-derived | VIP boolean only. Card Coming in Wave 4. |
 | Company / Group / TA masters + Relationships | Switcher present and disabled / not LIVE. Wave 4. |
 | Comms / Activity product | Notes + profile history only. Card Coming in Wave 5. |
-| Privacy suite | No consent, export, anonymise, unmerge, or privacy audit product. |
+| Privacy suite | Wave 2 records data-processing / marketing consent only. Export / anonymise / unmerge stay Wave 5. |
 
 ### 2.8 Must-not-claim (CURRENT)
 

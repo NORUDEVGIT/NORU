@@ -7,8 +7,20 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { ReadinessChip } from "@/packages/pms/components/settings/pms-set1-section";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
 import {
@@ -45,6 +57,7 @@ import {
   savePmsMealPlan,
   savePmsPackage,
 } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
+import { PmsPreferenceOptionsEditor } from "@/packages/pms/components/settings/pms-preference-options-editor";
 
 function refreshSet3(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -123,7 +136,11 @@ export function Set3RatesSection({
   });
 
   return (
-    <section id="rates" className="space-y-4 rounded-2xl border border-border bg-card p-5" data-testid="pms-set3-rates">
+    <section
+      id="rates"
+      className="space-y-4 rounded-2xl border border-border bg-card p-5"
+      data-testid="pms-set3-rates"
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-display text-lg text-[#251605]">Rates &amp; meal plans</h2>
@@ -135,8 +152,14 @@ export function Set3RatesSection({
       </div>
       <dl className="grid gap-3 sm:grid-cols-3">
         <SummaryStat label="Active rate plans" value={snapshot.activeRatePlanCount} />
-        <SummaryStat label="Meal plans" value={snapshot.mealPlans.filter((row) => row.active).length} />
-        <SummaryStat label="Packages" value={snapshot.packages.filter((row) => row.active).length} />
+        <SummaryStat
+          label="Meal plans"
+          value={snapshot.mealPlans.filter((row) => row.active).length}
+        />
+        <SummaryStat
+          label="Packages"
+          value={snapshot.packages.filter((row) => row.active).length}
+        />
       </dl>
       <Button className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" asChild>
         <a href={SET3_RATES_HREF} data-testid="set3-open-rates-workspace">
@@ -167,11 +190,18 @@ export function Set3RatesSection({
         ) : (
           <ul className="space-y-2">
             {snapshot.mealPlans.map((meal) => (
-              <li key={meal.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+              <li
+                key={meal.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+              >
                 <div>
                   <p className="text-sm font-medium">{meal.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {[meal.code, MEAL_PLAN_TYPE_LABELS[meal.type], meal.active ? "Active" : "Inactive"].join(" · ")}
+                    {[
+                      meal.code,
+                      MEAL_PLAN_TYPE_LABELS[meal.type],
+                      meal.active ? "Active" : "Inactive",
+                    ].join(" · ")}
                   </p>
                 </div>
                 {canEdit ? (
@@ -236,11 +266,18 @@ export function Set3RatesSection({
         ) : (
           <ul className="space-y-2">
             {snapshot.packages.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+              >
                 <div>
                   <p className="text-sm font-medium">{row.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {[row.code, PACKAGE_TYPE_LABELS[row.type], row.active ? "Active" : "Inactive"].join(" · ")}
+                    {[
+                      row.code,
+                      PACKAGE_TYPE_LABELS[row.type],
+                      row.active ? "Active" : "Inactive",
+                    ].join(" · ")}
                   </p>
                 </div>
                 {canEdit ? (
@@ -346,12 +383,20 @@ function MealDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor="set3-meal-name">Name</Label>
-            <Input id="set3-meal-name" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="set3-meal-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="set3-meal-code">Code</Label>
-              <Input id="set3-meal-code" value={code} onChange={(event) => setCode(event.target.value)} />
+              <Input
+                id="set3-meal-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Type</Label>
@@ -389,7 +434,10 @@ function MealDialog({
           </div>
           <div className="space-y-2">
             <Label>Tax posture</Label>
-            <Select value={taxPosture} onValueChange={(value) => setTaxPosture(value as TaxPosture)}>
+            <Select
+              value={taxPosture}
+              onValueChange={(value) => setTaxPosture(value as TaxPosture)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -474,12 +522,20 @@ function PackageDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor="set3-package-name">Name</Label>
-            <Input id="set3-package-name" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="set3-package-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="set3-package-code">Code</Label>
-              <Input id="set3-package-code" value={code} onChange={(event) => setCode(event.target.value)} />
+              <Input
+                id="set3-package-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Type</Label>
@@ -598,12 +654,17 @@ export function Set3GuestSection({
   const domain = checklist.domains["guest-profile"];
 
   return (
-    <section id="guest-profile" className="space-y-4 rounded-2xl border border-border bg-card p-5" data-testid="pms-set3-guest">
+    <section
+      id="guest-profile"
+      className="space-y-4 rounded-2xl border border-border bg-card p-5"
+      data-testid="pms-set3-guest"
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-display text-lg text-[#251605]">Guest profile rules</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Required fields and consent defaults for new guests. Profiles stay on the guest directory.
+            Required fields and consent defaults for new guests. Profiles stay on the guest
+            directory.
           </p>
         </div>
         <ReadinessChip readiness={domain.readiness} />
@@ -613,10 +674,14 @@ export function Set3GuestSection({
         <p className="text-sm text-muted-foreground">{SET3_GUEST_RULES_UNAVAILABLE}</p>
       ) : (
         <div className="space-y-4">
-          {!draft.savedAt ? <p className="text-sm text-[#C89933]">{SET3_GUEST_RULES_UNSAVED}</p> : null}
+          {!draft.savedAt ? (
+            <p className="text-sm text-[#C89933]">{SET3_GUEST_RULES_UNSAVED}</p>
+          ) : null}
           <div className="space-y-3">
             <h3 className="font-medium text-[#251605]">Required fields</h3>
-            <p className="text-xs text-muted-foreground">First name always stays required. Require a phone number or an email address.</p>
+            <p className="text-xs text-muted-foreground">
+              First name always stays required. Require a phone number or an email address.
+            </p>
             <ToggleRow
               id="set3-req-first"
               label="First name"
@@ -630,7 +695,10 @@ export function Set3GuestSection({
               checked={draft.requiredFields.lastName}
               disabled={!canEdit}
               onCheckedChange={(checked) =>
-                setDraft((prev) => ({ ...prev, requiredFields: { ...prev.requiredFields, lastName: checked } }))
+                setDraft((prev) => ({
+                  ...prev,
+                  requiredFields: { ...prev.requiredFields, lastName: checked },
+                }))
               }
             />
             <ToggleRow
@@ -639,7 +707,10 @@ export function Set3GuestSection({
               checked={draft.requiredFields.phone}
               disabled={!canEdit}
               onCheckedChange={(checked) =>
-                setDraft((prev) => ({ ...prev, requiredFields: { ...prev.requiredFields, phone: checked } }))
+                setDraft((prev) => ({
+                  ...prev,
+                  requiredFields: { ...prev.requiredFields, phone: checked },
+                }))
               }
             />
             <ToggleRow
@@ -648,7 +719,10 @@ export function Set3GuestSection({
               checked={draft.requiredFields.email}
               disabled={!canEdit}
               onCheckedChange={(checked) =>
-                setDraft((prev) => ({ ...prev, requiredFields: { ...prev.requiredFields, email: checked } }))
+                setDraft((prev) => ({
+                  ...prev,
+                  requiredFields: { ...prev.requiredFields, email: checked },
+                }))
               }
             />
           </div>
@@ -660,7 +734,10 @@ export function Set3GuestSection({
               checked={draft.consentDefaults.dataProcessing}
               disabled={!canEdit}
               onCheckedChange={(checked) =>
-                setDraft((prev) => ({ ...prev, consentDefaults: { ...prev.consentDefaults, dataProcessing: checked } }))
+                setDraft((prev) => ({
+                  ...prev,
+                  consentDefaults: { ...prev.consentDefaults, dataProcessing: checked },
+                }))
               }
             />
             <ToggleRow
@@ -669,7 +746,10 @@ export function Set3GuestSection({
               checked={draft.consentDefaults.marketing}
               disabled={!canEdit}
               onCheckedChange={(checked) =>
-                setDraft((prev) => ({ ...prev, consentDefaults: { ...prev.consentDefaults, marketing: checked } }))
+                setDraft((prev) => ({
+                  ...prev,
+                  consentDefaults: { ...prev.consentDefaults, marketing: checked },
+                }))
               }
             />
           </div>
@@ -678,7 +758,9 @@ export function Set3GuestSection({
             label="Company relationship"
             checked={draft.companyRelationshipEnabled}
             disabled={!canEdit}
-            onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, companyRelationshipEnabled: checked }))}
+            onCheckedChange={(checked) =>
+              setDraft((prev) => ({ ...prev, companyRelationshipEnabled: checked }))
+            }
           />
           {canEdit ? (
             <Button
@@ -726,7 +808,9 @@ export function Set3GuestSection({
               setEditingId(row);
               setIdOpen(true);
             }}
-            onToggle={(row) => idMutation.mutate({ id: row.id, code: row.code, name: row.name, active: !row.active })}
+            onToggle={(row) =>
+              idMutation.mutate({ id: row.id, code: row.code, name: row.name, active: !row.active })
+            }
           />
         )}
       </div>
@@ -759,7 +843,14 @@ export function Set3GuestSection({
               setEditingVip(row);
               setVipOpen(true);
             }}
-            onToggle={(row) => vipMutation.mutate({ id: row.id, code: row.code, name: row.name, active: !row.active })}
+            onToggle={(row) =>
+              vipMutation.mutate({
+                id: row.id,
+                code: row.code,
+                name: row.name,
+                active: !row.active,
+              })
+            }
           />
         )}
       </div>
@@ -772,6 +863,8 @@ export function Set3GuestSection({
         saving={idMutation.isPending}
         onSubmit={(values) => idMutation.mutate(values)}
       />
+      <PmsPreferenceOptionsEditor restaurantId={restaurantId} canEdit={canEdit} />
+
       <CatalogueDialog
         open={vipOpen}
         onOpenChange={setVipOpen}
@@ -819,7 +912,10 @@ function CatalogueList({
   return (
     <ul className="space-y-2">
       {rows.map((row) => (
-        <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+        <li
+          key={row.id}
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+        >
           <div>
             <p className="text-sm font-medium">{row.name}</p>
             <p className="text-xs text-muted-foreground">
@@ -875,11 +971,19 @@ function CatalogueDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor={`set3-cat-name-${title}`}>Name</Label>
-            <Input id={`set3-cat-name-${title}`} value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id={`set3-cat-name-${title}`}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`set3-cat-code-${title}`}>Code</Label>
-            <Input id={`set3-cat-code-${title}`} value={code} onChange={(event) => setCode(event.target.value)} />
+            <Input
+              id={`set3-cat-code-${title}`}
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+            />
           </div>
         </div>
         <DialogFooter>

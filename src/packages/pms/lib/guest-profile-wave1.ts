@@ -48,9 +48,9 @@ export const GUEST_PROFILE_CARDS = [
   {
     id: "identity",
     title: "Identity & Documents",
-    live: false,
+    live: true,
     wave: 2,
-    copy: "Coming in Wave 2. Document images, masking and staff verification are not available yet. ID type, number and expiry are edited on Information as text only.",
+    copy: null,
   },
   {
     id: "stay-history",
@@ -62,9 +62,9 @@ export const GUEST_PROFILE_CARDS = [
   {
     id: "preferences",
     title: "Preferences",
-    live: false,
+    live: true,
     wave: 2,
-    copy: "Coming in Wave 2. The north-star Preferences card is not LIVE yet. Existing preference fields remain on the Information workspace.",
+    copy: null,
   },
   {
     id: "loyalty",

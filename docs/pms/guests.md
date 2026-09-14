@@ -5,9 +5,9 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | **Wave 1 IMPLEMENTED ON MAIN** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14). Wave 2 Spec **READY FOR ENGINEERING PLANNING** (gate OPENED). Waves 3–5 still **WAVE-GATED**. The module is **not** COMPLETE. |
+| **STATUS** | **Wave 1 IMPLEMENTED ON MAIN** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED). Wave 2 **IMPLEMENTING** on `feature/72-guest-profile-wave-2` (issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72)). Migration **APPLY HELD**. Waves 3–5 still **WAVE-GATED**. The module is **not** COMPLETE. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — see [specs/guest-profile-module.md](./specs/guest-profile-module.md) |
-| **Wave 2 Spec** | **READY FOR ENGINEERING PLANNING** — gate **OPENED** (Rekik intent 2026-09-14 via Advisor). **Not** implemented. |
+| **Wave 2 Spec** | **READY FOR ENGINEERING** — gate **OPENED**; Rekik approved the tech plan. Implementation is in progress on the Wave 2 branch. **Not** module COMPLETE. |
 | **Waves 3–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
 | **Engineering assignment** | Wave 1 complete. Wave 2 gate **OPENED** — code only after issue + tech plan + Rekik plan approval. Waves 3–5 are **not** automatic. |
@@ -87,7 +87,7 @@ Engineering works **wave-by-wave**. A later wave does not start until the prior 
 | **1** | Shell + Directory + Information (Individuals) | **NOT STARTED** — Spec ready for Rekik review; **not** handed to Engineering until accepted | First-class Guest module; individual create / find / edit is the default path; 10-card shell honest |
 | **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | **NOT STARTED / AWAITING PRIOR WAVE EXIT** | Docs on file, prefs complete, merge works (never silent), consent recorded |
 | **1** | Shell + Directory + Information (Individuals) | **COMPLETE / MERGED** — issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14. OPERATIONALLY ACCEPTED / closed. | First-class Guest module; individual create / find / edit is the default path; 10-card shell honest |
-| **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | Gate **OPENED** (Rekik 2026-09-14). Spec **READY FOR ENGINEERING PLANNING**. **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL.** **Not** implemented. | Docs on file, prefs complete (Setup-owned dropdowns), merge works (never silent), consent recorded |
+| **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | Gate **OPENED**. Tech plan **approved**. **IMPLEMENTING** on `feature/72-guest-profile-wave-2` (issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72)). Migration apply **held**. Independent QA **NOT RUN**. | Docs on file, prefs complete (Setup-owned dropdowns), merge works (never silent), consent recorded |
 | **3** | Stay History from real reservations; 360 Dashboard KPIs real-derived; quick actions to Res / FO / Folio | **NOT STARTED / AWAITING WAVE GATE** | Real history + honest KPIs |
 | **4** | (A) Company / Group / TA masters; (B) Relationships with roles; (C) Loyalty & Value real-derived | **NOT STARTED / AWAITING WAVE GATE** | Masters + associations + loyalty |
 | **5** | Comms / Activity + Privacy finish (export / anonymise / unmerge) for individuals and masters as appropriate | **NOT STARTED / AWAITING WAVE GATE** | Full hub + hotel UAT-ready |
