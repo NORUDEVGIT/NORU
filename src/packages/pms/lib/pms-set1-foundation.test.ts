@@ -33,6 +33,7 @@ import {
 import { FO_FEE_DEFAULTS_SETTINGS_HREF } from "./fo-fee-defaults.ts";
 import { completeSet2Activate } from "./pms-set2-structure.ts";
 import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
+import { completeSet4Activate } from "./pms-set4-hk-inventory.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -56,9 +57,10 @@ const completePolicies = emptyPolicies({
 });
 const completeSet2 = completeSet2Activate();
 const completeSet3 = completeSet3Activate();
+const completeSet4 = completeSet4Activate();
 
 function checklist(input: Parameters<typeof evaluateSet1Checklist>[0]) {
-  return evaluateSet1Checklist({ set2: completeSet2, set3: completeSet3, ...input });
+  return evaluateSet1Checklist({ set2: completeSet2, set3: completeSet3, set4: completeSet4, ...input });
 }
 
 describe("PMS-SET1 role gate", () => {
@@ -246,6 +248,9 @@ describe("PMS-SET1 fee-defaults single home", () => {
     assert.equal(isSet1SectionHash("#outlets"), true);
     assert.equal(isSet1SectionHash("rates"), true);
     assert.equal(isSet1SectionHash("#guest-profile"), true);
+    assert.equal(isSet1SectionHash("housekeeping-rules"), true);
+    assert.equal(isSet1SectionHash("#room-inventory-rules"), true);
+    assert.equal(isSet1SectionHash("#maintenance-rules"), true);
 
     const setup = readFileSync(new URL("../../../routes/restaurant/pms/property-setup.tsx", import.meta.url), "utf8");
     assert.match(setup, /propertySetupRedirectHref/);
@@ -306,13 +311,18 @@ describe("PMS-SET1 hub locks", () => {
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rooms" || card.title === "Rooms & amenities"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Outlets"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rates" || card.title === "Rates & meal plans"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles"));
+    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Departments" && card.wave === "SET5"));
+    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks" && card.wave === "SET5"));
+    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles" && card.wave === "SET5"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.wave === "SET4"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "structure"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rooms"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "outlets"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rates"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "guest-profile"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "housekeeping-rules"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "room-inventory-rules"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "maintenance-rules"));
     assert.equal(
       SET1_LIVE_CARDS.some((card) => card.id === "outlets"),
       true,

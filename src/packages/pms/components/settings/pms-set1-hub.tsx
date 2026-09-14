@@ -9,6 +9,7 @@ import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/com
 import { ReadinessChip, Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
 import { Set2OutletsSection, Set2RoomsSection, Set2StructureSection } from "@/packages/pms/components/settings/pms-set2-section";
 import { Set3GuestSection, Set3RatesSection } from "@/packages/pms/components/settings/pms-set3-section";
+import { Set4HousekeepingSection, Set4MaintenanceSection, Set4RoomInventorySection } from "@/packages/pms/components/settings/pms-set4-section";
 import { getPmsSet1Foundation, listPmsSet1Audit } from "@/packages/pms/lib/pms-set1-foundation.functions";
 import {
   SET1_COMING_SOON,
@@ -20,12 +21,14 @@ import {
   SET1_TITLE,
   SET2_LIVE_HASHES,
   SET3_LIVE_HASHES,
+  SET4_LIVE_HASHES,
   canOpenSet1Hub,
   isSet1SectionHash,
   type Set1SectionId,
 } from "@/packages/pms/lib/pms-set1-foundation";
 import { emptySet2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { emptySet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest";
+import { emptySet4Snapshot } from "@/packages/pms/lib/pms-set4-hk-inventory";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
@@ -69,7 +72,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return <p className="text-sm text-destructive">{(query.error as Error | undefined)?.message ?? "Settings are unavailable."}</p>;
   }
 
-  const { snapshot, checklist, canEdit, role, set2, set3 } = query.data;
+  const { snapshot, checklist, canEdit, role, set2, set3, set4 } = query.data;
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
@@ -87,7 +90,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Identity, times, taxes, structure, rooms, outlets, rates and guest rules for {membership.restaurant.name}.
+          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory and maintenance for {membership.restaurant.name}.
         </p>
       </div>
 
@@ -131,6 +134,29 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               <Set3GuestSection
                 restaurantId={restaurantId}
                 snapshot={set3 ?? emptySet3Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            )
+          ) : (SET4_LIVE_HASHES as readonly string[]).includes(section) ? (
+            section === "housekeeping-rules" ? (
+              <Set4HousekeepingSection
+                restaurantId={restaurantId}
+                snapshot={set4 ?? emptySet4Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "room-inventory-rules" ? (
+              <Set4RoomInventorySection
+                restaurantId={restaurantId}
+                snapshot={set4 ?? emptySet4Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : (
+              <Set4MaintenanceSection
+                restaurantId={restaurantId}
+                snapshot={set4 ?? emptySet4Snapshot()}
                 checklist={checklist}
                 canEdit={canEdit}
               />

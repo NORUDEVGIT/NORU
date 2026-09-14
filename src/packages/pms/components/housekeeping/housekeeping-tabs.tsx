@@ -49,6 +49,13 @@ import {
   updateMaintenanceRequest,
   type RackRoom,
 } from "@/packages/pms/lib/housekeeping.functions";
+import { getPmsSet4Snapshot } from "@/packages/pms/lib/pms-set4-hk-inventory.functions";
+import {
+  resolveCleaningTypesForCreate,
+  resolveMaintenanceCategoriesForCreate,
+  resolvePrioritiesForCreate,
+  resolveRestrictionReasonsForCreate,
+} from "@/packages/pms/lib/pms-set4-hk-inventory";
 import {
   HkStatusBadge,
   PriorityBadge,
@@ -305,6 +312,20 @@ function NewTaskDialog({
   onDone: () => void;
 }) {
   const create = useServerFn(createHousekeepingTask);
+  const loadSet4 = useServerFn(getPmsSet4Snapshot);
+  const set4 = useQuery({
+    queryKey: ["pms-set4-snapshot", restaurantId],
+    queryFn: () => loadSet4({ data: { restaurantId } }),
+    retry: false,
+    enabled: room !== null,
+  });
+  const cleaningTypes = resolveCleaningTypesForCreate(set4.data?.snapshot.cleaningPosture).filter(
+    (row) => row.code !== "turn_down",
+  );
+  const priorities = resolvePrioritiesForCreate(
+    set4.data?.snapshot.cleaningPosture,
+    set4.data?.snapshot.maintenancePriorities,
+  );
   const [taskType, setTaskType] = useState("departure_cleaning");
   const [priority, setPriority] = useState("normal");
   const [notes, setNotes] = useState("");
@@ -344,13 +365,17 @@ function NewTaskDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["departure_cleaning", "stayover_cleaning", "touch_up", "deep_cleaning", "re_clean"].map(
-                  (t) => (
-                    <SelectItem key={t} value={t}>
-                      {labelTaskType(t)}
-                    </SelectItem>
-                  ),
-                )}
+                {(cleaningTypes.length
+                  ? cleaningTypes
+                  : ["departure_cleaning", "stayover_cleaning", "touch_up", "deep_cleaning", "re_clean"].map((code) => ({
+                      code,
+                      label: labelTaskType(code),
+                    }))
+                ).map((row) => (
+                  <SelectItem key={row.code} value={row.code}>
+                    {row.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -361,11 +386,13 @@ function NewTaskDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["normal", "high", "urgent"].map((p) => (
-                  <SelectItem key={p} value={p} className="capitalize">
-                    {p}
-                  </SelectItem>
-                ))}
+                {(priorities.length ? priorities : ["normal", "high", "urgent"].map((code) => ({ code, label: code }))).map(
+                  (row) => (
+                    <SelectItem key={row.code} value={row.code} className="capitalize">
+                      {row.label}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -689,12 +716,19 @@ export function InspectionsTab({ restaurantId }: Props) {
 export function RestrictionsTab({ restaurantId }: Props) {
   const fetchRack = useServerFn(listRoomRack);
   const setFn = useServerFn(setRoomRestriction);
+  const loadSet4 = useServerFn(getPmsSet4Snapshot);
   const invalidate = useInvalidateHousekeeping(restaurantId);
 
   const rack = useQuery({
     queryKey: ["hk-rack", restaurantId],
     queryFn: () => fetchRack({ data: { restaurantId } }),
   });
+  const set4 = useQuery({
+    queryKey: ["pms-set4-snapshot", restaurantId],
+    queryFn: () => loadSet4({ data: { restaurantId } }),
+    retry: false,
+  });
+  const reasonOptions = resolveRestrictionReasonsForCreate(set4.data?.snapshot.restrictionReasons);
 
   const [target, setTarget] = useState<RackRoom | null>(null);
   const [status, setStatus] = useState("out_of_order");
@@ -797,7 +831,22 @@ export function RestrictionsTab({ restaurantId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>Reason {status !== "available" && <span className="text-destructive">*</span>}</Label>
-              <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
+              {reasonOptions.length ? (
+                <Select value={reason} onValueChange={setReason}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a reason" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reasonOptions.map((row) => (
+                      <SelectItem key={row.code} value={row.label}>
+                        {row.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
+              )}
             </div>
             {status !== "available" && (
               <div className="space-y-1.5">
@@ -995,7 +1044,27 @@ export function MaintenanceTab({ restaurantId }: Props) {
   const fetchList = useServerFn(listMaintenanceRequests);
   const createFn = useServerFn(createMaintenanceRequest);
   const updateFn = useServerFn(updateMaintenanceRequest);
+  const loadSet4 = useServerFn(getPmsSet4Snapshot);
   const invalidate = useInvalidateHousekeeping(restaurantId);
+  const set4 = useQuery({
+    queryKey: ["pms-set4-snapshot", restaurantId],
+    queryFn: () => loadSet4({ data: { restaurantId } }),
+    retry: false,
+  });
+  const liveCategories = ["plumbing", "electrical", "furniture", "equipment", "other"];
+  const livePriorities = ["normal", "high", "urgent"];
+  const savedCategories = resolveMaintenanceCategoriesForCreate(set4.data?.snapshot.maintenanceCategories).filter(
+    (row) => liveCategories.includes(row.code),
+  );
+  const savedPriorities = resolvePrioritiesForCreate(null, set4.data?.snapshot.maintenancePriorities).filter((row) =>
+    livePriorities.includes(row.code),
+  );
+  const categoryOptions = savedCategories.length
+    ? savedCategories
+    : liveCategories.map((code) => ({ code, label: code }));
+  const priorityOptions = savedPriorities.length
+    ? savedPriorities
+    : livePriorities.map((code) => ({ code, label: code }));
 
   const rack = useQuery({
     queryKey: ["hk-rack", restaurantId],
@@ -1135,9 +1204,9 @@ export function MaintenanceTab({ restaurantId }: Props) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["plumbing", "electrical", "furniture", "equipment", "other"].map((c) => (
-                      <SelectItem key={c} value={c} className="capitalize">
-                        {c}
+                    {categoryOptions.map((row) => (
+                      <SelectItem key={row.code} value={row.code} className="capitalize">
+                        {row.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1150,9 +1219,9 @@ export function MaintenanceTab({ restaurantId }: Props) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["normal", "high", "urgent"].map((p) => (
-                      <SelectItem key={p} value={p} className="capitalize">
-                        {p}
+                    {priorityOptions.map((row) => (
+                      <SelectItem key={row.code} value={row.code} className="capitalize">
+                        {row.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

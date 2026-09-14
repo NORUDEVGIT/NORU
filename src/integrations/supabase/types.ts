@@ -3321,6 +3321,120 @@ export type Database = {
           },
         ]
       }
+      pms_maintenance_categories: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_maintenance_categories_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_maintenance_priorities: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_maintenance_priorities_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_maintenance_type_tags: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_maintenance_type_tags_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_meal_plans: {
         Row: {
           active: boolean
@@ -3461,6 +3575,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pms_packages_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_restriction_reasons: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_restriction_reasons_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -4812,6 +4964,10 @@ export type Database = {
           noshow_fee_basis: string | null
           phone: string | null
           pms_guest_profile_rules: Json
+          pms_hk_cleaning_posture: Json
+          pms_hk_status_rules: Json
+          pms_maintenance_sla: Json
+          pms_ooo_oos_posture: Json
           pms_rate_package_rules: Json
           pms_set1_live: boolean
           postcode: string | null
@@ -4872,6 +5028,10 @@ export type Database = {
           noshow_fee_basis?: string | null
           phone?: string | null
           pms_guest_profile_rules?: Json
+          pms_hk_cleaning_posture?: Json
+          pms_hk_status_rules?: Json
+          pms_maintenance_sla?: Json
+          pms_ooo_oos_posture?: Json
           pms_rate_package_rules?: Json
           pms_set1_live?: boolean
           postcode?: string | null
@@ -4932,6 +5092,10 @@ export type Database = {
           noshow_fee_basis?: string | null
           phone?: string | null
           pms_guest_profile_rules?: Json
+          pms_hk_cleaning_posture?: Json
+          pms_hk_status_rules?: Json
+          pms_maintenance_sla?: Json
+          pms_ooo_oos_posture?: Json
           pms_rate_package_rules?: Json
           pms_set1_live?: boolean
           postcode?: string | null

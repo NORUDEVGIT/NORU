@@ -35,6 +35,12 @@ import {
   housekeepingScope,
   type HousekeepingScope,
 } from "@/core/lib/module-access";
+import {
+  cleaningTypeAllowed,
+  maintenanceCategoryAllowed,
+  restrictionSaveBlocked,
+} from "./pms-set4-hk-inventory";
+import { loadSet4Snapshot } from "./pms-set4-hk-inventory.functions";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -476,6 +482,10 @@ export const createHousekeepingTask = createServerFn({ method: "POST" })
     const me = await requireHousekeepingManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
+    const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);
+    if (set4.cleaningPosture.savedAt && !cleaningTypeAllowed(set4.cleaningPosture, data.taskType)) {
+      throw new Error("That cleaning type is not in the saved Housekeeping rules.");
+    }
 
     const { data: taskId, error } = await supabaseAdmin.rpc("housekeeping_create_task", {
       _restaurant_id: data.restaurantId,
@@ -722,6 +732,13 @@ export const setRoomRestriction = createServerFn({ method: "POST" })
     const me = await requireHousekeepingManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
+    const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);
+    const postureBlocked = restrictionSaveBlocked(set4.oooOosPosture, {
+      status: data.status,
+      reason: data.reason ?? null,
+      expectedReturn: data.expectedReturn ?? null,
+    });
+    if (postureBlocked) throw new Error(postureBlocked);
 
     const { error } = await supabaseAdmin.rpc("housekeeping_set_room_restriction", {
       _restaurant_id: data.restaurantId,
@@ -937,6 +954,14 @@ export const createMaintenanceRequest = createServerFn({ method: "POST" })
     const me = await requireHousekeepingOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
+    const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);
+    if (
+      set4.cataloguesAvailable &&
+      set4.maintenanceCategories.some((row) => row.active) &&
+      !maintenanceCategoryAllowed(set4.maintenanceCategories, data.category)
+    ) {
+      throw new Error("That category is not in the saved Maintenance rules.");
+    }
 
     const { data: row, error } = await supabaseAdmin
       .from("housekeeping_maintenance_requests")
