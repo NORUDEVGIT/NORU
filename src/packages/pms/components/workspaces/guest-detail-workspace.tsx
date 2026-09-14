@@ -7,6 +7,8 @@ import { ArrowLeft, Pencil, Power, StickyNote } from "lucide-react";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
+import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -44,16 +46,17 @@ const EVENT_LABEL: Record<string, string> = {
 export function GuestDetailWorkspace({
   membership,
   guestId,
-  backTo = "guests",
+  backTo = "guest-profile",
 }: {
   membership: RestaurantMembership;
   guestId: string;
-  backTo?: "guests" | "reservations";
+  backTo?: "guests" | "reservations" | "guest-profile";
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const goBack = () => {
     if (backTo === "reservations") void navigate({ to: "/restaurant/pms/reservations" });
+    else if (backTo === "guest-profile") void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
     else void navigate({ to: "/restaurant/guests" });
   };
   const queryClient = useQueryClient();
@@ -170,7 +173,8 @@ export function GuestDetailWorkspace({
         onClick={() => goBack()}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> {backTo === "reservations" ? "Reservations" : "Guests"}
+        <ArrowLeft className="size-4" />{" "}
+        {backTo === "reservations" ? "Reservations" : backTo === "guest-profile" ? "Directory" : "Guests"}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -227,6 +231,19 @@ export function GuestDetailWorkspace({
               <Row label="Country" value={guest.country} />
               <Row label="Postal code" value={guest.postalCode} />
             </Panel>
+            <div className="md:col-span-2">
+              <Panel title="Identity">
+                <Row
+                  label="ID type"
+                  value={guest.idDocumentType ? ID_DOCUMENT_LABELS[guest.idDocumentType] : null}
+                />
+                <Row label="ID number" value={guest.idDocumentNumber} />
+                <Row label="ID expiry" value={guest.idDocumentExpiry} />
+                <p className="text-xs text-muted-foreground">
+                  ID text only — document images, masking and verification come in Wave 2.
+                </p>
+              </Panel>
+            </div>
           </div>
           <Panel title="Notes">
             <p className="text-sm text-muted-foreground">{guest.notes ?? "No notes yet."}</p>

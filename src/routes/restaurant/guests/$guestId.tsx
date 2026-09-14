@@ -1,14 +1,13 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 /**
- * Legacy guest profile URL kept for bookmarks and deep links.
- * The canonical address is /restaurant/pms/reservations/guests/$guestId.
+ * Compatibility path. Canonical Guest Profile is /restaurant/pms/guests/$guestId.
  */
 export const Route = createFileRoute("/restaurant/guests/$guestId")({
   ssr: false,
   beforeLoad: ({ params }) => {
     throw redirect({
-      to: "/restaurant/pms/reservations/guests/$guestId",
+      to: "/restaurant/pms/guests/$guestId",
       params: { guestId: params.guestId },
       replace: true,
     });
@@ -16,7 +15,7 @@ export const Route = createFileRoute("/restaurant/guests/$guestId")({
   head: () => ({
     meta: [
       { title: "Redirecting — NORU PMS" },
-      { name: "description", content: "This guest profile has moved into the NORU PMS Reservations workspace." },
+      { name: "description", content: "This guest profile now lives in the NORU PMS Guest Profile module." },
       { name: "robots", content: "noindex" },
     ],
   }),

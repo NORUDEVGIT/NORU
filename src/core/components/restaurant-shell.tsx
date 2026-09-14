@@ -250,7 +250,7 @@ const ROOMS_NAV: NavEntry[] = [
     roles: FO,
   },
   { to: "/restaurant/bookings/new", label: "New Reservation", icon: CalendarPlus, roles: FO },
-  { to: "/restaurant/guests", label: "Guests", icon: UserRound, roles: FO },
+  { to: "/restaurant/pms/guests", label: "Guests", icon: UserRound, roles: FO },
 ];
 
 const HOUSEKEEPING_NAV: NavEntry[] = [
