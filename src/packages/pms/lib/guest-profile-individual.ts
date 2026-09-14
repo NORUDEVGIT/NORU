@@ -9,6 +9,9 @@
  * Stay paths warn; they do not hard-block Reservations / Front Office.
  * No Import/Folio/loyalty/rich Comms/Group-TA enrichment/Company further edits.
  * Additive RLS matching guest tables OK. Entitlement model is not changed.
+ * Spec #110 HOLD: AC-GE2-9…14 create-path honesty is staged Create.
+ * After-save-only on create is no longer the product bar.
+ * Migration is labeled 0057 (0056 is Polish Wave 1).
  */
 
 import type { GuestRelationshipRole } from "./guest-profile-wave4.ts";
