@@ -5,24 +5,25 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14) |
-| **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** |
-| **Waves 2–5** | **SPECIFIED / WAVE-GATED** — Wave 1 engineering gate exited; later waves still need **explicit ungating** |
+| **STATUS** | Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67). Wave 2 Spec **READY FOR ENGINEERING PLANNING**. Waves 3–5 still **WAVE-GATED**. |
+| **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
+| **Wave 2 Spec** | **READY FOR ENGINEERING PLANNING** — gate **OPENED** (Rekik intent 2026-09-14 via Advisor) |
+| **Waves 3–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Wave 1 complete. Waves 2–5 are **not** automatic. |
-| **Product requirement** | Rekik 2026-09-14 — Wave 1 accepted and implemented |
+| **Engineering assignment** | Wave 1 complete. Wave 2 gate **OPENED** — **code** only after issue + tech plan + Rekik plan approval. Waves 3–5 are **not** automatic. |
+| **Product requirement** | Rekik 2026-09-14 — Wave 1 accepted and implemented; Wave 2 gate opened for planning |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
-> **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z.
+> **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z. Wave 1 is **OPERATIONALLY ACCEPTED** / closed.
 >
-> Waves 2–5: **SPECIFIED / WAVE-GATED**. Wave 1 engineering-gate exit does **not** start Wave 2 — explicit ungating is still required. The module is **not** COMPLETE.
+> **Wave 2 gate OPENED** (Rekik intent 2026-09-14 via Advisor). Wave 2 Spec: **READY FOR ENGINEERING PLANNING**. **Code** starts only after a GitHub issue, a Wave 2 tech plan, and Rekik plan approval. Waves 3–5 stay **WAVE-GATED**. The module is **not** COMPLETE.
 >
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Waves 2–5 stay wave-gated.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 are the planning contract. Waves 3–5 stay wave-gated.
 
 ---
 
@@ -339,7 +340,7 @@ Wave 1 **exited for engineering-gate purposes** after Independent QA PASS (Rekik
 
 **Hotel UAT is not required to start Wave 2** but **is** required for **module COMPLETE**.
 
-Passing Wave 1 does **not** start Wave 2 engineering automatically. Wave 2 still needs **explicit ungating**. A Wave 2 Preferences UX addendum may already be on a separate open docs PR (for example [#70](https://github.com/NORUDEVGIT/NORU/pull/70)); that addendum is product text for Wave 2 and must be kept if present on `main`. This reconciliation does not rewrite Waves 2–5 product intent.
+Passing Wave 1 does **not** start Wave 2 **code**. Wave 2 gate was **OPENED** separately (Rekik intent 2026-09-14 via Advisor). Wave 2 Spec is **READY FOR ENGINEERING PLANNING** in §4. Code still waits for issue + tech plan + Rekik plan approval. Waves 3–5 product intent is unchanged and remains **WAVE-GATED**.
 
 ---
 
@@ -347,40 +348,240 @@ Passing Wave 1 does **not** start Wave 2 engineering automatically. Wave 2 still
 
 | Field | Value |
 |---|---|
-| **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
-| **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING EXPLICIT UNGATING** |
-| **Depends on** | Wave 1 engineering gate **exited** (2026-09-14). Wave 2 still needs **explicit ungating** — it does not start from this reconciliation. |
+| **TITLE** | Guest Profile Module — Wave 2 Identity, Preferences, controlled merge, consent |
+| **PACKAGE** | PMS |
+| **PMS AREA** | Guests |
+| **SPEC STATUS** | **READY FOR ENGINEERING PLANNING** |
+| **ENGINEERING STATUS** | **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL** (gate **OPENED** by Rekik 2026-09-14; Wave 1 exited) |
+| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. |
+| **Depends on** | Wave 1 engineering gate **exited** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) / PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67)). Wave 2 gate **OPENED** (Rekik intent 2026-09-14 via Advisor). |
+| **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14), including **PRODUCT ADDENDUM — Preferences UX** (Rekik 2026-09-14) |
 
-### 4.1 Locked requirements
+> **Wave 2 gate OPENED (Rekik intent 2026-09-14 via Advisor).**
+>
+> Wave 1 is **OPERATIONALLY ACCEPTED** / closed (#66 / #67). This Wave 2 Functional Spec is **READY FOR ENGINEERING PLANNING**.
+>
+> **Code starts only after** a GitHub issue, a Wave 2 tech plan, and **Rekik plan approval**. This Spec does **not** authorise implementation by itself.
+>
+> Waves 3–5 remain **WAVE-GATED**. Do **not** treat this ungating as module COMPLETE or as Wave 2 implemented.
+
+### 4.1 Business purpose
+
+Give authorised staff a first-class **Identity & Documents** card and a first-class **Preferences** card on the existing Guest Profile 10-card shell; let them **merge** two individual profiles only through an explicit, confirmed action; and **record consent** (consented / refuse / not-asked) with what / when / who — **extending** existing guest tables and functions, not rewriting them.
+
+Wave 2 is the guest-side store / retrieve / mask / verify surface that aligns with Option A **E-S13** arrival-ID intent. It is **not** the Front Office arrival stepper, **not** government KYC, and **not** a Wave 5 privacy suite.
+
+### 4.2 EXPECTED behaviour (Wave 2)
+
+| Area | Expected |
+|---|---|
+| **Identity & Documents card** | The north-star **Identity & Documents** card is operational for individuals. Staff can **upload** ID / document images (or equivalent stored files), retrieve them after reload, **mask** sensitive values in ordinary Directory / Information UI, and **verify or reject** a document with actor + time. UI never claims government / KYC verification. |
+| **ID text (Wave 1)** | Existing `idDocumentType` / `idDocumentNumber` / `idDocumentExpiry` remain. Ordinary views **mask** the number (e.g. last four) unless a reveal control is used. |
+| **E-S13 alignment** | Guest Profile is the store / retrieve surface for arrival-ID documents. Align with Option A E-S13 (capture or waive at arrival; image or reference visible later; no fake “ID verified by government”). Wave 2 does **not** implement the FO arrival stepper, MRZ hardware, or police export. |
+| **Preferences card** | The north-star **Preferences** card is operational in the 10-card shell. Reuse `saveGuestPreferences` / `guest_preferences` — **no** second preferences table. Primary room / bed / view / floor (and food / communication **if** Property Setup has catalogues) are **Setup-owned dropdown / multi-select**, not open free-text. Optional **Other**. Accessibility and special requests stay textarea. See §4.5. |
+| **Controlled merge** | Staff may merge two **individual** profiles only after an explicit confirm. **Never silent.** Cancelled merge leaves both profiles. History records surviving and retired IDs. Directory does not show the retired profile as an equal live duplicate. **No** unique-constraint auto-collapse. Reservations and other consumers must not be left pointing at a deleted survivor without a written plan in the Wave 2 tech plan. |
+| **Consent recorded** | Staff can record **consented** / **refuse** / **not-asked** on the individual: what was asked, when, who recorded it. Visible on the profile. Not export / anonymise / unmerge (Wave 5). |
+| **Duplicates** | Wave 1 warn-only duplicate dialog remains. It does **not** auto-merge and is not a silent merge. |
+| **Access** | Preserve CURRENT `canManageGuests` / `requireGuestManager` / RLS behaviour unless Abel-flagged. Document files stay staff-only and tenant-scoped. |
+| **Reuse** | Extend `guests.functions.ts`, the 10-card shell, and existing preference / history writers. Do **not** introduce a parallel individual guest table or a new package. |
+| **Honesty** | Cards for Waves 3–5 stay **Coming in Wave N**. No fabricated KPIs. Do not claim Wave 2 implemented from this Spec. |
+
+### 4.3 Locked requirements
 
 | Theme | EXPECTED |
 |---|---|
 | **Identity documents** | Staff can **upload** ID / document images (or equivalent stored files) on the guest, **mask** sensitive values in ordinary UI, and **verify** (staff-confirmed, reason/timestamp — **not** a government KYC claim). Retrieval from the profile must work. Align with Option A arrival-ID intent (E-S13) **without** inventing MRZ hardware or police export. |
-| **Preferences UI complete** | The north-star **Preferences** card exposes the existing preference fields as a first-class Guest card (reuse `saveGuestPreferences`). Accessibility and special requests remain first-class. Do not invent a second preferences table. |
+| **Preferences UI complete** | The north-star **Preferences** card exposes the existing preference fields as a first-class Guest card (reuse `saveGuestPreferences` / `guest_preferences` — **no** second preferences table). Room / bed / view / floor (and food / communication **if** Property Setup has catalogues) use **Setup-owned dropdown / multi-select** as the primary control. Optional **Other** free-text only when staff need a value outside the hotel’s list. **Accessibility requirements** and **special requests** stay free-text (textarea). See §4.5. |
 | **Controlled merge** | Staff may merge two **individual** profiles only through an explicit, confirmed action. **Never silent.** Surviving and retired IDs are recorded on `guest_profile_history` (or an additive history event type). Reservations and other consumers must not be left pointing at a deleted survivor without a written engineering plan in that wave’s tech plan. **No** unique-constraint auto-collapse. |
 | **Consent recorded** | A recorded consent (or explicit refuse / not-asked) exists on the individual before Wave 2 exit. Minimum: what was consented, when, who recorded it. Not a full privacy suite (export / anonymise / unmerge are Wave 5). |
 
-### 4.2 Out of Wave 2
+### 4.4 Identity upload / mask / verify
 
-Stay KPIs, loyalty derivation, masters, relationships, comms product, export / anonymise / unmerge, offline, Sales & Events blocks, LIVE OTA.
+Staff upload ID / document images (or equivalent stored files) onto the individual. Ordinary Directory and Information views **mask** sensitive values (ID number last-four unless a reveal control). Staff mark a document **verified** or **rejected** with actor + timestamp. Copy never says “government verified”, “KYC passed”, or equivalent.
 
-### 4.3 Exit
+This is **staff confirmation** that a document is on file and reviewed — **not** a government KYC product.
 
-Documents on file; Preferences card complete; merge works and is never silent; consent is recorded; history shows merge / document / consent actions; Independent QA recorded.
+**E-S13 alignment (honesty).** Option A E-S13 is arrival ID / document capture at the desk (capture or waive; image or reference visible later). Wave 2 delivers the **guest-profile** store / retrieve / mask / verify surface that E-S13 can consume. Wave 2 does **not** ship the FO arrival stepper, skip-with-reason registration flow, MRZ hardware, or police export. Do not invent those here.
 
-### 4.4 Wave 2 AC seeds (locked intent; expand at wave gate)
+The tech plan proposes storage (existing columns + file store vs an additive table). This Spec does **not** invent a storage schema. Retrieval from the profile after reload is required regardless of storage choice.
 
-| ID | Criterion |
+### 4.5 Preferences complete card — PRODUCT ADDENDUM (Rekik 2026-09-14)
+
+> **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).**
+>
+> Wave 2 Preferences primary controls are Property Setup option lists (dropdown / multi-select) for that hotel — **not** open free-text. This addendum does **not** change Wave 1 Spec content, issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) scope, or PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67). The current free-text Preferences tab stays until Wave 2. Waves 3–5 intent is unchanged except this Preferences detail.
+
+The north-star **Preferences** card exposes the eight existing preference fields as a first-class Guest card. Reuse `saveGuestPreferences` / `guest_preferences` — **no** second preferences table.
+
+Property Setup **owns** clean option catalogues (or exposes reusable lists). Guest Profile **consumes** those hotel-scoped options. Do **not** invent fake global enums that ignore the hotel.
+
+| Field | Wave 2 primary control | Optional Other | Notes |
+|---|---|---|---|
+| Room preference | Dropdown / multi-select from Property Setup for **this** hotel | Yes — free-text only when staff need a value outside the list | Consume Setup-owned room / room-type (or equivalent) options. |
+| Bed preference | Same | Yes | Today `bed_type` on room types is also **free-text**, not a catalogue. |
+| View preference | Same | Yes | Today `room_view` on room types is also **free-text**, not a catalogue. |
+| Floor preference | Same | Yes | `hotel_floors` exists (SET2). Prefer those ids. |
+| Food preference | Dropdown / multi-select **only if** Property Setup has a food / meal catalogue | Yes, if the field is LIVE | SET3 meal-plan catalogue may be the source **if** product treats it as the food list. If no catalogue: **gate** the field or add the **minimal** Setup list in the Wave 2 tech plan. |
+| Communication preference | Same rule as food | Yes, if the field is LIVE | **No** communication catalogue on `main` today. Gate or add a **minimal** Setup list — do not hard-code a global enum. |
+| Accessibility requirements | **Free-text** (textarea) | — | Unchanged. Not a Setup dropdown. |
+| Special requests | **Free-text** (textarea) | — | Unchanged. Not a Setup dropdown. |
+
+**Catalogue dependency (honesty).** Floors and room-amenities catalogues exist in part (SET2). Dedicated bed-type / room-view / room-preference / communication option lists do **not**. Guest dropdowns must consume Setup-owned options for that property. If a catalogue is missing, the Wave 2 tech plan may include the **minimal** Property Setup option list needed for that field — **or** gate the field until Setup provides it. Either choice must be written in the tech plan. Do **not** ship a fake worldwide enum. This Spec does **not** invent catalogue rows or global enums.
+
+**Persistence.** Persist the selected option so Engineering can map it: **code / id preferred**. The Spec **may** allow storing the display label if no stable id exists yet. If Wave 2 stores label-only, flag it as a **DOCUMENTATION / IMPLEMENTATION** honesty item (same class as [../guests.md](../guests.md) §7) and plan a later id mapping — do not pretend a label is a Setup id.
+
+**Wave 1 unchanged.** Issue #66 / PR #67 keep the free-text Preferences tab until this wave. Wave 2 replaces that primary UX; it does not rewrite Wave 1 ACs.
+
+This addendum does **not** pull Property Setup rebuild, meal-plan product, or a global preferences taxonomy into Guest Wave 2. Minimal Setup option lists are allowed **only** for a missing Guest dropdown dependency, and only when documented in that wave’s tech plan.
+
+### 4.6 Controlled merge
+
+Staff may merge two **individual** profiles only through an explicit, confirmed action.
+
+| Rule | Meaning |
 |---|---|
-| **AC-W2-1** | Staff can attach at least one document to an individual and see it again after reload. |
-| **AC-W2-2** | Ordinary Directory / Information views **mask** ID number (e.g. last four only) unless a reveal control is used. |
-| **AC-W2-3** | Staff can mark a document verified or rejected with actor + time; UI never says “government verified”. |
-| **AC-W2-4** | Preferences card save persists all eight existing fields. |
-| **AC-W2-5** | Merge requires explicit confirm; cancelled merge leaves both profiles. |
-| **AC-W2-6** | After merge, Directory does not show the retired profile as an equal live duplicate; history on the survivor records the merge. |
-| **AC-W2-7** | Consent (or refuse / not-asked) can be recorded and is visible on the profile. |
-| **AC-W2-8** | Duplicate warning from Wave 1 remains; it does **not** auto-merge. |
+| **Never silent** | No background merge. No unique-constraint auto-collapse. Two profiles stay two people until staff confirm. |
+| **Explicit confirm** | Staff see surviving vs retired and must confirm. Cancel leaves both profiles unchanged. |
+| **History** | Survivor `guest_profile_history` (or an additive event type) records the merge: surviving id, retired id, actor, time. |
+| **Directory** | After merge, the retired profile is not shown as an equal live duplicate. |
+| **Consumers** | Reservations and other consumers must not be left pointing at a deleted survivor without a written engineering plan in the Wave 2 tech plan. |
+| **Wave 1 warn** | Duplicate warning (Open existing / Create anyway) remains and does **not** become merge. |
+
+Unmerge is Wave 5. Company / Group / TA masters are Wave 4 — Wave 2 merge is **individuals only**.
+
+### 4.7 Consent recorded
+
+A recorded consent state exists on the individual before Wave 2 exit.
+
+| Field | Required |
+|---|---|
+| **State** | One of **consented** / **refuse** / **not-asked** |
+| **What** | What was asked (short label or text the property can later read) |
+| **When** | Timestamp |
+| **Who** | Actor (staff who recorded it) |
+
+Visible on the profile (Identity / Admin-adjacent / dedicated consent row — tech plan proposes chrome). Not a full privacy suite: **export / anonymise / unmerge** stay Wave 5. Consent from Wave 2 remains the record Wave 5 privacy actions build on.
+
+### 4.8 Out of scope (Wave 2)
+
+| Out | Belongs |
+|---|---|
+| Stay History / Dashboard KPIs from real reservations | Wave 3 |
+| Loyalty & Value real-derived | Wave 4 |
+| Company / Group / TA master CRUD | Wave 4 |
+| Relationships | Wave 4 |
+| Comms / Activity product | Wave 5 |
+| Export / anonymise / unmerge / privacy audit | Wave 5 |
+| FO arrival stepper / skip-with-reason registration | E-S13 (align intent only) |
+| Government KYC, passport MRZ hardware, police export | Never invent |
+| Property Setup rebuild / global preferences taxonomy | Out — except **minimal** Setup option list for a missing Guest dropdown, documented in the tech plan |
+| Fake global enums for room / bed / view / floor / food / communication | Never invent |
+| Offline-first Guest UX | Out of this module |
+| Sales & Events group blocks / allotments | Out of this module |
+| LIVE OTA, gateway settlement, classic nightly NA | Never invent |
+| Entitlement-architecture redesign | Flag Abel; not assumed |
+| Wave 2 **code** from this Spec alone | Needs issue + tech plan + Rekik plan approval |
+
+### 4.9 Acceptance criteria (testable)
+
+Staff in the ACs are **authorised**: signed-in, property membership, package **pms**, and they pass the existing guest manage gate. “Denied staff” fail that gate or lack `pms`.
+
+| ID | Criterion | Pass |
+|---|---|---|
+| **AC-W2-1** | Staff can **upload / attach** at least one ID or document image (or equivalent stored file) to an individual and **see it again after reload**. | File is on the Identity & Documents card (or equivalent). Reload / reopen shows the same attachment. No second guest master. |
+| **AC-W2-2** | Ordinary Directory / Information views **mask** the ID number (e.g. last four only) unless a **reveal** control is used. | List / Information do not show the full number by default. Reveal is explicit and staff-only. |
+| **AC-W2-3** | Staff can mark a document **verified** or **rejected** with **actor + time**. UI never says “government verified” / KYC / police-cleared. | Status, actor, and timestamp persist after reload. Copy is staff-confirmation only. |
+| **AC-W2-4** | Preferences **card** save persists all **eight** existing fields (Setup-selected values and/or Other / free-text per §4.5). | Change each field; reload; values match. `saveGuestPreferences` (or equivalent extension of that writer) is used — no second preferences table. |
+| **AC-W2-5** | Merge requires **explicit confirm**. **Cancelled** merge leaves both profiles. | Confirm dialog names surviving vs retired. Cancel: both still open in Directory as live individuals. No silent merge. |
+| **AC-W2-6** | After merge, Directory does **not** show the retired profile as an equal live duplicate; history on the **survivor** records surviving + retired ids. | Search for the retired name/id does not present it as a second live person. Survivor history has actor + time + both ids. |
+| **AC-W2-7** | Consent state **consented** / **refuse** / **not-asked** can be recorded and is **visible** on the profile with **what / when / who**. | Set each state; reload; values and actor/time remain. Not export / anonymise / unmerge. |
+| **AC-W2-8** | Wave 1 duplicate **warning** remains; it does **not** auto-merge and is not a merge control. | Create-anyway still creates two profiles. Duplicate dialog has no silent or one-click merge. |
+| **AC-W2-9** | For each **LIVE** catalogue-backed preference, options **load from Property Setup for that property** — not a hard-coded global enum. | Changing hotel / property changes the option list. No worldwide room / bed / view / floor / food / communication enum in Guest code. |
+| **AC-W2-10** | Selecting a Setup **bed type** (or the hotel’s equivalent bed option) **saves** and **reloads** as the stored preference. | Pick a Setup bed option; save; reopen; same selection (id preferred). |
+| **AC-W2-11** | The optional **Other** path accepts a value **outside** the Setup list, saves, and reloads. | Enter Other text; save; reopen; Other value present. List selection is not required for Other. |
+| **AC-W2-12** | **Accessibility requirements** remain **free-text** (textarea) — not a Setup dropdown. | Textarea accepts arbitrary text; save / reload. No forced catalogue. |
+| **AC-W2-13** | **Special requests** remain **free-text** (textarea) — not a Setup dropdown. | Same as AC-W2-12 for special requests. |
+| **AC-W2-14** | If a catalogue is **missing**, that field is **gated** **or** the Wave 2 tech plan includes the **minimal** Property Setup option list in the same wave — and the **choice is documented**. | No fake global enum. Tech plan / execution report records gate vs minimal list per field. |
+
+### 4.10 QA (Wave 2)
+
+`NOT RUN` is never `PASS`. Live PMS UI that is not exercised stays **NOT VERIFIED**.
+
+| ID | Check | Notes |
+|---|---|---|
+| **QA-W2-1** | Authorised happy path: open Identity & Documents → upload one file → reload → file still there. | Browser, signed-in PMS session. |
+| **QA-W2-2** | Directory and Information mask ID number; reveal shows full number; hide returns to mask. | |
+| **QA-W2-3** | Verify a document; reject another; actor + time persist; no “government verified” copy. | |
+| **QA-W2-4** | Preferences card: set each of the eight fields; save; reload. | Include at least one Setup dropdown and both textareas. |
+| **QA-W2-5** | LIVE catalogue options load from this property’s Setup — not a hard-coded list. | Second property (or empty catalogue) proves hotel scope. |
+| **QA-W2-6** | Bed type (or hotel equivalent) save / reload; Other path save / reload. | |
+| **QA-W2-7** | Accessibility and special requests are textareas, not dropdowns. | |
+| **QA-W2-8** | Missing-catalogue field is gated **or** a documented minimal Setup list is present. | Match the tech plan choice. |
+| **QA-W2-9** | Merge confirm; cancel leaves both; confirm retires one; survivor history has both ids. | Never silent. |
+| **QA-W2-10** | Duplicate warning still warns only; Create anyway does not merge. | |
+| **QA-W2-11** | Consent: record consented, refuse, and not-asked; what / when / who visible after reload. | |
+| **QA-W2-12** | Waves 3–5 cards still Coming in Wave N; no fabricated KPIs. | Screenshot + note. |
+| **QA-W2-13** | `tsc --noEmit` (or project equivalent) on the implementation PR. | Developer lane. |
+| **QA-W2-14** | Independent QA after Developer QA. | Required before Wave 2 exit. Hotel UAT is **module** DoD, not Wave 2 alone. |
+
+### 4.11 Security (Wave 2)
+
+| ID | Check |
+|---|---|
+| **SEC-W2-1** | Unauthenticated visit to Guest canonical routes (including document URLs) redirects to login. |
+| **SEC-W2-2** | Membership **without** package `pms` cannot use Identity / Preferences / merge / consent. |
+| **SEC-W2-3** | Staff who fail `canManageGuests` / `requireGuestManager` cannot read or write documents, preferences, merge, or consent for that property. |
+| **SEC-W2-4** | Tenant isolation: document files and preference / consent / merge writes re-derive `restaurantId` from membership. Guest A of property 1 is not returned for property 2. |
+| **SEC-W2-5** | No new public / customer route exposes ID images, full ID numbers, or consent records. |
+| **SEC-W2-6** | Ordinary UI masks ID numbers. Full number and images stay behind authorised staff views. |
+| **SEC-W2-7** | No silent merge and no unique-constraint auto-collapse that would hide a second person. |
+| **SEC-W2-8** | Verify / reject and consent writes record actor + time. UI never claims government KYC. |
+| **SEC-W2-9** | Do not log full ID numbers or document bytes in client telemetry if that channel does not already. |
+| **SEC-W2-10** | RLS / role model unchanged unless Abel-flagged. Receptionist vs owner/manager inconsistency remains **documented**, not silently “fixed”. |
+
+### 4.12 Regression (Wave 2)
+
+| ID | Check |
+|---|---|
+| **REG-W2-1** | Wave 1 Directory / Information create / find / edit still work on the same routes. |
+| **REG-W2-2** | ID **text** columns remain the FO check-in store — no second ID-text table. |
+| **REG-W2-3** | Reservations and Front Office still resolve `guest_profiles` names / VIP on stays. |
+| **REG-W2-4** | `saveGuestPreferences` remains the preferences writer. Wave 1 Preferences **tab** may stay as a compatibility path; do not leave a broken second form. |
+| **REG-W2-5** | `addGuestNote`, VIP, and status controls still record history. New merge / document / consent events do not delete older events. |
+| **REG-W2-6** | Duplicate warning (Open existing / Create anyway) still works and still does not merge. |
+| **REG-W2-7** | Guest Services placeholder remains requests / concierge — not this module. |
+| **REG-W2-8** | Company / Group / TA remain not LIVE. Waves 3–5 cards stay honest placeholders. |
+| **REG-W2-9** | No new package; no Back Office guest master; no second `guest_profiles` table. |
+| **REG-W2-10** | Distribution / OTA labels unchanged — this wave must not add “live channel” claims. |
+
+### 4.13 Wave 2 permissions (summary)
+
+| Check | Rule |
+|---|---|
+| Package | **pms** |
+| Module access | Existing `front_office` role check inside `requireGuestManager` |
+| Manage flag | Existing `getGuestsAccess` → `canManageGuests` |
+| RLS | Existing owner / manager policies on guest tables |
+| Wave 2 change | Document storage, merge, and consent use the same chain. **Flag Abel** if a new entitlement type or RLS role is proposed. |
+
+### 4.14 Wave 2 exit
+
+Wave 2 may exit only when:
+
+1. Rekik (or Abel) accepts the implemented wave against **AC-W2-1 … AC-W2-14**.
+2. Independent QA is recorded (`NOT RUN` is never `PASS`).
+3. [../guests.md](../guests.md) CURRENT / EXPECTED is reconciled for Wave 2 surfaces.
+4. Preferences match §4.5 (Setup-owned options, optional Other, accessibility / special requests still free-text; missing-catalogue choice documented).
+5. History shows merge / document / consent actions.
+6. Design Execution Report records approved deviations (or **NONE**).
+
+**Hotel UAT is not required to start Wave 3** but **is** required for **module COMPLETE**.
+
+Passing this Spec / planning cycle does **not** start Wave 2 **code**. Code waits for issue + tech plan + Rekik plan approval.
+
+Passing Wave 2 implementation does **not** start Waves 3–5 — they remain **WAVE-GATED**.
+
+This Spec does **not** claim Wave 2 implemented.
 
 ---
 
@@ -503,9 +704,9 @@ Full hub + privacy finish + Independent QA; property ready for hotel UAT. **Modu
 
 ---
 
-## 8. Cross-wave QA / security / regression (later waves)
+## 8. Cross-wave QA / security / regression (Waves 3–5)
 
-When a later wave is ungated, its tech plan **must** include QA, Security, and Regression sections at Wave 1 depth. Until then, these rules hold:
+Wave 2 QA / Security / Regression live in §4.10–§4.12 at Wave 1 depth. When a later wave is ungated, its tech plan **must** include the same depth. Until then, these rules hold:
 
 | Rule | Apply |
 |---|---|
@@ -526,17 +727,21 @@ When a later wave is ungated, its tech plan **must** include QA, Security, and R
 |---|---|
 | Record Wave 1 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#66 / #67) | Claim the **module** is COMPLETE |
 | Keep Wave 1 ACs as the accepted contract | Reopen Wave 1 engineering |
-| Lock Waves 2–5 product intent behind wave gates | Authorise Waves 2–5 engineering now (explicit ungating still required) |
+| Record Wave 2 Spec as **READY FOR ENGINEERING PLANNING** (gate OPENED) | Authorise Wave 2 **code** (still needs issue + tech plan + Rekik plan approval) |
+| Lock Waves 3–5 product intent behind wave gates | Ungate or authorise Waves 3–5 engineering |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
 | Record that Wave 1 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
+| Incorporate Preferences UX addendum (Rekik 2026-09-14) | Invent Property Setup catalogue rows or global enums |
 
 ---
 
 ## Closing
 
-> **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#66 / #67).
+> **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#66 / #67). Wave 1 is OPERATIONALLY ACCEPTED / closed.
 >
-> Waves 2–5: **SPECIFIED / WAVE-GATED** — **ENGINEERING STATUS: NOT STARTED / AWAITING EXPLICIT UNGATING**.
+> **Wave 2 Spec: READY FOR ENGINEERING PLANNING.** Gate **OPENED** (Rekik intent 2026-09-14 via Advisor). **ENGINEERING STATUS: AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL.** Not implemented.
+>
+> Waves 3–5: **SPECIFIED / WAVE-GATED**.
 >
 > The module is **not** COMPLETE. Hotel UAT is still required after Waves 2–5.
 >
