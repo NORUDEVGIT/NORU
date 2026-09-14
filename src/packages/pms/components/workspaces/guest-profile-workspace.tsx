@@ -3,9 +3,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
+import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import {
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -54,8 +56,8 @@ export function GuestProfileWorkspace({
       <div>
         <h1 className="font-display text-2xl">{GUEST_PROFILE_TITLE}</h1>
         <p className="text-sm text-muted-foreground">
-          Individual directory, information, identity documents and preferences. Later cards stay
-          labelled until their wave is LIVE.
+          Individual directory, information, identity, preferences, stay history and honest
+          dashboard figures. Later cards stay labelled until their wave is LIVE.
         </p>
       </div>
 
@@ -145,6 +147,25 @@ export function GuestProfileWorkspace({
         <ComingCard
           title={selected.title}
           copy="That guest could not be found for this property."
+        />
+      ) : (card === "dashboard" || card === "stay-history") && guestId ? (
+        card === "dashboard" ? (
+          <GuestDashboardCard
+            restaurantId={restaurantId}
+            guestId={guestId}
+            timezone={membership.restaurant.timezone}
+          />
+        ) : (
+          <GuestStayHistoryCard
+            restaurantId={restaurantId}
+            guestId={guestId}
+            timezone={membership.restaurant.timezone}
+          />
+        )
+      ) : card === "dashboard" || card === "stay-history" ? (
+        <ComingCard
+          title={selected.title}
+          copy="Open a guest from Directory to view this card. No guest is selected yet."
         />
       ) : (
         <ComingCard
