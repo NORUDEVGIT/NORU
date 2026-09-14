@@ -1,8 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { PmsIntegrationsWorkspace } from "@/packages/pms/components/workspaces/pms-integrations-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { SET5_INTEGRATIONS_HREF } from "@/packages/pms/lib/pms-set5-depts-guestsvc";
 
 export const Route = createFileRoute("/restaurant/pms/integrations")({
   ssr: false,
@@ -11,30 +10,27 @@ export const Route = createFileRoute("/restaurant/pms/integrations")({
     if (error || !data.user) {
       throw redirect({
         to: "/restaurant/login",
-        search: { redirect: "/restaurant/pms/integrations" },
+        search: { redirect: SET5_INTEGRATIONS_HREF },
       });
     }
 
     await requireRoutePackage("pms");
+    throw redirect({ href: SET5_INTEGRATIONS_HREF });
   },
   head: () => ({
     meta: [
       { title: "Integrations — NORU PMS" },
-      { name: "description", content: "Property settings and connected services for your property." },
+      { name: "description", content: "Connection status lives in Settings." },
       { property: "og:title", content: "Integrations — NORU PMS" },
-      { property: "og:description", content: "Property settings and connected services for your property." },
+      { property: "og:description", content: "Connection status lives in Settings." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: IntegrationsPmsRoute,
+  component: IntegrationsPmsRedirect,
 });
 
-function IntegrationsPmsRoute() {
-  return (
-    <RestaurantShell active="Settings" module="settings" pms pmsModule="integrations">
-      {(m) => <PmsIntegrationsWorkspace membership={m} />}
-    </RestaurantShell>
-  );
+function IntegrationsPmsRedirect() {
+  return null;
 }

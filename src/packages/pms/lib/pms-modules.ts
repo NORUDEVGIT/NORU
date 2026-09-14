@@ -283,7 +283,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "integrations",
     title: "Integrations",
-    description: "Property settings and connected services.",
+    description: "Connection status lives in Settings. This route redirects there.",
     icon: Plug,
     group: "system",
     moduleKey: "property_settings",

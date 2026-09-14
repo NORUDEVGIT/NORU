@@ -10,6 +10,14 @@ import { ReadinessChip, Set1SectionView } from "@/packages/pms/components/settin
 import { Set2OutletsSection, Set2RoomsSection, Set2StructureSection } from "@/packages/pms/components/settings/pms-set2-section";
 import { Set3GuestSection, Set3RatesSection } from "@/packages/pms/components/settings/pms-set3-section";
 import { Set4HousekeepingSection, Set4MaintenanceSection, Set4RoomInventorySection } from "@/packages/pms/components/settings/pms-set4-section";
+import {
+  Set5AdminSection,
+  Set5DepartmentsSection,
+  Set5GuestServicesSection,
+  Set5IntegrationsSection,
+  Set5NotificationsSection,
+  Set5SecuritySection,
+} from "@/packages/pms/components/settings/pms-set5-section";
 import { getPmsSet1Foundation, listPmsSet1Audit } from "@/packages/pms/lib/pms-set1-foundation.functions";
 import {
   SET1_COMING_SOON,
@@ -22,6 +30,7 @@ import {
   SET2_LIVE_HASHES,
   SET3_LIVE_HASHES,
   SET4_LIVE_HASHES,
+  SET5_LIVE_HASHES,
   canOpenSet1Hub,
   isSet1SectionHash,
   type Set1SectionId,
@@ -29,6 +38,7 @@ import {
 import { emptySet2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { emptySet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { emptySet4Snapshot } from "@/packages/pms/lib/pms-set4-hk-inventory";
+import { emptySet5Snapshot } from "@/packages/pms/lib/pms-set5-depts-guestsvc";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
@@ -72,7 +82,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return <p className="text-sm text-destructive">{(query.error as Error | undefined)?.message ?? "Settings are unavailable."}</p>;
   }
 
-  const { snapshot, checklist, canEdit, role, set2, set3, set4 } = query.data;
+  const { snapshot, checklist, canEdit, role, set2, set3, set4, set5 } = query.data;
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
@@ -90,7 +100,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory and maintenance for {membership.restaurant.name}.
+          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, departments, guest services types, notifications, admin, integrations and security for {membership.restaurant.name}.
         </p>
       </div>
 
@@ -157,6 +167,50 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               <Set4MaintenanceSection
                 restaurantId={restaurantId}
                 snapshot={set4 ?? emptySet4Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            )
+          ) : (SET5_LIVE_HASHES as readonly string[]).includes(section) ? (
+            section === "departments" ? (
+              <Set5DepartmentsSection
+                restaurantId={restaurantId}
+                snapshot={set5 ?? emptySet5Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "guest-services-types" ? (
+              <Set5GuestServicesSection
+                restaurantId={restaurantId}
+                snapshot={set5 ?? emptySet5Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "notifications" ? (
+              <Set5NotificationsSection
+                restaurantId={restaurantId}
+                snapshot={set5 ?? emptySet5Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "admin-controls" ? (
+              <Set5AdminSection
+                restaurantId={restaurantId}
+                snapshot={set5 ?? emptySet5Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : section === "integrations" ? (
+              <Set5IntegrationsSection
+                restaurantId={restaurantId}
+                snapshot={set5 ?? emptySet5Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : (
+              <Set5SecuritySection
+                restaurantId={restaurantId}
+                snapshot={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}
                 canEdit={canEdit}
               />

@@ -17,6 +17,7 @@ import {
 } from "./pms-set1-foundation.ts";
 import { completeSet2Activate } from "./pms-set2-structure.ts";
 import { completeSet4Activate } from "./pms-set4-hk-inventory.ts";
+import { completeSet5Activate } from "./pms-set5-depts-guestsvc.ts";
 import {
   SET3_AUDIT_GUEST_RULES,
   SET3_AUDIT_ID_TYPE,
@@ -75,6 +76,7 @@ function foundationReady(set3 = completeSet3Activate(), role = "owner") {
     set2: completeSet2Activate(),
     set3,
     set4: completeSet4Activate(),
+    set5: completeSet5Activate(),
   });
 }
 
@@ -181,7 +183,7 @@ describe("PMS-SET3 single Activate and checklist expand", () => {
 
     const owner = foundationReady();
     assert.equal(owner.canActivate, true);
-    assert.equal(owner.overall, "ready");
+    assert.equal(owner.overall, "warning");
     assert.equal(canActivateSet1("owner"), true);
 
     const manager = foundationReady(completeSet3Activate(), "manager");
@@ -198,8 +200,9 @@ describe("PMS-SET3 hub unmute and deep-links", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "guest-profile" && card.title === "Guest profile rules"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rates" || card.title === "Rates & meal plans"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Guest profile rules" || card.title === "Guests"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks" && card.wave === "SET5"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles" && card.wave === "SET5"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Banks"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Roles"));
+    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /Set3RatesSection/);

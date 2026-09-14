@@ -17,6 +17,7 @@ import {
 } from "./pms-set1-foundation.ts";
 import { completeSet2Activate } from "./pms-set2-structure.ts";
 import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
+import { completeSet5Activate } from "./pms-set5-depts-guestsvc.ts";
 import {
   SET4_AUDIT_CATEGORY,
   SET4_AUDIT_HK_CLEANING,
@@ -87,6 +88,7 @@ function foundationReady(set4 = completeSet4Activate(), role = "owner") {
     set2: completeSet2Activate(),
     set3: completeSet3Activate(),
     set4,
+    set5: completeSet5Activate(),
   });
 }
 
@@ -194,7 +196,7 @@ describe("PMS-SET4 single Activate and checklist expand", () => {
 
     const owner = foundationReady();
     assert.equal(owner.canActivate, true);
-    assert.equal(owner.overall, "ready");
+    assert.equal(owner.overall, "warning");
     assert.equal(canActivateSet1("owner"), true);
 
     const manager = foundationReady(completeSet4Activate(), "manager");
@@ -204,7 +206,7 @@ describe("PMS-SET4 single Activate and checklist expand", () => {
 });
 
 describe("PMS-SET4 hub unmute and deep-links", () => {
-  it("promotes HK, room inventory and maintenance to Live cards and remints Coming soon as SET5+", () => {
+  it("promotes HK, room inventory and maintenance to Live cards and remints Coming soon as SET6 only", () => {
     assert.equal(SET4_HK_HREF, "/restaurant/pms/housekeeping");
     assert.equal(SET4_RI_HREF, "/restaurant/pms/room-inventory");
     assert.equal(SET4_MAINT_HREF, "/restaurant/pms/maintenance");
@@ -213,9 +215,10 @@ describe("PMS-SET4 hub unmute and deep-links", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "room-inventory-rules" && card.title === "Room inventory rules"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "maintenance-rules" && card.title === "Maintenance rules"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.wave === "SET4"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Departments" && card.wave === "SET5"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks" && card.wave === "SET5"));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles" && card.wave === "SET5"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Departments"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Banks"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Roles"));
+    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
     assert.ok(!SET1_COMING_SOON.some((card) => ["Housekeeping rules", "Room inventory rules", "Maintenance rules"].includes(card.title)));
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");

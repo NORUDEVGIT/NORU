@@ -36,6 +36,17 @@ import {
   set4MandatoryMissing,
   type Set4ActivateInput,
 } from "./pms-set4-hk-inventory.ts";
+import {
+  emptySet5Activate,
+  evaluateAdminControls,
+  evaluateDepartments,
+  evaluateGuestServiceTypes,
+  evaluateIntegrations,
+  evaluateNotifications,
+  evaluateSecurityAudit,
+  set5MandatoryMissing,
+  type Set5ActivateInput,
+} from "./pms-set5-depts-guestsvc.ts";
 
 function calendarToday(timezone: string): string {
   try {
@@ -85,6 +96,12 @@ export const SET1_SECTION_HASHES = [
   "housekeeping-rules",
   "room-inventory-rules",
   "maintenance-rules",
+  "departments",
+  "guest-services-types",
+  "notifications",
+  "admin-controls",
+  "integrations",
+  "security-audit",
   "golive",
 ] as const;
 export type Set1SectionId = (typeof SET1_SECTION_HASHES)[number];
@@ -92,6 +109,14 @@ export const SET1_FOUNDATION_HASHES = ["identity", "ops", "taxes", "policies"] a
 export const SET2_LIVE_HASHES = ["structure", "rooms", "outlets"] as const;
 export const SET3_LIVE_HASHES = ["rates", "guest-profile"] as const;
 export const SET4_LIVE_HASHES = ["housekeeping-rules", "room-inventory-rules", "maintenance-rules"] as const;
+export const SET5_LIVE_HASHES = [
+  "departments",
+  "guest-services-types",
+  "notifications",
+  "admin-controls",
+  "integrations",
+  "security-audit",
+] as const;
 
 export type Set1Readiness = "complete" | "warning" | "incomplete" | "blocked";
 export type Set1Overall = "ready" | "warning" | "blocked";
@@ -127,11 +152,12 @@ export const DEPOSIT_TYPE_LABELS: Record<DepositType, string> = {
 
 export type TaxIdentity = { label: string; value: string };
 
-// After SET4 Live, Coming soon is SET5+ only. Banks is no longer labelled SET4.
+// After SET5 Live, Coming soon is SET6 only. Banks and Roles are not SET5 Live.
 export const SET1_COMING_SOON: { wave: string; title: string; purpose: string }[] = [
-  { wave: "SET5", title: "Departments", purpose: "Department catalogue for posting and staffing." },
-  { wave: "SET5", title: "Banks", purpose: "Bank accounts and settlement rails." },
-  { wave: "SET5", title: "Roles", purpose: "Property roles beyond today’s memberships." },
+  { wave: "SET6", title: "Sales", purpose: "Group sales and events — no forms in this wave." },
+  { wave: "SET6", title: "Distribution", purpose: "Channel and direct-booking distribution — no forms in this wave." },
+  { wave: "SET6", title: "Reports", purpose: "Property reports beyond today’s live modules — no forms in this wave." },
+  { wave: "SET6", title: "Offline", purpose: "Offline operations — no forms in this wave." },
 ];
 
 export const SET1_LIVE_CARDS: {
@@ -151,7 +177,13 @@ export const SET1_LIVE_CARDS: {
   { id: "housekeeping-rules", title: "Housekeeping rules", purpose: "Status labels and cleaning posture. Deep-link to Housekeeping — no second board." },
   { id: "room-inventory-rules", title: "Room inventory rules", purpose: "OOO and OOS meaning. Deep-link to Room Inventory. This is not stock inventory." },
   { id: "maintenance-rules", title: "Maintenance rules", purpose: "Categories, priorities, type tags and thin SLA. Deep-link to Maintenance — not a work-order system." },
-  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory and maintenance. One owner Activate." },
+  { id: "departments", title: "Departments", purpose: "Department and work-centre catalogue. Empty is a warning, not a block." },
+  { id: "guest-services-types", title: "Guest services types", purpose: "Request-type catalogue only. Deep-link to Guest Services — not Guest Profile." },
+  { id: "notifications", title: "Notifications", purpose: "Email, SMS and in-app channels and templates. Not an ESP. WhatsApp stays future." },
+  { id: "admin-controls", title: "Admin controls", purpose: "Thin numbering, approvals and override. Deep-link to Administration — not a second staff manager." },
+  { id: "integrations", title: "Integrations", purpose: "Connection status on Settings. POS charge-to-room is live; other connectors stay Foundation." },
+  { id: "security-audit", title: "Security & audit", purpose: "Session and retention posture plus thin sensitive-data flags. Not IAM." },
+  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance and SET5 catalogues. One owner Activate. SET5 warnings do not block." },
 ];
 
 export type Set1IdentityDraft = {
@@ -474,6 +506,7 @@ export function evaluateGoLive(
     ...domains["room-inventory-rules"].missing,
     ...domains["maintenance-rules"].missing,
   ];
+  // SET5 missing (dual-hub honesty) is checklist honesty only — never Activate mandatory.
   const blocked = !foundationColumnsAvailable && Boolean(domains.ops.missing.length || domains.taxes.missing.includes("Tax name"));
   const warnings = Object.values(domains).flatMap((d) => d.warnings);
   if (pmsSet1Live && !mandatory.length) {
@@ -498,10 +531,12 @@ export function evaluateSet1Checklist(input: {
   set2?: Set2ActivateInput;
   set3?: Set3ActivateInput;
   set4?: Set4ActivateInput;
+  set5?: Set5ActivateInput;
 }): Set1Checklist {
   const set2 = input.set2 ?? emptySet2Activate();
   const set3 = input.set3 ?? emptySet3Activate();
   const set4 = input.set4 ?? emptySet4Activate();
+  const set5 = input.set5 ?? emptySet5Activate();
   const identity = evaluateIdentity(input.identity, input.foundationColumnsAvailable);
   const ops = evaluateOps(input.ops, input.foundationColumnsAvailable);
   const taxes = evaluateTaxes(input.taxes, input.foundationColumnsAvailable);
@@ -514,6 +549,12 @@ export function evaluateSet1Checklist(input: {
   const housekeeping = evaluateHousekeeping(set4);
   const roomInventory = evaluateRoomInventory(set4);
   const maintenance = evaluateMaintenance(set4);
+  const departments = evaluateDepartments(set5);
+  const guestServiceTypes = evaluateGuestServiceTypes(set5);
+  const notifications = evaluateNotifications(set5);
+  const adminControls = evaluateAdminControls(set5);
+  const integrations = evaluateIntegrations(set5);
+  const securityAudit = evaluateSecurityAudit(set5);
   const golive = evaluateGoLive(
     {
       identity,
@@ -528,6 +569,12 @@ export function evaluateSet1Checklist(input: {
       "housekeeping-rules": housekeeping,
       "room-inventory-rules": roomInventory,
       "maintenance-rules": maintenance,
+      departments,
+      "guest-services-types": guestServiceTypes,
+      notifications,
+      "admin-controls": adminControls,
+      integrations,
+      "security-audit": securityAudit,
     },
     input.foundationColumnsAvailable,
     input.pmsSet1Live,
@@ -540,6 +587,7 @@ export function evaluateSet1Checklist(input: {
     ...set2MandatoryMissing(set2),
     ...set3MandatoryMissing(set3),
     ...set4MandatoryMissing(set4),
+    ...set5MandatoryMissing(set5),
   ];
   const domains = {
     identity,
@@ -554,6 +602,12 @@ export function evaluateSet1Checklist(input: {
     "housekeeping-rules": housekeeping,
     "room-inventory-rules": roomInventory,
     "maintenance-rules": maintenance,
+    departments,
+    "guest-services-types": guestServiceTypes,
+    notifications,
+    "admin-controls": adminControls,
+    integrations,
+    "security-audit": securityAudit,
     golive,
   };
   const hasWarning = Object.values(domains).some((d) => d.readiness === "warning" || d.warnings.length);
