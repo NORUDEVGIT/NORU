@@ -8,7 +8,11 @@ import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dia
 import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
-import { GUEST_PROFILE_DETAIL_PATH } from "@/packages/pms/lib/guest-profile-wave1";
+import {
+  GUEST_PROFILE_DETAIL_PATH,
+  guestProfileCardSearch,
+  type GuestProfileCardId,
+} from "@/packages/pms/lib/guest-profile-wave1";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -27,9 +31,12 @@ const ALL = "all";
 export function GuestDirectoryWorkspace({
   membership,
   compact = false,
+  returnCard,
 }: {
   membership: RestaurantMembership;
   compact?: boolean;
+  /** Reopen this guest-required card after staff pick another guest. */
+  returnCard?: GuestProfileCardId | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -67,7 +74,11 @@ export function GuestDirectoryWorkspace({
   });
 
   function openGuest(id: string) {
-    void navigate({ to: GUEST_PROFILE_DETAIL_PATH, params: { guestId: id } });
+    void navigate({
+      to: GUEST_PROFILE_DETAIL_PATH,
+      params: { guestId: id },
+      search: guestProfileCardSearch(returnCard),
+    });
   }
 
   if (accessQuery.isLoading)

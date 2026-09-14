@@ -106,6 +106,54 @@ export function defaultGuestProfileCard(hasGuest: boolean): GuestProfileCardId {
   return hasGuest ? "information" : "directory";
 }
 
+/**
+ * LIVE cards that require a selected guest first (Spec §5.15 / guests.md §7.7).
+ * Directory is LIVE but is the picker — it is not guest-required.
+ */
+export function isGuestRequiredProfileCard(id: GuestProfileCardId): boolean {
+  return id !== "directory" && guestProfileCard(id).live;
+}
+
+/** Optional `?card=` so Directory-back can reopen the same guest-required card. */
+export type GuestProfileCardSearch = {
+  card?: GuestProfileCardId;
+};
+
+export function parseGuestProfileCardSearch(
+  search: Record<string, unknown>,
+): GuestProfileCardSearch {
+  const raw = typeof search["card"] === "string" ? search["card"] : undefined;
+  if (!raw) return {};
+  const match = GUEST_PROFILE_CARDS.find((item) => item.id === raw);
+  if (!match || !isGuestRequiredProfileCard(match.id)) return {};
+  return { card: match.id };
+}
+
+export function guestProfileCardSearch(
+  card: GuestProfileCardId | undefined,
+): GuestProfileCardSearch {
+  if (card && isGuestRequiredProfileCard(card)) return { card };
+  return {};
+}
+
+export function initialGuestProfileCard(
+  hasGuest: boolean,
+  returnCard?: GuestProfileCardId,
+): GuestProfileCardId {
+  if (hasGuest && returnCard && isGuestRequiredProfileCard(returnCard)) return returnCard;
+  return defaultGuestProfileCard(hasGuest);
+}
+
+export const DIRECTORY_BACK_ACCEPTANCE_CRITERIA = [
+  "AC-DIR-1",
+  "AC-DIR-2",
+  "AC-DIR-3",
+  "AC-DIR-4",
+  "AC-DIR-5",
+  "AC-DIR-6",
+  "AC-DIR-7",
+] as const;
+
 export function comingInWaveLabel(wave: number): string {
   return `Coming in Wave ${wave}`;
 }

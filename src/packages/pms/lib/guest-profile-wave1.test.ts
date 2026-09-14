@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  DIRECTORY_BACK_ACCEPTANCE_CRITERIA,
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -15,6 +16,10 @@ import {
   GUEST_PROFILE_TYPES,
   comingInWaveLabel,
   defaultGuestProfileCard,
+  guestProfileCardSearch,
+  initialGuestProfileCard,
+  isGuestRequiredProfileCard,
+  parseGuestProfileCardSearch,
 } from "./guest-profile-wave1.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -129,5 +134,81 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.doesNotMatch(guestServices, /finished Guest Profile/);
     assert.equal(GUEST_PROFILE_LEGACY_DIRECTORY, "/restaurant/guests");
     assert.equal(GUEST_PROFILE_LEGACY_DETAIL, "/restaurant/pms/reservations/guests/$guestId");
+  });
+});
+
+describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
+  it("locks AC-DIR-1…7", () => {
+    assert.deepEqual([...DIRECTORY_BACK_ACCEPTANCE_CRITERIA], [
+      "AC-DIR-1",
+      "AC-DIR-2",
+      "AC-DIR-3",
+      "AC-DIR-4",
+      "AC-DIR-5",
+      "AC-DIR-6",
+      "AC-DIR-7",
+    ]);
+  });
+
+  it("treats every LIVE card except Directory as guest-required", () => {
+    assert.equal(isGuestRequiredProfileCard("directory"), false);
+    assert.equal(isGuestRequiredProfileCard("information"), true);
+    assert.equal(isGuestRequiredProfileCard("dashboard"), true);
+    assert.equal(isGuestRequiredProfileCard("stay-history"), true);
+    assert.equal(isGuestRequiredProfileCard("identity"), true);
+    assert.equal(isGuestRequiredProfileCard("preferences"), true);
+    assert.equal(isGuestRequiredProfileCard("loyalty"), false);
+    assert.equal(isGuestRequiredProfileCard("notes-comms"), false);
+  });
+
+  it("AC-DIR-1…5 shell shows Information's Directory back on guest-required cards", () => {
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    const back = readRel("../components/guests/guest-directory-back-link.tsx");
+    const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
+    assert.match(shell, /GuestDirectoryBackLink/);
+    assert.match(shell, /showDirectoryBack/);
+    assert.match(shell, /isGuestRequiredProfileCard\(card\)/);
+    assert.match(back, /ArrowLeft/);
+    assert.match(back, /> Directory/);
+    assert.match(back, /GUEST_PROFILE_DIRECTORY_PATH/);
+    assert.match(back, /guest-profile-directory-back/);
+    assert.match(back, /Spec §5\.15/);
+    assert.match(back, /not Waves 4–5/);
+    assert.match(detail, /backTo === "guest-profile" \? null/);
+  });
+
+  it("AC-DIR-6 Directory-back returns to Directory and reopens the same card", () => {
+    assert.deepEqual(parseGuestProfileCardSearch({ card: "dashboard" }), { card: "dashboard" });
+    assert.deepEqual(parseGuestProfileCardSearch({ card: "stay-history" }), {
+      card: "stay-history",
+    });
+    assert.deepEqual(parseGuestProfileCardSearch({ card: "directory" }), {});
+    assert.deepEqual(parseGuestProfileCardSearch({ card: "loyalty" }), {});
+    assert.deepEqual(guestProfileCardSearch("dashboard"), { card: "dashboard" });
+    assert.deepEqual(guestProfileCardSearch("directory"), {});
+    assert.equal(initialGuestProfileCard(true, "identity"), "identity");
+    assert.equal(initialGuestProfileCard(true), "information");
+    assert.equal(initialGuestProfileCard(false, "dashboard"), "directory");
+
+    const back = readRel("../components/guests/guest-directory-back-link.tsx");
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    const indexRoute = readRel("../../../routes/restaurant/pms/guests.index.tsx");
+    const detailRoute = readRel("../../../routes/restaurant/pms/guests.$guestId.tsx");
+    assert.match(back, /guestProfileCardSearch\(fromCard\)/);
+    assert.match(directory, /guestProfileCardSearch\(returnCard\)/);
+    assert.match(shell, /initialGuestProfileCard/);
+    assert.match(indexRoute, /parseGuestProfileCardSearch/);
+    assert.match(detailRoute, /parseGuestProfileCardSearch/);
+    assert.match(indexRoute, /returnCard=\{card\}/);
+    assert.match(detailRoute, /returnCard=\{card\}/);
+  });
+
+  it("AC-DIR-7 Directory itself does not render a back-to-Directory control", () => {
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    assert.doesNotMatch(directory, /GuestDirectoryBackLink|guest-profile-directory-back/);
+    assert.match(shell, /card === "directory"/);
+    assert.match(shell, /showDirectoryBack \? <GuestDirectoryBackLink/);
   });
 });
