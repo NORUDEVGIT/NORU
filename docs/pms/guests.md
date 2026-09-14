@@ -5,14 +5,17 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | **Wave 1 IMPLEMENTED ON MAIN** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14). Waves 2–5 still **WAVE-GATED**. The module is **not** COMPLETE. |
+| **STATUS** | **Wave 1 IMPLEMENTED ON MAIN** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14). Wave 2 Spec **READY FOR ENGINEERING PLANNING** (gate OPENED). Waves 3–5 still **WAVE-GATED**. The module is **not** COMPLETE. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — see [specs/guest-profile-module.md](./specs/guest-profile-module.md) |
-| **Waves 2–5** | **SPECIFIED / WAVE-GATED** — Wave 1 engineering gate exited; later waves still need **explicit ungating** |
+| **Wave 2 Spec** | **READY FOR ENGINEERING PLANNING** — gate **OPENED** (Rekik intent 2026-09-14 via Advisor). **Not** implemented. |
+| **Waves 3–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Wave 1 complete. Waves 2–5 are **not** automatic. |
-| **Classification** | Functional Spec / programme — Wave 1 CURRENT on `main`; **not** CURRENT that every card is LIVE |
+| **Engineering assignment** | Wave 1 complete. Wave 2 gate **OPENED** — code only after issue + tech plan + Rekik plan approval. Waves 3–5 are **not** automatic. |
+| **Classification** | Functional Spec / programme — Wave 1 CURRENT on `main`; Wave 2 planning only; **not** CURRENT that every card is LIVE |
 
-> **Wave 1 IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z. Waves 2–5 remain **WAVE-GATED** and still need explicit ungating.
+> **Wave 1 IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z. Wave 1 is OPERATIONALLY ACCEPTED / closed.
+>
+> **Wave 2 gate OPENED** (Rekik intent 2026-09-14 via Advisor). Spec is **READY FOR ENGINEERING PLANNING**. Code starts only after issue + tech plan + Rekik plan approval. Waves 3–5 remain **WAVE-GATED**. Do **not** claim Wave 2 implemented.
 >
 > Create once → use everywhere → enrich. The module is **COMPLETE** only after Waves 1–5 **and** hotel UAT. Do **not** treat Wave 1 merge as module COMPLETE.
 >
@@ -65,7 +68,7 @@ UI default: Guest sidebar with a profile-type switcher **Individual \| Company \
 | 3 | **Information** | **1** (individuals) | Align to existing `GuestProfile`; prefer surfacing API ID **text** fields |
 | 4 | **Identity & Documents** | 2 (upload / mask / verify); Wave 1 may show ID **text** only | No implied government verification |
 | 5 | **Stay History** | 3 | From **real** reservations — not profile-event history alone |
-| 6 | **Preferences** | 2 (complete product card); API + a Preferences tab already exist | Do not claim Wave 2 complete because a tab already saves |
+| 6 | **Preferences** | 2 (complete product card; Setup-owned dropdowns — see Wave 2 addendum); API + a Preferences tab already exist | Do not claim Wave 2 complete because a tab already saves |
 | 7 | **Loyalty & Value** | 4 | Real-derived only — no invented points or spend |
 | 8 | **Relationships** | 4 | Roles to Company / Group / TA masters |
 | 9 | **Notes / Comms / Activity** | 5 (product hub); notes + profile history exist today | Notes ≠ comms product |
@@ -77,15 +80,17 @@ Until a card’s wave exits, the shell may show **Coming in Wave N**. It must **
 
 ## 4. Waves programme
 
-Engineering works **wave-by-wave**. A later wave does not start until the prior wave has exited (docs + product exit criteria). Full testable Wave 1 ACs and wave-gated requirements for Waves 2–5 are in the [Functional Spec](./specs/guest-profile-module.md).
+Engineering works **wave-by-wave**. A later wave does not start until the prior wave has exited (docs + product exit criteria). Full testable Wave 1 ACs, the Wave 2 planning Spec, and wave-gated requirements for Waves 3–5 are in the [Functional Spec](./specs/guest-profile-module.md).
 
 | Wave | Title | Engineering status | Exit (summary) |
 |---|---|---|---|
-| **1** | Shell + Directory + Information (Individuals) | **COMPLETE / MERGED** — issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14 | First-class Guest module; individual create / find / edit is the default path; 10-card shell honest |
-| **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | **NOT STARTED / AWAITING EXPLICIT UNGATING** (Wave 1 engineering gate exited) | Docs on file, prefs complete, merge works (never silent), consent recorded |
+| **1** | Shell + Directory + Information (Individuals) | **COMPLETE / MERGED** — issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14. OPERATIONALLY ACCEPTED / closed. | First-class Guest module; individual create / find / edit is the default path; 10-card shell honest |
+| **2** | Identity upload / mask / verify; Preferences complete; controlled merge; consent recorded | Gate **OPENED** (Rekik 2026-09-14). Spec **READY FOR ENGINEERING PLANNING**. **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL.** **Not** implemented. | Docs on file, prefs complete (Setup-owned dropdowns), merge works (never silent), consent recorded |
 | **3** | Stay History from real reservations; 360 Dashboard KPIs real-derived; quick actions to Res / FO / Folio | **NOT STARTED / AWAITING WAVE GATE** | Real history + honest KPIs |
 | **4** | (A) Company / Group / TA masters; (B) Relationships with roles; (C) Loyalty & Value real-derived | **NOT STARTED / AWAITING WAVE GATE** | Masters + associations + loyalty |
 | **5** | Comms / Activity + Privacy finish (export / anonymise / unmerge) for individuals and masters as appropriate | **NOT STARTED / AWAITING WAVE GATE** | Full hub + hotel UAT-ready |
+
+> **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).** Wave 2 Preferences: room / bed / view / floor (and food / communication if Property Setup has catalogues) use **dropdown / multi-select** from that hotel’s Setup lists — not open free-text as the primary control. Optional **Other**; accessibility and special requests stay textarea. Detail: [Functional Spec §4](./specs/guest-profile-module.md#4-wave-2--identity-preferences-controlled-merge-consent). Wave 1 / issue #66 / PR #67 free-text tab is unchanged until this wave is implemented. Do **not** claim Wave 2 implemented.
 
 ---
 
@@ -99,7 +104,7 @@ Grounded in `main` at documentation time. **Code wins.** Detail and file evidenc
 | Directory | `listGuests` + Individual Directory: search name / phone / email, status, VIP only. Row open goes to the canonical profile route. | Same capabilities as the default operational Directory for **individuals**. |
 | Information | `GuestFormDialog` create / edit personal, address, VIP, notes, and ID **text**. First name required. Information / Overview shows the same ID text. | Same fields. Images / mask / verify stay Wave 2. |
 | Identity | ID **text** (`idDocumentType`, `idDocumentNumber`, `idDocumentExpiry`) is on the form and Information. Identity & Documents **card** is Coming in Wave 2. No upload / mask / verify. | Wave 2: documents on file, masked, verifiable by staff. |
-| Preferences | Table + `saveGuestPreferences`. Full field form remains on the Information workspace **Preferences** tab (not in `guest-bits.tsx` — that file is VIP / status badges only). Preferences **card** is Coming in Wave 2. | Wave 2: complete Preferences **card** in the 10-card shell. |
+| Preferences | Table + `saveGuestPreferences`. Full field form remains on the Information workspace **Preferences** tab (not in `guest-bits.tsx` — that file is VIP / status badges only). Preferences **card** is Coming in Wave 2. Wave 1 / PR #67 remains **free-text** until Wave 2 is implemented. | Wave 2: complete Preferences **card** in the 10-card shell. Primary room / bed / view / floor (and food / communication if catalogues exist) are **Setup-owned** dropdowns; optional Other; accessibility / special requests stay free-text. **Not** implemented yet. |
 | History | `guest_profile_history` on create / update / VIP / status / preference / note. | Wave 3 adds **stay** history from real reservations. Profile history remains. |
 | Duplicates | `findGuestDuplicates` — warn; Open existing / Create anyway. **No merge.** | Wave 2: **controlled** merge, never silent. |
 | Masters / relationships | **None.** Individuals only. | Wave 4. |
@@ -123,7 +128,7 @@ The Guest Profile Module is **COMPLETE** only when **all** of the following are 
 
 **Process (locked):** Spec → Engineering **wave-by-wave** → QA → human merge → Design Execution Report → Docs reconciliation → Advisor review.
 
-This overview plus the Functional Spec remain the programme record. Wave 1 is implemented on `main`. Waves 2–5 are still **WAVE-GATED** and need explicit ungating. The module is **not** COMPLETE until Waves 2–5 and hotel UAT also pass.
+This overview plus the Functional Spec remain the programme record. Wave 1 is implemented on `main`. Wave 2 gate is **OPENED** for planning — **not** implemented. Waves 3–5 are still **WAVE-GATED**. The module is **not** COMPLETE until Waves 2–5 and hotel UAT also pass.
 
 ---
 
@@ -167,10 +172,10 @@ Wave 1 **preserved** this existing gate. Do **not** silently expand or shrink ro
 
 | Record | Role |
 |---|---|
-| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | Master Spec: Wave 1 full ACs; Waves 2–5 wave-gated |
+| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | Master Spec: Wave 1 full ACs; Wave 2 READY FOR ENGINEERING PLANNING; Waves 3–5 wave-gated |
 | [S1 + M1 Product Plan — Option A](./product-roadmap-s1-m1.md) | Wider programme. Guest Waves are **not** E-S01 and do **not** authorise that cycle. |
 | [Commercial Readiness (2026-09-11)](./commercial-readiness.md) | Advisory baseline. Groups / company bill-to are **not** CURRENT. |
-| [decisions/README.md](./decisions/README.md) | Short note: Wave 1 implemented on `main`; Waves 2–5 still gated. |
+| [decisions/README.md](./decisions/README.md) | Short note: Wave 1 implemented; Wave 2 planning gate opened; Waves 3–5 still gated. |
 | Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) | Wave 1 implementation issue — **CLOSED** completed. |
 | PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) | Wave 1 implementation — **MERGED** 2026-09-14T09:15:10Z. |
 
@@ -198,13 +203,13 @@ Grounded in the Wave 1 Design Execution Report after merge. **`NOT RUN` is not `
 **Residuals (not Wave 1 defects):**
 
 - Receptionist vs owner/manager inconsistency (helper vs RLS vs denied-copy) is **PRESERVED**, not fixed (AC-W1-8 / SEC-W1-8).
-- Preferences **card** is Coming in Wave 2. Existing Preferences tab / free-text remains on Information (REG-W1-4).
-- Waves 2–5 are still **WAVE-GATED** and need explicit ungating. Hotel UAT is still required for **module COMPLETE**.
+- Preferences **card** is Coming in Wave 2. Existing Preferences tab / free-text remains on Information (REG-W1-4). Wave 2 Preferences are locked to Setup-owned dropdowns (Rekik addendum 2026-09-14) — **not** implemented.
+- Wave 2 gate is **OPENED** for engineering **planning**. Waves 3–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
 
 ---
 
 ## Closing
 
-> **Wave 1 IMPLEMENTED ON MAIN** (#66 / #67). Waves 2–5 still **WAVE-GATED**. Module COMPLETE only after Waves 1–5 + hotel UAT.
+> **Wave 1 IMPLEMENTED ON MAIN** (#66 / #67). Wave 2 Spec **READY FOR ENGINEERING PLANNING** (gate OPENED) — **not** implemented. Waves 3–5 still **WAVE-GATED**. Module COMPLETE only after Waves 1–5 + hotel UAT.
 >
 > Extend existing guest code. Create once → use everywhere → enrich.
