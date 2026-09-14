@@ -1306,7 +1306,7 @@ DESIGN COMPLETION: Wave 4 **code LIVE** (#97). Issue [#95](https://github.com/NO
 - Production migration `0053_pms_guest_profile_wave4` **Abel-gated NOT applied**. Non-prod **APPLY PASS** on `qcwptraosaudcbjasmul` (version `20260914134631`). Production `0051` remains Abel-gated (Wave 2 leftover).
 - **AC-W4-5 residual:** create-reservation does not take master IDs (attach on detail); FO typed labels stay labels.
 - Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed.
-- Wave 5 **IMPLEMENTED ON MAIN** (#101); issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed. Hotel UAT is still required for **module COMPLETE**.
+- Wave 5 **IMPLEMENTED ON MAIN** (#101); issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed. Programme **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 4). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 6.12 QA (Wave 4)
