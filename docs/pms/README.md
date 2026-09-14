@@ -1,5 +1,6 @@
 # PMS documentation
 
+Official NORU Property Management System (PMS) docs. Some pages record features that have completed a coordination cycle (Advisor → Spec → Developer → QA → Docs). This tree also holds Functional Specs that stay **WAVE-GATED** until the named wave is accepted (Guest Profile Waves 1–2 are on `main`; Wave 3 is **READY FOR ENGINEERING PLANNING**; Waves 4–5 are still gated).
 Official NORU Property Management System (PMS) docs. Some pages record features that have completed a coordination cycle (Advisor → Spec → Developer → QA → Docs). This tree also holds Functional Specs that stay **WAVE-GATED** until the named wave is accepted (Guest Profile Waves 1–2 are on `main`; Waves 3–5 are still gated).
 
 Package boundaries, route ownership, and shared-service rules live in [`../architecture-ownership.md`](../architecture-ownership.md). This tree does not redefine them. PMS source lives under `src/packages/pms/` per [`../code-organization.md`](../code-organization.md).
