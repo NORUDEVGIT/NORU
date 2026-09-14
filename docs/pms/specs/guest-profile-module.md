@@ -5,24 +5,24 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | **APPROVED FOR DOCS** (Rekik 2026-09-14) |
-| **Wave 1 Spec** | **READY FOR REKIK REVIEW** |
-| **Waves 2–5** | **SPECIFIED / WAVE-GATED** — engineering only after prior wave exit |
+| **STATUS** | Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14) |
+| **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** |
+| **Waves 2–5** | **SPECIFIED / WAVE-GATED** — Wave 1 engineering gate exited; later waves still need **explicit ungating** |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | **NOT automatic** until Wave 1 Spec is accepted for handoff |
-| **Product requirement** | Rekik 2026-09-14 — **APPROVED FOR DOCS** |
+| **Engineering assignment** | Wave 1 complete. Waves 2–5 are **not** automatic. |
+| **Product requirement** | Rekik 2026-09-14 — Wave 1 accepted and implemented |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
-> **APPROVED FOR DOCS (Rekik 2026-09-14).**
+> **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z.
 >
-> Wave 1 Spec: **READY FOR REKIK REVIEW**. Waves 2–5: **SPECIFIED / WAVE-GATED**.
+> Waves 2–5: **SPECIFIED / WAVE-GATED**. Wave 1 engineering-gate exit does **not** start Wave 2 — explicit ungating is still required. The module is **not** COMPLETE.
 >
-> Extend existing guest code — do **not** restart. **Not** automatic Engineering assignment until Wave 1 Spec is accepted for handoff.
+> Extend existing guest code — do **not** restart.
 >
-> Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
+> Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. It is **not** a GitHub issue and **not** a Developer handoff.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Waves 2–5 stay wave-gated.
 
 ---
 
@@ -71,15 +71,20 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 |---|---|
 | Server functions | `src/packages/pms/lib/guests.functions.ts` |
 | Access helpers | `src/packages/pms/lib/guests.server.ts` |
+| Wave 1 catalogue / card lock | `src/packages/pms/lib/guest-profile-wave1.ts` |
+| Wave 1 lock tests | `src/packages/pms/lib/guest-profile-wave1.test.ts` |
 | Create / edit dialog | `src/packages/pms/components/guests/guest-form-dialog.tsx` |
 | VIP / status badges | `src/packages/pms/components/guests/guest-bits.tsx` |
-| Detail workspace | `src/packages/pms/components/workspaces/guest-detail-workspace.tsx` |
-| Individual directory | `src/routes/restaurant/guests/index.tsx` |
-| Legacy detail redirect | `src/routes/restaurant/guests/$guestId.tsx` → `/restaurant/pms/reservations/guests/$guestId` |
-| Canonical detail today | `src/routes/restaurant/pms/reservations.guests.$guestId.tsx` |
-| Guest Services placeholder | `src/routes/restaurant/pms/guest-services.tsx` |
-| PMS catalogue | `src/packages/pms/lib/pms-modules.ts` (`guest-services`, **planned**) |
-| Front Office rail | `src/core/components/restaurant-shell.tsx` (`/restaurant/guests`) |
+| 10-card shell | `src/packages/pms/components/workspaces/guest-profile-workspace.tsx` |
+| Individual directory | `src/packages/pms/components/workspaces/guest-directory-workspace.tsx` |
+| Information workspace | `src/packages/pms/components/workspaces/guest-detail-workspace.tsx` |
+| Canonical directory | `src/routes/restaurant/pms/guests.index.tsx` → `/restaurant/pms/guests` |
+| Canonical profile | `src/routes/restaurant/pms/guests.$guestId.tsx` → `/restaurant/pms/guests/$guestId` |
+| FR-9 directory redirect | `src/routes/restaurant/guests/index.tsx` → `/restaurant/pms/guests` |
+| FR-9 profile redirect | `src/routes/restaurant/guests/$guestId.tsx` → `/restaurant/pms/guests/$guestId` |
+| FR-9 reservations redirect | `src/routes/restaurant/pms/reservations.guests.$guestId.tsx` → `/restaurant/pms/guests/$guestId` |
+| Guest Services placeholder | `src/routes/restaurant/pms/guest-services.tsx` (requests / concierge — **not** this module) |
+| PMS catalogue | `src/packages/pms/lib/pms-modules.ts` — `guest-profile` (**partial**); `guest-services` still **planned** |
 | Tables | `guest_profiles`, `guest_preferences`, `guest_profile_history` (`drizzle/migrations/0012_create_guest_profiles.sql`; ID columns in `0041_fo_checkin_stepper.sql`) |
 
 ---
@@ -124,40 +129,43 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 
 This is **profile activity**, not reservation stay history.
 
-### 2.5 Live UI
+### 2.5 Live UI (post–Wave 1 `main`)
 
 | Surface | What staff see |
 |---|---|
-| `/restaurant/guests` | Directory: search, status filter, VIP-only, New Guest, open row. Denied copy: “Only owners and managers…”. |
-| `GuestFormDialog` | Create / edit: personal, address, VIP, notes. Duplicate warning: **Open existing guest** / **Create anyway** / Back to form. **No merge.** **No ID fields.** |
-| Guest detail (Reservations leaf) | Overview (contact / address / notes / VIP switch), **Preferences** tab (all eight fields + Save), **History** tab, Edit, Add note, Deactivate / Reactivate. **No ID fields on Overview.** |
+| `/restaurant/pms/guests` | Canonical Guest Profile directory. 10-card shell; landing card is **Directory**. Profile-type hook: Individual LIVE; Company / Group / TA disabled and labelled **not LIVE**. |
+| `/restaurant/pms/guests/$guestId` | Canonical profile. Shell defaults to **Information**. Directory + Information LIVE; other cards **Coming in Wave N** with no fabricated KPIs. |
+| FR-9 redirects | `/restaurant/guests`, `/restaurant/guests/$guestId`, and `/restaurant/pms/reservations/guests/$guestId` redirect to the canonical Guest Profile routes. |
+| Individual Directory | `listGuests`: search, status filter, VIP-only, New Guest, open row → profile route. Denied copy still: “Only owners and managers…”. |
+| `GuestFormDialog` | Create / edit: personal, address, VIP, notes, and ID **text** (type / number / expiry). Duplicate warning: **Open existing guest** / **Create anyway** / Back to form. **No merge.** **No upload.** |
+| Information workspace | Overview (contact / address / **Identity text** / notes / VIP switch), **Preferences** tab (all eight fields + Save, still free-text), **History** tab, Edit, Add note, Deactivate / Reactivate. |
 | `guest-bits.tsx` | `VipBadge` and `StatusBadge` only — not a preferences form. |
-| `/restaurant/pms/guest-services` | Planned placeholder (requests / concierge) with a link “Open guest profiles” → `/restaurant/guests`. |
+| Catalogue | `guest-profile` — title **Guest Profile**, group `commercial`, `moduleKey` `front_office`, `implementationStatus` `partial`. |
+| `/restaurant/pms/guest-services` | Planned placeholder (requests / concierge) with a link “Open Guest Profile” → `/restaurant/pms/guests`. **Not** this module. |
 | FO check-in stepper | Can read / write the same ID **text** columns on `guest_profiles`. |
 
-### 2.6 CURRENT access (document, do not “fix” in Wave 1)
+### 2.6 CURRENT access (Wave 1 **preserved** this gate)
 
 | Layer | CURRENT |
 |---|---|
-| Package | `requireRoutePackage("pms")` on guest list, reservation guest detail, and guest-services. Server: `withPmsPackage`. |
+| Package | `requireRoutePackage("pms")` on `/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`, and guest-services. Server: `withPmsPackage`. |
 | Role helper | `GUEST_MANAGE_ROLES` = `owner`, `manager`, **`receptionist`**. `canManageGuests` matches that list. |
 | Comments + denied UI | Speak of **owner / manager only**. |
 | RLS (`0012`) | `guest_profiles`, `guest_preferences`, `guest_profile_history`: **owner or manager** only. Receptionist is **not** in these policies. |
 
-Wave 1 **preserves** this gate. Do not change the entitlement **architecture** unless the new route strictly requires it — then **flag Abel**.
+Wave 1 **preserved** this inconsistency. It is a documented residual, not a Wave 1 defect. Do not change the entitlement **architecture** unless a later wave strictly requires it — then **flag Abel**.
 
 ### 2.7 CURRENT gaps vs the north star
 
 | Missing | Notes |
 |---|---|
-| First-class Guest Profile sidebar module + 10-card shell | Guest list is on the Front Office rail; detail is nested under Reservations. |
-| Profile-type switcher / Company \| Group \| TA masters | Individuals only. |
-| Document upload / mask / verify | ID text exists on API / FO check-in only. |
+| Identity upload / mask / verify | ID **text** is on the form and Information. Identity & Documents **card** is Coming in Wave 2. |
+| Preferences **card** complete | Preferences tab / free-text still lives on Information. Card is Coming in Wave 2. |
 | Controlled merge | Warn-only. Never silent today; also never a merge action. |
-| Stay History KPIs from real reservations | History tab is profile events. |
-| Loyalty & Value real-derived | VIP boolean only. |
-| Relationships | None. |
-| Comms / Activity product | Notes + profile history only. |
+| Stay History KPIs from real reservations | History tab is profile events. Dashboard Overview card is Coming in Wave 3. |
+| Loyalty & Value real-derived | VIP boolean only. Card Coming in Wave 4. |
+| Company / Group / TA masters + Relationships | Switcher present and disabled / not LIVE. Wave 4. |
+| Comms / Activity product | Notes + profile history only. Card Coming in Wave 5. |
 | Privacy suite | No consent, export, anonymise, unmerge, or privacy audit product. |
 
 ### 2.8 Must-not-claim (CURRENT)
@@ -175,9 +183,9 @@ Wave 1 **preserves** this gate. Do not change the entitlement **architecture** u
 | **TITLE** | Guest Profile Module — Wave 1 Shell + Directory + Information (Individuals) |
 | **PACKAGE** | PMS |
 | **PMS AREA** | Guests |
-| **SPEC STATUS** | **READY FOR REKIK REVIEW** |
-| **ENGINEERING STATUS** | **NOT STARTED** — **not** assigned until this Wave 1 Spec is accepted for handoff |
-| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. |
+| **SPEC STATUS** | **ACCEPTED** (Rekik 2026-09-14) |
+| **ENGINEERING STATUS** | **COMPLETE / MERGED** — issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z |
+| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model. Abel was not flagged. |
 
 ### 3.1 Business purpose
 
@@ -228,7 +236,7 @@ Establish a first-class Guest module shell and make **individual create / find /
 | Address lines, city, region, country, postal code | No | Yes | Yes |
 | VIP | No | Yes | Yes (Information and/or existing control) |
 | Notes (`guest_profiles.notes`) | No | Yes | Yes |
-| ID type / number / expiry | No | **No** (API + FO check-in only) | **Yes, preferred** as text; no image |
+| ID type / number / expiry | No | **Yes** (form + Information Identity panel; API + FO check-in) | **Yes** as text; no image — **delivered** |
 | Guest status | — | Detail deactivate control | May remain Admin-adjacent; not a Wave 5 privacy suite |
 
 ### 3.5 Acceptance criteria (testable)
@@ -254,6 +262,23 @@ Staff in the ACs are **authorised**: signed-in, property membership, package **p
 | **AC-W1-15** | Walk-in minimal create still works: **first name only**. | Aligns with current dialog copy and DB check. |
 | **AC-W1-16** | Invalid email is rejected when provided. | Existing server validation remains. |
 | **AC-W1-17** | Opening a guest from Directory does not require going through Reservations as the **only** path. | Guest module is the default operational path. Links from Reservations may remain. |
+
+#### Wave 1 AC results (DER after merge)
+
+DESIGN COMPLETION: **COMPLETE**. IMPLEMENTATION STATUS: **PASS**. Approved deviations: **NONE**.
+
+| ID | Result |
+|---|---|
+| **AC-W1-1** … **AC-W1-17** | All **IMPLEMENTED AS SPECIFIED / PASS** per the Wave 1 Design Execution Report |
+
+#### Wave 1 QA lanes recorded
+
+| Lane | Result | Notes |
+|---|---|---|
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; lock tests 5/5 PASS; eslint PASS. Browser QA-W1 / SEC-W1 **NOT RUN** in the developer environment. |
+| Independent QA | **PASS** | Rekik 2026-09-14 — [issue #66](https://github.com/NORUDEVGIT/NORU/issues/66#issuecomment-5662018639) and [PR #67](https://github.com/NORUDEVGIT/NORU/pull/67#issuecomment-5662020604). |
+
+`NOT RUN` is never `PASS`. Developer PARTIAL does not become PASS because Independent QA later passed.
 
 ### 3.6 QA (Wave 1)
 
@@ -310,9 +335,11 @@ Staff in the ACs are **authorised**: signed-in, property membership, package **p
 
 ### 3.10 Wave 1 exit
 
-Wave 1 may exit only when Rekik (or Abel) accepts the implemented wave against these ACs, Independent QA is recorded, and [../guests.md](../guests.md) CURRENT/EXPECTED is reconciled for Wave 1 surfaces. **Hotel UAT is not required to start Wave 2** but **is** required for **module COMPLETE**.
+Wave 1 **exited for engineering-gate purposes** after Independent QA PASS (Rekik 2026-09-14), human merge of PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67), issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED, and the Design Execution Report. This docs reconciliation updates [../guests.md](../guests.md) CURRENT/EXPECTED for Wave 1 surfaces.
 
-Passing Wave 1 does **not** start Wave 2 engineering automatically — Wave 2 remains **AWAITING PRIOR WAVE EXIT** plus the Wave 2 gate.
+**Hotel UAT is not required to start Wave 2** but **is** required for **module COMPLETE**.
+
+Passing Wave 1 does **not** start Wave 2 engineering automatically. Wave 2 still needs **explicit ungating**. A Wave 2 Preferences UX addendum may already be on a separate open docs PR (for example [#70](https://github.com/NORUDEVGIT/NORU/pull/70)); that addendum is product text for Wave 2 and must be kept if present on `main`. This reconciliation does not rewrite Waves 2–5 product intent.
 
 ---
 
@@ -322,8 +349,8 @@ Passing Wave 1 does **not** start Wave 2 engineering automatically — Wave 2 re
 |---|---|
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
 | **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING WAVE GATE** (prior wave exit) |
-| **Depends on** | Wave 1 exited |
+| **ENGINEERING STATUS** | **NOT STARTED / AWAITING EXPLICIT UNGATING** |
+| **Depends on** | Wave 1 engineering gate **exited** (2026-09-14). Wave 2 still needs **explicit ungating** — it does not start from this reconciliation. |
 
 ### 4.1 Locked requirements
 
@@ -497,20 +524,20 @@ When a later wave is ungated, its tech plan **must** include QA, Security, and R
 
 | This Spec does | This Spec does **not** |
 |---|---|
-| Record Rekik’s **APPROVED FOR DOCS** Guest Profile requirement | Open a GitHub issue |
-| Specify Wave 1 with testable ACs | Hand work to a Developer |
-| Lock Waves 2–5 product intent behind wave gates | Authorise Waves 2–5 engineering now |
+| Record Wave 1 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#66 / #67) | Claim the **module** is COMPLETE |
+| Keep Wave 1 ACs as the accepted contract | Reopen Wave 1 engineering |
+| Lock Waves 2–5 product intent behind wave gates | Authorise Waves 2–5 engineering now (explicit ungating still required) |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
-| Preserve the existing guest manage gate | Silently change entitlements or RLS roles |
+| Record that Wave 1 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
 
 ---
 
 ## Closing
 
-> **APPROVED FOR DOCS (Rekik 2026-09-14).**
+> **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#66 / #67).
 >
-> **Wave 1 Spec: READY FOR REKIK REVIEW.** Waves 2–5: **SPECIFIED / WAVE-GATED** — **ENGINEERING STATUS: NOT STARTED / AWAITING WAVE GATE**.
+> Waves 2–5: **SPECIFIED / WAVE-GATED** — **ENGINEERING STATUS: NOT STARTED / AWAITING EXPLICIT UNGATING**.
 >
-> **Not** automatic Engineering assignment until Wave 1 Spec is accepted for handoff.
+> The module is **not** COMPLETE. Hotel UAT is still required after Waves 2–5.
 >
 > Extend existing guest code. Create once → use everywhere → enrich.
