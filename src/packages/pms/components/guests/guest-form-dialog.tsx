@@ -33,11 +33,14 @@ import { cn } from "@/shared/lib/utils";
 import { ID_DOCUMENT_LABELS, ID_DOCUMENT_TYPES } from "@/packages/pms/lib/fo-check-in";
 import {
   createGuest,
+  createGuestDocumentUpload,
   findGuestDuplicates,
+  registerGuestDocument,
   updateGuest,
   type GuestProfile,
   type GuestSummary,
 } from "@/packages/pms/lib/guests.functions";
+import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { guestCreateBlocked } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 import {
@@ -46,9 +49,8 @@ import {
   GUEST_TITLE_LABELS,
   GUEST_TITLES,
   INDIVIDUAL_EMERGENCY_COPY,
-  INDIVIDUAL_IDENTITY_AFTER_SAVE_COPY,
-  INDIVIDUAL_IDENTITY_UPLOAD_COPY,
-  INDIVIDUAL_LINKING_AFTER_SAVE_COPY,
+  INDIVIDUAL_PARTIAL_CREATE_COPY,
+  INDIVIDUAL_STAGED_CREATE_COPY,
   RESTRICTION_SEVERITIES,
   RESTRICTION_SEVERITY_LABELS,
   validateEmergencyContacts,
@@ -58,7 +60,18 @@ import {
   type RestrictionSeverity,
 } from "@/packages/pms/lib/guest-profile-individual";
 import { GUEST_STATUSES, type GuestStatus } from "@/packages/pms/lib/guests.server";
-import { GuestFormIdentityUpload } from "@/packages/pms/components/guests/guest-form-identity-upload";
+import {
+  GuestFormIdentityUpload,
+  attachGuestDocumentFile,
+} from "@/packages/pms/components/guests/guest-form-identity-upload";
+import {
+  GuestFormStagedIdentity,
+  type StagedIdentityFile,
+} from "@/packages/pms/components/guests/guest-form-staged-identity";
+import {
+  GuestFormStagedLinks,
+  type StagedMasterLink,
+} from "@/packages/pms/components/guests/guest-form-staged-links";
 
 type EmergencyDraft = {
   name: string;
@@ -249,6 +262,9 @@ export function GuestFormDialog({
   const create = useServerFn(createGuest);
   const update = useServerFn(updateGuest);
   const checkDuplicates = useServerFn(findGuestDuplicates);
+  const startUpload = useServerFn(createGuestDocumentUpload);
+  const registerDocument = useServerFn(registerGuestDocument);
+  const submitLink = useServerFn(linkGuestAccount);
   const loadRules = useServerFn(getPmsSet3Snapshot);
   const rulesQuery = useQuery({
     queryKey: ["pms-set3-snapshot", restaurantId],
@@ -262,11 +278,19 @@ export function GuestFormDialog({
 
   const [form, setForm] = useState<GuestFormValues>(EMPTY);
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
+  const [stagedFiles, setStagedFiles] = useState<StagedIdentityFile[]>([]);
+  const [stagedLinks, setStagedLinks] = useState<StagedMasterLink[]>([]);
+  const [createdGuestId, setCreatedGuestId] = useState<string | null>(null);
+  const [followupErrors, setFollowupErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (open) {
       setForm(guest ? fromProfile(guest) : EMPTY);
       setDuplicates(null);
+      setStagedFiles([]);
+      setStagedLinks([]);
+      setCreatedGuestId(null);
+      setFollowupErrors([]);
     }
   }, [open, guest]);
 
@@ -320,27 +344,75 @@ export function GuestFormDialog({
     emergencyContacts: form.emergencyContacts,
   };
 
+  async function applyStagedFollowups(guestId: string) {
+    const remainingFiles: StagedIdentityFile[] = [];
+    const remainingLinks: StagedMasterLink[] = [];
+    const errors: string[] = [];
+
+    for (const item of stagedFiles) {
+      const attached = await attachGuestDocumentFile({
+        restaurantId,
+        guestId,
+        file: item.file,
+        kind: item.kind,
+        startUpload,
+        register: registerDocument,
+      });
+      if (!attached.ok) {
+        remainingFiles.push(item);
+        errors.push(attached.message);
+      }
+    }
+
+    for (const item of stagedLinks) {
+      try {
+        await submitLink({
+          data: { restaurantId, guestId, accountId: item.masterId, role: item.role },
+        });
+      } catch (error) {
+        remainingLinks.push(item);
+        errors.push(error instanceof Error ? error.message : "Link failed.");
+      }
+    }
+
+    setStagedFiles(remainingFiles);
+    setStagedLinks(remainingLinks);
+    setFollowupErrors(errors);
+    return errors.length === 0;
+  }
+
   const save = useMutation({
     mutationFn: async () => {
       if (guest) {
         await update({ data: { restaurantId, guestId: guest.id, guest: payload } });
-        return guest.id;
+        return { id: guest.id, complete: true as const };
       }
-      const res = await create({ data: { restaurantId, guest: payload } });
-      return res.id;
+      const guestId = createdGuestId
+        ? createdGuestId
+        : (await create({ data: { restaurantId, guest: payload } })).id;
+      setCreatedGuestId(guestId);
+      const complete = await applyStagedFollowups(guestId);
+      return { id: guestId, complete };
     },
-    onSuccess: (id) => {
-      toast.success(guest ? "Guest updated." : "Guest created.");
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["guests", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["guest-documents", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId] });
+      if (!result.complete) {
+        toast.error(INDIVIDUAL_PARTIAL_CREATE_COPY);
+        return;
+      }
+      toast.success(guest ? "Guest updated." : "Guest created.");
       onOpenChange(false);
-      onSaved?.(id);
+      onSaved?.(result.id);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const submit = useMutation({
     mutationFn: async () => {
+      if (createdGuestId) return [] as GuestSummary[];
       if (form.firstName.trim() === "") throw new Error("First name is required.");
       const emergencyError = validateEmergencyContacts(form.emergencyContacts);
       if (emergencyError) throw new Error(emergencyError);
@@ -673,9 +745,7 @@ export function GuestFormDialog({
             {guest ? (
               <GuestFormIdentityUpload restaurantId={restaurantId} guestId={guest.id} />
             ) : (
-              <p className="text-xs text-muted-foreground" data-testid="individual-identity-after-save">
-                {INDIVIDUAL_IDENTITY_AFTER_SAVE_COPY} {INDIVIDUAL_IDENTITY_UPLOAD_COPY}
-              </p>
+              <GuestFormStagedIdentity files={stagedFiles} onChange={setStagedFiles} />
             )}
           </Section>
 
@@ -854,18 +924,67 @@ export function GuestFormDialog({
           </Section>
 
           {guest ? null : (
-            <p className="text-xs text-muted-foreground" data-testid="individual-linking-after-save">
-              {INDIVIDUAL_LINKING_AFTER_SAVE_COPY}
-            </p>
+            <Section id="linking" title="Linking">
+              <p className="text-xs text-muted-foreground">{INDIVIDUAL_STAGED_CREATE_COPY}</p>
+              <GuestFormStagedLinks
+                restaurantId={restaurantId}
+                links={stagedLinks}
+                onChange={setStagedLinks}
+              />
+            </Section>
           )}
         </div>
+
+        {createdGuestId && followupErrors.length > 0 ? (
+          <div
+            className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4"
+            data-testid="individual-create-partial-failure"
+          >
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <AlertTriangle className="size-4" /> Guest created — remaining work failed
+            </p>
+            <p className="text-sm text-muted-foreground">{INDIVIDUAL_PARTIAL_CREATE_COPY}</p>
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {followupErrors.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                data-testid="individual-create-retry"
+                onClick={() => save.mutate()}
+                disabled={busy}
+              >
+                Retry remaining
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                data-testid="individual-create-open-profile"
+                onClick={() => {
+                  onOpenChange(false);
+                  onSaved?.(createdGuestId);
+                }}
+              >
+                Open guest
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
           <Button data-testid="guest-form-save" onClick={() => submit.mutate()} disabled={busy}>
-            {busy ? "Saving…" : guest ? "Save changes" : "Create guest"}
+            {busy
+              ? "Saving…"
+              : guest
+                ? "Save changes"
+                : createdGuestId
+                  ? "Retry remaining"
+                  : "Create guest"}
           </Button>
         </DialogFooter>
       </DialogContent>

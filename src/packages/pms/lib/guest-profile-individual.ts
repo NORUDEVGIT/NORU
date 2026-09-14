@@ -118,14 +118,26 @@ export const INDIVIDUAL_SPEC_AC_IDS = [...INDIVIDUAL_ACCEPTANCE_CRITERIA] as con
 export const INDIVIDUAL_IDENTITY_UPLOAD_COPY =
   "Identity files use the existing guest_documents store. Staff verify is not government verification or KYC.";
 
+export const INDIVIDUAL_STAGED_IDENTITY_COPY =
+  "Files chosen here are held until Create, then uploaded to guest_documents. This is not a second store.";
+
 export const INDIVIDUAL_IDENTITY_AFTER_SAVE_COPY =
-  "Document upload is available after this guest is saved. Identity files use guest_documents — no second store.";
+  "On Edit, identity files upload immediately to guest_documents. New Guest stages files until Create.";
 
 export const INDIVIDUAL_LINKING_COPY =
   "Link this individual to existing Company, Group or Travel Agent masters. Roles write the existing guest_account_links store.";
 
+export const INDIVIDUAL_STAGED_LINKING_COPY =
+  "Masters chosen here are held until Create, then written to guest_account_links. Guest id is required for the write.";
+
 export const INDIVIDUAL_LINKING_AFTER_SAVE_COPY =
-  "Linking is available after this guest is saved. The Relationships card reads the same guest_account_links store.";
+  "After save, Linking on Information still writes the same guest_account_links store.";
+
+export const INDIVIDUAL_PARTIAL_CREATE_COPY =
+  "This guest was created. Some documents or links did not finish. Retry below — this is not a full success.";
+
+export const INDIVIDUAL_STAGED_CREATE_COPY =
+  "One Create writes the guest, then any staged identity files (guest_documents) and masters (guest_account_links).";
 
 export const INDIVIDUAL_RESTRICTION_WARN_COPY =
   "This guest is restricted and/or blacklisted. This is a warning — stay create is not hard-blocked.";
