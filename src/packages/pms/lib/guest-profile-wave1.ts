@@ -122,7 +122,7 @@ export type GuestProfileCardSearch = {
 export function parseGuestProfileCardSearch(
   search: Record<string, unknown>,
 ): GuestProfileCardSearch {
-  const raw = typeof search.card === "string" ? search.card : undefined;
+  const raw = typeof search["card"] === "string" ? search["card"] : undefined;
   if (!raw) return {};
   const match = GUEST_PROFILE_CARDS.find((item) => item.id === raw);
   if (!match || !isGuestRequiredProfileCard(match.id)) return {};

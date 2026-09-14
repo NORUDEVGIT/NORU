@@ -36,7 +36,7 @@ export function GuestDirectoryWorkspace({
   membership: RestaurantMembership;
   compact?: boolean;
   /** Reopen this guest-required card after staff pick another guest. */
-  returnCard?: GuestProfileCardId;
+  returnCard?: GuestProfileCardId | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();

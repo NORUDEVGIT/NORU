@@ -11,6 +11,7 @@ import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identi
 import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import {
   GUEST_PROFILE_CARDS,
+  GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
   GUEST_PROFILE_TITLE,
   GUEST_PROFILE_TYPES,
@@ -33,7 +34,7 @@ export function GuestProfileWorkspace({
   membership: RestaurantMembership;
   guestId?: string;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
-  returnCard?: GuestProfileCardId;
+  returnCard?: GuestProfileCardId | undefined;
 }) {
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(
@@ -60,7 +61,11 @@ export function GuestProfileWorkspace({
     }
     setCard(next);
     if (guestId && isGuestRequiredProfileCard(next)) {
-      void navigate({ search: guestProfileCardSearch(next) });
+      void navigate({
+        to: GUEST_PROFILE_DETAIL_PATH,
+        params: { guestId },
+        search: guestProfileCardSearch(next),
+      });
     }
   }
 
@@ -151,7 +156,11 @@ export function GuestProfileWorkspace({
               onSectionChange={(next) => {
                 const nextCard = next === "preferences" ? "preferences" : "information";
                 setCard(nextCard);
-                void navigate({ search: guestProfileCardSearch(nextCard) });
+                void navigate({
+                  to: GUEST_PROFILE_DETAIL_PATH,
+                  params: { guestId },
+                  search: guestProfileCardSearch(nextCard),
+                });
               }}
             />
           ) : card === "information" || card === "preferences" ? (
