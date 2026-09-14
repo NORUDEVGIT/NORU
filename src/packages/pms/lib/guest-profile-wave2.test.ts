@@ -79,7 +79,12 @@ describe("Guest Profile Wave 2 lock", () => {
     assert.match(prefsCard, /guest-wave2-accessibility/);
     assert.match(prefsCard, /guest-wave2-special/);
     assert.match(prefsCard, /Open Property Setup/);
-    assert.match(detail, /guest-preferences-tab-demoted/);
+    assert.match(detail, /GuestPreferencesCard/);
+    assert.match(detail, /guest-detail-preferences-panel/);
+    assert.doesNotMatch(detail, /guest-preferences-tab-demoted/);
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    assert.match(shell, /onSectionChange/);
+    assert.match(shell, /section=\{detailSection\}/);
     assert.doesNotMatch(prefsCard, /pms_meal_plans/);
   });
 
