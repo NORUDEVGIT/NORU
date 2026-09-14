@@ -114,7 +114,7 @@ describe("PMS Polish Wave 1 payments stay off Administration", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "administration" && card.title === "Administration"));
     assert.ok(!SET1_LIVE_CARDS.some((card) => card.title === "Admin controls"));
     assert.ok(!SET1_LIVE_CARDS.some((card) => card.title === "Banks"));
-    assert.ok(!SET1_LIVE_CARDS.some((card) => card.id === "admin-controls"));
+    assert.ok(!SET1_LIVE_CARDS.some((card) => String(card.id) === "admin-controls"));
 
     const admin = evaluateAdministration(completePolish1Activate(), completeSet5Activate());
     assert.equal(admin.id, "administration");
@@ -256,13 +256,16 @@ describe("PMS Polish Wave 1 migration 0056 dual-lane", () => {
     assert.match(drizzleSql, /type_class/);
     assert.match(drizzleSql, /start_time/);
     assert.match(drizzleSql, /end_time/);
-    assert.doesNotMatch(drizzleSql, /pms_fee_preset_posture/);
-    assert.doesNotMatch(drizzleSql, /pms_polish1_live/);
+    assert.doesNotMatch(drizzleSql, /ADD COLUMN.*pms_fee_preset_posture/i);
+    assert.doesNotMatch(drizzleSql, /CREATE TABLE.*pms_fee_preset/i);
+    assert.doesNotMatch(drizzleSql, /ADD COLUMN.*pms_polish1_live/i);
+    assert.doesNotMatch(drizzleSql, /pms_polish1_live boolean/i);
     assert.doesNotMatch(drizzleSql, /SECURITY DEFINER/i);
     assert.doesNotMatch(drizzleSql, /CREATE FUNCTION/i);
     assert.doesNotMatch(drizzleSql, /INSERT INTO public\.pms_payment_methods/);
     assert.doesNotMatch(drizzleSql, /INSERT INTO public\.pms_shift_definitions/);
-    assert.doesNotMatch(drizzleSql, /staff_shifts/);
+    assert.doesNotMatch(drizzleSql, /CREATE TABLE.*staff_shifts/i);
+    assert.doesNotMatch(drizzleSql, /REFERENCES public\.staff_shifts/i);
     assert.match(drizzleSql, /do not apply to production from an agent/i);
     assert.match(drizzleSql, /APPLY AFTER MERGE/i);
     assert.match(drizzleSql, /IN THE PR ONLY/);

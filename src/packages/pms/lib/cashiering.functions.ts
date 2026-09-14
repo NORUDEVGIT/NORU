@@ -505,11 +505,11 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       if (activeCodes && activeCodes.length === 0) {
         return { ok: false, message: "No active payment methods. Configure them in Settings → Payment methods." };
       }
-      if (activeCodes && !allowCashieringTender(method, activeCodes)) {
+      if (activeCodes && !allowCashieringTender(normalized, activeCodes)) {
         return { ok: false, message: "That payment method is not active." };
       }
       const stored =
-        activeCodes?.find((code) => code === method || normalizeTenderCode(code) === normalized) ??
+        activeCodes?.find((code) => normalizeTenderCode(code) === normalized) ??
         (allowCashieringTender(normalized, activeCodes) ? normalized : "other");
       await supabaseAdmin
         .from("folio_transactions")

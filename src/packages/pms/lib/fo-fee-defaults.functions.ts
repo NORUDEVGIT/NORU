@@ -86,7 +86,7 @@ export const getFoFeeDefaults = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<{ defaults: FoFeeDefaults; canEdit: boolean }> => {
+    }): Promise<{ defaults: FoFeeDefaults; cancelFeeBasis: FeeBasis | ""; noshowFeeBasis: FeeBasis | ""; canEdit: boolean }> => {
       const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const loaded = await loadFeeRow(supabaseAdmin, data.restaurantId);
@@ -101,7 +101,7 @@ export const saveFoFeeDefaults = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<{ ok: true; defaults: FoFeeDefaults; auditWritten: boolean }> => {
+    }): Promise<{ ok: true; defaults: FoFeeDefaults; cancelFeeBasis: FeeBasis | ""; noshowFeeBasis: FeeBasis | ""; auditWritten: boolean }> => {
       const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
       if (!canEditFoFeeDefaults(me.role)) {
         throw new Error(FO_FEE_DEFAULTS_DENIED);

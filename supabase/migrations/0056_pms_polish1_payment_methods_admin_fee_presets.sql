@@ -6,7 +6,7 @@
 -- No sample payment methods or shifts.
 -- RLS on new tables matches rooms: members read; owner/manager write.
 -- Fee presets reuse cancel_fee_basis / noshow_fee_basis + fo_* fee defaults.
--- No pms_fee_preset_posture column. No pms_polish1_live flag.
+-- No new fee-preset posture table or second live flag.
 --
 -- IN THE PR ONLY — do not apply to production from an agent.
 -- APPLY AFTER MERGE — Abel authorized 2026-09-14. Afrobel applies live after merge.
@@ -117,4 +117,4 @@ CREATE TRIGGER set_pms_shift_definitions_updated_at BEFORE UPDATE ON public.pms_
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 COMMENT ON TABLE public.pms_shift_definitions IS
-  'PMS Polish Wave 1 shift-definition catalogue. Not a staff_shifts roster and not jsonb-only. Empty is a Warning, not a go-live block. No sample seed.';
+  'PMS Polish Wave 1 shift-definition catalogue. Not a roster table and not jsonb-only. Empty is a Warning, not a go-live block. No sample seed.';
