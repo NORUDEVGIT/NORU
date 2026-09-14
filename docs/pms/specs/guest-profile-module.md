@@ -5,25 +5,28 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67). Wave 2 **IMPLEMENTING** on `feature/72-guest-profile-wave-2` (#72). Waves 3–5 still **WAVE-GATED**. |
+| **STATUS** | Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67). Wave 2 **OPERATIONALLY ACCEPTED / closed** (#72 / #76, follow-up #79). Wave 3 **READY FOR ENGINEERING PLANNING**. Waves 4–5 still **WAVE-GATED**. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
-| **Wave 2 Spec** | **READY FOR ENGINEERING** — gate **OPENED**; Rekik approved the tech plan. Code is on the Wave 2 branch. Migration apply **held**. |
-| **Waves 3–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
+| **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED |
+| **Wave 3 Spec** | **READY FOR ENGINEERING PLANNING** — gate **OPENED** (Rekik 2026-09-14 via Advisor); Wave 2 exited |
+| **Waves 4–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Wave 1 complete. Wave 2 gate **OPENED** — **code** only after issue + tech plan + Rekik plan approval. Waves 3–5 are **not** automatic. |
-| **Product requirement** | Rekik 2026-09-14 — Wave 1 accepted and implemented; Wave 2 gate opened for planning |
+| **Engineering assignment** | Waves 1–2 complete. Wave 3 gate **OPENED** — **code** only after issue + tech plan + Rekik plan approval. Waves 4–5 are **not** automatic. |
+| **Product requirement** | Rekik 2026-09-14 — Waves 1–2 accepted and implemented; Wave 3 gate opened for planning |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
 > **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED completed; PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14T09:15:10Z. Wave 1 is **OPERATIONALLY ACCEPTED** / closed.
 >
-> **Wave 2 gate OPENED** (Rekik intent 2026-09-14 via Advisor). Wave 2 Spec: **READY FOR ENGINEERING PLANNING**. **Code** starts only after a GitHub issue, a Wave 2 tech plan, and Rekik plan approval. Waves 3–5 stay **WAVE-GATED**. The module is **not** COMPLETE.
+> **Wave 2 OPERATIONALLY ACCEPTED / closed** (Rekik 2026-09-14). Issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED completed; PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z; follow-up PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z.
+>
+> **Wave 3 gate OPENED** (Rekik 2026-09-14 via Advisor). Wave 3 Spec: **READY FOR ENGINEERING PLANNING**. **Code** starts only after a GitHub issue, a Wave 3 tech plan, and Rekik plan approval. Waves 4–5 stay **WAVE-GATED**. The module is **not** COMPLETE.
 >
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 are the planning contract. Waves 3–5 stay wave-gated.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted Wave 2 contract (now implemented on `main`). Wave 3 ACs in §5 are the planning contract. Waves 4–5 stay wave-gated.
 
 ---
 
@@ -72,8 +75,14 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 |---|---|
 | Server functions | `src/packages/pms/lib/guests.functions.ts` |
 | Access helpers | `src/packages/pms/lib/guests.server.ts` |
-| Wave 1 catalogue / card lock | `src/packages/pms/lib/guest-profile-wave1.ts` |
+| Wave 1 catalogue / card lock | `src/packages/pms/lib/guest-profile-wave1.ts` — Dashboard Overview + Stay History still `live: false`, `wave: 3` |
 | Wave 1 lock tests | `src/packages/pms/lib/guest-profile-wave1.test.ts` |
+| Wave 2 helpers | `src/packages/pms/lib/guest-profile-wave2.ts` |
+| Reservation reads | `src/packages/pms/lib/reservations.functions.ts` — `listReservations`, `getReservation` (`RESERVATION_SELECT`); **no** `listReservationsByGuest` |
+| Reservation dates / status | `src/packages/pms/lib/reservation-dates.ts` — `nightsBetween`, `RESERVATION_STATUSES` |
+| Folio reads | `src/packages/pms/lib/cashiering.functions.ts` — `listFolios`, `getFolio`, `getReservationFolio`; **no** `listFoliosByGuestId` |
+| Folio deep-link helper | `src/packages/pms/lib/fo-check-out.ts` — `cashieringRefundHref` → `/restaurant/pms/cashiering?tab=folios&folio=` |
+| Reservation detail (guest outbound) | `src/packages/pms/components/workspaces/reservation-detail-workspace.tsx` — **Open guest profile** only; no guest→reservation action |
 | Create / edit dialog | `src/packages/pms/components/guests/guest-form-dialog.tsx` |
 | VIP / status badges | `src/packages/pms/components/guests/guest-bits.tsx` |
 | 10-card shell | `src/packages/pms/components/workspaces/guest-profile-workspace.tsx` |
@@ -86,7 +95,10 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 | FR-9 reservations redirect | `src/routes/restaurant/pms/reservations.guests.$guestId.tsx` → `/restaurant/pms/guests/$guestId` |
 | Guest Services placeholder | `src/routes/restaurant/pms/guest-services.tsx` (requests / concierge — **not** this module) |
 | PMS catalogue | `src/packages/pms/lib/pms-modules.ts` — `guest-profile` (**partial**); `guest-services` still **planned** |
-| Tables | `guest_profiles`, `guest_preferences`, `guest_profile_history` (`drizzle/migrations/0012_create_guest_profiles.sql`; ID columns in `0041_fo_checkin_stepper.sql`) |
+| Guest tables | `guest_profiles`, `guest_preferences`, `guest_profile_history` (`drizzle/migrations/0012_create_guest_profiles.sql`; ID columns in `0041_fo_checkin_stepper.sql`; Wave 2 columns / `guest_documents` / `pms_preference_options` in `0051_pms_guest_profile_wave2.sql`) |
+| Stay table | `hotel_reservations` (`drizzle/migrations/0013_create_hotel_reservations.sql`) — required `guest_id` FK to `guest_profiles`; index `(restaurant_id, guest_id)` |
+| Companion junction | `fo_stay_companions` (`supabase/migrations/0045_fo_amd1_companions_catalogue.sql`) — additional named guests; **not** the Wave 3 primary stay source |
+| Folio tables | `guest_folios`, `folio_transactions` (`drizzle/migrations/0017_create_cashiering.sql`) — folio links `guest_id` + nullable `reservation_id`; balance is **derived**, not stored |
 
 ---
 
@@ -98,7 +110,7 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 |---|---|
 | `getGuestsAccess` | Returns `{ role, canManage }` where `canManage = canManageGuests(role)`. |
 | `listGuests` | Tenant-scoped list. Optional `search` (name / email / phone / `phone_normalized`), `status` (`active` \| `inactive`), `vipOnly`, `limit` (default 100, max 200). Ordered by `updated_at` desc. |
-| `getGuest` | Profile + preferences (or empty defaults) + last 100 `guest_profile_history` rows with actor names. |
+| `getGuest` | Profile + preferences (or empty defaults) + last 100 `guest_profile_history` rows with actor names. **Does not** query `hotel_reservations` or `guest_folios`. |
 | `createGuest` | Inserts `guest_profiles`; records `created`. First name required (Zod + DB check). |
 | `updateGuest` | Updates profile; records `profile_updated` and/or `vip_changed` when those fields change. |
 | `setGuestVip` / `setGuestStatus` | Dedicated toggles; history events `vip_changed` / `status_changed`. |
@@ -128,14 +140,14 @@ Honesty: cards that are not yet in-wave show **Coming in Wave N**. They must **n
 
 `created`, `profile_updated`, `vip_changed`, `status_changed`, `preference_updated`, `note_added`.
 
-This is **profile activity**, not reservation stay history.
+This is **profile activity**, not reservation stay history. Wave 2 also records merge / document / consent events on the same table. Stay rows do **not** appear here.
 
 ### 2.5 Live UI (post–Wave 1 `main`)
 
 | Surface | What staff see |
 |---|---|
 | `/restaurant/pms/guests` | Canonical Guest Profile directory. 10-card shell; landing card is **Directory**. Profile-type hook: Individual LIVE; Company / Group / TA disabled and labelled **not LIVE**. |
-| `/restaurant/pms/guests/$guestId` | Canonical profile. Shell defaults to **Information**. Directory + Information LIVE; other cards **Coming in Wave N** with no fabricated KPIs. |
+| `/restaurant/pms/guests/$guestId` | Canonical profile. Shell defaults to **Information**. Directory, Information, Identity & Documents, and Preferences are LIVE (Waves 1–2). **Dashboard Overview** and **Stay History** remain **Coming in Wave 3** (`guest-profile-wave1.ts`, `live: false`) with no fabricated KPIs. Loyalty / Relationships / Comms / Privacy stay Coming in Wave 4–5. |
 | FR-9 redirects | `/restaurant/guests`, `/restaurant/guests/$guestId`, and `/restaurant/pms/reservations/guests/$guestId` redirect to the canonical Guest Profile routes. |
 | Individual Directory | `listGuests`: search, status filter, VIP-only, New Guest, open row → profile route. Denied copy still: “Only owners and managers…”. |
 | `GuestFormDialog` | Create / edit: personal, address, VIP, notes, and ID **text** (type / number / expiry). Duplicate warning: **Open existing guest** / **Create anyway** / Back to form. **No merge.** **No upload.** |
@@ -160,10 +172,12 @@ Wave 1 **preserved** this inconsistency. It is a documented residual, not a Wave
 
 | Missing | Notes |
 |---|---|
-| Identity upload / mask / verify | Wave 2 branch: Identity card LIVE (upload / list / staff verify). ID numbers masked on Directory / Information. **Not** on `main` until the Wave 2 PR merges. Migration apply **held**. |
-| Preferences **card** complete | Wave 2 branch: Preferences card LIVE (Setup-owned options + Other + textareas). Information free-text tab demoted. **Not** on `main` until the Wave 2 PR merges. |
-| Controlled merge | Wave 2 branch: `mergeGuests` + explicit confirm. Wave 1 warn-only Open existing / Create anyway preserved. **Not** on `main` until the Wave 2 PR merges. |
-| Stay History KPIs from real reservations | History tab is profile events. Dashboard Overview card is Coming in Wave 3. |
+| Identity upload / mask / verify | **On `main` (Wave 2).** Identity card LIVE. Migration `0051` apply may still be **held** in some environments — then Identity degrades to an unavailable message. Not a Wave 3 gap. |
+| Preferences **card** complete | **On `main` (Wave 2).** Preferences card LIVE (Setup-owned options + Other + textareas). Not a Wave 3 gap. |
+| Controlled merge | **On `main` (Wave 2).** `mergeGuests` + explicit confirm. Reassigns `hotel_reservations.guest_id`; does **not** update `guest_folios.guest_id`. Wave 3 folio-by-guest reads must treat that residual honestly. |
+| Stay History from real reservations | Stay History card is **Coming in Wave 3**. Information **History** tab is profile events only. **No** `listReservationsByGuest` / `getGuestStayHistory`. |
+| Dashboard Overview KPIs | Dashboard card is **Coming in Wave 3**. No guest-scoped stay / folio KPI reader. Property-wide `getBookingsDashboard` / `getCashieringDashboard` are **not** this card. |
+| Quick actions Res / FO / Folio | **None** on Guest Profile. Reservation detail has inbound **Open guest profile**. Folio deep-link helper exists for Cashiering (`cashieringRefundHref`). |
 | Loyalty & Value real-derived | VIP boolean only. Card Coming in Wave 4. |
 | Company / Group / TA masters + Relationships | Switcher present and disabled / not LIVE. Wave 4. |
 | Comms / Activity product | Notes + profile history only. Card Coming in Wave 5. |
@@ -340,7 +354,7 @@ Wave 1 **exited for engineering-gate purposes** after Independent QA PASS (Rekik
 
 **Hotel UAT is not required to start Wave 2** but **is** required for **module COMPLETE**.
 
-Passing Wave 1 does **not** start Wave 2 **code**. Wave 2 gate was **OPENED** separately (Rekik intent 2026-09-14 via Advisor). Wave 2 Spec is **READY FOR ENGINEERING PLANNING** in §4. Code still waits for issue + tech plan + Rekik plan approval. Waves 3–5 product intent is unchanged and remains **WAVE-GATED**.
+Passing Wave 1 did **not** start Wave 2 **code**. Wave 2 later **exited** (issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) / PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79)) and is **OPERATIONALLY ACCEPTED** / closed. Wave 3 gate was **OPENED** separately (Rekik 2026-09-14 via Advisor). Wave 3 Spec is **READY FOR ENGINEERING PLANNING** in §5. Code still waits for issue + tech plan + Rekik plan approval. Waves 4–5 product intent is unchanged and remains **WAVE-GATED**.
 
 ---
 
@@ -349,8 +363,8 @@ Passing Wave 1 does **not** start Wave 2 **code**. Wave 2 gate was **OPENED** se
 | Field | Value |
 |---|---|
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
-| **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING PRIOR WAVE EXIT** |
+| **SPEC STATUS** | **ACCEPTED** + **IMPLEMENTED ON MAIN** |
+| **ENGINEERING STATUS** | **COMPLETE / MERGED** — #72 / #76 / #79 |
 | **Depends on** | Wave 1 exited |
 
 > **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).**
@@ -361,19 +375,15 @@ Passing Wave 1 does **not** start Wave 2 **code**. Wave 2 gate was **OPENED** se
 | **TITLE** | Guest Profile Module — Wave 2 Identity, Preferences, controlled merge, consent |
 | **PACKAGE** | PMS |
 | **PMS AREA** | Guests |
-| **SPEC STATUS** | **READY FOR ENGINEERING PLANNING** |
-| **ENGINEERING STATUS** | **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL** (gate **OPENED** by Rekik 2026-09-14; Wave 1 exited) |
+| **SPEC STATUS** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
+| **ENGINEERING STATUS** | **COMPLETE / MERGED** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED |
 | **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. |
-| **Depends on** | Wave 1 engineering gate **exited** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) / PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67)). Wave 2 gate **OPENED** (Rekik intent 2026-09-14 via Advisor). |
+| **Depends on** | Wave 1 engineering gate **exited** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) / PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67)). Wave 2 **exited**. |
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14), including **PRODUCT ADDENDUM — Preferences UX** (Rekik 2026-09-14) |
 
-> **Wave 2 gate OPENED (Rekik intent 2026-09-14 via Advisor).**
+> **Wave 2 OPERATIONALLY ACCEPTED / closed** (#72 / #76 / #79). Identity, Preferences, controlled merge, and consent are on `main`. This §4 contract stays the accepted Wave 2 record.
 >
-> Wave 1 is **OPERATIONALLY ACCEPTED** / closed (#66 / #67). This Wave 2 Functional Spec is **READY FOR ENGINEERING PLANNING**.
->
-> **Code starts only after** a GitHub issue, a Wave 2 tech plan, and **Rekik plan approval**. This Spec does **not** authorise implementation by itself.
->
-> Waves 3–5 remain **WAVE-GATED**. Do **not** treat this ungating as module COMPLETE or as Wave 2 implemented.
+> Wave 3 gate is **OPENED** separately (Rekik 2026-09-14 via Advisor). Waves 4–5 remain **WAVE-GATED**. The module is **not** COMPLETE.
 
 ### 4.1 Business purpose
 
@@ -634,11 +644,9 @@ Wave 2 may exit only when:
 
 **Hotel UAT is not required to start Wave 3** but **is** required for **module COMPLETE**.
 
-Passing this Spec / planning cycle does **not** start Wave 2 **code**. Code waits for issue + tech plan + Rekik plan approval.
+Wave 2 **exited** after merge of PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) and follow-up PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79). Passing Wave 2 does **not** start Wave 3 **code**. Wave 3 gate was **OPENED** separately (Rekik 2026-09-14 via Advisor). Wave 3 Spec is **READY FOR ENGINEERING PLANNING** in §5.
 
-Passing Wave 2 implementation does **not** start Waves 3–5 — they remain **WAVE-GATED**.
-
-This Spec does **not** claim Wave 2 implemented.
+Waves 4–5 remain **WAVE-GATED**.
 
 ---
 
@@ -646,36 +654,249 @@ This Spec does **not** claim Wave 2 implemented.
 
 | Field | Value |
 |---|---|
+| **TITLE** | Guest Profile Module — Wave 3 Stay History + honest 360 Dashboard |
+| **PACKAGE** | PMS |
+| **PMS AREA** | Guests |
+| **SPEC STATUS** | **READY FOR ENGINEERING PLANNING** |
+| **ENGINEERING STATUS** | **AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL** (gate **OPENED** by Rekik 2026-09-14 via Advisor; Wave 2 exited) |
+| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). Folio jumps reuse existing Cashiering routes / access — do **not** invent a Guest-owned folio writer. No new entitlement model unless Abel-flagged. |
+| **Depends on** | Wave 2 engineering gate **exited** (issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) / PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79)). Wave 3 gate **OPENED** (Rekik 2026-09-14 via Advisor). |
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
-| **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING WAVE GATE** |
-| **Depends on** | Wave 2 exited |
 
-### 5.1 Locked requirements
+> **Wave 3 gate OPENED (Rekik 2026-09-14 via Advisor).**
+>
+> Wave 2 is **OPERATIONALLY ACCEPTED** / closed (#72 / #76 / #79). This Wave 3 Functional Spec is **READY FOR ENGINEERING PLANNING**.
+>
+> **Code starts only after** a GitHub issue, a Wave 3 tech plan, and **Rekik plan approval**. This Spec does **not** authorise implementation by itself.
+>
+> Waves 4–5 remain **WAVE-GATED**. Do **not** treat this ungating as module COMPLETE or as Wave 3 implemented.
+
+### 5.1 Business purpose
+
+Give authorised staff an honest **Stay History** of real reservations for this individual and an honest **Dashboard Overview** of stay-derived figures — **extending** existing `hotel_reservations` / folio readers, not inventing a second stay store or fake KPIs.
+
+Wave 3 is the guest-side **read** of stays that Reservations and Front Office already operate. It is **not** a new reservation product, **not** Cashiering, **not** Loyalty & Value (Wave 4), and **not** the property-wide PMS Dashboard at `/restaurant/pms/dashboard`.
+
+### 5.2 CURRENT behaviour (Wave 3 surfaces — code wins)
+
+Grounded in `main` after Wave 2 merge (`0f9356b`). **Code wins.**
+
+| Surface | CURRENT |
+|---|---|
+| **Stay History card** | `GUEST_PROFILE_CARDS` id `stay-history`: `live: false`, `wave: 3`. Shell renders `ComingCard`: *“Coming in Wave 3. Stay history will list real reservations for this guest. This card does not invent stays.”* |
+| **Dashboard Overview card** | id `dashboard`: `live: false`, `wave: 3`. `ComingCard`: *“Coming in Wave 3. Real stay figures will appear here only when they can be derived from reservations. Nothing is shown yet.”* No KPI numbers. |
+| **Information History tab** | `guest-detail-workspace.tsx` lists `guest_profile_history` (create / update / VIP / status / preference / note / Wave 2 merge / document / consent). **Not** reservation stays. |
+| **`getGuest`** | Profile + preferences + last 100 profile-history rows. **No** `hotel_reservations` or `guest_folios` query. |
+| **Guest-scoped stay API** | **Does not exist.** No `listReservationsByGuest`, `getGuestStayHistory`, or `listFoliosByGuestId`. |
+| **Reservation list by guest** | `listReservations` may fall back to `hotel_reservations.guest_id IN (…)` when search matches guest names — a **Reservations search** path, not a Guest Profile stay list. |
+| **Stay store** | `hotel_reservations` (`0013`). Required `guest_id` FK to `guest_profiles`. Fields already selected by `RESERVATION_SELECT`: `confirmation_number`, `arrival_date`, `departure_date`, `status`, `room_type_id` / `room_types.name`, `room_id` / `hotel_rooms.room_number`, `rate_plan_id`, `currency`, `room_subtotal` (nullable), `nightly_rate_snapshot`, `priced_at`. Statuses: `pending`, `confirmed`, `cancelled`, `checked_in`, `checked_out`, `no_show`. Nights are **derived** via `nightsBetween(arrival_date, departure_date)` — not a stored column. |
+| **Companions** | `fo_stay_companions` links additional `guest_id`s to a reservation. Wave 3 locked source is **`hotel_reservations.guest_id`** (primary guest). Companion-only stays are **out** unless the tech plan documents including that junction — never invent rows. |
+| **Folio store** | `guest_folios` + `folio_transactions` (`0017`). Folio opens on check-in (or `initializeFolio`). **No stored balance** — `folio_balance()` / `totals()` sum transaction amounts. `getReservationFolio` returns `{ id, folioNumber, balance }` **or `null`** if none. `listFolios` is property-wide (limit 200), not guest-scoped. `transfersSupported: false`. |
+| **Reservation amounts** | `room_subtotal` is a **quoted** priced subtotal when a rate plan was applied; **nullable** if unpriced. There is **no** reservation `total_amount` or `deposit_amount`. Deposit lives on `fo_checkin_progress` and/or folio `deposit` lines. |
+| **Quick actions on Guest Profile** | **None.** No jump to reservation, FO, or folio. |
+| **Inbound guest link** | Reservation detail and FO stay lists link **to** Guest Profile (`/restaurant/pms/reservations/guests/$guestId` → canonical). One-way today. |
+| **Existing jump targets** | Reservation: `/restaurant/pms/reservations/$reservationId`. Front Office: `/restaurant/pms/front-office` (optional `?tab=`). Folio: `/restaurant/pms/cashiering?tab=folios&folio={folioNumber}` via `cashieringRefundHref`. Legacy `/restaurant/cashiering/folios/$folioId` also exists — tech plan picks the **existing** Cashiering surface; do not invent a Guest folio page. |
+| **Merge residual** | `mergeGuests` reassigns `hotel_reservations.guest_id` to the survivor; it does **not** update `guest_folios.guest_id`. Folio amounts for a merged guest must be derived honestly (prefer reservation → `getReservationFolio`, not a silent guest_id-only folio sum that misses reassigned stays). |
+
+#### Must-not-claim (CURRENT)
+
+- Guest Profile does **not** list stays today.
+- Dashboard Overview does **not** show stay counts, nights, or revenue.
+- Profile History is **not** stay history.
+- `getBookingsDashboard` / `getCashieringDashboard` / `getRoomsDashboard` are **property-wide** — not this guest’s 360.
+- No LIVE OTA stay feed, payment-gateway settlement total, or classic nightly room-and-tax night-audit revenue as a Guest KPI.
+
+### 5.3 EXPECTED behaviour (Wave 3)
+
+| Area | Expected |
+|---|---|
+| **Stay History card** | Operational for the selected individual. Lists **real** `hotel_reservations` rows where `guest_id` is this guest (same property). Each row shows confirmation number, arrival / departure dates, status, and room / room type **as the reservation already stores** (`room_types.name`; `hotel_rooms.room_number` when `room_id` is set — otherwise honest unassigned, not a fake room). Empty state if none — **no sample / demo / invented stays**. |
+| **Stay source** | Reuse `hotel_reservations` and existing reservation readers (`listReservations` / `getReservation` / `RESERVATION_SELECT` or an equivalent **extension**). **No** second stay table. **No** invented LIVE OTA reservations. |
+| **Dashboard Overview card** | Operational 360 for this guest. KPIs that appear are **real-derived** from that stay set and from existing folio / reservation amounts **only if those amounts exist**. Prefer **stays and nights** first if revenue is not ready. If a metric cannot be derived honestly, **omit it** or label **not available** — **never** a fake number. |
+| **Quick actions** | From the guest profile, authorised staff can open the **existing** Reservation detail, Front Office, and Folio surfaces **when those records exist**. Hidden or disabled when they do not. No invented “open folio” success when `getReservationFolio` would return `null`. |
+| **Profile-event History** | Information History tab (Waves 1–2 `guest_profile_history`) **remains**. It must **not** be relabelled or presented as Stay History. |
+| **Access** | Preserve CURRENT `canManageGuests` / `requireGuestManager` / RLS behaviour unless Abel-flagged. Stay and folio reads stay staff-only and tenant-scoped. |
+| **Reuse** | Extend guests + reservation / folio **read** paths. Do **not** introduce a parallel individual guest table, a new package, or a Guest-owned reservation writer. |
+| **Honesty** | Cards for Waves 4–5 stay **Coming in Wave N**. No fabricated loyalty points. Do not claim Wave 3 implemented from this Spec. |
+
+### 5.4 Locked requirements
 
 | Theme | EXPECTED |
 |---|---|
-| **Stay History** | List stays from **real** `hotel_reservations` (or the CURRENT reservation tables on `main`) for this `guest_id`. Dates, status, room / type as the reservation already stores. Empty state if none — **not** invented stays. |
-| **Dashboard Overview KPIs** | Real-derived from those stays and existing folio / reservation amounts **only if those amounts exist**. If a metric cannot be derived honestly, omit it or label **not available** — **never** a fake number. |
+| **Stay History** | List stays from **real** `hotel_reservations` (the CURRENT reservation table on `main`) for this `guest_id`. Dates, status, room / type as the reservation already stores. Empty state if none — **not** invented stays. |
+| **Dashboard Overview KPIs** | Real-derived from those stays and existing folio / reservation amounts **only if those amounts exist**. If a metric cannot be derived honestly, omit it or label **not available** — **never** a fake number. Prefer stays / nights first if revenue is not ready. |
 | **Quick actions** | From the guest profile, authorised staff can jump to Reservation, Front Office, and Folio **when those records exist**. Disabled / hidden when they do not. No invented “open folio” success. |
+| **History separation** | Profile-event History from Waves 1–2 remains available and is **not** presented as stay history. |
 
-### 5.2 Out of Wave 3
+### 5.5 KPI honesty matrix
 
-Masters, loyalty product, comms, privacy suite, OTA, nightly NA claims.
+| KPI | Honest on `main`? | Source / rule |
+|---|---|---|
+| **Stay count** | **Yes** | `COUNT` of `hotel_reservations` for this `guest_id` (same property). Zero is honest. |
+| **Nights** | **Yes** | Sum of `nightsBetween(arrival_date, departure_date)` per stay. Do not invent a nights column. |
+| **Status breakdown** (upcoming / in-house / checked out / cancelled / no-show) | **Yes** | Reservation `status` (+ dates if the tech plan splits upcoming vs past). Empty buckets may show **0** or be omitted — not a fake “12 stays”. |
+| **Quoted room total** | **Partial** | Sum `room_subtotal` **only where NOT NULL**. Label as **quoted / priced room total**, not posted revenue. If every row is null, **omit** or **not available**. |
+| **Posted folio charges / credits / balance** | **Partial** | `guest_folios` + `folio_transactions` / `getReservationFolio` **when a folio exists**. Folios typically exist after check-in / `initializeFolio`. No folio → **not available**, not `0.00` presented as “settled”. |
+| **Outstanding balance** | **Partial** | Derived open-folio balance only. Meaningless without a folio. |
+| **Deposits collected** | **Partial** | Folio `deposit` lines and/or `fo_checkin_progress.deposit_amount` **if** the tech plan can name the source. Otherwise omit. |
+| **Lifetime “true revenue”** | **Not a single honest source** | Quoted `room_subtotal` ≠ posted folio charges (adjustments, extras, refunds). Do **not** ship one invented “lifetime spend”. |
+| **Folio transfers** | **N/A** | `transfersSupported: false`. Do not show transfer KPIs. |
+| **Loyalty points / OTA / gateway / classic NA revenue** | **Does not exist** | Omit. Never invent. |
 
-### 5.3 Exit
+**Default Dashboard set (locked preference):** show **stays** and **nights** (and optional honest status counts) first. Add amount KPIs only when the source row exists and the label matches the source (quoted vs posted).
 
-Real stay history + honest KPIs + working quick actions; Independent QA recorded.
+### 5.6 Quick actions honesty
 
-### 5.4 Wave 3 AC seeds
+| Action | When enabled | Target (existing) | When hidden / disabled |
+|---|---|---|---|
+| **Open reservation** | At least one `hotel_reservations` row for this `guest_id` | `/restaurant/pms/reservations/$reservationId` for that stay (or the selected / current / next stay — tech plan names the picker) | Zero reservations |
+| **Open Front Office** | An in-house or operationally relevant stay exists (`checked_in`, or arrivals/departures the FO surface already lists) | `/restaurant/pms/front-office` (optional `?tab=` the tech plan maps to an **existing** FO tab) | No such stay |
+| **Open folio** | `getReservationFolio` (or equivalent) returns a folio for that stay | `/restaurant/pms/cashiering?tab=folios&folio={folioNumber}` (or the existing folio detail the tech plan names) | No folio opened — **do not** toast “folio opened” or navigate to an empty success |
 
-| ID | Criterion |
+Quick actions **read** existing records. They do **not** create a reservation, check anyone in, or open a folio as a side effect of the click.
+
+### 5.7 Stay History field register
+
+| Field | Required | CURRENT store | Wave 3 Stay History |
+|---|---|---|---|
+| Confirmation number | **Yes** | `hotel_reservations.confirmation_number` | Yes — must match Reservations detail |
+| Arrival date | **Yes** | `arrival_date` | Yes |
+| Departure date | **Yes** | `departure_date` | Yes |
+| Nights | Derived | `nightsBetween` | Yes if shown — same helper / same dates |
+| Status | **Yes** | `status` (`pending` … `no_show`) | Yes — same labels Reservations / FO already use |
+| Room type | **Yes** | `room_types.name` via `room_type_id` | Yes |
+| Room number | No | `hotel_rooms.room_number` when `room_id` set | Show number **or** honest unassigned — never invent a room |
+| Quoted room subtotal | No | `room_subtotal` nullable | Optional; omit / not available if null |
+| Folio number / balance | No | `guest_folios` / `getReservationFolio` | Optional; only if folio exists |
+| Profile-history event type | — | `guest_profile_history` | **Not** a Stay History column |
+
+### 5.8 Out of Wave 3
+
+| Out | Belongs |
 |---|---|
-| **AC-W3-1** | A guest with a known reservation shows that stay on Stay History with confirmation number and dates matching Reservations. |
-| **AC-W3-2** | A guest with zero reservations shows an honest empty Stay History — no sample rows. |
-| **AC-W3-3** | Dashboard KPIs that appear are traceable to reservations / folios; any card without data shows empty / not available. |
-| **AC-W3-4** | Quick action to an in-house or upcoming reservation opens the existing PMS reservation / FO / folio surface. |
-| **AC-W3-5** | Profile-event History from Waves 1–2 remains available and is not presented as stay history. |
+| Company / Group / TA master CRUD | Wave 4 |
+| Relationships | Wave 4 |
+| Loyalty & Value product / points | Wave 4 |
+| Comms / Activity hub | Wave 5 |
+| Export / anonymise / unmerge / privacy audit | Wave 5 |
+| Companion-only stays as a required Stay History source | Out unless the tech plan documents `fo_stay_companions`; default is primary `guest_id` |
+| Inventing LIVE OTA / channel-manager stays | Never invent |
+| Payment-gateway settlement totals | Never invent |
+| Classic nightly room-and-tax night-audit revenue as a Guest KPI | Never invent |
+| Fake KPIs, sample stays, demo occupancy / spend | Never invent |
+| Property-wide PMS Dashboard rewrite (`/restaurant/pms/dashboard`) | Separate surface — out |
+| Guest-owned reservation / folio **writers** (create stay, post charge, open folio on click) | Out — read + jump only |
+| Folio-to-folio transfers | `transfersSupported: false` |
+| Offline-first Guest UX | Out of this module |
+| Sales & Events group blocks / allotments | Out of this module |
+| Entitlement-architecture redesign | Flag Abel; not assumed |
+| Wave 3 **code** from this Spec alone | Needs issue + tech plan + Rekik plan approval |
+
+### 5.9 Acceptance criteria (testable)
+
+Staff in the ACs are **authorised**: signed-in, property membership, package **pms**, and they pass the existing guest manage gate. “Denied staff” fail that gate or lack `pms`.
+
+| ID | Criterion | Pass |
+|---|---|---|
+| **AC-W3-1** | A guest with a **known reservation** shows that stay on **Stay History** with **confirmation number** and **dates** matching Reservations. | Open the same stay on `/restaurant/pms/reservations/$reservationId`. Confirmation, arrival, and departure match exactly. Source is `hotel_reservations` for this `guest_id`. |
+| **AC-W3-2** | A guest with **zero** reservations shows an **honest empty** Stay History — **no sample rows**. | Copy states there are no stays (or equivalent). No demo confirmation numbers, no invented dates. |
+| **AC-W3-3** | Dashboard KPIs that **appear** are **traceable** to reservations / folios; any metric without data shows **empty / not available**. | Each visible number can be recalculated from `hotel_reservations` and/or existing folio amounts. No placeholder “12 stays / $4,500”. |
+| **AC-W3-4** | Quick action to an **in-house or upcoming** reservation opens the **existing** PMS reservation / FO / folio surface. | Click lands on `/restaurant/pms/reservations/$reservationId` and/or `/restaurant/pms/front-office` and/or the existing folio route for **that** record. No new Guest folio page required. |
+| **AC-W3-5** | Profile-event **History** from Waves 1–2 remains available and is **not** presented as stay history. | Information History tab still lists `guest_profile_history`. Stay History is a separate card. Profile events are not retitled “stays”. |
+| **AC-W3-6** | Stay row shows **status** and **room / type** as the reservation stores. | Status matches Reservations. Room type name matches. Room number appears only when `room_id` is assigned; otherwise honest unassigned — no invented room. |
+| **AC-W3-7** | **Stay count** and **nights** appear on Dashboard when stays exist; nights use arrival / departure (same `nightsBetween` rule Reservations uses). | Two-night stay counts as 2. Zero stays → 0 or empty, not a fake average LOS. |
+| **AC-W3-8** | An **amount** KPI is shown **only** when `room_subtotal` and/or folio totals exist; otherwise the metric is **omitted** or labelled **not available**. | Unpriced reservation (`room_subtotal` null, no folio) does not display `0.00` as revenue. Quoted vs posted is labelled if both could appear. |
+| **AC-W3-9** | If revenue cannot be derived honestly, Dashboard still ships **stays / nights** (or honest empty) — it does **not** invent spend to fill the card. | Revenue slot omitted or “not available”. Stays/nights remain the primary figures. |
+| **AC-W3-10** | Quick actions are **hidden or disabled** when the target record does **not** exist. | Guest with no reservation: no enabled Open reservation. Guest with reservation but no folio: Open folio hidden/disabled. No dead-end “success”. |
+| **AC-W3-11** | **No invented “open folio” success.** | When `getReservationFolio` would be `null`, the control does not claim a folio exists and does not create one as a side effect. |
+| **AC-W3-12** | Stay History does **not** use profile-history rows as stays. | A guest with notes / merge / consent events and **zero** reservations still has empty Stay History. Those events remain on Information History. |
+| **AC-W3-13** | Stays are **tenant-scoped**. | Property 2 does not see property 1 reservations for the same person-shaped data. `restaurantId` from the client is not trusted alone. |
+| **AC-W3-14** | **No** second stay table and **no** parallel guest master. | Diff extends existing `hotel_reservations` / folio reads. No `guest_stays` rewrite store. |
+| **AC-W3-15** | Waves 4–5 cards stay **Coming in Wave N** with **no fabricated** loyalty / comms metrics. | Loyalty does not show invented points. Company / Group / TA remain not LIVE. |
+| **AC-W3-16** | Denied staff cannot read another guest’s stays or folio amounts through the new Guest surfaces. | Same gate as `getGuest` / guest manage. No new public PII route. |
+| **AC-W3-17** | Wave 3 does **not** invent LIVE OTA stays, gateway settlement, or classic nightly NA revenue. | No “channel stay” or “NA room+tax total” KPI unless that source already exists on `main` for this guest (it does not). |
+
+### 5.10 QA (Wave 3)
+
+`NOT RUN` is never `PASS`. Live PMS UI that is not exercised stays **NOT VERIFIED**.
+
+| ID | Check | Notes |
+|---|---|---|
+| **QA-W3-1** | Authorised happy path: Directory → open guest with a known reservation → Stay History shows that confirmation + dates. | Browser, signed-in PMS session. Compare to Reservations detail. |
+| **QA-W3-2** | Guest with **zero** reservations: Stay History empty-honest; Dashboard stays/nights 0 or empty; no sample rows. | |
+| **QA-W3-3** | Stay row: status + room type match Reservations; unassigned room is honest. | Include one assigned and one unassigned stay if available. |
+| **QA-W3-4** | Dashboard: stays and nights match the Stay History set (`nightsBetween`). | |
+| **QA-W3-5** | Amount KPI: unpriced stay (null `room_subtotal`, no folio) is omitted or **not available** — not a fake `0.00` revenue. | |
+| **QA-W3-6** | Amount KPI: when `room_subtotal` and/or folio totals exist, the number matches that source and is labelled quoted vs posted. | |
+| **QA-W3-7** | Quick action Open reservation lands on the existing reservation detail for that id. | |
+| **QA-W3-8** | In-house stay: Open Front Office reaches `/restaurant/pms/front-office` (or documented existing tab). | Skip with **NOT RUN** if no in-house stay in the environment. |
+| **QA-W3-9** | Folio exists: Open folio reaches existing Cashiering folio surface. Folio missing: control hidden/disabled — no invented success. | |
+| **QA-W3-10** | Information History tab still shows profile events; those events are not on Stay History. | Guest with notes/merge/consent and with/without stays. |
+| **QA-W3-11** | Waves 4–5 cards still Coming in Wave N; no fabricated KPIs. | Screenshot + note. |
+| **QA-W3-12** | `tsc --noEmit` (or project equivalent) on the implementation PR. | Developer lane. |
+| **QA-W3-13** | Independent QA after Developer QA. | Required before Wave 3 exit. Hotel UAT is **module** DoD, not Wave 3 alone. |
+
+### 5.11 Security (Wave 3)
+
+| ID | Check |
+|---|---|
+| **SEC-W3-1** | Unauthenticated visit to Guest canonical routes (including any new stay / KPI reader URL) redirects to login. |
+| **SEC-W3-2** | Membership **without** package `pms` cannot use Stay History / Dashboard / quick actions. |
+| **SEC-W3-3** | Staff who fail `canManageGuests` / `requireGuestManager` cannot read another guest’s stays or folio amounts through Guest Profile. |
+| **SEC-W3-4** | Tenant isolation: stay and folio reads re-derive `restaurantId` from membership. Guest A of property 1 is not returned for property 2. |
+| **SEC-W3-5** | No new public / customer route exposes stay lists, folio balances, or confirmation numbers. |
+| **SEC-W3-6** | Quick actions only navigate to surfaces the staff can already open; they do not bypass Cashiering / FO access. |
+| **SEC-W3-7** | Do not log full folio ledgers or ID numbers in client telemetry if that channel does not already. |
+| **SEC-W3-8** | RLS / role model unchanged unless Abel-flagged. Receptionist vs owner/manager inconsistency remains **documented**, not silently “fixed”. |
+
+### 5.12 Regression (Wave 3)
+
+| ID | Check |
+|---|---|
+| **REG-W3-1** | Wave 1 Directory / Information create / find / edit still work on the same routes. |
+| **REG-W3-2** | Wave 2 Identity / Preferences / merge / consent still work. Merge still reassigns `hotel_reservations.guest_id`. |
+| **REG-W3-3** | Information History tab still lists `guest_profile_history` and is not replaced by Stay History. |
+| **REG-W3-4** | Reservations list / detail and FO arrivals / in-house / departures still resolve `guest_profiles` names / VIP. |
+| **REG-W3-5** | `getReservation`, `listReservations`, and `getReservationFolio` remain the reservation / folio readers — no second store. |
+| **REG-W3-6** | Inbound **Open guest profile** from reservation detail / FO still reaches the canonical Guest route. |
+| **REG-W3-7** | Property PMS Dashboard (`/restaurant/pms/dashboard`) is unchanged. Guest Dashboard Overview is a different card. |
+| **REG-W3-8** | Guest Services placeholder remains requests / concierge — not this module. |
+| **REG-W3-9** | Company / Group / TA remain not LIVE. Waves 4–5 cards stay honest placeholders. |
+| **REG-W3-10** | No new package; no Back Office guest master; no second `guest_profiles` or `hotel_reservations` table. |
+| **REG-W3-11** | Distribution / OTA labels unchanged — this wave must not add “live channel” claims. |
+| **REG-W3-12** | Cashiering `transfersSupported: false` unchanged. Wave 3 must not claim folio transfers. |
+
+### 5.13 Wave 3 permissions (summary)
+
+| Check | Rule |
+|---|---|
+| Package | **pms** |
+| Module access | Existing `front_office` role check inside `requireGuestManager` |
+| Manage flag | Existing `getGuestsAccess` → `canManageGuests` |
+| Reservation / FO / folio jump | Existing routes and their existing access checks. Guest Wave 3 does **not** widen Cashiering or FO entitlements. |
+| RLS | Existing owner / manager policies on guest tables; existing reservation / folio policies unchanged unless Abel-flagged |
+| Wave 3 change | New guest-scoped **reads** use the same chain. **Flag Abel** if a new entitlement type or RLS role is proposed. |
+
+### 5.14 Wave 3 exit
+
+Wave 3 may exit only when:
+
+1. Rekik (or Abel) accepts the implemented wave against **AC-W3-1 … AC-W3-17**.
+2. Independent QA is recorded (`NOT RUN` is never `PASS`).
+3. [../guests.md](../guests.md) CURRENT / EXPECTED is reconciled for Stay History, Dashboard Overview, and quick actions.
+4. Stay History lists only real `hotel_reservations` for that `guest_id`; empty is honest.
+5. Dashboard KPIs that appear are traceable; missing amounts are omitted or **not available**; stays/nights ship first if revenue is not ready.
+6. Quick actions open existing Res / FO / Folio surfaces only when records exist.
+7. Profile-event History remains and is not presented as stay history.
+8. Design Execution Report records approved deviations (or **NONE**).
+
+**Hotel UAT is not required to start Wave 4** but **is** required for **module COMPLETE**.
+
+Passing this Spec / planning cycle does **not** start Wave 3 **code**. Code waits for issue + tech plan + Rekik plan approval.
+
+Passing Wave 3 implementation does **not** start Waves 4–5 — they remain **WAVE-GATED**.
+
+This Spec does **not** claim Wave 3 implemented.
 
 ---
 
@@ -761,9 +982,9 @@ Full hub + privacy finish + Independent QA; property ready for hotel UAT. **Modu
 
 ---
 
-## 8. Cross-wave QA / security / regression (Waves 3–5)
+## 8. Cross-wave QA / security / regression (Waves 4–5)
 
-Wave 2 QA / Security / Regression live in §4.10–§4.12 at Wave 1 depth. When a later wave is ungated, its tech plan **must** include the same depth. Until then, these rules hold:
+Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. When a later wave is ungated, its tech plan **must** include the same depth. Until then, these rules hold:
 
 | Rule | Apply |
 |---|---|
@@ -784,11 +1005,12 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12 at Wave 1 depth. When 
 |---|---|
 | Record Wave 1 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#66 / #67) | Claim the **module** is COMPLETE |
 | Keep Wave 1 ACs as the accepted contract | Reopen Wave 1 engineering |
-| Record Wave 2 Spec as **READY FOR ENGINEERING PLANNING** (gate OPENED) | Authorise Wave 2 **code** (still needs issue + tech plan + Rekik plan approval) |
-| Lock Waves 3–5 product intent behind wave gates | Ungate or authorise Waves 3–5 engineering |
-| Require extending current guest code | Authorise a rewrite or a new guest package |
+| Record Wave 2 as **OPERATIONALLY ACCEPTED / closed** (#72 / #76 / #79) | Reopen Wave 2 engineering |
+| Record Wave 3 Spec as **READY FOR ENGINEERING PLANNING** (gate OPENED) | Authorise Wave 3 **code** (still needs issue + tech plan + Rekik plan approval) |
+| Lock Waves 4–5 product intent behind wave gates | Ungate or authorise Waves 4–5 engineering |
+| Require extending current guest / reservation / folio **reads** | Authorise a rewrite, a new stay table, or invented KPIs |
 | Record that Wave 1 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
-| Incorporate Preferences UX addendum (Rekik 2026-09-14) | Invent Property Setup catalogue rows or global enums |
+| Incorporate Preferences UX addendum (Rekik 2026-09-14) | Invent Property Setup catalogue rows, global enums, LIVE OTA stays, or fake spend |
 
 ---
 
@@ -796,10 +1018,12 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12 at Wave 1 depth. When 
 
 > **Wave 1 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#66 / #67). Wave 1 is OPERATIONALLY ACCEPTED / closed.
 >
-> **Wave 2 Spec: READY FOR ENGINEERING PLANNING.** Gate **OPENED** (Rekik intent 2026-09-14 via Advisor). **ENGINEERING STATUS: AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL.** Not implemented.
+> **Wave 2 OPERATIONALLY ACCEPTED / closed** (#72 / #76 / #79).
 >
-> Waves 3–5: **SPECIFIED / WAVE-GATED**.
+> **Wave 3 Spec: READY FOR ENGINEERING PLANNING.** Gate **OPENED** (Rekik 2026-09-14 via Advisor). **ENGINEERING STATUS: AWAITING ISSUE + TECH PLAN + REKIK PLAN APPROVAL.** Not implemented.
 >
-> The module is **not** COMPLETE. Hotel UAT is still required after Waves 2–5.
+> Waves 4–5: **SPECIFIED / WAVE-GATED**.
+>
+> The module is **not** COMPLETE. Hotel UAT is still required after Waves 3–5.
 >
 > Extend existing guest code. Create once → use everywhere → enrich.
