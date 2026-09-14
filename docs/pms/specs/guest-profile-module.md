@@ -5,15 +5,15 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Waves 1–4 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90; #96 / #97). Wave 5 still **WAVE-GATED**. The module is **not** COMPLETE. |
+| **STATUS** | Waves 1–4 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90; #96 / #97). Wave 4 is OPERATIONALLY ACCEPTED / closed (#95 CLOSED completed 2026-09-14T13:53:12Z). Wave 5 gate **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. The module is **not** COMPLETE. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
 | **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z |
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
-| **Wave 4 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED · PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14T13:42:29Z. IMPLEMENTATION STATUS **PASS** (AC-W4-5 **PARTIAL** residual). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) still **OPEN** — closure pending PM. |
-| **Wave 5 Spec** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
+| **Wave 4 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED · PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14T13:42:29Z. IMPLEMENTATION STATUS **PASS** (AC-W4-5 **PARTIAL** residual). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed. |
+| **Wave 5 Spec** | **GATE OPENED** / Spec & Eng **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Waves 1–4 complete on `main`. Wave 5 is **not** automatic. |
-| **Product requirement** | Rekik 2026-09-14 — Waves 1–4 accepted and implemented; Wave 5 remains gated |
+| **Engineering assignment** | Waves 1–4 complete on `main`. Wave 5 gate **OPENED**; engineering **IN PROGRESS** on #98 — **not** implemented. |
+| **Product requirement** | Rekik 2026-09-14 — Waves 1–4 accepted and implemented; Wave 5 gate OPENED |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
@@ -23,13 +23,13 @@
 >
 > **Wave 3 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z; PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85), [#87](https://github.com/NORUDEVGIT/NORU/pull/87), and [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED. Issue [#88](https://github.com/NORUDEVGIT/NORU/issues/88) CLOSED via #90. Wave 3 is **OPERATIONALLY ACCEPTED** / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**.
 >
-> **Wave 4 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED; PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14T13:42:29Z. Independent QA **PASS**. Developer locks **PASS**. DESIGN COMPLETION **COMPLETE** (Wave 4). IMPLEMENTATION STATUS **PASS** (AC-W4-5 **PARTIAL** residual documented). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) still **OPEN** — closure pending PM. Wave 5 stays **WAVE-GATED**. The module is **not** COMPLETE.
+> **Wave 4 Spec ACCEPTED + IMPLEMENTED ON MAIN** (Rekik 2026-09-14). Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED; PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14T13:42:29Z. Independent QA **PASS**. Developer locks **PASS**. DESIGN COMPLETION **COMPLETE** (Wave 4). IMPLEMENTATION STATUS **PASS** (AC-W4-5 **PARTIAL** residual documented). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed. Wave 5 gate **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. The module is **not** COMPLETE.
 >
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 remain the accepted contract (now implemented; AC-W4-5 **PARTIAL** residual documented). Wave 5 stays wave-gated.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 remain the accepted contract (now implemented; AC-W4-5 **PARTIAL** residual documented). Wave 5 gate is **OPENED** and engineering is **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — Wave 5 is **not** implemented.
 
 ---
 
@@ -405,7 +405,7 @@ Wave 1 **exited for engineering-gate purposes** after Independent QA PASS (Rekik
 
 **Hotel UAT is not required to start Wave 2** but **is** required for **module COMPLETE**.
 
-Passing Wave 1 did **not** start Wave 2 automatically. Wave 2 was ungated separately, implemented via issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PRs [#76](https://github.com/NORUDEVGIT/NORU/pull/76) + [#79](https://github.com/NORUDEVGIT/NORU/pull/79), and is recorded in §4. Wave 3 was later ungated and implemented (see §5). Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 remains **WAVE-GATED**.
+Passing Wave 1 did **not** start Wave 2 automatically. Wave 2 was ungated separately, implemented via issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) / PRs [#76](https://github.com/NORUDEVGIT/NORU/pull/76) + [#79](https://github.com/NORUDEVGIT/NORU/pull/79), and is recorded in §4. Wave 3 was later ungated and implemented (see §5). Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented.
 
 ---
 
@@ -426,7 +426,7 @@ Passing Wave 1 did **not** start Wave 2 automatically. Wave 2 was ungated separa
 >
 > Delivered ONLY: Identity upload / mask / staff verify; Preferences card (Setup-owned); controlled merge; consent; #79 Preferences tab → Preferences card sync.
 >
-> Wave 3 is recorded in §5. Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
+> Wave 3 is recorded in §5. Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. The module is **not** COMPLETE.
 
 > **PRODUCT ADDENDUM — Preferences UX (Rekik 2026-09-14).**
 >
@@ -594,7 +594,7 @@ Visible on the profile (Identity / Admin-adjacent / dedicated consent row — te
 | Sales & Events group blocks / allotments | Out of this module |
 | LIVE OTA, gateway settlement, classic nightly NA | Never invent |
 | Entitlement-architecture redesign | Flag Abel; not assumed |
-| Waves 3–5 engineering from Wave 2 exit | Still **WAVE-GATED** |
+| Waves 3–5 engineering from Wave 2 exit | Out of Wave 2. Waves 3–4 later exited. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. |
 
 ### 4.9 Acceptance criteria (testable)
 
@@ -646,7 +646,7 @@ DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS** (after
 
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
 - Production migration `0051_pms_guest_profile_wave2` **Abel-gated**. Non-prod **PASS** on `qcwptraosaudcbjasmul` (version `20260914110546`).
-- Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 stays **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 4.10 QA (Wave 2)
@@ -714,11 +714,11 @@ DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS** (after
 
 Wave 2 **exited for engineering-gate purposes** after Independent QA PASS (Rekik 2026-09-14, including #79 Preferences-tab residual), human merge of PRs [#76](https://github.com/NORUDEVGIT/NORU/pull/76) and [#79](https://github.com/NORUDEVGIT/NORU/pull/79), issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED, and the Design Execution Report. This docs reconciliation updates [../guests.md](../guests.md) CURRENT / EXPECTED for Wave 2 surfaces.
 
-Approved deviations: **THREE** (prefix storage honesty; #76 merged before Preferences Independent QA / #79 after #72 CLOSED — process note; Developer browser PARTIAL with Independent QA covering Preferences selection). Residuals / FINAL: receptionist RLS **PRESERVED**; production 0051 **Abel-gated** (non-prod PASS `qcwptraosaudcbjasmul` / `20260914110546`). Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 remains **WAVE-GATED**. DESIGN COMPLETION **COMPLETE** (Wave 2). IMPLEMENTATION STATUS **PASS**.
+Approved deviations: **THREE** (prefix storage honesty; #76 merged before Preferences Independent QA / #79 after #72 CLOSED — process note; Developer browser PARTIAL with Independent QA covering Preferences selection). Residuals / FINAL: receptionist RLS **PRESERVED**; production 0051 **Abel-gated** (non-prod PASS `qcwptraosaudcbjasmul` / `20260914110546`). Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. DESIGN COMPLETION **COMPLETE** (Wave 2). IMPLEMENTATION STATUS **PASS**.
 
 **Hotel UAT is not required to start Wave 5** but **is** required for **module COMPLETE**.
 
-Passing Wave 2 implementation did **not** start Waves 3–5 automatically. Wave 3 was later ungated and implemented (see §5). Wave 4 later exited via #95 / #96 / #97 — see §6. Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
+Passing Wave 2 implementation did **not** start Waves 3–5 automatically. Wave 3 was later ungated and implemented (see §5). Wave 4 later exited via #95 / #96 / #97 — see §6. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. The module is **not** COMPLETE.
 
 ---
 
@@ -743,7 +743,7 @@ Passing Wave 2 implementation did **not** start Waves 3–5 automatically. Wave 
 >
 > Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 did **not** implement Wave 4 and did **not** ungate Wave 5.
 >
-> Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN** (#96 / #97). Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
+> Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN** (#96 / #97). Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. The module is **not** COMPLETE.
 
 ### 5.1 Business purpose
 
@@ -921,7 +921,7 @@ DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS** (after
 - Wave 3 added **no** migration. Production `0051_pms_guest_profile_wave2` remains **Abel-gated** (Wave 2 leftover).
 - Guest-context (#87) and Directory-back (#90 / #88) residuals are **RESOLVED on `main`**.
 - Empty-state Open Directory CTA (#91 / #93) is **RESOLVED on `main`**. Do **not** reopen [#81](https://github.com/NORUDEVGIT/NORU/issues/81).
-- Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN** (#96 / #97). Wave 5 stays **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN** (#96 / #97). Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 3). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 5.10 QA (Wave 3)
@@ -991,11 +991,11 @@ Wave 3 **exited for engineering-gate purposes** after Independent QA PASS (Rekik
 
 Wave 3 is **OPERATIONALLY ACCEPTED** / closed. Closing #81 does **not** make the module COMPLETE.
 
-Approved deviations: **THREE** (#85 merged before guest-context / #87 follow-up; #86 CLOSED as duplicate of #87; Developer browser PARTIAL with Independent QA covering residuals). Residuals / FINAL: receptionist RLS **PRESERVED**; no Wave 3 migration; #87 and #90 residuals **RESOLVED**. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 remains **WAVE-GATED**.
+Approved deviations: **THREE** (#85 merged before guest-context / #87 follow-up; #86 CLOSED as duplicate of #87; Developer browser PARTIAL with Independent QA covering residuals). Residuals / FINAL: receptionist RLS **PRESERVED**; no Wave 3 migration; #87 and #90 residuals **RESOLVED**. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**. Wave 4 is later recorded in §6 as **IMPLEMENTED ON MAIN**. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented.
 
 **Hotel UAT is not required to start Wave 4** but **is** required for **module COMPLETE**.
 
-Closing #81 did **not** ungate Wave 4 by itself. Wave 4 later exited via #95 / #96 / #97 — see §6. Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
+Closing #81 did **not** ungate Wave 4 by itself. Wave 4 later exited via #95 / #96 / #97 — see §6. Wave 5 gate later **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. The module is **not** COMPLETE.
 
 ### 5.15 Wave 3 residuals / UX consistency — Directory-back (Rekik 2026-09-14)
 
@@ -1042,7 +1042,7 @@ This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 sta
 | **PACKAGE** | PMS |
 | **PMS AREA** | Guests |
 | **SPEC STATUS** | **ACCEPTED** + **IMPLEMENTED ON MAIN** |
-| **ENGINEERING STATUS** | **COMPLETE / MERGED** — Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED · PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14T13:42:29Z. DESIGN COMPLETION **COMPLETE** (Wave 4). IMPLEMENTATION STATUS **PASS** (AC-W4-5 **PARTIAL** residual documented). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) still **OPEN** — closure pending PM. |
+| **ENGINEERING STATUS** | **COMPLETE / MERGED** — Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED · PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14T13:42:29Z. DESIGN COMPLETION **COMPLETE** (Wave 4). IMPLEMENTATION STATUS **PASS** (AC-W4-5 **PARTIAL** residual documented). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed. |
 | **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model. Receptionist residual **PRESERVED**. Abel was not flagged for a model change. |
 | **Depends on** | Wave 3 engineering gate **exited** (issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) / PRs [#85](https://github.com/NORUDEVGIT/NORU/pull/85) + [#87](https://github.com/NORUDEVGIT/NORU/pull/87) + [#90](https://github.com/NORUDEVGIT/NORU/pull/90)). Wave 4 Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED. |
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
@@ -1051,7 +1051,7 @@ This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 sta
 >
 > This section is the accepted Wave 4 contract. Company / Group / TA masters, Relationships, and Loyalty & Value are **LIVE** on `main`. AC-W4-5 is **PARTIAL** (create-reservation does not take master IDs — attach on detail; FO typed labels stay labels). Production 0053 remains Abel-gated.
 >
-> Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) still **OPEN** — closure pending PM.
+> Wave 4 is OPERATIONALLY ACCEPTED / closed. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 5 gate **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. The module is **not** COMPLETE.
 
 ### 6.1 Business purpose
 
@@ -1292,8 +1292,8 @@ DESIGN COMPLETION: **COMPLETE** (Wave 4). IMPLEMENTATION STATUS: **PASS** (AC-W4
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
 - Production migration `0053_pms_guest_profile_wave4` **Abel-gated NOT applied**. Non-prod **APPLY PASS** on `qcwptraosaudcbjasmul` (version `20260914134631`). Production `0051` remains Abel-gated (Wave 2 leftover).
 - **AC-W4-5 residual:** create-reservation does not take master IDs (attach on detail); FO typed labels stay labels.
-- Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) still **OPEN** — Wave 4 is **IMPLEMENTED ON MAIN**; closure pending PM.
-- Wave 5 stays **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed.
+- Wave 5 gate **OPENED**; engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented. Hotel UAT is still required for **module COMPLETE**.
 - DESIGN COMPLETION: **COMPLETE** (Wave 4). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 6.12 QA (Wave 4)
@@ -1360,11 +1360,11 @@ DESIGN COMPLETION: **COMPLETE** (Wave 4). IMPLEMENTATION STATUS: **PASS** (AC-W4
 
 ### 6.16 Wave 4 exit
 
-Wave 4 **exited for engineering-gate purposes** after Independent QA **PASS** (Rekik via Advisor, 2026-09-14), human merge of PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97), Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED, the Design Execution Report, and this docs reconciliation to `main` (code wins). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) remains **OPEN** — formal closure pending PM. That pending close does **not** undo **IMPLEMENTED ON MAIN**.
+Wave 4 **exited for engineering-gate purposes** after Independent QA **PASS** (Rekik via Advisor, 2026-09-14), human merge of PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97), Spec [#96](https://github.com/NORUDEVGIT/NORU/pull/96) MERGED, issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z, the Design Execution Report, and this docs reconciliation to `main` (code wins). Wave 4 is OPERATIONALLY ACCEPTED / closed.
 
 **Hotel UAT is not required to start Wave 5** but **is** required for **module COMPLETE**.
 
-This reconciliation does **not** ungate Wave 5. Wave 5 remains **WAVE-GATED**. The module is **not** COMPLETE.
+Wave 5 gate is **OPENED** and engineering is **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98). This Wave 4 recon does **not** implement Wave 5. The module is **not** COMPLETE.
 
 Exit product summary: masters + associations + honest loyalty/value; Independent QA recorded; bill-to stored without a folio-routing claim; Group account delivered without S&E blocks; AC-W4-5 create-RPC residual documented; production 0053 Abel-gated.
 
@@ -1375,9 +1375,9 @@ Exit product summary: masters + associations + honest loyalty/value; Independent
 | Field | Value |
 |---|---|
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
-| **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING WAVE GATE** |
-| **Depends on** | Wave 4 exited |
+| **SPEC STATUS** | **GATE OPENED** / Spec & Eng **IN PROGRESS** — **not** implemented |
+| **ENGINEERING STATUS** | **IN PROGRESS** — issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN; tech plan posted. Wave 5 is **not** implemented. |
+| **Depends on** | Wave 4 exited (issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) CLOSED completed) |
 
 ### 7.1 Locked requirements
 
@@ -1411,7 +1411,7 @@ Full hub + privacy finish + Independent QA; property ready for hotel UAT. **Modu
 
 ## 8. Cross-wave QA / security / regression (Wave 5)
 
-Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. Wave 4 QA / Security / Regression live in §6.12–§6.14 at Wave 1 depth (`NOT RUN` ≠ `PASS`). When Wave 5 is ungated, its tech plan **must** include the same depth. Until then, these rules hold:
+Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. Wave 4 QA / Security / Regression live in §6.12–§6.14 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Wave 5 gate is **OPENED** and engineering is **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98); its tech plan **must** include the same depth. These rules hold:
 
 | Rule | Apply |
 |---|---|
@@ -1438,8 +1438,8 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Keep Wave 2 ACs as the accepted contract | Treat Wave 2 residuals as Wave 3 defects |
 | Record Wave 3 as **ACCEPTED** and **IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90) | Reopen #81 or claim the module COMPLETE |
 | Keep Wave 3 ACs as the accepted contract | Reopen Stay History / KPI / Directory-back engineering |
-| Record Wave 4 as **ACCEPTED** + **IMPLEMENTED ON MAIN** (#96 / #97; §6 ACs + DER) | Claim the **module** COMPLETE, ungate Wave 5, or treat AC-W4-5 PARTIAL as a Wave 4 defect |
-| Keep Wave 5 product intent **WAVE-GATED** | Start comms / privacy finish from this reconciliation |
+| Record Wave 4 as **ACCEPTED** + **IMPLEMENTED ON MAIN** (#95 / #96 / #97; §6 ACs + DER). OPERATIONALLY ACCEPTED / closed. | Claim the **module** COMPLETE, treat AC-W4-5 PARTIAL as a Wave 4 defect, or claim Wave 5 implemented |
+| Record Wave 5 gate **OPENED** and engineering **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented | Deliver comms / privacy finish from this Wave 4 reconciliation |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
 | Record that Waves 1–4 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
 | Record Wave 3 approved deviations (#85 early merge → #87; #86 duplicate of #87; Developer browser PARTIAL) | Treat those process notes as product defects, or treat Developer PARTIAL as PASS |
@@ -1455,9 +1455,9 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 >
 > **Wave 3 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#81 / #85 / #87 / #90). **ENGINEERING STATUS: COMPLETE / MERGED.** Wave 3 is OPERATIONALLY ACCEPTED / closed. DESIGN COMPLETION **COMPLETE** (Wave 3). IMPLEMENTATION STATUS **PASS**.
 >
-> **Wave 4 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#96 / #97). **ENGINEERING STATUS: COMPLETE / MERGED.** DESIGN COMPLETION **COMPLETE** (Wave 4). IMPLEMENTATION STATUS **PASS** (AC-W4-5 PARTIAL residual). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) still **OPEN** — closure pending PM.
+> **Wave 4 Spec ACCEPTED + IMPLEMENTED ON MAIN** (#95 / #96 / #97). **ENGINEERING STATUS: COMPLETE / MERGED.** DESIGN COMPLETION **COMPLETE** (Wave 4). IMPLEMENTATION STATUS **PASS** (AC-W4-5 PARTIAL residual). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed 2026-09-14T13:53:12Z. Wave 4 is OPERATIONALLY ACCEPTED / closed.
 >
-> Wave 5: **SPECIFIED / WAVE-GATED**.
+> Wave 5: gate **OPENED**; Spec & Eng **IN PROGRESS** on [#98](https://github.com/NORUDEVGIT/NORU/issues/98) — **not** implemented.
 >
 > The module is **not** COMPLETE. Hotel UAT is still required after Wave 5.
 >
