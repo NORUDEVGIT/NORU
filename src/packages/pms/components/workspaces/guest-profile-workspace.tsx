@@ -247,8 +247,8 @@ function ComingCard({
 }: {
   title: string;
   copy: string;
-  directoryFromCard?: GuestProfileCardId;
-  onOpenDirectory?: () => void;
+  directoryFromCard?: GuestProfileCardId | undefined;
+  onOpenDirectory?: (() => void) | undefined;
 }) {
   return (
     <div

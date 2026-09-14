@@ -19,7 +19,7 @@ export function GuestDirectoryOpenButton({
 }: {
   fromCard: GuestProfileCardId;
   /** Switch the shell to Directory when already on the directory path. */
-  onOpen?: () => void;
+  onOpen?: (() => void) | undefined;
 }) {
   const navigate = useNavigate();
 
