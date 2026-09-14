@@ -3,17 +3,23 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { GuestStayActions } from "@/packages/pms/components/guests/guest-stay-actions";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
-import { WAVE3_STAY_HISTORY_EMPTY, stayRoomNumberLabel } from "@/packages/pms/lib/guest-profile-wave3";
+import {
+  WAVE3_STAY_HISTORY_CONTEXT,
+  stayRoomNumberLabel,
+  wave3StayHistoryEmpty,
+} from "@/packages/pms/lib/guest-profile-wave3";
 import { listGuestStays } from "@/packages/pms/lib/guests.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 
 export function GuestStayHistoryCard({
   restaurantId,
   guestId,
+  guestName,
   timezone,
 }: {
   restaurantId: string;
   guestId: string;
+  guestName: string;
   timezone: string;
 }) {
   const fetchStays = useServerFn(listGuestStays);
@@ -30,7 +36,10 @@ export function GuestStayHistoryCard({
   if (staysQuery.isError) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card p-6" data-testid="guest-stay-history">
-        <p className="font-display text-lg">Stay History</p>
+        <h2 className="font-display text-xl" data-testid="guest-stay-history-guest-name">
+          {guestName}
+        </h2>
+        <p className="mt-1 text-sm font-medium">Stay History</p>
         <p className="mt-2 text-sm text-muted-foreground">
           {staysQuery.error instanceof Error ? staysQuery.error.message : "Stay history could not be loaded."}
         </p>
@@ -44,9 +53,13 @@ export function GuestStayHistoryCard({
   return (
     <div className="space-y-4" data-testid="guest-stay-history">
       <div>
-        <h2 className="font-display text-lg">Stay History</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Real reservations for this guest. Confirmation numbers and dates match Reservations.
+        <h2 className="font-display text-xl" data-testid="guest-stay-history-guest-name">
+          {guestName}
+        </h2>
+        <p className="mt-1 text-sm font-medium">Stay History</p>
+        <p className="mt-1 text-sm text-muted-foreground" data-testid="guest-stay-history-context">
+          {WAVE3_STAY_HISTORY_CONTEXT}. Real reservations for {guestName}. Confirmation numbers and
+          dates match Reservations.
         </p>
       </div>
 
@@ -55,7 +68,7 @@ export function GuestStayHistoryCard({
           className="rounded-2xl border border-dashed border-border bg-card p-6"
           data-testid="guest-stay-history-empty"
         >
-          <p className="text-sm text-muted-foreground">{WAVE3_STAY_HISTORY_EMPTY}</p>
+          <p className="text-sm text-muted-foreground">{wave3StayHistoryEmpty(guestName)}</p>
         </div>
       ) : (
         <>

@@ -15,8 +15,18 @@ export const GUEST_CASHIERING_HREF = "/restaurant/pms/cashiering";
 export const WAVE3_STAY_HISTORY_EMPTY =
   "No stays yet for this guest. Stay history lists real reservations only — this card does not invent stays.";
 
+export const WAVE3_DASHBOARD_CONTEXT = "This guest's overview";
+export const WAVE3_STAY_HISTORY_CONTEXT = "This guest's stays";
+
 export const WAVE3_PROFILE_HISTORY_COPY =
   "Profile activity for this guest. This is not stay history.";
+
+export function wave3StayHistoryEmpty(fullName: string): string {
+  const name = fullName.trim();
+  return name
+    ? `No stays yet for ${name}. Stay history lists real reservations only — this card does not invent stays.`
+    : WAVE3_STAY_HISTORY_EMPTY;
+}
 
 export const WAVE3_KPI_NOT_AVAILABLE = "Not available";
 

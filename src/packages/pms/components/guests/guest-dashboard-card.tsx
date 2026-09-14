@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { GuestStayActions } from "@/packages/pms/components/guests/guest-stay-actions";
 import { StatCard, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
+  WAVE3_DASHBOARD_CONTEXT,
   WAVE3_KPI_NOT_AVAILABLE,
   WAVE3_POSTED_FOLIO_LABEL,
   WAVE3_QUOTED_ROOM_TOTAL_LABEL,
@@ -15,10 +16,12 @@ import { useMoney } from "@/packages/restaurant-management/state/restaurant-cont
 export function GuestDashboardCard({
   restaurantId,
   guestId,
+  guestName,
   timezone,
 }: {
   restaurantId: string;
   guestId: string;
+  guestName: string;
   timezone: string;
 }) {
   const money = useMoney();
@@ -36,7 +39,10 @@ export function GuestDashboardCard({
   if (overviewQuery.isError) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card p-6" data-testid="guest-dashboard">
-        <p className="font-display text-lg">Dashboard Overview</p>
+        <h2 className="font-display text-xl" data-testid="guest-dashboard-guest-name">
+          {guestName}
+        </h2>
+        <p className="mt-1 text-sm font-medium">Dashboard Overview</p>
         <p className="mt-2 text-sm text-muted-foreground">
           {overviewQuery.error instanceof Error
             ? overviewQuery.error.message
@@ -52,10 +58,13 @@ export function GuestDashboardCard({
   return (
     <div className="space-y-4" data-testid="guest-dashboard">
       <div>
-        <h2 className="font-display text-lg">Dashboard Overview</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Figures are derived from this guest&apos;s reservations. Amounts appear only when they
-          are stored — missing revenue is not shown as zero.
+        <h2 className="font-display text-xl" data-testid="guest-dashboard-guest-name">
+          {guestName}
+        </h2>
+        <p className="mt-1 text-sm font-medium">Dashboard Overview</p>
+        <p className="mt-1 text-sm text-muted-foreground" data-testid="guest-dashboard-context">
+          {WAVE3_DASHBOARD_CONTEXT}. Figures are derived from {guestName}&apos;s reservations.
+          Amounts appear only when they are stored — missing revenue is not shown as zero.
         </p>
       </div>
 
