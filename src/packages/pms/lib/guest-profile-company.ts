@@ -40,14 +40,42 @@ export const COMPANY_LINK_ROLES = ["employer", "bill_to"] as const;
 export type CompanyLinkRole = (typeof COMPANY_LINK_ROLES)[number];
 
 export const COMPANY_ACCEPTANCE_CRITERIA = [
-  "AC-CO-1",
-  "AC-CO-2",
-  "AC-CO-3",
-  "AC-CO-4",
-  "AC-CO-5",
-  "AC-CO-6",
-  "AC-CO-7",
+  "AC-GE1-1",
+  "AC-GE1-2",
+  "AC-GE1-3",
+  "AC-GE1-4",
+  "AC-GE1-5",
+  "AC-GE1-6",
+  "AC-GE1-7",
+  "AC-GE1-8",
+  "AC-GE1-9",
+  "AC-GE1-10",
+  "AC-GE1-11",
+  "AC-GE1-12",
+  "AC-GE1-13",
+  "AC-GE1-14",
+  "AC-GE1-15",
+  "AC-GE1-16",
+  "AC-GE1-17",
+  "AC-GE1-18",
+  "AC-GE1-19",
+  "AC-GE1-20",
+  "AC-GE1-21",
+  "AC-GE1-22",
+  "AC-GE1-23",
+  "AC-GE1-24",
 ] as const;
+
+/** TIP seeds AC-CO-1…7 map onto Spec AC-GE1-* (#104). Spec IDs win. */
+export const COMPANY_TIP_AC_MAP = {
+  "AC-CO-1": ["AC-GE1-1"],
+  "AC-CO-2": ["AC-GE1-2", "AC-GE1-4"],
+  "AC-CO-3": ["AC-GE1-5", "AC-GE1-6", "AC-GE1-7", "AC-GE1-8", "AC-GE1-10"],
+  "AC-CO-4": ["AC-GE1-9"],
+  "AC-CO-5": ["AC-GE1-11", "AC-GE1-12", "AC-GE1-13"],
+  "AC-CO-6": ["AC-GE1-14", "AC-GE1-15"],
+  "AC-CO-7": ["AC-GE1-13", "AC-GE1-16", "AC-GE1-17", "AC-GE1-18"],
+} as const;
 
 export const COMPANY_RATE_REFERENCE_COPY =
   "Name or code only. This is not a rate engine and does not price a stay.";

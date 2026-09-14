@@ -336,7 +336,7 @@ export function GuestCompanyFormDialog({
             ) : null}
           </Section>
 
-          <Section id="tax" title="Tax">
+          <Section id="tax" title="Tax & registration">
             <div>
               <Label htmlFor="company-tax-id">Tax ID / TIN</Label>
               <Input
