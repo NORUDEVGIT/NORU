@@ -921,6 +921,23 @@ Passing Wave 3 implementation does **not** start Waves 4–5 — they remain **W
 
 This Spec does **not** claim Wave 3 implemented.
 
+### 5.15 Wave 3 residuals / UX consistency — Directory-back (Rekik 2026-09-14)
+
+> **Guest shell UX residual** (Rekik 2026-09-14). This is a Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope.
+
+**REQUIRED.** Any Guest Profile card that requires a selected guest first (Dashboard, Stay History, Identity, Preferences, and later live cards) must provide the same easy **Directory back arrow** pattern as Information (or a shell-level sticky back-to-Directory). Staff must always be able to return to Directory, pick another guest, and see that guest’s same card without dead-ends.
+
+| Item | Status on `main` |
+|---|---|
+| Guest-context headers (selected guest named on Dashboard / Stay History) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) |
+| Directory-back arrow (or shell-level sticky back-to-Directory) on guest-required cards | **OPEN** — Engineering follow-up |
+
+**CURRENT.** Information (and Preferences, which reuse the Information workspace) expose a **Directory** back arrow to `/restaurant/pms/guests`. Dashboard, Stay History, and Identity do **not**. The 10-card nav can still select Directory (and leaves `$guestId`), but that is not the same easy back-arrow pattern. Empty / no-guest states tell staff to open Directory and do not provide the arrow.
+
+**EXPECTED.** The same Directory-back control as Information, **or** one sticky shell-level back-to-Directory, on every guest-required card — including later live cards. After Directory, staff pick another guest and land on that guest’s **same** card. No dead-end.
+
+This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 stay / KPI / quick-action product scope.
+
 ---
 
 ## 6. Wave 4 — Masters, Relationships, Loyalty & Value
@@ -1019,6 +1036,7 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | No invented LIVE OTA / gateway / classic NA | Every wave |
 | Tenant + `pms` + guest manage gate | Every wave unless Abel-approved change |
 | Extend existing tables / functions | Every wave |
+| Directory-back on guest-required cards | Every wave — same Information back-arrow pattern, or a shell-level sticky back-to-Directory. Wave 3 residual; see §5.15. Not Waves 4–5 product scope. |
 
 ---
 
