@@ -35,6 +35,7 @@ import { completeSet2Activate } from "./pms-set2-structure.ts";
 import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
 import { completeSet4Activate } from "./pms-set4-hk-inventory.ts";
 import { completeSet5Activate } from "./pms-set5-depts-guestsvc.ts";
+import { completeSet6Activate } from "./pms-set6-sales-distribution.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -60,9 +61,10 @@ const completeSet2 = completeSet2Activate();
 const completeSet3 = completeSet3Activate();
 const completeSet4 = completeSet4Activate();
 const completeSet5 = completeSet5Activate();
+const completeSet6 = completeSet6Activate();
 
 function checklist(input: Parameters<typeof evaluateSet1Checklist>[0]) {
-  return evaluateSet1Checklist({ set2: completeSet2, set3: completeSet3, set4: completeSet4, set5: completeSet5, ...input });
+  return evaluateSet1Checklist({ set2: completeSet2, set3: completeSet3, set4: completeSet4, set5: completeSet5, set6: completeSet6, ...input });
 }
 
 describe("PMS-SET1 role gate", () => {
@@ -323,7 +325,7 @@ describe("PMS-SET1 hub locks", () => {
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Banks"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Roles"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.wave === "SET5"));
-    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
+    assert.deepEqual(SET1_COMING_SOON, []);
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "structure"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rooms"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "outlets"));
@@ -338,6 +340,10 @@ describe("PMS-SET1 hub locks", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "admin-controls"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "integrations"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "security-audit"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "sales-events"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "distribution"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "reports"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "offline-sync"));
     assert.equal(
       SET1_LIVE_CARDS.some((card) => card.id === "outlets"),
       true,
