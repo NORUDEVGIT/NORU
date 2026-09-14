@@ -54,6 +54,7 @@ import {
   type SessionAccessPosture,
   type Set5Snapshot,
 } from "@/packages/pms/lib/pms-set5-depts-guestsvc";
+import { SET5_TENDERS_LIVE_ON_PAYMENT_METHODS } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import {
   savePmsAdminControls,
   savePmsAuditRetention,
@@ -894,13 +895,13 @@ export function Set5AdminSection({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const domain = checklist.domains["admin-controls"];
+  const domain = checklist.domains.administration;
 
   return (
-    <section id="admin-controls" className="space-y-4 rounded-2xl border border-border bg-card p-5" data-testid="pms-set5-admin">
+    <section id="set5-numbering-approvals" className="space-y-4 rounded-2xl border border-border bg-card p-5" data-testid="pms-set5-admin">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="font-display text-lg text-[#251605]">Admin controls</h2>
+          <h2 className="font-display text-lg text-[#251605]">Numbering &amp; approvals</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Thin numbering, approvals and override. Users and roles stay on Administration — this is not a second staff
             manager.
@@ -1013,7 +1014,7 @@ export function Set5IntegrationsSection({
         ))}
       </ul>
       <p className="text-xs text-muted-foreground">
-        {SET5_POS_LIVE_NOTE} {SET5_PAYMENTS_WARNING} {SET5_ACCOUNTING_WARNING} {SET5_API_WARNING} {SET5_THIRD_PARTY_WARNING}
+        {SET5_POS_LIVE_NOTE} {SET5_PAYMENTS_WARNING} {SET5_TENDERS_LIVE_ON_PAYMENT_METHODS} {SET5_ACCOUNTING_WARNING} {SET5_API_WARNING} {SET5_THIRD_PARTY_WARNING}
       </p>
     </section>
   );

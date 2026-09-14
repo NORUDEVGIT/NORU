@@ -31,6 +31,18 @@ import {
 } from "@/packages/pms/lib/fo-fee-defaults";
 import { getFoFeeDefaults, saveFoFeeDefaults } from "@/packages/pms/lib/fo-fee-defaults.functions";
 import { formatMoney } from "@/shared/lib/property-time";
+import {
+  CUSTOM_FEE_BASES,
+  FEE_PRESET_LABELS,
+  FEE_PRESETS,
+  applyFeePreset,
+  customFeePresetBlocked,
+  feePresetFromStorage,
+  type CustomFeeBasis,
+  type FeePresetId,
+} from "@/packages/pms/lib/pms-polish1-payment-admin";
+import type { FeeBasis } from "@/packages/pms/lib/pms-set1-foundation";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 
 const EMPTY: FoFeeDefaults = {
   cancelFeeRequired: true,
@@ -60,10 +72,16 @@ export function FoFeeDefaultsEditor({
   });
 
   const [draft, setDraft] = useState<FoFeeDefaults>(EMPTY);
+  const [cancelBasis, setCancelBasis] = useState<FeeBasis | "">("");
+  const [noshowBasis, setNoshowBasis] = useState<FeeBasis | "">("");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (query.data?.defaults) setDraft(query.data.defaults);
+    if (query.data) {
+      setCancelBasis(query.data.cancelFeeBasis ?? "");
+      setNoshowBasis(query.data.noshowFeeBasis ?? "");
+    }
   }, [query.data]);
 
   useEffect(() => {
@@ -75,10 +93,44 @@ export function FoFeeDefaultsEditor({
   }, [query.data]);
 
   const saved = query.data?.defaults ?? EMPTY;
+  const savedCancelBasis = query.data?.cancelFeeBasis ?? "";
+  const savedNoshowBasis = query.data?.noshowFeeBasis ?? "";
   const canEdit = roleCanEdit && (query.data?.canEdit ?? roleCanEdit);
   const next = normalizeFoFeeDefaults(draft);
   const validation = validateFoFeeDefaults(next);
-  const unchanged = foFeeDefaultsEqual(saved, next);
+  const cancelPreset = feePresetFromStorage(cancelBasis, next.cancelFeeDefault);
+  const noshowPreset = feePresetFromStorage(noshowBasis, next.noshowFeeDefault);
+  const customBlocked =
+    (cancelPreset === "custom" && cancelBasis !== "first_night" &&
+      customFeePresetBlocked(
+        cancelPreset,
+        cancelBasis === "fixed" || cancelBasis === "percent_stay" ? cancelBasis : "",
+        String(draft.cancelFeeDefault),
+      )) ||
+    (noshowPreset === "custom" && noshowBasis !== "first_night" &&
+      customFeePresetBlocked(
+        noshowPreset,
+        noshowBasis === "fixed" || noshowBasis === "percent_stay" ? noshowBasis : "",
+        String(draft.noshowFeeDefault),
+      ));
+
+  function applyPreset(side: "cancel" | "noshow", preset: FeePresetId) {
+    if (preset === "custom") {
+      if (side === "cancel") setCancelBasis((prev) => (prev ? prev : ""));
+      else setNoshowBasis((prev) => (prev ? prev : ""));
+      return;
+    }
+    const applied = applyFeePreset(preset);
+    if (side === "cancel") {
+      setCancelBasis(applied.basis);
+      setDraft((prev) => ({ ...prev, cancelFeeDefault: applied.value }));
+    } else {
+      setNoshowBasis(applied.basis);
+      setDraft((prev) => ({ ...prev, noshowFeeDefault: applied.value }));
+    }
+  }
+  const unchanged =
+    foFeeDefaultsEqual(saved, next) && savedCancelBasis === cancelBasis && savedNoshowBasis === noshowBasis;
   const money = (value: number) => formatMoney(value, currencyCode);
 
   const mutation = useMutation({
@@ -90,13 +142,19 @@ export function FoFeeDefaultsEditor({
           cancelFeeDefault: next.cancelFeeDefault,
           noshowFeeRequired: next.noshowFeeRequired,
           noshowFeeDefault: next.noshowFeeDefault,
+          cancelFeeBasis: cancelBasis || null,
+          noshowFeeBasis: noshowBasis || null,
         },
       }),
     onSuccess: (result) => {
       setConfirmOpen(false);
       setDraft(result.defaults);
+      setCancelBasis(result.cancelFeeBasis ?? cancelBasis);
+      setNoshowBasis(result.noshowFeeBasis ?? noshowBasis);
       toast.success("Cancel and no-show fee defaults saved.");
       void queryClient.invalidateQueries({ queryKey: ["fo-fee-defaults", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["pms-set1-audit", restaurantId] });
     },
     onError: (error: Error) => {
       setConfirmOpen(false);
@@ -159,11 +217,33 @@ export function FoFeeDefaultsEditor({
             />
           </div>
 
+          <FeePresetPicker
+            idPrefix="fo-cancel"
+            label="Cancel fee preset"
+            preset={cancelPreset}
+            basis={cancelBasis}
+            value={draft.cancelFeeDefault}
+            onPreset={(preset) => applyPreset("cancel", preset)}
+            onCustomBasis={(basis) => setCancelBasis(basis)}
+            onCustomValue={(cancelFeeDefault) => setDraft((prev) => ({ ...prev, cancelFeeDefault }))}
+          />
+          <FeePresetPicker
+            idPrefix="fo-noshow"
+            label="No-show fee preset"
+            preset={noshowPreset}
+            basis={noshowBasis}
+            value={draft.noshowFeeDefault}
+            onPreset={(preset) => applyPreset("noshow", preset)}
+            onCustomBasis={(basis) => setNoshowBasis(basis)}
+            onCustomValue={(noshowFeeDefault) => setDraft((prev) => ({ ...prev, noshowFeeDefault }))}
+          />
+
           {validation ? <p className="text-sm text-destructive">{validation}</p> : null}
+          {customBlocked ? <p className="text-sm text-destructive">Custom fee preset needs a basis and a value before Save.</p> : null}
 
           <Button
             type="button"
-            disabled={unchanged || !!validation || mutation.isPending}
+            disabled={unchanged || !!validation || customBlocked || mutation.isPending}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             onClick={() => setConfirmOpen(true)}
           >
@@ -177,7 +257,7 @@ export function FoFeeDefaultsEditor({
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[#251605]">Confirm fee defaults</AlertDialogTitle>
             <AlertDialogDescription>
-              Review Before → After, then confirm. Only the four existing fee columns are updated.
+              Review Before → After, then confirm. Existing fee defaults and cancel / no-show basis columns are updated.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="rounded-xl border border-[#CCCCCC] p-3" data-testid="fo-fee-defaults-before-after">
@@ -244,6 +324,77 @@ function FeeSummary({ defaults, money }: { defaults: FoFeeDefaults; money: (valu
         <dd>{money(defaults.noshowFeeDefault)}</dd>
       </div>
     </dl>
+  );
+}
+
+function FeePresetPicker({
+  idPrefix,
+  label,
+  preset,
+  basis,
+  value,
+  onPreset,
+  onCustomBasis,
+  onCustomValue,
+}: {
+  idPrefix: string;
+  label: string;
+  preset: FeePresetId;
+  basis: FeeBasis | "";
+  value: number;
+  onPreset: (preset: FeePresetId) => void;
+  onCustomBasis: (basis: CustomFeeBasis) => void;
+  onCustomValue: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border p-4" data-testid={`${idPrefix}-fee-preset`}>
+      <p className="text-sm font-medium text-[#251605]">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {FEE_PRESETS.map((id) => (
+          <Button
+            key={id}
+            type="button"
+            size="sm"
+            variant={preset === id ? "default" : "outline"}
+            className={preset === id ? "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" : ""}
+            onClick={() => onPreset(id)}
+          >
+            {FEE_PRESET_LABELS[id]}
+          </Button>
+        ))}
+      </div>
+      {preset === "custom" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-custom-basis`}>Custom basis</Label>
+            <Select
+              value={basis === "fixed" || basis === "percent_stay" ? basis : "unset"}
+              onValueChange={(next) => {
+                if (next === "unset") return;
+                onCustomBasis(next as CustomFeeBasis);
+              }}
+            >
+              <SelectTrigger id={`${idPrefix}-custom-basis`} className="h-12 rounded-xl">
+                <SelectValue placeholder="Percent or fixed" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unset">Choose % or fixed</SelectItem>
+                {CUSTOM_FEE_BASES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item === "percent_stay" ? "Percent of stay" : "Fixed amount"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <FeeAmount id={`${idPrefix}-custom-value`} label="Custom value" value={value} onChange={onCustomValue} />
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {FEE_PRESET_LABELS[preset]} · percent of stay {applyFeePreset(preset).value}
+        </p>
+      )}
+    </div>
   );
 }
 

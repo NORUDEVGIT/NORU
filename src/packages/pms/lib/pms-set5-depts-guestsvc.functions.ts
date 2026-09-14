@@ -570,7 +570,7 @@ export const savePmsAdminControls = createServerFn({ method: "POST" })
       restaurantId: data.restaurantId,
       actorUserId: context.userId,
       action: SET5_AUDIT_ADMIN,
-      section: "admin-controls",
+      section: "administration",
       before,
       after,
     });

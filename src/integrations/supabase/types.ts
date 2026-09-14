@@ -3596,6 +3596,56 @@ export type Database = {
           },
         ]
       }
+      pms_shift_definitions: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          end_time: string | null
+          id: string
+          name: string
+          notes: string
+          restaurant_id: string
+          start_time: string | null
+          type_class: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          name: string
+          notes?: string
+          restaurant_id: string
+          start_time?: string | null
+          type_class?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          name?: string
+          notes?: string
+          restaurant_id?: string
+          start_time?: string | null
+          type_class?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_shift_definitions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_departments: {
         Row: {
           active: boolean
@@ -4056,6 +4106,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pms_packages_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_payment_methods: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          notes: string
+          restaurant_id: string
+          type_class: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string
+          restaurant_id: string
+          type_class?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string
+          restaurant_id?: string
+          type_class?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_payment_methods_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"

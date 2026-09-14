@@ -38,7 +38,6 @@ import {
 } from "./pms-set4-hk-inventory.ts";
 import {
   emptySet5Activate,
-  evaluateAdminControls,
   evaluateDepartments,
   evaluateGuestServiceTypes,
   evaluateIntegrations,
@@ -56,6 +55,13 @@ import {
   set6MandatoryMissing,
   type Set6ActivateInput,
 } from "./pms-set6-sales-distribution.ts";
+import {
+  emptyPolish1Activate,
+  evaluateAdministration,
+  evaluatePaymentMethods,
+  polish1MandatoryMissing,
+  type Polish1ActivateInput,
+} from "./pms-polish1-payment-admin.ts";
 
 function calendarToday(timezone: string): string {
   try {
@@ -108,7 +114,8 @@ export const SET1_SECTION_HASHES = [
   "departments",
   "guest-services-types",
   "notifications",
-  "admin-controls",
+  "administration",
+  "payment-methods",
   "integrations",
   "security-audit",
   "sales-events",
@@ -126,11 +133,15 @@ export const SET5_LIVE_HASHES = [
   "departments",
   "guest-services-types",
   "notifications",
-  "admin-controls",
   "integrations",
   "security-audit",
 ] as const;
 export const SET6_LIVE_HASHES = ["sales-events", "distribution", "reports", "offline-sync"] as const;
+export const POLISH1_LIVE_HASHES = ["payment-methods", "administration"] as const;
+export const SET1_HASH_ALIASES: Record<string, Set1SectionId> = {
+  banks: "payment-methods",
+  "admin-controls": "administration",
+};
 
 export type Set1Readiness = "complete" | "warning" | "incomplete" | "blocked";
 export type Set1Overall = "ready" | "warning" | "blocked";
@@ -189,14 +200,15 @@ export const SET1_LIVE_CARDS: {
   { id: "departments", title: "Departments", purpose: "Department and work-centre catalogue. Empty is a warning, not a block." },
   { id: "guest-services-types", title: "Guest services types", purpose: "Request-type catalogue only. Deep-link to Guest Services — not Guest Profile." },
   { id: "notifications", title: "Notifications", purpose: "Email, SMS and in-app channels and templates. Not an ESP. WhatsApp stays future." },
-  { id: "admin-controls", title: "Admin controls", purpose: "Thin numbering, approvals and override. Deep-link to Administration — not a second staff manager." },
+  { id: "payment-methods", title: "Payment methods", purpose: "Accepted tenders for folio posting. Not payment gateways. Empty is a warning, not a block." },
+  { id: "administration", title: "Administration", purpose: "Roles, shifts, staff and thin HR. Numbering and approvals stay a subsection. Deep-link to Administration — not a second staff manager." },
   { id: "integrations", title: "Integrations", purpose: "Connection status on Settings. POS charge-to-room is live; other connectors stay Foundation." },
   { id: "security-audit", title: "Security & audit", purpose: "Session and retention posture plus thin sensitive-data flags. Not IAM." },
   { id: "sales-events", title: "Sales & events", purpose: "Thin market-segment, source-code and event-type catalogues. Deep-link is planned honesty — not a sales CRM." },
   { id: "distribution", title: "Distribution", purpose: "Channel-class and mapping posture. Direct booking is live; OTA stays Not Connected / Foundation." },
   { id: "reports", title: "Reports", purpose: "Catalogue and schedule/access posture aligned with live report tabs. Not a BI rebuild." },
   { id: "offline-sync", title: "Offline & sync", purpose: "Intent flags and conflict labels only. Saving does not ship a runtime and never reads Offline Ready." },
-  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, SET5 catalogues and SET6 posture. One owner Activate. SET5–SET6 warnings do not block." },
+  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, SET5 catalogues, SET6 posture, payment methods and Administration. One owner Activate. SET5–SET6 and Wave 1 warnings do not block." },
 ];
 
 export type Set1IdentityDraft = {
@@ -283,15 +295,22 @@ export function canOpenSet1Hub(role: string): boolean {
   return canEditSet1(role);
 }
 
-export function isSet1SectionHash(hash: string): hash is Set1SectionId {
+export function resolveSet1SectionHash(hash: string): Set1SectionId | null {
   const id = hash.replace(/^#/, "");
-  return (SET1_SECTION_HASHES as readonly string[]).includes(id);
+  if ((SET1_SECTION_HASHES as readonly string[]).includes(id)) return id as Set1SectionId;
+  return SET1_HASH_ALIASES[id] ?? null;
+}
+
+export function isSet1SectionHash(hash: string): boolean {
+  return resolveSet1SectionHash(hash) !== null;
 }
 
 export function propertySetupRedirectHref(hash = ""): string {
   const raw = hash.startsWith("#") ? hash.slice(1) : hash;
   if (!raw) return SET1_HUB_HREF;
   if (raw === "cancel-noshow-fees") return `${SET1_HUB_HREF}#policies`;
+  const resolved = resolveSet1SectionHash(raw);
+  if (resolved) return `${SET1_HUB_HREF}#${resolved}`;
   return `${SET1_HUB_HREF}#${raw}`;
 }
 
@@ -519,7 +538,7 @@ export function evaluateGoLive(
     ...domains["room-inventory-rules"].missing,
     ...domains["maintenance-rules"].missing,
   ];
-  // SET5 missing (dual-hub honesty) and SET6 warnings are checklist honesty only — never Activate mandatory.
+  // SET5 missing (dual-hub honesty), SET6 and Wave 1 warnings are checklist honesty only — never Activate mandatory.
   const blocked = !foundationColumnsAvailable && Boolean(domains.ops.missing.length || domains.taxes.missing.includes("Tax name"));
   const warnings = Object.values(domains).flatMap((d) => d.warnings);
   if (pmsSet1Live && !mandatory.length) {
@@ -546,12 +565,14 @@ export function evaluateSet1Checklist(input: {
   set4?: Set4ActivateInput;
   set5?: Set5ActivateInput;
   set6?: Set6ActivateInput;
+  polish1?: Polish1ActivateInput;
 }): Set1Checklist {
   const set2 = input.set2 ?? emptySet2Activate();
   const set3 = input.set3 ?? emptySet3Activate();
   const set4 = input.set4 ?? emptySet4Activate();
   const set5 = input.set5 ?? emptySet5Activate();
   const set6 = input.set6 ?? emptySet6Activate();
+  const polish1 = input.polish1 ?? emptyPolish1Activate();
   const identity = evaluateIdentity(input.identity, input.foundationColumnsAvailable);
   const ops = evaluateOps(input.ops, input.foundationColumnsAvailable);
   const taxes = evaluateTaxes(input.taxes, input.foundationColumnsAvailable);
@@ -567,7 +588,8 @@ export function evaluateSet1Checklist(input: {
   const departments = evaluateDepartments(set5);
   const guestServiceTypes = evaluateGuestServiceTypes(set5);
   const notifications = evaluateNotifications(set5);
-  const adminControls = evaluateAdminControls(set5);
+  const administration = evaluateAdministration(polish1, set5);
+  const paymentMethods = evaluatePaymentMethods(polish1);
   const integrations = evaluateIntegrations(set5);
   const securityAudit = evaluateSecurityAudit(set5);
   const salesEvents = evaluateSalesEvents(set6);
@@ -591,7 +613,8 @@ export function evaluateSet1Checklist(input: {
       departments,
       "guest-services-types": guestServiceTypes,
       notifications,
-      "admin-controls": adminControls,
+      administration,
+      "payment-methods": paymentMethods,
       integrations,
       "security-audit": securityAudit,
       "sales-events": salesEvents,
@@ -612,6 +635,7 @@ export function evaluateSet1Checklist(input: {
     ...set4MandatoryMissing(set4),
     ...set5MandatoryMissing(set5),
     ...set6MandatoryMissing(set6),
+    ...polish1MandatoryMissing(polish1),
   ];
   const domains = {
     identity,
@@ -629,7 +653,8 @@ export function evaluateSet1Checklist(input: {
     departments,
     "guest-services-types": guestServiceTypes,
     notifications,
-    "admin-controls": adminControls,
+    administration,
+    "payment-methods": paymentMethods,
     integrations,
     "security-audit": securityAudit,
     "sales-events": salesEvents,
