@@ -5,16 +5,16 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Wave 4 **code LIVE on `main`** (PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING **IMPLEMENTATION IN PROGRESS** (Rekik plan APPROVED 2026-09-14). Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Wave 5 is **not** implemented. Gap-edit 1 (Company registration enrichment) **READY FOR ENGINEERING** (Rekik APPROVED 2026-09-14) — additive; does **not** reopen Waves 1–5. The module is **not** COMPLETE. |
+| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Wave 4 **code LIVE on `main`** (PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING **IMPLEMENTATION IN PROGRESS** (Rekik plan APPROVED 2026-09-14). Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Wave 5 is **not** implemented. Gap-edit 1 (Company registration enrichment) Spec **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING **IMPLEMENTATION IN PROGRESS** (Rekik tech plan APPROVED 2026-09-14). Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) OPEN. Branch `feature/103-company-registration-enrichment`. Gap-edit 1 is **not** implemented (no PASS / LIVE / COMPLETE). Additive; does **not** reopen Waves 1–5. Migration `0055` Abel/PM gated. The module is **not** COMPLETE. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
 | **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z |
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
 | **Wave 4 Spec** | Wave 4 **code LIVE on `main`** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. This Wave 5 Spec does **not** reopen Wave 4. |
 | **Wave 5 Spec** | **ACCEPTED for Engineering** (Rekik 2026-09-14) — Eng-ready catch-up. Gate **OPENED**; plan **APPROVED**. ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Branch `feature/98-guest-profile-wave-5`. **Not** implemented (no PASS / LIVE / COMPLETE). |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Waves 1–3 complete. Wave 4 code LIVE (#97). Wave 5 coding **AUTHORIZED / IN PROGRESS** on #98 after Rekik plan approval. Wave 5 is **not** implemented. Gap-edit 1 Company enrichment is a **separate** Eng-ready contract (§8) — it does **not** reopen Waves 1–5. |
-| **Gap-edit 1 Spec** | **READY FOR ENGINEERING** / Eng-ready (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Company registration enrichment. Additive on Wave 4 masters. Does **not** reopen Waves 1–5. |
-| **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented; Wave 4 code LIVE; Wave 5 Spec gate OPENED; Wave 5 tech plan APPROVED. Gap-edit 1 Company enrichment **APPROVED** 2026-09-14 (Fast Spec → Eng). |
+| **Engineering assignment** | Waves 1–3 complete. Wave 4 code LIVE (#97). Wave 5 coding **AUTHORIZED / IN PROGRESS** on #98 after Rekik plan approval. Wave 5 is **not** implemented. Gap-edit 1 coding **AUTHORIZED / IN PROGRESS** on [#103](https://github.com/NORUDEVGIT/NORU/issues/103) / `feature/103-company-registration-enrichment` after Rekik tech-plan approval. Gap-edit 1 is **not** implemented. Does **not** reopen Waves 1–5. |
+| **Gap-edit 1 Spec** | **ACCEPTED for Engineering** (Rekik 2026-09-14) — Eng-ready catch-up. Gate **OPENED**; tech plan **APPROVED**. ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) OPEN. Branch `feature/103-company-registration-enrichment`. **Not** implemented (no PASS / LIVE / COMPLETE). Additive on Wave 4 masters. Does **not** reopen Waves 1–5. Migration `0055` Abel/PM gated. |
+| **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented; Wave 4 code LIVE; Wave 5 Spec gate OPENED; Wave 5 tech plan APPROVED. Gap-edit 1 Company enrichment Spec **APPROVED**; tech plan **APPROVED** 2026-09-14. Coding AUTHORIZED on #103. |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
@@ -28,13 +28,13 @@
 >
 > **Wave 5 Spec ACCEPTED for Engineering** (Rekik 2026-09-14). Gate **OPENED**; Technical Implementation Plan **APPROVED** via Advisor. ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Coding AUTHORIZED on `feature/98-guest-profile-wave-5`. Wave 5 is **not** implemented. The module is **not** COMPLETE.
 >
-> **Gap-edit 1 — Company registration enrichment READY FOR ENGINEERING** (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Fast Spec → Eng. Additive Company master UX/schema on Wave 4 `guest_account_masters` / `guest_account_links`. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. This addendum does **not** reopen those waves. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)) — do **not** treat this section as a Wave 5 rewrite. The module is **not** COMPLETE (hotel UAT still required).
+> **Gap-edit 1 Spec ACCEPTED for Engineering** (Rekik 2026-09-14 via Hospitality Product Advisor). Eng-ready catch-up. Gate **OPENED**. Technical Implementation Plan **APPROVED** 2026-09-14. ENGINEERING **IMPLEMENTATION IN PROGRESS**. Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) OPEN. Coding AUTHORIZED on `feature/103-company-registration-enrichment`. Gap-edit 1 is **not** implemented (no PASS / LIVE / COMPLETE). Additive Company master UX/schema on Wave 4 `guest_account_masters` / `guest_account_links`. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. This addendum does **not** reopen those waves. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)) — do **not** treat this section as a Wave 5 rewrite. Migration `0055` Abel/PM gated. The module is **not** COMPLETE (hotel UAT still required).
 >
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 were the planning contract; Wave 4 **code is LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 ACs in §7 are the **accepted engineering contract** (gate OPENED; plan APPROVED; implementation **in progress**; **not** implemented). Gap-edit 1 ACs in §8 are the **accepted engineering contract** for Company registration enrichment (READY FOR ENGINEERING; additive; Waves 1–5 **not** reopened).
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 were the planning contract; Wave 4 **code is LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 ACs in §7 are the **accepted engineering contract** (gate OPENED; plan APPROVED; implementation **in progress**; **not** implemented). Gap-edit 1 ACs in §8 are the **accepted engineering contract** for Company registration enrichment (ACCEPTED for Engineering; plan APPROVED; implementation **in progress**; **not** implemented; additive; Waves 1–5 **not** reopened).
 
 ---
 
@@ -1686,15 +1686,15 @@ Exit product summary: one activity hub (notes + profile history + real comms/act
 | **TITLE** | Guest Profile Module — Gap-edit 1 Company registration enrichment |
 | **PACKAGE** | PMS |
 | **PMS AREA** | Guests |
-| **SPEC STATUS** | **READY FOR ENGINEERING** / Eng-ready (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor) |
-| **ENGINEERING STATUS** | **NOT STARTED** — Fast Spec → Eng. Coding is **not** authorised by this docs PR alone until the usual Eng issue / plan path. This section is the testable contract Eng can plan from. |
+| **SPEC STATUS** | **ACCEPTED for Engineering** (Rekik 2026-09-14) — Eng-ready catch-up |
+| **ENGINEERING STATUS** | **IMPLEMENTATION IN PROGRESS** — Rekik Technical Implementation Plan **APPROVED** 2026-09-14. Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) OPEN. Coding **AUTHORIZED** on `feature/103-company-registration-enrichment`. Gap-edit 1 is **not** implemented (no PASS / LIVE / COMPLETE). Migration `0055` Abel/PM gated. |
 | **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. Receptionist residual **PRESERVED**. Additive RLS that **matches** existing guest-table roles is expected and is **not** a model change. |
-| **Depends on** | Wave 4 **code LIVE on `main`** (#97) — `guest_account_masters` / `guest_account_links` / `guest_account_history`. This gap-edit **extends** those tables. It does **not** reopen Wave 4. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)). |
+| **Depends on** | Wave 4 **code LIVE on `main`** (#97) — `guest_account_masters` / `guest_account_links` / `guest_account_history`. This gap-edit **extends** those tables. It does **not** reopen Wave 4. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)). Gap-edit 1 Spec gate **OPENED**; plan **APPROVED** (Rekik 2026-09-14). |
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik APPROVED 2026-09-14) |
 
-> **Gap-edit 1 READY FOR ENGINEERING** (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Fast Spec → Eng cycle.
+> **Gap-edit 1 Spec ACCEPTED for Engineering** (Rekik 2026-09-14 via Hospitality Product Advisor). Eng-ready catch-up. Gate **OPENED**. Technical Implementation Plan **APPROVED**. ENGINEERING **IMPLEMENTATION IN PROGRESS** on issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) / `feature/103-company-registration-enrichment`.
 >
-> This is an **additive** Company master UX/schema gap-edit on top of Wave 4 masters. Do **not** reopen Waves 1–5 as incomplete. Do **not** rewrite Wave 5 exit as incomplete. Do **not** claim the **module** COMPLETE from this Spec (hotel UAT still required).
+> This section is the testable engineering contract (AC-GE1-1…24). It does **not** claim Gap-edit 1 implemented / PASS / LIVE / COMPLETE. This is an **additive** Company master UX/schema gap-edit on top of Wave 4 masters. Do **not** reopen Waves 1–5 as incomplete. Do **not** rewrite Wave 5 exit as incomplete. Do **not** claim the **module** COMPLETE from this Spec (hotel UAT still required). Migration `0055` Abel/PM gated.
 >
 > Wave 4 delivered a **thin** Company master (required display name; optional code, phone, email, address, city, country, notes; status). That thin register **remains accepted**. Gap-edit 1 **enriches** Company only.
 
@@ -1834,12 +1834,12 @@ Wave 4 required **display name** becomes the required **legal / company name** o
 | Item | Rule |
 |---|---|
 | **Shape** | **Additive columns** on `guest_account_masters` (and FK for default TA). Link UX only on **existing** `guest_account_links` — no second links table, no new role enum values required for this batch. |
-| **File** | Next dual-lane Guest migration **after** `0054_pms_guest_profile_wave5.sql` (do **not** invent a number if another migration lands first). Mirror `supabase/migrations/` and `drizzle/migrations/`. |
+| **File** | Dual-lane **`0055`** (additive Company columns on `guest_account_masters`, after `0054_pms_guest_profile_wave5.sql`). Mirror `supabase/migrations/` and `drizzle/migrations/`. |
 | **Company-only constraints** | `company_type` / `company_type_other` CHECKs must **not** break existing Group / TA rows. Prefer `CHECK (account_type <> 'company' OR company_type IN (...))` and `CHECK (company_type <> 'other' OR btrim(company_type_other) <> '')` (or equivalent). |
 | **Default TA FK** | Same-property composite FK. Optional CHECK / trigger that the referenced row is `travel_agent`. Invalid / other-property / Company-or-Group id is rejected. |
 | **RLS** | Existing `guest_account_masters` / `guest_account_links` policies already match `guest_profiles` (owner/manager). Additive columns inherit those policies. **Additive RLS OK.** **Flag Abel** if the entitlement **model** must change (new roles, receptionist expansion, security-definer in an exposed schema). |
 | **Non-prod apply** | Expected on `qcwptraosaudcbjasmul` during Eng. Record version. |
-| **Production apply** | **NOT** from this Spec. **Abel / PM gate** — same hold as 0051 / 0053 / 0054. Do **not** treat Spec merge or Eng code merge as production schema apply. |
+| **Production apply** | **0055 Abel / PM gated.** Same hold as 0051 / 0053 / 0054. Do **not** treat Spec merge or Eng code merge as production schema apply. |
 | **Degrade** | Surfaces that need the new columns show an honest unavailable message until apply (follow Wave 4 `WAVE4_MIGRATION_UNAVAILABLE` pattern). |
 | **Wave 5 columns** | Do **not** drop or rewrite `anonymised_at` / Wave 5 master privacy behaviour. |
 
@@ -1853,7 +1853,7 @@ Wave 4 required **display name** becomes the required **legal / company name** o
 | Folio tab on Company | Cashiering / later — not this batch |
 | Inventing a rate engine / live negotiated rate | Never invent — text reference only |
 | Wave 4 AC-W4-5 create-reservation residual | **Stands.** Do **not** boil `create_hotel_reservation_priced` from this gap-edit |
-| Production migration apply | Abel / PM — not this Spec |
+| Production migration `0055` apply | Abel / PM — not this Spec |
 | Entitlement / RLS **model** change | Flag Abel; additive matching RLS is OK |
 | Position / Department on Company | Individual (not this form) |
 | New `guest_account_links` roles | Not required; reuse `employer` / `bill_to` |
@@ -1890,12 +1890,12 @@ Staff in the ACs are **authorised**: signed-in, property membership, package **p
 | **AC-GE1-20** | Company data and links stay **tenant-scoped**. | Property 2 does not see property 1 Company fields, default TA, or links. `restaurantId` from the client is not trusted alone. |
 | **AC-GE1-21** | **No** entitlement / RLS **model** change unless Abel-flagged. | Diff has no new package and no new RLS role model. Additive RLS matching guest-table roles is OK. Receptionist residual **PRESERVED**. |
 | **AC-GE1-22** | Waves 1–5 LIVE surfaces **remain**. This gap-edit does **not** reopen them as incomplete. | Individual Directory / Information, Identity, Preferences, merge, consent, Stay History, Dashboard, Loyalty, Relationships, Wave 5 hub / privacy (as documented on `main`), and thin Group/TA masters still work on the same routes. AC-W4-5 residual is **not** boiled. |
-| **AC-GE1-23** | Production schema apply is **not** claimed from this Spec or from Eng merge. | Migration file is dual-lane and Abel/PM-gated for production. Surfaces degrade honestly until apply. Production 0053 / 0054 holds are untouched. |
+| **AC-GE1-23** | Production schema apply is **not** claimed from this Spec or from Eng merge. | Migration **`0055`** is dual-lane and Abel/PM-gated for production. Surfaces degrade honestly until apply. Production 0053 / 0054 holds are untouched. |
 | **AC-GE1-24** | This gap-edit does **not** claim the **module COMPLETE**. | Copy / DER / PR do not mark Guest Profile COMPLETE. Hotel UAT remains required. |
 
 #### Gap-edit 1 AC results
 
-DESIGN COMPLETION: **READY FOR ENGINEERING** (Gap-edit 1 Spec — Eng-ready). IMPLEMENTATION STATUS: **NOT STARTED** (not PASS). Approved deviations: **NONE** yet.
+DESIGN COMPLETION: **ACCEPTED for Engineering** (Gap-edit 1 Spec — Eng-ready catch-up). IMPLEMENTATION STATUS: **IN PROGRESS** (not PASS). Approved deviations: **NONE** yet.
 
 `NOT RUN` is never `PASS`. Do **not** record AC-GE1-\* as PASS from this Spec. Do **not** claim Gap-edit 1 implemented / LIVE / COMPLETE.
 
@@ -1948,7 +1948,7 @@ DESIGN COMPLETION: **READY FOR ENGINEERING** (Gap-edit 1 Spec — Eng-ready). IM
 | **REG-GE1-10** | Guest Services placeholder remains requests / concierge — not this module. |
 | **REG-GE1-11** | Individual `vipStatus`, status deactivate/reactivate, and badges still work. |
 | **REG-GE1-12** | Group account copy still says **account master**, not S&E block. |
-| **REG-GE1-13** | Production 0051 / 0053 / 0054 Abel-gates remain; this gap-edit does not apply them. |
+| **REG-GE1-13** | Production 0051 / 0053 / 0054 Abel-gates remain; this gap-edit does not apply them. Production **`0055`** is Abel/PM gated and is **not** claimed applied. |
 
 ### 8.13 Gap-edit 1 permissions (summary)
 
@@ -1966,18 +1966,21 @@ DESIGN COMPLETION: **READY FOR ENGINEERING** (Gap-edit 1 Spec — Eng-ready). IM
 Gap-edit 1 **exits for engineering-gate purposes** only after:
 
 1. Rekik **approval** of this Spec — **DONE** 2026-09-14 via Hospitality Product Advisor
-2. Implementation against this §8 contract (extend Wave 4 masters / links — do **not** restart; do **not** reopen Waves 1–5)
-3. Developer QA recorded (`NOT RUN` ≠ `PASS`)
-4. Independent QA **PASS**
-5. Human merge of the implementation PR
-6. Design Execution Report
-7. Docs reconciliation to `main` (code wins)
+2. Rekik **tech-plan approval** (issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103)) — **DONE** 2026-09-14
+3. Implementation against this §8 contract (extend Wave 4 masters / links — do **not** restart; do **not** reopen Waves 1–5) — **IN PROGRESS** on `feature/103-company-registration-enrichment`
+4. Developer QA recorded (`NOT RUN` ≠ `PASS`)
+5. Independent QA **PASS**
+6. Human merge of the implementation PR
+7. Design Execution Report
+8. Docs reconciliation to `main` (code wins)
+
+Migration `0055` remains **Abel / PM gated** for production.
 
 **Hotel UAT** is **not** required to start Gap-edit 1 engineering. Hotel UAT **is** required for **module COMPLETE**.
 
-This Spec records that Gap-edit 1 is **READY FOR ENGINEERING**. It does **not** claim Gap-edit 1 implemented. It does **not** claim Waves 1–5 incomplete. The module is **not** COMPLETE.
+This Spec catch-up records that coding is **AUTHORIZED / IN PROGRESS**. It does **not** claim Gap-edit 1 implemented / PASS / LIVE / COMPLETE. It does **not** claim Waves 1–5 incomplete. The module is **not** COMPLETE.
 
-Exit product summary: sectioned Company form (Basic open); required legal name + company type (+ other text when Other); tax / contact / address / commercial / notes; default TA = existing TA master; multi-select Directory link from Company detail into `guest_account_links` (employer default / bill-to); unlink; Individual Relationships remains; no Position/Department on Company; no rate engine; tenant/auth honesty; production migration Abel-gated.
+Exit product summary: sectioned Company form (Basic open); required legal name + company type (+ other text when Other); tax / contact / address / commercial / notes; default TA = existing TA master; multi-select Directory link from Company detail into `guest_account_links` (employer default / bill-to); unlink; Individual Relationships remains; no Position/Department on Company; no rate engine; tenant/auth honesty; production migration `0055` Abel-gated.
 
 ---
 
@@ -2019,9 +2022,10 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Record Wave 4 **code LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed | Reopen Wave 4, or claim Wave 4 OPERATIONALLY ACCEPTED from this Wave 5 Spec |
 | Record Wave 5 Spec as **ACCEPTED for Engineering** (gate OPENED; plan APPROVED; §7 ACs) | Claim Wave 5 **implemented** / PASS / LIVE / COMPLETE, or claim the **module** COMPLETE |
 | Record Wave 5 engineering as **IMPLEMENTATION IN PROGRESS** on #98 | Invent a marketing cloud, fake send, silent unmerge, or LIVE OTA / gateway / classic NA |
-| Record Gap-edit 1 as **READY FOR ENGINEERING** / Eng-ready (§8; Rekik APPROVED 2026-09-14) | Reopen Waves 1–5 as incomplete, rewrite Wave 5 exit, or claim the **module** COMPLETE |
-| Specify sectioned Company form + multi-guest link on existing `guest_account_links` | Enrich Group/TA forms, invent a rate engine, Import, Folio tab, loyalty points, Position/Department on Company, or a second links table |
-| Record Gap-edit 1 additive columns on `guest_account_masters` as Abel/PM-gated for production | Apply production schema from this Spec, or treat Eng merge as production apply |
+| Record Gap-edit 1 Spec as **ACCEPTED for Engineering** (gate OPENED; plan APPROVED; §8 ACs) | Claim Gap-edit 1 **implemented** / PASS / LIVE / COMPLETE, reopen Waves 1–5, rewrite Wave 5 exit, or claim the **module** COMPLETE |
+| Record Gap-edit 1 engineering as **IMPLEMENTATION IN PROGRESS** on #103 | Invent a rate engine, Import, Folio tab, loyalty points, Position/Department on Company, or a second links table |
+| Specify sectioned Company form + multi-guest link on existing `guest_account_links` | Enrich Group/TA forms this batch |
+| Record Gap-edit 1 additive columns / migration **`0055`** as Abel/PM-gated for production | Apply production `0055` from this Spec, or treat Eng merge as production apply |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
 | Record that Waves 1–4 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
 | Record Wave 3 approved deviations (#85 early merge → #87; #86 duplicate of #87; Developer browser PARTIAL) | Treat those process notes as product defects, or treat Developer PARTIAL as PASS |
@@ -2041,7 +2045,7 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 >
 > Wave 5 Spec: **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Gate OPENED; Rekik plan APPROVED 2026-09-14 via Advisor. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Coding AUTHORIZED on `feature/98-guest-profile-wave-5`. Wave 5 is **not** implemented.
 >
-> **Gap-edit 1 Spec: READY FOR ENGINEERING** / Eng-ready (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Company registration enrichment. Additive on Wave 4 masters. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited where documented. Wave 5 docs recon may still be in flight (#102). This addendum does **not** reopen those waves.
+> Gap-edit 1 Spec: **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Gate OPENED; Rekik tech plan APPROVED 2026-09-14. Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) OPEN. Coding AUTHORIZED on `feature/103-company-registration-enrichment`. Gap-edit 1 is **not** implemented. Additive on Wave 4 masters. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited where documented. Wave 5 docs recon may still be in flight (#102). Migration `0055` Abel/PM gated. This addendum does **not** reopen those waves.
 >
 > The module is **not** COMPLETE. Hotel UAT is still required (module DoD: UAT pass + docs + Advisor close).
 >
