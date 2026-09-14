@@ -93,7 +93,8 @@ export function GuestAccountDetail({
       <div className="rounded-2xl border border-border bg-card p-4" data-testid="guest-account-history">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">History</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Master and relationship events. This is not the Wave 5 Comms card.
+          Master and relationship events. Operational communications also appear on Notes / Comms /
+          Activity.
         </p>
         {(historyQuery.data ?? []).length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">No master history yet.</p>

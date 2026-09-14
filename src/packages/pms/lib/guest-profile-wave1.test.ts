@@ -65,6 +65,8 @@ describe("Guest Profile Wave 1 catalogue", () => {
       "preferences",
       "loyalty",
       "relationships",
+      "notes-comms",
+      "admin-privacy",
     ]);
     for (const card of GUEST_PROFILE_CARDS) {
       if (card.live) continue;
@@ -165,7 +167,8 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     assert.equal(isGuestRequiredProfileCard("preferences"), true);
     assert.equal(isGuestRequiredProfileCard("loyalty"), true);
     assert.equal(isGuestRequiredProfileCard("relationships"), true);
-    assert.equal(isGuestRequiredProfileCard("notes-comms"), false);
+    assert.equal(isGuestRequiredProfileCard("notes-comms"), true);
+    assert.equal(isGuestRequiredProfileCard("admin-privacy"), true);
   });
 
   it("AC-DIR-1…5 shell shows Information's Directory back on guest-required cards", () => {
@@ -241,7 +244,8 @@ describe("Guest Profile empty guest — AC-EMPTY-1…6 (Spec §5.16)", () => {
     assert.equal(showEmptyDirectoryCta(true, "dashboard"), false);
     assert.equal(showEmptyDirectoryCta(false, "directory"), false);
     assert.equal(showEmptyDirectoryCta(false, "loyalty"), true);
-    assert.equal(showEmptyDirectoryCta(false, "notes-comms"), false);
+    assert.equal(showEmptyDirectoryCta(false, "notes-comms"), true);
+    assert.equal(showEmptyDirectoryCta(false, "admin-privacy"), true);
   });
 
   it("AC-EMPTY-1…5 guest-required empty states render a primary Open Directory button", () => {

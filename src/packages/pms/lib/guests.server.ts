@@ -9,6 +9,7 @@ import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 import type { GuestAccountEventType } from "./guest-profile-wave4";
+import { GUEST_PRIVACY_ROLES } from "./guest-profile-wave5";
 
 export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 
@@ -30,6 +31,12 @@ export const GUEST_EVENT_TYPES = [
   "consent_updated",
   "relationship_linked",
   "relationship_unlinked",
+  "comms_logged",
+  "comms_sent",
+  "exported",
+  "anonymised",
+  "unmerged",
+  "unmerge_blocked",
 ] as const;
 export type GuestEventType = (typeof GUEST_EVENT_TYPES)[number];
 
@@ -49,6 +56,10 @@ export function canManageGuests(role: string): boolean {
   return (GUEST_MANAGE_ROLES as readonly string[]).includes(role);
 }
 
+export function canManageGuestPrivacy(role: string): boolean {
+  return (GUEST_PRIVACY_ROLES as readonly string[]).includes(role);
+}
+
 /** Owner/manager membership for this property, or a hard failure. */
 export async function requireGuestManager(
   context: AuthedCtx,
@@ -64,6 +75,22 @@ export async function requireGuestManager(
       "You don't have access to Guest Management for this property.",
     ),
   );
+}
+
+/**
+ * Privacy writes (export / anonymise / unmerge) stay on the existing guest
+ * manage gate, then require owner/manager — matching other sensitive PMS ops.
+ * Receptionist residual on list/edit is PRESERVED and is not a model change.
+ */
+export async function requireGuestPrivacyOfficer(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  const me = await requireGuestManager(context, restaurantId);
+  if (!canManageGuestPrivacy(me.role)) {
+    throw new Error("Only owners and managers can export, anonymise or unmerge guest data.");
+  }
+  return me;
 }
 
 export function blankToNull(value: string | null | undefined): string | null {

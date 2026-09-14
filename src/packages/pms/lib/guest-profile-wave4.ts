@@ -110,6 +110,10 @@ export const GUEST_ACCOUNT_EVENT_TYPES = [
   "profile_updated",
   "relationship_linked",
   "relationship_unlinked",
+  "comms_logged",
+  "comms_sent",
+  "exported",
+  "anonymised",
 ] as const;
 export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 
@@ -152,6 +156,7 @@ export type GuestAccountSummary = {
   email: string | null;
   accountStatus: GuestAccountStatus;
   updatedAt: string;
+  anonymisedAt: string | null;
 };
 
 export type GuestAccountProfile = GuestAccountSummary & {
