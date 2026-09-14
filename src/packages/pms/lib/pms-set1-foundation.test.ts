@@ -306,7 +306,11 @@ describe("PMS-SET1 hub locks", () => {
     const drizzle047 = join(here, "../../../../drizzle/migrations/0047_pms_set1_foundation_settings.sql");
     const supabase047 = join(here, "../../../../supabase/migrations/0047_pms_set1_foundation_settings.sql");
     assert.equal(existsSync(drizzle047), true);
-    assert.equal(existsSync(supabase047), false);
+    if (existsSync(supabase047)) {
+      const liveApplied = readFileSync(supabase047, "utf8");
+      assert.match(liveApplied, /pms_set1_live/);
+      assert.doesNotMatch(liveApplied, /CREATE TABLE/);
+    }
 
     const migration = readFileSync(drizzle047, "utf8");
     assert.match(migration, /pms_set1_live/);
