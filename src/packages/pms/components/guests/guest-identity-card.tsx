@@ -32,6 +32,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
+import { GuestRestrictionBadges } from "@/packages/pms/components/guests/guest-bits";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -152,6 +153,9 @@ export function GuestIdentityCard({
     <div className="space-y-6" data-testid="guest-identity-card">
       <div>
         <h2 className="font-display text-xl">Identity & Documents</h2>
+        <div className="mt-2">
+          <GuestRestrictionBadges guest={guest} />
+        </div>
         <p className="text-sm text-muted-foreground">{STAFF_VERIFY_COPY}</p>
       </div>
 

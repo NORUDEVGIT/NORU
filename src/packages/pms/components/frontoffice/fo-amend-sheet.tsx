@@ -23,6 +23,7 @@ import {
 } from "@/shared/components/ui/sheet";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
+import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
@@ -628,6 +629,7 @@ export function FoAmendGuestsSheet({
             </ul>
           )
         ) : null}
+        {guest ? <GuestRestrictionWarn guest={guest} /> : null}
       </div>
       <div className="space-y-2" data-testid="fo-named-companions">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Named guests</p>

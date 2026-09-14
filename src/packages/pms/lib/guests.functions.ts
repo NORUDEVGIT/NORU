@@ -47,6 +47,18 @@ import {
 import { CASHIER_ACCESS_ROLES } from "./cashiering.server";
 import { canManageReservations, propertyToday } from "./reservations.server";
 import type { ReservationStatus } from "./reservation-dates";
+import {
+  GUEST_GENDERS,
+  GUEST_TITLES,
+  INDIVIDUAL_ENRICHMENT_UNAVAILABLE,
+  RESTRICTION_SEVERITIES,
+  validateEmergencyContacts,
+  validateLiftReason,
+  validateRestrictionReason,
+  type GuestGender,
+  type GuestTitle,
+  type RestrictionSeverity,
+} from "./guest-profile-individual";
 
 const idSchema = z.string().uuid();
 
@@ -67,6 +79,15 @@ export interface GuestConsent {
   defaults: { dataProcessing: boolean; marketing: boolean } | null;
 }
 
+export interface GuestEmergencyContact {
+  id: string;
+  name: string;
+  relationship: string | null;
+  phone: string | null;
+  email: string | null;
+  sortOrder: number;
+}
+
 export interface GuestSummary {
   id: string;
   firstName: string;
@@ -81,6 +102,8 @@ export interface GuestSummary {
   idDocumentNumber: string | null;
   mergedIntoGuestId: string | null;
   anonymisedAt: string | null;
+  restricted: boolean;
+  blacklisted: boolean;
 }
 
 export interface GuestProfile extends GuestSummary {
@@ -98,6 +121,22 @@ export interface GuestProfile extends GuestSummary {
   idDocumentType: "passport" | "national_id" | "driving_licence" | "other" | null;
   idDocumentExpiry: string | null;
   consent: GuestConsent;
+  title: GuestTitle | null;
+  middleName: string | null;
+  preferredName: string | null;
+  gender: GuestGender | null;
+  phoneAlt: string | null;
+  emailAlt: string | null;
+  position: string | null;
+  department: string | null;
+  sourceOfBusiness: string | null;
+  restrictionSeverity: RestrictionSeverity | null;
+  restrictionReason: string | null;
+  restrictionSetAt: string | null;
+  restrictionSetByName: string | null;
+  restrictionUntil: string | null;
+  emergencyContacts: GuestEmergencyContact[];
+  emergencyContactsAvailable: boolean;
 }
 
 export interface GuestPreferences {
@@ -138,6 +177,7 @@ const GUEST_COLUMNS_BASE =
   "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, id_document_type, id_document_number, id_document_expiry, guest_status, vip_status, notes, linked_customer_user_id, created_at, updated_at";
 const GUEST_COLUMNS_W2 = `${GUEST_COLUMNS_BASE}, merged_into_guest_id, data_processing_consent, data_processing_consent_recorded_at, data_processing_consent_recorded_by, marketing_consent, marketing_consent_recorded_at, marketing_consent_recorded_by`;
 const GUEST_COLUMNS_W5 = `${GUEST_COLUMNS_W2}, anonymised_at, anonymised_by_membership_id`;
+const GUEST_COLUMNS_GE2 = `${GUEST_COLUMNS_W5}, title, middle_name, preferred_name, gender, phone_alt, email_alt, employment_position, department, source_of_business, restricted, blacklisted, restriction_severity, restriction_reason, restriction_set_by_membership_id, restriction_set_at, restriction_until`;
 
 type GuestRow = {
   id: string;
@@ -172,6 +212,22 @@ type GuestRow = {
   marketing_consent_recorded_by?: string | null;
   anonymised_at?: string | null;
   anonymised_by_membership_id?: string | null;
+  title?: string | null;
+  middle_name?: string | null;
+  preferred_name?: string | null;
+  gender?: string | null;
+  phone_alt?: string | null;
+  email_alt?: string | null;
+  employment_position?: string | null;
+  department?: string | null;
+  source_of_business?: string | null;
+  restricted?: boolean | null;
+  blacklisted?: boolean | null;
+  restriction_severity?: string | null;
+  restriction_reason?: string | null;
+  restriction_set_by_membership_id?: string | null;
+  restriction_set_at?: string | null;
+  restriction_until?: string | null;
 };
 
 function toConsentState(value: string | null | undefined): GuestConsentState {
@@ -200,6 +256,8 @@ function toSummary(row: GuestRow): GuestSummary {
     idDocumentNumber: anonymisedAt ? null : (row.id_document_number ?? null),
     mergedIntoGuestId: row.merged_into_guest_id ?? null,
     anonymisedAt,
+    restricted: row.restricted ?? false,
+    blacklisted: row.blacklisted ?? false,
   };
 }
 
@@ -212,23 +270,50 @@ function emptyGuestConsent(available: boolean): GuestConsent {
   };
 }
 
-function toProfile(row: GuestRow, consent: GuestConsent): GuestProfile {
+function toProfile(
+  row: GuestRow,
+  consent: GuestConsent,
+  extras?: {
+    restrictionSetByName?: string | null;
+    emergencyContacts?: GuestEmergencyContact[];
+    emergencyContactsAvailable?: boolean;
+  },
+): GuestProfile {
+  const anonymised = Boolean(row.anonymised_at);
   return {
     ...toSummary(row),
-    language: row.language ?? null,
-    dateOfBirth: row.date_of_birth ?? null,
-    addressLine1: row.address_line1 ?? null,
-    addressLine2: row.address_line2 ?? null,
-    city: row.city ?? null,
-    region: row.region ?? null,
-    country: row.country ?? null,
-    postalCode: row.postal_code ?? null,
-    notes: row.notes ?? null,
+    language: anonymised ? null : (row.language ?? null),
+    dateOfBirth: anonymised ? null : (row.date_of_birth ?? null),
+    addressLine1: anonymised ? null : (row.address_line1 ?? null),
+    addressLine2: anonymised ? null : (row.address_line2 ?? null),
+    city: anonymised ? null : (row.city ?? null),
+    region: anonymised ? null : (row.region ?? null),
+    country: anonymised ? null : (row.country ?? null),
+    postalCode: anonymised ? null : (row.postal_code ?? null),
+    notes: anonymised ? null : (row.notes ?? null),
     linkedCustomerUserId: row.linked_customer_user_id ?? null,
     createdAt: row.created_at ?? row.updated_at,
-    idDocumentType: (row.id_document_type as GuestProfile["idDocumentType"]) ?? null,
-    idDocumentExpiry: row.id_document_expiry ?? null,
+    idDocumentType: anonymised
+      ? null
+      : ((row.id_document_type as GuestProfile["idDocumentType"]) ?? null),
+    idDocumentExpiry: anonymised ? null : (row.id_document_expiry ?? null),
     consent,
+    title: anonymised ? null : ((row.title as GuestTitle | null) ?? null),
+    middleName: anonymised ? null : (row.middle_name ?? null),
+    preferredName: anonymised ? null : (row.preferred_name ?? null),
+    gender: anonymised ? null : ((row.gender as GuestGender | null) ?? null),
+    phoneAlt: anonymised ? null : (row.phone_alt ?? null),
+    emailAlt: anonymised ? null : (row.email_alt ?? null),
+    position: anonymised ? null : (row.employment_position ?? null),
+    department: anonymised ? null : (row.department ?? null),
+    sourceOfBusiness: anonymised ? null : (row.source_of_business ?? null),
+    restrictionSeverity: (row.restriction_severity as RestrictionSeverity | null) ?? null,
+    restrictionReason: row.restriction_reason ?? null,
+    restrictionSetAt: row.restriction_set_at ?? null,
+    restrictionSetByName: extras?.restrictionSetByName ?? null,
+    restrictionUntil: row.restriction_until ?? null,
+    emergencyContacts: extras?.emergencyContacts ?? [],
+    emergencyContactsAvailable: extras?.emergencyContactsAvailable ?? false,
   };
 }
 
@@ -294,6 +379,13 @@ function consentFromRow(
   };
 }
 
+const emergencyContactInputSchema = z.object({
+  name: z.string().max(160).optional().nullable(),
+  relationship: z.string().max(120).optional().nullable(),
+  phone: z.string().max(60).optional().nullable(),
+  email: z.string().max(200).optional().nullable(),
+});
+
 const guestInputSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required.").max(120),
   lastName: z.string().max(120).optional().nullable(),
@@ -316,15 +408,40 @@ const guestInputSchema = z.object({
   idDocumentExpiry: z.string().max(20).optional().nullable(),
   vipStatus: z.boolean().optional(),
   notes: z.string().max(4000).optional().nullable(),
+  title: z.enum(GUEST_TITLES).optional().nullable(),
+  middleName: z.string().max(120).optional().nullable(),
+  preferredName: z.string().max(120).optional().nullable(),
+  gender: z.enum(GUEST_GENDERS).optional().nullable(),
+  phoneAlt: z.string().max(60).optional().nullable(),
+  emailAlt: z.string().max(200).optional().nullable(),
+  position: z.string().max(160).optional().nullable(),
+  department: z.string().max(160).optional().nullable(),
+  sourceOfBusiness: z.string().max(200).optional().nullable(),
+  guestStatus: z.enum(GUEST_STATUSES).optional(),
+  restricted: z.boolean().optional(),
+  blacklisted: z.boolean().optional(),
+  restrictionSeverity: z.enum(RESTRICTION_SEVERITIES).optional().nullable(),
+  restrictionReason: z.string().max(2000).optional().nullable(),
+  restrictionUntil: z.string().max(20).optional().nullable(),
+  emergencyContacts: z.array(emergencyContactInputSchema).max(20).optional(),
 });
 
 type GuestInput = z.infer<typeof guestInputSchema>;
 
-function toColumns(input: GuestInput) {
-  const email = blankToNull(input.email);
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    throw new Error("Enter a valid email address.");
+function assertEmail(value: string | null, label = "email"): string | null {
+  if (value && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+    throw new Error(`Enter a valid ${label} address.`);
   }
+  return value;
+}
+
+function toColumns(input: GuestInput) {
+  const email = assertEmail(blankToNull(input.email));
+  const emailAlt = assertEmail(blankToNull(input.emailAlt), "alternate email");
+  const restricted = input.restricted ?? false;
+  const blacklisted = input.blacklisted ?? false;
+  const reasonError = validateRestrictionReason(restricted, blacklisted, input.restrictionReason);
+  if (reasonError) throw new Error(reasonError);
   return {
     first_name: input.firstName.trim(),
     last_name: blankToNull(input.lastName),
@@ -350,6 +467,21 @@ function toColumns(input: GuestInput) {
     ...(input.idDocumentExpiry !== undefined
       ? { id_document_expiry: blankToNull(input.idDocumentExpiry) }
       : {}),
+    title: blankToNull(input.title),
+    middle_name: blankToNull(input.middleName),
+    preferred_name: blankToNull(input.preferredName),
+    gender: blankToNull(input.gender),
+    phone_alt: blankToNull(input.phoneAlt),
+    email_alt: emailAlt,
+    employment_position: blankToNull(input.position),
+    department: blankToNull(input.department),
+    source_of_business: blankToNull(input.sourceOfBusiness),
+    ...(input.guestStatus ? { guest_status: input.guestStatus } : {}),
+    restricted,
+    blacklisted,
+    restriction_severity: restricted || blacklisted ? blankToNull(input.restrictionSeverity) : null,
+    restriction_reason: restricted || blacklisted ? blankToNull(input.restrictionReason) : null,
+    restriction_until: restricted || blacklisted ? blankToNull(input.restrictionUntil) : null,
   };
 }
 
@@ -371,7 +503,139 @@ const TRACKED_FIELDS = [
   "id_document_number",
   "id_document_expiry",
   "notes",
+  "title",
+  "middle_name",
+  "preferred_name",
+  "gender",
+  "phone_alt",
+  "email_alt",
+  "employment_position",
+  "department",
+  "source_of_business",
 ] as const;
+
+const RESTRICTION_FIELDS = [
+  "restricted",
+  "blacklisted",
+  "restriction_severity",
+  "restriction_reason",
+  "restriction_until",
+] as const;
+
+type EmergencyContactInput = z.infer<typeof emergencyContactInputSchema>;
+
+function namedEmergencyContacts(contacts: EmergencyContactInput[] | undefined) {
+  return (contacts ?? [])
+    .map((contact, index) => ({
+      name: (contact.name ?? "").trim(),
+      relationship: blankToNull(contact.relationship),
+      phone: blankToNull(contact.phone),
+      email: assertEmail(blankToNull(contact.email), "emergency contact email"),
+      sort_order: index,
+    }))
+    .filter((contact) => contact.name !== "");
+}
+
+async function replaceEmergencyContacts(
+  client: { from: (table: string) => unknown },
+  restaurantId: string,
+  guestId: string,
+  contacts: EmergencyContactInput[] | undefined,
+): Promise<void> {
+  const named = namedEmergencyContacts(contacts);
+  const required = validateEmergencyContacts(named);
+  if (required) throw new Error(required);
+  const table = fromTable(client, "guest_emergency_contacts");
+  const deleted = await table.delete().eq("restaurant_id", restaurantId).eq("guest_id", guestId);
+  if (deleted.error && isMissingSchemaError(deleted.error)) {
+    throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+  }
+  if (deleted.error) throw new Error(deleted.error.message);
+  const inserted = await fromTable(client, "guest_emergency_contacts").insert(
+    named.map((contact) => ({
+      restaurant_id: restaurantId,
+      guest_id: guestId,
+      name: contact.name,
+      relationship: contact.relationship,
+      phone: contact.phone,
+      email: contact.email,
+      sort_order: contact.sort_order,
+    })),
+  );
+  if (inserted.error && isMissingSchemaError(inserted.error)) {
+    throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+  }
+  if (inserted.error) throw new Error(inserted.error.message);
+}
+
+async function loadEmergencyContacts(
+  client: { from: (table: string) => unknown },
+  restaurantId: string,
+  guestId: string,
+): Promise<{ contacts: GuestEmergencyContact[]; available: boolean }> {
+  const result = await fromTable(client, "guest_emergency_contacts")
+    .select("id, name, relationship, phone, email, sort_order")
+    .eq("restaurant_id", restaurantId)
+    .eq("guest_id", guestId)
+    .order("sort_order", { ascending: true });
+  if (result.error && isMissingSchemaError(result.error)) {
+    return { contacts: [], available: false };
+  }
+  if (result.error) throw new Error(result.error.message);
+  return {
+    available: true,
+    contacts: ((result.data ?? []) as Array<{
+      id: string;
+      name: string;
+      relationship: string | null;
+      phone: string | null;
+      email: string | null;
+      sort_order: number;
+    }>).map((row) => ({
+      id: row.id,
+      name: row.name,
+      relationship: row.relationship,
+      phone: row.phone,
+      email: row.email,
+      sortOrder: row.sort_order,
+    })),
+  };
+}
+
+function restrictionSnapshot(row: Pick<GuestRow, "restricted" | "blacklisted">) {
+  return {
+    restricted: row.restricted ?? false,
+    blacklisted: row.blacklisted ?? false,
+  };
+}
+
+async function recordRestrictionChange(entry: {
+  restaurantId: string;
+  guestId: string;
+  actorMembershipId: string;
+  before: { restricted: boolean; blacklisted: boolean };
+  after: { restricted: boolean; blacklisted: boolean };
+  reason: string | null;
+  lifted?: boolean;
+}): Promise<void> {
+  const beforeOn = entry.before.restricted || entry.before.blacklisted;
+  const afterOn = entry.after.restricted || entry.after.blacklisted;
+  if (beforeOn === afterOn && !entry.lifted) return;
+  const eventType = entry.lifted
+    ? "restriction_lifted"
+    : afterOn
+      ? "restriction_set"
+      : "restriction_cleared";
+  await recordGuestEvent({
+    restaurantId: entry.restaurantId,
+    guestId: entry.guestId,
+    eventType,
+    previousValues: entry.before,
+    newValues: entry.after,
+    notes: entry.reason,
+    actorMembershipId: entry.actorMembershipId,
+  });
+}
 
 /* --------------------------------------------------------------- access */
 
@@ -432,7 +696,10 @@ export const listGuests = createServerFn({ method: "POST" })
       return query;
     };
 
-    let result = await applyFilters(GUEST_COLUMNS_W5, true);
+    let result = await applyFilters(GUEST_COLUMNS_GE2, true);
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await applyFilters(GUEST_COLUMNS_W5, true);
+    }
     if (result.error && isMissingSchemaError(result.error)) {
       result = await applyFilters(GUEST_COLUMNS_W2, true);
     }
@@ -480,7 +747,10 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
       return query;
     };
 
-    let result = await run(GUEST_COLUMNS_W5, true);
+    let result = await run(GUEST_COLUMNS_GE2, true);
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await run(GUEST_COLUMNS_W5, true);
+    }
     if (result.error && isMissingSchemaError(result.error)) {
       result = await run(GUEST_COLUMNS_W2, true);
     }
@@ -511,10 +781,18 @@ export const getGuest = createServerFn({ method: "POST" })
 
       let wave2 = true;
       let rowResult = await fromTable(context.supabase, "guest_profiles")
-        .select(GUEST_COLUMNS_W5)
+        .select(GUEST_COLUMNS_GE2)
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.guestId)
         .maybeSingle();
+      if (rowResult.error && isMissingSchemaError(rowResult.error)) {
+        rowResult = await context.supabase
+          .from("guest_profiles")
+          .select(GUEST_COLUMNS_W5)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.guestId)
+          .maybeSingle();
+      }
       if (rowResult.error && isMissingSchemaError(rowResult.error)) {
         rowResult = await context.supabase
           .from("guest_profiles")
@@ -554,10 +832,17 @@ export const getGuest = createServerFn({ method: "POST" })
           .limit(100),
       ]);
 
+      const emergency = await loadEmergencyContacts(
+        context.supabase,
+        data.restaurantId,
+        data.guestId,
+      );
+
       const actorNames = await resolveActorNames(data.restaurantId, [
         ...(historyRows ?? []).map((h) => h.actor_membership_id),
         row.data_processing_consent_recorded_by,
         row.marketing_consent_recorded_by,
+        row.restriction_set_by_membership_id,
       ]);
 
       const rules = await loadGuestProfileRules(
@@ -592,6 +877,13 @@ export const getGuest = createServerFn({ method: "POST" })
                 }
               : null,
           ),
+          {
+            restrictionSetByName: row.restriction_set_by_membership_id
+              ? (actorNames.get(row.restriction_set_by_membership_id) ?? "Staff member")
+              : null,
+            emergencyContacts: emergency.contacts,
+            emergencyContactsAvailable: emergency.available,
+          },
         ),
         preferences,
         history: (historyRows ?? []).map((h) => ({
@@ -621,17 +913,76 @@ export const createGuest = createServerFn({ method: "POST" })
     const blocked = guestCreateBlocked(rules, data.guest);
     if (blocked) throw new Error(blocked);
     const columns = toColumns(data.guest);
+    const restrictionOn = columns.restricted || columns.blacklisted;
+    const insertRow = {
+      ...columns,
+      restaurant_id: data.restaurantId,
+      created_by_staff_membership_id: me.id,
+      ...(restrictionOn
+        ? {
+            restriction_set_by_membership_id: me.id,
+            restriction_set_at: new Date().toISOString(),
+          }
+        : {}),
+    };
 
-    const { data: inserted, error } = await context.supabase
-      .from("guest_profiles")
-      .insert({
-        ...columns,
-        restaurant_id: data.restaurantId,
-        created_by_staff_membership_id: me.id,
-      })
-      .select("id")
-      .single();
+    let inserted: { id: string } | null = null;
+    let error: { message?: string; code?: string } | null = null;
+    let enrichmentApplied = true;
+    const first = await context.supabase.from("guest_profiles").insert(insertRow).select("id").single();
+    inserted = first.data;
+    error = first.error;
+    if (error && isMissingSchemaError(error)) {
+      enrichmentApplied = false;
+      const ge2Keys = [
+        "title",
+        "middle_name",
+        "preferred_name",
+        "gender",
+        "phone_alt",
+        "email_alt",
+        "employment_position",
+        "department",
+        "source_of_business",
+        "restricted",
+        "blacklisted",
+        "restriction_severity",
+        "restriction_reason",
+        "restriction_until",
+        "restriction_set_by_membership_id",
+        "restriction_set_at",
+      ] as const;
+      const usedEnrichment = ge2Keys.some((key) => {
+        const value = (insertRow as Record<string, unknown>)[key];
+        return value !== null && value !== undefined && value !== false && value !== "";
+      });
+      if (data.guest.emergencyContacts?.length || restrictionOn || usedEnrichment) {
+        throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+      }
+      const legacy = { ...insertRow } as Record<string, unknown>;
+      for (const key of ge2Keys) delete legacy[key];
+      const retry = await context.supabase
+        .from("guest_profiles")
+        .insert({
+          ...legacy,
+          restaurant_id: data.restaurantId,
+          created_by_staff_membership_id: me.id,
+        } as never)
+        .select("id")
+        .single();
+      inserted = retry.data;
+      error = retry.error;
+    }
     if (error || !inserted) throw new Error(error?.message ?? "Could not create this guest.");
+
+    if (enrichmentApplied) {
+      await replaceEmergencyContacts(
+        context.supabase,
+        data.restaurantId,
+        inserted.id,
+        data.guest.emergencyContacts,
+      );
+    }
 
     await recordGuestEvent({
       restaurantId: data.restaurantId,
@@ -640,6 +991,16 @@ export const createGuest = createServerFn({ method: "POST" })
       newValues: columns,
       actorMembershipId: me.id,
     });
+    if (restrictionOn) {
+      await recordRestrictionChange({
+        restaurantId: data.restaurantId,
+        guestId: inserted.id,
+        actorMembershipId: me.id,
+        before: { restricted: false, blacklisted: false },
+        after: { restricted: columns.restricted, blacklisted: columns.blacklisted },
+        reason: columns.restriction_reason,
+      });
+    }
 
     return { id: inserted.id };
   });
@@ -654,23 +1015,59 @@ export const updateGuest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
 
-    const { data: before } = await fromTable(context.supabase, "guest_profiles")
-      .select(`${GUEST_COLUMNS_BASE}, anonymised_at`)
+    let beforeResult = await fromTable(context.supabase, "guest_profiles")
+      .select(`${GUEST_COLUMNS_GE2}`)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId)
       .maybeSingle();
+    if (beforeResult.error && isMissingSchemaError(beforeResult.error)) {
+      beforeResult = await fromTable(context.supabase, "guest_profiles")
+        .select(`${GUEST_COLUMNS_BASE}, anonymised_at`)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.guestId)
+        .maybeSingle();
+    }
+    const before = beforeResult.data as GuestRow | null;
     if (!before) throw new Error("That guest could not be found.");
-    if ((before as { anonymised_at?: string | null }).anonymised_at) {
+    if (before.anonymised_at) {
       throw new Error("This profile has been anonymised and cannot be changed.");
     }
 
     const columns = toColumns(data.guest);
-    const { error } = await context.supabase
+    const restrictionOn = columns.restricted || columns.blacklisted;
+    const beforeOn = (before.restricted ?? false) || (before.blacklisted ?? false);
+    const updateRow = {
+      ...columns,
+      ...(restrictionOn && !beforeOn
+        ? {
+            restriction_set_by_membership_id: me.id,
+            restriction_set_at: new Date().toISOString(),
+          }
+        : {}),
+      ...(!restrictionOn
+        ? {
+            restriction_set_by_membership_id: null,
+            restriction_set_at: null,
+          }
+        : {}),
+    };
+
+    let { error } = await context.supabase
       .from("guest_profiles")
-      .update(columns)
+      .update(updateRow)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId);
+    if (error && isMissingSchemaError(error)) {
+      throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+    }
     if (error) throw new Error(error.message);
+
+    await replaceEmergencyContacts(
+      context.supabase,
+      data.restaurantId,
+      data.guestId,
+      data.guest.emergencyContacts,
+    );
 
     const profileDiff = diffFields(
       before as unknown as Record<string, unknown>,
@@ -687,14 +1084,29 @@ export const updateGuest = createServerFn({ method: "POST" })
         actorMembershipId: me.id,
       });
     }
-    if ((before as unknown as GuestRow).vip_status !== columns.vip_status) {
+    if (before.vip_status !== columns.vip_status) {
       await recordGuestEvent({
         restaurantId: data.restaurantId,
         guestId: data.guestId,
         eventType: "vip_changed",
-        previousValues: { vip_status: (before as GuestRow).vip_status },
+        previousValues: { vip_status: before.vip_status },
         newValues: { vip_status: columns.vip_status },
         actorMembershipId: me.id,
+      });
+    }
+    const restrictionDiff = diffFields(
+      before as unknown as Record<string, unknown>,
+      columns as unknown as Record<string, unknown>,
+      RESTRICTION_FIELDS,
+    );
+    if (restrictionDiff) {
+      await recordRestrictionChange({
+        restaurantId: data.restaurantId,
+        guestId: data.guestId,
+        actorMembershipId: me.id,
+        before: restrictionSnapshot(before),
+        after: { restricted: columns.restricted, blacklisted: columns.blacklisted },
+        reason: columns.restriction_reason,
       });
     }
 
@@ -765,6 +1177,137 @@ export const setGuestStatus = createServerFn({ method: "POST" })
       actorMembershipId: me.id,
     });
     return { ok: true };
+  });
+
+/* ------------------------------------------------------- restrictions */
+
+export const setGuestRestriction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        restricted: z.boolean(),
+        blacklisted: z.boolean(),
+        restrictionSeverity: z.enum(RESTRICTION_SEVERITIES).optional().nullable(),
+        restrictionReason: z.string().max(2000),
+        restrictionUntil: z.string().max(20).optional().nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const reasonError = validateRestrictionReason(
+      data.restricted,
+      data.blacklisted,
+      data.restrictionReason,
+    );
+    if (reasonError) throw new Error(reasonError);
+    if (!data.restricted && !data.blacklisted) {
+      throw new Error("Set restricted and/or blacklisted, or use lift instead.");
+    }
+
+    const { data: before, error: beforeError } = await fromTable(context.supabase, "guest_profiles")
+      .select("id, restricted, blacklisted, anonymised_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+    if (beforeError && isMissingSchemaError(beforeError)) {
+      throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+    }
+    if (beforeError) throw new Error(beforeError.message);
+    if (!before) throw new Error("That guest could not be found.");
+    if ((before as { anonymised_at?: string | null }).anonymised_at) {
+      throw new Error("This profile has been anonymised and cannot be changed.");
+    }
+
+    const { error } = await context.supabase
+      .from("guest_profiles")
+      .update({
+        restricted: data.restricted,
+        blacklisted: data.blacklisted,
+        restriction_severity: blankToNull(data.restrictionSeverity),
+        restriction_reason: data.restrictionReason.trim(),
+        restriction_until: blankToNull(data.restrictionUntil),
+        restriction_set_by_membership_id: me.id,
+        restriction_set_at: new Date().toISOString(),
+      })
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId);
+    if (error && isMissingSchemaError(error)) throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+    if (error) throw new Error(error.message);
+
+    await recordRestrictionChange({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      actorMembershipId: me.id,
+      before: restrictionSnapshot(before as GuestRow),
+      after: { restricted: data.restricted, blacklisted: data.blacklisted },
+      reason: data.restrictionReason.trim(),
+    });
+    return { ok: true as const };
+  });
+
+export const liftGuestRestriction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        reason: z.string().max(2000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const liftError = validateLiftReason(data.reason);
+    if (liftError) throw new Error(liftError);
+
+    const { data: before, error: beforeError } = await fromTable(context.supabase, "guest_profiles")
+      .select("id, restricted, blacklisted, anonymised_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+    if (beforeError && isMissingSchemaError(beforeError)) {
+      throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+    }
+    if (beforeError) throw new Error(beforeError.message);
+    if (!before) throw new Error("That guest could not be found.");
+    if ((before as { anonymised_at?: string | null }).anonymised_at) {
+      throw new Error("This profile has been anonymised and cannot be changed.");
+    }
+    if (!(before as GuestRow).restricted && !(before as GuestRow).blacklisted) {
+      throw new Error("This guest has no restriction to lift.");
+    }
+
+    const { error } = await context.supabase
+      .from("guest_profiles")
+      .update({
+        restricted: false,
+        blacklisted: false,
+        restriction_severity: null,
+        restriction_reason: null,
+        restriction_until: null,
+        restriction_set_by_membership_id: null,
+        restriction_set_at: null,
+      })
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId);
+    if (error && isMissingSchemaError(error)) throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
+    if (error) throw new Error(error.message);
+
+    await recordRestrictionChange({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      actorMembershipId: me.id,
+      before: restrictionSnapshot(before as GuestRow),
+      after: { restricted: false, blacklisted: false },
+      reason: data.reason.trim(),
+      lifted: true,
+    });
+    return { ok: true as const };
   });
 
 /* ---------------------------------------------------------- preferences */

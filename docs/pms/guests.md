@@ -258,6 +258,7 @@ Wave 3 residual / Guest shell UX (post–Wave 3) — **not** Waves 4–5 product
 | PR [#101](https://github.com/NORUDEVGIT/NORU/pull/101) | Wave 5 implementation — **MERGED** 2026-09-14T14:22:35Z. |
 | Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) | Wave 4 tracking issue — **CLOSED** completed. Code LIVE via PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED. |
 | [Functional Spec §8 — Gap-edit 1](./specs/guest-profile-module.md#8-gap-edit-1--company-registration-enrichment) | Company registration enrichment — **ACCEPTED for Engineering**. ENGINEERING **IN PROGRESS** on [#103](https://github.com/NORUDEVGIT/NORU/issues/103). AC-GE1-1…24. Additive; **not** implemented; does not reopen Waves 1–5. Migration `0055` Abel/PM gated. |
+| Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) | Gap-edit 2 Individual form enrichment + blacklist/restricted + Linking — **IN PROGRESS**. Additive; does **not** reopen Waves 1–5 or #103. Migration `0057` Abel/PM gated (TIP named 0056; 0056 already used by Polish Wave 1). |
 | Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) | Gap-edit 1 tracking issue — **OPEN**. Rekik tech plan **APPROVED**. Coding AUTHORIZED on `feature/103-company-registration-enrichment`. **Not** implemented. |
 | PR [#102](https://github.com/NORUDEVGIT/NORU/pull/102) | Wave 5 docs recon — **may still be OPEN**. Gap-edit 1 does **not** rewrite that recon. |
 | PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) | Wave 4 implementation — **MERGED** 2026-09-14. |

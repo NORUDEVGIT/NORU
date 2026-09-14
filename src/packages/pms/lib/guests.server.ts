@@ -37,6 +37,9 @@ export const GUEST_EVENT_TYPES = [
   "anonymised",
   "unmerged",
   "unmerge_blocked",
+  "restriction_set",
+  "restriction_cleared",
+  "restriction_lifted",
 ] as const;
 export type GuestEventType = (typeof GUEST_EVENT_TYPES)[number];
 

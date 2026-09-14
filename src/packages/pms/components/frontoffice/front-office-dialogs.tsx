@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { addDays } from "@/packages/pms/components/bookings/reservation-bits";
+import { GuestRestrictionBadges, GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
@@ -488,7 +489,10 @@ export function WalkInDialog({
                     className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
                     onClick={() => setGuest(g)}
                   >
-                    {g.fullName}
+                    <span className="flex flex-wrap items-center gap-2">
+                      {g.fullName}
+                      <GuestRestrictionBadges guest={g} />
+                    </span>
                     <span className="ml-2 text-xs text-muted-foreground">{g.phone ?? g.email ?? ""}</span>
                   </button>
                 </li>
@@ -500,6 +504,7 @@ export function WalkInDialog({
               ) : null}
             </ul>
           ) : null}
+          {guest ? <GuestRestrictionWarn guest={guest} /> : null}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
