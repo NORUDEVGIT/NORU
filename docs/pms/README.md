@@ -1,6 +1,6 @@
 # PMS documentation
 
-Official NORU Property Management System (PMS) docs. Some pages record features that have completed a coordination cycle (Advisor → Spec → Developer → QA → Docs). This tree also holds **APPROVED FOR DOCS** Functional Specs that are **not** Engineering handoff until the named wave is accepted.
+Official NORU Property Management System (PMS) docs. Some pages record features that have completed a coordination cycle (Advisor → Spec → Developer → QA → Docs). This tree also holds Functional Specs that stay **WAVE-GATED** until the named wave is accepted (Guest Profile Wave 1 is on `main`; Waves 2–5 are still gated).
 
 Package boundaries, route ownership, and shared-service rules live in [`../architecture-ownership.md`](../architecture-ownership.md). This tree does not redefine them. PMS source lives under `src/packages/pms/` per [`../code-organization.md`](../code-organization.md).
 
@@ -13,20 +13,21 @@ Package boundaries, route ownership, and shared-service rules live in [`../archi
 
 The commercial-readiness record is advice from a read-only review of `main`. The Option A product plan packages that baseline into an S1 + M1 programme. Neither file is CURRENT feature documentation for each PMS area.
 
-## Guest Profile Module — Functional Spec / programme (Rekik approved for Docs)
+## Guest Profile Module — Wave 1 on main; Waves 2–5 still gated
 
 | Record | Classification |
 |---|---|
-| [Guest Profile Module — programme overview](./guests.md) | **Functional Spec / programme** — **APPROVED FOR DOCS** (Rekik 2026-09-14). Two-layer commercial model, 10-card north star, Waves 1–5, module Definition of Done. **Not** Engineering handoff. |
-| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | **Functional Spec** — Wave 1 **READY FOR REKIK REVIEW** (full testable ACs). Waves 2–5 **SPECIFIED / WAVE-GATED**. Extend existing guest code; do **not** restart. |
+| [Guest Profile Module — programme overview](./guests.md) | **Functional Spec / programme** — Wave 1 **IMPLEMENTED ON MAIN** (issue [#66](https://github.com/NORUDEVGIT/NORU/issues/66) CLOSED · PR [#67](https://github.com/NORUDEVGIT/NORU/pull/67) MERGED 2026-09-14). Waves 2–5 still **WAVE-GATED**. Module is **not** COMPLETE. |
+| [Functional Spec — Guest Profile Module](./specs/guest-profile-module.md) | **Functional Spec** — Wave 1 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67). Waves 2–5 **SPECIFIED / WAVE-GATED** and still need **explicit ungating**. |
 
-These two records specify the Guest Profile Module. They are **not yet Engineering handoff**. Wave 1 engineering starts only after the Wave 1 Spec is accepted for handoff. Waves 2–5 wait for the prior wave exit. No GitHub issue is opened from this documentation cycle.
+Wave 1 engineering gate exited after Independent QA PASS (Rekik), merge, and DER. Canonical routes: `/restaurant/pms/guests` and `/restaurant/pms/guests/$guestId`. Catalogue key `guest-profile` (`partial`). Guest Services (`guest-services`) was not repurposed. Waves 2–5 wait for explicit ungating. Hotel UAT is still required for module COMPLETE.
 
 ## Surfaces documented in this cycle
 
 | Surface | Doc |
 |---|---|
 | PMS Dashboard (`/restaurant/pms/dashboard` → `RoomsDashboardTab`) | [dashboard.md](./dashboard.md) |
+| Guest Profile (`/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`) | [guests.md](./guests.md) — Wave 1 CURRENT on `main`; Waves 2–5 still gated; module **not** COMPLETE |
 
 Other PMS area docs (reservations, rates, housekeeping, cashiering, night audit, and the rest) will be added here as those features complete their own cycles. Absence of a file is not a claim that the surface does not exist in the product.
 
