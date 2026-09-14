@@ -570,27 +570,35 @@ Staff in the ACs are **authorised**: signed-in, property membership, package **p
 
 #### Wave 2 AC results (DER after merge)
 
-DESIGN COMPLETION: **COMPLETE**. IMPLEMENTATION STATUS: **PASS** (after #79). Approved deviations: **NONE**.
+DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS** (after #79). Approved deviations: **THREE** (see below).
 
 | ID | Result |
 |---|---|
 | **AC-W2-1** … **AC-W2-14** | All **IMPLEMENTED AS SPECIFIED / PASS** per the Wave 2 Design Execution Report (#76 + #79) |
 
+#### Wave 2 approved deviations (DER)
+
+| # | Deviation | Class |
+|---|---|---|
+| 1 | Preference values stored as `id:<uuid>` / `other:<text>` prefix convention in existing text columns rather than a Setup FK | **DOCUMENTATION / IMPLEMENTATION honesty** (TIP residual). See [../guests.md](../guests.md) §7.5. |
+| 2 | PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) merged **before** Preferences Independent QA PASS. Residual shipped as PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) **after** issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED | **Process note only.** #72 stays closed; #79 is the Wave 2 residual, not a new wave. |
+| 3 | Developer browser QA remained **PARTIAL** | Independent QA covered Preferences selection. Developer PARTIAL does not become PASS. |
+
 #### Wave 2 QA lanes recorded
 
 | Lane | Result | Notes |
 |---|---|---|
-| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; Wave 1 + Wave 2 lock tests PASS. Browser AC-W2 / SEC-W2 **NOT RUN** in the developer environment. |
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; Wave 1 + Wave 2 lock tests PASS. Browser AC-W2 / SEC-W2 **NOT RUN** in the developer environment. Independent QA covered Preferences selection (approved deviation 3). |
 | Independent QA | **PASS** | Rekik 2026-09-14 OVERALL PASS after #79 Preferences-tab residual — [issue #72](https://github.com/NORUDEVGIT/NORU/issues/72#issuecomment-5663204867) and [PR #79](https://github.com/NORUDEVGIT/NORU/pull/79#issuecomment-5663204648). |
 
 `NOT RUN` is never `PASS`. Developer PARTIAL does not become PASS because Independent QA later passed.
 
-#### Wave 2 residuals (not defects)
+#### Wave 2 residuals / FINAL (not defects)
 
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
-- Preference values stored as `id:<uuid>` / `other:<text>` prefixes in existing text columns — **DOCUMENTATION / IMPLEMENTATION honesty**, not a Setup FK.
-- Non-prod migration `0051_pms_guest_profile_wave2` applied on `qcwptraosaudcbjasmul` (version `20260914110546`). **Production 0051 NOT applied** (Abel / PM gate).
+- Production migration `0051_pms_guest_profile_wave2` **Abel-gated**. Non-prod **PASS** on `qcwptraosaudcbjasmul` (version `20260914110546`).
 - Waves 3–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ### 4.10 QA (Wave 2)
 
@@ -657,7 +665,7 @@ DESIGN COMPLETION: **COMPLETE**. IMPLEMENTATION STATUS: **PASS** (after #79). Ap
 
 Wave 2 **exited for engineering-gate purposes** after Independent QA PASS (Rekik 2026-09-14, including #79 Preferences-tab residual), human merge of PRs [#76](https://github.com/NORUDEVGIT/NORU/pull/76) and [#79](https://github.com/NORUDEVGIT/NORU/pull/79), issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED, and the Design Execution Report. This docs reconciliation updates [../guests.md](../guests.md) CURRENT / EXPECTED for Wave 2 surfaces.
 
-Approved deviations: **NONE**. Residuals recorded above (receptionist RLS preserved; `id:` / `other:` preference prefixes; production 0051 hold).
+Approved deviations: **THREE** (prefix storage honesty; #76 merged before Preferences Independent QA / #79 after #72 CLOSED — process note; Developer browser PARTIAL with Independent QA covering Preferences selection). Residuals / FINAL: receptionist RLS **PRESERVED**; production 0051 **Abel-gated** (non-prod PASS `qcwptraosaudcbjasmul` / `20260914110546`); Waves 3–5 **WAVE-GATED**. DESIGN COMPLETION **COMPLETE** (Wave 2). IMPLEMENTATION STATUS **PASS**.
 
 **Hotel UAT is not required to start Wave 3** but **is** required for **module COMPLETE**.
 

@@ -177,6 +177,8 @@ Wave 2 reuses the existing eight `guest_preferences` **text** columns. Catalogue
 
 That is a **prefix convention**, not a Setup foreign key. Legacy free-text is treated as Other unless it matches a current option id or label. Do **not** pretend a stored `id:` string is a database FK. A later mapping wave may replace the prefix; until then this is the honest persistence model.
 
+This is **Approved deviation 1** from the Wave 2 DER (TIP honesty residual). Documented here as **DOCUMENTATION / IMPLEMENTATION honesty**, not as a Wave 2 defect.
+
 ### 7.6 Production migration 0051 hold
 
 File: `supabase/migrations/0051_pms_guest_profile_wave2.sql` (dual-lane `drizzle/migrations/0051_pms_guest_profile_wave2.sql`).
@@ -242,8 +244,8 @@ Grounded in the Wave 2 Design Execution Report after #76 + #79. **`NOT RUN` is n
 | DESIGN COMPLETION | **COMPLETE** (Wave 2) |
 | IMPLEMENTATION STATUS | **PASS** (after #79) |
 | AC-W2-1 … AC-W2-14 | All **IMPLEMENTED AS SPECIFIED / PASS** per DER |
-| Approved deviations | **NONE** |
-| Backend / DB | Additive dual-lane `0051_pms_guest_profile_wave2.sql`. Non-prod applied; production **held** (Abel / PM). |
+| Approved deviations | **THREE** — see list below (prefix storage; #76 / #79 process; Developer browser PARTIAL) |
+| Backend / DB | Additive dual-lane `0051_pms_guest_profile_wave2.sql`. Non-prod **PASS** on `qcwptraosaudcbjasmul` (`20260914110546`); production **Abel-gated**. |
 | RPC / RLS | Existing guest manage gate. Receptionist residual **PRESERVED**. No entitlement redesign. Abel was not flagged. |
 | Issue | [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED (completed) |
 | Implementation PR | [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z |
@@ -251,8 +253,8 @@ Grounded in the Wave 2 Design Execution Report after #76 + #79. **`NOT RUN` is n
 
 | Lane | Result | Notes |
 |---|---|---|
-| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; Wave 1 + Wave 2 lock tests PASS. Browser AC-W2 matrix **NOT RUN** in the developer environment (signed-in PMS session not available). |
-| Independent QA | **PASS** | Rekik 2026-09-14. OVERALL PASS after #79 Preferences-tab residual. Evidence: [issue #72](https://github.com/NORUDEVGIT/NORU/issues/72#issuecomment-5663204867) and [PR #79](https://github.com/NORUDEVGIT/NORU/pull/79#issuecomment-5663204648). |
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; Wave 1 + Wave 2 lock tests PASS. Browser AC-W2 matrix **NOT RUN** in the developer environment. Approved deviation 3: Independent QA covered Preferences selection. |
+| Independent QA | **PASS** | Rekik 2026-09-14. OVERALL PASS after #79 Preferences-tab residual (that residual is what Independent QA exercised for tab → card). Evidence: [issue #72](https://github.com/NORUDEVGIT/NORU/issues/72#issuecomment-5663204867) and [PR #79](https://github.com/NORUDEVGIT/NORU/pull/79#issuecomment-5663204648). |
 
 **Wave 2 delivered ONLY:**
 
@@ -262,12 +264,20 @@ Grounded in the Wave 2 Design Execution Report after #76 + #79. **`NOT RUN` is n
 4. Consent recorded (`granted` / `refused` / `not_asked`)
 5. #79 Preferences tab sync — Overview **Preferences** selects the Preferences card
 
-**Residuals (not Wave 2 defects):**
+**Approved deviations (DER):**
+
+| # | Deviation | Class |
+|---|---|---|
+| 1 | Preference values stored as `id:<uuid>` / `other:<text>` prefix convention in existing text columns rather than a Setup FK | **DOCUMENTATION / IMPLEMENTATION honesty** (TIP residual). See §7.5. |
+| 2 | PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) merged **before** Preferences Independent QA PASS. The residual shipped as PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) **after** issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED | **Process note only** — not a product defect. #72 stays closed; #79 is the Wave 2 residual, not a new wave. |
+| 3 | Developer browser QA remained **PARTIAL** | Independent QA covered Preferences selection. Developer PARTIAL does not become PASS. |
+
+**Residuals / FINAL (not Wave 2 defects):**
 
 - Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**.
-- Preference values stored as `id:<uuid>` / `other:<text>` prefixes in text columns — **DOCUMENTATION / IMPLEMENTATION honesty** (§7.5).
-- Production migration `0051_pms_guest_profile_wave2` **NOT applied** (Abel / PM gate). Non-prod `qcwptraosaudcbjasmul` version `20260914110546` applied.
+- Production migration `0051_pms_guest_profile_wave2` **Abel-gated**. Non-prod **PASS** on `qcwptraosaudcbjasmul` (version `20260914110546`).
 - Waves 3–5 stay **WAVE-GATED**. Hotel UAT is still required for **module COMPLETE**.
+- DESIGN COMPLETION: **COMPLETE** (Wave 2). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
 
 ---
 
