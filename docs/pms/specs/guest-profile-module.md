@@ -11,7 +11,7 @@
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
 | **Wave 4 Spec** | Wave 4 **code LIVE on `main`** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. This Wave 5 recon does **not** reopen Wave 4. |
 | **Wave 5 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN**. ENGINEERING STATUS **COMPLETE / MERGED** (eng exited). IMPLEMENTATION STATUS **PASS**. **OPERATIONALLY ACCEPTED** / closed. Programme **READY FOR HOTEL UAT**. PR [#101](https://github.com/NORUDEVGIT/NORU/pull/101) MERGED 2026-09-14T14:22:35Z. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed (Rekik formal closure YES). Module COMPLETE remains **NO**. |
-| **Gap-edit 2 Spec** | **Eng-ready** (Rekik HOLD 2026-09-15 — staged-create). ENGINEERING **IMPLEMENTATION IN PROGRESS** on [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA PASS on #111 is **HELD** until staged-create is Spec’d and implemented. Linking **AC-GE2-9…13** + Identity **AC-GE2-14** require staged-create on New Guest. Does **not** claim implemented / PASS / LIVE / COMPLETE. Does **not** reopen Waves 1–5 or Gap-edit 1 (§8). Migration **`0057`** Abel/PM gated (0056 is Polish Wave 1). Module COMPLETE remains **NO**. |
+| **Gap-edit 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN**. ENGINEERING STATUS **COMPLETE / MERGED**. IMPLEMENTATION STATUS **PASS**. HOLD **cleared** via [#112](https://github.com/NORUDEVGIT/NORU/pull/112). PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) MERGED (enrichment; early, without staged Create) · PR [#112](https://github.com/NORUDEVGIT/NORU/pull/112) MERGED 2026-09-14T23:30:45Z (staged Create HOLD fix) · Spec [#110](https://github.com/NORUDEVGIT/NORU/pull/110) MERGED. AC-GE2-1…34 **PASS**. Independent QA **PASS** on #112. Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) **OPEN** (READY TO CLOSE YES — Relates, not Closes; closure pending Rekik formal closure / Outcome Review). Does **not** reopen Waves 1–5 or rewrite Gap-edit 1 (§8). Migration **`0057` APPLY HELD** (not applied). Module COMPLETE remains **NO**. |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
 | **Engineering assignment** | Waves 1–5 engineering complete / exited on `main`. Wave 5 **OPERATIONALLY ACCEPTED**. Programme **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**. |
 | **Product requirement** | Rekik 2026-09-14 — Waves 1–5 accepted and implemented; programme **READY FOR HOTEL UAT**; module COMPLETE remains **NO** |
@@ -30,13 +30,13 @@
 >
 > **Gap-edit 1 Spec ACCEPTED for Engineering** (Rekik 2026-09-14 via Hospitality Product Advisor). Eng-ready catch-up. Gate **OPENED**. Technical Implementation Plan **APPROVED** 2026-09-14. ENGINEERING **IMPLEMENTATION IN PROGRESS**. Issue [#103](https://github.com/NORUDEVGIT/NORU/issues/103) OPEN. Coding AUTHORIZED on `feature/103-company-registration-enrichment`. Gap-edit 1 is **not** implemented (no PASS / LIVE / COMPLETE). Additive Company master UX/schema on Wave 4 `guest_account_masters` / `guest_account_links`. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. This addendum does **not** reopen those waves. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)) — do **not** treat this section as a Wave 5 rewrite. Migration `0055` Abel/PM gated. The module is **not** COMPLETE (hotel UAT still required).
 >
-> **Gap-edit 2 Spec Eng-ready** (Rekik HOLD 2026-09-15 — staged-create amendment). ENGINEERING **IMPLEMENTATION IN PROGRESS** on issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA PASS on #111 is **HELD** until staged-create UX is Spec’d and implemented. Gap-edit 2 is **not** implemented (no PASS / LIVE / COMPLETE). New Guest **Create** must stage ID files and Company/Group/TA + role **before** submit, then create → upload (Wave 2) → link (Wave 4) under one action. **After-save-only on create is no longer the product bar.** Edit-after-save Identity / Linking paths remain. See **§9**. This addendum does **not** reopen Waves 1–5 as incomplete. It does **not** reopen or rewrite Gap-edit 1 (§8 / #103 / #105) as incomplete. Migration **`0057`** Abel/PM gated (Eng used 0057; 0056 is Polish Wave 1 on `main`). The module is **not** COMPLETE (hotel UAT still required).
+> **Gap-edit 2 IMPLEMENTED ON MAIN** (Rekik / DER after #111 + #112). ENGINEERING STATUS **COMPLETE / MERGED**. IMPLEMENTATION STATUS **PASS**. HOLD **cleared** via [#112](https://github.com/NORUDEVGIT/NORU/pull/112) (staged Create). PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) MERGED early (enrichment without staged Create) · PR [#112](https://github.com/NORUDEVGIT/NORU/pull/112) MERGED 2026-09-14T23:30:45Z · Spec [#110](https://github.com/NORUDEVGIT/NORU/pull/110) MERGED (HOLD amend AC-GE2-9…14). Independent QA **PASS** on #112. AC-GE2-1…34 **PASS**. Locks **142/142 PASS**. Developer browser **NOT RUN**. Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) **OPEN** (READY TO CLOSE YES; Relates, not Closes — closure pending Rekik formal closure / Outcome Review). Staged Create LIVE: create → `guest_documents` → `guest_account_links`; partial-failure retry; never silent full success. After-save-only on create **fails Spec**. See **§9**. This recon does **not** reopen Waves 1–5 as incomplete. It does **not** reopen or rewrite Gap-edit 1 (§8 / #103 / #105). Migration **`0057` APPLY HELD** — on `main` from #111; **not** applied on non-prod; production Abel-gated. Surfaces degrade honestly until apply. The module is **not** COMPLETE (hotel UAT still required).
 >
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 remain the accepted contract (now implemented; AC-W4-5 PARTIAL residual). Wave 5 ACs in §7 are the accepted contract and are **IMPLEMENTED ON MAIN** (#101). Wave 5 is **OPERATIONALLY ACCEPTED** / engineering exited. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed. Gap-edit 1 ACs in §8 remain that batch’s contract — this document does **not** rewrite them. Gap-edit 2 ACs in **§9** are **Eng-ready**; ENGINEERING **IMPLEMENTATION IN PROGRESS** on PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) — Independent QA is **HELD** until staged-create. They are **not** implemented / PASS / LIVE / COMPLETE. Programme is **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**.
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 remain the accepted contract (now implemented; AC-W4-5 PARTIAL residual). Wave 5 ACs in §7 are the accepted contract and are **IMPLEMENTED ON MAIN** (#101). Wave 5 is **OPERATIONALLY ACCEPTED** / engineering exited. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed. Gap-edit 1 ACs in §8 remain that batch’s contract — this document does **not** rewrite them. Gap-edit 2 ACs in **§9** are **IMPLEMENTED ON MAIN** (#111 + #112). ENGINEERING STATUS **COMPLETE / MERGED**. IMPLEMENTATION STATUS **PASS**. HOLD **cleared**. Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) remains **OPEN** (READY TO CLOSE YES). Programme is **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**.
 
 ---
 
@@ -250,8 +250,8 @@ Waves 1–5 **preserved** this inconsistency. It is a documented residual, not a
 | Production schema 0053 | Non-prod `qcwptraosaudcbjasmul` applied (`20260914134631`). **Production NOT applied** (Abel-gated). Wave 4 surfaces degrade to `WAVE4_MIGRATION_UNAVAILABLE` until apply. |
 | Production schema 0054 | Non-prod `qcwptraosaudcbjasmul` applied (`20260914142046`). **Production NOT applied** (Abel / PM gated). Wave 5 surfaces degrade to `WAVE5_MIGRATION_UNAVAILABLE` until apply. |
 | Preference id mapping | Stored as `id:` / `other:` prefixes in text columns — honesty item, not a Setup FK. |
-| Sectioned Individual form + emergency / employment / alt contact | **Not LIVE.** Flat `GuestFormDialog` (Wave 1–2). Gap-edit 2 EXPECTED — see **§9**. Not a Wave 1–2 defect. |
-| Blacklist / restricted product flag | **Not LIVE.** No Directory / Information restriction badge. Gap-edit 2 EXPECTED — see **§9**. |
+| Sectioned Individual form + emergency / employment / alt contact | **LIVE on `main`** (#111 + #112) — sectioned Individual modal; Employment / Emergency / Notes. See **§9**. Not a Wave 1–2 defect. |
+| Blacklist / restricted product flag | **LIVE on `main`** (#111) — restricted / blacklisted badges + history + stay-path **warn**. See **§9**. |
 
 ### 2.8 Must-not-claim (CURRENT)
 
@@ -2049,17 +2049,17 @@ Exit product summary: sectioned Company form (Basic open); required legal name +
 | **TITLE** | Guest Profile Module — Gap-edit 2 Individual form enrichment + blacklist / restricted |
 | **PACKAGE** | PMS |
 | **PMS AREA** | Guests |
-| **SPEC STATUS** | **Eng-ready** (Rekik HOLD 2026-09-15 — staged-create amendment). Linking Scope C **REQUIRED** on New Guest **before** submit. |
-| **ENGINEERING STATUS** | **IMPLEMENTATION IN PROGRESS** on [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA PASS on #111 is **HELD** until staged-create is Spec’d and implemented. Gap-edit 2 is **not** implemented (no PASS / LIVE / COMPLETE). Migration **`0057`** Abel/PM gated (APPLY HELD). Eng used **0057** because **0056** is Polish Wave 1 on `main`. |
+| **SPEC STATUS** | **ACCEPTED** + **IMPLEMENTED ON MAIN**. HOLD amend [#110](https://github.com/NORUDEVGIT/NORU/pull/110) MERGED (AC-GE2-9…14). Linking Scope C **REQUIRED** on New Guest **before** submit — **delivered**. |
+| **ENGINEERING STATUS** | **COMPLETE / MERGED**. IMPLEMENTATION STATUS **PASS**. HOLD **cleared** via [#112](https://github.com/NORUDEVGIT/NORU/pull/112). PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) MERGED 2026-09-14T23:07:06Z (enrichment; early, without staged Create) · PR [#112](https://github.com/NORUDEVGIT/NORU/pull/112) MERGED 2026-09-14T23:30:45Z (staged Create HOLD fix). Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) **OPEN** (READY TO CLOSE YES; Relates, not Closes). Migration **`0057` APPLY HELD** — on `main` from #111; non-prod **NOT** applied; production Abel-gated. |
 | **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. Receptionist residual **PRESERVED**. Additive RLS that **matches** existing guest-table roles is expected and is **not** a model change. |
 | **Depends on** | Waves 1–2 Individual form + Identity **LIVE on `main`**. Wave 2 `guest_documents` APIs **LIVE**. Wave 4 Relationships card **LIVE** (not rewritten here). Wave 5 privacy suite **LIVE** (export / anonymise field lists extend — Wave 5 is **not** reopened). Gap-edit 1 (§8 / #103 / #105) is a **separate Company batch** — do **not** reopen or rewrite it. |
-| **REQUIREMENTS** | **Locked** from the product requirement (Rekik APPROVED 2026-09-15) + **HOLD amendment** (Rekik 2026-09-15): staged-create on New Guest (**AC-GE2-9…14**) |
+| **REQUIREMENTS** | **Locked** from the product requirement (Rekik APPROVED 2026-09-15) + **HOLD amendment** (Rekik 2026-09-15): staged-create on New Guest (**AC-GE2-9…14**) — **delivered** on `main` via #112 |
 
-> **Gap-edit 2 Spec Eng-ready** (Rekik HOLD 2026-09-15 — staged-create). ENGINEERING **IMPLEMENTATION IN PROGRESS** on [#109](https://github.com/NORUDEVGIT/NORU/issues/109) / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA on #111 is **HELD** until staged-create ships.
+> **Gap-edit 2 IMPLEMENTED ON MAIN.** ENGINEERING STATUS **COMPLETE / MERGED**. IMPLEMENTATION STATUS **PASS**. HOLD **cleared** via [#112](https://github.com/NORUDEVGIT/NORU/pull/112). Independent QA **PASS** on #112. AC-GE2-1…34 **PASS**. Locks **142/142 PASS**. Developer browser **NOT RUN**.
 >
-> This section is the testable engineering contract (**AC-GE2-1…34**, Linking create-path = **AC-GE2-9…13**, staged Identity = **AC-GE2-14**). It does **not** claim Gap-edit 2 implemented / PASS / LIVE / COMPLETE. Do **not** reopen Waves 1–5 as incomplete. Do **not** reopen or rewrite Gap-edit 1 (§8) as incomplete. Do **not** claim the **module** COMPLETE (hotel UAT still required). Migration **`0057`** Abel/PM gated (APPLY HELD).
+> This section remains the testable engineering contract (**AC-GE2-1…34**, Linking create-path = **AC-GE2-9…13**, staged Identity = **AC-GE2-14**), now reconciled to `main` after #111 + #112. Do **not** reopen Waves 1–5 as incomplete. Do **not** reopen or rewrite Gap-edit 1 (§8). Do **not** claim the **module** COMPLETE (hotel UAT still required). Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) remains **OPEN** (READY TO CLOSE YES). Migration **`0057` APPLY HELD**.
 >
-> Wave 1–2 delivered a **flat** Individual `GuestFormDialog` plus a **separate** Identity & Documents **card**. That contract **remains accepted**. Gap-edit 2 **enriches** the Individual create/edit path (including **staged-create**), adds a front-desk restriction flag, and adds Individual-side **Linking / Relationships** that reuses Wave 4 `guest_account_links`. **After-save-only on create is no longer the product bar.**
+> Wave 1–2 delivered a **flat** Individual `GuestFormDialog` plus a **separate** Identity & Documents **card**. That contract **remains accepted**. Gap-edit 2 **enriches** the Individual create/edit path (including **staged-create**), adds a front-desk restriction flag, and adds Individual-side **Linking / Relationships** that reuses Wave 4 `guest_account_links`. **After-save-only on create fails Spec** and is **not** CURRENT after #112.
 
 ### 9.1 Business purpose
 
@@ -2069,28 +2069,32 @@ Gap-edit 2 is Guest-owned **Individual enrichment**. It is **not** Company furth
 
 ### 9.2 CURRENT behaviour (code wins)
 
-Grounded in `main` at `6b6ac0e` (after [#101](https://github.com/NORUDEVGIT/NORU/pull/101) Wave 5; after [#105](https://github.com/NORUDEVGIT/NORU/pull/105) Company enrichment code; after [#107](https://github.com/NORUDEVGIT/NORU/pull/107) Polish Wave 1). **Code wins.** Inspected: `guest-form-dialog.tsx`, `guest-detail-workspace.tsx` Information Identity panel, `guest-identity-card.tsx`, `guest-bits.tsx`, `guest-directory-workspace.tsx`, `guest-relationships-card.tsx`, `guest-accounts.functions.ts`, `guest-profile-wave4.ts` (`GUEST_RELATIONSHIP_ROLES` / `ROLE_ACCOUNT_TYPE`), `guests.functions.ts` `GuestProfile` / Wave 2 document APIs, `guest-profile-wave2.ts` (`STAFF_VERIFY_COPY`), `fo-check-in.functions.ts` guest joins, `reservations.functions.ts` `create_hotel_reservation_priced`.
+Grounded in `main` at `d6058d5` (after [#111](https://github.com/NORUDEVGIT/NORU/pull/111) Individual enrichment + [#112](https://github.com/NORUDEVGIT/NORU/pull/112) staged Create + [#110](https://github.com/NORUDEVGIT/NORU/pull/110) Spec HOLD amend). **Code wins.** Inspected: `guest-form-dialog.tsx`, `guest-form-staged-identity.tsx`, `guest-form-staged-links.tsx`, `guest-profile-individual.ts`, `guest-detail-workspace.tsx`, `guest-identity-card.tsx`, `guest-bits.tsx`, `guest-directory-workspace.tsx`, `guest-relationships-card.tsx`, `guest-accounts.functions.ts`, `guests.functions.ts`, `guest-privacy.functions.ts`, FO / reservation warn hooks.
 
-| Surface | CURRENT |
+| Surface | CURRENT after #111 + #112 |
 |---|---|
-| **Individual create / edit** | Flat `GuestFormDialog`. Fields: first name\* (Wave 1; SET3 may also require last name / phone-or-email), last name, phone, email, nationality, language, date of birth, address line1/2, city, region, country, postal, ID **text** (type / number / expiry), VIP switch, notes. **No** collapsible sections. **No** title, middle name, preferred name, gender. **No** alternative phone/email. **No** guest-status control on the form (deactivate / reactivate lives on Information). **No** Position / Department. **No** emergency contacts. **No** source of business. Helper copy sends document images to the Identity **card**. |
-| **Information** | Overview panels: contact / address / **masked** Identity **text** + Reveal / notes / VIP / consent. Identity panel is text-only — **no** upload. History tab is profile events, not stay history. |
-| **Identity & Documents card** | **LIVE** (Wave 2): `createGuestDocumentUpload` / `registerGuestDocument` / `listGuestDocuments` / `reviewGuestDocument`. Storage `guest_documents` + `property-images` at `{restaurantId}/guests/{guestId}/{uuid}.{ext}`. Staff verify / reject with actor + time. Copy: *“Staff confirmation only. This is not government verification or KYC.”* Upload is **card-discovered**, not on the form or Information Identity panel. |
-| **Directory** | `listGuests` + `VipBadge` / `StatusBadge` only. **No** restricted / blacklisted badge. |
-| **Restriction** | **No** product flag. `guest_profiles` has no restriction / blacklist columns. No set / lift UI, no history events, no stay-path warn. |
-| **Emergency / employment** | **Not** on `GuestProfile` / `GuestFormDialog`. **Not** on Company (Gap-edit 1 correctly kept Position / Department **off** Company — AC-GE1-16). |
-| **Stay paths that already touch this guest** | `create_hotel_reservation_priced` takes `_guest_id`. FO check-in stepper **reads / writes** the same ID **text** + core profile columns. FO stay lists join `guest_profiles` for name / VIP. Reservation **detail** links to the Guest profile. **No** restriction warn on those paths. AC-W4-5 residual **stands** (create-reservation does **not** take master IDs). |
+| **Individual create / edit** | **Sectioned** `GuestFormDialog` **LIVE**. Sections: Basic (open by default), Contact, Address, Identity, Employment, Emergency, Notes / commercial light, Restriction, Linking. First name still required; walk-in first-name-only still works. Title, middle, preferred, gender, alt phone/email, status, Position / Department, source of business persist. |
+| **Identity upload** | **Collocated LIVE** on form Identity + Information Identity. Reuses Wave 2 `guest_documents` — **no second store**. Identity **card remains**. On **New Guest**, files are **staged** until Create (`individual-identity-staged`). On Edit, upload is after-save. |
+| **Staged Create** | **LIVE** (#112 HOLD cleared). One Create: (1) insert guest (2) upload staged files via `guest_documents` (3) write staged masters via `guest_account_links` (`employer` \| `bill_to` \| `booker_ta` \| `group_member`) (4) open profile when complete. **Partial-failure honesty:** if upload or link fails after insert, guest **exists**; `individual-create-partial-failure` + Retry remaining + Open guest. **Never** silent full success. After-save-only on create **fails Spec** and is **not** CURRENT. |
+| **Information** | Overview panels plus **restriction warn** + badges. Identity panel can start the same Wave 2 upload. History tab is profile events (includes restriction set/clear), not stay history. |
+| **Identity & Documents card** | **LIVE** (Wave 2, not reopened): same `guest_documents` store. Staff verify / reject with actor + time. Copy remains staff confirmation only — **not** KYC. Card lists documents uploaded from the form / Information. |
+| **Directory** | `listGuests` + VIP / status **and** restricted / blacklisted **badges** (`GuestRestrictionBadges`). Restricted guests stay findable. |
+| **Restriction** | **LIVE.** Flags `restricted` and/or `blacklisted` + optional `restriction_severity` (`watch` \| `elevated` \| `severe`) + required reason + by / at + optional until. Set / lift UI with confirm + reason. History `restriction_set` / clear. **Warn** (not hard block) on existing stay paths: reservation detail, FO dialogs / amend / walk-in / booking, Information. Copy: stay create is not hard-blocked. |
+| **Emergency / employment** | **LIVE** on the individual. Normalized `guest_emergency_contacts` (add / remove; empty allowed on walk-in). Position / Department on the individual only (Company still has none — AC-GE1-16). |
+| **Stay paths that already touch this guest** | `GuestRestrictionWarn` on reservation detail, FO guest pick / amend / walk-in / booking, and Information. `create_hotel_reservation_priced` still takes `_guest_id` only. AC-W4-5 residual **stands**. **No** new Res / FO product. **No** hard block. |
 | **Wave 2 duplicate warn** | Open existing / Create anyway / optional Merge CTA — **no** Compare UI. |
-| **Relationships** | Wave 4 `GuestRelationshipsCard` **LIVE** on the individual **and** the master (`?card=relationships`). Search + single-select + one role + **Link relationship**. Roles: `employer` / `bill_to` / `booker_ta` / `group_member` via `guest_account_links`. Unlink deletes the **link** only. **Not** on `GuestFormDialog`. Gap-edit 1 Company multi-link is a **separate** Company-side batch (§8). |
-| **Migrations on `main`** | `0051` Wave 2 · `0053` Wave 4 · `0054` Wave 5 · `0055` Company enrichment · `0056` Polish Wave 1 payment/admin/fee presets **already on `main`**. Authorized Gap-edit 2 migration is **`0057` Abel/PM gated (APPLY HELD)**. Eng used **0057** because **0056** is Polish Wave 1. Do **not** overwrite `0056_pms_polish1_payment_methods_admin_fee_presets.sql`. |
+| **Linking / Relationships** | **Staged on Create + after-save LIVE.** New Guest Linking section stages Company / Group / TA + role (`individual-linking-staged`) — no write until insert. After save / on Information, list + unlink via Wave 4 `guest_account_links`. `GuestRelationshipsCard` stays in sync (same store). Gap-edit 1 Company multi-link is a **separate** Company-side batch (§8) — **not** rewritten here. |
+| **Migrations on `main`** | `0051` Wave 2 · `0053` Wave 4 · `0054` Wave 5 · `0055` Company enrichment · `0056` Polish Wave 1 · **`0057_pms_individual_form_enrichment.sql` on `main` from #111**. **`0057` APPLY HELD** — non-prod **NOT** applied; production Abel-gated. Surfaces that need the new columns / `guest_emergency_contacts` degrade to `INDIVIDUAL_ENRICHMENT_UNAVAILABLE` until apply. Do **not** overwrite Polish `0056`. Do **not** claim 0057 applied. |
 
 #### Must-not-claim (CURRENT)
 
-- The flat Wave 1–2 Individual form is **not** a defect and is **not** reopened as incomplete.
-- Wave 2 Identity **card** upload / mask / staff verify is **LIVE** and **accepted**. Gap-edit 2 **collocates** upload; it does **not** invent a second document store.
-- Gap-edit 1 Company enrichment is a **separate** batch (§8). This section does **not** rewrite §8 or treat #103 / #105 as incomplete.
-- Staff verify is **not** government KYC today and must not become that.
-- This Spec does **not** implement Gap-edit 2.
+- Wave 1–2 Individual Directory / Information / Identity **card** contracts remain accepted — this batch **enriched** them; it did **not** reopen them as incomplete.
+- Wave 2 Identity **card** upload / mask / staff verify is **LIVE** and **accepted**. Gap-edit 2 **collocates** upload; it did **not** invent a second document store.
+- Gap-edit 1 Company enrichment is a **separate** batch (§8). This recon does **not** rewrite §8.
+- Staff verify is **not** government KYC and must not become that.
+- **`0057` is not applied.** Code merge ≠ schema apply. Non-prod and production remain held.
+- Staged Create is **LIVE**. After-save-only on create is **not** CURRENT and **fails Spec**.
+- This recon does **not** claim the **module** COMPLETE.
 
 ### 9.3 EXPECTED behaviour (Gap-edit 2)
 
@@ -2172,16 +2176,16 @@ On **New Guest / Create**, staff may attach ID file(s) **and** choose Company / 
 3. **If masters / roles chosen:** write Wave 4 `guest_account_links` (`employer` \| `bill_to` \| `booker_ta` \| `group_member`).
 4. **Navigate** to profile / success with **links + docs visible**.
 
-Eng implements this on the **same PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111)**. Independent QA PASS on #111 is **HELD** until this ships.
+**Delivered on `main` via [#112](https://github.com/NORUDEVGIT/NORU/pull/112)** after [#111](https://github.com/NORUDEVGIT/NORU/pull/111) merged early without this path. Independent QA **PASS** on #112. HOLD **cleared**.
 
-**Honesty on partial failure:** If create succeeds but upload or link fails, the guest **still exists**. Show **clear retry UI** (retry upload / retry link). **Never** silent full success.
+**Honesty on partial failure:** If create succeeds but upload or link fails, the guest **still exists**. Show **clear retry UI** (`individual-create-partial-failure` + Retry remaining + Open guest). **Never** silent full success.
 
-Edit-after-save Linking + Identity upload paths **remain**. **After-save-only on create is no longer the product bar.**
+Edit-after-save Linking + Identity upload paths **remain**. **After-save-only on create fails Spec** and is **not** CURRENT.
 
 | CURRENT vs EXPECTED | |
 |---|---|
-| **CURRENT (`main` / #111 at HOLD)** | Identity upload and Linking on Individual **create** are after-save-only (or hidden until the guest exists). That is **no longer enough**. |
-| **EXPECTED** | Same Wave 2 / Wave 4 stores. **Plus** staged ID files + staged Linking **on Create**, then edit-after-save on the same modal and Relationships card. |
+| **CURRENT (`main` after #111 + #112)** | Staged ID files + staged Linking **on Create** (create → `guest_documents` → `guest_account_links`); partial-failure retry; edit-after-save remains. After-save-only on create is **not** CURRENT. |
+| **EXPECTED (this batch)** | Same — **delivered**. Hotel UAT is **module** DoD, not a Gap-edit 2 reopen. |
 
 #### Honesty / reuse
 
@@ -2321,7 +2325,7 @@ Wave 1 required **first name** stays on `first_name`. New columns are **additive
 
 Staff in the ACs are **authorised**: signed-in, property membership, package **pms**, and they pass the existing guest manage gate. “Denied staff” fail that gate or lack `pms`.
 
-`NOT RUN` is never `PASS`. Do **not** record AC-GE2-\* as PASS from this Spec.
+`NOT RUN` is never `PASS`. AC results after #111 + #112 DER are in **Gap-edit 2 AC results** below.
 
 | ID | Criterion | Pass |
 |---|---|---|
@@ -2360,11 +2364,49 @@ Staff in the ACs are **authorised**: signed-in, property membership, package **p
 | **AC-GE2-33** | Preferences stay on the Preferences card; consent stays on Information (+ Privacy); Identity **card** remains. | Edit guest does not become the Preferences editor. Consent panel still works. Identity card still lists / verifies the same `guest_documents`. |
 | **AC-GE2-34** | Wave 1 duplicate **warn** remains; Compare is **not** required. | Email/phone match still offers Open existing / Create anyway / optional Merge. No silent merge. No new Compare product unless Eng lands a trivial extra and records it as approved deviation. |
 
-#### Gap-edit 2 AC results
+#### Gap-edit 2 AC results (DER after #111 + #112)
 
-DESIGN COMPLETION: **Eng-ready** (Gap-edit 2 Spec — Rekik HOLD 2026-09-15 staged-create amendment; plan APPROVED with Linking). IMPLEMENTATION STATUS: **IN PROGRESS** on PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) (not PASS). Independent QA on #111 is **HELD** until staged-create ships. Approved deviations: **NONE** yet.
+DESIGN COMPLETION: **COMPLETE** (Gap-edit 2). IMPLEMENTATION STATUS: **PASS**. HOLD **cleared** via [#112](https://github.com/NORUDEVGIT/NORU/pull/112). Approved deviations: **TWO** (see below).
 
-`NOT RUN` is never `PASS`. Do **not** record AC-GE2-\* as PASS from this Spec. Do **not** claim Gap-edit 2 implemented / LIVE / COMPLETE.
+| ID | Result |
+|---|---|
+| **AC-GE2-1** | **IMPLEMENTED AS SPECIFIED / PASS** — Sectioned Individual form LIVE; Basic open; Linking staged on Create + after save |
+| **AC-GE2-2** | **IMPLEMENTED AS SPECIFIED / PASS** — First name required; walk-in first-name-only still works |
+| **AC-GE2-3** … **AC-GE2-6** | **IMPLEMENTED AS SPECIFIED / PASS** — Basic / Contact / Address / Identity text persist; mask remains |
+| **AC-GE2-7** … **AC-GE2-8** | **IMPLEMENTED AS SPECIFIED / PASS** — Identity upload collocated on form + Information; Wave 2 `guest_documents` only |
+| **AC-GE2-9** … **AC-GE2-13** | **IMPLEMENTED AS SPECIFIED / PASS** — Staged Linking on Create; one Create writes `guest_account_links`; list + unlink; Relationships card same store; no family / folio / AC-W4-5 / second store. After-save-only on create **fails** these ACs and is **not** CURRENT |
+| **AC-GE2-14** | **IMPLEMENTED AS SPECIFIED / PASS** — Staged Identity files on Create; upload after insert; save-first-only fails; retry; edit-after-save remains |
+| **AC-GE2-15** … **AC-GE2-18** | **IMPLEMENTED AS SPECIFIED / PASS** — Staff verify ≠ KYC; Employment on individual; Emergency add/remove; notes + source of business |
+| **AC-GE2-19** … **AC-GE2-22** | **IMPLEMENTED AS SPECIFIED / PASS** — Restricted / blacklisted + reason + by/at; badges; history; lift with confirm + reason |
+| **AC-GE2-23** … **AC-GE2-24** | **IMPLEMENTED AS SPECIFIED / PASS** — Stay-path **warn** LIVE (not hard block). No new Res / FO product |
+| **AC-GE2-25** … **AC-GE2-34** | **IMPLEMENTED AS SPECIFIED / PASS** per DER / Independent QA — including 0057 APPLY HELD (AC-GE2-30) and module not COMPLETE (AC-GE2-31) |
+
+#### Gap-edit 2 approved deviations (DER / honesty)
+
+| # | Deviation | Class |
+|---|---|---|
+| 1 | PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) merged **early** (2026-09-14T23:07:06Z) **without** staged Create. HOLD fix shipped as PR [#112](https://github.com/NORUDEVGIT/NORU/pull/112) MERGED 2026-09-14T23:30:45Z | **Process note only** — not a product defect. Staged Create is LIVE on `main`. HOLD **cleared**. |
+| 2 | Developer browser QA remained **NOT RUN** / **PARTIAL** | Independent QA **PASS** on #112. `NOT RUN` is never PASS. Developer PARTIAL does not become PASS. |
+
+#### Gap-edit 2 QA lanes recorded
+
+| Lane | Result | Notes |
+|---|---|---|
+| Developer QA | **PARTIAL** | `tsc --noEmit` PASS; Guest Profile locks **142/142 PASS** (Waves 1–5 + Company AC-GE1-1…24 + Individual AC-GE2-1…34). Browser QA-GE2 / SEC-GE2 **NOT RUN** in the developer environment. |
+| Independent QA | **PASS** | Rekik via Advisor on follow-up [#112](https://github.com/NORUDEVGIT/NORU/pull/112). Evidence: [issue #109 Independent QA / merge verified](https://github.com/NORUDEVGIT/NORU/issues/109#issuecomment-5672307748). HOLD **cleared**. |
+
+`NOT RUN` is never `PASS`. Developer PARTIAL does not become PASS because Independent QA later passed.
+
+#### Gap-edit 2 residuals / FINAL (not defects)
+
+- Receptionist vs owner/manager RLS inconsistency remains **PRESERVED**. Additive GE2 RLS matches guest tables.
+- Migration **`0057_pms_individual_form_enrichment` APPLY HELD**. On `main` from #111. Non-prod **NOT** applied. Production **Abel-gated NOT applied**. Surfaces degrade honestly (`INDIVIDUAL_ENRICHMENT_UNAVAILABLE`) until apply. Do **not** claim 0057 applied.
+- Production `0051` / `0053` / `0054` / `0055` holds remain untouched. Polish `0056` file on `main` is not overwritten.
+- **Wave 4 residual untouched:** AC-W4-5 create-reservation master IDs (attach on detail).
+- Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) **OPEN** (READY TO CLOSE YES; Relates, not Closes). Closure pending Rekik formal closure / Outcome Review. Do **not** treat READY TO CLOSE as closed.
+- Programme remains **READY FOR HOTEL UAT**. Module COMPLETE remains **NO**.
+- DESIGN COMPLETION: **COMPLETE** (Gap-edit 2). IMPLEMENTATION STATUS: **PASS**. The module is **not** COMPLETE.
+- This recon does **not** reopen Waves 1–5 or rewrite Gap-edit 1 (§8).
 
 ### 9.10 QA (Gap-edit 2)
 
@@ -2386,7 +2428,7 @@ DESIGN COMPLETION: **Eng-ready** (Gap-edit 2 Spec — Rekik HOLD 2026-09-15 stag
 | **QA-GE2-12** | **Staged-create:** New Guest → stage Company + employer → Create. Link + docs (if staged) visible on profile / Relationships card **and** Company detail. Also exercise edit-after-save Linking. Unlink; both parties remain. | Partial link failure after create → retry, not silent success. |
 | **QA-GE2-13** | Link a TA as booker and a Group as member; type-mismatch role is rejected. No guest↔guest picker. | |
 | **QA-GE2-14** | `tsc --noEmit` (or project equivalent) + lock tests on the implementation PR. | Developer lane. |
-| **QA-GE2-15** | Independent QA after Developer QA — **HELD** until staged-create is implemented on [#111](https://github.com/NORUDEVGIT/NORU/pull/111). | Do **not** record Independent QA PASS on #111 while Create is after-save-only. Hotel UAT is **module** DoD. |
+| **QA-GE2-15** | Independent QA after Developer QA — **PASS** on [#112](https://github.com/NORUDEVGIT/NORU/pull/112) (HOLD cleared). | Do **not** treat #111-alone as Independent QA PASS (merged early without staged Create). Hotel UAT is **module** DoD. |
 
 ### 9.11 Security (Gap-edit 2)
 
@@ -2436,18 +2478,18 @@ Gap-edit 2 **exits for engineering-gate purposes** only after:
 
 1. Rekik **approval** of this Spec — **DONE** 2026-09-15 via Hospitality Product Advisor (this document)
 2. Rekik **tech-plan approval** (issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109)) — **DONE** (CONDITIONAL PLAN APPROVAL satisfied; Linking REQUIRED already on the amended TIP; coding AUTHORIZED)
-3. Implementation against this §9 contract (extend Individual form / `guest_profiles` / Wave 2 documents / history / Wave 4 `guest_account_links` — do **not** restart; do **not** reopen Waves 1–5 or Gap-edit 1) — **IN PROGRESS** on PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) / `feature/109-individual-form-enrichment`. **Must include staged-create** (one Create: guest → upload → links → navigate). After-save-only on create is **not** exit-ready.
-4. Developer QA recorded (`NOT RUN` ≠ `PASS`)
-5. Independent QA **PASS** — **HELD** until staged-create is Spec’d and implemented on #111
-6. Human merge of the implementation PR
-7. Design Execution Report
-8. Docs reconciliation to `main` (code wins)
+3. Implementation against this §9 contract (extend Individual form / `guest_profiles` / Wave 2 documents / history / Wave 4 `guest_account_links` — do **not** restart; do **not** reopen Waves 1–5 or Gap-edit 1) — **DONE**. PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111) MERGED (enrichment) · PR [#112](https://github.com/NORUDEVGIT/NORU/pull/112) MERGED (staged Create HOLD fix). One Create: guest → upload → links → navigate. After-save-only on create **fails Spec**.
+4. Developer QA recorded (`NOT RUN` ≠ `PASS`) — **PARTIAL** (`tsc` PASS; locks **142/142 PASS**; browser **NOT RUN**)
+5. Independent QA **PASS** on [#112](https://github.com/NORUDEVGIT/NORU/pull/112) — HOLD **cleared**
+6. Human merge of the implementation PRs — **DONE** (#111 2026-09-14T23:07:06Z; #112 2026-09-14T23:30:45Z)
+7. Design Execution Report — **DONE** ([issue #109 DER](https://github.com/NORUDEVGIT/NORU/issues/109#issuecomment-5672319503))
+8. Docs reconciliation to `main` (code wins) — **this recon**
 
-Migration `0057` remains **Abel / PM gated** for production (APPLY HELD). (`0056` is Polish Wave 1 on `main`.)
+Migration `0057` remains **Abel / PM gated** (APPLY HELD) — on `main` from #111; **not** applied on non-prod; production Abel-gated. (`0056` is Polish Wave 1 on `main`.)
 
-**Hotel UAT** is **not** required to start Gap-edit 2 engineering. Hotel UAT **is** required for **module COMPLETE**.
+**Hotel UAT** was **not** required to start Gap-edit 2 engineering. Hotel UAT **is** required for **module COMPLETE**.
 
-This Spec records that Gap-edit 2 is **Eng-ready** and coding is **AUTHORIZED / IN PROGRESS** (HOLD QA until staged-create). It does **not** claim Gap-edit 2 implemented / PASS / LIVE / COMPLETE. It does **not** claim Waves 1–5 incomplete. It does **not** rewrite Gap-edit 1 as incomplete. The module is **not** COMPLETE.
+This Spec records Gap-edit 2 as **IMPLEMENTED ON MAIN**. ENGINEERING STATUS **COMPLETE / MERGED**. IMPLEMENTATION STATUS **PASS**. HOLD **cleared**. Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) remains **OPEN** (READY TO CLOSE YES). It does **not** claim Waves 1–5 incomplete. It does **not** rewrite Gap-edit 1. The module is **not** COMPLETE.
 
 Exit product summary: sectioned Individual form (Basic open); first name still required; Contact / Address / collocated Identity upload (Wave 2 store); **staged ID files + staged Linking on New Guest Create** (one action: create → upload → link → navigate; partial-failure retry); edit-after-save Identity / Linking remain; Employment on individual; emergency contacts add/remove; notes + optional source of business; restricted / blacklisted with reason, badges, history, lift; warn on existing stay paths; Wave 4 `guest_account_links` (**AC-GE2-9…13**); Relationships card stays in sync; no KYC / Import / police export / folio routing / guest↔guest family; tenant/auth honesty; production migration `0057` Abel-gated (APPLY HELD).
 
@@ -2502,7 +2544,7 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Record that Waves 1–4 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
 | Record Wave 3 approved deviations (#85 early merge → #87; #86 duplicate of #87; Developer browser PARTIAL) | Treat those process notes as product defects, or treat Developer PARTIAL as PASS |
 | Record Wave 4 approved deviations (AC-W4-5 create-RPC residual; Developer browser PARTIAL) and production 0053 hold | Treat the create-RPC residual as a defect, apply production 0053 without Abel/PM, or treat Developer PARTIAL as PASS |
-| Record Gap-edit 2 as **Eng-ready** with ENGINEERING **IN PROGRESS** and Independent QA **HELD** until staged-create (§9, Linking **AC-GE2-9…13**, Identity **AC-GE2-14**) | Claim Gap-edit 2 implemented / PASS / LIVE / COMPLETE, treat after-save-only create as the bar, reopen Waves 1–5 or Gap-edit 1, invent KYC / Import / police export / folio routing / guest↔guest family / hard-block Res-FO products, or claim the module COMPLETE |
+| Record Gap-edit 2 as **IMPLEMENTED ON MAIN** (#111 + #112); ENGINEERING **COMPLETE / MERGED**; IMPLEMENTATION STATUS **PASS**; HOLD **cleared** (§9, Linking **AC-GE2-9…13**, Identity **AC-GE2-14**) | Treat after-save-only create as CURRENT, claim **`0057` applied**, reopen Waves 1–5 or rewrite Gap-edit 1, invent KYC / Import / police export / folio routing / guest↔guest family / hard-block Res-FO products, close #109 from this recon, or claim the module COMPLETE |
 
 ---
 
@@ -2518,7 +2560,7 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 >
 > Wave 5 **IMPLEMENTED ON MAIN** (#101). ENGINEERING STATUS **COMPLETE / MERGED** (eng exited). IMPLEMENTATION STATUS **PASS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) **CLOSED** completed (Rekik formal closure YES). Wave 5 is **OPERATIONALLY ACCEPTED** / closed. Programme **READY FOR HOTEL UAT**.
 >
-> **Gap-edit 2 Spec Eng-ready** (§9). Rekik HOLD 2026-09-15 — staged-create. ENGINEERING **IMPLEMENTATION IN PROGRESS** on #109 / PR [#111](https://github.com/NORUDEVGIT/NORU/pull/111). Independent QA on #111 is **HELD** until staged-create. Linking **AC-GE2-9…13** + Identity **AC-GE2-14**. Does **not** claim implemented / PASS / LIVE / COMPLETE. Does **not** reopen Waves 1–5 or Gap-edit 1. Migration `0057` Abel/PM gated (0056 is Polish Wave 1). Module COMPLETE remains **NO**.
+> **Gap-edit 2 IMPLEMENTED ON MAIN** (§9). ENGINEERING STATUS **COMPLETE / MERGED**. IMPLEMENTATION STATUS **PASS**. HOLD **cleared** via [#112](https://github.com/NORUDEVGIT/NORU/pull/112). PRs [#111](https://github.com/NORUDEVGIT/NORU/pull/111) + [#112](https://github.com/NORUDEVGIT/NORU/pull/112) MERGED. Spec [#110](https://github.com/NORUDEVGIT/NORU/pull/110) MERGED. AC-GE2-1…34 **PASS**. Independent QA **PASS** on #112. Issue [#109](https://github.com/NORUDEVGIT/NORU/issues/109) **OPEN** (READY TO CLOSE YES). Does **not** reopen Waves 1–5 or rewrite Gap-edit 1. Migration `0057` **APPLY HELD** (not applied). Module COMPLETE remains **NO**.
 >
 > Module COMPLETE remains **NO** until hotel UAT PASS + this docs recon merge + Advisor module close.
 >
