@@ -190,6 +190,17 @@ File: `supabase/migrations/0051_pms_guest_profile_wave2.sql` (dual-lane `drizzle
 
 Until production apply, Identity / merge / consent / preference-options surfaces that need the new schema degrade to an unavailable message (`WAVE2_MIGRATION_UNAVAILABLE`). Do **not** treat code merge as production schema apply.
 
+### 7.7 Directory-back shell UX — **OPEN** residual (Rekik 2026-09-14)
+
+Wave 3 residual / Guest shell UX — **not** Waves 4–5 product scope. Full note: [Functional Spec §5.15](./specs/guest-profile-module.md#515-wave-3-residuals--ux-consistency--directory-back-rekik-2026-09-14).
+
+**REQUIRED.** Any Guest Profile card that requires a selected guest first (Dashboard, Stay History, Identity, Preferences, and later live cards) must provide the same easy **Directory back arrow** as Information (or a shell-level sticky back-to-Directory). Staff must always be able to return to Directory, pick another guest, and see that guest’s same card without dead-ends.
+
+| Item | Status on `main` |
+|---|---|
+| Guest-context headers (#87) | **ON MAIN** — PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) |
+| Directory-back on guest-required cards | **OPEN** — Engineering follow-up |
+
 ---
 
 ## 8. Related records
@@ -205,6 +216,7 @@ Until production apply, Identity / merge / consent / preference-options surfaces
 | Issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) | Wave 2 implementation issue — **CLOSED** completed. |
 | PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) | Wave 2 implementation — **MERGED** 2026-09-14T10:57:47Z. |
 | PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) | Wave 2 Preferences tab sync — **MERGED** 2026-09-14T11:20:17Z. |
+| PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) | Wave 3 guest-context headers — **MERGED**. Directory-back residual still **OPEN** (§7.7 / Spec §5.15). |
 
 ---
 
