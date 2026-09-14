@@ -7,7 +7,6 @@
  * relationship (departments, schedules, attendance, workforce reporting) — no
  * staff record is duplicated here.
  */
-import { Link } from "@tanstack/react-router";
 import { ArrowRight, type LucideIcon, BedDouble, TrendingUp, Users, Wallet } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
@@ -153,8 +152,8 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
               <AdminCard
                 icon={Wallet}
                 title="Payment methods"
-                description="Methods accepted when posting to a guest folio."
-                to="/restaurant/pms/cashiering"
+                description="Accepted tenders are maintained in Settings. Cashiering consumes the Active list."
+                to="/restaurant/settings#payment-methods"
               />
             </div>
             <FoundationPanel
@@ -180,8 +179,8 @@ function AdminCard({
   to: string;
 }) {
   return (
-    <Link
-      to={to}
+    <a
+      href={to}
       className="group flex flex-col rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/50 hover:bg-accent/40"
     >
       <Icon className="size-5 text-primary" />
@@ -190,6 +189,6 @@ function AdminCard({
       <span className="mt-auto inline-flex items-center gap-1 pt-3 text-sm font-medium text-primary">
         Open <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
       </span>
-    </Link>
+    </a>
   );
 }

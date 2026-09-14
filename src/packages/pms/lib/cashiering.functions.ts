@@ -15,6 +15,8 @@ import {
   type TransactionType,
 } from "./cashiering.server";
 import { callerMembership } from "@/core/lib/workforce.server";
+import { allowCashieringTender, normalizeTenderCode } from "./pms-polish1-payment-admin";
+import { loadActivePaymentMethodCodes } from "./pms-polish1-payment-admin.functions";
 
 const idSchema = z.string().uuid();
 
@@ -496,13 +498,22 @@ export const postFolioEntry = createServerFn({ method: "POST" })
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
 
-    // Night audit rolls payments up by method, so store the normalized code alongside the ledger row.
-    const normalized = method ? method.trim().toLowerCase().replace(/\s+/g, "_") : null;
-    const allowed = ["cash", "card", "bank_transfer", "mobile_money", "other"];
+    // Night audit rolls payments up by method, so store the catalogue code alongside the ledger row.
+    const normalized = method ? normalizeTenderCode(method) : null;
     if (normalized && ["payment", "deposit", "refund"].includes(data.type)) {
+      const activeCodes = await loadActivePaymentMethodCodes(supabaseAdmin, data.restaurantId);
+      if (activeCodes && activeCodes.length === 0) {
+        return { ok: false, message: "No active payment methods. Configure them in Settings → Payment methods." };
+      }
+      if (activeCodes && !allowCashieringTender(method, activeCodes)) {
+        return { ok: false, message: "That payment method is not active." };
+      }
+      const stored =
+        activeCodes?.find((code) => code === method || normalizeTenderCode(code) === normalized) ??
+        (allowCashieringTender(normalized, activeCodes) ? normalized : "other");
       await supabaseAdmin
         .from("folio_transactions")
-        .update({ payment_method: allowed.includes(normalized) ? normalized : "other" })
+        .update({ payment_method: stored })
         .eq("id", (txn as { id: string }).id)
         .eq("restaurant_id", data.restaurantId);
     }

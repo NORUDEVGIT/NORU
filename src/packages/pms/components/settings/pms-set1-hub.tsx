@@ -11,7 +11,6 @@ import { Set2OutletsSection, Set2RoomsSection, Set2StructureSection } from "@/pa
 import { Set3GuestSection, Set3RatesSection } from "@/packages/pms/components/settings/pms-set3-section";
 import { Set4HousekeepingSection, Set4MaintenanceSection, Set4RoomInventorySection } from "@/packages/pms/components/settings/pms-set4-section";
 import {
-  Set5AdminSection,
   Set5DepartmentsSection,
   Set5GuestServicesSection,
   Set5IntegrationsSection,
@@ -38,8 +37,9 @@ import {
   SET4_LIVE_HASHES,
   SET5_LIVE_HASHES,
   SET6_LIVE_HASHES,
+  POLISH1_LIVE_HASHES,
   canOpenSet1Hub,
-  isSet1SectionHash,
+  resolveSet1SectionHash,
   type Set1SectionId,
 } from "@/packages/pms/lib/pms-set1-foundation";
 import { emptySet2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
@@ -47,12 +47,13 @@ import { emptySet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { emptySet4Snapshot } from "@/packages/pms/lib/pms-set4-hk-inventory";
 import { emptySet5Snapshot } from "@/packages/pms/lib/pms-set5-depts-guestsvc";
 import { emptySet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution";
+import { emptyPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-admin";
+import { Polish1AdministrationSection, Polish1PaymentMethodsSection } from "@/packages/pms/components/settings/pms-polish1-section";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
   if (typeof window === "undefined") return null;
-  const hash = window.location.hash.replace(/^#/, "");
-  return isSet1SectionHash(hash) ? (hash as Set1SectionId) : null;
+  return resolveSet1SectionHash(window.location.hash);
 }
 
 export function PmsSet1Hub({ membership }: { membership: RestaurantMembership }) {
@@ -63,7 +64,14 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   const [showAllChanges, setShowAllChanges] = useState(false);
 
   useEffect(() => {
-    const apply = () => setSection(currentSection());
+    const apply = () => {
+      const raw = window.location.hash.replace(/^#/, "");
+      const resolved = resolveSet1SectionHash(raw);
+      if (resolved && resolved !== raw) {
+        window.history.replaceState(null, "", `${SET1_HUB_HREF}#${resolved}`);
+      }
+      setSection(currentSection());
+    };
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
@@ -90,7 +98,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return <p className="text-sm text-destructive">{(query.error as Error | undefined)?.message ?? "Settings are unavailable."}</p>;
   }
 
-  const { snapshot, checklist, canEdit, role, set2, set3, set4, set5, set6 } = query.data;
+  const { snapshot, checklist, canEdit, role, set2, set3, set4, set5, set6, polish1 } = query.data;
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
@@ -108,7 +116,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, departments, guest services types, notifications, admin, integrations, security, sales, distribution, reports and offline posture for {membership.restaurant.name}.
+          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, departments, guest services types, notifications, payment methods, administration, integrations, security, sales, distribution, reports and offline posture for {membership.restaurant.name}.
         </p>
       </div>
 
@@ -179,6 +187,23 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 canEdit={canEdit}
               />
             )
+          ) : (POLISH1_LIVE_HASHES as readonly string[]).includes(section) ? (
+            section === "payment-methods" ? (
+              <Polish1PaymentMethodsSection
+                restaurantId={restaurantId}
+                snapshot={polish1 ?? emptyPolish1Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            ) : (
+              <Polish1AdministrationSection
+                restaurantId={restaurantId}
+                snapshot={polish1 ?? emptyPolish1Snapshot()}
+                set5={set5 ?? emptySet5Snapshot()}
+                checklist={checklist}
+                canEdit={canEdit}
+              />
+            )
           ) : (SET5_LIVE_HASHES as readonly string[]).includes(section) ? (
             section === "departments" ? (
               <Set5DepartmentsSection
@@ -196,13 +221,6 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               />
             ) : section === "notifications" ? (
               <Set5NotificationsSection
-                restaurantId={restaurantId}
-                snapshot={set5 ?? emptySet5Snapshot()}
-                checklist={checklist}
-                canEdit={canEdit}
-              />
-            ) : section === "admin-controls" ? (
-              <Set5AdminSection
                 restaurantId={restaurantId}
                 snapshot={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -20,8 +20,11 @@ import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 import { SET1_TAX_HONESTY } from "@/packages/pms/lib/pms-set1-foundation";
-
-const PAYMENT_METHODS = ["Cash", "Card", "Bank transfer", "Mobile money", "Other"];
+import {
+  POLISH1_PAYMENT_METHODS_HREF,
+  cashieringTenderOptions,
+  emptyPolish1Snapshot,
+} from "@/packages/pms/lib/pms-polish1-payment-admin";
 
 const COPY: Record<TransactionType, { title: string; description: string; cta: string }> = {
   charge: {
@@ -73,8 +76,18 @@ export function FolioEntryDialog({
 }) {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [method, setMethod] = useState(PAYMENT_METHODS[0]!);
+  const [method, setMethod] = useState("");
   const set1 = usePmsSet1Foundation(restaurantId);
+  const tenders = cashieringTenderOptions({
+    available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
+    methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
+  });
+
+  useEffect(() => {
+    if (!tenders.some((row) => row.code === method)) {
+      setMethod(tenders[0]?.code ?? "");
+    }
+  }, [tenders, method]);
 
   const post = useServerFn(postFolioEntry);
   const copy = type ? COPY[type] : null;
@@ -148,18 +161,28 @@ export function FolioEntryDialog({
           {needsMethod ? (
             <div>
               <Label htmlFor="entry-method">Method</Label>
-              <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger id="entry-method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHODS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {tenders.length === 0 ? (
+                <p className="text-sm text-[#C89933]">
+                  No active payment methods. Configure accepted tenders in{" "}
+                  <a href={POLISH1_PAYMENT_METHODS_HREF} className="font-medium underline">
+                    Payment methods
+                  </a>
+                  .
+                </p>
+              ) : (
+                <Select value={method} onValueChange={setMethod}>
+                  <SelectTrigger id="entry-method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenders.map((row) => (
+                      <SelectItem key={row.code} value={row.code}>
+                        {row.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           ) : null}
         </div>
@@ -167,7 +190,7 @@ export function FolioEntryDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || (needsMethod && !method)}>
             {copy?.cta}
           </Button>
         </DialogFooter>

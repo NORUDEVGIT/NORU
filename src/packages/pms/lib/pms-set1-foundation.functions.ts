@@ -55,6 +55,8 @@ import { SET5_AUDIT_ACTIONS, activateInputFromSet5Snapshot } from "./pms-set5-de
 import { loadSet5Snapshot } from "./pms-set5-depts-guestsvc.functions";
 import { SET6_AUDIT_ACTIONS, activateInputFromSet6Snapshot } from "./pms-set6-sales-distribution";
 import { loadSet6Snapshot } from "./pms-set6-sales-distribution.functions";
+import { POLISH1_AUDIT_ACTIONS, activateInputFromPolish1Snapshot } from "./pms-polish1-payment-admin";
+import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 
 const idSchema = z.string().uuid();
 
@@ -182,12 +184,13 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { row, foundationColumnsAvailable } = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const snapshot = snapshotFromRow(row, foundationColumnsAvailable);
-    const [set2, set3, set4, set5, set6] = await Promise.all([
+    const [set2, set3, set4, set5, set6, polish1] = await Promise.all([
       loadSet2Snapshot(supabaseAdmin, data.restaurantId),
       loadSet3Snapshot(supabaseAdmin, data.restaurantId),
       loadSet4Snapshot(supabaseAdmin, data.restaurantId),
       loadSet5Snapshot(supabaseAdmin, data.restaurantId),
       loadSet6Snapshot(supabaseAdmin, data.restaurantId),
+      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
     ]);
     const checklist = evaluateSet1Checklist({
       identity: snapshot.identity,
@@ -202,6 +205,7 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
       set4: activateInputFromSet4Snapshot(set4),
       set5: activateInputFromSet5Snapshot(set5),
       set6: activateInputFromSet6Snapshot(set6),
+      polish1: activateInputFromPolish1Snapshot(polish1),
     });
     return {
       snapshot,
@@ -210,6 +214,7 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
       set4,
       set5,
       set6,
+      polish1,
       checklist,
       role: me.role,
       canEdit: canEditSet1(me.role),
@@ -423,12 +428,13 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
       auditWritten = auditWritten && feeAudit;
     }
 
-    const [set2, set3, set4, set5, set6] = await Promise.all([
+    const [set2, set3, set4, set5, set6, polish1] = await Promise.all([
       loadSet2Snapshot(supabaseAdmin, data.restaurantId),
       loadSet3Snapshot(supabaseAdmin, data.restaurantId),
       loadSet4Snapshot(supabaseAdmin, data.restaurantId),
       loadSet5Snapshot(supabaseAdmin, data.restaurantId),
       loadSet6Snapshot(supabaseAdmin, data.restaurantId),
+      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
     ]);
     const checklist = evaluateSet1Checklist({
       identity: after.identity,
@@ -443,8 +449,9 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
       set4: activateInputFromSet4Snapshot(set4),
       set5: activateInputFromSet5Snapshot(set5),
       set6: activateInputFromSet6Snapshot(set6),
+      polish1: activateInputFromPolish1Snapshot(polish1),
     });
-    return { ok: true as const, snapshot: after, set2, set3, set4, set5, set6, checklist, auditWritten };
+    return { ok: true as const, snapshot: after, set2, set3, set4, set5, set6, polish1, checklist, auditWritten };
   });
 
 export const activatePmsSet1 = createServerFn({ method: "POST" })
@@ -460,12 +467,13 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       throw new Error("Activate is unavailable until foundation columns are applied.");
     }
     const before = snapshotFromRow(loaded.row, true);
-    const [set2Before, set3Before, set4Before, set5Before, set6Before] = await Promise.all([
+    const [set2Before, set3Before, set4Before, set5Before, set6Before, polish1Before] = await Promise.all([
       loadSet2Snapshot(supabaseAdmin, data.restaurantId),
       loadSet3Snapshot(supabaseAdmin, data.restaurantId),
       loadSet4Snapshot(supabaseAdmin, data.restaurantId),
       loadSet5Snapshot(supabaseAdmin, data.restaurantId),
       loadSet6Snapshot(supabaseAdmin, data.restaurantId),
+      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
     ]);
     const checklist = evaluateSet1Checklist({
       identity: before.identity,
@@ -480,6 +488,7 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       set4: activateInputFromSet4Snapshot(set4Before),
       set5: activateInputFromSet5Snapshot(set5Before),
       set6: activateInputFromSet6Snapshot(set6Before),
+      polish1: activateInputFromPolish1Snapshot(polish1Before),
     });
     if (!checklist.canActivate) {
       throw new Error(
@@ -508,12 +517,13 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       before: { pmsSet1Live: before.pmsSet1Live },
       after: { pmsSet1Live: after.pmsSet1Live },
     });
-    const [set2After, set3After, set4After, set5After, set6After] = await Promise.all([
+    const [set2After, set3After, set4After, set5After, set6After, polish1After] = await Promise.all([
       loadSet2Snapshot(supabaseAdmin, data.restaurantId),
       loadSet3Snapshot(supabaseAdmin, data.restaurantId),
       loadSet4Snapshot(supabaseAdmin, data.restaurantId),
       loadSet5Snapshot(supabaseAdmin, data.restaurantId),
       loadSet6Snapshot(supabaseAdmin, data.restaurantId),
+      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
     ]);
     return {
       ok: true as const,
@@ -523,6 +533,7 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       set4: set4After,
       set5: set5After,
       set6: set6After,
+      polish1: polish1After,
       checklist: evaluateSet1Checklist({
         identity: after.identity,
         ops: after.ops,
@@ -536,6 +547,7 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
         set4: activateInputFromSet4Snapshot(set4After),
         set5: activateInputFromSet5Snapshot(set5After),
         set6: activateInputFromSet6Snapshot(set6After),
+        polish1: activateInputFromPolish1Snapshot(polish1After),
       }),
       auditWritten,
     };
@@ -568,6 +580,7 @@ export const listPmsSet1Audit = createServerFn({ method: "POST" })
         ...SET4_AUDIT_ACTIONS,
         ...SET5_AUDIT_ACTIONS,
         ...SET6_AUDIT_ACTIONS,
+        ...POLISH1_AUDIT_ACTIONS,
       ])
       .order("created_at", { ascending: false })
       .limit(40);

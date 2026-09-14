@@ -259,6 +259,9 @@ describe("PMS-SET1 fee-defaults single home", () => {
     assert.equal(isSet1SectionHash("#guest-services-types"), true);
     assert.equal(isSet1SectionHash("notifications"), true);
     assert.equal(isSet1SectionHash("#admin-controls"), true);
+    assert.equal(isSet1SectionHash("#administration"), true);
+    assert.equal(isSet1SectionHash("#payment-methods"), true);
+    assert.equal(isSet1SectionHash("#banks"), true);
     assert.equal(isSet1SectionHash("integrations"), true);
     assert.equal(isSet1SectionHash("#security-audit"), true);
 
@@ -337,7 +340,8 @@ describe("PMS-SET1 hub locks", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "departments"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "guest-services-types"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "notifications"));
-    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "admin-controls"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "administration"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "payment-methods"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "integrations"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "security-audit"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "sales-events"));

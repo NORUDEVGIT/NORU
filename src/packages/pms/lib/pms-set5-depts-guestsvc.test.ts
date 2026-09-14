@@ -150,7 +150,7 @@ describe("PMS-SET5 no new Activate Incomplete blockers", () => {
     assert.ok(missing0051.domains.departments.warnings.includes(SET5_DEPTS_UNAVAILABLE));
     assert.ok(missing0051.domains["guest-services-types"].warnings.includes(SET5_REQUEST_TYPES_UNAVAILABLE));
     assert.ok(missing0051.domains.notifications.warnings.includes(SET5_NOTIFICATIONS_UNAVAILABLE));
-    assert.ok(missing0051.domains["admin-controls"].warnings.includes(SET5_ADMIN_UNAVAILABLE));
+    assert.ok(missing0051.domains.administration.warnings.includes(SET5_ADMIN_UNAVAILABLE));
     assert.ok(missing0051.domains["security-audit"].warnings.includes(SET5_SECURITY_UNAVAILABLE));
     assert.ok(!missing0051.mandatoryMissing.includes("Department"));
     assert.ok(!missing0051.mandatoryMissing.includes("Guest request type"));
@@ -201,7 +201,7 @@ describe("PMS-SET5 hub unmute and deep-links", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "departments" && card.title === "Departments"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "guest-services-types"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "notifications"));
-    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "admin-controls"));
+    assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "administration"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "integrations"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "security-audit"));
     assert.ok(!SET1_LIVE_CARDS.some((card) => card.title === "Banks"));
@@ -213,7 +213,7 @@ describe("PMS-SET5 hub unmute and deep-links", () => {
     assert.match(hub, /Set5DepartmentsSection/);
     assert.match(hub, /Set5GuestServicesSection/);
     assert.match(hub, /Set5NotificationsSection/);
-    assert.match(hub, /Set5AdminSection/);
+    assert.match(hub, /Polish1AdministrationSection/);
     assert.match(hub, /Set5IntegrationsSection/);
     assert.match(hub, /Set5SecuritySection/);
     assert.match(hub, /Show all/);

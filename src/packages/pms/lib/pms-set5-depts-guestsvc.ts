@@ -532,7 +532,7 @@ export function evaluateAdminControls(input: Set5ActivateInput): Set1DomainRepor
   const warnings: string[] = [];
   if (!input.adminAvailable) warnings.push(SET5_ADMIN_UNAVAILABLE);
   else if (!input.adminSaved) warnings.push(SET5_ADMIN_WARNING);
-  return domain("admin-controls", [], warnings);
+  return domain("administration", [], warnings);
 }
 
 export function evaluateIntegrations(input: Set5ActivateInput): Set1DomainReport {
