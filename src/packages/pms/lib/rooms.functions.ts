@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
-  DEFAULT_AMENITIES,
   IMAGE_EXT_BY_TYPE,
   ROOM_BUCKET,
   ROOM_STATUSES,
@@ -15,6 +14,7 @@ import {
   signRoomImages,
   type RoomStatus,
 } from "./rooms.server";
+import { isMissingSchemaError } from "./pms-set2-structure";
 import { callerMembership } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
@@ -23,6 +23,8 @@ export interface RoomAmenity {
   id: string;
   name: string;
   active: boolean;
+  code: string;
+  category: string;
 }
 
 export interface RoomTypeImage {
@@ -62,6 +64,9 @@ export interface HotelRoom {
   floor: string | null;
   building: string | null;
   wing: string | null;
+  buildingId: string | null;
+  floorId: string | null;
+  wingId: string | null;
   smoking: boolean;
   accessible: boolean;
   status: RoomStatus;
@@ -90,25 +95,27 @@ export const listRoomAmenities = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<RoomAmenity[]> => {
     await requireRoomManager(context as never, data.restaurantId);
 
-    const { data: existing } = await context.supabase
+    const withExtras = await context.supabase
       .from("room_amenities")
-      .select("id, name, active")
+      .select("id, name, active, code, category")
       .eq("restaurant_id", data.restaurantId)
       .order("name");
-
-    if (!existing || existing.length === 0) {
-      await context.supabase
-        .from("room_amenities")
-        .insert(DEFAULT_AMENITIES.map((name) => ({ restaurant_id: data.restaurantId, name })));
-      const { data: seeded } = await context.supabase
+    if (withExtras.error && isMissingSchemaError(withExtras.error)) {
+      const { data: existing } = await context.supabase
         .from("room_amenities")
         .select("id, name, active")
         .eq("restaurant_id", data.restaurantId)
         .order("name");
-      return (seeded ?? []).map((a) => ({ id: a.id, name: a.name, active: a.active }));
+      return (existing ?? []).map((a) => ({ id: a.id, name: a.name, active: a.active, code: "", category: "" }));
     }
-
-    return existing.map((a) => ({ id: a.id, name: a.name, active: a.active }));
+    if (withExtras.error) throw new Error(withExtras.error.message);
+    return (withExtras.data ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      active: a.active,
+      code: String(a.code ?? ""),
+      category: String(a.category ?? ""),
+    }));
   });
 
 /* ----------------------------------------------------------------- room types */
@@ -345,6 +352,9 @@ export const listRooms = createServerFn({ method: "POST" })
       floor: r.floor,
       building: r.building,
       wing: r.wing,
+      buildingId: r.building_id ?? null,
+      floorId: r.floor_id ?? null,
+      wingId: r.wing_id ?? null,
       smoking: r.smoking,
       accessible: r.accessible,
       status: r.status as RoomStatus,
@@ -361,6 +371,9 @@ const roomInput = z.object({
   floor: z.string().trim().max(20).nullable().optional(),
   building: z.string().trim().max(80).nullable().optional(),
   wing: z.string().trim().max(80).nullable().optional(),
+  buildingId: idSchema.optional().nullable(),
+  floorId: idSchema.optional().nullable(),
+  wingId: idSchema.optional().nullable(),
   smoking: z.boolean(),
   accessible: z.boolean(),
   status: z.enum(ROOM_STATUSES),
@@ -384,13 +397,47 @@ export const saveRoom = createServerFn({ method: "POST" })
     if (!type)
       return { ok: false as const, message: "That room type doesn't belong to this property." };
 
+    let building = blankToNull(data.building);
+    let floor = blankToNull(data.floor);
+    let wing = blankToNull(data.wing);
+    if (data.buildingId) {
+      const { data: master } = await context.supabase
+        .from("hotel_buildings")
+        .select("name")
+        .eq("id", data.buildingId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (master?.name) building = master.name;
+    }
+    if (data.floorId) {
+      const { data: master } = await context.supabase
+        .from("hotel_floors")
+        .select("name")
+        .eq("id", data.floorId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (master?.name) floor = master.name;
+    }
+    if (data.wingId) {
+      const { data: master } = await context.supabase
+        .from("hotel_wings")
+        .select("name")
+        .eq("id", data.wingId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (master?.name) wing = master.name;
+    }
+
     const payload = {
       restaurant_id: data.restaurantId,
       room_type_id: data.roomTypeId,
       room_number: data.roomNumber,
-      floor: blankToNull(data.floor),
-      building: blankToNull(data.building),
-      wing: blankToNull(data.wing),
+      floor,
+      building,
+      wing,
+      building_id: data.buildingId ?? null,
+      floor_id: data.floorId ?? null,
+      wing_id: data.wingId ?? null,
       smoking: data.smoking,
       accessible: data.accessible,
       status: data.status,
@@ -398,7 +445,7 @@ export const saveRoom = createServerFn({ method: "POST" })
       notes: blankToNull(data.notes),
     };
 
-    const { error } = data.id
+    let write = data.id
       ? await context.supabase
           .from("hotel_rooms")
           .update(payload)
@@ -407,6 +454,31 @@ export const saveRoom = createServerFn({ method: "POST" })
       : await context.supabase
           .from("hotel_rooms")
           .insert({ ...payload, created_by_staff_membership_id: me.id });
+    if (write.error && isMissingSchemaError(write.error)) {
+      const textOnly = {
+        restaurant_id: data.restaurantId,
+        room_type_id: data.roomTypeId,
+        room_number: data.roomNumber,
+        floor,
+        building,
+        wing,
+        smoking: data.smoking,
+        accessible: data.accessible,
+        status: data.status,
+        active: data.active,
+        notes: blankToNull(data.notes),
+      };
+      write = data.id
+        ? await context.supabase
+            .from("hotel_rooms")
+            .update(textOnly)
+            .eq("id", data.id)
+            .eq("restaurant_id", data.restaurantId)
+        : await context.supabase
+            .from("hotel_rooms")
+            .insert({ ...textOnly, created_by_staff_membership_id: me.id });
+    }
+    const { error } = write;
 
     if (error) {
       return {

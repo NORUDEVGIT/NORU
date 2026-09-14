@@ -194,25 +194,35 @@ export function RoomTypeFormDialog({
 
           <div className="space-y-2 sm:col-span-2">
             <Label>Amenities</Label>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {amenities.map((a) => {
-                const checked = values.amenityIds.includes(a.id);
-                return (
-                  <label key={a.id} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(next) =>
-                        set(
-                          "amenityIds",
-                          next ? [...values.amenityIds, a.id] : values.amenityIds.filter((id) => id !== a.id),
-                        )
-                      }
-                    />
-                    {a.name}
-                  </label>
-                );
-              })}
-            </div>
+            {amenities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No catalogue items yet. Add them in{" "}
+                <a href="/restaurant/settings#rooms" className="font-medium text-[#C89933]">
+                  Settings · Rooms &amp; amenities
+                </a>
+                . Attach stays here.
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-3">
+                {amenities.map((a) => {
+                  const checked = values.amenityIds.includes(a.id);
+                  return (
+                    <label key={a.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(next) =>
+                          set(
+                            "amenityIds",
+                            next ? [...values.amenityIds, a.id] : values.amenityIds.filter((id) => id !== a.id),
+                          )
+                        }
+                      />
+                      {a.name}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <label className="flex items-center justify-between rounded-xl border border-border p-3 text-sm">

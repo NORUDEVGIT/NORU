@@ -1028,6 +1028,92 @@ export type Database = {
           },
         ]
       }
+      hotel_buildings: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_buildings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_floors: {
+        Row: {
+          active: boolean
+          building_id: string
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          building_id: string
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          building_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_floors_building_fk"
+            columns: ["building_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_buildings"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_floors_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_rate_calendar: {
         Row: {
           created_at: string
@@ -1497,9 +1583,11 @@ export type Database = {
           accessible: boolean
           active: boolean
           building: string | null
+          building_id: string | null
           created_at: string
           created_by_staff_membership_id: string | null
           floor: string | null
+          floor_id: string | null
           housekeeping_status: string
           id: string
           notes: string | null
@@ -1512,14 +1600,17 @@ export type Database = {
           status: string
           updated_at: string
           wing: string | null
+          wing_id: string | null
         }
         Insert: {
           accessible?: boolean
           active?: boolean
           building?: string | null
+          building_id?: string | null
           created_at?: string
           created_by_staff_membership_id?: string | null
           floor?: string | null
+          floor_id?: string | null
           housekeeping_status?: string
           id?: string
           notes?: string | null
@@ -1532,14 +1623,17 @@ export type Database = {
           status?: string
           updated_at?: string
           wing?: string | null
+          wing_id?: string | null
         }
         Update: {
           accessible?: boolean
           active?: boolean
           building?: string | null
+          building_id?: string | null
           created_at?: string
           created_by_staff_membership_id?: string | null
           floor?: string | null
+          floor_id?: string | null
           housekeeping_status?: string
           id?: string
           notes?: string | null
@@ -1552,14 +1646,29 @@ export type Database = {
           status?: string
           updated_at?: string
           wing?: string | null
+          wing_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "hotel_rooms_building_fk"
+            columns: ["building_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_buildings"
+            referencedColumns: ["id", "restaurant_id"]
+          },
           {
             foreignKeyName: "hotel_rooms_created_by_staff_membership_id_fkey"
             columns: ["created_by_staff_membership_id"]
             isOneToOne: false
             referencedRelation: "restaurant_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rooms_floor_fk"
+            columns: ["floor_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_floors"
+            referencedColumns: ["id", "restaurant_id"]
           },
           {
             foreignKeyName: "hotel_rooms_restaurant_id_fkey"
@@ -1574,6 +1683,68 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "room_types"
             referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_rooms_wing_fk"
+            columns: ["wing_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_wings"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_wings: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          parent_building_id: string | null
+          parent_floor_id: string | null
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          parent_building_id?: string | null
+          parent_floor_id?: string | null
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          parent_building_id?: string | null
+          parent_floor_id?: string | null
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_wings_building_fk"
+            columns: ["parent_building_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_buildings"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_wings_floor_fk"
+            columns: ["parent_floor_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_floors"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_wings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3074,6 +3245,56 @@ export type Database = {
           },
         ]
       }
+      pms_outlets: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          default_posting_label: string | null
+          department_text: string | null
+          id: string
+          is_default_rooms: boolean
+          name: string
+          restaurant_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          default_posting_label?: string | null
+          department_text?: string | null
+          id?: string
+          is_default_rooms?: boolean
+          name: string
+          restaurant_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          default_posting_label?: string | null
+          department_text?: string | null
+          id?: string
+          is_default_rooms?: boolean
+          name?: string
+          restaurant_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_outlets_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_cashier_shifts: {
         Row: {
           business_date: string
@@ -4419,6 +4640,7 @@ export type Database = {
           phone: string | null
           pms_set1_live: boolean
           postcode: string | null
+          single_building_mode: boolean
           property_code: string | null
           property_type: string | null
           rejection_reason: string | null
@@ -4481,6 +4703,7 @@ export type Database = {
           rejection_reason?: string | null
           service_enabled?: boolean
           service_rate?: number
+          single_building_mode?: boolean
           slug: string
           status_updated_at?: string | null
           suspension_reason?: string | null
@@ -4538,6 +4761,7 @@ export type Database = {
           rejection_reason?: string | null
           service_enabled?: boolean
           service_rate?: number
+          single_building_mode?: boolean
           slug?: string
           status_updated_at?: string | null
           suspension_reason?: string | null
@@ -4553,6 +4777,8 @@ export type Database = {
       room_amenities: {
         Row: {
           active: boolean
+          category: string | null
+          code: string | null
           created_at: string
           id: string
           name: string
@@ -4560,6 +4786,8 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          category?: string | null
+          code?: string | null
           created_at?: string
           id?: string
           name: string
@@ -4567,6 +4795,8 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          category?: string | null
+          code?: string | null
           created_at?: string
           id?: string
           name?: string

@@ -45,6 +45,8 @@ import {
   type Set1TaxesDraft,
   type TaxIdentity,
 } from "./pms-set1-foundation";
+import { SET2_AUDIT_AMENITY, SET2_AUDIT_OUTLET, SET2_AUDIT_STRUCTURE, activateInputFromSnapshot } from "./pms-set2-structure";
+import { loadSet2Snapshot } from "./pms-set2-structure.functions";
 
 const idSchema = z.string().uuid();
 
@@ -172,6 +174,7 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { row, foundationColumnsAvailable } = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const snapshot = snapshotFromRow(row, foundationColumnsAvailable);
+    const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     const checklist = evaluateSet1Checklist({
       identity: snapshot.identity,
       ops: snapshot.ops,
@@ -180,9 +183,11 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
       foundationColumnsAvailable,
       pmsSet1Live: snapshot.pmsSet1Live,
       role: me.role,
+      set2: activateInputFromSnapshot(set2),
     });
     return {
       snapshot,
+      set2,
       checklist,
       role: me.role,
       canEdit: canEditSet1(me.role),
@@ -396,6 +401,7 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
       auditWritten = auditWritten && feeAudit;
     }
 
+    const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     const checklist = evaluateSet1Checklist({
       identity: after.identity,
       ops: after.ops,
@@ -404,8 +410,9 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
       foundationColumnsAvailable: after.foundationColumnsAvailable,
       pmsSet1Live: after.pmsSet1Live,
       role: me.role,
+      set2: activateInputFromSnapshot(set2),
     });
-    return { ok: true as const, snapshot: after, checklist, auditWritten };
+    return { ok: true as const, snapshot: after, set2, checklist, auditWritten };
   });
 
 export const activatePmsSet1 = createServerFn({ method: "POST" })
@@ -421,6 +428,7 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       throw new Error("Activate is unavailable until foundation columns are applied.");
     }
     const before = snapshotFromRow(loaded.row, true);
+    const set2Before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     const checklist = evaluateSet1Checklist({
       identity: before.identity,
       ops: before.ops,
@@ -429,12 +437,13 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       foundationColumnsAvailable: true,
       pmsSet1Live: before.pmsSet1Live,
       role: me.role,
+      set2: activateInputFromSnapshot(set2Before),
     });
     if (!checklist.canActivate) {
       throw new Error(
         checklist.mandatoryMissing.length
           ? `Cannot activate yet. Missing: ${checklist.mandatoryMissing.join(", ")}.`
-          : "Cannot activate until every mandatory Foundation item is complete.",
+          : "Cannot activate until every mandatory Foundation, structure, rooms and outlets item is complete.",
       );
     }
 
@@ -457,9 +466,11 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       before: { pmsSet1Live: before.pmsSet1Live },
       after: { pmsSet1Live: after.pmsSet1Live },
     });
+    const set2After = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     return {
       ok: true as const,
       snapshot: after,
+      set2: set2After,
       checklist: evaluateSet1Checklist({
         identity: after.identity,
         ops: after.ops,
@@ -468,6 +479,7 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
         foundationColumnsAvailable: after.foundationColumnsAvailable,
         pmsSet1Live: after.pmsSet1Live,
         role: me.role,
+        set2: activateInputFromSnapshot(set2After),
       }),
       auditWritten,
     };
@@ -490,7 +502,7 @@ export const listPmsSet1Audit = createServerFn({ method: "POST" })
       .from("restaurant_staff_audit_log")
       .select("id, action, created_at, metadata")
       .eq("restaurant_id", data.restaurantId)
-      .in("action", [SET1_AUDIT_ACTION, FO_FEE_DEFAULTS_AUDIT_ACTION])
+      .in("action", [SET1_AUDIT_ACTION, FO_FEE_DEFAULTS_AUDIT_ACTION, SET2_AUDIT_STRUCTURE, SET2_AUDIT_OUTLET, SET2_AUDIT_AMENITY])
       .order("created_at", { ascending: false })
       .limit(8);
     if (error) return [];
