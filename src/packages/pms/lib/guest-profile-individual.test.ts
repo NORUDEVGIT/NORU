@@ -82,6 +82,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(form, /defaultOpen = false/);
     assert.match(form, /GuestFormStagedLinks/);
     assert.doesNotMatch(form, /GuestIndividualLinks/);
+    assert.doesNotMatch(form, /individual-linking-after-save/);
   });
 
   it("AC-GE2-2 first name remains required; first-name-only create still works", () => {
@@ -175,29 +176,42 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(identity, /STAFF_VERIFY_COPY/);
   });
 
-  it("AC-GE2-9 New Guest can search + pick masters before submit; write waits for guest id", () => {
+  it("AC-GE2-9 New Guest stages master + role before submit; after-save-only on create fails", () => {
     const form = readRel("../components/guests/guest-form-dialog.tsx");
     const staged = readRel("../components/guests/guest-form-staged-links.tsx");
     const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
     const links = readRel("../components/guests/guest-individual-links.tsx");
+    const helpers = readRel("./guest-profile-individual.ts");
     assert.match(form, /GuestFormStagedLinks/);
+    assert.match(form, /<Section id="linking" title="Linking">/);
     assert.match(staged, /individual-link-master-search/);
     assert.match(staged, /listGuestAccounts/);
     assert.doesNotMatch(staged, /linkGuestAccount/);
     assert.match(form, /linkGuestAccount/);
     assert.doesNotMatch(form, /GuestIndividualLinks/);
+    assert.doesNotMatch(form, /individual-linking-after-save/);
     assert.match(detail, /GuestIndividualLinks/);
     assert.match(links, /individual-link-master-search/);
     assert.match(INDIVIDUAL_STAGED_LINKING_COPY, /held until Create/);
     assert.match(INDIVIDUAL_LINKING_AFTER_SAVE_COPY, /After save/);
+    assert.match(helpers, /After-save-only on create is no longer the product bar/);
+    assert.match(helpers, /AC-GE2-9…14 create-path honesty/);
   });
 
-  it("AC-GE2-10 confirm writes guest_account_links with Wave 4 roles", () => {
+  it("AC-GE2-10 one Create writes guest_account_links; link failure retries, never silent success", () => {
     const form = readRel("../components/guests/guest-form-dialog.tsx");
+    const staged = readRel("../components/guests/guest-form-staged-links.tsx");
     const links = readRel("../components/guests/guest-individual-links.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
+    const migration = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
     assert.match(form, /submitLink/);
     assert.match(form, /linkGuestAccount/);
+    assert.match(form, /applyStagedFollowups/);
+    assert.match(form, /individual-create-partial-failure/);
+    assert.match(form, /individual-create-retry/);
+    assert.doesNotMatch(staged, /linkGuestAccount/);
+    assert.doesNotMatch(form, /guest_pending_links|pre-id link/);
+    assert.doesNotMatch(migration, /CREATE TABLE.*guest_pending|pre_id_link/);
     assert.deepEqual([...INDIVIDUAL_LINK_ROLES], [
       "employer",
       "bill_to",
@@ -216,9 +230,13 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(INDIVIDUAL_LINKING_COPY, /guest_account_links/);
   });
 
-  it("AC-GE2-11 list linked masters + unlink without deleting parties", () => {
+  it("AC-GE2-11 after create / on edit, list linked masters + unlink without deleting parties", () => {
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
     const links = readRel("../components/guests/guest-individual-links.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
+    assert.match(directory, /onSaved=\{openGuest\}/);
+    assert.match(detail, /GuestIndividualLinks/);
     const unlink = functions.slice(functions.indexOf("export const unlinkGuestAccount"));
     assert.match(links, /individual-linked-master-row/);
     assert.match(links, /individual-unlink-master/);
@@ -229,7 +247,8 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.doesNotMatch(unlink.slice(0, 1800), /from\("guest_account_masters"\)[\s\S]{0,200}\.delete\(/);
   });
 
-  it("AC-GE2-12 Relationships card stays on the same store", () => {
+  it("AC-GE2-12 Relationships card stays on the same store, including staged-create links", () => {
+    const form = readRel("../components/guests/guest-form-dialog.tsx");
     const card = readRel("../components/guests/guest-relationships-card.tsx");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const links = readRel("../components/guests/guest-individual-links.tsx");
@@ -239,10 +258,12 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(shell, /GuestRelationshipsCard/);
     assert.match(links, /listGuestAccountLinks/);
     assert.match(links, /invalidateQueries\(\{ queryKey: \["guest-account-links", restaurantId\] \}\)/);
+    assert.match(form, /invalidateQueries\(\{ queryKey: \["guest-account-links", restaurantId\] \}\)/);
   });
 
   it("AC-GE2-13 no guest↔guest family graph; no folio routing; no AC-W4-5 boil-in", () => {
     const helpers = readRel("./guest-profile-individual.ts");
+    const form = readRel("../components/guests/guest-form-dialog.tsx");
     const links = readRel("../components/guests/guest-individual-links.tsx");
     const functions = readRel("./guests.functions.ts");
     const cashiering = readRel("./cashiering.functions.ts");
@@ -254,18 +275,25 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(cashiering, /transfersSupported: false/);
     assert.match(migration, /No folio routing/);
     assert.match(migration, /No guest↔guest family graph/);
+    assert.doesNotMatch(form, /guest_pending_links/);
+    assert.match(helpers, /no second link table/i);
   });
 
-  it("AC-GE2-14 create-path Identity upload is honest (staged until Create)", () => {
+  it("AC-GE2-14 create-path Identity is staged; save-first-only fails; edit-after-save remains", () => {
     const form = readRel("../components/guests/guest-form-dialog.tsx");
     const staged = readRel("../components/guests/guest-form-staged-identity.tsx");
+    const upload = readRel("../components/guests/guest-form-identity-upload.tsx");
     assert.match(form, /GuestFormStagedIdentity/);
     assert.match(form, /applyStagedFollowups/);
     assert.match(form, /attachGuestDocumentFile/);
     assert.match(form, /createGuestDocumentUpload/);
     assert.match(form, /individual-create-partial-failure/);
+    assert.match(form, /individual-create-retry/);
     assert.match(form, /INDIVIDUAL_PARTIAL_CREATE_COPY/);
+    assert.match(form, /GuestFormIdentityUpload/);
+    assert.doesNotMatch(form, /individual-identity-after-save/);
     assert.match(staged, /INDIVIDUAL_STAGED_IDENTITY_COPY/);
+    assert.match(upload, /attachGuestDocumentFile/);
     assert.match(INDIVIDUAL_STAGED_IDENTITY_COPY, /held until Create/);
     assert.match(INDIVIDUAL_STAGED_IDENTITY_COPY, /guest_documents/);
     assert.match(INDIVIDUAL_STAGED_CREATE_COPY, /One Create/);
