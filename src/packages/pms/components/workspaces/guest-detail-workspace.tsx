@@ -13,6 +13,7 @@ import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-pre
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
+import { WAVE3_PROFILE_HISTORY_COPY } from "@/packages/pms/lib/guest-profile-wave3";
 import { Button } from "@/shared/components/ui/button";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -316,7 +317,10 @@ export function GuestDetailWorkspace({
           />
         </TabsContent>
 
-        <TabsContent value="history" className="mt-4">
+        <TabsContent value="history" className="mt-4" data-testid="guest-detail-history-panel">
+          <p className="mb-3 text-sm text-muted-foreground" data-testid="guest-profile-history-copy">
+            {WAVE3_PROFILE_HISTORY_COPY}
+          </p>
           {history.length === 0 ? (
             <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
           ) : (

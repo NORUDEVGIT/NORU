@@ -45,10 +45,17 @@ describe("Guest Profile Wave 1 catalogue", () => {
     assert.equal(GUEST_PROFILE_DETAIL_PATH, "/restaurant/pms/guests/$guestId");
   });
 
-  it("exposes ten individual cards with Directory, Information, Identity and Preferences LIVE", () => {
+  it("exposes ten individual cards with Directory, Information, Identity, Preferences, Stay History and Dashboard LIVE", () => {
     assert.equal(GUEST_PROFILE_CARDS.length, 10);
     const live = GUEST_PROFILE_CARDS.filter((card) => card.live).map((card) => card.id);
-    assert.deepEqual(live, ["directory", "information", "identity", "preferences"]);
+    assert.deepEqual(live, [
+      "dashboard",
+      "directory",
+      "information",
+      "identity",
+      "stay-history",
+      "preferences",
+    ]);
     for (const card of GUEST_PROFILE_CARDS) {
       if (card.live) continue;
       assert.match(card.copy ?? "", /Coming in Wave \d/);

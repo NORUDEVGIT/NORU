@@ -27,9 +27,9 @@ export const GUEST_PROFILE_CARDS = [
   {
     id: "dashboard",
     title: "Dashboard Overview",
-    live: false,
+    live: true,
     wave: 3,
-    copy: "Coming in Wave 3. Real stay figures will appear here only when they can be derived from reservations. Nothing is shown yet.",
+    copy: "Stay and night counts come from this guest's real reservations. Revenue and folio amounts appear only when they are stored.",
   },
   {
     id: "directory",
@@ -55,9 +55,9 @@ export const GUEST_PROFILE_CARDS = [
   {
     id: "stay-history",
     title: "Stay History",
-    live: false,
+    live: true,
     wave: 3,
-    copy: "Coming in Wave 3. Stay history will list real reservations for this guest. This card does not invent stays.",
+    copy: "Real reservations for this guest. This card does not invent stays and is not profile-event history.",
   },
   {
     id: "preferences",

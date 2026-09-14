@@ -30,6 +30,18 @@ import {
   type GuestDocumentStatus,
   type PreferenceOptionCategory,
 } from "./guest-profile-wave2";
+import {
+  WAVE3_RESERVATION_RLS_BLOCKED,
+  deriveStayOverview,
+  isReservationRlsBlocked,
+  mapReservationToStay,
+  type GuestStay,
+  type GuestStayAccess,
+  type GuestStayOverview,
+} from "./guest-profile-wave3";
+import { CASHIER_ACCESS_ROLES } from "./cashiering.server";
+import { canManageReservations, propertyToday } from "./reservations.server";
+import type { ReservationStatus } from "./reservation-dates";
 
 const idSchema = z.string().uuid();
 
@@ -1398,3 +1410,195 @@ export const mergeGuests = createServerFn({ method: "POST" })
 
     return { ok: true as const, survivorId: data.survivorId, retiredId: data.retiredId };
   });
+
+/* ----------------------------------------------------------- Wave 3 stays */
+
+const GUEST_STAY_SELECT = `
+  id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
+  status, currency, room_subtotal,
+  room_types!hotel_reservations_type_same_property ( name ),
+  hotel_rooms!hotel_reservations_room_same_type ( room_number )
+`;
+
+const GUEST_STAY_SELECT_BARE =
+  "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, status, currency, room_subtotal";
+
+type GuestStayRow = {
+  id: string;
+  confirmation_number: string;
+  guest_id: string;
+  room_type_id: string;
+  room_id: string | null;
+  arrival_date: string;
+  departure_date: string;
+  status: string;
+  currency: string | null;
+  room_subtotal: number | string | null;
+  room_types?: { name: string } | null;
+  hotel_rooms?: { room_number: string } | null;
+};
+
+function guestStayAccessForRole(role: string): GuestStayAccess {
+  return {
+    reservation: canManageReservations(role),
+    frontOffice: canManageReservations(role),
+    folio: (CASHIER_ACCESS_ROLES as readonly string[]).includes(role),
+  };
+}
+
+function folioTotals(rows: { amount: number }[]): number {
+  let charges = 0;
+  let credits = 0;
+  for (const row of rows) {
+    if (row.amount >= 0) charges += row.amount;
+    else credits += -row.amount;
+  }
+  return Math.round((charges - credits) * 100) / 100;
+}
+
+async function loadGuestStaysForProfile(
+  context: { supabase: { from: (table: string) => any } },
+  restaurantId: string,
+  guestId: string,
+  access: GuestStayAccess,
+): Promise<GuestStay[]> {
+  let result = await context.supabase
+    .from("hotel_reservations")
+    .select(GUEST_STAY_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .eq("guest_id", guestId)
+    .order("arrival_date", { ascending: false });
+
+  if (result.error && isReservationRlsBlocked(result.error)) {
+    throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
+  }
+  if (result.error) {
+    result = await context.supabase
+      .from("hotel_reservations")
+      .select(GUEST_STAY_SELECT_BARE)
+      .eq("restaurant_id", restaurantId)
+      .eq("guest_id", guestId)
+      .order("arrival_date", { ascending: false });
+  }
+  if (result.error && isReservationRlsBlocked(result.error)) {
+    throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
+  }
+  if (result.error) throw new Error(result.error.message);
+
+  const rows = (result.data ?? []) as GuestStayRow[];
+  const stays = rows.map((row) =>
+    mapReservationToStay({
+      id: row.id,
+      confirmationNumber: row.confirmation_number,
+      arrivalDate: row.arrival_date,
+      departureDate: row.departure_date,
+      status: row.status as ReservationStatus,
+      roomId: row.room_id,
+      roomTypeName: row.room_types?.name ?? null,
+      roomNumber: row.hotel_rooms?.room_number ?? null,
+      roomSubtotal: row.room_subtotal === null || row.room_subtotal === undefined ? null : Number(row.room_subtotal),
+      currency: row.currency,
+    }),
+  );
+
+  if (!access.folio || stays.length === 0) return stays;
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: folios, error: folioError } = await supabaseAdmin
+    .from("guest_folios")
+    .select("id, folio_number, reservation_id, currency")
+    .eq("restaurant_id", restaurantId)
+    .in(
+      "reservation_id",
+      stays.map((stay) => stay.id),
+    );
+  if (folioError) throw new Error(folioError.message);
+
+  const folioRows = (folios ?? []) as Array<{
+    id: string;
+    folio_number: string;
+    reservation_id: string | null;
+    currency: string | null;
+  }>;
+  if (folioRows.length === 0) return stays;
+
+  const folioIds = folioRows.map((folio) => folio.id);
+  const { data: txns } = await supabaseAdmin
+    .from("folio_transactions")
+    .select("folio_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .in("folio_id", folioIds);
+  const byFolio = new Map<string, { amount: number }[]>();
+  for (const txn of (txns ?? []) as { folio_id: string; amount: number | string }[]) {
+    const bucket = byFolio.get(txn.folio_id) ?? [];
+    bucket.push({ amount: Number(txn.amount) });
+    byFolio.set(txn.folio_id, bucket);
+  }
+
+  const folioByReservation = new Map<
+    string,
+    { id: string; folioNumber: string; balance: number; currency: string | null }
+  >();
+  for (const folio of folioRows) {
+    if (!folio.reservation_id) continue;
+    folioByReservation.set(folio.reservation_id, {
+      id: folio.id,
+      folioNumber: folio.folio_number,
+      balance: folioTotals(byFolio.get(folio.id) ?? []),
+      currency: folio.currency,
+    });
+  }
+
+  return stays.map((stay) => {
+    const folio = folioByReservation.get(stay.id);
+    if (!folio) return stay;
+    return {
+      ...stay,
+      folioId: folio.id,
+      folioNumber: folio.folioNumber,
+      folioBalance: folio.balance,
+      currency: stay.currency ?? folio.currency,
+    };
+  });
+}
+
+export const listGuestStays = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ stays: GuestStay[]; access: GuestStayAccess }> => {
+      const me = await requireGuestManager(context as never, data.restaurantId);
+      const access = guestStayAccessForRole(me.role);
+      const stays = await loadGuestStaysForProfile(context as never, data.restaurantId, data.guestId, access);
+      return { stays, access };
+    },
+  );
+
+export const getGuestStayOverview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<GuestStayOverview> => {
+      const me = await requireGuestManager(context as never, data.restaurantId);
+      const access = guestStayAccessForRole(me.role);
+      const stays = await loadGuestStaysForProfile(context as never, data.restaurantId, data.guestId, access);
+
+      const { data: restaurant } = await context.supabase
+        .from("restaurants")
+        .select("timezone")
+        .eq("id", data.restaurantId)
+        .maybeSingle();
+      const today = propertyToday((restaurant as { timezone?: string } | null)?.timezone ?? "UTC");
+      return deriveStayOverview(stays, today, access);
+    },
+  );
