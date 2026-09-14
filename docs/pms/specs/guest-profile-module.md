@@ -5,15 +5,16 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Wave 4 **code LIVE on `main`** (PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING **IMPLEMENTATION IN PROGRESS** (Rekik plan APPROVED 2026-09-14). Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Wave 5 is **not** implemented. The module is **not** COMPLETE. |
+| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Wave 4 **code LIVE on `main`** (PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED). Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 Spec **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING **IMPLEMENTATION IN PROGRESS** (Rekik plan APPROVED 2026-09-14). Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Wave 5 is **not** implemented. Gap-edit 1 (Company registration enrichment) **READY FOR ENGINEERING** (Rekik APPROVED 2026-09-14) — additive; does **not** reopen Waves 1–5. The module is **not** COMPLETE. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
 | **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z |
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
 | **Wave 4 Spec** | Wave 4 **code LIVE on `main`** — PR [#97](https://github.com/NORUDEVGIT/NORU/pull/97) MERGED 2026-09-14. Issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. This Wave 5 Spec does **not** reopen Wave 4. |
 | **Wave 5 Spec** | **ACCEPTED for Engineering** (Rekik 2026-09-14) — Eng-ready catch-up. Gate **OPENED**; plan **APPROVED**. ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Branch `feature/98-guest-profile-wave-5`. **Not** implemented (no PASS / LIVE / COMPLETE). |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
-| **Engineering assignment** | Waves 1–3 complete. Wave 4 code LIVE (#97). Wave 5 coding **AUTHORIZED / IN PROGRESS** on #98 after Rekik plan approval. Wave 5 is **not** implemented. |
-| **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented; Wave 4 code LIVE; Wave 5 Spec gate OPENED; Wave 5 tech plan APPROVED |
+| **Engineering assignment** | Waves 1–3 complete. Wave 4 code LIVE (#97). Wave 5 coding **AUTHORIZED / IN PROGRESS** on #98 after Rekik plan approval. Wave 5 is **not** implemented. Gap-edit 1 Company enrichment is a **separate** Eng-ready contract (§8) — it does **not** reopen Waves 1–5. |
+| **Gap-edit 1 Spec** | **READY FOR ENGINEERING** / Eng-ready (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Company registration enrichment. Additive on Wave 4 masters. Does **not** reopen Waves 1–5. |
+| **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented; Wave 4 code LIVE; Wave 5 Spec gate OPENED; Wave 5 tech plan APPROVED. Gap-edit 1 Company enrichment **APPROVED** 2026-09-14 (Fast Spec → Eng). |
 | **Programme overview** | [../guests.md](../guests.md) |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
@@ -27,11 +28,13 @@
 >
 > **Wave 5 Spec ACCEPTED for Engineering** (Rekik 2026-09-14). Gate **OPENED**; Technical Implementation Plan **APPROVED** via Advisor. ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Coding AUTHORIZED on `feature/98-guest-profile-wave-5`. Wave 5 is **not** implemented. The module is **not** COMPLETE.
 >
+> **Gap-edit 1 — Company registration enrichment READY FOR ENGINEERING** (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Fast Spec → Eng. Additive Company master UX/schema on Wave 4 `guest_account_masters` / `guest_account_links`. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. This addendum does **not** reopen those waves. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)) — do **not** treat this section as a Wave 5 rewrite. The module is **not** COMPLETE (hotel UAT still required).
+>
 > Extend existing guest code — do **not** restart.
 >
 > Create once → use everywhere → enrich. Separate **CURRENT** (what `main` does) from **EXPECTED** (what a later wave must deliver). Do **not** invent LIVE OTA, payment-gateway settlement, or classic nightly room-and-tax night audit.
 
-This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 were the planning contract; Wave 4 **code is LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 ACs in §7 are the **accepted engineering contract** (gate OPENED; plan APPROVED; implementation **in progress**; **not** implemented).
+This document is the master Functional Spec for the Guest Profile Module. Wave 1 ACs remain the accepted contract. Wave 2 ACs in §4 remain the accepted contract (now implemented). Wave 3 ACs in §5 remain the accepted contract (now implemented). Wave 4 ACs in §6 were the planning contract; Wave 4 **code is LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed. Wave 5 ACs in §7 are the **accepted engineering contract** (gate OPENED; plan APPROVED; implementation **in progress**; **not** implemented). Gap-edit 1 ACs in §8 are the **accepted engineering contract** for Company registration enrichment (READY FOR ENGINEERING; additive; Waves 1–5 **not** reopened).
 
 ---
 
@@ -1676,9 +1679,311 @@ This Spec catch-up records that coding is **AUTHORIZED / IN PROGRESS**. It does 
 
 Exit product summary: one activity hub (notes + profile history + real comms/activity); send only if configured; export / anonymise / unmerge (never silent) / privacy audit; Wave 2 consent still visible/editable; masters export/anonymise as appropriate; Independent QA recorded; hotel-UAT-ready. **No fake send. Unmerge never silent. Anonymise removes live PII from Directory.**
 
-## 8. Cross-wave QA / security / regression (Wave 5)
+## 8. Gap-edit 1 — Company registration enrichment
 
-Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. Wave 4 QA / Security / Regression live in §6.12–§6.14 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Wave 5 QA / Security / Regression live in §7.15–§7.17 at Wave 1 depth (`NOT RUN` ≠ `PASS`). These rules hold:
+| Field | Value |
+|---|---|
+| **TITLE** | Guest Profile Module — Gap-edit 1 Company registration enrichment |
+| **PACKAGE** | PMS |
+| **PMS AREA** | Guests |
+| **SPEC STATUS** | **READY FOR ENGINEERING** / Eng-ready (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor) |
+| **ENGINEERING STATUS** | **NOT STARTED** — Fast Spec → Eng. Coding is **not** authorised by this docs PR alone until the usual Eng issue / plan path. This section is the testable contract Eng can plan from. |
+| **PERMISSIONS** | Package entitlement **pms** + existing guest manage gate (`getGuestsAccess` / `requireGuestManager`). No new entitlement model unless Abel-flagged. Receptionist residual **PRESERVED**. Additive RLS that **matches** existing guest-table roles is expected and is **not** a model change. |
+| **Depends on** | Wave 4 **code LIVE on `main`** (#97) — `guest_account_masters` / `guest_account_links` / `guest_account_history`. This gap-edit **extends** those tables. It does **not** reopen Wave 4. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited **where documented**. Wave 5 docs recon may still be in flight ([#102](https://github.com/NORUDEVGIT/NORU/pull/102)). |
+| **REQUIREMENTS** | **Locked** from the product requirement (Rekik APPROVED 2026-09-14) |
+
+> **Gap-edit 1 READY FOR ENGINEERING** (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Fast Spec → Eng cycle.
+>
+> This is an **additive** Company master UX/schema gap-edit on top of Wave 4 masters. Do **not** reopen Waves 1–5 as incomplete. Do **not** rewrite Wave 5 exit as incomplete. Do **not** claim the **module** COMPLETE from this Spec (hotel UAT still required).
+>
+> Wave 4 delivered a **thin** Company master (required display name; optional code, phone, email, address, city, country, notes; status). That thin register **remains accepted**. Gap-edit 1 **enriches** Company only.
+
+### 8.1 Business purpose
+
+Give authorised staff a **sectioned Company registration form** (legal identity, tax, contact, address, commercial references, notes) and a **multi-guest link** from Company detail that reuses Wave 4 `guest_account_links` — so corporate accounts can be registered completely and several individuals can be attached as employer (default) or bill-to in one confirm.
+
+Gap-edit 1 is Guest-owned **Company enrichment**. It is **not** Group/TA form enrichment, **not** a rate engine, **not** folio routing, **not** Import, **not** loyalty points, **not** a second relationship system, and **not** a Wave 4 / Wave 5 reopen.
+
+### 8.2 CURRENT behaviour (code wins)
+
+Grounded in `main` at `63d9153` (after [#97](https://github.com/NORUDEVGIT/NORU/pull/97) Wave 4 masters; after [#101](https://github.com/NORUDEVGIT/NORU/pull/101) Wave 5 code). **Code wins.** Inspected: `guest-account-form-dialog.tsx`, `guest-account-detail.tsx`, `guest-relationships-card.tsx`, `guest-accounts.functions.ts`, `guest-profile-wave4.ts`, `0053_pms_guest_profile_wave4.sql`.
+
+| Surface | CURRENT |
+|---|---|
+| **Company form** | Flat `GuestAccountFormDialog` shared with Group and TA. Required: `name` (labelled **Name**). Optional: `code`, `email`, `phone`, `addressLine1`, `city`, `country`, `notes`. Status `active` / `inactive`. **No** collapsible sections. **No** legal vs trade name split. **No** `company_type`. **No** tax / registration numbers. **No** alternative phone/email. **No** primary contact person. **No** address line2 / region / postal code. **No** commercial references. **No** default-TA picker. |
+| **Company detail** | `GuestAccountDetail` shows the thin field set + Edit + master history. **No** “Link guests” multi-select action on this surface. |
+| **Relationships** | `GuestRelationshipsCard` is LIVE on the individual **and** on the master (`?card=relationships`). Single search + single-select target + one role + **Link relationship**. Roles for Company: `employer` / `bill_to`. Unlink deletes the link row only (`unlinkGuestAccount`). |
+| **Persistence** | `guest_account_masters` columns: `name`, `code`, `email`, `phone`, `address_line1`, `city`, `country`, `notes`, `account_status` (+ Wave 5 `anonymised_at`). `guest_account_links` roles `employer` / `bill_to` / `booker_ta` / `group_member`. Unique `(restaurant_id, guest_id, master_id, role)`. Writers: `createGuestAccount` / `updateGuestAccount` / `linkGuestAccount` / `unlinkGuestAccount`. |
+| **Individual Position / Department** | **Not** on `GuestFormDialog` / `GuestProfile` today. **Not** on the Company form. Do **not** add them to Company. |
+| **Rate / folio / import** | **No** Company rate engine. Negotiated-rate **name/code text does not exist**. Folio tab is **not** a Company surface. Import is **not** a Guest product. AC-W4-5 create-reservation residual **stands** (attach masters on reservation **detail**). |
+| **Migration 0053** | Non-prod `qcwptraosaudcbjasmul` version `20260914134631` **APPLY PASS**. Production **NOT applied** (Abel / PM). Wave 5 added `0054` (privacy columns); production 0054 is also Abel-gated. |
+
+#### Must-not-claim (CURRENT)
+
+- The thin Wave 4 Company form is **not** a defect and is **not** reopened as incomplete.
+- Master-side Relationships single-select is **not** the Gap-edit 1 multi-select Directory UX.
+- FO `company_name` is **not** this Company register.
+- SET3 `companyRelationshipEnabled` is **not** a Company master.
+- Bill-to remains an **association**, not folio routing (`transfersSupported: false`).
+- This Spec does **not** implement Gap-edit 1.
+
+### 8.3 EXPECTED behaviour (Gap-edit 1)
+
+#### Scope A — Sectioned Company form modal
+
+Replace the **Company** path of the thin flat form with a **collapsible sectioned** modal. Group and TA keep the Wave 4 thin form (out of this batch).
+
+| Section | Default | Fields |
+|---|---|---|
+| **1. Basic** | **Open** | Legal / company name\* (reuse `name`); trade / display name; code; **company type\*** `private_limited` \| `plc` \| `sole_proprietorship` \| `partnership` \| `ngo` \| `government` \| `other` (+ **other text** required when `other`); status `active` / `inactive` |
+| **2. Tax & registration** | Collapsed | Tax ID / TIN; business registration number |
+| **3. Contact** | Collapsed | Primary phone; alternative phone; business / primary email; alternative email; primary contact person name |
+| **4. Address** | Collapsed | Line 1; line 2; city; region / state; country; postal code |
+| **5. Commercial** | Collapsed | Corporate account reference; negotiated rate reference (**name/code text only** — **no rate engine**); default travel agent = picker of an **existing TA master**; source of business |
+| **6. Notes** | Collapsed | Notes (reuse `notes`) |
+
+**Not on the Company form:** Position / Department (stay on the linked **individual** if/when that individual field exists — do **not** invent them here).
+
+Staff can create and edit a Company with these sections. Values persist on `guest_account_masters` (additive columns). Reload shows the same values. Directory search finds the Company by legal name, trade name, and code (plus existing contact search).
+
+#### Scope B — Multi-guest link from Company
+
+On **Company detail after save** (Information / `GuestAccountDetail` for an existing Company — not on the unsaved create dialog):
+
+| Behaviour | Expected |
+|---|---|
+| **Link guests** | An explicit action on Company detail. |
+| **Picker** | Multi-select individuals from Individual **Directory** (`listGuests`): search + **checkboxes**. |
+| **Role** | `employer` (**default**) \| `bill_to`. Do **not** invent new roles. `booker_ta` / `group_member` stay on Individual Relationships / Group / TA — not this Company multi-link. |
+| **Confirm** | Creates Wave 4 relationship rows via **`guest_account_links`** / `linkGuestAccount` (batch wrapper allowed). **No second link system.** Same uniqueness, history (`relationship_linked` on guest + master), and tenant gate. |
+| **List + unlink** | Company detail lists linked guests + role. Unlink uses `unlinkGuestAccount` — parties remain. |
+| **Individual Relationships** | **Remains.** Staff can still link one guest ↔ one master from the individual’s Relationships card. |
+
+#### Honesty / reuse
+
+| Rule | Expected |
+|---|---|
+| **Reuse** | Extend `guest_account_masters`, `guest_account_links`, `createGuestAccount` / `updateGuestAccount` / `linkGuestAccount` / `unlinkGuestAccount`, and the Company form / detail. Do **not** restart. Do **not** add peer-package masters. |
+| **Default TA** | Nullable FK to an existing same-property `travel_agent` row on `guest_account_masters`. **Not** a `guest_account_links` row (that table is individual ↔ master). Clearing the picker is allowed. |
+| **Negotiated rate reference** | Free-text name/code only. **No** rate-plan picker, **no** rate engine, **no** live price. |
+| **Bill-to** | Association only. No folio-routing success while `transfersSupported: false`. |
+| **Wave 5 privacy** | Do **not** reopen Wave 5 ACs as failed. When Eng ships new Company PII columns, extend the **existing** master export / anonymise field lists to those columns (same Wave 5 honesty). |
+| **Waves 1–5** | LIVE surfaces stay. This gap-edit **extends** Company only. |
+
+### 8.4 Locked requirements
+
+| Part | EXPECTED |
+|---|---|
+| **(A) Sectioned Company form** | Collapsible sections; Basic open by default; required legal/company name + company type; `other` requires other text; tax / contact / address / commercial / notes as specified. Group/TA forms **unchanged**. |
+| **(B) Multi-guest link** | After save, Company detail can multi-select Directory guests, assign `employer` (default) or `bill_to`, confirm into `guest_account_links`, list and unlink. Individual Relationships remains. |
+| **(C) Honesty** | No Position/Department on Company. No rate engine. No second link table. No entitlement-model change unless Abel-flagged. Waves 1–5 not reopened. Module not COMPLETE. |
+
+### 8.5 Field inventory (Company)
+
+Wave 4 required **display name** becomes the required **legal / company name** on the same `name` column (do **not** drop `name`). Trade / display name is **additive**.
+
+| Section | UI label | API (camelCase) | DB column | Req. | Persistence |
+|---|---|---|---|---|---|
+| Basic | Legal / company name | `name` | `name` | **Yes** | Reuse Wave 4 |
+| Basic | Trade / display name | `tradeName` | `trade_name` | No | Additive |
+| Basic | Code | `code` | `code` | No | Reuse |
+| Basic | Company type | `companyType` | `company_type` | **Yes** (Company) | Additive. Enum: `private_limited` \| `plc` \| `sole_proprietorship` \| `partnership` \| `ngo` \| `government` \| `other` |
+| Basic | Company type (other) | `companyTypeOther` | `company_type_other` | **Yes if** `company_type = other` | Additive. Null / empty when type is not `other` |
+| Basic | Status | `accountStatus` | `account_status` | Yes (default `active`) | Reuse |
+| Tax | Tax ID / TIN | `taxId` | `tax_id` | No | Additive |
+| Tax | Business registration number | `businessRegistrationNumber` | `business_registration_number` | No | Additive |
+| Contact | Primary phone | `phone` | `phone` | No | Reuse Wave 4 phone |
+| Contact | Alternative phone | `altPhone` | `alt_phone` | No | Additive |
+| Contact | Business / primary email | `email` | `email` | No | Reuse Wave 4 email (same validation) |
+| Contact | Alternative email | `altEmail` | `alt_email` | No | Additive (same email validation if present) |
+| Contact | Primary contact person name | `primaryContactName` | `primary_contact_name` | No | Additive |
+| Address | Line 1 | `addressLine1` | `address_line1` | No | Reuse |
+| Address | Line 2 | `addressLine2` | `address_line2` | No | Additive |
+| Address | City | `city` | `city` | No | Reuse |
+| Address | Region / state | `region` | `region` | No | Additive |
+| Address | Country | `country` | `country` | No | Reuse |
+| Address | Postal code | `postalCode` | `postal_code` | No | Additive |
+| Commercial | Corporate account reference | `corporateAccountReference` | `corporate_account_reference` | No | Additive — text |
+| Commercial | Negotiated rate reference | `negotiatedRateReference` | `negotiated_rate_reference` | No | Additive — **name/code text only** |
+| Commercial | Default travel agent | `defaultTravelAgentMasterId` | `default_travel_agent_master_id` | No | Additive nullable FK → `guest_account_masters(id, restaurant_id)` where `account_type = travel_agent` |
+| Notes | Notes | `notes` | `notes` | No | Reuse |
+
+**Suggested company-type labels (UI):** Private limited · PLC · Sole proprietorship · Partnership · NGO · Government · Other.
+
+**Group / TA:** new columns stay **nullable** on the shared `guest_account_masters` table. Group/TA dialogs **must not** show this inventory. Existing Group/TA rows remain valid without `company_type`.
+
+**Not in this inventory:** Position, Department, rate-plan IDs, folio routing, import mapping, loyalty points.
+
+**Directory display seed:** list/search may show trade name when set, with legal name still searchable and still the required identity. Tech plan may show `tradeName — name` or trade name with legal name as secondary — pick one and keep it honest.
+
+### 8.6 Multi-link rules (Scope B)
+
+| Rule | Expected |
+|---|---|
+| **When** | Company master **exists** (after create save or when editing an existing Company). Hidden / disabled on the unsaved New Company dialog. |
+| **Who** | Individual Directory guests for **this** property (`listGuests`). Default list still excludes retired (merged) profiles. |
+| **Select** | Search + checkboxes. One or more guests. Confirm with zero selected is an honest no-op or validation — **not** a silent success. |
+| **Role** | One role for the batch: `employer` (default) or `bill_to`. |
+| **Write** | One `guest_account_links` row per guest + this Company + that role. Reuse `linkGuestAccount` (loop) or an additive batch writer that inserts the **same** rows and history. Unique `(restaurant_id, guest_id, master_id, role)` stands. Already-linked pairs: skip with an honest count, or fail that row — **do not** create a duplicate table. |
+| **Visible both sides** | Company detail list **and** the individual’s Relationships card (AC-W4-10 remains true). |
+| **Unlink** | Per link, existing `unlinkGuestAccount`. Individual and Company remain. |
+| **History** | Existing `relationship_linked` / `relationship_unlinked` on `guest_profile_history` and `guest_account_history`. |
+
+### 8.7 Migration note
+
+| Item | Rule |
+|---|---|
+| **Shape** | **Additive columns** on `guest_account_masters` (and FK for default TA). Link UX only on **existing** `guest_account_links` — no second links table, no new role enum values required for this batch. |
+| **File** | Next dual-lane Guest migration **after** `0054_pms_guest_profile_wave5.sql` (do **not** invent a number if another migration lands first). Mirror `supabase/migrations/` and `drizzle/migrations/`. |
+| **Company-only constraints** | `company_type` / `company_type_other` CHECKs must **not** break existing Group / TA rows. Prefer `CHECK (account_type <> 'company' OR company_type IN (...))` and `CHECK (company_type <> 'other' OR btrim(company_type_other) <> '')` (or equivalent). |
+| **Default TA FK** | Same-property composite FK. Optional CHECK / trigger that the referenced row is `travel_agent`. Invalid / other-property / Company-or-Group id is rejected. |
+| **RLS** | Existing `guest_account_masters` / `guest_account_links` policies already match `guest_profiles` (owner/manager). Additive columns inherit those policies. **Additive RLS OK.** **Flag Abel** if the entitlement **model** must change (new roles, receptionist expansion, security-definer in an exposed schema). |
+| **Non-prod apply** | Expected on `qcwptraosaudcbjasmul` during Eng. Record version. |
+| **Production apply** | **NOT** from this Spec. **Abel / PM gate** — same hold as 0051 / 0053 / 0054. Do **not** treat Spec merge or Eng code merge as production schema apply. |
+| **Degrade** | Surfaces that need the new columns show an honest unavailable message until apply (follow Wave 4 `WAVE4_MIGRATION_UNAVAILABLE` pattern). |
+| **Wave 5 columns** | Do **not** drop or rewrite `anonymised_at` / Wave 5 master privacy behaviour. |
+
+### 8.8 Out of this batch
+
+| Out | Belongs |
+|---|---|
+| Group / TA form enrichment | Later gap-edit / Spec — **not** this batch |
+| Import | Out |
+| Loyalty points | Never invent (Wave 4 Loyalty honesty stands) |
+| Folio tab on Company | Cashiering / later — not this batch |
+| Inventing a rate engine / live negotiated rate | Never invent — text reference only |
+| Wave 4 AC-W4-5 create-reservation residual | **Stands.** Do **not** boil `create_hotel_reservation_priced` from this gap-edit |
+| Production migration apply | Abel / PM — not this Spec |
+| Entitlement / RLS **model** change | Flag Abel; additive matching RLS is OK |
+| Position / Department on Company | Individual (not this form) |
+| New `guest_account_links` roles | Not required; reuse `employer` / `bill_to` |
+| Reopening Waves 1–5 as incomplete | Forbidden |
+| Claiming **module COMPLETE** | Hotel UAT + docs + Advisor close still required |
+
+### 8.9 Acceptance criteria (testable)
+
+Staff in the ACs are **authorised**: signed-in, property membership, package **pms**, and they pass the existing guest manage gate. “Denied staff” fail that gate or lack `pms`.
+
+`NOT RUN` is never `PASS`. Do **not** record AC-GE1-\* as PASS from this Spec.
+
+| ID | Criterion | Pass |
+|---|---|---|
+| **AC-GE1-1** | Company create / edit uses a **sectioned** modal (Basic, Tax & registration, Contact, Address, Commercial, Notes). | Open New Company and Edit Company. Six named sections are present. Basic is **expanded** by default. Other sections are **collapsed** by default and can be opened. Group / TA dialogs stay the thin Wave 4 form. |
+| **AC-GE1-2** | **Legal / company name** and **company type** are required on Company. | Save with empty legal name → validation, no row (or no update). Save with type unset → validation. Create with both set → Company exists and is findable in Company Directory. |
+| **AC-GE1-3** | **Trade / display name** and **code** persist; status remains active/inactive. | Set trade name, code, inactive; reload; values match. Legal name still required. Directory search finds the Company by legal name, trade name, and code. |
+| **AC-GE1-4** | `company_type = other` requires **other text**; other types do not. | Type Other + blank other text → blocked. Type Other + text → persists. Switch to e.g. `plc` → other text is cleared or ignored (not shown as a live Other value). |
+| **AC-GE1-5** | **Tax & registration** fields persist. | Tax ID / TIN and business registration number save and reload on that Company. |
+| **AC-GE1-6** | **Contact** fields persist (primary + alternative phone/email + primary contact person). | All five contact fields save and reload. Primary email uses the existing Wave 4 email validation when present. Alternative email validates the same way when present. |
+| **AC-GE1-7** | **Address** fields persist (line1, line2, city, region/state, country, postal code). | All six save and reload. Wave 4 line1 / city / country still work. |
+| **AC-GE1-8** | **Commercial** text fields persist without a rate engine. | Corporate account reference, negotiated rate reference (name/code text), and source of business save and reload. No rate-plan picker, no live price, no “rate applied” success. |
+| **AC-GE1-9** | **Default travel agent** links to an **existing TA master** on this property. | Picker lists same-property TA masters only. Save; reload shows that TA. Clear; reload is empty. A Group / Company / other-property id is rejected. **No** `guest_account_links` row is created for this default-TA field. |
+| **AC-GE1-10** | **Notes** persist on the Company Notes section. | Notes save and reload via the same `notes` column. |
+| **AC-GE1-11** | After the Company is **saved**, Company detail offers **Link guests**. | New Company dialog (unsaved) has no successful multi-link. After create, Company Information / detail shows Link guests. |
+| **AC-GE1-12** | Staff can **multi-select** Directory guests (search + checkboxes), choose role **employer** (default) or **bill-to**, and **confirm**. | Two or more individuals selected + employer → that many `guest_account_links` rows (`role = employer`) for this Company. Repeat with bill-to on another guest (or the same guest — unique is per role). Search filters the Directory list. |
+| **AC-GE1-13** | Confirm **reuses `guest_account_links`** — no second relationship system. | Diff adds **no** peer links table. Rows are readable by existing `listGuestAccountLinks`. History events match Wave 4 link events. Duplicate guest+master+role is rejected or skipped honestly. |
+| **AC-GE1-14** | Company detail **lists** linked guests and can **unlink** without deleting parties. | List shows guest + role. Unlink → row gone; individual still in Individual Directory; Company still in Company Directory. Individual Relationships no longer shows that role. |
+| **AC-GE1-15** | **Individual Relationships card remains** and still links / unlinks employer and bill-to. | From an individual, staff can still pick a Company + role and link. That link appears on Company detail. Gap-edit 1 does not remove or hide the card. |
+| **AC-GE1-16** | **Position / Department** are **not** on the Company form. | Company modal has no Position or Department controls. Those fields are not stored on `guest_account_masters`. |
+| **AC-GE1-17** | Gap-edit 1 does **not** invent a **rate engine**, folio routing, Import, or loyalty points. | No rate-plan apply, no “folio routed to company” success, no import wizard, no points widget. `transfersSupported: false` unchanged. Wave 4 Loyalty honesty unchanged. |
+| **AC-GE1-18** | **Group / TA forms are not enriched** by this batch. | Create / edit Group and TA still use the thin Wave 4 fields. New Company-only fields are absent there. Existing Group/TA rows remain valid after the additive migration. |
+| **AC-GE1-19** | Denied staff cannot read or write enriched Company fields or multi-links. | Same property, role outside the working gate: no Company PII, no links. Other-property Company ids fail. Public / unauthenticated users redirect to login. |
+| **AC-GE1-20** | Company data and links stay **tenant-scoped**. | Property 2 does not see property 1 Company fields, default TA, or links. `restaurantId` from the client is not trusted alone. |
+| **AC-GE1-21** | **No** entitlement / RLS **model** change unless Abel-flagged. | Diff has no new package and no new RLS role model. Additive RLS matching guest-table roles is OK. Receptionist residual **PRESERVED**. |
+| **AC-GE1-22** | Waves 1–5 LIVE surfaces **remain**. This gap-edit does **not** reopen them as incomplete. | Individual Directory / Information, Identity, Preferences, merge, consent, Stay History, Dashboard, Loyalty, Relationships, Wave 5 hub / privacy (as documented on `main`), and thin Group/TA masters still work on the same routes. AC-W4-5 residual is **not** boiled. |
+| **AC-GE1-23** | Production schema apply is **not** claimed from this Spec or from Eng merge. | Migration file is dual-lane and Abel/PM-gated for production. Surfaces degrade honestly until apply. Production 0053 / 0054 holds are untouched. |
+| **AC-GE1-24** | This gap-edit does **not** claim the **module COMPLETE**. | Copy / DER / PR do not mark Guest Profile COMPLETE. Hotel UAT remains required. |
+
+#### Gap-edit 1 AC results
+
+DESIGN COMPLETION: **READY FOR ENGINEERING** (Gap-edit 1 Spec — Eng-ready). IMPLEMENTATION STATUS: **NOT STARTED** (not PASS). Approved deviations: **NONE** yet.
+
+`NOT RUN` is never `PASS`. Do **not** record AC-GE1-\* as PASS from this Spec. Do **not** claim Gap-edit 1 implemented / LIVE / COMPLETE.
+
+### 8.10 QA (Gap-edit 1)
+
+`NOT RUN` is never `PASS`. Live PMS UI that is not exercised stays **NOT VERIFIED**.
+
+| ID | Check | Notes |
+|---|---|---|
+| **QA-GE1-1** | Authorised happy path: Company type → New Company → sectioned form → required legal name + company type → create → find in Directory. | Browser, signed-in PMS session. |
+| **QA-GE1-2** | Basic open by default; other sections collapsed; all six sections can be opened. | Screenshot + note. |
+| **QA-GE1-3** | Required-field validation: empty legal name; missing company type; Other without other text. | |
+| **QA-GE1-4** | Persist / reload: trade name, tax, both phones, both emails, contact person, full address, commercial texts, notes, status. | |
+| **QA-GE1-5** | Default TA picker: existing same-property TA; reject Company/Group/other-property; clear works; no `guest_account_links` row for the TA default. | |
+| **QA-GE1-6** | Negotiated rate reference is text only — no rate picker / live price. | Screenshot + note. |
+| **QA-GE1-7** | After save: Link guests → search Directory → check two guests → employer (default) → confirm. Both appear on Company detail **and** each individual’s Relationships. | |
+| **QA-GE1-8** | Link a guest as bill-to; unlink one guest; both parties remain. | |
+| **QA-GE1-9** | Individual Relationships card still links a Company as employer / bill-to. | |
+| **QA-GE1-10** | Group and TA create/edit still thin; no Company-only sections. | Screenshot + note. |
+| **QA-GE1-11** | No Position / Department on Company form. | |
+| **QA-GE1-12** | `tsc --noEmit` (or project equivalent) + lock tests on the implementation PR. | Developer lane. |
+| **QA-GE1-13** | Independent QA after Developer QA. | Required before Gap-edit 1 engineering exit. Hotel UAT is **module** DoD. |
+
+### 8.11 Security (Gap-edit 1)
+
+| ID | Check |
+|---|---|
+| **SEC-GE1-1** | Unauthenticated visit to Guest canonical routes (including Company create / detail / link) redirects to login. |
+| **SEC-GE1-2** | Membership **without** package `pms` cannot use enriched Company fields or multi-link. |
+| **SEC-GE1-3** | Staff who fail `canManageGuests` / `requireGuestManager` cannot read or write Company enrichment or links. |
+| **SEC-GE1-4** | Tenant isolation: Company columns, default-TA FK, and links re-derive `restaurantId` from membership. Property 1 Company / TA is not returned for property 2. |
+| **SEC-GE1-5** | No new public / customer route exposes tax IDs, registration numbers, or Company contact PII. |
+| **SEC-GE1-6** | Unlink is not a silent delete of people or masters. Multi-link is not a silent no-op presented as success when zero guests were selected. |
+| **SEC-GE1-7** | Do not log full tax IDs, registration numbers, or ID numbers in client telemetry if that channel does not already. |
+| **SEC-GE1-8** | RLS / role model unchanged unless Abel-flagged. Receptionist vs owner/manager inconsistency remains **documented**, not silently “fixed”. Additive policies must not widen receptionist access beyond the documented residual. |
+
+### 8.12 Regression (Gap-edit 1)
+
+| ID | Check |
+|---|---|
+| **REG-GE1-1** | Wave 1 Individual Directory / Information create / find / edit still work on the same routes. |
+| **REG-GE1-2** | Wave 2 Identity / Preferences / merge / consent still work. Merge still reassigns `hotel_reservations.guest_id` and Wave 4 links. |
+| **REG-GE1-3** | Wave 3 Stay History, Dashboard Overview, quick actions, guest-context, Directory-back, and empty-state Open Directory still work. |
+| **REG-GE1-4** | Wave 4 Company / Group / TA **thin** capabilities remain: create / find / search, Relationships both sides, unlink-without-delete, honest Loyalty, profile-type switcher. Existing Companies without new columns still open and edit. |
+| **REG-GE1-5** | Wave 5 Notes / Comms / Activity and Admin & Privacy remain as documented on `main` (do **not** mark Wave 5 incomplete). Master export / anonymise still run; Eng extends field lists to new Company PII without failing Wave 5 ACs. |
+| **REG-GE1-6** | AC-W4-5 residual **untouched**: create-reservation still does not take master IDs; attach remains on reservation **detail**. FO typed labels stay labels. |
+| **REG-GE1-7** | Sales & Events placeholder remains planned. Cashiering `transfersSupported: false` unchanged. |
+| **REG-GE1-8** | No new package; no Back Office / Reservations / Cashiering company master; no second `guest_account_links` table. |
+| **REG-GE1-9** | No invented LIVE OTA, gateway settlement, classic nightly NA, rate engine, Import, Folio tab, or loyalty points. |
+| **REG-GE1-10** | Guest Services placeholder remains requests / concierge — not this module. |
+| **REG-GE1-11** | Individual `vipStatus`, status deactivate/reactivate, and badges still work. |
+| **REG-GE1-12** | Group account copy still says **account master**, not S&E block. |
+| **REG-GE1-13** | Production 0051 / 0053 / 0054 Abel-gates remain; this gap-edit does not apply them. |
+
+### 8.13 Gap-edit 1 permissions (summary)
+
+| Check | Rule |
+|---|---|
+| Package | **pms** |
+| Module access | Existing `front_office` role check inside `requireGuestManager` |
+| Manage flag | Existing `getGuestsAccess` → `canManageGuests` |
+| RLS | Existing owner / manager policies on `guest_account_masters` / `guest_account_links` / `guest_account_history`; additive columns inherit. Additive RLS that matches is **not** a model change |
+| Gap-edit 1 change | Company enrichment **writes** and multi-link use the same chain. **Flag Abel** if a new entitlement type or RLS role is proposed |
+| Cashiering / rates | This batch does **not** widen folio-transfer or rate-engine entitlements |
+
+### 8.14 Gap-edit 1 exit
+
+Gap-edit 1 **exits for engineering-gate purposes** only after:
+
+1. Rekik **approval** of this Spec — **DONE** 2026-09-14 via Hospitality Product Advisor
+2. Implementation against this §8 contract (extend Wave 4 masters / links — do **not** restart; do **not** reopen Waves 1–5)
+3. Developer QA recorded (`NOT RUN` ≠ `PASS`)
+4. Independent QA **PASS**
+5. Human merge of the implementation PR
+6. Design Execution Report
+7. Docs reconciliation to `main` (code wins)
+
+**Hotel UAT** is **not** required to start Gap-edit 1 engineering. Hotel UAT **is** required for **module COMPLETE**.
+
+This Spec records that Gap-edit 1 is **READY FOR ENGINEERING**. It does **not** claim Gap-edit 1 implemented. It does **not** claim Waves 1–5 incomplete. The module is **not** COMPLETE.
+
+Exit product summary: sectioned Company form (Basic open); required legal name + company type (+ other text when Other); tax / contact / address / commercial / notes; default TA = existing TA master; multi-select Directory link from Company detail into `guest_account_links` (employer default / bill-to); unlink; Individual Relationships remains; no Position/Department on Company; no rate engine; tenant/auth honesty; production migration Abel-gated.
+
+---
+
+## 9. Cross-wave QA / security / regression (Wave 5)
+
+Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security / Regression live in §5.10–§5.12 at Wave 1 depth. Wave 4 QA / Security / Regression live in §6.12–§6.14 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Wave 5 QA / Security / Regression live in §7.15–§7.17 at Wave 1 depth (`NOT RUN` ≠ `PASS`). Gap-edit 1 QA / Security / Regression live in §8.10–§8.12 at Wave 1 depth (`NOT RUN` ≠ `PASS`). These rules hold:
 
 | Rule | Apply |
 |---|---|
@@ -1695,10 +2000,13 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Extend existing tables / functions | Every wave |
 | Directory-back on guest-required cards | Every wave — same Information back-arrow pattern, or a shell-level sticky back-to-Directory. Wave 3 residual **delivered** (#90); see §5.15. Later LIVE cards inherit; not a Wave 5 product invention. |
 | Empty / no-guest-selected Directory CTA | Every wave — guest-required cards must include a primary CTA into Directory (copy alone is not enough). Wave 3 residual **delivered** (#91 / #93); see §5.16. Aligns with §5.15 / #90. Later LIVE cards inherit. |
+| No second relationship system | Gap-edit 1 — reuse `guest_account_links` |
+| No Company rate engine | Gap-edit 1 — negotiated rate is name/code text only |
+| Do not reopen Waves 1–5 as incomplete | Gap-edit 1 (and later gap-edits) |
 
 ---
 
-## 9. What this Spec does not do
+## 10. What this Spec does not do
 
 | This Spec does | This Spec does **not** |
 |---|---|
@@ -1711,6 +2019,9 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 | Record Wave 4 **code LIVE on `main`** (#97); issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) **CLOSED** completed | Reopen Wave 4, or claim Wave 4 OPERATIONALLY ACCEPTED from this Wave 5 Spec |
 | Record Wave 5 Spec as **ACCEPTED for Engineering** (gate OPENED; plan APPROVED; §7 ACs) | Claim Wave 5 **implemented** / PASS / LIVE / COMPLETE, or claim the **module** COMPLETE |
 | Record Wave 5 engineering as **IMPLEMENTATION IN PROGRESS** on #98 | Invent a marketing cloud, fake send, silent unmerge, or LIVE OTA / gateway / classic NA |
+| Record Gap-edit 1 as **READY FOR ENGINEERING** / Eng-ready (§8; Rekik APPROVED 2026-09-14) | Reopen Waves 1–5 as incomplete, rewrite Wave 5 exit, or claim the **module** COMPLETE |
+| Specify sectioned Company form + multi-guest link on existing `guest_account_links` | Enrich Group/TA forms, invent a rate engine, Import, Folio tab, loyalty points, Position/Department on Company, or a second links table |
+| Record Gap-edit 1 additive columns on `guest_account_masters` as Abel/PM-gated for production | Apply production schema from this Spec, or treat Eng merge as production apply |
 | Require extending current guest code | Authorise a rewrite or a new guest package |
 | Record that Waves 1–4 preserved the existing guest manage gate | Silently change entitlements or RLS roles |
 | Record Wave 3 approved deviations (#85 early merge → #87; #86 duplicate of #87; Developer browser PARTIAL) | Treat those process notes as product defects, or treat Developer PARTIAL as PASS |
@@ -1730,6 +2041,8 @@ Wave 2 QA / Security / Regression live in §4.10–§4.12. Wave 3 QA / Security 
 >
 > Wave 5 Spec: **ACCEPTED for Engineering** (Eng-ready catch-up). ENGINEERING STATUS **IMPLEMENTATION IN PROGRESS**. Gate OPENED; Rekik plan APPROVED 2026-09-14 via Advisor. Issue [#98](https://github.com/NORUDEVGIT/NORU/issues/98) OPEN. Coding AUTHORIZED on `feature/98-guest-profile-wave-5`. Wave 5 is **not** implemented.
 >
-> The module is **not** COMPLETE. Hotel UAT is still required after Wave 5 engineering exit (module DoD: UAT pass + docs + Advisor close).
+> **Gap-edit 1 Spec: READY FOR ENGINEERING** / Eng-ready (Rekik APPROVED 2026-09-14 via Hospitality Product Advisor). Company registration enrichment. Additive on Wave 4 masters. Waves 1–5 remain OPERATIONALLY ACCEPTED / eng exited where documented. Wave 5 docs recon may still be in flight (#102). This addendum does **not** reopen those waves.
+>
+> The module is **not** COMPLETE. Hotel UAT is still required (module DoD: UAT pass + docs + Advisor close).
 >
 > Extend existing guest code. Create once → use everywhere → enrich.
