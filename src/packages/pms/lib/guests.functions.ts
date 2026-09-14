@@ -14,6 +14,8 @@ import {
   type GuestStatus,
 } from "./guests.server";
 import { callerMembership } from "@/core/lib/workforce.server";
+import { guestCreateBlocked } from "./pms-set3-rates-guest";
+import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 
 const idSchema = z.string().uuid();
 
@@ -418,6 +420,10 @@ export const createGuest = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const rules = await loadGuestProfileRules(supabaseAdmin, data.restaurantId);
+    const blocked = guestCreateBlocked(rules, data.guest);
+    if (blocked) throw new Error(blocked);
     const columns = toColumns(data.guest);
 
     const { data: inserted, error } = await context.supabase

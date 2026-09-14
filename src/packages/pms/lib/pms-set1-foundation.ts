@@ -18,6 +18,14 @@ import {
   set2MandatoryMissing,
   type Set2ActivateInput,
 } from "./pms-set2-structure.ts";
+import {
+  emptySet3Activate,
+  evaluateGuestProfile,
+  evaluateRates,
+  ratesMandatoryComplete,
+  set3MandatoryMissing,
+  type Set3ActivateInput,
+} from "./pms-set3-rates-guest.ts";
 
 function calendarToday(timezone: string): string {
   try {
@@ -62,11 +70,14 @@ export const SET1_SECTION_HASHES = [
   "structure",
   "rooms",
   "outlets",
+  "rates",
+  "guest-profile",
   "golive",
 ] as const;
 export type Set1SectionId = (typeof SET1_SECTION_HASHES)[number];
 export const SET1_FOUNDATION_HASHES = ["identity", "ops", "taxes", "policies"] as const;
 export const SET2_LIVE_HASHES = ["structure", "rooms", "outlets"] as const;
+export const SET3_LIVE_HASHES = ["rates", "guest-profile"] as const;
 
 export type Set1Readiness = "complete" | "warning" | "incomplete" | "blocked";
 export type Set1Overall = "ready" | "warning" | "blocked";
@@ -102,12 +113,11 @@ export const DEPOSIT_TYPE_LABELS: Record<DepositType, string> = {
 
 export type TaxIdentity = { label: string; value: string };
 
-// Live main still lists Outlets as SET3 Coming soon with no href. Abel-approved
-// SET2 Spec puts Outlets in this wave — promote with Structure and Rooms.
+// Live main still lists Rates as SET4 Coming soon. Abel-approved SET3 Spec
+// puts Rates & meal plans and Guest profile rules in this wave.
 export const SET1_COMING_SOON: { wave: string; title: string; purpose: string }[] = [
-  { wave: "SET4", title: "Rates", purpose: "Rate plans and stay restrictions." },
-  { wave: "SET5", title: "Banks", purpose: "Bank accounts and settlement rails." },
-  { wave: "SET6", title: "Roles", purpose: "Property roles beyond today’s memberships." },
+  { wave: "SET4", title: "Banks", purpose: "Bank accounts and settlement rails." },
+  { wave: "SET5", title: "Roles", purpose: "Property roles beyond today’s memberships." },
 ];
 
 export const SET1_LIVE_CARDS: {
@@ -122,7 +132,9 @@ export const SET1_LIVE_CARDS: {
   { id: "structure", title: "Structure", purpose: "Buildings, floors and wings." },
   { id: "rooms", title: "Rooms & amenities", purpose: "Deep-link to Room Inventory. Amenities catalogue CRUD is here; attach stays on room types." },
   { id: "outlets", title: "Outlets", purpose: "Revenue outlets. Folio posting routes stay on the existing engine." },
-  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms and outlets. One owner Activate." },
+  { id: "rates", title: "Rates & meal plans", purpose: "Deep-link to the rates workspace. Meal and package catalogues live here." },
+  { id: "guest-profile", title: "Guest profile rules", purpose: "Required fields, consent defaults, ID types and VIP levels. Profiles stay on the guest directory." },
+  { id: "golive", title: "Go-live", purpose: "Foundation plus structure, rooms, outlets, rates and guest rules. One owner Activate." },
 ];
 
 export type Set1IdentityDraft = {
@@ -439,6 +451,8 @@ export function evaluateGoLive(
     ...domains.structure.missing,
     ...domains.rooms.missing,
     ...domains.outlets.missing,
+    ...domains.rates.missing,
+    ...domains["guest-profile"].missing,
   ];
   const blocked = !foundationColumnsAvailable && Boolean(domains.ops.missing.length || domains.taxes.missing.includes("Tax name"));
   const warnings = Object.values(domains).flatMap((d) => d.warnings);
@@ -462,8 +476,10 @@ export function evaluateSet1Checklist(input: {
   pmsSet1Live: boolean;
   role: string;
   set2?: Set2ActivateInput;
+  set3?: Set3ActivateInput;
 }): Set1Checklist {
   const set2 = input.set2 ?? emptySet2Activate();
+  const set3 = input.set3 ?? emptySet3Activate();
   const identity = evaluateIdentity(input.identity, input.foundationColumnsAvailable);
   const ops = evaluateOps(input.ops, input.foundationColumnsAvailable);
   const taxes = evaluateTaxes(input.taxes, input.foundationColumnsAvailable);
@@ -471,8 +487,10 @@ export function evaluateSet1Checklist(input: {
   const structure = evaluateStructure(set2);
   const rooms = evaluateRooms(set2);
   const outlets = evaluateOutlets(set2);
+  const rates = evaluateRates(set3);
+  const guestProfile = evaluateGuestProfile(set3);
   const golive = evaluateGoLive(
-    { identity, ops, taxes, policies, structure, rooms, outlets },
+    { identity, ops, taxes, policies, structure, rooms, outlets, rates, "guest-profile": guestProfile },
     input.foundationColumnsAvailable,
     input.pmsSet1Live,
   );
@@ -482,12 +500,24 @@ export function evaluateSet1Checklist(input: {
     ...taxes.missing,
     ...policies.missing,
     ...set2MandatoryMissing(set2),
+    ...set3MandatoryMissing(set3),
   ];
-  const domains = { identity, ops, taxes, policies, structure, rooms, outlets, golive };
+  const domains = {
+    identity,
+    ops,
+    taxes,
+    policies,
+    structure,
+    rooms,
+    outlets,
+    rates,
+    "guest-profile": guestProfile,
+    golive,
+  };
   const hasWarning = Object.values(domains).some((d) => d.readiness === "warning" || d.warnings.length);
   const blocked =
     mandatoryMissing.length > 0 ||
-    [identity, ops, taxes, policies, structure, rooms, outlets].some(
+    [identity, ops, taxes, policies, structure, rooms, outlets, rates, guestProfile].some(
       (d) => d.readiness === "blocked" || d.readiness === "incomplete",
     );
   const overall: Set1Overall = blocked ? "blocked" : hasWarning ? "warning" : "ready";
@@ -501,7 +531,9 @@ export function evaluateSet1Checklist(input: {
       identityMandatoryComplete(input.identity) &&
       opsMandatoryComplete(input.ops, input.foundationColumnsAvailable) &&
       taxesMandatoryComplete(input.taxes, input.foundationColumnsAvailable) &&
-      feeDefaultsPresent(input.policies.fees),
+      feeDefaultsPresent(input.policies.fees) &&
+      ratesMandatoryComplete(set3) &&
+      set3.guestMinComplete,
   };
 }
 

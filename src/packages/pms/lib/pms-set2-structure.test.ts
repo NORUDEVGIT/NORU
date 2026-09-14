@@ -31,6 +31,7 @@ import {
   structureDeleteMessage,
   wingParentXor,
 } from "./pms-set2-structure.ts";
+import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -62,6 +63,7 @@ function foundationReady(set2 = completeSet2Activate(), role = "owner") {
     pmsSet1Live: false,
     role,
     set2,
+    set3: completeSet3Activate(),
   });
 }
 
@@ -159,7 +161,7 @@ describe("PMS-SET2 RI deep-link and hub unmute", () => {
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rooms" && card.title === "Rooms & amenities"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "outlets"));
     assert.ok(!SET1_COMING_SOON.some((card) => ["Structure", "Rooms", "Rooms & amenities", "Outlets"].includes(card.title)));
-    assert.ok(SET1_COMING_SOON.some((card) => card.title === "Rates"));
+    assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rates" || card.title === "Rates & meal plans"));
     assert.ok(SET1_COMING_SOON.some((card) => card.title === "Banks"));
     assert.ok(SET1_COMING_SOON.some((card) => card.title === "Roles"));
 

@@ -3245,6 +3245,135 @@ export type Database = {
           },
         ]
       }
+      pms_guest_id_types: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_guest_id_types_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_guest_vip_levels: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_guest_vip_levels_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_meal_plans: {
+        Row: {
+          active: boolean
+          applicable_outlet_ids: string[]
+          chargeable: Json
+          code: string
+          created_at: string
+          id: string
+          included: Json
+          name: string
+          restaurant_id: string
+          tax_posture: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          applicable_outlet_ids?: string[]
+          chargeable?: Json
+          code: string
+          created_at?: string
+          id?: string
+          included?: Json
+          name: string
+          restaurant_id: string
+          tax_posture?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          applicable_outlet_ids?: string[]
+          chargeable?: Json
+          code?: string
+          created_at?: string
+          id?: string
+          included?: Json
+          name?: string
+          restaurant_id?: string
+          tax_posture?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_meal_plans_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_outlets: {
         Row: {
           active: boolean
@@ -3288,6 +3417,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pms_outlets_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_packages: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          inclusion: Json
+          name: string
+          restaurant_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          inclusion?: Json
+          name: string
+          restaurant_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          inclusion?: Json
+          name?: string
+          restaurant_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_packages_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -4638,6 +4811,8 @@ export type Database = {
           name: string
           noshow_fee_basis: string | null
           phone: string | null
+          pms_guest_profile_rules: Json
+          pms_rate_package_rules: Json
           pms_set1_live: boolean
           postcode: string | null
           single_building_mode: boolean
@@ -4696,6 +4871,8 @@ export type Database = {
           name: string
           noshow_fee_basis?: string | null
           phone?: string | null
+          pms_guest_profile_rules?: Json
+          pms_rate_package_rules?: Json
           pms_set1_live?: boolean
           postcode?: string | null
           property_code?: string | null
@@ -4754,6 +4931,8 @@ export type Database = {
           name?: string
           noshow_fee_basis?: string | null
           phone?: string | null
+          pms_guest_profile_rules?: Json
+          pms_rate_package_rules?: Json
           pms_set1_live?: boolean
           postcode?: string | null
           property_code?: string | null

@@ -31,6 +31,8 @@ import {
 } from "./fo-check-in";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import { nightsBetween } from "./reservation-dates";
+import { guestCreateBlocked } from "./pms-set3-rates-guest";
+import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 
 const idSchema = z.string().uuid();
 
@@ -462,6 +464,14 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
     const names = splitName(data.fullName);
+    const rules = await loadGuestProfileRules(supabaseAdmin, data.restaurantId);
+    const blocked = guestCreateBlocked(rules, {
+      firstName: names.firstName,
+      lastName: names.lastName,
+      phone: data.phone,
+      email: data.email,
+    });
+    if (blocked) throw new Error(blocked);
     const snapshot: RegistrationDraft & {
       nationality: string | null;
       addressLine1: string | null;

@@ -787,14 +787,14 @@ export function Set1GoLiveSection({
         <div>
           <h2 className="font-display text-lg text-[#251605]">Go-live</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Foundation plus structure, rooms and outlets. One owner Activate. Never a fake Complete.
+            Foundation plus structure, rooms, outlets, rates and guest rules. One owner Activate. Never a fake Complete.
           </p>
         </div>
         <ReadinessChip readiness={checklist.overall === "ready" ? "complete" : checklist.overall === "warning" ? "warning" : "blocked"} />
       </div>
       <p className="text-sm font-medium text-[#251605]">Overall {overallLabel(checklist.overall)}</p>
       <ul className="space-y-3">
-        {(["identity", "ops", "taxes", "policies", "structure", "rooms", "outlets"] as Set1SectionId[]).map((id) => {
+        {(["identity", "ops", "taxes", "policies", "structure", "rooms", "outlets", "rates", "guest-profile"] as Set1SectionId[]).map((id) => {
           const domain = checklist.domains[id];
           const title =
             id === "ops"
@@ -803,7 +803,11 @@ export function Set1GoLiveSection({
                 ? "Policies & fees"
                 : id === "rooms"
                   ? "Rooms & amenities"
-                  : id;
+                  : id === "rates"
+                    ? "Rates & meal plans"
+                    : id === "guest-profile"
+                      ? "Guest profile rules"
+                      : id;
           return (
             <li key={id} className="rounded-xl border border-border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
