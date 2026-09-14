@@ -48,6 +48,8 @@ const EVENT_LABEL: Record<string, string> = {
   merged_from: "Merged from another guest",
   merged_into: "Merged into another guest",
   consent_updated: "Consent updated",
+  relationship_linked: "Relationship linked",
+  relationship_unlinked: "Relationship unlinked",
 };
 
 export type GuestDetailSection = "overview" | "preferences";

@@ -581,7 +581,7 @@ export function GuestSearchDialog({
         <DialogHeader>
           <DialogTitle>Guest search</DialogTitle>
           <DialogDescription>
-            Search confirmation, guest, phone, email, room, company or group already stored for this property.
+            Search confirmation, guest, phone, email, room, Guest masters, or typed company/group labels.
           </DialogDescription>
         </DialogHeader>
         <Input

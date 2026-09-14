@@ -16,9 +16,9 @@ export const GUEST_PROFILE_LEGACY_DETAIL = "/restaurant/pms/reservations/guests/
 
 export const GUEST_PROFILE_TYPES = [
   { id: "individual", title: "Individual", live: true, wave: 1 },
-  { id: "company", title: "Company", live: false, wave: 4 },
-  { id: "group", title: "Group", live: false, wave: 4 },
-  { id: "travel-agent", title: "Travel Agent", live: false, wave: 4 },
+  { id: "company", title: "Company", live: true, wave: 4 },
+  { id: "group", title: "Group", live: true, wave: 4 },
+  { id: "travel-agent", title: "Travel Agent", live: true, wave: 4 },
 ] as const;
 
 export type GuestProfileTypeId = (typeof GUEST_PROFILE_TYPES)[number]["id"];
@@ -69,16 +69,16 @@ export const GUEST_PROFILE_CARDS = [
   {
     id: "loyalty",
     title: "Loyalty & Value",
-    live: false,
+    live: true,
     wave: 4,
-    copy: "Coming in Wave 4. Loyalty and value will use real-derived stay and folio figures only. No points balance is shown.",
+    copy: "Stay counts, nights and stored folio amounts only. There is no points balance. VIP remains a staff flag on Information.",
   },
   {
     id: "relationships",
     title: "Relationships",
-    live: false,
+    live: true,
     wave: 4,
-    copy: "Coming in Wave 4. Company, group and travel-agent links are not LIVE. No master accounts can be created here.",
+    copy: "Employer, bill-to, booker travel agent and group member links. Bill-to is an association only — not folio split routing.",
   },
   {
     id: "notes-comms",
@@ -124,6 +124,11 @@ export type GuestProfileCardSearch = {
   card?: GuestProfileCardId;
 };
 
+/** Optional `?type=` for the LIVE Individual | Company | Group | TA switcher. */
+export type GuestProfileSearch = GuestProfileCardSearch & {
+  type?: GuestProfileTypeId;
+};
+
 export function parseGuestProfileCardSearch(
   search: Record<string, unknown>,
 ): GuestProfileCardSearch {
@@ -134,11 +139,36 @@ export function parseGuestProfileCardSearch(
   return { card: match.id };
 }
 
+export function parseGuestProfileTypeSearch(
+  search: Record<string, unknown>,
+): GuestProfileTypeId {
+  const raw = typeof search["type"] === "string" ? search["type"] : undefined;
+  const match = GUEST_PROFILE_TYPES.find((item) => item.id === raw && item.live);
+  return match?.id ?? "individual";
+}
+
+export function parseGuestProfileSearch(
+  search: Record<string, unknown>,
+): GuestProfileSearch {
+  const card = parseGuestProfileCardSearch(search);
+  const type = parseGuestProfileTypeSearch(search);
+  return type === "individual" ? card : { ...card, type };
+}
+
 export function guestProfileCardSearch(
   card: GuestProfileCardId | undefined,
 ): GuestProfileCardSearch {
   if (card && isGuestRequiredProfileCard(card)) return { card };
   return {};
+}
+
+export function guestProfileSearch(opts: {
+  card?: GuestProfileCardId | undefined;
+  type?: GuestProfileTypeId | undefined;
+}): GuestProfileSearch {
+  const card = guestProfileCardSearch(opts.card);
+  const type = opts.type && opts.type !== "individual" ? opts.type : undefined;
+  return type ? { ...card, type } : card;
 }
 
 export function initialGuestProfileCard(

@@ -5,11 +5,11 @@
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile Module (first-class sidebar module) |
 | **PMS AREA** | Guests |
-| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Waves 4–5 still **WAVE-GATED**. |
+| **STATUS** | Waves 1–3 Spec **ACCEPTED** + **IMPLEMENTED ON MAIN** (#66 / #67; #72 / #76 / #79; #81 / #85 / #87 / #90). Wave 4 **IN IMPLEMENTATION** ([#95](https://github.com/NORUDEVGIT/NORU/issues/95)). Wave 5 still **WAVE-GATED**. |
 | **Wave 1 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** (OPERATIONALLY ACCEPTED / closed) |
 | **Wave 2 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#72](https://github.com/NORUDEVGIT/NORU/issues/72) CLOSED · PR [#76](https://github.com/NORUDEVGIT/NORU/pull/76) MERGED 2026-09-14T10:57:47Z · PR [#79](https://github.com/NORUDEVGIT/NORU/pull/79) MERGED 2026-09-14T11:20:17Z |
 | **Wave 3 Spec** | **ACCEPTED** + **IMPLEMENTED ON MAIN** — issue [#81](https://github.com/NORUDEVGIT/NORU/issues/81) CLOSED completed 2026-09-14T12:37:18Z · PR [#85](https://github.com/NORUDEVGIT/NORU/pull/85) MERGED 2026-09-14T11:53:26Z · PR [#87](https://github.com/NORUDEVGIT/NORU/pull/87) MERGED 2026-09-14T12:12:30Z · PR [#90](https://github.com/NORUDEVGIT/NORU/pull/90) MERGED 2026-09-14T12:32:41Z |
-| **Waves 4–5** | **SPECIFIED / WAVE-GATED** — explicit ungating still required |
+| **Waves 4–5** | Wave 4 **IN IMPLEMENTATION** ([#95](https://github.com/NORUDEVGIT/NORU/issues/95)). Wave 5 **SPECIFIED / WAVE-GATED**. |
 | **Implementation rule** | **Extend existing guest code — do NOT restart** |
 | **Engineering assignment** | Waves 1–3 complete. Waves 4–5 are **not** automatic. |
 | **Product requirement** | Rekik 2026-09-14 — Waves 1–3 accepted and implemented |
@@ -162,8 +162,8 @@ Stay rows live on the **Stay History** card via `listGuestStays` (`hotel_reserva
 
 | Surface | What staff see |
 |---|---|
-| `/restaurant/pms/guests` | Canonical Guest Profile directory. 10-card shell; landing card is **Directory**. Profile-type hook: Individual LIVE; Company / Group / TA disabled and labelled **not LIVE**. Masked ID numbers. Merge guests. |
-| `/restaurant/pms/guests/$guestId` | Canonical profile. Shell defaults to **Information**. Directory + Information + **Identity** + **Preferences** + **Dashboard Overview** + **Stay History** LIVE. Waves 4–5 cards **Coming in Wave N** with no fabricated KPIs. Optional `?card=` restores the same guest-required card after Directory-back. |
+| `/restaurant/pms/guests` | Canonical Guest Profile directory. 10-card shell; landing card is **Directory**. Profile-type switcher LIVE: Individual \| Company \| Group \| Travel Agent (`?type=`). Individuals reuse `listGuests`; masters use Guest-owned `guest_account_masters`. Masked ID numbers. Merge guests (individuals). |
+| `/restaurant/pms/guests/$guestId` | Canonical profile. Shell defaults to **Information**. Directory + Information + **Identity** + **Preferences** + **Dashboard Overview** + **Stay History** + **Loyalty & Value** + **Relationships** LIVE. Wave 5 cards **Coming in Wave 5** with no fabricated KPIs. Optional `?card=` / `?type=` restore card and profile type after Directory-back. |
 | FR-9 redirects | `/restaurant/guests`, `/restaurant/guests/$guestId`, and `/restaurant/pms/reservations/guests/$guestId` redirect to the canonical Guest Profile routes. |
 | Individual Directory | `listGuests`: search, status filter, VIP-only, New Guest, open row → profile route. Retired (merged) profiles excluded from the default list. Denied copy still: “Only owners and managers…”. |
 | `GuestFormDialog` | Create / edit: personal, address, VIP, notes, and ID **text** (type / number / expiry). Duplicate warning: **Open existing guest** / **Create anyway** / Back to form. Optional Merge CTA when editing a duplicate — **never** auto-merge. |
@@ -188,7 +188,7 @@ Stay rows live on the **Stay History** card via `listGuestStays` (`hotel_reserva
 | Package | `requireRoutePackage("pms")` on `/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`, and guest-services. Server: `withPmsPackage`. |
 | Role helper | `GUEST_MANAGE_ROLES` = `owner`, `manager`, **`receptionist`**. `canManageGuests` matches that list. |
 | Comments + denied UI | Speak of **owner / manager only**. |
-| RLS (`0012` + `0051`) | `guest_profiles`, `guest_preferences`, `guest_profile_history`, `guest_documents`: **owner or manager** only. Receptionist is **not** in these policies. |
+| RLS (`0012` + `0051` + `0053`) | `guest_profiles`, `guest_preferences`, `guest_profile_history`, `guest_documents`, `guest_account_masters`, `guest_account_links`: **owner or manager** only. Receptionist is **not** in these policies. |
 
 Waves 1–3 **preserved** this inconsistency. It is a documented residual, not a Wave 1, Wave 2, or Wave 3 defect. Do not change the entitlement **architecture** unless a later wave strictly requires it — then **flag Abel**. Wave 3 stay reads use the same guest manage gate; reservation RLS failure must **flag Abel**, not weaken RLS.
 
@@ -196,17 +196,21 @@ Waves 1–3 **preserved** this inconsistency. It is a documented residual, not a
 
 | Missing | Notes |
 |---|---|
-| Loyalty & Value real-derived | VIP boolean only. Card Coming in Wave 4. Stay count / nights on Dashboard are stay figures, not a loyalty product. |
-| Company / Group / TA masters + Relationships | Switcher present and disabled / not LIVE. Wave 4. |
+| Loyalty & Value real-derived | **Wave 4 LIVE** — stay counts, nights, quoted room total and posted folio only when stored. **No points.** VIP remains a staff flag on Information. |
+| Company / Group / TA masters + Relationships | **Wave 4 LIVE** — Guest-owned `guest_account_masters` + `guest_account_links`. Roles: employer, bill-to, booker TA, group member. Unlink does not delete parties. |
+| Create-reservation master IDs | **OUT-OF-SCOPE FINDING (AC-W4-5 residual).** `create_hotel_reservation_priced` / new-reservation forms do not take master IDs. Staff attach masters on reservation **detail**. FO-SEARCH1 typed `company_name` / `group_name` remain search labels, not masters. |
 | Comms / Activity product | Notes + profile history only. Card Coming in Wave 5. |
 | Privacy suite | Wave 2 records data-processing / marketing consent only. Export / anonymise / unmerge stay Wave 5. Admin & Privacy card remains Coming in Wave 5. |
 | Production schema 0051 | Non-prod `qcwptraosaudcbjasmul` applied (`20260914110546`). **Production NOT applied** (Abel / PM gate). Surfaces that need the new tables degrade to unavailable until apply. |
+| Production schema 0053 | Dual-lane `0053_pms_guest_profile_wave4.sql` **APPLY HELD** for Abel/PM. Not applied from this agent. |
 | Preference id mapping | Stored as `id:` / `other:` prefixes in text columns — honesty item, not a Setup FK. |
 
 ### 2.8 Must-not-claim (CURRENT)
 
 - No LIVE OTA / channel manager (Distribution catalogue `existing` ≠ live sync).
-- No company bill-to, groups product, or TA commission.
+- No folio-split / city-ledger bill-to **product**. Wave 4 stores a bill-to **association** only. Cashiering still `transfersSupported: false`.
+- No Sales & Events group **blocks**, allotments, or rooming lists (Group **account** master is Guest-owned).
+- No TA commission settlement.
 - No payment-gateway settlement and no classic nightly room-and-tax night audit as Guest capabilities.
 
 ---
@@ -1008,8 +1012,8 @@ This residual does **not** ungate Waves 4–5 and does **not** change Wave 3 sta
 | Field | Value |
 |---|---|
 | **REQUIREMENTS** | **Locked** from the product requirement (Rekik 2026-09-14) |
-| **SPEC STATUS** | **SPECIFIED / WAVE-GATED** |
-| **ENGINEERING STATUS** | **NOT STARTED / AWAITING WAVE GATE** |
+| **SPEC STATUS** | **SPECIFIED** |
+| **ENGINEERING STATUS** | **IN IMPLEMENTATION** — issue [#95](https://github.com/NORUDEVGIT/NORU/issues/95) |
 | **Depends on** | Wave 3 exited |
 
 ### 6.1 Locked requirements
@@ -1043,6 +1047,14 @@ Masters + associations + honest loyalty/value; Independent QA recorded.
 | **AC-W4-5** | Reservations / FO consume the same master IDs — no typed-only “company name” presented as a master. |
 | **AC-W4-6** | Loyalty & Value shows only derived figures or honest empty; no placeholder “12,500 points”. |
 | **AC-W4-7** | Sales & Events is not required to implement group **blocks** for this wave to exit. |
+
+### 6.5 OUT-OF-SCOPE FINDING (AC-W4-5 residual)
+
+Guest masters are fully implemented in Guest. Reservations **detail** stores `company_master_id` / `group_account_master_id` / `travel_agent_master_id`. Front Office search matches Guest master names and prefers master names over typed FO-SEARCH1 labels.
+
+**Not boiled:** `create_hotel_reservation_priced` and new-reservation forms still do not accept master IDs. Typed `company_name` / `group_name` remain search labels. Staff attach masters after create. This is documented rather than a second Reservations-owned company table.
+
+Migration `0053_pms_guest_profile_wave4.sql` is dual-lane and **APPLY HELD**.
 
 ---
 

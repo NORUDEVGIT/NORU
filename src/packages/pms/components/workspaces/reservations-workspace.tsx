@@ -17,8 +17,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { ReservationAmendmentsTab } from "@/packages/pms/components/bookings/reservation-amendments";
 import { ReservationCancellationsTab } from "@/packages/pms/components/bookings/reservation-cancellations";
-import { FoundationPanel } from "@/packages/pms/components/pms/foundation-panel";
 import { getBookingsAccess, listReservations } from "@/packages/pms/lib/reservations.functions";
+import { listReservationsForGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import {
+  WAVE4_GROUP_ACCOUNT_COPY,
+  WAVE4_MIGRATION_UNAVAILABLE,
+} from "@/packages/pms/lib/guest-profile-wave4";
 import type { ReservationStatus } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
@@ -279,16 +283,20 @@ export function ReservationsWorkspace({
         </TabsContent>
 
         <TabsContent value="group" className="mt-4">
-          <FoundationPanel
-            title="Group bookings"
-            description="Reservation records don't carry a group or block reference yet, so group blocks can't be listed here. This view stays empty until group blocks are added to the booking record."
+          <ReservationMasterStays
+            restaurantId={restaurantId}
+            accountType="group"
+            title="Group account stays"
+            empty="No reservations are linked to a Guest Group account master yet. Link a master on the reservation. This list is not Sales & Events group blocks."
           />
         </TabsContent>
 
         <TabsContent value="corporate" className="mt-4">
-          <FoundationPanel
-            title="Corporate bookings"
-            description="Reservations and guest profiles have no company or corporate account link yet, so corporate stays can't be separated here. This view stays empty until company accounts are added."
+          <ReservationMasterStays
+            restaurantId={restaurantId}
+            accountType="company"
+            title="Company master stays"
+            empty="No reservations are linked to a Guest Company master yet. Link a master on the reservation. Typed company names are not masters."
           />
         </TabsContent>
 
@@ -303,3 +311,78 @@ export function ReservationsWorkspace({
     </div>
   );
 }
+
+function ReservationMasterStays({
+  restaurantId,
+  accountType,
+  title,
+  empty,
+}: {
+  restaurantId: string;
+  accountType: "company" | "group" | "travel_agent";
+  title: string;
+  empty: string;
+}) {
+  const navigate = useNavigate();
+  const fetchRows = useServerFn(listReservationsForGuestAccount);
+  const query = useQuery({
+    queryKey: ["reservation-guest-account-stays", restaurantId, accountType],
+    queryFn: () => fetchRows({ data: { restaurantId, accountType } }),
+    retry: false,
+  });
+
+  if (query.isLoading) return <p className="text-sm text-muted-foreground">Loading stays…</p>;
+  if (query.isError) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {query.error instanceof Error ? query.error.message : "Could not load linked stays."}
+      </p>
+    );
+  }
+  const data = query.data;
+  if (!data?.available) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-6" data-testid={`reservation-${accountType}-stays`}>
+        <p className="font-medium">{title}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{WAVE4_MIGRATION_UNAVAILABLE}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3" data-testid={`reservation-${accountType}-stays`}>
+      <div>
+        <p className="font-medium">{title}</p>
+        <p className="text-sm text-muted-foreground">
+          Stays linked to a Guest master ID. {accountType === "group" ? WAVE4_GROUP_ACCOUNT_COPY : ""}
+        </p>
+      </div>
+      {data.rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-2xl border border-border">
+          {data.rows.map((row) => (
+            <li key={row.id}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-accent/40"
+                onClick={() =>
+                  void navigate({
+                    to: "/restaurant/pms/reservations/$reservationId",
+                    params: { reservationId: row.id },
+                  })
+                }
+              >
+                <span className="font-medium">{row.confirmationNumber}</span>
+                <span className="text-muted-foreground">
+                  {row.guestName}
+                  {row.masterName ? ` · ${row.masterName}` : ""}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+

@@ -9,6 +9,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isMissingSchemaError } from "./pms-set2-structure";
 import { nightsBetween, requireReservationManager, type ReservationStatus } from "./reservations.server";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import {
@@ -59,6 +60,15 @@ const STAY_SELECT_WITH_COMPANY = `
   hotel_rooms!hotel_reservations_room_same_type ( room_number )
 `;
 
+const STAY_SELECT_WITH_MASTERS = `
+  id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
+  adults, children, status, special_requests, source, company_name, group_name,
+  company_master_id, group_account_master_id, travel_agent_master_id,
+  guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
+  room_types!hotel_reservations_type_same_property ( name ),
+  hotel_rooms!hotel_reservations_room_same_type ( room_number )
+`;
+
 type StaySearchRow = {
   id: string;
   confirmation_number: string;
@@ -74,6 +84,9 @@ type StaySearchRow = {
   source?: string | null;
   company_name?: string | null;
   group_name?: string | null;
+  company_master_id?: string | null;
+  group_account_master_id?: string | null;
+  travel_agent_master_id?: string | null;
   guest_profiles: {
     first_name: string;
     last_name: string | null;
@@ -90,11 +103,16 @@ function toHit(
   businessDate: string,
   term: string,
   companyGroupAvailable: boolean,
+  masterNames: Map<string, string>,
 ): FoSearchHit {
   const guest = row.guest_profiles;
   const guestName = [guest?.first_name, guest?.last_name].filter(Boolean).join(" ").trim() || "Guest";
-  const companyName = companyGroupAvailable ? trimCompanyGroupName(row.company_name) : null;
-  const groupName = companyGroupAvailable ? trimCompanyGroupName(row.group_name) : null;
+  const typedCompany = companyGroupAvailable ? trimCompanyGroupName(row.company_name) : null;
+  const typedGroup = companyGroupAvailable ? trimCompanyGroupName(row.group_name) : null;
+  const companyName =
+    (row.company_master_id ? masterNames.get(row.company_master_id) ?? null : null) ?? typedCompany;
+  const groupName =
+    (row.group_account_master_id ? masterNames.get(row.group_account_master_id) ?? null : null) ?? typedGroup;
   const stay = {
     guestName,
     confirmationNumber: row.confirmation_number,
@@ -237,16 +255,55 @@ export const searchFrontOfficeStays = createServerFn({ method: "POST" })
       collectIds(companyGroup.data, ids);
     }
 
+    const masters = await (context.supabase as any)
+      .from("guest_account_masters")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .ilike("name", like)
+      .limit(50);
+    if (masters.error) {
+      if (!isMissingSchemaError(masters.error)) throw new Error(masters.error.message);
+    } else {
+      const masterIds = (masters.data ?? []).map((row: { id: string }) => row.id);
+      if (masterIds.length > 0) {
+        const byCompany = await context.supabase
+          .from("hotel_reservations")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .in("company_master_id", masterIds)
+          .limit(50);
+        const byGroup = await context.supabase
+          .from("hotel_reservations")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .in("group_account_master_id", masterIds)
+          .limit(50);
+        const byTa = await context.supabase
+          .from("hotel_reservations")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .in("travel_agent_master_id", masterIds)
+          .limit(50);
+        for (const result of [byCompany, byGroup, byTa]) {
+          if (result.error) {
+            if (!isMissingSchemaError(result.error)) throw new Error(result.error.message);
+          } else {
+            collectIds(result.data, ids);
+          }
+        }
+      }
+    }
+
     if (ids.size === 0) {
       return { ...empty, companyGroupAvailable };
     }
 
     const fetchIds = [...ids].slice(0, SEARCH_RESULT_CAP + 1);
 
-    async function loadRows(withCompany: boolean) {
+    async function loadRows(select: string) {
       const result = await context.supabase
         .from("hotel_reservations")
-        .select(withCompany ? STAY_SELECT_WITH_COMPANY : STAY_SELECT_CORE)
+        .select(select)
         .eq("restaurant_id", data.restaurantId)
         .in("id", fetchIds)
         .order("arrival_date", { ascending: false })
@@ -254,15 +311,43 @@ export const searchFrontOfficeStays = createServerFn({ method: "POST" })
       return { data: (result.data ?? null) as unknown as StaySearchRow[] | null, error: result.error };
     }
 
-    let fetched = await loadRows(companyGroupAvailable);
+    let fetched = await loadRows(STAY_SELECT_WITH_MASTERS);
+    if (fetched.error && isMissingSchemaError(fetched.error)) {
+      fetched = await loadRows(companyGroupAvailable ? STAY_SELECT_WITH_COMPANY : STAY_SELECT_CORE);
+    }
     if (fetched.error && companyGroupAvailable && isCompanyGroupColumnMissing(fetched.error)) {
       companyGroupAvailable = false;
-      fetched = await loadRows(false);
+      fetched = await loadRows(STAY_SELECT_CORE);
     }
     if (fetched.error) throw new Error(fetched.error.message);
 
+    const masterIds = [
+      ...new Set(
+        (fetched.data ?? [])
+          .flatMap((row) => [
+            row.company_master_id,
+            row.group_account_master_id,
+            row.travel_agent_master_id,
+          ])
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const masterNames = new Map<string, string>();
+    if (masterIds.length > 0) {
+      const named = await (context.supabase as any)
+        .from("guest_account_masters")
+        .select("id, name")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", masterIds);
+      if (!named.error) {
+        for (const row of (named.data ?? []) as Array<{ id: string; name: string }>) {
+          masterNames.set(row.id, row.name);
+        }
+      }
+    }
+
     const hits = (fetched.data ?? []).map((row) =>
-      toHit(row, data.today, data.search, companyGroupAvailable),
+      toHit(row, data.today, data.search, companyGroupAvailable, masterNames),
     );
     const capped = capSearchResults(hits, SEARCH_RESULT_CAP);
     return { ...capped, companyGroupAvailable };

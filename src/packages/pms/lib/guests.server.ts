@@ -27,6 +27,8 @@ export const GUEST_EVENT_TYPES = [
   "merged_from",
   "merged_into",
   "consent_updated",
+  "relationship_linked",
+  "relationship_unlinked",
 ] as const;
 export type GuestEventType = (typeof GUEST_EVENT_TYPES)[number];
 

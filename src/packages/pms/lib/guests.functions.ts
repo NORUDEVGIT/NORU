@@ -1438,7 +1438,7 @@ type GuestStayRow = {
   hotel_rooms?: { room_number: string } | null;
 };
 
-function guestStayAccessForRole(role: string): GuestStayAccess {
+export function guestStayAccessForRole(role: string): GuestStayAccess {
   return {
     reservation: canManageReservations(role),
     frontOffice: canManageReservations(role),
@@ -1456,7 +1456,7 @@ function folioTotals(rows: { amount: number }[]): number {
   return Math.round((charges - credits) * 100) / 100;
 }
 
-async function loadGuestStaysForProfile(
+export async function loadGuestStaysForProfile(
   context: { supabase: { from: (table: string) => any } },
   restaurantId: string,
   guestId: string,

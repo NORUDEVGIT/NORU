@@ -40,6 +40,7 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.functions";
 import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { ReservationGuestMastersCard } from "@/packages/pms/components/guests/reservation-guest-masters";
 import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 
@@ -286,6 +287,8 @@ export function ReservationDetailWorkspace({
           </Button>
         </section>
       </div>
+
+      <ReservationGuestMastersCard restaurantId={restaurantId} reservationId={reservationId} />
 
       <PricingSection
         restaurantId={restaurantId}
