@@ -5,7 +5,8 @@
  * guest_folios via guests.functions — no second stay store, no invented rows.
  */
 
-import { nightsBetween, type ReservationStatus } from "./reservation-dates";
+import { nightsBetween } from "../../../shared/lib/property-dates.ts";
+import type { ReservationStatus } from "./reservation-dates.ts";
 
 export const GUEST_RESERVATIONS_HREF = "/restaurant/pms/reservations";
 export const GUEST_FRONT_OFFICE_HREF = "/restaurant/pms/front-office";

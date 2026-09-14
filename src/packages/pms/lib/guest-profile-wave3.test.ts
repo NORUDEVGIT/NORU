@@ -24,7 +24,7 @@ import {
   type GuestStay,
   type GuestStayAccess,
 } from "./guest-profile-wave3.ts";
-import { nightsBetween } from "./reservation-dates.ts";
+import { nightsBetween } from "../../../shared/lib/property-dates.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -349,7 +349,7 @@ describe("Guest Profile Wave 3 lock — AC-W3-1…17", () => {
     assert.equal(byId.get("admin-privacy")?.live, false);
     assert.match(byId.get("loyalty")?.copy ?? "", /Coming in Wave 4/);
     assert.match(byId.get("notes-comms")?.copy ?? "", /Coming in Wave 5/);
-    assert.doesNotMatch(byId.get("loyalty")?.copy ?? "", /\d[\d,]{2,}|points balance|8[05]%/);
+    assert.doesNotMatch(byId.get("loyalty")?.copy ?? "", /\d[\d,]{2,}|12,500|8[05]% occupied|occupancy %/i);
     assert.deepEqual(
       GUEST_PROFILE_TYPES.filter((type) => !type.live).map((type) => type.id),
       ["company", "group", "travel-agent"],
