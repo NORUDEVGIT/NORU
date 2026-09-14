@@ -1,6 +1,11 @@
 /**
  * Phase 7D.2F2 — PMS Property Setup.
  *
+ * PMS-SET1: /restaurant/pms/property-setup redirects to /restaurant/settings
+ * (hash preserved). This workspace is not mounted. Do not restore it as a
+ * second identity / ops / policies / taxes editor. Rooms still belong to
+ * /restaurant/pms/room-inventory (SET2) — do not redesign them here.
+ *
  * Property/PMS configuration only. Food & Beverage configuration (menu,
  * tables & QR) belongs to the F&B domain, and Rate & Revenue Management and
  * Distribution keep their own PMS submodules — none of them are duplicated

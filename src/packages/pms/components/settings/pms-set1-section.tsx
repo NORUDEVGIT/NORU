@@ -36,9 +36,9 @@ import {
   SET1_HUB_HREF,
   SET1_OPS_HELPER,
   SET1_TAX_HONESTY,
+  SET1_TAX_RM_SHARE,
   canActivateSet1,
   ciCoEqual,
-  displayedBusinessDate,
   formatClockLabel,
   overallLabel,
   readinessLabel,
@@ -51,6 +51,7 @@ import {
   type Set1SectionId,
   type Set1TaxesDraft,
 } from "@/packages/pms/lib/pms-set1-foundation";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { cn } from "@/shared/lib/utils";
 
 export function ReadinessChip({ readiness }: { readiness: Set1Readiness }) {
@@ -315,6 +316,7 @@ export function Set1OpsSection({
   const dirty = JSON.stringify(draft) !== JSON.stringify(snapshot.ops);
   useDirtyGuard(dirty);
   const equal = ciCoEqual(draft.checkInTime, draft.checkOutTime);
+  const businessDate = usePropertyBusinessDate(restaurantId, snapshot.timezone);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -384,7 +386,7 @@ export function Set1OpsSection({
       ) : null}
       <div className="rounded-xl border border-[#CCCCCC] bg-muted/30 p-4" data-testid="set1-business-date-readonly">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Business date</p>
-        <p className="mt-1 font-medium text-[#251605]">{displayedBusinessDate(snapshot.businessDate, snapshot.timezone)}</p>
+        <p className="mt-1 font-medium text-[#251605]">{businessDate}</p>
         <p className="mt-1 text-sm text-muted-foreground">{SET1_BUSINESS_DATE_COPY}</p>
       </div>
       {canEdit && snapshot.foundationColumnsAvailable ? (
@@ -440,6 +442,7 @@ export function Set1TaxesSection({
       <div>
         <h2 className="font-display text-lg text-[#251605]">Taxes</h2>
         <p className="mt-1 text-sm text-muted-foreground">{SET1_TAX_HONESTY}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{SET1_TAX_RM_SHARE}</p>
       </div>
       <div className="space-y-2">
         <p className="text-sm font-medium">Tax mode</p>
