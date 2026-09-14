@@ -34,6 +34,7 @@ import {
 import { completeSet3Activate } from "./pms-set3-rates-guest.ts";
 import { completeSet4Activate } from "./pms-set4-hk-inventory.ts";
 import { completeSet5Activate } from "./pms-set5-depts-guestsvc.ts";
+import { completeSet6Activate } from "./pms-set6-sales-distribution.ts";
 
 const completeIdentity = emptyIdentity({
   name: "Harbour House",
@@ -68,6 +69,7 @@ function foundationReady(set2 = completeSet2Activate(), role = "owner") {
     set3: completeSet3Activate(),
     set4: completeSet4Activate(),
     set5: completeSet5Activate(),
+    set6: completeSet6Activate(),
   });
 }
 
@@ -168,7 +170,7 @@ describe("PMS-SET2 RI deep-link and hub unmute", () => {
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Rates" || card.title === "Rates & meal plans"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Banks"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Roles"));
-    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
+    assert.deepEqual(SET1_COMING_SOON, []);
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /SET1_HUB_HREF}#\$\{card\.id/);

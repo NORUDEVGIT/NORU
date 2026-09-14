@@ -18,6 +18,7 @@ import {
 import { completeSet2Activate } from "./pms-set2-structure.ts";
 import { completeSet4Activate } from "./pms-set4-hk-inventory.ts";
 import { completeSet5Activate } from "./pms-set5-depts-guestsvc.ts";
+import { completeSet6Activate } from "./pms-set6-sales-distribution.ts";
 import {
   SET3_AUDIT_GUEST_RULES,
   SET3_AUDIT_ID_TYPE,
@@ -77,6 +78,7 @@ function foundationReady(set3 = completeSet3Activate(), role = "owner") {
     set3,
     set4: completeSet4Activate(),
     set5: completeSet5Activate(),
+    set6: completeSet6Activate(),
   });
 }
 
@@ -202,7 +204,7 @@ describe("PMS-SET3 hub unmute and deep-links", () => {
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Guest profile rules" || card.title === "Guests"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Banks"));
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === "Roles"));
-    assert.ok(SET1_COMING_SOON.every((card) => card.wave === "SET6"));
+    assert.deepEqual(SET1_COMING_SOON, []);
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
     assert.match(hub, /Set3RatesSection/);
