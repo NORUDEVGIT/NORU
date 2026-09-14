@@ -67,7 +67,8 @@ export function GuestDirectoryWorkspace({
     void navigate({ to: GUEST_PROFILE_DETAIL_PATH, params: { guestId: id } });
   }
 
-  if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading guests…</p>;
+  if (accessQuery.isLoading)
+    return <p className="text-sm text-muted-foreground">Loading guests…</p>;
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">

@@ -67,7 +67,9 @@ export function GuestProfileWorkspace({
           >
             {type.title}
             {type.live ? null : (
-              <span className="ml-2 text-[11px] uppercase tracking-wide">not LIVE · Wave {type.wave}</span>
+              <span className="ml-2 text-[11px] uppercase tracking-wide">
+                not LIVE · Wave {type.wave}
+              </span>
             )}
           </button>
         ))}
@@ -108,7 +110,10 @@ export function GuestProfileWorkspace({
           copy="Open a guest from Directory to view and edit Information. No guest is selected yet."
         />
       ) : (
-        <ComingCard title={selected.title} copy={selected.copy ?? comingInWaveLabel(selected.wave)} />
+        <ComingCard
+          title={selected.title}
+          copy={selected.copy ?? comingInWaveLabel(selected.wave)}
+        />
       )}
     </div>
   );
@@ -116,7 +121,10 @@ export function GuestProfileWorkspace({
 
 function ComingCard({ title, copy }: { title: string; copy: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card p-6" data-testid="guest-profile-coming">
+    <div
+      className="rounded-2xl border border-dashed border-border bg-card p-6"
+      data-testid="guest-profile-coming"
+    >
       <p className="font-display text-lg">{title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy}</p>
     </div>

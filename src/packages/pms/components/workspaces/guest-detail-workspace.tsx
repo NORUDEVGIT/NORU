@@ -152,7 +152,9 @@ export function GuestDetailWorkspace({
   if (guestQuery.isError || !guestQuery.data) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <p className="text-sm text-muted-foreground">That guest could not be found for this property.</p>
+        <p className="text-sm text-muted-foreground">
+          That guest could not be found for this property.
+        </p>
         <Button className="mt-4" variant="outline" onClick={() => goBack()}>
           Back to guests
         </Button>
@@ -174,7 +176,11 @@ export function GuestDetailWorkspace({
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" />{" "}
-        {backTo === "reservations" ? "Reservations" : backTo === "guest-profile" ? "Directory" : "Guests"}
+        {backTo === "reservations"
+          ? "Reservations"
+          : backTo === "guest-profile"
+            ? "Directory"
+            : "Guests"}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -197,7 +203,9 @@ export function GuestDetailWorkspace({
           <Button
             variant="outline"
             disabled={statusMutation.isPending}
-            onClick={() => statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")}
+            onClick={() =>
+              statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")
+            }
           >
             <Power className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">
@@ -264,11 +272,31 @@ export function GuestDetailWorkspace({
         <TabsContent value="preferences" className="mt-4">
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <PrefField label="Room preference" value={prefs?.roomPreference} onChange={(v) => setPref("roomPreference", v)} />
-              <PrefField label="Bed preference" value={prefs?.bedPreference} onChange={(v) => setPref("bedPreference", v)} />
-              <PrefField label="Floor preference" value={prefs?.floorPreference} onChange={(v) => setPref("floorPreference", v)} />
-              <PrefField label="View preference" value={prefs?.viewPreference} onChange={(v) => setPref("viewPreference", v)} />
-              <PrefField label="Food preference" value={prefs?.foodPreference} onChange={(v) => setPref("foodPreference", v)} />
+              <PrefField
+                label="Room preference"
+                value={prefs?.roomPreference}
+                onChange={(v) => setPref("roomPreference", v)}
+              />
+              <PrefField
+                label="Bed preference"
+                value={prefs?.bedPreference}
+                onChange={(v) => setPref("bedPreference", v)}
+              />
+              <PrefField
+                label="Floor preference"
+                value={prefs?.floorPreference}
+                onChange={(v) => setPref("floorPreference", v)}
+              />
+              <PrefField
+                label="View preference"
+                value={prefs?.viewPreference}
+                onChange={(v) => setPref("viewPreference", v)}
+              />
+              <PrefField
+                label="Food preference"
+                value={prefs?.foodPreference}
+                onChange={(v) => setPref("foodPreference", v)}
+              />
               <PrefField
                 label="Communication preference"
                 value={prefs?.communicationPreference}

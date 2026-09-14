@@ -194,7 +194,8 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "guest-profile",
     title: "Guest Profile",
-    description: "Individual guest directory and information. Company, group and travel-agent masters come later.",
+    description:
+      "Individual guest directory and information. Company, group and travel-agent masters come later.",
     icon: UserRound,
     group: "commercial",
     moduleKey: "front_office",
@@ -243,8 +244,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "reports",
     title: "Reports & Analytics",
-    description:
-      "Hotel reporting: occupancy, revenue and rooms-side operations.",
+    description: "Hotel reporting: occupancy, revenue and rooms-side operations.",
     icon: BarChart3,
     group: "intelligence",
     moduleKey: "reports_analytics",

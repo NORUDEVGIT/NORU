@@ -276,16 +276,26 @@ export function GuestFormDialog({
             <Input value={form.language} onChange={(e) => set("language", e.target.value)} />
           </Field>
           <Field label="Date of birth">
-            <Input type="date" value={form.dateOfBirth} onChange={(e) => set("dateOfBirth", e.target.value)} />
+            <Input
+              type="date"
+              value={form.dateOfBirth}
+              onChange={(e) => set("dateOfBirth", e.target.value)}
+            />
           </Field>
           <Field label="Country">
             <Input value={form.country} onChange={(e) => set("country", e.target.value)} />
           </Field>
           <Field label="Address line 1">
-            <Input value={form.addressLine1} onChange={(e) => set("addressLine1", e.target.value)} />
+            <Input
+              value={form.addressLine1}
+              onChange={(e) => set("addressLine1", e.target.value)}
+            />
           </Field>
           <Field label="Address line 2">
-            <Input value={form.addressLine2} onChange={(e) => set("addressLine2", e.target.value)} />
+            <Input
+              value={form.addressLine2}
+              onChange={(e) => set("addressLine2", e.target.value)}
+            />
           </Field>
           <Field label="City">
             <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
@@ -300,7 +310,10 @@ export function GuestFormDialog({
             <Select
               value={form.idDocumentType || "none"}
               onValueChange={(value) =>
-                set("idDocumentType", value === "none" ? "" : (value as GuestFormValues["idDocumentType"]))
+                set(
+                  "idDocumentType",
+                  value === "none" ? "" : (value as GuestFormValues["idDocumentType"]),
+                )
               }
             >
               <SelectTrigger>
@@ -317,7 +330,10 @@ export function GuestFormDialog({
             </Select>
           </Field>
           <Field label="ID number">
-            <Input value={form.idDocumentNumber} onChange={(e) => set("idDocumentNumber", e.target.value)} />
+            <Input
+              value={form.idDocumentNumber}
+              onChange={(e) => set("idDocumentNumber", e.target.value)}
+            />
           </Field>
           <Field label="ID expiry">
             <Input
@@ -339,7 +355,11 @@ export function GuestFormDialog({
           </div>
           <div className="sm:col-span-2">
             <Field label="Notes">
-              <Textarea rows={3} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+              <Textarea
+                rows={3}
+                value={form.notes}
+                onChange={(e) => set("notes", e.target.value)}
+              />
             </Field>
           </div>
         </div>

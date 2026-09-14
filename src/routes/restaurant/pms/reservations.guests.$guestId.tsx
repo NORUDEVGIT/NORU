@@ -15,7 +15,10 @@ export const Route = createFileRoute("/restaurant/pms/reservations/guests/$guest
   head: () => ({
     meta: [
       { title: "Redirecting — NORU PMS" },
-      { name: "description", content: "Guest profiles now live in the NORU PMS Guest Profile module." },
+      {
+        name: "description",
+        content: "Guest profiles now live in the NORU PMS Guest Profile module.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
