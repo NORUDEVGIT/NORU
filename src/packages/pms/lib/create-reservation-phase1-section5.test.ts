@@ -256,7 +256,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     );
     assert.match(page, /canSubmitCreateReservation/);
     assert.match(page, /create-as-status/);
-    assert.doesNotMatch(page, /Guarantee and confirm|Send confirmation/);
+    assert.doesNotMatch(page, /Send confirmation email/);
     assert.match(functions, /assertCreateReservationPricing/);
   });
 
@@ -431,7 +431,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.match(page, /Room assignment \(optional\)/);
     assert.match(page, /const UNASSIGNED = "unassigned"/);
     assert.match(page, /the stay can still be booked and assigned later/);
-    assert.doesNotMatch(page, /forceRoomAssign|requiredRoomId|Guarantee method|Send confirmation email/);
+    assert.doesNotMatch(page, /forceRoomAssign|requiredRoomId|Send confirmation email/);
     assert.doesNotMatch(page, /packagePicker|addPackage|emailConfirmation|smsConfirmation/);
     assert.match(CREATE_RESERVATION_SECTION5_SCOPE, /later sections/);
   });

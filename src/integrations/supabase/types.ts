@@ -6721,9 +6721,13 @@ export type Database = {
           _adults: number
           _arrival: string
           _children: number
+          _commercial_booking_source?: string | null
           _company_master_id?: string | null
           _departure: string
+          _external_reference?: string | null
+          _guarantee_method?: string | null
           _guest_id: string
+          _market_segment?: string | null
           _membership_id: string
           _notes: string
           _restaurant_id: string
@@ -6770,9 +6774,13 @@ export type Database = {
           _adults: number
           _arrival: string
           _children: number
+          _commercial_booking_source?: string | null
           _company_master_id?: string | null
           _departure: string
+          _external_reference?: string | null
+          _guarantee_method?: string | null
           _guest_id: string
+          _market_segment?: string | null
           _membership_id: string
           _notes: string
           _rate_plan_id: string
