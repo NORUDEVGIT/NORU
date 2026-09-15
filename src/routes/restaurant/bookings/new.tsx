@@ -8,9 +8,7 @@ import { CreateReservationRoomType, OccupancySoftWarn } from "@/packages/pms/com
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -34,6 +32,7 @@ import {
   CreateReservationGuest,
   type PickedReservationGuest,
 } from "@/packages/pms/components/bookings/create-reservation-guest";
+import { CreateReservationStay } from "@/packages/pms/components/bookings/create-reservation-stay";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
@@ -51,12 +50,19 @@ import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distributi
 import { getGuestAccount, listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   CREATE_RESERVATION_DENIED_COPY,
+  CREATE_RESERVATION_MIN_NIGHTS,
   CREATE_RESERVATION_SECTION1_SCOPE,
   CREATE_RESERVATION_SECTION2_SCOPE,
+  CREATE_RESERVATION_SECTION3_SCOPE,
   CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED,
   CREATE_RESERVATION_SUMMARY_NO_TOTAL,
   CREATE_RESERVATION_TYPE_CHANGE_WARN,
   RESERVATION_TYPE_LABELS,
+  formatStayOccupancySummary,
+  isStayRangeValid,
+  linkedStayFromArrival,
+  linkedStayFromDeparture,
+  linkedStayFromNights,
   mastersForCreateMode,
   pickPrefillMasterId,
   resolveBookingSourceOptions,
@@ -175,8 +181,29 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const sourceOptions = resolveBookingSourceOptions(set6Query.data?.snapshot.sourceCodes);
   const segmentOptions = resolveMarketSegmentOptions(set6Query.data?.snapshot.marketSegments);
 
-  const datesValid = departure > arrival;
-  const nights = datesValid ? nightsBetween(arrival, departure) : 0;
+  const datesValid = isStayRangeValid(arrival, departure);
+  const nights = nightsBetween(arrival, departure);
+
+  function handleArrivalChange(next: string) {
+    if (!next) {
+      setArrival("");
+      return;
+    }
+    const stay = linkedStayFromArrival(next, datesValid ? nights : CREATE_RESERVATION_MIN_NIGHTS);
+    setArrival(stay.arrival);
+    setDeparture(stay.departure);
+  }
+
+  function handleNightsChange(next: number) {
+    if (!arrival) return;
+    const stay = linkedStayFromNights(arrival, next);
+    setDeparture(stay.departure);
+  }
+
+  function handleDepartureChange(next: string) {
+    const stay = linkedStayFromDeparture(arrival, next);
+    setDeparture(stay.departure);
+  }
 
   const availabilityQuery = useQuery({
     queryKey: ["room-type-availability", restaurantId, arrival, departure],
@@ -375,6 +402,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION1_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION2_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION3_SCOPE}</p>
         </div>
 
         <CreateReservationContext
@@ -404,46 +432,33 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           onGuestChange={setGuest}
         />
 
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg">Stay</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <Label htmlFor="arrival">Arrival</Label>
-              <Input id="arrival" type="date" value={arrival} onChange={(e) => setArrival(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="departure">Departure</Label>
-              <Input id="departure" type="date" value={departure} onChange={(e) => setDeparture(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="adults">Adults</Label>
-              <Input
-                id="adults"
-                type="number"
-                min={1}
-                max={20}
-                value={adults}
-                onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
+        <CreateReservationStay
+          arrival={arrival}
+          departure={departure}
+          nights={nights}
+          datesValid={datesValid}
+          adults={adults}
+          children={children}
+          specialRequests={specialRequests}
+          notes={notes}
+          occupancyWarn={
+            selectedMeta ? (
+              <OccupancySoftWarn
+                adults={adults}
+                childCount={children}
+                maxOccupancy={selectedMeta.maxOccupancy}
+                testId="stay-occupancy-warn"
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="children">Children</Label>
-              <Input
-                id="children"
-                type="number"
-                min={0}
-                max={20}
-                value={children}
-                onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
-              />
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {datesValid
-              ? `${nights} night${nights === 1 ? "" : "s"} · ${formatStayDate(arrival)} → ${formatStayDate(departure)}`
-              : "Departure must be after arrival."}
-          </p>
-        </section>
+            ) : null
+          }
+          onArrivalChange={handleArrivalChange}
+          onDepartureChange={handleDepartureChange}
+          onNightsChange={handleNightsChange}
+          onAdultsChange={setAdults}
+          onChildrenChange={setChildren}
+          onSpecialRequestsChange={setSpecialRequests}
+          onNotesChange={setNotes}
+        />
 
         <CreateReservationRoomType
           datesValid={datesValid}
@@ -561,25 +576,10 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
 
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg">Details</h2>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="requests">Special requests</Label>
-              <Textarea
-                id="requests"
-                rows={3}
-                value={specialRequests}
-                onChange={(e) => setSpecialRequests(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="notes">Internal notes</Label>
-              <Textarea id="notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </div>
-          </div>
           <div className="mt-3 max-w-sm space-y-1">
             <Label htmlFor="status">Create as</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as "pending" | "confirmed")}>
-              <SelectTrigger id="status">
+              <SelectTrigger id="status" data-testid="create-as-status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -620,13 +620,23 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
                 <dd>{travelAgentMaster?.name ?? "Not selected"}</dd>
               </div>
             ) : null}
-            <div>
+            <div data-testid="summary-stay">
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay</dt>
-              <dd>
+              <dd data-testid="summary-stay-dates">
                 {datesValid
                   ? `${formatStayDate(arrival)} → ${formatStayDate(departure)}`
                   : "Dates not set"}
               </dd>
+            </div>
+            {datesValid ? (
+              <div data-testid="summary-stay-nights">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Nights</dt>
+                <dd>{nights}</dd>
+              </div>
+            ) : null}
+            <div data-testid="summary-stay-occupancy">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Occupancy</dt>
+              <dd>{formatStayOccupancySummary(adults, children)}</dd>
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Room type</dt>
