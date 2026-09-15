@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **STATUS** | **IMPLEMENTATION PASS** (Associations amend only) — pending Outcome Review |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (Associations amend only) |
 | **Spec** | [`docs/pms/specs/create-reservation-individual-associations.md`](./specs/create-reservation-individual-associations.md) |
 | **KIND** | Follow-up **amend** to Section 2 — **Individual only** (AC-CR2A). Does **not** reopen [#127](https://github.com/NORUDEVGIT/NORU/issues/127) |
 | **ENGINEERING** | **PASS** — [#139](https://github.com/NORUDEVGIT/NORU/pull/139) MERGED (`c1a236d447bdef07e48643494bb91a3877a225bf`) |
-| **Issue** | [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **OPEN** until Outcome Review / Rekik formal closure YES |
-| **Implemented** | Associations amend **Yes** (DER IMPLEMENTATION PASS · IQ PASS). Phase 1 / Create Reservation DONE = **NO** |
+| **Issue** | [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **CLOSED** completed — OPERATIONALLY ACCEPTED |
+| **Implemented** | Associations amend **Yes** (DER IMPLEMENTATION PASS · IQ PASS · formal closure YES). Phase 1 / Create Reservation DONE = **NO** |
 | **Prior lock** | Spec [#126](https://github.com/NORUDEVGIT/NORU/pull/126) · delivery [#132](https://github.com/NORUDEVGIT/NORU/pull/132) · recon [#134](https://github.com/NORUDEVGIT/NORU/pull/134) · [#127](https://github.com/NORUDEVGIT/NORU/issues/127) **CLOSED** / OPERATIONALLY ACCEPTED — **do not reopen** |
 | **Spec baseline** | Docs [#137](https://github.com/NORUDEVGIT/NORU/pull/137) — AC-CR2A-1…15 |
 | **Route** | `/restaurant/bookings/new` — Associations always visible on Individual (own box beside Guest + sticky summary) |

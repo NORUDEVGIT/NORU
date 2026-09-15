@@ -5,9 +5,9 @@
 | **PACKAGE** | PMS · Reservations |
 | **FEATURE** | Create Reservation — **Individual Associations** (optional Company + Travel Agency on Individual create) |
 | **KIND** | **Follow-up amend** to Phase 1 **Section 2** — **Individual only** |
-| **STATUS** | **IMPLEMENTATION PASS** (Associations amend only) — pending Outcome Review |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (Associations amend only) |
 | **ENGINEERING STATUS** | **PASS** — delivery [#139](https://github.com/NORUDEVGIT/NORU/pull/139) MERGED (`c1a236d447bdef07e48643494bb91a3877a225bf`, AK21ER @ 2026-09-15T13:52:05Z). Independent QA **PASS**. Do **not** claim LIVE / Phase 1 COMPLETE |
-| **Issue** | [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **OPEN** until Outcome Review / Rekik formal closure YES. This docs recon does **not** close #138. **Do not reopen** [#127](https://github.com/NORUDEVGIT/NORU/issues/127) |
+| **Issue** | [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **CLOSED** completed — OPERATIONALLY ACCEPTED. **Do not reopen** [#127](https://github.com/NORUDEVGIT/NORU/issues/127) |
 | **Prior lock (do not reopen)** | Section 2 Spec [#126](https://github.com/NORUDEVGIT/NORU/pull/126) · delivery [#132](https://github.com/NORUDEVGIT/NORU/pull/132) MERGED · CURRENT recon [#134](https://github.com/NORUDEVGIT/NORU/pull/134) · [#127](https://github.com/NORUDEVGIT/NORU/issues/127) **CLOSED** / **OPERATIONALLY ACCEPTED** — AC-CR2-1…18 stand as prior lock; this amend does **not** rewrite them as failed |
 | **AC series** | **AC-CR2A-1…15** — locks **PASS** (#139) |
 | **Migration** | `0060_pms_create_reservation_individual_associations` — **non-prod APPLY PASS** (version `20260915134818`, project `qcwptraosaudcbjasmul`): dual-bind lift on `create_hotel_reservation` body only (signature unchanged; 0059 optional master-id params). Prerequisite **0059** present (`20260915125648`). Dual-bind verified. **Prod 0060 / 0059 Abel-gated residual NOT applied**. New columns **NONE**; RLS **UNCHANGED** |
@@ -23,9 +23,9 @@
 >
 > Additive expansion of the **existing** `/restaurant/bookings/new` surface. **Do not** rebuild a second product. Walk-in remains a **mode of the same writer**.
 >
-> **Docs CURRENT recon 2026-09-15** after Eng DER **IMPLEMENTATION PASS** (Associations amend only, #139 MERGED). Spec docs baseline [#137](https://github.com/NORUDEVGIT/NORU/pull/137). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
+> **Docs CURRENT recon 2026-09-15** after Eng DER **IMPLEMENTATION PASS** + Rekik **formal closure YES** (Associations amend only, #139 MERGED). Spec docs baseline [#137](https://github.com/NORUDEVGIT/NORU/pull/137). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
 >
-> [#138](https://github.com/NORUDEVGIT/NORU/issues/138) remains **OPEN** until Outcome Review / Rekik formal closure YES. This recon does **not** close #138 and does **not** claim OPERATIONALLY ACCEPTED for the amend.
+> [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **CLOSED** completed / **OPERATIONALLY ACCEPTED**. Does **not** reopen [#127](https://github.com/NORUDEVGIT/NORU/issues/127). Does **not** claim Phase 1 or Create Reservation DONE.
 
 ---
 
@@ -63,7 +63,7 @@
 
 ## 2. CURRENT (code wins — post #139)
 
-- [#139](https://github.com/NORUDEVGIT/NORU/pull/139) MERGED (`c1a236d447bdef07e48643494bb91a3877a225bf`). Independent QA **PASS**. Eng DER **IMPLEMENTATION PASS** (Associations amend only). [#138](https://github.com/NORUDEVGIT/NORU/issues/138) remains **OPEN** until Outcome Review / Rekik formal closure YES.
+- [#139](https://github.com/NORUDEVGIT/NORU/pull/139) MERGED (`c1a236d447bdef07e48643494bb91a3877a225bf`). Independent QA **PASS**. Eng DER **IMPLEMENTATION PASS** (Associations amend only). [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **CLOSED** completed / OPERATIONALLY ACCEPTED (Rekik formal closure YES 2026-09-15).
 - [#127](https://github.com/NORUDEVGIT/NORU/issues/127) stays **CLOSED** / OPERATIONALLY ACCEPTED. Section 2 Spec CURRENT recon [#134](https://github.com/NORUDEVGIT/NORU/pull/134) still records the **#127 Individual-hide baseline** (AC-CR2-3). This amend **supersedes Individual hide only** — it is **not** a Section 2 reopen and does **not** rewrite AC-CR2-1…18 as failed.
 - Type mode Individual \| Corporate \| Travel Agency is LIVE.
 - **Individual:** `CreateReservationAssociations` is **always** mounted (`reservationType === "individual"`) as its **own box beside Guest** (`lg:grid-cols-2`). Optional Company + optional TA pickers; neither is required (`canSubmit` does not depend on masters). Sticky summary shows Company / TA or **None** (`summary-associations`).
@@ -85,7 +85,7 @@
 - Residual **apply** (not a product-gap): **prod 0060 / 0059 Abel-gated**. Lock-file constants still say `CREATE_RESERVATION_SECTION2A_APPLY = "HELD"` (impl-time APPLY HELD honesty) while **non-prod 0060 is APPLY PASS** — docs CURRENT uses the apply report, not the lock constant.
 - Residual **polish** (visible on `main`; **out of #138 scope** — do not reopen this amend): `src/routes/restaurant/bookings/new.tsx` uses `cn(...)` for the Guest/Associations grid without importing `cn`. May land as a separate tsc polish. Does **not** change AC-CR2A-7 (own box beside Guest is LIVE).
 - Pre-existing Stay / availability / rate / room / details UI on the same page **remains**. This Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE.
-- Issue [#138](https://github.com/NORUDEVGIT/NORU/issues/138) remains **OPEN** until Outcome Review / Rekik formal closure YES. This docs recon does **not** close #138 and does **not** claim the amend OPERATIONALLY ACCEPTED.
+- Issue [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED). Does **not** reopen #127. Does **not** claim Phase 1 COMPLETE.
 
 ---
 
@@ -165,7 +165,7 @@
 | **AC-CR2A-14** | Additive expansion of existing `/restaurant/bookings/new` — **do not** rebuild a second Create Reservation product. Walk-in stays a mode of the same writer | **PASS** (#139) |
 | **AC-CR2A-15** | Locked non-goals in §4 are **absent** | **PASS** (#139) |
 
-Full AC text remains the #137 baseline. Do **not** reopen Guest GE; do **not** claim Phase 1 DONE; do **not** close #138 from this docs recon; do **not** reopen #127.
+Full AC text remains the #137 baseline. Do **not** reopen Guest GE; do **not** claim Phase 1 DONE; do **not** reopen #127. #138 is **CLOSED** / OPERATIONALLY ACCEPTED.
 
 ---
 
@@ -176,7 +176,7 @@ Full AC text remains the #137 baseline. Do **not** reopen Guest GE; do **not** c
 - Regression: GE1/GE3 create; detail `ReservationGuestMastersCard`; walk-in same writer; AC-CR2 Corporate/TA exclusive paths; Section 1 guest chrome; Guest GE closed.
 - Migration: non-prod **0060 APPLY PASS** (`20260915134818`); prerequisite 0059 present; dual-bind lift verified. **Prod 0060 / 0059 Abel-gated NOT applied** (residual).
 - Browser (impl PR): **NOT RUN ≠ PASS** (no staff credentials in that agent). Independent QA is the recorded IQ lane.
-- Issue [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **OPEN** until Outcome Review / Rekik formal closure YES.
+- Issue [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 - **#127** stays **CLOSED** completed (OPERATIONALLY ACCEPTED).
 
 ---
@@ -197,14 +197,14 @@ Full AC text remains the #137 baseline. Do **not** reopen Guest GE; do **not** c
 
 | Item | Status |
 |---|---|
-| Spec | **IMPLEMENTATION PASS** (Associations amend only) — pending Outcome Review |
+| Spec | **OPERATIONALLY ACCEPTED** (#138 CLOSED) |
 | ENGINEERING | **PASS** (#139 MERGED) |
-| Implemented / PASS (Associations amend) | **Yes** (DER IMPLEMENTATION PASS) |
+| Implemented / PASS (Associations amend) | **Yes** (DER + Rekik formal closure YES) |
 | LIVE / module COMPLETE / Phase 1 COMPLETE | **No** |
 | Independent QA | **PASS** (Rekik) |
 | Migration | Non-prod 0060 **PASS** (`20260915134818` / `qcwptraosaudcbjasmul`; 0059 present; dual-bind verified). **Prod 0060 / 0059 Abel-gated NOT applied**. New columns **NONE**; RLS **UNCHANGED** |
 | Prior Section 2 | Spec #126 / delivery #132 / recon #134 / #127 **CLOSED** OPERATIONALLY ACCEPTED — **stands** |
-| Issue #138 | **OPEN** until Outcome Review / Rekik formal closure YES |
+| Issue #138 | **CLOSED** completed — OPERATIONALLY ACCEPTED |
 | Issue #127 | **CLOSED** completed — do **not** reopen |
 | Guest GE1–GE3 | **CLOSED** — reuse only |
 | Create Reservation DONE | **NO** |

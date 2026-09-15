@@ -82,7 +82,7 @@
 - Spec [#126](https://github.com/NORUDEVGIT/NORU/pull/126) EXPECTED AC-CR2-1…18 remain the acceptance baseline; delivery [#132](https://github.com/NORUDEVGIT/NORU/pull/132) matched locks **18/18** (+ Section 1 locks still PASS).
 - Pre-existing Stay / availability / rate / room / details UI on the same page **remains**. Section 2 Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE.
 - Issue [#127](https://github.com/NORUDEVGIT/NORU/issues/127) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
-- Individual Associations is a **follow-up amend** (**AC-CR2A**, Spec [#137](https://github.com/NORUDEVGIT/NORU/pull/137), delivery [#139](https://github.com/NORUDEVGIT/NORU/pull/139)) — **supersedes Individual hide only**. Does **not** reopen #127 or rewrite AC-CR2-1…18 as failed. See [`create-reservation-individual-associations.md`](./create-reservation-individual-associations.md). #138 remains **OPEN** until Outcome Review.
+- Individual Associations is a **follow-up amend** (**AC-CR2A**, Spec [#137](https://github.com/NORUDEVGIT/NORU/pull/137), delivery [#139](https://github.com/NORUDEVGIT/NORU/pull/139)) — **supersedes Individual hide only**. Does **not** reopen #127 or rewrite AC-CR2-1…18 as failed. See [`create-reservation-individual-associations.md`](./create-reservation-individual-associations.md). #138 **CLOSED** / OPERATIONALLY ACCEPTED.
 
 ---
 
