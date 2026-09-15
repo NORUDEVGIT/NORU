@@ -800,8 +800,11 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   it("AC-CR3-5 Room-type occupancy is a soft-warn only — no hard invent", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
-    assert.match(page, /occupancyCapacitySoftWarn\(adults, children, selectedType\)/);
-    assert.match(stay, /data-testid="stay-occupancy-warn"/);
+    const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
+    assert.match(page, /OccupancySoftWarn/);
+    assert.match(page, /testId="stay-occupancy-warn"/);
+    assert.match(stay, /occupancyWarn/);
+    assert.match(roomType, /OccupancySoftWarn/);
     assert.match(CREATE_RESERVATION_OCCUPANCY_SOFT_WARN, /later section/);
     assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
     assert.doesNotMatch(page, /occupancyWarn.*canSubmit|canSubmit.*occupancyWarn/);

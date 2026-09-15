@@ -1,5 +1,4 @@
-import { AlertTriangle } from "lucide-react";
-
+import type { ReactNode } from "react";
 import { addDays, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   CREATE_RESERVATION_MIN_NIGHTS,
@@ -35,7 +34,7 @@ export function CreateReservationStay({
   children: number;
   specialRequests: string;
   notes: string;
-  occupancyWarn: string | null;
+  occupancyWarn: ReactNode;
   onArrivalChange: (value: string) => void;
   onDepartureChange: (value: string) => void;
   onNightsChange: (nights: number) => void;
@@ -118,15 +117,7 @@ export function CreateReservationStay({
         </p>
       )}
 
-      {occupancyWarn ? (
-        <div
-          data-testid="stay-occupancy-warn"
-          className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
-        >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <p>{occupancyWarn}</p>
-        </div>
-      ) : null}
+      {occupancyWarn ? <div className="mt-3">{occupancyWarn}</div> : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
