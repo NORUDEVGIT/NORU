@@ -15,7 +15,7 @@ import {
   type ReservationStatus,
 } from "./reservations.server";
 import { parseSnapshot, rateError } from "./rates.server";
-import { callerMembership } from "@/core/lib/workforce.server";
+import { callerMembership, displayName } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -183,7 +183,17 @@ export const getBookingsAccess = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context as never, data.restaurantId);
-    return { role: me.role, canManage: canManageReservations(me.role) };
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("first_name, last_name, email")
+      .eq("id", context.userId)
+      .maybeSingle();
+    return {
+      role: me.role,
+      canManage: canManageReservations(me.role),
+      actorName: displayName(profile) ?? profile?.email ?? "Current user",
+      membershipId: me.id,
+    };
   });
 
 /* ------------------------------------------------------------ availability */
