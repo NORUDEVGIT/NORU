@@ -540,7 +540,7 @@ export const quoteStay = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RatePlanQuote[]> => {
     // Create UX quoting is for reservation managers including receptionist.
-    // Rate admin writers stay requireRateManager. Unpriced Pending stays manager-only.
+    // Rate admin writers stay owner/manager-only. Unpriced Pending stays manager-only.
     await requireReservationManager(context as never, data.restaurantId);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
 

@@ -133,7 +133,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.match(page, /data-testid="summary-stay-total"/);
     assert.match(page, /selectedQuote/);
     assert.match(page, /pricingState\.quote\.subtotal/);
-    assert.match(page, /selectedQuote\.quote/);
+    assert.match(page, /selectedQuote\?\.quote/);
     assert.match(rate, /row\.quote\.subtotal/);
     assert.match(rate, /selected\.quote\.subtotal/);
     assert.equal(fromNightlyRate(sampleQuote), 110);
@@ -418,8 +418,8 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.match(functions, /requireReservationManager/);
     const quoteStart = rates.indexOf("export const quoteStay");
     const quoteFn = rates.slice(quoteStart, rates.indexOf("export const repriceReservation"));
-    assert.match(quoteFn, /requireReservationManager/);
-    assert.doesNotMatch(quoteFn, /requireRateManager/);
+    assert.match(quoteFn, /await requireReservationManager/);
+    assert.doesNotMatch(quoteFn, /await requireRateManager/);
     assert.match(CREATE_RESERVATION_QUOTE_GATE_DOC, /requireReservationManager/);
     assert.match(CREATE_RESERVATION_QUOTE_GATE_DOC, /receptionist/);
     assert.doesNotMatch(page, /new entitlement|requirePackage\("create-reservation"\)/);
