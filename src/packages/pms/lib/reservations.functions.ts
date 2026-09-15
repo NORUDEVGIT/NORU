@@ -440,7 +440,21 @@ const stayInputSchema = z.object({
 export const createReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    stayInputSchema.extend({ status: z.enum(["pending", "confirmed"]).optional() }).parse(input),
+    stayInputSchema
+      .extend({
+        status: z.enum(["pending", "confirmed"]).optional(),
+        companyMasterId: idSchema.nullable().optional(),
+        travelAgentMasterId: idSchema.nullable().optional(),
+      })
+      .superRefine((value, ctx) => {
+        if (value.companyMasterId && value.travelAgentMasterId) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "This create path cannot bind Company and Travel Agency together.",
+          });
+        }
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; confirmationNumber: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
@@ -461,6 +475,8 @@ export const createReservation = createServerFn({ method: "POST" })
       _status: data.status ?? "pending",
       _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
+      ...(data.companyMasterId ? { _company_master_id: data.companyMasterId } : {}),
+      ...(data.travelAgentMasterId ? { _travel_agent_master_id: data.travelAgentMasterId } : {}),
     });
     if (error) throw rateError(reservationError(error.message).message);
 
