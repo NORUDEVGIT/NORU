@@ -32,7 +32,7 @@ export function addDays(date: string, days: number): string {
 export function formatStayDate(value: string): string {
   const [y, m, d] = value.split("-").map(Number);
   if (!y || !m || !d) return value;
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, {
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
     timeZone: "UTC",
     day: "numeric",
     month: "short",

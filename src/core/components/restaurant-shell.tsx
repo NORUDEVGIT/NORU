@@ -952,8 +952,8 @@ export function RestaurantShell({
   );
 
   return (
-    <div className="min-h-dvh bg-muted/30">
-      <div className="mx-auto flex w-full max-w-[1600px]">
+    <div className={cn("min-h-dvh", hidePackageRail ? "bg-background" : "bg-muted/30")}>
+      <div className={cn("mx-auto flex w-full", hidePackageRail ? "max-w-none" : "max-w-[1600px]")}>
         {/* Desktop sidebar — FO-FS0: omit the package rail and its w-60 width on Front Office. */}
         {hidePackageRail ? null : (
           <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
@@ -1001,7 +1001,7 @@ export function RestaurantShell({
               </div>
               <div className="ml-auto flex items-center gap-3">
                 <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {new Date().toLocaleDateString(undefined, {
+                  {new Date().toLocaleDateString(hidePackageRail ? "en-GB" : undefined, {
                     weekday: "short",
                     day: "numeric",
                     month: "short",
@@ -1023,7 +1023,7 @@ export function RestaurantShell({
             </div>
           </header>
 
-          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          <main className={cn("min-w-0 flex-1", hidePackageRail ? "flex flex-col p-0" : "px-4 py-6 sm:px-6")}>
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading your restaurant…</p>
             ) : isError ? (
@@ -1104,7 +1104,7 @@ export function RestaurantShell({
                     </nav>
                   ) : null}
 
-                  {pmsMod ? (
+                  {pmsMod && !hidePackageRail ? (
                     <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
                       <Link to="/restaurant/home" className="hover:text-foreground">
                         Property Home
@@ -1128,7 +1128,9 @@ export function RestaurantShell({
                     </nav>
                   ) : null}
 
-                  {children(membership)}
+                  <div className={cn(hidePackageRail && "flex min-h-0 flex-1 flex-col")}>
+                    {children(membership)}
+                  </div>
                 </PmsHeadingProvider>
               </RestaurantSettingsProvider>
             )}

@@ -328,31 +328,85 @@ export function hasSpecialRequestText(text: string | null | undefined): boolean 
   return (text ?? "").trim().length > 0;
 }
 
-export type RoomLegendKey = "vacant" | "occupied" | "available" | "out_of_order" | "out_of_service" | "hk_clean" | "hk_dirty" | "hk_inspected";
+export type RoomLegendKey = "vacant" | "occupied" | "available" | "out_of_order" | "out_of_service";
+export type HkLegendKey = "clean" | "dirty" | "inspected" | "pickup";
 export type ReservationLegendKey = ReservationStatus;
+export type LegendShape = "swatch" | "glyph" | "bar";
 
-export const ROOM_LEGEND: { key: RoomLegendKey; label: string; color: string }[] = [
-  { key: "vacant", label: "Vacant", color: FO_BRAND.gray },
-  { key: "occupied", label: "Occupied", color: FO_BRAND.chrome },
-  { key: "available", label: "Available", color: FO_BRAND.green },
-  { key: "out_of_order", label: "Out of order", color: "#8B2E2E" },
-  { key: "out_of_service", label: "Out of service", color: "#6B5B4B" },
-  { key: "hk_clean", label: "HK clean", color: FO_BRAND.green },
-  { key: "hk_dirty", label: "HK dirty", color: FO_BRAND.gold },
-  { key: "hk_inspected", label: "HK inspected", color: "#2F5D8A" },
+/** Room · Housekeeping · Reservation use distinct mark shapes. */
+export const ROOM_LEGEND_SHAPE: LegendShape = "swatch";
+export const HK_LEGEND_SHAPE: LegendShape = "glyph";
+export const RESERVATION_LEGEND_SHAPE: LegendShape = "bar";
+
+export const FO_LEGEND_DEFAULT_OPEN = false;
+
+/** Live HK codes only. Do not invent Clean or map In progress. */
+export const LIVE_HK_STATUSES = ["clean", "dirty", "inspected", "pickup"] as const;
+export type LiveHkStatus = (typeof LIVE_HK_STATUSES)[number];
+
+export const HK_DIRTY_COLOR = "#B42318";
+export const HK_INSPECTED_COLOR = "#2F5D8A";
+export const HK_PICKUP_COLOR = "#D97706";
+
+export const ROOM_LEGEND: { key: RoomLegendKey; label: string; color: string; shape: LegendShape }[] = [
+  { key: "vacant", label: "Vacant", color: "#E8E0D4", shape: ROOM_LEGEND_SHAPE },
+  { key: "occupied", label: "Occupied", color: FO_BRAND.chrome, shape: ROOM_LEGEND_SHAPE },
+  { key: "available", label: "Available", color: "#D9D3C7", shape: ROOM_LEGEND_SHAPE },
+  { key: "out_of_order", label: "Out of order", color: "#7A5C3A", shape: ROOM_LEGEND_SHAPE },
+  { key: "out_of_service", label: "Out of service", color: "#B0A394", shape: ROOM_LEGEND_SHAPE },
 ];
 
-export const RESERVATION_LEGEND: { key: ReservationLegendKey; label: string; color: string }[] = [
-  { key: "pending", label: "Pending", color: FO_BRAND.gray },
-  { key: "confirmed", label: "Confirmed", color: FO_BRAND.gold },
-  { key: "checked_in", label: "In-house", color: FO_BRAND.green },
-  { key: "checked_out", label: "Checked out", color: "#8A8A8A" },
-  { key: "cancelled", label: "Cancelled", color: "#8B2E2E" },
-  { key: "no_show", label: "No-show", color: "#6B5B4B" },
+export const HK_LEGEND: { key: HkLegendKey; label: string; color: string; shape: LegendShape }[] = [
+  { key: "clean", label: "Clean", color: FO_BRAND.green, shape: HK_LEGEND_SHAPE },
+  { key: "dirty", label: "Dirty", color: HK_DIRTY_COLOR, shape: HK_LEGEND_SHAPE },
+  { key: "inspected", label: "Inspected", color: HK_INSPECTED_COLOR, shape: HK_LEGEND_SHAPE },
+  { key: "pickup", label: "Pickup", color: HK_PICKUP_COLOR, shape: HK_LEGEND_SHAPE },
+];
+
+export const RESERVATION_LEGEND: { key: ReservationLegendKey; label: string; color: string; shape: LegendShape }[] = [
+  { key: "pending", label: "Pending", color: FO_BRAND.gray, shape: RESERVATION_LEGEND_SHAPE },
+  { key: "confirmed", label: "Confirmed", color: FO_BRAND.gold, shape: RESERVATION_LEGEND_SHAPE },
+  { key: "checked_in", label: "In-house", color: FO_BRAND.green, shape: RESERVATION_LEGEND_SHAPE },
+  { key: "checked_out", label: "Checked out", color: "#8A8A8A", shape: RESERVATION_LEGEND_SHAPE },
+  { key: "cancelled", label: "Cancelled", color: "#8B2E2E", shape: RESERVATION_LEGEND_SHAPE },
+  { key: "no_show", label: "No-show", color: "#6B5B4B", shape: RESERVATION_LEGEND_SHAPE },
 ];
 
 export function reservationBarColor(status: ReservationStatus): string {
   return RESERVATION_LEGEND.find((item) => item.key === status)?.color ?? FO_BRAND.gold;
+}
+
+export function liveHkStatus(status: string | null | undefined): LiveHkStatus | null {
+  if (!status) return null;
+  return (LIVE_HK_STATUSES as readonly string[]).includes(status) ? (status as LiveHkStatus) : null;
+}
+
+export function hkStatusAriaLabel(status: string | null | undefined): string | null {
+  const live = liveHkStatus(status);
+  if (!live) return null;
+  return HK_LEGEND.find((item) => item.key === live)?.label ?? null;
+}
+
+export function legendColourHexes(items: ReadonlyArray<{ color: string }>): string[] {
+  return items.map((item) => item.color.toLowerCase());
+}
+
+export function colourSetsOverlap(a: readonly string[], b: readonly string[]): string[] {
+  const right = new Set(b.map((color) => color.toLowerCase()));
+  return a.filter((color) => right.has(color.toLowerCase()));
+}
+
+/** Room neutrals/ink/OOO/OOS must not share hex with HK or reservation systems. */
+export function foRoomLegendColourCollisions(): string[] {
+  const room = legendColourHexes(ROOM_LEGEND);
+  return [
+    ...colourSetsOverlap(room, legendColourHexes(HK_LEGEND)),
+    ...colourSetsOverlap(room, legendColourHexes(RESERVATION_LEGEND)),
+  ];
+}
+
+export function countActiveRackFilters(filters: RackFilters): number {
+  return (Object.values(filters) as string[]).filter((value) => value !== "all").length;
 }
 
 export {
