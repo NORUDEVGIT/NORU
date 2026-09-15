@@ -14,6 +14,6 @@
 | **Fixed Rate** | **OUT / gated** — CURRENT has no create fixed/manual path |
 | **Migration** | **LIKELY NONE** (core). Eng confirms. Dual-lane APPLY HELD only if SECURITY DEFINER pricing/create RPCs replaced. Flag Abel if RLS **model** must change |
 | **Guest Waves 1–5 + GE1–GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
-| **Parallel** | Individual Associations amend ([#137](https://github.com/NORUDEVGIT/NORU/pull/137)) OK |
+| **Parallel** | Individual Associations amend Spec [#137](https://github.com/NORUDEVGIT/NORU/pull/137) / impl [#139](https://github.com/NORUDEVGIT/NORU/pull/139) MERGED · IMPLEMENTATION PASS; [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **OPEN** until Outcome Review. Does **not** reopen [#127](https://github.com/NORUDEVGIT/NORU/issues/127) |
 | **Out** | Room assign (Section 6); Guarantee/Confirm product (Section 7 — expose state); packages (Section 8); Fixed Rate; adjustment %; RTC; Corporate/Group products; email/SMS |
 | **Phase 1 COMPLETE** | **NO** |
