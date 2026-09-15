@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { CreateReservationRoomType, OccupancySoftWarn } from "@/packages/pms/components/bookings/create-reservation-room-type";
 import { CreateReservationRate } from "@/packages/pms/components/bookings/create-reservation-rate";
 import { CreateReservationRoomAssignment } from "@/packages/pms/components/bookings/create-reservation-room-assignment";
+import { CreateReservationPackages } from "@/packages/pms/components/bookings/create-reservation-packages";
 import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/create-reservation-guarantee";
 import { CreateReservationConfirmation } from "@/packages/pms/components/bookings/create-reservation-confirmation";
 
@@ -43,6 +44,7 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 import { getPmsPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-admin.functions";
 import { getGuestAccount, listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import {
@@ -107,6 +109,11 @@ import {
   section7PersistApplied,
   type CreatedReservationConfirmation,
 } from "@/packages/pms/lib/create-reservation-phase1-section7";
+import {
+  CREATE_RESERVATION_SECTION8_SCOPE,
+  activePackageCountFromRows,
+  stickyPackagesCopy,
+} from "@/packages/pms/lib/create-reservation-phase1-section8";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
@@ -158,6 +165,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
+  const fetchSet3 = useServerFn(getPmsSet3Snapshot);
   const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
   const fetchGuestLinks = useServerFn(listGuestAccountLinks);
   const fetchGuestAccount = useServerFn(getGuestAccount);
@@ -209,6 +217,12 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const set6Query = useQuery({
     queryKey: ["pms-set6-snapshot", restaurantId, "create-reservation"],
     queryFn: () => fetchSet6({ data: { restaurantId } }),
+    enabled: canManage,
+    retry: false,
+  });
+  const set3Query = useQuery({
+    queryKey: ["pms-set3-snapshot", restaurantId, "create-reservation-packages"],
+    queryFn: () => fetchSet3({ data: { restaurantId } }),
     enabled: canManage,
     retry: false,
   });
@@ -645,6 +659,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION5_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION6_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION7_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION8_SCOPE}</p>
         </div>
 
         <CreateReservationContext
@@ -752,6 +767,14 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           roomId={roomId}
           unassignedValue={UNASSIGNED}
           onSelect={handleRoomChange}
+        />
+
+        <CreateReservationPackages
+          loading={set3Query.isLoading || set3Query.isFetching}
+          error={set3Query.isError}
+          packagesAvailable={set3Query.data?.snapshot.packagesAvailable ?? false}
+          activePackageCount={activePackageCountFromRows(set3Query.data?.snapshot.packages ?? [])}
+          canEditSet3={set3Query.data?.canEdit ?? false}
         />
 
         <CreateReservationGuarantee
@@ -946,6 +969,12 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               />
             </div>
           ) : null}
+          <div className="mt-3" data-testid="summary-packages">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Packages</p>
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="summary-packages-honesty">
+              {stickyPackagesCopy()}
+            </p>
+          </div>
         </section>
         <div className="hidden xl:block">{actions}</div>
       </aside>
