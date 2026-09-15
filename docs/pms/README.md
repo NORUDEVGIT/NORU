@@ -29,12 +29,20 @@ Wave 1–5 engineering gates exited after Independent QA PASS (Rekik), merge, an
 | [Gap-edit #3 Spec (lean addendum)](./specs/guest-profile-gap-edit-3.md) | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik 2026-09-15). TA sectioned form + Linking (`guest_account_links` / `booker_ta`) + Company Payment Terms. **Not** implemented. Migration proposed **0058** APPLY HELD. Waves 1–5 + GE1 + GE2 stay closed. Module COMPLETE **NO**. |
 | [Gap-edit #3 programme note](./guest-profile-gap-edit-3-programme.md) | Short CURRENT / status pointer (avoids rewriting full `guests.md` in this PR). |
 
+## Create Reservation Phase 1 — Section 1 Spec Eng-ready (lean)
+
+| Record | Classification |
+|---|---|
+| [Section 1 Spec — Context + Guest](./specs/create-reservation-phase1-section1.md) | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik AUTHORIZED 2026-09-15 via Advisor; D1–D13 locked). Additive expansion of `/restaurant/bookings/new`. **AC-CR1-1…20**. ENGINEERING **NOT STARTED**. **Not** implemented. Section 1 is **not** full Create Reservation DONE. Guest Waves 1–5 + GE1–GE3 stay **OPERATIONALLY ACCEPTED** / closed. |
+| [Section 1 programme note](./create-reservation-phase1-section1-programme.md) | Short CURRENT / status pointer (IN PROGRESS Spec). |
+
 ## Surfaces documented in this cycle
 
 | Surface | Doc |
 |---|---|
 | PMS Dashboard (`/restaurant/pms/dashboard` → `RoomsDashboardTab`) | [dashboard.md](./dashboard.md) |
 | Guest Profile (`/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`) | [guests.md](./guests.md) — Waves 1–5 **IMPLEMENTED ON MAIN**; Wave 5 **OPERATIONALLY ACCEPTED**; Gap-edit 2 Spec **Eng-ready** / ENGINEERING **IN PROGRESS** (Independent QA **HELD** until staged-create; not implemented); programme **READY FOR HOTEL UAT**; module **not** COMPLETE |
+| Create Reservation (`/restaurant/bookings/new`) — Phase 1 Section 1 | [specs/create-reservation-phase1-section1.md](./specs/create-reservation-phase1-section1.md) — **Eng-ready** / **IN PROGRESS Spec**. ENGINEERING **NOT STARTED**. Context + Guest only. **Not** CURRENT feature documentation for a completed create workspace |
 
 Other PMS area docs (reservations, rates, housekeeping, cashiering, night audit, and the rest) will be added here as those features complete their own cycles. Absence of a file is not a claim that the surface does not exist in the product.
 
