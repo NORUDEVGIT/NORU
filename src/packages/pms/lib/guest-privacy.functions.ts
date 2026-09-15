@@ -797,25 +797,48 @@ export const anonymiseGuestAccount = createServerFn({ method: "POST" })
       anonymised_at: now,
       anonymised_by_membership_id: me.id,
     };
+    const companyClear = {
+      ...baseClear,
+      trade_name: null,
+      tax_id: null,
+      business_registration_number: null,
+      phone_alt: null,
+      email_alt: null,
+      primary_contact_name: null,
+      address_line2: null,
+      region: null,
+      postal_code: null,
+      corporate_account_reference: null,
+      negotiated_rate_reference: null,
+      source_of_business: null,
+    };
+    const taClear = {
+      ...companyClear,
+      website: null,
+      billing_contact_name: null,
+      iata_license_number: null,
+      license_expiry_date: null,
+      commission_label: null,
+      commission_currency_note: null,
+      contract_reference: null,
+      contract_signed_with: null,
+      payment_terms: null,
+      credit_limit_note: null,
+      billing_instruction: null,
+    };
     let { error } = await admin
       .from("guest_account_masters")
-      .update({
-        ...baseClear,
-        trade_name: null,
-        tax_id: null,
-        business_registration_number: null,
-        phone_alt: null,
-        email_alt: null,
-        primary_contact_name: null,
-        address_line2: null,
-        region: null,
-        postal_code: null,
-        corporate_account_reference: null,
-        negotiated_rate_reference: null,
-        source_of_business: null,
-      })
+      .update(taClear)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.accountId);
+    if (error && isMissingSchemaError(error)) {
+      const retryCompany = await admin
+        .from("guest_account_masters")
+        .update(companyClear)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId);
+      error = retryCompany.error;
+    }
     if (error && isMissingSchemaError(error)) {
       const retry = await admin
         .from("guest_account_masters")

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
+import { GuestTravelAgentFormDialog } from "@/packages/pms/components/guests/guest-travel-agent-form-dialog";
 import { createGuestAccount, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
@@ -129,6 +130,18 @@ export function GuestAccountFormDialog({
   if (accountType === "company") {
     return (
       <GuestCompanyFormDialog
+        restaurantId={restaurantId}
+        open={open}
+        onOpenChange={onOpenChange}
+        account={account}
+        onSaved={onSaved}
+      />
+    );
+  }
+
+  if (accountType === "travel_agent") {
+    return (
+      <GuestTravelAgentFormDialog
         restaurantId={restaurantId}
         open={open}
         onOpenChange={onOpenChange}
