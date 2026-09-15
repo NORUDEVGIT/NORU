@@ -1,4 +1,4 @@
-# Guest Profile — Gap-edit #3 Spec (IMPLEMENTED ON MAIN)
+# Guest Profile — Gap-edit #3 Spec (IMPLEMENTED ON MAIN / OPERATIONALLY ACCEPTED)
 
 | Field | Value |
 |---|---|
@@ -8,9 +8,9 @@
 | **ENGINEERING STATUS** | **COMPLETE / MERGED** — PR [#118](https://github.com/NORUDEVGIT/NORU/pull/118) MERGED 2026-09-15T07:50:05Z |
 | **IMPLEMENTATION STATUS** | **PASS** — AC-GE3-1…18 **PASS** |
 | **Independent QA** | **PASS** (Rekik 2026-09-15) — **post-merge** accept on `main`. #118 MERGED 2026-09-15T07:50:05Z **before** Independent QA routing; PASS is for the record, not a pre-merge gate |
-| **Developer QA** | **PARTIAL** — `tsc` PASS; locks **161/161**; browser **deferred** until 0058 non-prod. `NOT RUN` is never PASS |
+| **Developer QA** | **PARTIAL** — `tsc` PASS; locks **161/161**. Non-prod 0058 APPLY PASS **unblocks** the browser lane. Independent QA browser PASS is **not** claimed. `NOT RUN` is never PASS |
 | **Issue** | [#115](https://github.com/NORUDEVGIT/NORU/issues/115) **CLOSED** completed 2026-09-15T07:56:25Z (Rekik formal closure YES / Advisor Outcome Review). This recon **Relates** only |
-| **Migration** | **0058** dual-lane (`0058_pms_travel_agency_enrichment.sql`) — non-prod APPLY **requested / in flight** on `qcwptraosaudcbjasmul`. Do **not** claim APPLY PASS until Eng reports it. Production **0058** Abel/PM gated — **not** applied |
+| **Migration** | Non-prod **0058 APPLY PASS** on `qcwptraosaudcbjasmul` — version `20260915080033` (`pms_travel_agency_enrichment`); **17/17** columns verified. Production **0058** Abel/PM gated — **not** applied |
 | **Waves 1–5** | Stay OPERATIONALLY ACCEPTED / closed — do **not** reopen |
 | **GE1 (#103/#105)** | Stay OPERATIONALLY ACCEPTED / closed — do **not** reopen |
 | **GE2 (#109/#111/#112)** | Stay OPERATIONALLY ACCEPTED / closed — do **not** reopen |
@@ -27,8 +27,8 @@
 - **Company** sectioned form (GE1) now includes **Payment Terms** (terms / credit limit note / billing instruction) — **not** AP/AR.
 - **Group** form stays **thin** (shared `GuestAccountFormDialog`).
 - Commission / rates / payment terms are **reference only** — no settlement, rate engine, or AP/AR product.
-- Surfaces degrade honestly with `TA_ENRICHMENT_UNAVAILABLE` (or equivalent) until **0058** is applied. Non-prod **0058** APPLY **requested / in flight** on `qcwptraosaudcbjasmul` — **not** APPLY PASS until Eng reports it. Production **0058** Abel-gated.
-- Developer QA **PARTIAL** (browser deferred until 0058 non-prod). `NOT RUN` is never PASS.
+- Non-prod **0058 APPLY PASS** on `qcwptraosaudcbjasmul` (version `20260915080033` / `pms_travel_agency_enrichment`; 17/17 columns). Production **0058** Abel-gated — **not** applied. Surfaces that still hit an unapplied lane degrade honestly (`TA_ENRICHMENT_UNAVAILABLE` / equivalent).
+- Browser lane is **unblocked** by non-prod apply. Independent QA browser PASS is **not** claimed. Developer QA remains **PARTIAL**. `NOT RUN` is never PASS.
 
 ## 2. EXPECTED — Scope A (sectioned TA form) — delivered on `main`
 
@@ -73,15 +73,15 @@ Same honesty as TA Payment Terms. Do **not** invent AP/AR, city-ledger, or folio
 
 ## 5. DATABASE IMPACT
 
-**YES — additive migration `0058` (non-prod requested / in flight — not APPLY PASS):**
+**YES — additive migration `0058` (non-prod APPLY PASS; production Abel-gated):**
 
 - Additive columns on `guest_account_masters` for TA enrichment + shared/company payment-terms fields (nullable; TA-only fields ignored for company/group where appropriate)
 - **No** new link table (reuse `guest_account_links`)
 - Dual-lane drizzle + supabase
-- Non-prod APPLY **requested / in flight** on `qcwptraosaudcbjasmul`. Do **not** claim APPLY PASS until Eng reports it
-- Production **0058** Abel/PM gated — **not** applied
+- Non-prod **APPLY PASS** on `qcwptraosaudcbjasmul` — version `20260915080033` (`pms_travel_agency_enrichment`); **17/17** columns verified
+- Production **0058** Abel/PM gated — **not** applied. Do **not** claim production applied
 - Additive RLS matching guest/account tables OK; **flag Abel** if entitlement/RLS **model** must change
-- Surfaces degrade honestly until apply (`TA_ENRICHMENT_UNAVAILABLE` / equivalent)
+- Honest degrade (`TA_ENRICHMENT_UNAVAILABLE` / equivalent) remains for any unapplied lane
 
 ## 6. Out of scope (locked)
 
@@ -112,7 +112,7 @@ Live commission posting/settlement; rate engine; allotment inventory ops; e-sign
 
 ## 8. QA / Security / Regression (summary)
 
-- Developer QA: **PARTIAL** — `tsc --noEmit` **PASS**; Guest Profile locks **161/161 PASS** (Waves 1–5 + GE1 + GE2 + AC-GE3-1…18); browser **deferred** until 0058 non-prod. `NOT RUN` is never PASS
+- Developer QA: **PARTIAL** — `tsc --noEmit` **PASS**; Guest Profile locks **161/161 PASS** (Waves 1–5 + GE1 + GE2 + AC-GE3-1…18). Non-prod 0058 APPLY PASS **unblocks** the browser lane. Independent QA browser PASS is **not** claimed. `NOT RUN` is never PASS
 - Independent QA (Rekik): **PASS** 2026-09-15 — **post-merge** on #118 (early-merge: #118 MERGED 2026-09-15T07:50:05Z before Independent QA routing)
 - Rekik formal closure **YES** / Advisor Outcome Review — #115 **CLOSED** completed. Gap-edit 3 is **OPERATIONALLY ACCEPTED** / closed
 - Security: staff-only; no public TA PII; no new SECURITY DEFINER unless Abel-approved
