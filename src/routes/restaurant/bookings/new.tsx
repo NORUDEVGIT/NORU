@@ -3,8 +3,8 @@ import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-ro
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
 import { CreateReservationRoomType, OccupancySoftWarn } from "@/packages/pms/components/bookings/create-reservation-room-type";
+import { CreateReservationRate } from "@/packages/pms/components/bookings/create-reservation-rate";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
@@ -57,7 +57,6 @@ import {
   CREATE_RESERVATION_SECTION2A_SCOPE,
   CREATE_RESERVATION_SECTION3_SCOPE,
   CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED,
-  CREATE_RESERVATION_SUMMARY_NO_TOTAL,
   CREATE_RESERVATION_TYPE_CHANGE_WARN,
   RESERVATION_TYPE_LABELS,
   formatStayOccupancySummary,
@@ -80,8 +79,17 @@ import {
   stickyRoomTypeLabel,
   type SelectedRoomTypeMeta,
 } from "@/packages/pms/lib/create-reservation-phase1-section4";
+import {
+  CREATE_RESERVATION_SECTION5_SCOPE,
+  canCreateUnpricedPending,
+  canSubmitCreateReservation,
+  createSubmitBlockCopy,
+  fromNightlyRate,
+  resolveCreatePricingState,
+  shouldClearStaleRatePlan,
+  stickyPricingCopy,
+} from "@/packages/pms/lib/create-reservation-phase1-section5";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
-import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,
@@ -191,22 +199,26 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   function handleArrivalChange(next: string) {
     if (!next) {
       setArrival("");
+      setRatePlanId("");
       return;
     }
     const stay = linkedStayFromArrival(next, datesValid ? nights : CREATE_RESERVATION_MIN_NIGHTS);
     setArrival(stay.arrival);
     setDeparture(stay.departure);
+    setRatePlanId("");
   }
 
   function handleNightsChange(next: number) {
     if (!arrival) return;
     const stay = linkedStayFromNights(arrival, next);
     setDeparture(stay.departure);
+    setRatePlanId("");
   }
 
   function handleDepartureChange(next: string) {
     const stay = linkedStayFromDeparture(arrival, next);
     setDeparture(stay.departure);
+    setRatePlanId("");
   }
 
   const availabilityQuery = useQuery({
@@ -229,6 +241,28 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   });
   const quotes = quotesQuery.data ?? [];
   const selectedQuote = quotes.find((q) => q.plan.id === ratePlanId) ?? null;
+  const actorRole = accessQuery.data?.role ?? membership.role;
+  const canCreateUnpriced = canCreateUnpricedPending(actorRole);
+  const priced = selectedQuote?.quote != null;
+  const pricingState = resolveCreatePricingState({
+    datesValid,
+    roomTypeId,
+    loading: quotesQuery.isLoading || quotesQuery.isFetching,
+    error: quotesQuery.isError,
+    selectedQuote,
+  });
+
+  useEffect(() => {
+    if (
+      shouldClearStaleRatePlan({
+        ratePlanId,
+        quotesReady: !quotesQuery.isLoading && !quotesQuery.isFetching && !quotesQuery.isError,
+        quotes: quotes.map((row) => ({ planId: row.plan.id, hasQuote: row.quote != null })),
+      })
+    ) {
+      setRatePlanId("");
+    }
+  }, [quotes, quotesQuery.isError, quotesQuery.isFetching, quotesQuery.isLoading, ratePlanId]);
 
   const prefillRoles = createReservationPrefillRoles(reservationType);
   const prefillCompany = !companyOverride && prefillRoles.includes("employer");
@@ -337,7 +371,24 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const availability = availabilityQuery.data ?? [];
   const selectedType = availability.find((a) => a.roomTypeId === roomTypeId);
   const rooms = roomsQuery.data ?? [];
-  const canSubmit = !!guest && datesValid && !!roomTypeId && (selectedType?.available ?? 0) > 0;
+  const canSubmit = canSubmitCreateReservation({
+    hasGuest: !!guest,
+    datesValid,
+    roomTypeId,
+    available: selectedType?.available ?? 0,
+    status,
+    priced,
+    canCreateUnpriced,
+  });
+  const submitBlockCopy = createSubmitBlockCopy({
+    hasGuest: !!guest,
+    datesValid,
+    roomTypeId,
+    available: selectedType?.available ?? 0,
+    status,
+    priced,
+    canCreateUnpriced,
+  });
   const bookingAgentName = accessQuery.data?.actorName ?? "Current user";
   const selectedMeta =
     selectedType != null
@@ -406,10 +457,8 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
       <Button asChild variant="outline">
         <Link to="/restaurant/pms/reservations">Cancel</Link>
       </Button>
-      {!canSubmit ? (
-        <p className="text-xs text-muted-foreground">
-          Pick a guest, valid dates and an available room type to continue.
-        </p>
+      {!canSubmit && submitBlockCopy ? (
+        <p className="text-xs text-muted-foreground">{submitBlockCopy}</p>
       ) : null}
     </div>
   );
@@ -426,6 +475,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION2_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION2A_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION3_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION5_SCOPE}</p>
         </div>
 
         <CreateReservationContext
@@ -511,82 +561,17 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           onSelect={selectRoomType}
         />
 
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg">Rate plan</h2>
-          {!roomTypeId || !datesValid ? (
-            <p className="mt-3 text-sm text-muted-foreground">Pick dates and a room type to see rates.</p>
-          ) : quotesQuery.isLoading ? (
-            <p className="mt-3 text-sm text-muted-foreground">Pricing the stay…</p>
-          ) : quotes.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              No rate plans for this room type yet — the stay can be booked without pricing.
-            </p>
-          ) : (
-            <ul className="mt-3 grid gap-3 md:grid-cols-2">
-              {quotes.map((q) => {
-                const selected = q.plan.id === ratePlanId;
-                const disabled = !q.quote;
-                return (
-                  <li key={q.plan.id}>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setRatePlanId(selected ? "" : q.plan.id)}
-                      className={cn(
-                        "w-full rounded-xl border p-3 text-left transition-colors",
-                        selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
-                        disabled && "cursor-not-allowed opacity-60",
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{q.plan.name}</span>
-                        <span className="text-xs text-muted-foreground">{q.plan.code}</span>
-                        {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
-                      </div>
-                      {q.quote ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          From {money(Math.min(...q.quote.nightly.map((n) => n.rate)))} / night · total{" "}
-                          <span className="font-medium text-foreground">{money(q.quote.subtotal)}</span> for{" "}
-                          {q.quote.nights} night{q.quote.nights === 1 ? "" : "s"}
-                        </p>
-                      ) : (
-                        <p className="mt-1 text-xs text-destructive">{q.unavailableReason}</p>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {selectedQuote?.quote ? (
-            <div className="mt-4 overflow-x-auto rounded-xl border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2">Night</th>
-                    <th className="px-3 py-2 text-right">Rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedQuote.quote.nightly.map((n) => (
-                    <tr key={n.date} className="border-t border-border">
-                      <td className="px-3 py-2">{formatStayDate(n.date)}</td>
-                      <td className="px-3 py-2 text-right">{money(n.rate)}</td>
-                    </tr>
-                  ))}
-                  <tr className="border-t border-border bg-muted/30 font-medium">
-                    <td className="px-3 py-2">Stay total</td>
-                    <td className="px-3 py-2 text-right">{money(selectedQuote.quote.subtotal)}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p className="px-3 py-2 text-xs text-muted-foreground">
-                Pricing is calculated and re-checked on the server when the reservation is created.
-              </p>
-            </div>
-          ) : null}
-        </section>
+        <CreateReservationRate
+          datesValid={datesValid}
+          roomTypeId={roomTypeId}
+          loading={quotesQuery.isLoading || quotesQuery.isFetching}
+          error={quotesQuery.isError}
+          quotes={quotes}
+          ratePlanId={ratePlanId}
+          canCreateUnpriced={canCreateUnpriced}
+          money={money}
+          onSelect={setRatePlanId}
+        />
 
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg">Room assignment (optional)</h2>
@@ -701,7 +686,49 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Availability</dt>
               <dd data-testid="summary-availability">{stickyAvailabilityCopy(summaryAvailability)}</dd>
             </div>
+            {pricingState.kind === "priced" ? (
+              <>
+                <div data-testid="summary-rate">
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Rate</dt>
+                  <dd data-testid="summary-rate-code">
+                    {pricingState.quote.ratePlanCode}
+                    {pricingState.quote.ratePlanName ? ` · ${pricingState.quote.ratePlanName}` : ""}
+                  </dd>
+                </div>
+                <div data-testid="summary-rate-and-total">
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Rate & Total</dt>
+                  <dd>
+                    {pricingState.quote.nights} night{pricingState.quote.nights === 1 ? "" : "s"}
+                    {fromNightlyRate(pricingState.quote) != null
+                      ? ` · from ${money(fromNightlyRate(pricingState.quote)!)} / night`
+                      : ""}
+                  </dd>
+                </div>
+                <div data-testid="summary-stay-total">
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay total</dt>
+                  <dd>
+                    {money(pricingState.quote.subtotal)}
+                    {pricingState.quote.currency ? ` ${pricingState.quote.currency}` : ""}
+                  </dd>
+                </div>
+              </>
+            ) : null}
           </dl>
+          {pricingState.kind !== "priced" ? (
+            <div className="mt-3" data-testid="summary-pricing-state" data-pricing={pricingState.kind}>
+              {pricingState.kind === "unpriced" ? (
+                <span
+                  data-testid="summary-unpriced-badge"
+                  className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800"
+                >
+                  Unpriced
+                </span>
+              ) : null}
+              <p className="mt-2 text-xs text-muted-foreground" data-testid="summary-no-fake-total">
+                {stickyPricingCopy(pricingState)}
+              </p>
+            </div>
+          ) : null}
           {selectedMeta ? (
             <div className="mt-3">
               <OccupancySoftWarn
@@ -712,9 +739,6 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               />
             </div>
           ) : null}
-          <p className="mt-3 text-xs text-muted-foreground" data-testid="summary-no-fake-total">
-            {CREATE_RESERVATION_SUMMARY_NO_TOTAL}
-          </p>
         </section>
         <div className="hidden xl:block">{actions}</div>
       </aside>

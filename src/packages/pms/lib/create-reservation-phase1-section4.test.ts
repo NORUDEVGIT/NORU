@@ -146,7 +146,8 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.match(roomType, /disabled=\{disabled\}/);
     assert.match(roomType, /isRoomTypeSelectable\(row\.available\)/);
     assert.match(roomType, /ROOM_TYPE_AVAILABILITY_LABELS/);
-    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId && \(selectedType\?\.available \?\? 0\) > 0/);
+    assert.match(page, /canSubmitCreateReservation/);
+    assert.match(page, /available: selectedType\?\.available \?\? 0/);
     assert.match(stickyAvailabilityCopy({ kind: "state", state: "none", available: 0, totalRooms: 4 }), /Fully booked \(none\)/);
   });
 
@@ -202,7 +203,7 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const server = readRel("./reservations.server.ts");
-    assert.match(page, /\(selectedType\?\.available \?\? 0\) > 0/);
+    assert.match(page, /available: selectedType\?\.available \?\? 0/);
     assert.match(functions, /create_hotel_reservation_priced/);
     assert.match(server, /NO_AVAILABILITY: "No rooms of that type are available for those dates\."/);
     const sql = readRel("../../../../drizzle/migrations/0013_create_hotel_reservations.sql");
@@ -221,19 +222,18 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.match(page, /stickyAvailabilityCopy\(summaryAvailability\)/);
     assert.equal(stickyRoomTypeLabel(null), CREATE_RESERVATION_NO_ROOM_TYPE);
     assert.equal(stickyRoomTypeLabel({ name: "Deluxe", code: "DLX" }), "Deluxe (DLX)");
-    assert.match(page, /CREATE_RESERVATION_SUMMARY_NO_TOTAL/);
     assert.match(page, /summary-no-fake-total/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
   });
 
   it("AC-CR4-10 Section 4 does not force a rate plan; null _rate_plan_id remains allowed", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /ratePlanId: ratePlanId \|\| null/);
-    assert.doesNotMatch(page, /canSubmit.*ratePlanId|ratePlanId.*canSubmit/);
     assert.match(functions, /ratePlanId: idSchema\.nullable\(\)\.optional\(\)/);
     assert.match(functions, /_rate_plan_id: \(data\.ratePlanId \?\? null\)/);
-    assert.match(page, /the stay can be booked without pricing/);
+    assert.doesNotMatch(roomType, /ratePlanId|forcedRatePlan/);
   });
 
   it("AC-CR4-11 Specific room assign is not expanded; unassigned default remains", () => {
@@ -270,7 +270,7 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /Create reservation/);
     assert.match(page, /disabled=\{!canSubmit \|\| create\.isPending\}/);
-    assert.match(page, /\(selectedType\?\.available \?\? 0\) > 0/);
+    assert.match(page, /available: selectedType\?\.available \?\? 0/);
     assert.doesNotMatch(page, /Confirm stay|Guarantee and confirm|Send confirmation/);
     assert.match(CREATE_RESERVATION_SECTION4_SCOPE, /guarantee/);
   });

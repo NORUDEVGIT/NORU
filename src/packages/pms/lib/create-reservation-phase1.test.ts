@@ -171,7 +171,8 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     const bits = readRel("../components/guests/guest-bits.tsx");
     assert.match(guest, /GuestRestrictionWarn/);
     assert.match(bits, /guestRestrictionWarning/);
-    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.match(page, /canSubmitCreateReservation/);
+    assert.match(page, /hasGuest: !!guest/);
     assert.doesNotMatch(page, /blacklisted|restricted.*canSubmit|canSubmit.*restricted/i);
     assert.doesNotMatch(guest, /hard block|cannot continue|create blocked/i);
   });
@@ -390,9 +391,9 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
     assert.match(page, /create-reservation-summary/);
-    assert.match(page, /CREATE_RESERVATION_SUMMARY_NO_TOTAL/);
-    assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown here/);
     assert.match(page, /summary-no-fake-total/);
+    assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown/);
+    assert.match(page, /stickyPricingCopy|summary-stay-total/);
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
     assert.match(CREATE_RESERVATION_DENIED_COPY, /receptionists/);
@@ -414,7 +415,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(shell, /Expand navigation/);
     assert.doesNotMatch(bookingsIndex, /sidebarDefaultCollapsed/);
     assert.doesNotMatch(reservationsIndex, /sidebarDefaultCollapsed/);
-    assert.match(page, /CREATE_RESERVATION_SUMMARY_NO_TOTAL/);
+    assert.match(page, /summary-no-fake-total/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
   });
 });
@@ -475,7 +476,8 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(context, /reservationType === "corporate" \?/);
     assert.match(context, /reservationType === "travel_agency" \?/);
     assert.doesNotMatch(context, /reservationType === "individual"[\s\S]{0,200}CreateReservationMasterPicker/);
-    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.match(page, /canSubmitCreateReservation/);
+    assert.match(page, /hasGuest: !!guest/);
     assert.doesNotMatch(page, /companyMaster.*canSubmit|canSubmit.*companyMaster/);
     assert.deepEqual(mastersForCreateMode("corporate", "c1", "t1"), {
       companyMasterId: "c1",
@@ -637,7 +639,8 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   it("AC-CR2-13 Confirm hard-block may live in Section 7; Section 2 collects and persists honestly", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
-    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.match(page, /canSubmitCreateReservation/);
+    assert.match(page, /hasGuest: !!guest/);
     assert.doesNotMatch(page, /canSubmit.*companyMaster|companyMaster.*canSubmit/);
     assert.match(picker, /CREATE_RESERVATION_MASTER_CONFIRM_COPY/);
     assert.match(CREATE_RESERVATION_MASTER_CONFIRM_COPY, /Section 7/);
@@ -783,7 +786,8 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     const functions = readRel("./reservations.functions.ts");
     const server = readRel("./reservations.server.ts");
     assert.match(page, /isStayRangeValid\(arrival, departure\)/);
-    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.match(page, /canSubmitCreateReservation/);
+    assert.match(page, /hasGuest: !!guest/);
     assert.match(stay, /data-testid="stay-invalid-range"/);
     assert.match(stay, /CREATE_RESERVATION_STAY_INVALID_RANGE/);
     assert.match(CREATE_RESERVATION_STAY_INVALID_RANGE, /after arrival/);
@@ -823,7 +827,8 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     assert.match(stay, /occupancyWarn/);
     assert.match(roomType, /OccupancySoftWarn/);
     assert.match(CREATE_RESERVATION_OCCUPANCY_SOFT_WARN, /later section/);
-    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.match(page, /canSubmitCreateReservation/);
+    assert.match(page, /hasGuest: !!guest/);
     assert.doesNotMatch(page, /occupancyWarn.*canSubmit|canSubmit.*occupancyWarn/);
     const capacity = { maxOccupancy: 2, adultCapacity: 2, childCapacity: 0 };
     assert.deepEqual(occupancyCapacityIssues(1, 0, capacity), []);
@@ -857,9 +862,8 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     assert.match(page, /data-testid="summary-stay-nights"/);
     assert.match(page, /data-testid="summary-stay-occupancy"/);
     assert.match(page, /formatStayOccupancySummary\(adults, children\)/);
-    assert.match(page, /CREATE_RESERVATION_SUMMARY_NO_TOTAL/);
     assert.match(page, /summary-no-fake-total/);
-    assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown here/);
+    assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
     assert.equal(formatStayOccupancySummary(1, 0), "1 adult, 0 children");
     assert.equal(formatStayOccupancySummary(2, 1), "2 adults, 1 child");

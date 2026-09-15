@@ -16,6 +16,7 @@ import {
 } from "./reservations.server";
 import { parseSnapshot, rateError } from "./rates.server";
 import { callerMembership, displayName } from "@/core/lib/workforce.server";
+import { assertCreateReservationPricing } from "./create-reservation-phase1-section5";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -450,6 +451,11 @@ export const createReservation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string; confirmationNumber: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
+    assertCreateReservationPricing({
+      role: me.role,
+      status: data.status ?? "pending",
+      ratePlanId: data.ratePlanId ?? null,
+    });
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
