@@ -102,6 +102,9 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   SAME_ROOM: "The guest is already in that room.",
   DATES_UNCHANGED: "Choose a new arrival or departure date.",
   NOT_PAST_DUE: "Only past-due arrivals can be marked as a no-show.",
+  INVALID_COMPANY_MASTER: "That Company master is not valid for this property.",
+  INVALID_TRAVEL_AGENT_MASTER: "That Travel Agency master is not valid for this property.",
+  DUAL_COMPANY_TA_NOT_ALLOWED: "This create path cannot bind Company and Travel Agency together.",
 };
 
 /** Turn RAISE EXCEPTION codes from the reservation functions into user-facing text. */

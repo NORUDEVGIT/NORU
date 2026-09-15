@@ -16,6 +16,7 @@ import {
 } from "./reservations.server";
 import { parseSnapshot, rateError } from "./rates.server";
 import { callerMembership, displayName } from "@/core/lib/workforce.server";
+import { assertCreateReservationPricing } from "./create-reservation-phase1-section5";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -440,10 +441,21 @@ const stayInputSchema = z.object({
 export const createReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    stayInputSchema.extend({ status: z.enum(["pending", "confirmed"]).optional() }).parse(input),
+    stayInputSchema
+      .extend({
+        status: z.enum(["pending", "confirmed"]).optional(),
+        companyMasterId: idSchema.nullable().optional(),
+        travelAgentMasterId: idSchema.nullable().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; confirmationNumber: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
+    assertCreateReservationPricing({
+      role: me.role,
+      status: data.status ?? "pending",
+      ratePlanId: data.ratePlanId ?? null,
+    });
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -461,6 +473,8 @@ export const createReservation = createServerFn({ method: "POST" })
       _status: data.status ?? "pending",
       _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
+      ...(data.companyMasterId ? { _company_master_id: data.companyMasterId } : {}),
+      ...(data.travelAgentMasterId ? { _travel_agent_master_id: data.travelAgentMasterId } : {}),
     });
     if (error) throw rateError(reservationError(error.message).message);
 
