@@ -29,12 +29,20 @@ Wave 1–5 engineering gates exited after Independent QA PASS (Rekik), merge, an
 | [Gap-edit #3 Spec (lean addendum)](./specs/guest-profile-gap-edit-3.md) | **IMPLEMENTED ON MAIN** / **OPERATIONALLY ACCEPTED** / closed. ENGINEERING STATUS **COMPLETE / MERGED** ([#118](https://github.com/NORUDEVGIT/NORU/pull/118) MERGED 2026-09-15T07:50:05Z). IMPLEMENTATION STATUS **PASS**. Independent QA **PASS** (Rekik 2026-09-15, **post-merge** — #118 MERGED before Independent QA routing). AC-GE3-1…18 **PASS**. Developer QA **PARTIAL** (browser lane **unblocked** by non-prod 0058 APPLY PASS; Independent QA browser PASS **not** claimed). Issue [#115](https://github.com/NORUDEVGIT/NORU/issues/115) **CLOSED** completed (Rekik formal closure YES). This recon **Relates** only. CURRENT LIVE: sectioned TA form; Linking via `guest_account_links` / `booker_ta` (+ staged Create); Company Payment Terms; Group stays thin; commission/rates/payment terms **reference only**. Non-prod **0058 APPLY PASS** on `qcwptraosaudcbjasmul` (`20260915080033` / `pms_travel_agency_enrichment`; 17/17 columns). Production **0058** Abel-gated — **not** applied. Waves 1–5 + GE1 + GE2 stay OPERATIONALLY ACCEPTED / closed. Module COMPLETE **NO**. |
 | [Gap-edit #3 programme note](./guest-profile-gap-edit-3-programme.md) | Short CURRENT / status pointer (avoids rewriting full `guests.md` in this PR). |
 
+## Create Reservation Phase 1 — Section 1 Spec Eng-ready (lean)
+
+| Record | Classification |
+|---|---|
+| [Section 1 Spec — Context + Guest](./specs/create-reservation-phase1-section1.md) | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik AUTHORIZED 2026-09-15 via Advisor; D1–D13 locked). Additive expansion of `/restaurant/bookings/new`. **AC-CR1-1…20**. ENGINEERING **NOT STARTED**. **Not** implemented. Section 1 is **not** full Create Reservation DONE. Guest Waves 1–5 + GE1–GE3 stay **OPERATIONALLY ACCEPTED** / closed. |
+| [Section 1 programme note](./create-reservation-phase1-section1-programme.md) | Short CURRENT / status pointer (IN PROGRESS Spec). |
+
 ## Surfaces documented in this cycle
 
 | Surface | Doc |
 |---|---|
 | PMS Dashboard (`/restaurant/pms/dashboard` → `RoomsDashboardTab`) | [dashboard.md](./dashboard.md) |
 | Guest Profile (`/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`) | [guests.md](./guests.md) — Waves 1–5 **IMPLEMENTED ON MAIN**; Wave 5 **OPERATIONALLY ACCEPTED**; Gap-edit 3 **IMPLEMENTED ON MAIN** and **OPERATIONALLY ACCEPTED** / closed ([lean Spec](./specs/guest-profile-gap-edit-3.md) / [#118](https://github.com/NORUDEVGIT/NORU/pull/118); Independent QA **PASS** post-merge; [#115](https://github.com/NORUDEVGIT/NORU/issues/115) **CLOSED** completed; non-prod **0058 APPLY PASS** `20260915080033`; production Abel-gated); programme **READY FOR HOTEL UAT**; module **not** COMPLETE |
+| Create Reservation (`/restaurant/bookings/new`) — Phase 1 Section 1 | [specs/create-reservation-phase1-section1.md](./specs/create-reservation-phase1-section1.md) — **Eng-ready** / **IN PROGRESS Spec**. ENGINEERING **NOT STARTED**. Context + Guest only. **Not** CURRENT feature documentation for a completed create workspace |
 
 Other PMS area docs (reservations, rates, housekeeping, cashiering, night audit, and the rest) will be added here as those features complete their own cycles. Absence of a file is not a claim that the surface does not exist in the product.
 

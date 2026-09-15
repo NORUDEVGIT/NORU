@@ -6721,6 +6721,7 @@ export type Database = {
           _adults: number
           _arrival: string
           _children: number
+          _company_master_id?: string | null
           _departure: string
           _guest_id: string
           _membership_id: string
@@ -6730,6 +6731,7 @@ export type Database = {
           _room_type_id: string
           _special_requests: string
           _status: string
+          _travel_agent_master_id?: string | null
         }
         Returns: {
           adults: number
@@ -6768,6 +6770,7 @@ export type Database = {
           _adults: number
           _arrival: string
           _children: number
+          _company_master_id?: string | null
           _departure: string
           _guest_id: string
           _membership_id: string
@@ -6778,6 +6781,7 @@ export type Database = {
           _room_type_id: string
           _special_requests: string
           _status: string
+          _travel_agent_master_id?: string | null
         }
         Returns: {
           adults: number

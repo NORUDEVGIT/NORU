@@ -15,6 +15,7 @@ import {
 import { callerMembership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { REPORTS_ROLES } from "@/core/lib/module-access";
+import { requireReservationManager } from "./reservations.server";
 
 const idSchema = z.string().uuid();
 
@@ -538,7 +539,9 @@ export const quoteStay = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RatePlanQuote[]> => {
-    await requireRateManager(context as never, data.restaurantId);
+    // Create UX quoting is for reservation managers including receptionist.
+    // Rate admin writers stay owner/manager-only. Unpriced Pending stays manager-only.
+    await requireReservationManager(context as never, data.restaurantId);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
 
     let query = context.supabase
