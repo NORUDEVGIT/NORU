@@ -59,7 +59,7 @@
 ## 2. CURRENT (code wins — post #122+#123+#124)
 
 - `/restaurant/bookings/new` is Doc2-style: Context + Guest + (pre-existing) Stay / Room type / Rate / Room / Details in the main column, plus sticky summary / actions. Section 1 **owns** Context + Guest + sidebar collapse; later sections own DONE claims for stay/rate/room/guarantee.
-- **Context:** reservation-type mode Individual \| Corporate \| Travel Agency with warn-first type switch (`CREATE_RESERVATION_TYPE_CHANGE_WARN`). Booking source, market segment, external reference, booking agent (current user display). Source/segment options from SET6 when present else Spec defaults. **#124:** under-field helper text under source / segment / agent **removed** (labels/controls only; no AC change).
+- **Context:** reservation-type mode Individual | Corporate | Travel Agency with warn-first type switch (`CREATE_RESERVATION_TYPE_CHANGE_WARN`). Booking source, market segment, external reference, booking agent (current user display). Source/segment options from SET6 when present else Spec defaults. **#124:** under-field helper text under source / segment / agent **removed** (labels/controls only; no AC change).
 - **Honesty:** `bookingSource` / `marketSegment` / `externalReference` are **draft UI state only** — `createReservation` submit payload does **not** yet persist them (Confirm / commercial persistence = later Spec if required).
 - **Company/TA:** type mode shows Corporate/TA **chrome / placeholders only** — **no** master ID persistence on create (Section 2).
 - **Guest:** search/select with debounce; VIP + restriction badges; GE2 warn-first (continue allowed); inline `GuestFormDialog` create with auto-select; change clears selection. No second guest writer.
@@ -80,7 +80,7 @@
 
 | Field | Rule |
 |---|---|
-| **Reservation type** (UI mode) | **Individual** \| **Corporate** \| **Travel Agency**. Controls Corporate / TA picker **chrome**. Pickers / master-ID **persistence** are **Section 2**. |
+| **Reservation type** (UI mode) | **Individual** | **Corporate** | **Travel Agency**. Controls Corporate / TA picker **chrome**. Pickers / master-ID **persistence** are **Section 2**. |
 | **Booking source** | Collected for Confirm path when Spec requires; SET6 else defaults. Not LIVE OTA. Distinct from channel-origin `hotel_reservations.source` unless Eng maps them. **Section 1 delivery:** UI draft only (not yet on create RPC). |
 | **Market segment** | Same pattern as booking source. |
 | **External reference** | Optional text (UI draft in Section 1). |
