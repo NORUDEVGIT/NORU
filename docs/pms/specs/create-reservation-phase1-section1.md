@@ -5,8 +5,8 @@
 | **PACKAGE** | PMS · Reservations |
 | **FEATURE** | Create Reservation Phase 1 — Section 1: Context + Guest |
 | **STATUS** | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik AUTHORIZED 2026-09-15 via Hospitality Product Advisor; D1–D13 locked) |
-| **ENGINEERING STATUS** | **NOT STARTED** — no code until TIP + Rekik plan approval |
-| **Issue** | OPEN when Eng opens (Relates; do not claim implemented) |
+| **ENGINEERING STATUS** | **IMPLEMENTATION IN PROGRESS** on [#121](https://github.com/NORUDEVGIT/NORU/issues/121) / PR [#122](https://github.com/NORUDEVGIT/NORU/pull/122) — **HOLD merge** until AC-CR1-21 sidebar amend lands on #122 |
+| **Issue** | [#121](https://github.com/NORUDEVGIT/NORU/issues/121) OPEN — Relates; do not claim PASS / LIVE / COMPLETE until Independent QA + Outcome Review |
 | **Migration** | **Likely NONE** for Section 1 alone (UI / context + reuse guests). Eng confirms if additive columns are needed for booking source / market segment / external reference on the reservation row. Dual-lane APPLY HELD if a column is required. Additive RLS matching reservation tables OK; **flag Abel** if entitlement / RLS **model** must change |
 | **Guest Waves 1–5 + GE1 + GE2 + GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
 | **Phase 1 / module COMPLETE** | **NO** — this section does **not** claim full Create Reservation DONE |
@@ -14,6 +14,8 @@
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
 > **Rekik AUTHORIZED 2026-09-15** via Hospitality Product Advisor. Additive expansion of the **existing** Create Reservation surface. **Do not** rebuild a second product. Walk-in remains a **mode of the same writer**.
+>
+> **Rekik SCOPE AMEND 2026-09-15 (pre-merge #122):** Doc2 UX — auto-collapse app sidebar on Create Reservation. **AC-CR1-21**. No change to commercial fields / DB.
 >
 > Functional Create Reservation Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts.
 >
@@ -28,7 +30,7 @@
 | Route to **extend** | `/restaurant/bookings/new` |
 | Writer to **extend** | `createReservation` → `create_hotel_reservation_priced` (same stack as FO walk-in) |
 | Phase 1 | Individual Create Reservation workspace, including corporate / TA-**linked individual** stays (not a parent Company Reservation) |
-| UI | Doc2 layout: main column + sticky summary + sticky actions + drawers. Section 1 focuses **Context + Guest** in the main column. Sticky summary / actions content is later sections; Section 1 may add the shell with **honest placeholders**, not fake totals |
+| UI | Doc2 layout: main column + sticky summary + sticky actions + drawers. Section 1 focuses **Context + Guest** in the main column. Sticky summary / actions content is later sections; Section 1 may add the shell with **honest placeholders**, not fake totals. **Sidebar:** when Create Reservation is active (`/restaurant/bookings/new`), **auto-collapse** the app sidebar to free width; one-click expand still available; restore normal sidebar behavior when leaving Create Reservation. Applies to **all** reservation type modes; not tied to Corporate/TA or guest create. Layout-only — no commercial-field / DB change. |
 | Walk-in | Remains a mode of `createReservation` / `create_hotel_reservation_priced`. Section 1 does **not** rebuild walk-in as a second product |
 | Guest consume | Create once → use everywhere. Reuse Guest `listGuests` / `createGuest` / `GuestFormDialog` (GE2 Individual, including staged upload / link) |
 
@@ -88,6 +90,17 @@ Use only when the matching SET6 catalogue has **no active rows**. Property-autho
 
 These are staff labels, **not** a rate engine, LIVE OTA connector, or commission product.
 
+### 3.2 EXPECTED — App sidebar (Doc2 width)
+
+When staff open or enter `/restaurant/bookings/new` (Create Reservation active):
+
+- **Auto-collapse** the app sidebar so Context + Guest + sticky summary have full width
+- **One-click expand** remains available while on the page
+- **Restore** normal sidebar behavior when leaving Create Reservation (navigate away / unmount)
+- Same rule for **all** reservation type modes (Individual / Corporate / Travel Agency)
+- **Not** tied to Corporate/TA picker chrome or guest create drawer
+- Layout / interaction only — does **not** change functional commercial fields, ACs for Context/Guest data, or database
+
 ---
 
 ## 4. EXPECTED — Guest
@@ -139,13 +152,14 @@ These are staff labels, **not** a rate engine, LIVE OTA connector, or commission
 | **AC-CR1-18** | Migration **likely NONE** for Section 1 alone. Eng **confirms** if additive columns are needed for source / segment / external ref. Dual-lane APPLY HELD if yes. Flag Abel if RLS **model** must change |
 | **AC-CR1-19** | Walk-in remains a **mode of the same writer** (`createReservation` → `create_hotel_reservation_priced`). No second reservation product |
 | **AC-CR1-20** | Additive expansion of existing `/restaurant/bookings/new` — **do not** rebuild a second Create Reservation product. Doc2 shell may be introduced; sticky summary / actions must not fake later-section totals |
+| **AC-CR1-21** | On enter `/restaurant/bookings/new`, app sidebar **auto-collapses**; one-click expand works; sidebar **restores** on leave. Applies to all reservation type modes. Layout-only — no commercial field / DB change |
 
 ---
 
 ## 7. QA / Security / Regression (summary)
 
-- **Not implemented.** No Independent QA until Eng ships against this Spec + approved TIP.
-- Developer (when authorised): `tsc` + lock tests for AC-CR1-1…20; browser on `/restaurant/bookings/new`.
+- Section 1 implementation is on [#122](https://github.com/NORUDEVGIT/NORU/pull/122). **HOLD merge** until AC-CR1-21. Re-run Independent QA for AC-CR1-21 after Eng lands sidebar (prior IQ PASS on AC-CR1-1…20 stands until then).
+- Developer (when authorised): `tsc` + lock tests for AC-CR1-1…21; browser on `/restaurant/bookings/new`.
 - Independent QA (Rekik): required before merge PASS of the **engineering** PR (not this docs PR).
 - Security: staff-only; tenant-scoped; preserve existing FO / guest gates; no new SECURITY DEFINER unless Abel-approved.
 - Regression: GE2 Individual create; restriction warn on this path and walk-in; Guest directory; walk-in still uses `createReservation`; AC-W4-5 residual **untouched**.
@@ -157,7 +171,7 @@ These are staff labels, **not** a rate engine, LIVE OTA connector, or commission
 | Item | Status |
 |---|---|
 | Spec | **ACCEPTED for Engineering** / **READY FOR PLANNING** |
-| ENGINEERING | **NOT STARTED** — no code until TIP + Rekik plan approval |
+| ENGINEERING | **IN PROGRESS** on #121 / #122 — **HOLD merge** until AC-CR1-21 lands |
 | Implemented / PASS / LIVE / COMPLETE | **No** |
 | Migration | Likely **NONE** (Eng confirms columns) |
 | Phase 1 COMPLETE | **NO** |
