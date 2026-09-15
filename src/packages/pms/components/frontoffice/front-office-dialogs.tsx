@@ -437,6 +437,7 @@ export function WalkInDialog({
           children: 0,
           status: "confirmed" as const,
           ratePlanId: ratePlanId || null,
+          // Section 7 TIP option 1: FO walk-in stays confirmed + rate without guarantee.
         },
       });
       await startWalkIn({ data: { restaurantId, reservationId: created.id } });

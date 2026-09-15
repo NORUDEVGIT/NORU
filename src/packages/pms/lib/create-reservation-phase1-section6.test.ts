@@ -381,7 +381,7 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   it("AC-CR6-15 RTC / Guarantee product / packages / email are not expanded", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
-    assert.doesNotMatch(page, /roomTypeCharged|rtcRoomType|Guarantee method|Send confirmation email/);
+    assert.doesNotMatch(page, /roomTypeCharged|rtcRoomType|Send confirmation email/);
     assert.doesNotMatch(page, /packagePicker|addPackage|emailConfirmation|smsConfirmation/);
     assert.doesNotMatch(assignment, /Guarantee|packagePicker|RTC/);
     assert.match(CREATE_RESERVATION_SECTION6_SCOPE, /later sections/);

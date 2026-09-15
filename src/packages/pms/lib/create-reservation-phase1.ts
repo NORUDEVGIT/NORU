@@ -16,7 +16,7 @@
  * UX (linked dates/nights, occupancy soft-warn, notes, sticky honesty).
  * Section 5 (Issue #141) owns Rate + sticky pricing on the same writer.
  * None of these sections claim Phase 1 or Create Reservation DONE.
- * Room / guarantee / packages / send confirmation remain later sections.
+ * Room assign is Section 6. Guarantee + confirm is Section 7. Packages remain later.
  * Issue #127 stays CLOSED — AC-CR2-1…18 stand as prior lock.
  * Programme rule (Rekik / Docs 2026-09-15): take efficient Individual
  * Associations function (optional Company + TA, prefill, persist); modernize
