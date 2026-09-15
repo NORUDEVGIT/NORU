@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import {
   CREATE_RESERVATION_ACCEPTANCE_CRITERIA,
+  CREATE_RESERVATION_ARRIVAL_CHANGE_RULE,
+  CREATE_RESERVATION_ARRIVAL_CHANGE_RULE_COPY,
   CREATE_RESERVATION_BOOKING_AGENT_COPY,
   CREATE_RESERVATION_CONFIRM_REQUIRED_COPY,
   CREATE_RESERVATION_DENIED_COPY,
@@ -14,7 +16,9 @@ import {
   CREATE_RESERVATION_MASTER_CONFIRM_COPY,
   CREATE_RESERVATION_MASTER_OVERRIDE_RULE,
   CREATE_RESERVATION_MIGRATION_REASON,
+  CREATE_RESERVATION_MIN_NIGHTS,
   CREATE_RESERVATION_MODULE_DONE,
+  CREATE_RESERVATION_OCCUPANCY_SOFT_WARN,
   CREATE_RESERVATION_PAYMENT_TERMS_COPY,
   CREATE_RESERVATION_PHASE1_COMPLETE,
   CREATE_RESERVATION_SECTION1_ISSUE,
@@ -27,16 +31,32 @@ import {
   CREATE_RESERVATION_SECTION2_MIGRATION_REASON,
   CREATE_RESERVATION_SECTION2_SCOPE,
   CREATE_RESERVATION_SECTION2_TIP_AC_MAP,
+  CREATE_RESERVATION_SECTION3_ACCEPTANCE_CRITERIA,
+  CREATE_RESERVATION_SECTION3_ISSUE,
+  CREATE_RESERVATION_SECTION3_LOCKED_NON_GOALS,
+  CREATE_RESERVATION_SECTION3_MIGRATION,
+  CREATE_RESERVATION_SECTION3_MIGRATION_REASON,
+  CREATE_RESERVATION_SECTION3_SCOPE,
+  CREATE_RESERVATION_SECTION3_TIP_AC_MAP,
   CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED,
   CREATE_RESERVATION_SEGMENT_HONESTY,
   CREATE_RESERVATION_SOURCE_HONESTY,
+  CREATE_RESERVATION_STAY_INVALID_RANGE,
   CREATE_RESERVATION_SUMMARY_NO_TOTAL,
   CREATE_RESERVATION_TIP_AC_MAP,
   CREATE_RESERVATION_TYPE_CHANGE_WARN,
   DEFAULT_BOOKING_SOURCES,
   DEFAULT_MARKET_SEGMENTS,
   RESERVATION_TYPE_MODES,
+  clampStayNights,
+  formatStayOccupancySummary,
+  isStayRangeValid,
+  linkedStayFromArrival,
+  linkedStayFromDeparture,
+  linkedStayFromNights,
   mastersForCreateMode,
+  occupancyCapacityIssues,
+  occupancyCapacitySoftWarn,
   pickPrefillMasterId,
   resolveBookingSourceOptions,
   resolveMarketSegmentOptions,
@@ -669,6 +689,298 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(page, /createReservation/);
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
     assert.match(CREATE_RESERVATION_CONFIRM_REQUIRED_COPY, /Section 7/);
+  });
+});
+
+const CR3 = Array.from({ length: 16 }, (_, i) => `AC-CR3-${i + 1}`);
+
+describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
+  it("locks AC-CR3-1…16 (Spec #128 / issue #129)", () => {
+    assert.deepEqual([...CREATE_RESERVATION_SECTION3_ACCEPTANCE_CRITERIA], CR3);
+    assert.equal(CREATE_RESERVATION_SECTION3_ISSUE, 129);
+    assert.deepEqual(CREATE_RESERVATION_SECTION3_TIP_AC_MAP["plan-arrival-linked-invalid"], [
+      "AC-CR3-1",
+      "AC-CR3-2",
+      "AC-CR3-3",
+    ]);
+    assert.deepEqual(CREATE_RESERVATION_SECTION3_TIP_AC_MAP["plan-occupancy-notes"], [
+      "AC-CR3-4",
+      "AC-CR3-5",
+      "AC-CR3-6",
+    ]);
+    assert.deepEqual(CREATE_RESERVATION_SECTION3_TIP_AC_MAP["plan-sticky-writer-gates"], [
+      "AC-CR3-7",
+      "AC-CR3-8",
+      "AC-CR3-9",
+    ]);
+    assert.deepEqual(CREATE_RESERVATION_SECTION3_TIP_AC_MAP["plan-honesty-helpers"], [
+      "AC-CR3-10",
+      "AC-CR3-11",
+      "AC-CR3-12",
+      "AC-CR3-13",
+      "AC-CR3-14",
+      "AC-CR3-15",
+      "AC-CR3-16",
+    ]);
+  });
+
+  it("AC-CR3-1 Arrival is required and defaults with property timezone honesty", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    assert.match(page, /CreateReservationStay/);
+    assert.match(page, /useRestaurantTimezone\(\)/);
+    assert.match(page, /propertyToday\(timezone\)/);
+    assert.match(page, /useState\(today\)/);
+    assert.match(stay, /data-testid="stay-arrival"/);
+    assert.match(stay, /required/);
+    assert.match(stay, /htmlFor="arrival"/);
+  });
+
+  it("AC-CR3-2 Departure and nights are linked; arrival change keeps nights", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    const helpers = readRel("./create-reservation-phase1.ts");
+    assert.equal(CREATE_RESERVATION_ARRIVAL_CHANGE_RULE, "keep_nights");
+    assert.match(CREATE_RESERVATION_ARRIVAL_CHANGE_RULE_COPY, /keeps the current nights/);
+    assert.match(helpers, /from "\.\.\/\.\.\/\.\.\/shared\/lib\/property-dates\.ts"/);
+    assert.match(page, /linkedStayFromArrival/);
+    assert.match(page, /linkedStayFromNights/);
+    assert.match(page, /linkedStayFromDeparture/);
+    assert.match(page, /nightsBetween\(arrival, departure\)/);
+    assert.match(stay, /data-testid="stay-nights"/);
+    assert.match(stay, /data-testid="stay-departure"/);
+    const fromNights = linkedStayFromNights("2026-09-15", 3);
+    assert.deepEqual(fromNights, { arrival: "2026-09-15", departure: "2026-09-18", nights: 3 });
+    const fromArrival = linkedStayFromArrival("2026-09-20", 3);
+    assert.deepEqual(fromArrival, { arrival: "2026-09-20", departure: "2026-09-23", nights: 3 });
+    const fromDeparture = linkedStayFromDeparture("2026-09-15", "2026-09-18");
+    assert.equal(fromDeparture.nights, 3);
+    assert.equal(fromDeparture.valid, true);
+    assert.equal(clampStayNights(0), CREATE_RESERVATION_MIN_NIGHTS);
+    assert.equal(CREATE_RESERVATION_MIN_NIGHTS, 1);
+  });
+
+  it("AC-CR3-3 Invalid range is blocked in UI; assertStayDates remains; min 1 night", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    const server = readRel("./reservations.server.ts");
+    assert.match(page, /isStayRangeValid\(arrival, departure\)/);
+    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.match(stay, /data-testid="stay-invalid-range"/);
+    assert.match(stay, /CREATE_RESERVATION_STAY_INVALID_RANGE/);
+    assert.match(CREATE_RESERVATION_STAY_INVALID_RANGE, /after arrival/);
+    assert.match(stay, /min=\{CREATE_RESERVATION_MIN_NIGHTS\}/);
+    assert.match(functions, /assertStayDates\(data\.arrival, data\.departure\)/);
+    assert.match(server, /if \(departure <= arrival\)/);
+    assert.equal(isStayRangeValid("2026-09-15", "2026-09-15"), false);
+    assert.equal(isStayRangeValid("2026-09-16", "2026-09-15"), false);
+    assert.equal(isStayRangeValid("", "2026-09-16"), false);
+    assert.equal(isStayRangeValid("2026-09-15", "2026-09-16"), true);
+    assert.equal(linkedStayFromDeparture("2026-09-15", "2026-09-15").valid, false);
+    assert.doesNotMatch(page, /occupancyWarn.*canSubmit|canSubmit.*occupancyWarn/);
+  });
+
+  it("AC-CR3-4 Adults ≥1 and children ≥0 are captured on the create payload", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    assert.match(stay, /data-testid="stay-adults"/);
+    assert.match(stay, /data-testid="stay-children"/);
+    assert.match(stay, /min=\{1\}/);
+    assert.match(stay, /min=\{0\}/);
+    assert.match(page, /adults,/);
+    assert.match(page, /children,/);
+    assert.match(functions, /adults: z\.number\(\)\.int\(\)\.min\(1\)\.max\(20\)/);
+    assert.match(functions, /children: z\.number\(\)\.int\(\)\.min\(0\)\.max\(20\)/);
+    assert.match(functions, /_adults: data\.adults/);
+    assert.match(functions, /_children: data\.children/);
+  });
+
+  it("AC-CR3-5 Room-type occupancy is a soft-warn only — no hard invent", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    assert.match(page, /occupancyCapacitySoftWarn\(adults, children, selectedType\)/);
+    assert.match(stay, /data-testid="stay-occupancy-warn"/);
+    assert.match(CREATE_RESERVATION_OCCUPANCY_SOFT_WARN, /later section/);
+    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.doesNotMatch(page, /occupancyWarn.*canSubmit|canSubmit.*occupancyWarn/);
+    const capacity = { maxOccupancy: 2, adultCapacity: 2, childCapacity: 0 };
+    assert.deepEqual(occupancyCapacityIssues(1, 0, capacity), []);
+    assert.equal(occupancyCapacitySoftWarn(1, 0, capacity), null);
+    assert.deepEqual(occupancyCapacityIssues(3, 0, capacity), ["maxOccupancy", "adultCapacity"]);
+    assert.deepEqual(occupancyCapacityIssues(1, 1, capacity), ["childCapacity"]);
+    assert.deepEqual(occupancyCapacityIssues(2, 1, capacity), ["maxOccupancy", "childCapacity"]);
+    assert.match(occupancyCapacitySoftWarn(3, 0, capacity) ?? "", /sleeps 2/);
+    assert.equal(occupancyCapacitySoftWarn(2, 0, null), null);
+    assert.doesNotMatch(stay, /cannot continue|create blocked|hard invent/i);
+  });
+
+  it("AC-CR3-6 Special requests and notes persist via CURRENT payload fields", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    assert.match(stay, /data-testid="stay-special-requests"/);
+    assert.match(stay, /data-testid="stay-notes"/);
+    assert.match(page, /specialRequests: specialRequests\.trim\(\) \|\| null/);
+    assert.match(page, /notes: notes\.trim\(\) \|\| null/);
+    assert.match(functions, /specialRequests: z\.string\(\)\.max\(2000\)/);
+    assert.match(functions, /_special_requests: blankToNull\(data\.specialRequests\)/);
+    assert.match(functions, /_notes: blankToNull\(data\.notes\)/);
+    assert.doesNotMatch(stay, /from\("hotel_reservations"\)|insertStayNotes|createStayNotes/i);
+  });
+
+  it("AC-CR3-7 Sticky summary shows honest stay and no fake totals", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    assert.match(page, /data-testid="create-reservation-summary"/);
+    assert.match(page, /data-testid="summary-stay-dates"/);
+    assert.match(page, /data-testid="summary-stay-nights"/);
+    assert.match(page, /data-testid="summary-stay-occupancy"/);
+    assert.match(page, /formatStayOccupancySummary\(adults, children\)/);
+    assert.match(page, /CREATE_RESERVATION_SUMMARY_NO_TOTAL/);
+    assert.match(page, /summary-no-fake-total/);
+    assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown here/);
+    assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
+    assert.equal(formatStayOccupancySummary(1, 0), "1 adult, 0 children");
+    assert.equal(formatStayOccupancySummary(2, 1), "2 adults, 1 child");
+  });
+
+  it("AC-CR3-8 No second Stay writer — same createReservation stack; walk-in same writer", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
+    const shell = readRel("./front-office-shell.ts");
+    assert.match(page, /createReservation/);
+    assert.match(functions, /export const createReservation/);
+    assert.match(functions, /create_hotel_reservation_priced/);
+    assert.match(dialogs, /createReservation/);
+    assert.match(shell, /walk_in[\s\S]*createReservation/);
+    assert.doesNotMatch(page, /createStayReservation|create_stay_reservation|createWalkInReservation/);
+    assert.doesNotMatch(dialogs, /createWalkInReservation|create_walk_in_reservation/);
+  });
+
+  it("AC-CR3-9 Existing permission gates preserved; no new entitlement / RLS model", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    assert.match(page, /requireRoutePackage\("pms"\)/);
+    assert.match(page, /getBookingsAccess/);
+    assert.match(functions, /requireReservationManager/);
+    assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
+    assert.match(CREATE_RESERVATION_SECTION3_MIGRATION_REASON, /Flag Abel: NOT required/);
+  });
+
+  it("AC-CR3-10 Guest Waves 1–5 + GE1–GE3 stay closed", () => {
+    const helpers = readRel("./create-reservation-phase1.ts");
+    assert.match(helpers, /Waves 1–5 \+ GE1–GE3 stay closed/);
+    assert.match(helpers, /No second Stay writer/);
+    const wave1 = readRel("./guest-profile-wave1.ts");
+    const ge2 = readRel("./guest-profile-individual.ts");
+    assert.match(wave1, /GUEST_PROFILE_CARDS|Wave 1/);
+    assert.match(ge2, /Waves 1–5 stay closed/);
+  });
+
+  it("AC-CR3-11 Section 3 does not claim Phase 1 or Create Reservation DONE", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
+    assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
+    assert.match(page, /CREATE_RESERVATION_SECTION3_SCOPE/);
+    assert.match(CREATE_RESERVATION_SECTION3_SCOPE, /later sections/);
+    assert.doesNotMatch(page, /Phase 1 complete|Create Reservation DONE/i);
+  });
+
+  it("AC-CR3-12 Locked non-goals in §4 are absent from this Stay section", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    const helpers = readRel("./create-reservation-phase1.ts");
+    const functions = readRel("./reservations.functions.ts");
+    assert.equal(CREATE_RESERVATION_SECTION3_LOCKED_NON_GOALS.length, 12);
+    assert.match(helpers, /new reservation status model/);
+    assert.doesNotMatch(stay, /commission settlement|rooming list|CR-100|credit approval engine/i);
+    assert.doesNotMatch(stay, /Send confirmation email|guarantee method|package catalog/i);
+    assert.doesNotMatch(functions, /sendConfirmation|createDeposit|offlineQueue|allotmentPickup/i);
+    assert.doesNotMatch(page, /walk_in_unpriced|inventedStatus|newStatusModel/);
+    assert.equal(CREATE_RESERVATION_LOCKED_NON_GOALS.length, 12);
+  });
+
+  it("AC-CR3-13 Migration is NONE — stay fields already on RPC", () => {
+    const helpers = readRel("./create-reservation-phase1.ts");
+    const functions = readRel("./reservations.functions.ts");
+    const types = readRel("../../../integrations/supabase/types.ts");
+    const reservationStart = types.indexOf("      hotel_reservations: {");
+    const reservationRowStart = types.indexOf("Row: {", reservationStart);
+    const reservationRow = types.slice(reservationRowStart, types.indexOf("Insert: {", reservationRowStart));
+    const pricedStart = types.indexOf("      create_hotel_reservation_priced: {");
+    const pricedArgs = types.slice(pricedStart, pricedStart + 800);
+    assert.equal(CREATE_RESERVATION_SECTION3_MIGRATION, "NONE");
+    assert.match(CREATE_RESERVATION_SECTION3_MIGRATION_REASON, /already on create_hotel_reservation_priced/);
+    assert.match(helpers, /Section 3 migration: NONE/);
+    assert.match(reservationRow, /arrival_date: string/);
+    assert.match(reservationRow, /departure_date: string/);
+    assert.match(reservationRow, /adults: number/);
+    assert.match(reservationRow, /children: number/);
+    assert.match(reservationRow, /special_requests: string \| null/);
+    assert.match(reservationRow, /notes: string \| null/);
+    assert.match(pricedArgs, /_arrival: string/);
+    assert.match(pricedArgs, /_departure: string/);
+    assert.match(pricedArgs, /_adults: number/);
+    assert.match(pricedArgs, /_children: number/);
+    assert.match(pricedArgs, /_special_requests: string/);
+    assert.match(pricedArgs, /_notes: string/);
+    assert.match(functions, /create_hotel_reservation_priced/);
+    const drizzleDir = join(here, "../../../../drizzle/migrations");
+    const supabaseDir = join(here, "../../../../supabase/migrations");
+    for (const file of readdirSync(drizzleDir)) {
+      assert.doesNotMatch(file, /create.reservation.phase1.section3|cr3.stay|section3.stay/i);
+    }
+    if (existsSync(supabaseDir)) {
+      for (const file of readdirSync(supabaseDir)) {
+        assert.doesNotMatch(file, /create.reservation.phase1.section3|cr3.stay|section3.stay/i);
+      }
+    }
+  });
+
+  it("AC-CR3-14 Additive expansion of existing /restaurant/bookings/new — no second product", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
+    assert.match(page, /CreateReservationStay/);
+    assert.match(page, /createReservation/);
+    assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
+    assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/stay"\)/);
+  });
+
+  it("AC-CR3-15 Walk-in / same-form honesty — no new status model; Details keep pending/confirmed", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
+    assert.match(page, /useState<"pending" \| "confirmed">\("pending"\)/);
+    assert.match(page, /data-testid="create-as-status"/);
+    assert.match(page, /SelectItem value="pending"/);
+    assert.match(page, /SelectItem value="confirmed"/);
+    assert.doesNotMatch(page, /walk_in_unpriced|often-unpriced|invented_status|statusModel/);
+    assert.match(dialogs, /createReservation/);
+    assert.doesNotMatch(dialogs, /createWalkInReservation/);
+  });
+
+  it("AC-CR3-16 Reuse existing date helpers — no parallel date library", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const stay = readRel("../components/bookings/create-reservation-stay.tsx");
+    const helpers = readRel("./create-reservation-phase1.ts");
+    const dates = readRel("./reservation-dates.ts");
+    const bits = readRel("../components/bookings/reservation-bits.tsx");
+    assert.match(helpers, /from "\.\.\/\.\.\/\.\.\/shared\/lib\/property-dates\.ts"/);
+    assert.match(helpers, /addDays, nightsBetween/);
+    assert.match(dates, /propertyToday/);
+    assert.match(dates, /nightsBetween/);
+    assert.match(dates, /addDays/);
+    assert.match(dates, /formatStayDate/);
+    assert.match(bits, /formatStayDate, addDays, nightsBetween, propertyToday/);
+    assert.match(page, /propertyToday/);
+    assert.match(page, /nightsBetween/);
+    assert.match(stay, /addDays, formatStayDate/);
+    assert.doesNotMatch(helpers, /from ["']date-fns["']/);
+    assert.doesNotMatch(stay, /from ["']date-fns["']/);
+    assert.doesNotMatch(page, /from ["']date-fns["']/);
+    assert.doesNotMatch(stay, /luxon|dayjs|moment/);
+    assert.doesNotMatch(page, /luxon|dayjs|moment/);
   });
 });
 

@@ -1,33 +1,39 @@
 /**
- * Create Reservation Phase 1 — Section 1 Context + Guest (Issue #121) and
- * Section 2 Company / Travel Agency on create (Issue #127).
+ * Create Reservation Phase 1 — Section 1 Context + Guest (Issue #121),
+ * Section 2 Company / Travel Agency on create (Issue #127), and
+ * Section 3 Stay (Issue #129).
  *
  * Additive expansion of `/restaurant/bookings/new` + `createReservation` →
  * `create_hotel_reservation_priced`. Walk-in stays a mode of the same writer.
  * Guest Waves 1–5 + GE1–GE3 stay closed. No second guest writer.
- * No second guest / Company / TA writer.
+ * No second guest / Company / TA writer. No second Stay writer.
  *
  * Section 1 is Context + Guest. Section 2 binds Company or TA masters on create
- * (AC-W4-5 for create). Neither section claims Phase 1 or Create Reservation
- * DONE. Stay / rate / room / guarantee / packages / send confirmation are later
- * sections.
+ * (AC-W4-5 for create). Section 3 upgrades Stay UX (linked dates/nights,
+ * occupancy soft-warn, notes, sticky honesty). None of these sections claim
+ * Phase 1 or Create Reservation DONE. Rate / availability invent / room /
+ * guarantee / packages / send confirmation remain later sections.
  *
  * Commercial booking source, market segment, and external reference are
  * collected in the draft. They are distinct from channel-origin
  * `hotel_reservations.source`. Confirm-time required + persistence is Section 7.
  * Section 1 migration: NONE. Migration for this section: NONE.
  * Section 2 migration: RPC signature only (columns already exist). Dual-lane APPLY HELD.
+ * Section 3 migration: NONE — stay fields already on the create RPC.
  */
 
+import { addDays, nightsBetween } from "../../../shared/lib/property-dates.ts";
 import type { PmsSet6CatalogueItem } from "./pms-set6-sales-distribution.ts";
 
 export const CREATE_RESERVATION_SECTION1_ISSUE = 121;
 export const CREATE_RESERVATION_SECTION2_ISSUE = 127;
+export const CREATE_RESERVATION_SECTION3_ISSUE = 129;
 export const CREATE_RESERVATION_PHASE1_COMPLETE = false;
 export const CREATE_RESERVATION_MODULE_DONE = false;
 export const CREATE_RESERVATION_SECTION1_MIGRATION = "NONE";
 export const CREATE_RESERVATION_SECTION2_MIGRATION = "0059_pms_create_reservation_company_ta.sql";
 export const CREATE_RESERVATION_SECTION2_APPLY = "HELD";
+export const CREATE_RESERVATION_SECTION3_MIGRATION = "NONE";
 export const CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS = 300;
 /** AC-CR1-21 — collapse the existing RestaurantShell rail on this route only. */
 export const CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED = true;
@@ -91,6 +97,32 @@ export const CREATE_RESERVATION_SECTION2_TIP_AC_MAP = {
   "plan-gates-honesty": ["AC-CR2-9", "AC-CR2-10", "AC-CR2-11", "AC-CR2-12", "AC-CR2-13", "AC-CR2-14", "AC-CR2-15", "AC-CR2-16", "AC-CR2-17", "AC-CR2-18"],
 } as const;
 
+export const CREATE_RESERVATION_SECTION3_ACCEPTANCE_CRITERIA = [
+  "AC-CR3-1",
+  "AC-CR3-2",
+  "AC-CR3-3",
+  "AC-CR3-4",
+  "AC-CR3-5",
+  "AC-CR3-6",
+  "AC-CR3-7",
+  "AC-CR3-8",
+  "AC-CR3-9",
+  "AC-CR3-10",
+  "AC-CR3-11",
+  "AC-CR3-12",
+  "AC-CR3-13",
+  "AC-CR3-14",
+  "AC-CR3-15",
+  "AC-CR3-16",
+] as const;
+
+export const CREATE_RESERVATION_SECTION3_TIP_AC_MAP = {
+  "plan-arrival-linked-invalid": ["AC-CR3-1", "AC-CR3-2", "AC-CR3-3"],
+  "plan-occupancy-notes": ["AC-CR3-4", "AC-CR3-5", "AC-CR3-6"],
+  "plan-sticky-writer-gates": ["AC-CR3-7", "AC-CR3-8", "AC-CR3-9"],
+  "plan-honesty-helpers": ["AC-CR3-10", "AC-CR3-11", "AC-CR3-12", "AC-CR3-13", "AC-CR3-14", "AC-CR3-15", "AC-CR3-16"],
+} as const;
+
 export const RESERVATION_TYPE_MODES = ["individual", "corporate", "travel_agency"] as const;
 export type ReservationTypeMode = (typeof RESERVATION_TYPE_MODES)[number];
 
@@ -147,6 +179,39 @@ export const CREATE_RESERVATION_MASTER_OVERRIDE_RULE =
 
 export const CREATE_RESERVATION_SECTION2_SCOPE =
   "Section 2 collects Company or Travel Agency on create. Stay, rate, room, guarantee, packages, and send confirmation remain later sections.";
+
+export const CREATE_RESERVATION_SECTION3_SCOPE =
+  "Section 3 upgrades Stay UX (linked dates and nights, occupancy, notes). Rate, availability invent, room assign, guarantee, packages, and send confirmation remain later sections.";
+
+export const CREATE_RESERVATION_SECTION3_MIGRATION_REASON =
+  "Stay fields arrival, departure, adults, children, special_requests, and notes are already on create_hotel_reservation_priced and hotel_reservations. Section 3 is Stay UX only. No new columns. No RPC replace. Dual-lane APPLY not required. Flag Abel: NOT required.";
+
+/** Arrival change rule (Eng pick, documented): keep nights, move departure. */
+export const CREATE_RESERVATION_ARRIVAL_CHANGE_RULE = "keep_nights" as const;
+export const CREATE_RESERVATION_ARRIVAL_CHANGE_RULE_COPY =
+  "Changing arrival keeps the current nights and moves departure (addDays(arrival, nights)).";
+
+export const CREATE_RESERVATION_MIN_NIGHTS = 1;
+
+export const CREATE_RESERVATION_STAY_INVALID_RANGE = "Departure must be after arrival.";
+
+export const CREATE_RESERVATION_OCCUPANCY_SOFT_WARN =
+  "This occupancy is above the selected room type's capacity. You can still continue — availability invent stays with a later section.";
+
+export const CREATE_RESERVATION_SECTION3_LOCKED_NON_GOALS = [
+  "rate binding",
+  "availability invent",
+  "room assign product",
+  "guarantee + confirm product",
+  "packages",
+  "LIVE OTA",
+  "CR-100",
+  "create-time cashiering deposit",
+  "email/SMS send confirmation",
+  "offline / local-first",
+  "new entitlement / RLS architecture",
+  "new reservation status model",
+] as const;
 
 export const CREATE_RESERVATION_SECTION2_MIGRATION_REASON =
   "hotel_reservations.company_master_id and travel_agent_master_id already exist (Wave 4 / 0053). Section 2 replaces create_hotel_reservation and create_hotel_reservation_priced with optional master-id params so create can bind atomically. Dual-lane APPLY HELD. No new columns. No RLS model change.";
@@ -276,4 +341,101 @@ export function resolveMarketSegmentOptions(
     label: row.label,
     origin: "default" as const,
   }));
+}
+
+export function clampStayNights(nights: number): number {
+  if (!Number.isFinite(nights)) return CREATE_RESERVATION_MIN_NIGHTS;
+  return Math.max(CREATE_RESERVATION_MIN_NIGHTS, Math.floor(nights));
+}
+
+export function isStayRangeValid(arrival: string, departure: string): boolean {
+  if (!arrival || !departure) return false;
+  return departure > arrival && nightsBetween(arrival, departure) >= CREATE_RESERVATION_MIN_NIGHTS;
+}
+
+/** Arrival change: keep nights, move departure. */
+export function linkedStayFromArrival(
+  arrival: string,
+  nights: number,
+): { arrival: string; departure: string; nights: number } {
+  const kept = clampStayNights(nights);
+  return { arrival, departure: addDays(arrival, kept), nights: kept };
+}
+
+/** Nights change: update departure from arrival. */
+export function linkedStayFromNights(
+  arrival: string,
+  nights: number,
+): { arrival: string; departure: string; nights: number } {
+  const kept = clampStayNights(nights);
+  return { arrival, departure: addDays(arrival, kept), nights: kept };
+}
+
+/** Departure change: nights follow nightsBetween. Pair may be invalid (blocked in UI). */
+export function linkedStayFromDeparture(
+  arrival: string,
+  departure: string,
+): { arrival: string; departure: string; nights: number; valid: boolean } {
+  return {
+    arrival,
+    departure,
+    nights: nightsBetween(arrival, departure),
+    valid: isStayRangeValid(arrival, departure),
+  };
+}
+
+export function formatStayOccupancySummary(adults: number, children: number): string {
+  const adultLabel = adults === 1 ? "1 adult" : `${adults} adults`;
+  const childLabel = children === 1 ? "1 child" : `${children} children`;
+  return `${adultLabel}, ${childLabel}`;
+}
+
+export type StayOccupancyCapacity = {
+  maxOccupancy: number;
+  adultCapacity: number;
+  childCapacity: number;
+};
+
+export type OccupancyCapacityIssue = "maxOccupancy" | "adultCapacity" | "childCapacity";
+
+export function occupancyCapacityIssues(
+  adults: number,
+  children: number,
+  capacity: StayOccupancyCapacity | null | undefined,
+): OccupancyCapacityIssue[] {
+  if (!capacity) return [];
+  const issues: OccupancyCapacityIssue[] = [];
+  const total = Math.max(0, adults) + Math.max(0, children);
+  if (Number.isFinite(capacity.maxOccupancy) && capacity.maxOccupancy > 0 && total > capacity.maxOccupancy) {
+    issues.push("maxOccupancy");
+  }
+  if (Number.isFinite(capacity.adultCapacity) && capacity.adultCapacity > 0 && adults > capacity.adultCapacity) {
+    issues.push("adultCapacity");
+  }
+  if (Number.isFinite(capacity.childCapacity) && children > capacity.childCapacity) {
+    issues.push("childCapacity");
+  }
+  return issues;
+}
+
+/** Soft-warn only. Does not block create — hard invent is Section 4. */
+export function occupancyCapacitySoftWarn(
+  adults: number,
+  children: number,
+  capacity: StayOccupancyCapacity | null | undefined,
+): string | null {
+  const issues = occupancyCapacityIssues(adults, children, capacity);
+  if (!capacity || issues.length === 0) return null;
+  const parts: string[] = [];
+  const total = Math.max(0, adults) + Math.max(0, children);
+  if (issues.includes("maxOccupancy")) {
+    parts.push(`${total} guests vs sleeps ${capacity.maxOccupancy}`);
+  }
+  if (issues.includes("adultCapacity")) {
+    parts.push(`${adults} adults vs adult capacity ${capacity.adultCapacity}`);
+  }
+  if (issues.includes("childCapacity")) {
+    parts.push(`${children} children vs child capacity ${capacity.childCapacity}`);
+  }
+  return `${CREATE_RESERVATION_OCCUPANCY_SOFT_WARN} (${parts.join("; ")}).`;
 }
