@@ -1,7 +1,6 @@
 import { CreateReservationMasterPicker } from "@/packages/pms/components/bookings/create-reservation-master-picker";
 import {
   CREATE_RESERVATION_ASSOCIATIONS_COPY,
-  CREATE_RESERVATION_MASTER_OVERRIDE_RULE,
   type PickedReservationMaster,
 } from "@/packages/pms/lib/create-reservation-phase1";
 
@@ -27,22 +26,23 @@ export function CreateReservationAssociations({
     >
       <h2 className="font-display text-lg">Associations</h2>
       <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_ASSOCIATIONS_COPY}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_MASTER_OVERRIDE_RULE}</p>
 
-      <CreateReservationMasterPicker
-        restaurantId={restaurantId}
-        kind="company"
-        canCreate={canCreateMaster}
-        master={companyMaster}
-        onMasterChange={onCompanyMasterChange}
-      />
-      <CreateReservationMasterPicker
-        restaurantId={restaurantId}
-        kind="travel_agent"
-        canCreate={canCreateMaster}
-        master={travelAgentMaster}
-        onMasterChange={onTravelAgentMasterChange}
-      />
+      <div className="space-y-1">
+        <CreateReservationMasterPicker
+          restaurantId={restaurantId}
+          kind="company"
+          canCreate={canCreateMaster}
+          master={companyMaster}
+          onMasterChange={onCompanyMasterChange}
+        />
+        <CreateReservationMasterPicker
+          restaurantId={restaurantId}
+          kind="travel_agent"
+          canCreate={canCreateMaster}
+          master={travelAgentMaster}
+          onMasterChange={onTravelAgentMasterChange}
+        />
+      </div>
     </section>
   );
 }

@@ -451,7 +451,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
         <div
           className={cn(
             "grid gap-6",
-            reservationType === "individual" ? "xl:grid-cols-2 xl:items-start" : "",
+            reservationType === "individual" ? "lg:grid-cols-2 lg:items-start" : "",
           )}
         >
           <CreateReservationGuest
@@ -648,13 +648,28 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
               <dd>{guest?.fullName ?? "No guest selected"}</dd>
             </div>
-            {reservationType === "corporate" || reservationType === "individual" ? (
+            {reservationType === "individual" ? (
+              <div data-testid="summary-associations">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Associations</dt>
+                <dd className="space-y-1">
+                  <p data-testid="summary-company">
+                    <span className="text-muted-foreground">Company · </span>
+                    {companyMaster?.name ?? "None"}
+                  </p>
+                  <p data-testid="summary-ta">
+                    <span className="text-muted-foreground">Travel Agency · </span>
+                    {travelAgentMaster?.name ?? "None"}
+                  </p>
+                </dd>
+              </div>
+            ) : null}
+            {reservationType === "corporate" ? (
               <div data-testid="summary-company">
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">Company</dt>
                 <dd>{companyMaster?.name ?? "Not selected"}</dd>
               </div>
             ) : null}
-            {reservationType === "travel_agency" || reservationType === "individual" ? (
+            {reservationType === "travel_agency" ? (
               <div data-testid="summary-ta">
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">Travel Agency</dt>
                 <dd>{travelAgentMaster?.name ?? "Not selected"}</dd>

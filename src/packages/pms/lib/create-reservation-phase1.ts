@@ -16,6 +16,10 @@
  * these sections claim Phase 1 or Create Reservation DONE. Rate / availability
  * invent / room / guarantee / packages / send confirmation remain later sections.
  * Issue #127 stays CLOSED — AC-CR2-1…18 stand as prior lock.
+ * Programme rule (Rekik / Docs 2026-09-15): take efficient Individual
+ * Associations function (optional Company + TA, prefill, persist); modernize
+ * on NORU Doc2 patterns (own box, sticky summary, existing drawers). Do not
+ * clone legacy PMS chrome. Corporate and Group stay later separate products.
  *
  * Commercial booking source, market segment, and external reference are
  * collected in the draft. They are distinct from channel-origin
@@ -219,6 +223,9 @@ export const CREATE_RESERVATION_SECTION2A_SCOPE =
 export const CREATE_RESERVATION_ASSOCIATIONS_COPY =
   "Optional Company and Travel Agency for this stay. Neither is required to create.";
 
+export const CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE =
+  "Include efficient functionality from the reference Individual create screen (optional Company + TA, prefill, persist). Modernize UI on NORU patterns: Associations as its own box in the Doc2 shell with sticky summary and existing drawers. Do not clone legacy PMS chrome. Placement may sit beside Guest. Corporate and Group remain later separate products. Do not invent Group block, Contact/Member, RTC, rate-adjustment engines, or LIVE OTA.";
+
 export const CREATE_RESERVATION_SECTION3_SCOPE =
   "Section 3 upgrades Stay UX (linked dates and nights, occupancy, notes). Rate, availability invent, room assign, guarantee, packages, and send confirmation remain later sections.";
 
@@ -262,6 +269,10 @@ export const CREATE_RESERVATION_SECTION2A_LOCKED_NON_GOALS = [
   "group block / allotment / rooming list",
   "parent Company Reservation CR-100",
   "Contact / Member invent",
+  "RTC invent",
+  "rate-adjustment engines",
+  "Corporate as separate product",
+  "Group as separate product",
   "reopen issue 127",
   "Phase 1 COMPLETE",
   "Create Reservation DONE",

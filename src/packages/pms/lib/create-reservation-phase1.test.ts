@@ -39,6 +39,7 @@ import {
   CREATE_RESERVATION_SECTION2A_MIGRATION,
   CREATE_RESERVATION_SECTION2A_MIGRATION_REASON,
   CREATE_RESERVATION_SECTION2A_PRIOR_ISSUE,
+  CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE,
   CREATE_RESERVATION_SECTION2A_SCOPE,
   CREATE_RESERVATION_SECTION2A_TIP_AC_MAP,
   CREATE_RESERVATION_SECTION3_ACCEPTANCE_CRITERIA,
@@ -1148,12 +1149,19 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   it("AC-CR2A-7 Associations is its own NORU box; placement may sit beside Guest", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    const guest = readRel("../components/bookings/create-reservation-guest.tsx");
     assert.match(associations, /data-testid="create-reservation-associations"/);
     assert.match(associations, /<h2 className="font-display text-lg">Associations<\/h2>/);
-    assert.match(page, /xl:grid-cols-2 xl:items-start/);
+    assert.match(page, /lg:grid-cols-2 lg:items-start/);
     assert.match(page, /CreateReservationGuest/);
     assert.match(page, /CreateReservationAssociations/);
-    assert.doesNotMatch(associations, /consignee|legacy chrome|clone/i);
+    assert.match(page, /data-testid="create-reservation-summary"/);
+    assert.match(page, /data-testid="summary-associations"/);
+    assert.match(guest, /data-testid="guest-peek-drawer"/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Do not clone legacy PMS chrome/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Doc2/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /beside Guest/);
+    assert.doesNotMatch(associations, /consignee|legacy chrome|clone|folio-window/i);
   });
 
   it("AC-CR2A-8 No Group / block / allotment / rooming / CR-100; no Contact/Member invent", () => {
@@ -1270,9 +1278,13 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     const functions = readRel("./reservations.functions.ts");
-    assert.equal(CREATE_RESERVATION_SECTION2A_LOCKED_NON_GOALS.length, 12);
+    assert.equal(CREATE_RESERVATION_SECTION2A_LOCKED_NON_GOALS.length, 16);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /RTC/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /rate-adjustment/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Corporate and Group remain later/);
     assert.doesNotMatch(page, /commission settlement|rooming list|CR-100|credit approval engine/i);
-    assert.doesNotMatch(associations, /LIVE OTA connector|channel manager|legacy PMS chrome/i);
+    assert.doesNotMatch(page, /rateAdjustmentEngine|rtcEngine|liveOtaConnector/i);
+    assert.doesNotMatch(associations, /LIVE OTA connector|channel manager|legacy PMS chrome|consignee/i);
     assert.doesNotMatch(functions, /sendConfirmation|createDeposit|offlineQueue|allotmentPickup/i);
     assert.doesNotMatch(page, /Phase 1 COMPLETE|Create Reservation DONE/);
   });
