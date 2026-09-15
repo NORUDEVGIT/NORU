@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 
 import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
 import { GuestCompanyGuestLinks } from "@/packages/pms/components/guests/guest-company-guest-links";
+import { GuestTravelAgentGuestLinks } from "@/packages/pms/components/guests/guest-travel-agent-guest-links";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import { getGuestAccount, listGuestAccountHistory } from "@/packages/pms/lib/guest-accounts.functions";
 import {
@@ -13,6 +14,20 @@ import {
   companyDirectorySecondary,
   isCompanyType,
 } from "@/packages/pms/lib/guest-profile-company";
+import {
+  AGENCY_TYPE_LABELS,
+  COMMISSION_TYPE_LABELS,
+  CONTRACT_STATUS_LABELS,
+  PAYMENT_TERMS_REFERENCE_COPY,
+  TA_COMMISSION_REFERENCE_COPY,
+  TA_CONTRACT_COPY,
+  TA_LICENSE_COPY,
+  TA_RATE_REFERENCE_COPY,
+  isAgencyType,
+  isCommissionType,
+  isContractStatus,
+  taDirectorySecondary,
+} from "@/packages/pms/lib/guest-profile-travel-agency";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
   WAVE4_GROUP_ACCOUNT_COPY,
@@ -83,6 +98,10 @@ export function GuestAccountDetail({
             companyDirectorySecondary(account.tradeName, account.companyType)
               ? ` — ${companyDirectorySecondary(account.tradeName, account.companyType)}`
               : ""}
+            {account.accountType === "travel_agent" &&
+            taDirectorySecondary(account.tradeName, account.agencyType)
+              ? ` — ${taDirectorySecondary(account.tradeName, account.agencyType)}`
+              : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -95,6 +114,8 @@ export function GuestAccountDetail({
       </div>
       {account.accountType === "company" ? (
         <CompanyProfileFields account={account} />
+      ) : account.accountType === "travel_agent" ? (
+        <TravelAgentProfileFields account={account} />
       ) : (
         <dl className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
           <Field label="Code" value={account.code ?? "—"} />
@@ -108,6 +129,9 @@ export function GuestAccountDetail({
       )}
       {account.accountType === "company" ? (
         <GuestCompanyGuestLinks restaurantId={restaurantId} accountId={account.id} />
+      ) : null}
+      {account.accountType === "travel_agent" ? (
+        <GuestTravelAgentGuestLinks restaurantId={restaurantId} accountId={account.id} />
       ) : null}
       <div className="rounded-2xl border border-border bg-card p-4" data-testid="guest-account-history">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">History</p>
@@ -183,9 +207,80 @@ function CompanyProfileFields({ account }: { account: GuestAccountProfile }) {
         <Field label="Negotiated rate reference" value={account.negotiatedRateReference ?? "—"} />
         <Field label="Default travel agent" value={account.defaultTravelAgentMasterName ?? "—"} />
         <Field label="Source of business" value={account.sourceOfBusiness ?? "—"} />
+        <Field label="Payment terms" value={account.paymentTerms ?? "—"} />
+        <Field label="Credit limit note" value={account.creditLimitNote ?? "—"} />
+        <Field label="Billing instruction" value={account.billingInstruction ?? "—"} />
         <Field label="Notes" value={account.notes ?? "—"} />
       </dl>
       <p className="text-xs text-muted-foreground">{COMPANY_RATE_REFERENCE_COPY}</p>
+      <p className="text-xs text-muted-foreground">{PAYMENT_TERMS_REFERENCE_COPY}</p>
+    </div>
+  );
+}
+
+function TravelAgentProfileFields({ account }: { account: GuestAccountProfile }) {
+  const typeLabel =
+    account.agencyType && isAgencyType(account.agencyType)
+      ? AGENCY_TYPE_LABELS[account.agencyType]
+      : (account.agencyType ?? "—");
+  const commissionLabel =
+    account.commissionType && isCommissionType(account.commissionType)
+      ? COMMISSION_TYPE_LABELS[account.commissionType]
+      : (account.commissionType ?? "—");
+  const contractLabel =
+    account.contractStatus && isContractStatus(account.contractStatus)
+      ? CONTRACT_STATUS_LABELS[account.contractStatus]
+      : (account.contractStatus ?? "—");
+  return (
+    <div className="space-y-3" data-testid="ta-profile-fields">
+      <dl className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
+        <Field label="Legal / agency name" value={account.name} />
+        <Field label="Trade / display name" value={account.tradeName ?? "—"} />
+        <Field label="Code" value={account.code ?? "—"} />
+        <Field
+          label="Agency type"
+          value={
+            account.agencyType === "other"
+              ? `Other${account.agencyTypeOther ? ` — ${account.agencyTypeOther}` : ""}`
+              : typeLabel
+          }
+        />
+        <Field label="Website" value={account.website ?? "—"} />
+        <Field label="Primary phone" value={account.phone ?? "—"} />
+        <Field label="Alternate phone" value={account.phoneAlt ?? "—"} />
+        <Field label="Primary email" value={account.email ?? "—"} />
+        <Field label="Alternate email" value={account.emailAlt ?? "—"} />
+        <Field label="Primary contact" value={account.primaryContactName ?? "—"} />
+        <Field label="Billing contact" value={account.billingContactName ?? "—"} />
+        <Field label="Address line 1" value={account.addressLine1 ?? "—"} />
+        <Field label="Address line 2" value={account.addressLine2 ?? "—"} />
+        <Field label="City" value={account.city ?? "—"} />
+        <Field label="Region / state" value={account.region ?? "—"} />
+        <Field label="Country" value={account.country ?? "—"} />
+        <Field label="Postal code" value={account.postalCode ?? "—"} />
+        <Field label="IATA / license" value={account.iataLicenseNumber ?? "—"} />
+        <Field label="Business registration" value={account.businessRegistrationNumber ?? "—"} />
+        <Field label="Tax ID / TIN" value={account.taxId ?? "—"} />
+        <Field label="License expiry" value={account.licenseExpiryDate ?? "—"} />
+        <Field label="Commission label" value={account.commissionLabel ?? "—"} />
+        <Field label="Commission type" value={commissionLabel} />
+        <Field label="Commission currency note" value={account.commissionCurrencyNote ?? "—"} />
+        <Field label="Contract reference" value={account.contractReference ?? "—"} />
+        <Field label="Contract start" value={account.contractStartDate ?? "—"} />
+        <Field label="Contract end" value={account.contractEndDate ?? "—"} />
+        <Field label="Contract status" value={contractLabel} />
+        <Field label="Signed with" value={account.contractSignedWith ?? "—"} />
+        <Field label="Negotiated rate reference" value={account.negotiatedRateReference ?? "—"} />
+        <Field label="Payment terms" value={account.paymentTerms ?? "—"} />
+        <Field label="Credit limit note" value={account.creditLimitNote ?? "—"} />
+        <Field label="Billing instruction" value={account.billingInstruction ?? "—"} />
+        <Field label="Notes" value={account.notes ?? "—"} />
+      </dl>
+      <p className="text-xs text-muted-foreground">{TA_LICENSE_COPY}</p>
+      <p className="text-xs text-muted-foreground">{TA_COMMISSION_REFERENCE_COPY}</p>
+      <p className="text-xs text-muted-foreground">{TA_CONTRACT_COPY}</p>
+      <p className="text-xs text-muted-foreground">{TA_RATE_REFERENCE_COPY}</p>
+      <p className="text-xs text-muted-foreground">{PAYMENT_TERMS_REFERENCE_COPY}</p>
     </div>
   );
 }

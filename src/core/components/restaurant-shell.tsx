@@ -487,6 +487,7 @@ export function RestaurantShell({
   boModule,
   boDetailLabel,
   posModule,
+  sidebarDefaultCollapsed,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -522,6 +523,12 @@ export function RestaurantShell({
    * only; the route guard and server guards do the enforcing.
    */
   posModule?: string;
+  /**
+   * Create Reservation (AC-CR1-21): start with the existing package rail collapsed.
+   * One-click expand stays on this same rail. Other routes omit this prop so their
+   * default remains expanded. Leaving the page remounts the shell expanded.
+   */
+  sidebarDefaultCollapsed?: boolean;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -530,6 +537,7 @@ export function RestaurantShell({
   const fetchRestaurants = useServerFn(getMyRestaurants);
   const fetchModules = useServerFn(getMyModuleAccess);
   const [navOpen, setNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(Boolean(sidebarDefaultCollapsed));
   const search = useSearch({ strict: false }) as { tab?: string };
 
   const { data, isLoading, isError } = useQuery({
@@ -952,11 +960,14 @@ export function RestaurantShell({
   );
 
   return (
-    <div className="min-h-dvh bg-muted/30">
-      <div className="mx-auto flex w-full max-w-[1600px]">
+    <div className={cn("min-h-dvh", hidePackageRail ? "bg-background" : "bg-muted/30")}>
+      <div className={cn("mx-auto flex w-full", hidePackageRail ? "max-w-none" : "max-w-[1600px]")}>
         {/* Desktop sidebar — FO-FS0: omit the package rail and its w-60 width on Front Office. */}
-        {hidePackageRail ? null : (
-          <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
+        {hidePackageRail || sidebarCollapsed ? null : (
+          <aside
+            className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block"
+            data-testid="app-sidebar-rail"
+          >
             {sidebar}
           </aside>
         )}
@@ -983,15 +994,40 @@ export function RestaurantShell({
           <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
             <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
               {hidePackageRail ? null : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="lg:hidden"
-                  aria-label="Open navigation"
-                  onClick={() => setNavOpen(true)}
-                >
-                  <MenuIcon className="size-5" />
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="lg:hidden"
+                    aria-label="Open navigation"
+                    onClick={() => setNavOpen(true)}
+                  >
+                    <MenuIcon className="size-5" />
+                  </Button>
+                  {sidebarCollapsed ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hidden lg:inline-flex"
+                      aria-label="Expand navigation"
+                      data-testid="expand-app-sidebar"
+                      onClick={() => setSidebarCollapsed(false)}
+                    >
+                      <MenuIcon className="size-5" />
+                    </Button>
+                  ) : sidebarDefaultCollapsed ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hidden lg:inline-flex"
+                      aria-label="Collapse navigation"
+                      data-testid="collapse-app-sidebar"
+                      onClick={() => setSidebarCollapsed(true)}
+                    >
+                      <MenuIcon className="size-5" />
+                    </Button>
+                  ) : null}
+                </>
               )}
               <div className="min-w-0">
                 <p className="truncate font-display text-lg leading-tight">
@@ -1001,7 +1037,7 @@ export function RestaurantShell({
               </div>
               <div className="ml-auto flex items-center gap-3">
                 <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {new Date().toLocaleDateString(undefined, {
+                  {new Date().toLocaleDateString(hidePackageRail ? "en-GB" : undefined, {
                     weekday: "short",
                     day: "numeric",
                     month: "short",
@@ -1023,7 +1059,7 @@ export function RestaurantShell({
             </div>
           </header>
 
-          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          <main className={cn("min-w-0 flex-1", hidePackageRail ? "flex flex-col p-0" : "px-4 py-6 sm:px-6")}>
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading your restaurant…</p>
             ) : isError ? (
@@ -1104,7 +1140,7 @@ export function RestaurantShell({
                     </nav>
                   ) : null}
 
-                  {pmsMod ? (
+                  {pmsMod && !hidePackageRail ? (
                     <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
                       <Link to="/restaurant/home" className="hover:text-foreground">
                         Property Home
@@ -1128,7 +1164,9 @@ export function RestaurantShell({
                     </nav>
                   ) : null}
 
-                  {children(membership)}
+                  <div className={cn(hidePackageRail && "flex min-h-0 flex-1 flex-col")}>
+                    {children(membership)}
+                  </div>
                 </PmsHeadingProvider>
               </RestaurantSettingsProvider>
             )}

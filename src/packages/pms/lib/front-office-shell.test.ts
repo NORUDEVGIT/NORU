@@ -28,7 +28,7 @@ import {
 } from "./front-office-shell.ts";
 
 describe("FO IA nav", () => {
-  it("exposes exactly nine sidebar items and lands on Room Rack + Calendar", () => {
+  it("exposes exactly nine destinations and lands on Room Rack + Calendar", () => {
     assert.equal(FO_NAV_ITEMS.length, 9);
     assert.deepEqual(
       FO_NAV_ITEMS.map((item) => item.label),
@@ -113,6 +113,9 @@ describe("FO-FS0 single left nav", () => {
     assert.match(chrome, /FO_ESCAPE_MODULES/);
     assert.match(chrome, /PMS modules/);
     assert.match(chrome, /fo-mobile-nav/);
+    assert.match(chrome, /fo-top-nav/);
+    assert.match(chrome, /fo-top-overflow/);
+    assert.doesNotMatch(chrome, /fo-sidebar-nav/);
     assert.doesNotMatch(chrome, /Room Moves/);
     assert.match(chrome, /FO_NAV_ITEMS/);
     assert.match(chrome, /#251605/);

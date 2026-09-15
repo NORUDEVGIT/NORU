@@ -12,6 +12,7 @@ import {
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { companyDirectorySecondary } from "@/packages/pms/lib/guest-profile-company";
+import { taDirectorySecondary } from "@/packages/pms/lib/guest-profile-travel-agency";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
   WAVE4_GROUP_ACCOUNT_COPY,
@@ -180,6 +181,11 @@ export function GuestAccountDirectory({
                     {accountType === "company" && companyDirectorySecondary(row.tradeName, row.companyType) ? (
                       <div className="text-xs font-normal text-muted-foreground">
                         {companyDirectorySecondary(row.tradeName, row.companyType)}
+                      </div>
+                    ) : null}
+                    {accountType === "travel_agent" && taDirectorySecondary(row.tradeName, row.agencyType) ? (
+                      <div className="text-xs font-normal text-muted-foreground">
+                        {taDirectorySecondary(row.tradeName, row.agencyType)}
                       </div>
                     ) : null}
                   </td>
