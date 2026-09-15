@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **STATUS** | IMPLEMENTATION **PASS** (Section 6 only) — pending Outcome Review. DER PASS 2026-09-15 |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 |
 | **Spec** | [`docs/pms/specs/create-reservation-phase1-section6.md`](./specs/create-reservation-phase1-section6.md) |
 | **ENGINEERING** | **PASS** — [#148](https://github.com/NORUDEVGIT/NORU/pull/148) MERGED (`73801ada`) |
-| **Issue** | [#145](https://github.com/NORUDEVGIT/NORU/issues/145) **OPEN** until Outcome Review / Rekik formal closure YES |
+| **Issue** | [#145](https://github.com/NORUDEVGIT/NORU/issues/145) **CLOSED** completed |
 | **Implemented** | Section 6 **Yes** (DER). Phase 1 / Create Reservation DONE = **NO** |
 | **Section** | 6 of 8 — Specific room assignment only. Guarantee / packages = later sections |
 | **Route** | `/restaurant/bookings/new` (additive) |

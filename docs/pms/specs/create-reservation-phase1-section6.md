@@ -4,9 +4,9 @@
 |---|---|
 | **PACKAGE** | PMS · Reservations |
 | **FEATURE** | Create Reservation Phase 1 — Section 6: Room assignment |
-| **STATUS** | IMPLEMENTATION **PASS** (Section 6 only) — pending Outcome Review. DER PASS 2026-09-15 |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (DER PASS) |
 | **ENGINEERING STATUS** | **PASS** for Section 6 — delivery [#148](https://github.com/NORUDEVGIT/NORU/pull/148) MERGED (`73801ada08efd0bde0234f33bc1c8bd86501c36d` by AK21ER @ 2026-09-15T14:17:43Z) |
-| **Issue** | [#145](https://github.com/NORUDEVGIT/NORU/issues/145) **OPEN** until Outcome Review / Rekik formal closure YES. Do **not** claim CLOSED / LIVE / Phase 1 COMPLETE |
+| **Issue** | [#145](https://github.com/NORUDEVGIT/NORU/issues/145) **CLOSED** completed — OPERATIONALLY ACCEPTED. Do **not** claim LIVE / Phase 1 COMPLETE |
 | **Migration** | **NONE** (DER). Optional `hotel_reservations.room_id`, create bind (`roomId` → `_room_id`), `listAssignableRooms`, and conflict RPCs already existed. Dual-lane APPLY **N/A** (SECURITY DEFINER `assert_reservation_capacity` / `create_hotel_reservation` / `create_hotel_reservation_priced` were **not** replaced). RLS **UNCHANGED**. Flag Abel **NOT** required. No new room table, no create-room-from-reservation API, no invented overbooking engine |
 | **Guest Waves 1–5 + GE1 + GE2 + GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
 | **Phase 1 / module COMPLETE** | **NO** — Section 6 only; guarantee / packages later sections own DONE claims |
@@ -16,9 +16,9 @@
 
 > **Rekik AUTHORIZED 2026-09-15** via Hospitality Product Advisor. Additive expansion of the **existing** Create Reservation surface. **Do not** rebuild a second product. Walk-in remains a **mode of the same writer**.
 >
-> **Docs CURRENT recon 2026-09-15** after Eng DER PASS (#148) and Rekik Independent QA **PASS** (pre-merge). Spec docs baseline [#143](https://github.com/NORUDEVGIT/NORU/pull/143). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
+> **Docs CURRENT recon 2026-09-15** after Eng DER PASS (#148) and Rekik **formal closure YES**. Spec docs baseline [#143](https://github.com/NORUDEVGIT/NORU/pull/143). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
 >
-> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → 5 Rate + sticky pricing → **6 Room assign (THIS — IMPLEMENTATION PASS / #145 OPEN)** → 7 Guarantee + confirm → 8 Packages if catalog.
+> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → 5 Rate + sticky pricing → **6 Room assign (THIS — OPERATIONALLY ACCEPTED / #145 CLOSED)** → 7 Guarantee + confirm → 8 Packages if catalog.
 >
 > **Programme rule (LOCKED):** Cover efficient functionality from the reference Individual create **Room** pick (**+ button patterns only if CURRENT** — researched: **absent** → **OUT**) with **modern NORU UI** (own box, sticky summary, drawers). **Do not** clone legacy chrome. Placement may borrow from reference.
 >
@@ -87,7 +87,7 @@
 - Spec [#143](https://github.com/NORUDEVGIT/NORU/pull/143) EXPECTED AC-CR6-1…22 remain the acceptance baseline; delivery [#148](https://github.com/NORUDEVGIT/NORU/pull/148) matched locks **22/22** (+ Section 1–5 / Associations locks still PASS on regression). Independent QA **PASS** (Rekik, pre-merge). Browser **NOT RUN ≠ PASS** (IQ covered).
 - **No DOCUMENTATION / IMPLEMENTATION DISCREPANCY:** Spec ACs that shipped are present in code. Honest notes (not discrepancies): sticky shows **Unassigned** even before a room type is picked (Spec §3.7 allowed Unassigned / “Select a room type first”); floor is shown when present; occupied rooms stay **omit**; HK chip **omit**; date change **revalidates** and clears only when stale (does **not** always-clear like Section 5 `ratePlanId`).
 - Pre-existing Stay / Rate / Details UI on the same page **remain**. Section 6 Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE.
-- Issue [#145](https://github.com/NORUDEVGIT/NORU/issues/145) remains **OPEN** until Outcome Review / Rekik formal closure YES. This docs recon does **not** close #145.
+- Issue [#145](https://github.com/NORUDEVGIT/NORU/issues/145) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -180,7 +180,7 @@ Create Reservation is **not** forced to require a room because the booking-sourc
 |---|---|---|
 | **AC-CR6-1…22** | As authorized in Spec #143 | **PASS** (#148) |
 
-Full AC text remains the #143 baseline; do not reopen Guest GE; do not claim Phase 1 DONE; do not close #145 from this docs recon.
+Full AC text remains the #143 baseline; do not reopen Guest GE; do not claim Phase 1 DONE.
 
 ---
 
@@ -190,7 +190,7 @@ Full AC text remains the #143 baseline; do not reopen Guest GE; do not claim Pha
 - Security: staff-only; tenant-scoped rooms; existing FO / reservation gates preserved; assign uses `requireReservationManager` (not `requireRoomManager`); **no** new SECURITY DEFINER; **no** new RLS policies.
 - Regression: Sections 1–5 shell / stay / availability / Company-TA / Rate / Associations (as shipped); walk-in same writer + room-required UI; `assignReservationRoom` / FO check-in `ROOM_REQUIRED` unchanged; Configuration `saveRoom` unchanged; Guest GE closed; `listAssignableRooms` consumers (FO amend, check-in, rack) not silently broken.
 - Migration: **NONE**. Dual-lane APPLY **N/A**. Flag Abel: **NOT** required.
-- Issue [#145](https://github.com/NORUDEVGIT/NORU/issues/145) **OPEN** until Outcome Review / Rekik formal closure YES.
+- **#145** **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -212,7 +212,7 @@ Full AC text remains the #143 baseline; do not reopen Guest GE; do not claim Pha
 
 | Item | Status |
 |---|---|
-| Spec | IMPLEMENTATION **PASS** (Section 6 only) — pending Outcome Review. DER PASS 2026-09-15 |
+| Spec | **OPERATIONALLY ACCEPTED** (#145 CLOSED) |
 | ENGINEERING | **PASS** (#148) |
 | Implemented / PASS (Section 6) | **Yes** (DER) |
 | LIVE / module COMPLETE / Phase 1 COMPLETE | **No** |
@@ -223,4 +223,4 @@ Full AC text remains the #143 baseline; do not reopen Guest GE; do not claim Pha
 | LIVE OTA / RMS / allotment product | **Not invented** — CURRENT `listAssignableRooms` + `assert_reservation_capacity` only |
 | Guest GE1–GE3 | **Closed** — not reopened |
 | Create Reservation DONE | **NO** |
-| Issue #145 | **OPEN** until Outcome Review / Rekik formal closure YES |
+| Issue #145 | **CLOSED** completed |
