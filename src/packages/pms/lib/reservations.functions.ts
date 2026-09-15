@@ -17,6 +17,10 @@ import {
 import { parseSnapshot, rateError } from "./rates.server";
 import { callerMembership, displayName } from "@/core/lib/workforce.server";
 import { assertCreateReservationPricing } from "./create-reservation-phase1-section5";
+import {
+  assertCreateReservationSection7,
+  section7PersistApplied,
+} from "./create-reservation-phase1-section7";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -446,15 +450,34 @@ export const createReservation = createServerFn({ method: "POST" })
         status: z.enum(["pending", "confirmed"]).optional(),
         companyMasterId: idSchema.nullable().optional(),
         travelAgentMasterId: idSchema.nullable().optional(),
+        commercialBookingSource: z.string().max(120).nullable().optional(),
+        marketSegment: z.string().max(120).nullable().optional(),
+        externalReference: z.string().max(120).nullable().optional(),
+        guaranteeMethod: z.string().max(80).nullable().optional(),
+        requireGuarantee: z.boolean().optional(),
+        reservationType: z.enum(["individual", "corporate", "travel_agency"]).optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; confirmationNumber: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
+    const status = data.status ?? "pending";
     assertCreateReservationPricing({
       role: me.role,
-      status: data.status ?? "pending",
+      status,
       ratePlanId: data.ratePlanId ?? null,
+    });
+    const persistApplied = section7PersistApplied();
+    assertCreateReservationSection7({
+      status,
+      requireGuarantee: data.requireGuarantee === true,
+      guaranteeMethod: data.guaranteeMethod ?? null,
+      commercialBookingSource: data.commercialBookingSource ?? null,
+      marketSegment: data.marketSegment ?? null,
+      persistApplied,
+      reservationType: data.reservationType ?? null,
+      companyMasterId: data.companyMasterId ?? null,
+      travelAgentMasterId: data.travelAgentMasterId ?? null,
     });
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
@@ -470,11 +493,19 @@ export const createReservation = createServerFn({ method: "POST" })
       _children: data.children,
       _special_requests: blankToNull(data.specialRequests) as unknown as string,
       _notes: blankToNull(data.notes) as unknown as string,
-      _status: data.status ?? "pending",
+      _status: status,
       _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
       ...(data.companyMasterId ? { _company_master_id: data.companyMasterId } : {}),
       ...(data.travelAgentMasterId ? { _travel_agent_master_id: data.travelAgentMasterId } : {}),
+      ...(persistApplied
+        ? {
+            _commercial_booking_source: blankToNull(data.commercialBookingSource) as unknown as string,
+            _market_segment: blankToNull(data.marketSegment) as unknown as string,
+            _external_reference: blankToNull(data.externalReference) as unknown as string,
+            _guarantee_method: blankToNull(data.guaranteeMethod) as unknown as string,
+          }
+        : {}),
     });
     if (error) throw rateError(reservationError(error.message).message);
 
