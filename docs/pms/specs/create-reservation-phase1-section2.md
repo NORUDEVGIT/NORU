@@ -63,7 +63,7 @@
 ## 2. CURRENT (code wins — post #132)
 
 - `/restaurant/bookings/new` Corporate / Travel Agency modes show **live** Company / TA pickers (`CreateReservationMasterPicker`) — Section 1 placeholders **removed**.
-- **Individual** hides both pickers; `mastersForCreateMode("individual", …)` binds **null** / **null** (no master IDs from this chrome).
+- **Individual (Section 2 / #127 lock):** hid both pickers; `mastersForCreateMode("individual", …)` bound **null** / **null**. **Superseded for Individual only** by AC-CR2A amend (#138 / #139) — Associations box + dual optional persist. Corporate / TA exclusive chrome on this section **unchanged**. #127 stays **CLOSED**.
 - **Company picker:** `listGuestAccounts` (`accountType: "company"`, active); search debounce; Clear / Change; name + code.
 - **TA picker:** same pattern (`accountType: "travel_agent"`).
 - **Inline create:** GE1 `GuestCompanyFormDialog` / GE3 `GuestTravelAgentFormDialog`; on save **auto-select**; no navigate-away; no parallel writers.
@@ -82,6 +82,7 @@
 - Spec [#126](https://github.com/NORUDEVGIT/NORU/pull/126) EXPECTED AC-CR2-1…18 remain the acceptance baseline; delivery [#132](https://github.com/NORUDEVGIT/NORU/pull/132) matched locks **18/18** (+ Section 1 locks still PASS).
 - Pre-existing Stay / availability / rate / room / details UI on the same page **remains**. Section 2 Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE.
 - Issue [#127](https://github.com/NORUDEVGIT/NORU/issues/127) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
+- Individual Associations is a **follow-up amend** (**AC-CR2A**, Spec [#137](https://github.com/NORUDEVGIT/NORU/pull/137), delivery [#139](https://github.com/NORUDEVGIT/NORU/pull/139)) — **supersedes Individual hide only**. Does **not** reopen #127 or rewrite AC-CR2-1…18 as failed. See [`create-reservation-individual-associations.md`](./create-reservation-individual-associations.md). #138 **CLOSED** / OPERATIONALLY ACCEPTED.
 
 ---
 
