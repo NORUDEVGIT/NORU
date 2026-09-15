@@ -31,6 +31,7 @@ import {
   getRoomTypeAvailability,
   listAssignableRooms,
 } from "@/packages/pms/lib/reservations.functions";
+import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import {
   moveReservationRoom,
   type FrontOfficeStay,
@@ -363,6 +364,7 @@ export function WalkInDialog({
   const [roomTypeId, setRoomTypeId] = useState("");
   const [roomId, setRoomId] = useState("");
   const [adults, setAdults] = useState(1);
+  const [ratePlanId, setRatePlanId] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -372,12 +374,14 @@ export function WalkInDialog({
       setRoomTypeId("");
       setRoomId("");
       setAdults(1);
+      setRatePlanId("");
     }
   }, [open, today]);
 
   const fetchGuests = useServerFn(listGuests);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
+  const fetchQuotes = useServerFn(quoteStay);
   const create = useServerFn(createReservation);
   const startWalkIn = useServerFn(startWalkInCheckIn);
 
@@ -407,8 +411,16 @@ export function WalkInDialog({
     enabled: open && !!roomTypeId && departure > today,
   });
 
+  const quotesQuery = useQuery({
+    queryKey: ["front-office", "walkin-quotes", restaurantId, roomTypeId, today, departure],
+    queryFn: () => fetchQuotes({ data: { restaurantId, roomTypeId, arrival: today, departure } }),
+    enabled: open && !!roomTypeId && departure > today,
+    retry: false,
+  });
+
   const types = (availabilityQuery.data ?? []).filter((t) => t.available > 0);
   const rooms = roomsQuery.data ?? [];
+  const pricedQuotes = (quotesQuery.data ?? []).filter((row) => row.quote);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -424,6 +436,7 @@ export function WalkInDialog({
           adults,
           children: 0,
           status: "confirmed" as const,
+          ratePlanId: ratePlanId || null,
         },
       });
       await startWalkIn({ data: { restaurantId, reservationId: created.id } });
@@ -519,6 +532,7 @@ export function WalkInDialog({
                 setDeparture(e.target.value);
                 setRoomTypeId("");
                 setRoomId("");
+                setRatePlanId("");
               }}
             />
           </div>
@@ -542,6 +556,7 @@ export function WalkInDialog({
             onValueChange={(v) => {
               setRoomTypeId(v);
               setRoomId("");
+              setRatePlanId("");
             }}
           >
             <SelectTrigger>
@@ -551,6 +566,30 @@ export function WalkInDialog({
               {types.map((t) => (
                 <SelectItem key={t.roomTypeId} value={t.roomTypeId}>
                   {t.name} · {t.available} available
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Rate plan</Label>
+          <Select value={ratePlanId} onValueChange={setRatePlanId} disabled={!roomTypeId}>
+            <SelectTrigger data-testid="walkin-rate-plan">
+              <SelectValue
+                placeholder={
+                  quotesQuery.isLoading
+                    ? "Pricing the stay…"
+                    : pricedQuotes.length === 0
+                      ? "No quoted rate for this stay"
+                      : "Select a rate plan"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {pricedQuotes.map((row) => (
+                <SelectItem key={row.plan.id} value={row.plan.id}>
+                  {row.plan.code} · {row.plan.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -578,7 +617,7 @@ export function WalkInDialog({
             Cancel
           </Button>
           <Button
-            disabled={!guest || !roomTypeId || !roomId || mutation.isPending}
+            disabled={!guest || !roomTypeId || !roomId || !ratePlanId || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
             {mutation.isPending ? "Creating…" : "Create stay"}
