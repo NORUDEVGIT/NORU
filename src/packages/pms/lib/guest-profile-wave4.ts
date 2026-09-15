@@ -159,6 +159,7 @@ export type GuestAccountSummary = {
   anonymisedAt: string | null;
   tradeName: string | null;
   companyType: string | null;
+  agencyType: string | null;
 };
 
 export type GuestAccountProfile = GuestAccountSummary & {
@@ -181,6 +182,22 @@ export type GuestAccountProfile = GuestAccountSummary & {
   defaultTravelAgentMasterId: string | null;
   defaultTravelAgentMasterName: string | null;
   sourceOfBusiness: string | null;
+  agencyTypeOther: string | null;
+  website: string | null;
+  billingContactName: string | null;
+  iataLicenseNumber: string | null;
+  licenseExpiryDate: string | null;
+  commissionLabel: string | null;
+  commissionType: string | null;
+  commissionCurrencyNote: string | null;
+  contractReference: string | null;
+  contractStartDate: string | null;
+  contractEndDate: string | null;
+  contractStatus: string | null;
+  contractSignedWith: string | null;
+  paymentTerms: string | null;
+  creditLimitNote: string | null;
+  billingInstruction: string | null;
 };
 
 export type GuestAccountLink = {

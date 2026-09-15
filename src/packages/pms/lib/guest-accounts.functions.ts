@@ -15,10 +15,14 @@ import {
 } from "./guest-profile-wave5";
 import {
   COMPANY_ENRICHMENT_UNAVAILABLE,
-  COMPANY_LINK_ROLES,
   companyLegalName,
   validateCompanyType,
 } from "./guest-profile-company";
+import {
+  TA_ENRICHMENT_UNAVAILABLE,
+  hasPaymentTermsInput,
+  validateAgencyType,
+} from "./guest-profile-travel-agency";
 import {
   GUEST_ACCOUNT_STATUSES,
   GUEST_ACCOUNT_TYPES,
@@ -46,6 +50,7 @@ const MASTER_COLUMNS_BASE =
   "id, account_type, name, code, email, phone, address_line1, city, country, notes, account_status, created_at, updated_at";
 const MASTER_COLUMNS = `${MASTER_COLUMNS_BASE}, anonymised_at`;
 const MASTER_COLUMNS_COMPANY = `${MASTER_COLUMNS}, trade_name, company_type, company_type_other, tax_id, business_registration_number, phone_alt, email_alt, primary_contact_name, address_line2, region, postal_code, corporate_account_reference, negotiated_rate_reference, default_travel_agent_master_id, source_of_business`;
+const MASTER_COLUMNS_TA = `${MASTER_COLUMNS_COMPANY}, agency_type, agency_type_other, website, billing_contact_name, iata_license_number, license_expiry_date, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction`;
 
 type MasterRow = {
   id: string;
@@ -77,12 +82,27 @@ type MasterRow = {
   negotiated_rate_reference?: string | null;
   default_travel_agent_master_id?: string | null;
   source_of_business?: string | null;
+  agency_type?: string | null;
+  agency_type_other?: string | null;
+  website?: string | null;
+  billing_contact_name?: string | null;
+  iata_license_number?: string | null;
+  license_expiry_date?: string | null;
+  commission_label?: string | null;
+  commission_type?: string | null;
+  commission_currency_note?: string | null;
+  contract_reference?: string | null;
+  contract_start_date?: string | null;
+  contract_end_date?: string | null;
+  contract_status?: string | null;
+  contract_signed_with?: string | null;
+  payment_terms?: string | null;
+  credit_limit_note?: string | null;
+  billing_instruction?: string | null;
 };
 
 function emptyCompanyFields() {
   return {
-    tradeName: null as string | null,
-    companyType: null as string | null,
     companyTypeOther: null as string | null,
     taxId: null as string | null,
     businessRegistrationNumber: null as string | null,
@@ -97,6 +117,22 @@ function emptyCompanyFields() {
     defaultTravelAgentMasterId: null as string | null,
     defaultTravelAgentMasterName: null as string | null,
     sourceOfBusiness: null as string | null,
+    agencyTypeOther: null as string | null,
+    website: null as string | null,
+    billingContactName: null as string | null,
+    iataLicenseNumber: null as string | null,
+    licenseExpiryDate: null as string | null,
+    commissionLabel: null as string | null,
+    commissionType: null as string | null,
+    commissionCurrencyNote: null as string | null,
+    contractReference: null as string | null,
+    contractStartDate: null as string | null,
+    contractEndDate: null as string | null,
+    contractStatus: null as string | null,
+    contractSignedWith: null as string | null,
+    paymentTerms: null as string | null,
+    creditLimitNote: null as string | null,
+    billingInstruction: null as string | null,
   };
 }
 
@@ -115,6 +151,7 @@ function toSummary(row: MasterRow): GuestAccountSummary {
     anonymisedAt,
     tradeName: anonymisedAt ? null : (row.trade_name ?? null),
     companyType: row.company_type ?? null,
+    agencyType: row.agency_type ?? null,
   };
 }
 
@@ -147,6 +184,22 @@ function toProfile(row: MasterRow, defaultTravelAgentMasterName: string | null =
           defaultTravelAgentMasterId: row.default_travel_agent_master_id ?? null,
           defaultTravelAgentMasterName,
           sourceOfBusiness: row.source_of_business ?? null,
+          agencyTypeOther: row.agency_type_other ?? null,
+          website: row.website ?? null,
+          billingContactName: row.billing_contact_name ?? null,
+          iataLicenseNumber: row.iata_license_number ?? null,
+          licenseExpiryDate: row.license_expiry_date ?? null,
+          commissionLabel: row.commission_label ?? null,
+          commissionType: row.commission_type ?? null,
+          commissionCurrencyNote: row.commission_currency_note ?? null,
+          contractReference: row.contract_reference ?? null,
+          contractStartDate: row.contract_start_date ?? null,
+          contractEndDate: row.contract_end_date ?? null,
+          contractStatus: row.contract_status ?? null,
+          contractSignedWith: row.contract_signed_with ?? null,
+          paymentTerms: row.payment_terms ?? null,
+          creditLimitNote: row.credit_limit_note ?? null,
+          billingInstruction: row.billing_instruction ?? null,
         }),
   };
 }
@@ -157,8 +210,13 @@ async function selectMaster(
   extra: (query: any) => any,
 ) {
   let result = await extra(
-    db(context).from("guest_account_masters").select(MASTER_COLUMNS_COMPANY).eq("restaurant_id", restaurantId),
+    db(context).from("guest_account_masters").select(MASTER_COLUMNS_TA).eq("restaurant_id", restaurantId),
   );
+  if (result.error && isMissingSchemaError(result.error)) {
+    result = await extra(
+      db(context).from("guest_account_masters").select(MASTER_COLUMNS_COMPANY).eq("restaurant_id", restaurantId),
+    );
+  }
   if (result.error && isMissingSchemaError(result.error)) {
     result = await extra(
       db(context).from("guest_account_masters").select(MASTER_COLUMNS).eq("restaurant_id", restaurantId),
@@ -201,6 +259,23 @@ const accountInputSchema = z.object({
   negotiatedRateReference: z.string().max(120).optional().nullable(),
   defaultTravelAgentMasterId: z.string().uuid().optional().nullable(),
   sourceOfBusiness: z.string().max(200).optional().nullable(),
+  agencyType: z.string().max(40).optional().nullable(),
+  agencyTypeOther: z.string().max(200).optional().nullable(),
+  website: z.string().max(300).optional().nullable(),
+  billingContactName: z.string().max(200).optional().nullable(),
+  iataLicenseNumber: z.string().max(80).optional().nullable(),
+  licenseExpiryDate: z.string().max(20).optional().nullable(),
+  commissionLabel: z.string().max(120).optional().nullable(),
+  commissionType: z.string().max(40).optional().nullable(),
+  commissionCurrencyNote: z.string().max(80).optional().nullable(),
+  contractReference: z.string().max(120).optional().nullable(),
+  contractStartDate: z.string().max(20).optional().nullable(),
+  contractEndDate: z.string().max(20).optional().nullable(),
+  contractStatus: z.string().max(40).optional().nullable(),
+  contractSignedWith: z.string().max(200).optional().nullable(),
+  paymentTerms: z.string().max(120).optional().nullable(),
+  creditLimitNote: z.string().max(200).optional().nullable(),
+  billingInstruction: z.string().max(4000).optional().nullable(),
 });
 
 function assertEmail(email: string | null, label: string) {
@@ -210,9 +285,17 @@ function assertEmail(email: string | null, label: string) {
   return email;
 }
 
+function paymentTermsColumns(input: z.infer<typeof accountInputSchema>) {
+  return {
+    payment_terms: blankToNull(input.paymentTerms),
+    credit_limit_note: blankToNull(input.creditLimitNote),
+    billing_instruction: blankToNull(input.billingInstruction),
+  };
+}
+
 function toMasterColumns(
   input: z.infer<typeof accountInputSchema>,
-  options?: { includeCompany?: boolean },
+  options?: { includeCompany?: boolean; includeTravelAgent?: boolean; includePaymentTerms?: boolean },
 ) {
   const email = assertEmail(normalizeEmail(input.email), "email address");
   const emailAlt = assertEmail(normalizeEmail(input.emailAlt), "alternate email address");
@@ -227,25 +310,51 @@ function toMasterColumns(
     notes: blankToNull(input.notes),
     account_status: input.accountStatus ?? "active",
   };
-  if (!options?.includeCompany) return base;
-  return {
-    ...base,
+  const shared = {
     trade_name: blankToNull(input.tradeName),
-    company_type: blankToNull(input.companyType),
-    company_type_other:
-      input.companyType === "other" ? blankToNull(input.companyTypeOther) : null,
-    tax_id: blankToNull(input.taxId),
-    business_registration_number: blankToNull(input.businessRegistrationNumber),
     phone_alt: blankToNull(input.phoneAlt),
     email_alt: emailAlt,
     primary_contact_name: blankToNull(input.primaryContactName),
     address_line2: blankToNull(input.addressLine2),
     region: blankToNull(input.region),
     postal_code: blankToNull(input.postalCode),
-    corporate_account_reference: blankToNull(input.corporateAccountReference),
+    tax_id: blankToNull(input.taxId),
+    business_registration_number: blankToNull(input.businessRegistrationNumber),
     negotiated_rate_reference: blankToNull(input.negotiatedRateReference),
+  };
+  if (options?.includeTravelAgent) {
+    return {
+      ...base,
+      ...shared,
+      ...paymentTermsColumns(input),
+      agency_type: blankToNull(input.agencyType),
+      agency_type_other:
+        input.agencyType === "other" ? blankToNull(input.agencyTypeOther) : null,
+      website: blankToNull(input.website),
+      billing_contact_name: blankToNull(input.billingContactName),
+      iata_license_number: blankToNull(input.iataLicenseNumber),
+      license_expiry_date: blankToNull(input.licenseExpiryDate),
+      commission_label: blankToNull(input.commissionLabel),
+      commission_type: blankToNull(input.commissionType),
+      commission_currency_note: blankToNull(input.commissionCurrencyNote),
+      contract_reference: blankToNull(input.contractReference),
+      contract_start_date: blankToNull(input.contractStartDate),
+      contract_end_date: blankToNull(input.contractEndDate),
+      contract_status: blankToNull(input.contractStatus),
+      contract_signed_with: blankToNull(input.contractSignedWith),
+    };
+  }
+  if (!options?.includeCompany) return base;
+  return {
+    ...base,
+    ...shared,
+    company_type: blankToNull(input.companyType),
+    company_type_other:
+      input.companyType === "other" ? blankToNull(input.companyTypeOther) : null,
+    corporate_account_reference: blankToNull(input.corporateAccountReference),
     default_travel_agent_master_id: input.defaultTravelAgentMasterId || null,
     source_of_business: blankToNull(input.sourceOfBusiness),
+    ...(options.includePaymentTerms ? paymentTermsColumns(input) : {}),
   };
 }
 
@@ -308,10 +417,19 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
     let result = await applyFilters(
       db(context)
         .from("guest_account_masters")
-        .select(MASTER_COLUMNS_COMPANY)
+        .select(MASTER_COLUMNS_TA)
         .eq("restaurant_id", data.restaurantId),
       true,
     );
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await applyFilters(
+        db(context)
+          .from("guest_account_masters")
+          .select(MASTER_COLUMNS_COMPANY)
+          .eq("restaurant_id", data.restaurantId),
+        true,
+      );
+    }
     if (result.error && isMissingSchemaError(result.error)) {
       result = await applyFilters(
         db(context)
@@ -422,6 +540,7 @@ export const createGuestAccount = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const isCompany = data.accountType === "company";
+    const isTravelAgent = data.accountType === "travel_agent";
     if (isCompany) {
       const typeError = validateCompanyType(data.account.companyType, data.account.companyTypeOther);
       if (typeError) throw new Error(typeError);
@@ -431,7 +550,15 @@ export const createGuestAccount = createServerFn({ method: "POST" })
         data.account.defaultTravelAgentMasterId,
       );
     }
-    const columns = toMasterColumns(data.account, { includeCompany: isCompany });
+    if (isTravelAgent) {
+      const typeError = validateAgencyType(data.account.agencyType, data.account.agencyTypeOther);
+      if (typeError) throw new Error(typeError);
+    }
+    const columns = toMasterColumns(data.account, {
+      includeCompany: isCompany,
+      includeTravelAgent: isTravelAgent,
+      includePaymentTerms: isCompany || isTravelAgent,
+    });
     let inserted: { id: string } | null = null;
     let error: { message?: string; code?: string } | null = null;
     const first = await db(context)
@@ -446,10 +573,36 @@ export const createGuestAccount = createServerFn({ method: "POST" })
       .single();
     inserted = first.data as { id: string } | null;
     error = first.error;
-    if (error && isMissingSchemaError(error) && isCompany) {
-      throw new Error(COMPANY_ENRICHMENT_UNAVAILABLE);
+    if (error && isMissingSchemaError(error) && isTravelAgent) {
+      throw new Error(TA_ENRICHMENT_UNAVAILABLE);
     }
-    if (error && isMissingSchemaError(error) && !isCompany) {
+    if (error && isMissingSchemaError(error) && isCompany) {
+      if (
+        hasPaymentTermsInput(
+          data.account.paymentTerms,
+          data.account.creditLimitNote,
+          data.account.billingInstruction,
+        )
+      ) {
+        throw new Error(TA_ENRICHMENT_UNAVAILABLE);
+      }
+      const retryCompany = await db(context)
+        .from("guest_account_masters")
+        .insert({
+          ...toMasterColumns(data.account, { includeCompany: true, includePaymentTerms: false }),
+          restaurant_id: data.restaurantId,
+          account_type: data.accountType,
+          created_by_staff_membership_id: me.id,
+        })
+        .select("id")
+        .single();
+      inserted = retryCompany.data as { id: string } | null;
+      error = retryCompany.error;
+      if (error && isMissingSchemaError(error) && isCompany) {
+        throw new Error(COMPANY_ENRICHMENT_UNAVAILABLE);
+      }
+    }
+    if (error && isMissingSchemaError(error) && !isCompany && !isTravelAgent) {
       const retry = await db(context)
         .from("guest_account_masters")
         .insert({
@@ -500,6 +653,7 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
     }
     const before = existing.data as MasterRow;
     const isCompany = before.account_type === "company";
+    const isTravelAgent = before.account_type === "travel_agent";
     if (isCompany) {
       const typeError = validateCompanyType(data.account.companyType, data.account.companyTypeOther);
       if (typeError) throw new Error(typeError);
@@ -510,16 +664,44 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
         data.accountId,
       );
     }
-    const columns = toMasterColumns(data.account, { includeCompany: isCompany });
+    if (isTravelAgent) {
+      const typeError = validateAgencyType(data.account.agencyType, data.account.agencyTypeOther);
+      if (typeError) throw new Error(typeError);
+    }
+    const columns = toMasterColumns(data.account, {
+      includeCompany: isCompany,
+      includeTravelAgent: isTravelAgent,
+      includePaymentTerms: isCompany || isTravelAgent,
+    });
     let { error } = await db(context)
       .from("guest_account_masters")
       .update(columns)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.accountId);
-    if (error && isMissingSchemaError(error) && isCompany) {
-      throw new Error(COMPANY_ENRICHMENT_UNAVAILABLE);
+    if (error && isMissingSchemaError(error) && isTravelAgent) {
+      throw new Error(TA_ENRICHMENT_UNAVAILABLE);
     }
-    if (error && isMissingSchemaError(error) && !isCompany) {
+    if (error && isMissingSchemaError(error) && isCompany) {
+      if (
+        hasPaymentTermsInput(
+          data.account.paymentTerms,
+          data.account.creditLimitNote,
+          data.account.billingInstruction,
+        )
+      ) {
+        throw new Error(TA_ENRICHMENT_UNAVAILABLE);
+      }
+      const retryCompany = await db(context)
+        .from("guest_account_masters")
+        .update(toMasterColumns(data.account, { includeCompany: true, includePaymentTerms: false }))
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId);
+      error = retryCompany.error;
+      if (error && isMissingSchemaError(error) && isCompany) {
+        throw new Error(COMPANY_ENRICHMENT_UNAVAILABLE);
+      }
+    }
+    if (error && isMissingSchemaError(error) && !isCompany && !isTravelAgent) {
       const retry = await db(context)
         .from("guest_account_masters")
         .update(toMasterColumns(data.account))
@@ -683,7 +865,7 @@ export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         accountId: idSchema,
         guestIds: z.array(idSchema).min(1).max(50),
-        role: z.enum(COMPANY_LINK_ROLES),
+        role: z.enum(GUEST_RELATIONSHIP_ROLES),
       })
       .parse(input),
   )
@@ -698,10 +880,10 @@ export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
     if (wave4Unavailable(masterError)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (masterError) throw new Error(masterError.message);
     if (!master) throw new Error("That account master could not be found.");
-    if (master.account_type !== "company") {
-      throw new Error("Multi-guest link is available on Company masters only.");
+    if (master.account_type !== "company" && master.account_type !== "travel_agent") {
+      throw new Error("Multi-guest link is available on Company and Travel Agent masters.");
     }
-    const typeMismatch = assertRoleMatchesType(data.role, "company");
+    const typeMismatch = assertRoleMatchesType(data.role, master.account_type as GuestAccountType);
     if (typeMismatch) throw new Error(typeMismatch);
 
     const uniqueGuestIds = [...new Set(data.guestIds)];

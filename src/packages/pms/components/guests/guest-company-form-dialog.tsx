@@ -13,6 +13,7 @@ import {
   validateCompanyType,
   type CompanyType,
 } from "@/packages/pms/lib/guest-profile-company";
+import { PAYMENT_TERMS_REFERENCE_COPY } from "@/packages/pms/lib/guest-profile-travel-agency";
 import {
   type GuestAccountProfile,
   type GuestAccountStatus,
@@ -67,6 +68,9 @@ type CompanyFormValues = {
   negotiatedRateReference: string;
   defaultTravelAgentMasterId: string;
   sourceOfBusiness: string;
+  paymentTerms: string;
+  creditLimitNote: string;
+  billingInstruction: string;
   notes: string;
 };
 
@@ -94,6 +98,9 @@ const EMPTY: CompanyFormValues = {
   negotiatedRateReference: "",
   defaultTravelAgentMasterId: "",
   sourceOfBusiness: "",
+  paymentTerms: "",
+  creditLimitNote: "",
+  billingInstruction: "",
   notes: "",
 };
 
@@ -122,6 +129,9 @@ function fromProfile(account: GuestAccountProfile): CompanyFormValues {
     negotiatedRateReference: account.negotiatedRateReference ?? "",
     defaultTravelAgentMasterId: account.defaultTravelAgentMasterId ?? "",
     sourceOfBusiness: account.sourceOfBusiness ?? "",
+    paymentTerms: account.paymentTerms ?? "",
+    creditLimitNote: account.creditLimitNote ?? "",
+    billingInstruction: account.billingInstruction ?? "",
     notes: account.notes ?? "",
   };
 }
@@ -223,6 +233,9 @@ export function GuestCompanyFormDialog({
         negotiatedRateReference: form.negotiatedRateReference,
         defaultTravelAgentMasterId: form.defaultTravelAgentMasterId || null,
         sourceOfBusiness: form.sourceOfBusiness,
+        paymentTerms: form.paymentTerms,
+        creditLimitNote: form.creditLimitNote,
+        billingInstruction: form.billingInstruction,
       };
       if (account) {
         await update({ data: { restaurantId, accountId: account.id, account: payload } });
@@ -526,6 +539,37 @@ export function GuestCompanyFormDialog({
                 data-testid="company-source-of-business"
                 value={form.sourceOfBusiness}
                 onChange={(e) => setForm((prev) => ({ ...prev, sourceOfBusiness: e.target.value }))}
+              />
+            </div>
+          </Section>
+
+          <Section id="payment-terms" title="Payment Terms">
+            <p className="text-xs text-muted-foreground">{PAYMENT_TERMS_REFERENCE_COPY}</p>
+            <div>
+              <Label htmlFor="company-payment-terms">Terms code / label</Label>
+              <Input
+                id="company-payment-terms"
+                data-testid="company-payment-terms"
+                value={form.paymentTerms}
+                onChange={(e) => setForm((prev) => ({ ...prev, paymentTerms: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="company-credit-limit">Credit limit note</Label>
+              <Input
+                id="company-credit-limit"
+                data-testid="company-credit-limit"
+                value={form.creditLimitNote}
+                onChange={(e) => setForm((prev) => ({ ...prev, creditLimitNote: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="company-billing-instruction">Billing instruction</Label>
+              <Textarea
+                id="company-billing-instruction"
+                data-testid="company-billing-instruction"
+                value={form.billingInstruction}
+                onChange={(e) => setForm((prev) => ({ ...prev, billingInstruction: e.target.value }))}
               />
             </div>
           </Section>
