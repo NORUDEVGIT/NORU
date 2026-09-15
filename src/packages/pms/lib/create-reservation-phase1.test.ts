@@ -1047,7 +1047,10 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.match(associations, /kind="company"/);
     assert.match(associations, /kind="travel_agent"/);
     assert.match(CREATE_RESERVATION_ASSOCIATIONS_COPY, /Neither is required/);
-    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.match(page, /canSubmitCreateReservation/);
+    assert.match(page, /hasGuest: !!guest/);
+    assert.match(page, /datesValid,/);
+    assert.match(page, /roomTypeId,/);
     assert.doesNotMatch(page, /companyMaster.*canSubmit|canSubmit.*companyMaster/);
     assert.doesNotMatch(page, /travelAgentMaster.*canSubmit|canSubmit.*travelAgentMaster/);
   });

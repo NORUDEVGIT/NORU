@@ -90,6 +90,7 @@ import {
   stickyPricingCopy,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,
