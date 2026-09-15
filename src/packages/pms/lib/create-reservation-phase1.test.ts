@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CREATE_RESERVATION_ACCEPTANCE_CRITERIA,
+  CREATE_RESERVATION_ASSOCIATIONS_COPY,
   CREATE_RESERVATION_ARRIVAL_CHANGE_RULE,
   CREATE_RESERVATION_ARRIVAL_CHANGE_RULE_COPY,
   CREATE_RESERVATION_BOOKING_AGENT_COPY,
@@ -31,6 +32,16 @@ import {
   CREATE_RESERVATION_SECTION2_MIGRATION_REASON,
   CREATE_RESERVATION_SECTION2_SCOPE,
   CREATE_RESERVATION_SECTION2_TIP_AC_MAP,
+  CREATE_RESERVATION_SECTION2A_ACCEPTANCE_CRITERIA,
+  CREATE_RESERVATION_SECTION2A_APPLY,
+  CREATE_RESERVATION_SECTION2A_ISSUE,
+  CREATE_RESERVATION_SECTION2A_LOCKED_NON_GOALS,
+  CREATE_RESERVATION_SECTION2A_MIGRATION,
+  CREATE_RESERVATION_SECTION2A_MIGRATION_REASON,
+  CREATE_RESERVATION_SECTION2A_PRIOR_ISSUE,
+  CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE,
+  CREATE_RESERVATION_SECTION2A_SCOPE,
+  CREATE_RESERVATION_SECTION2A_TIP_AC_MAP,
   CREATE_RESERVATION_SECTION3_ACCEPTANCE_CRITERIA,
   CREATE_RESERVATION_SECTION3_ISSUE,
   CREATE_RESERVATION_SECTION3_LOCKED_NON_GOALS,
@@ -54,6 +65,7 @@ import {
   linkedStayFromArrival,
   linkedStayFromDeparture,
   linkedStayFromNights,
+  createReservationPrefillRoles,
   mastersForCreateMode,
   occupancyCapacityIssues,
   occupancyCapacitySoftWarn,
@@ -285,18 +297,19 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(guest, /row\.vipStatus \? <VipBadge/);
   });
 
-  it("AC-CR1-14 Company/TA chrome is Section 2 pickers; Individual still does not persist from this chrome", () => {
+  it("AC-CR1-14 Company/TA chrome is Section 2 pickers; Individual persist is AC-CR2A", () => {
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(context, /CreateReservationMasterPicker/);
+    assert.doesNotMatch(context, /reservationType === "individual"[\s\S]{0,200}CreateReservationMasterPicker/);
     assert.match(page, /mastersForCreateMode/);
     assert.match(page, /companyMasterId: boundMasters.companyMasterId/);
     assert.match(functions, /companyMasterId/);
     assert.match(functions, /_company_master_id/);
     assert.deepEqual(mastersForCreateMode("individual", "company-1", "ta-1"), {
-      companyMasterId: null,
-      travelAgentMasterId: null,
+      companyMasterId: "company-1",
+      travelAgentMasterId: "ta-1",
     });
   });
 
@@ -456,7 +469,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(picker, /accountType: kind/);
   });
 
-  it("AC-CR2-3 Individual mode hides Company and TA pickers and does not require either", () => {
+  it("AC-CR2-3 Exclusive Context chrome still hides Individual pickers; neither master is required", () => {
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(context, /reservationType === "corporate" \?/);
@@ -464,8 +477,8 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.doesNotMatch(context, /reservationType === "individual"[\s\S]{0,200}CreateReservationMasterPicker/);
     assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
     assert.doesNotMatch(page, /companyMaster.*canSubmit|canSubmit.*companyMaster/);
-    assert.deepEqual(mastersForCreateMode("individual", "c1", "t1"), {
-      companyMasterId: null,
+    assert.deepEqual(mastersForCreateMode("corporate", "c1", "t1"), {
+      companyMasterId: "c1",
       travelAgentMasterId: null,
     });
   });
@@ -514,8 +527,10 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(page, /pickPrefillMasterId/);
     assert.match(page, /employer/);
     assert.match(page, /booker_ta/);
-    assert.match(page, /masterOverride/);
-    assert.match(page, /setMasterOverride\(true\)/);
+    assert.match(page, /companyOverride/);
+    assert.match(page, /travelAgentOverride/);
+    assert.match(page, /setCompanyOverride\(true\)/);
+    assert.match(page, /setTravelAgentOverride\(true\)/);
     assert.match(helpers, /Staff override wins/);
     assert.match(CREATE_RESERVATION_MASTER_OVERRIDE_RULE, /keeps a staff-chosen/);
     const newer = pickPrefillMasterId(
@@ -610,11 +625,13 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(CREATE_RESERVATION_TYPE_CHANGE_WARN, /will be cleared/);
     assert.match(page, /setCompanyMaster\(null\)/);
     assert.match(page, /setTravelAgentMaster\(null\)/);
-    assert.match(page, /setMasterOverride\(false\)/);
+    assert.match(page, /setCompanyOverride\(false\)/);
+    assert.match(page, /setTravelAgentOverride\(false\)/);
     assert.doesNotMatch(page, /setGuest\(null\);\s*setArrival/);
     assert.equal(typeSwitchDiscardsMaster("corporate", "c1", null), true);
     assert.equal(typeSwitchDiscardsMaster("travel_agency", null, "t1"), true);
-    assert.equal(typeSwitchDiscardsMaster("individual", "c1", "t1"), false);
+    assert.equal(typeSwitchDiscardsMaster("individual", "c1", "t1"), true);
+    assert.equal(typeSwitchDiscardsMaster("individual", null, null), false);
   });
 
   it("AC-CR2-13 Confirm hard-block may live in Section 7; Section 2 collects and persists honestly", () => {
@@ -986,4 +1003,291 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     assert.doesNotMatch(page, /luxon|dayjs|moment/);
   });
 });
+
+const CR2A = Array.from({ length: 15 }, (_, i) => `AC-CR2A-${i + 1}`);
+
+describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", () => {
+  it("locks AC-CR2A-1…15 (Spec #137 / issue #138)", () => {
+    assert.deepEqual([...CREATE_RESERVATION_SECTION2A_ACCEPTANCE_CRITERIA], CR2A);
+    assert.equal(CREATE_RESERVATION_SECTION2A_ISSUE, 138);
+    assert.equal(CREATE_RESERVATION_SECTION2A_PRIOR_ISSUE, 127);
+    assert.deepEqual(CREATE_RESERVATION_SECTION2A_TIP_AC_MAP["plan-associations-ui"], [
+      "AC-CR2A-1",
+      "AC-CR2A-2",
+      "AC-CR2A-3",
+      "AC-CR2A-7",
+      "AC-CR2A-9",
+    ]);
+    assert.deepEqual(CREATE_RESERVATION_SECTION2A_TIP_AC_MAP["plan-prefill-persist-dualbind"], [
+      "AC-CR2A-4",
+      "AC-CR2A-5",
+      "AC-CR2A-6",
+      "AC-CR2A-13",
+    ]);
+    assert.deepEqual(CREATE_RESERVATION_SECTION2A_TIP_AC_MAP["plan-gates-honesty"], [
+      "AC-CR2A-8",
+      "AC-CR2A-10",
+      "AC-CR2A-11",
+      "AC-CR2A-12",
+      "AC-CR2A-14",
+      "AC-CR2A-15",
+    ]);
+  });
+
+  it("AC-CR2A-1 Individual always shows Associations with optional Company and TA", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    assert.match(page, /CreateReservationAssociations/);
+    assert.match(page, /reservationType === "individual"/);
+    assert.match(associations, /data-testid="create-reservation-associations"/);
+    assert.match(associations, /kind="company"/);
+    assert.match(associations, /kind="travel_agent"/);
+    assert.match(CREATE_RESERVATION_ASSOCIATIONS_COPY, /Neither is required/);
+    assert.match(page, /canSubmit = !!guest && datesValid && !!roomTypeId/);
+    assert.doesNotMatch(page, /companyMaster.*canSubmit|canSubmit.*companyMaster/);
+    assert.doesNotMatch(page, /travelAgentMaster.*canSubmit|canSubmit.*travelAgentMaster/);
+  });
+
+  it("AC-CR2A-2 Company picker reuses GE1 listGuestAccounts + GuestCompanyFormDialog auto-select", () => {
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
+    const company = readRel("../components/guests/guest-company-form-dialog.tsx");
+    assert.match(associations, /kind="company"/);
+    assert.match(picker, /listGuestAccounts/);
+    assert.match(picker, /accountType: kind/);
+    assert.match(picker, /GuestCompanyFormDialog/);
+    assert.match(picker, /create-company-inline/);
+    assert.match(picker, /onSaved=\{\(accountId\) => void selectById\(accountId\)\}/);
+    assert.match(company, /createGuestAccount/);
+  });
+
+  it("AC-CR2A-3 Travel Agency picker reuses GE3 + GuestTravelAgentFormDialog auto-select", () => {
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
+    const ta = readRel("../components/guests/guest-travel-agent-form-dialog.tsx");
+    assert.match(associations, /kind="travel_agent"/);
+    assert.match(picker, /GuestTravelAgentFormDialog/);
+    assert.match(picker, /create-ta-inline/);
+    assert.match(picker, /onSaved=\{\(accountId\) => void selectById\(accountId\)\}/);
+    assert.match(ta, /createGuestAccount/);
+  });
+
+  it("AC-CR2A-4 Prefill employer + booker_ta independently; staff override/clear wins", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const helpers = readRel("./create-reservation-phase1.ts");
+    assert.match(page, /listGuestAccountLinks/);
+    assert.match(page, /createReservationPrefillRoles/);
+    assert.match(page, /pickPrefillMasterId/);
+    assert.match(page, /employer/);
+    assert.match(page, /booker_ta/);
+    assert.match(page, /companyOverride/);
+    assert.match(page, /travelAgentOverride/);
+    assert.match(page, /setCompanyOverride\(true\)/);
+    assert.match(page, /setTravelAgentOverride\(true\)/);
+    assert.match(helpers, /Staff override wins/);
+    assert.deepEqual(createReservationPrefillRoles("individual"), ["employer", "booker_ta"]);
+    assert.deepEqual(createReservationPrefillRoles("corporate"), ["employer"]);
+    assert.deepEqual(createReservationPrefillRoles("travel_agency"), ["booker_ta"]);
+    const newer = pickPrefillMasterId(
+      [
+        { role: "employer", masterId: "old", createdAt: "2026-01-01T00:00:00Z", masterType: "company" },
+        { role: "employer", masterId: "new", createdAt: "2026-09-01T00:00:00Z", masterType: "company" },
+        { role: "booker_ta", masterId: "ta", createdAt: "2026-09-02T00:00:00Z", masterType: "travel_agent" },
+      ],
+      "employer",
+    );
+    assert.equal(newer, "new");
+    assert.equal(
+      pickPrefillMasterId(
+        [
+          { role: "booker_ta", masterId: "ta-b", createdAt: "2026-09-01T00:00:00Z", masterType: "travel_agent" },
+          { role: "booker_ta", masterId: "ta-a", createdAt: "2026-09-01T00:00:00Z", masterType: "travel_agent" },
+        ],
+        "booker_ta",
+      ),
+      "ta-a",
+    );
+  });
+
+  it("AC-CR2A-5 Individual persist uses optional companyMasterId / travelAgentMasterId together", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    assert.match(page, /mastersForCreateMode/);
+    assert.match(page, /companyMasterId: boundMasters.companyMasterId/);
+    assert.match(page, /travelAgentMasterId: boundMasters.travelAgentMasterId/);
+    assert.match(functions, /companyMasterId: idSchema.nullable\(\).optional\(\)/);
+    assert.match(functions, /travelAgentMasterId: idSchema.nullable\(\).optional\(\)/);
+    assert.match(functions, /_company_master_id/);
+    assert.match(functions, /_travel_agent_master_id/);
+    assert.match(functions, /create_hotel_reservation_priced/);
+    assert.doesNotMatch(functions, /cannot bind Company and Travel Agency together/);
+    assert.doesNotMatch(functions, /companyMasterId && value.travelAgentMasterId/);
+    assert.deepEqual(mastersForCreateMode("individual", "c1", "t1"), {
+      companyMasterId: "c1",
+      travelAgentMasterId: "t1",
+    });
+    assert.deepEqual(mastersForCreateMode("individual", null, null), {
+      companyMasterId: null,
+      travelAgentMasterId: null,
+    });
+  });
+
+  it("AC-CR2A-6 Individual does not hide Company/TA; exclusive Corporate/TA chrome may remain", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const context = readRel("../components/bookings/create-reservation-context.tsx");
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    assert.match(page, /reservationType === "individual" \? \(/);
+    assert.match(page, /CreateReservationAssociations/);
+    assert.match(associations, /kind="company"/);
+    assert.match(associations, /kind="travel_agent"/);
+    assert.match(context, /reservationType === "corporate"/);
+    assert.match(context, /reservationType === "travel_agency"/);
+    assert.doesNotMatch(context, /reservationType === "individual"[\s\S]{0,200}CreateReservationMasterPicker/);
+    assert.doesNotMatch(page, /reservationType !== "individual"[\s\S]{0,80}CreateReservationAssociations/);
+  });
+
+  it("AC-CR2A-7 Associations is its own NORU box; placement may sit beside Guest", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    const guest = readRel("../components/bookings/create-reservation-guest.tsx");
+    assert.match(associations, /data-testid="create-reservation-associations"/);
+    assert.match(associations, /<h2 className="font-display text-lg">Associations<\/h2>/);
+    assert.match(page, /lg:grid-cols-2 lg:items-start/);
+    assert.match(page, /CreateReservationGuest/);
+    assert.match(page, /CreateReservationAssociations/);
+    assert.match(page, /data-testid="create-reservation-summary"/);
+    assert.match(page, /data-testid="summary-associations"/);
+    assert.match(guest, /data-testid="guest-peek-drawer"/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Do not clone legacy PMS chrome/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Doc2/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /beside Guest/);
+    assert.doesNotMatch(associations, /consignee|legacy chrome|clone|folio-window/i);
+  });
+
+  it("AC-CR2A-8 No Group / block / allotment / rooming / CR-100; no Contact/Member invent", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    const context = readRel("../components/bookings/create-reservation-context.tsx");
+    assert.doesNotMatch(page, /CR-100|rooming list|allotment|group block/i);
+    assert.doesNotMatch(associations, /accountType: "group"|kind="group"|kind="contact"|kind="member"/);
+    assert.doesNotMatch(context, /accountType: "group"|kind="group"|kind="contact"|kind="member"/);
+    assert.doesNotMatch(page, /groupAccountMasterId|contactMasterId|memberMasterId/);
+  });
+
+  it("AC-CR2A-9 No second Company/TA table or API — reuse GE1/GE3 + list/create/links", () => {
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    assert.match(associations, /CreateReservationMasterPicker/);
+    assert.match(picker, /listGuestAccounts/);
+    assert.match(picker, /getGuestAccount/);
+    assert.match(picker, /GuestCompanyFormDialog/);
+    assert.match(picker, /GuestTravelAgentFormDialog/);
+    assert.match(page, /listGuestAccountLinks/);
+    assert.doesNotMatch(associations, /from\("guest_account_masters"\)/);
+    assert.doesNotMatch(picker, /createCompanyMaster|createTravelAgentMaster/);
+    assert.doesNotMatch(page, /insertGuestAccount|create_company_on_reservation/i);
+  });
+
+  it("AC-CR2A-10 Permission gates preserved; no new entitlement / RLS model", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    const accounts = readRel("./guest-accounts.functions.ts");
+    const migration = readRel("../../../../supabase/migrations/0060_pms_create_reservation_individual_associations.sql");
+    assert.match(page, /requireRoutePackage\("pms"\)/);
+    assert.match(page, /getBookingsAccess/);
+    assert.match(page, /getGuestsAccess/);
+    assert.match(functions, /requireReservationManager/);
+    assert.match(accounts, /requireGuestManager/);
+    assert.match(page, /canCreateMaster=\{guestAccessQuery\.data\?\.canManage/);
+    assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
+    assert.match(migration, /RLS model: UNCHANGED/);
+    assert.match(migration, /Flag Abel: NOT required/);
+    assert.doesNotMatch(migration, /CREATE POLICY/);
+  });
+
+  it("AC-CR2A-11 Does not reopen #127 or claim AC-CR2-1…18 failed", () => {
+    const helpers = readRel("./create-reservation-phase1.ts");
+    assert.equal(CREATE_RESERVATION_SECTION2_ISSUE, 127);
+    assert.equal(CREATE_RESERVATION_SECTION2A_ISSUE, 138);
+    assert.equal(CREATE_RESERVATION_SECTION2A_PRIOR_ISSUE, 127);
+    assert.deepEqual([...CREATE_RESERVATION_SECTION2_ACCEPTANCE_CRITERIA], CR2);
+    assert.match(helpers, /Issue #127 stays CLOSED/);
+    assert.match(helpers, /AC-CR2-1…18 stand as prior lock/);
+    assert.match(helpers, /Does not reopen #127/);
+    assert.doesNotMatch(helpers, /AC-CR2-1…18 failed/);
+  });
+
+  it("AC-CR2A-12 Does not claim Phase 1 or Create Reservation DONE; Guest GE stay closed", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const helpers = readRel("./create-reservation-phase1.ts");
+    assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
+    assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
+    assert.match(page, /CREATE_RESERVATION_SECTION2A_SCOPE/);
+    assert.match(CREATE_RESERVATION_SECTION2A_SCOPE, /later sections/);
+    assert.doesNotMatch(page, /Phase 1 complete|Create Reservation DONE/i);
+    assert.match(helpers, /Waves 1–5 \+ GE1–GE3 stay closed/);
+    const wave1 = readRel("./guest-profile-wave1.ts");
+    const ge1 = readRel("./guest-profile-company.ts");
+    const ge3 = readRel("./guest-profile-travel-agency.ts");
+    assert.match(wave1, /GUEST_PROFILE_CARDS|Wave 1/);
+    assert.match(ge1, /Waves 1–5 stay closed/);
+    assert.match(ge3, /Waves 1–5 stay closed/);
+  });
+
+  it("AC-CR2A-13 Migration honesty: no new columns; dual-bind lift; APPLY HELD", () => {
+    const helpers = readRel("./create-reservation-phase1.ts");
+    const functions = readRel("./reservations.functions.ts");
+    const supabase = readRel("../../../../supabase/migrations/0060_pms_create_reservation_individual_associations.sql");
+    const drizzle = readRel("../../../../drizzle/migrations/0060_pms_create_reservation_individual_associations.sql");
+    const prior = readRel("../../../../supabase/migrations/0059_pms_create_reservation_company_ta.sql");
+    assert.equal(CREATE_RESERVATION_SECTION2A_MIGRATION, "0060_pms_create_reservation_individual_associations.sql");
+    assert.equal(CREATE_RESERVATION_SECTION2A_APPLY, "HELD");
+    assert.match(CREATE_RESERVATION_SECTION2A_MIGRATION_REASON, /No new columns/);
+    assert.match(CREATE_RESERVATION_SECTION2A_MIGRATION_REASON, /APPLY HELD/);
+    assert.match(CREATE_RESERVATION_SECTION2A_MIGRATION_REASON, /Prod 0059 remains Abel-gated/);
+    assert.match(helpers, /0060 RPC body/);
+    assert.match(supabase, /APPLY HELD/);
+    assert.match(supabase, /do not apply to non-prod or production from this agent/);
+    assert.match(supabase, /DATABASE IMPACT PLAN/);
+    assert.match(supabase, /New columns: NONE/);
+    assert.match(supabase, /SECURITY DEFINER/);
+    assert.doesNotMatch(supabase, /RAISE EXCEPTION 'DUAL_COMPANY_TA_NOT_ALLOWED'/);
+    assert.match(prior, /DUAL_COMPANY_TA_NOT_ALLOWED/);
+    assert.match(drizzle, /APPLY HELD/);
+    assert.match(functions, /create_hotel_reservation_priced/);
+    assert.doesNotMatch(functions, /cannot bind Company and Travel Agency together/);
+  });
+
+  it("AC-CR2A-14 Additive expansion of existing /restaurant/bookings/new — walk-in same writer", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
+    const shell = readRel("./front-office-shell.ts");
+    assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
+    assert.match(page, /createReservation/);
+    assert.match(page, /CreateReservationAssociations/);
+    assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
+    assert.match(functions, /export const createReservation/);
+    assert.match(dialogs, /createReservation/);
+    assert.match(shell, /walk_in[\s\S]*createReservation/);
+    assert.doesNotMatch(dialogs, /createWalkInReservation|create_walk_in_reservation/);
+  });
+
+  it("AC-CR2A-15 Locked non-goals in §4 are absent", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const associations = readRel("../components/bookings/create-reservation-associations.tsx");
+    const functions = readRel("./reservations.functions.ts");
+    assert.equal(CREATE_RESERVATION_SECTION2A_LOCKED_NON_GOALS.length, 16);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /RTC/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /rate-adjustment/);
+    assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Corporate and Group remain later/);
+    assert.doesNotMatch(page, /commission settlement|rooming list|CR-100|credit approval engine/i);
+    assert.doesNotMatch(page, /rateAdjustmentEngine|rtcEngine|liveOtaConnector/i);
+    assert.doesNotMatch(associations, /LIVE OTA connector|channel manager|legacy PMS chrome|consignee/i);
+    assert.doesNotMatch(functions, /sendConfirmation|createDeposit|offlineQueue|allotmentPickup/i);
+    assert.doesNotMatch(page, /Phase 1 COMPLETE|Create Reservation DONE/);
+  });
+});
+
 

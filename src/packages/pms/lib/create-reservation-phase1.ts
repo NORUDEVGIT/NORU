@@ -1,6 +1,7 @@
 /**
  * Create Reservation Phase 1 — Section 1 Context + Guest (Issue #121),
- * Section 2 Company / Travel Agency on create (Issue #127), and
+ * Section 2 Company / Travel Agency on create (Issue #127),
+ * Individual Associations amend (Issue #138 / AC-CR2A), and
  * Section 3 Stay (Issue #129).
  *
  * Additive expansion of `/restaurant/bookings/new` + `createReservation` →
@@ -9,16 +10,23 @@
  * No second guest / Company / TA writer. No second Stay writer.
  *
  * Section 1 is Context + Guest. Section 2 binds Company or TA masters on create
- * (AC-W4-5 for create). Section 3 upgrades Stay UX (linked dates/nights,
- * occupancy soft-warn, notes, sticky honesty). None of these sections claim
- * Phase 1 or Create Reservation DONE. Rate / availability invent / room /
- * guarantee / packages / send confirmation remain later sections.
+ * (AC-W4-5 for create). AC-CR2A always shows optional Company + TA on Individual
+ * and lifts dual-bind XOR so both can persist together. Section 3 upgrades Stay
+ * UX (linked dates/nights, occupancy soft-warn, notes, sticky honesty). None of
+ * these sections claim Phase 1 or Create Reservation DONE. Rate / availability
+ * invent / room / guarantee / packages / send confirmation remain later sections.
+ * Issue #127 stays CLOSED — AC-CR2-1…18 stand as prior lock.
+ * Programme rule (Rekik / Docs 2026-09-15): take efficient Individual
+ * Associations function (optional Company + TA, prefill, persist); modernize
+ * on NORU Doc2 patterns (own box, sticky summary, existing drawers). Do not
+ * clone legacy PMS chrome. Corporate and Group stay later separate products.
  *
  * Commercial booking source, market segment, and external reference are
  * collected in the draft. They are distinct from channel-origin
  * `hotel_reservations.source`. Confirm-time required + persistence is Section 7.
  * Section 1 migration: NONE. Migration for this section: NONE.
  * Section 2 migration: RPC signature only (columns already exist). Dual-lane APPLY HELD.
+ * Section 2A migration: 0060 RPC body (lift DUAL_COMPANY_TA_NOT_ALLOWED). APPLY HELD.
  * Section 3 migration: NONE — stay fields already on the create RPC.
  */
 
@@ -27,12 +35,17 @@ import type { PmsSet6CatalogueItem } from "./pms-set6-sales-distribution.ts";
 
 export const CREATE_RESERVATION_SECTION1_ISSUE = 121;
 export const CREATE_RESERVATION_SECTION2_ISSUE = 127;
+/** AC-CR2A amend. Does not reopen #127. */
+export const CREATE_RESERVATION_SECTION2A_ISSUE = 138;
+export const CREATE_RESERVATION_SECTION2A_PRIOR_ISSUE = 127;
 export const CREATE_RESERVATION_SECTION3_ISSUE = 129;
 export const CREATE_RESERVATION_PHASE1_COMPLETE = false;
 export const CREATE_RESERVATION_MODULE_DONE = false;
 export const CREATE_RESERVATION_SECTION1_MIGRATION = "NONE";
 export const CREATE_RESERVATION_SECTION2_MIGRATION = "0059_pms_create_reservation_company_ta.sql";
 export const CREATE_RESERVATION_SECTION2_APPLY = "HELD";
+export const CREATE_RESERVATION_SECTION2A_MIGRATION = "0060_pms_create_reservation_individual_associations.sql";
+export const CREATE_RESERVATION_SECTION2A_APPLY = "HELD";
 export const CREATE_RESERVATION_SECTION3_MIGRATION = "NONE";
 export const CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS = 300;
 /** AC-CR1-21 — collapse the existing RestaurantShell rail on this route only. */
@@ -95,6 +108,30 @@ export const CREATE_RESERVATION_SECTION2_TIP_AC_MAP = {
   "plan-bind-w4-5": ["AC-CR2-4", "AC-CR2-7"],
   "plan-inline-prefill-terms": ["AC-CR2-5", "AC-CR2-6", "AC-CR2-8"],
   "plan-gates-honesty": ["AC-CR2-9", "AC-CR2-10", "AC-CR2-11", "AC-CR2-12", "AC-CR2-13", "AC-CR2-14", "AC-CR2-15", "AC-CR2-16", "AC-CR2-17", "AC-CR2-18"],
+} as const;
+
+export const CREATE_RESERVATION_SECTION2A_ACCEPTANCE_CRITERIA = [
+  "AC-CR2A-1",
+  "AC-CR2A-2",
+  "AC-CR2A-3",
+  "AC-CR2A-4",
+  "AC-CR2A-5",
+  "AC-CR2A-6",
+  "AC-CR2A-7",
+  "AC-CR2A-8",
+  "AC-CR2A-9",
+  "AC-CR2A-10",
+  "AC-CR2A-11",
+  "AC-CR2A-12",
+  "AC-CR2A-13",
+  "AC-CR2A-14",
+  "AC-CR2A-15",
+] as const;
+
+export const CREATE_RESERVATION_SECTION2A_TIP_AC_MAP = {
+  "plan-associations-ui": ["AC-CR2A-1", "AC-CR2A-2", "AC-CR2A-3", "AC-CR2A-7", "AC-CR2A-9"],
+  "plan-prefill-persist-dualbind": ["AC-CR2A-4", "AC-CR2A-5", "AC-CR2A-6", "AC-CR2A-13"],
+  "plan-gates-honesty": ["AC-CR2A-8", "AC-CR2A-10", "AC-CR2A-11", "AC-CR2A-12", "AC-CR2A-14", "AC-CR2A-15"],
 } as const;
 
 export const CREATE_RESERVATION_SECTION3_ACCEPTANCE_CRITERIA = [
@@ -175,10 +212,19 @@ export const CREATE_RESERVATION_PAYMENT_TERMS_COPY =
   "Payment terms from the selected master. Reference for later Confirm (Section 7) — not a credit engine.";
 
 export const CREATE_RESERVATION_MASTER_OVERRIDE_RULE =
-  "Staff override wins over guest-link prefill. Changing the guest keeps a staff-chosen Company or Travel Agency.";
+  "Staff override wins over guest-link prefill. Company and Travel Agency override independently. Changing the guest keeps a staff-chosen Company or Travel Agency.";
 
 export const CREATE_RESERVATION_SECTION2_SCOPE =
   "Section 2 collects Company or Travel Agency on create. Stay, rate, room, guarantee, packages, and send confirmation remain later sections.";
+
+export const CREATE_RESERVATION_SECTION2A_SCOPE =
+  "On Individual, Associations always shows optional Company and Travel Agency. Neither is required. Stay, rate, room, guarantee, packages, and send confirmation remain later sections.";
+
+export const CREATE_RESERVATION_ASSOCIATIONS_COPY =
+  "Optional Company and Travel Agency for this stay. Neither is required to create.";
+
+export const CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE =
+  "Include efficient functionality from the reference Individual create screen (optional Company + TA, prefill, persist). Modernize UI on NORU patterns: Associations as its own box in the Doc2 shell with sticky summary and existing drawers. Do not clone legacy PMS chrome. Placement may sit beside Guest. Corporate and Group remain later separate products. Do not invent Group block, Contact/Member, RTC, rate-adjustment engines, or LIVE OTA.";
 
 export const CREATE_RESERVATION_SECTION3_SCOPE =
   "Section 3 upgrades Stay UX (linked dates and nights, occupancy, notes). Rate, availability invent, room assign, guarantee, packages, and send confirmation remain later sections.";
@@ -215,6 +261,28 @@ export const CREATE_RESERVATION_SECTION3_LOCKED_NON_GOALS = [
 
 export const CREATE_RESERVATION_SECTION2_MIGRATION_REASON =
   "hotel_reservations.company_master_id and travel_agent_master_id already exist (Wave 4 / 0053). Section 2 replaces create_hotel_reservation and create_hotel_reservation_priced with optional master-id params so create can bind atomically. Dual-lane APPLY HELD. No new columns. No RLS model change.";
+
+export const CREATE_RESERVATION_SECTION2A_MIGRATION_REASON =
+  "No new columns. 0060 replaces SECURITY DEFINER create_hotel_reservation to lift DUAL_COMPANY_TA_NOT_ALLOWED so Individual can persist Company and Travel Agency together. Signature unchanged (0059 params). Dual-lane APPLY HELD. Do not apply non-prod or prod from this agent. Requires 0059 first. Prod 0059 remains Abel-gated residual. Flag Abel: NOT required (RLS model unchanged).";
+
+export const CREATE_RESERVATION_SECTION2A_LOCKED_NON_GOALS = [
+  "group block / allotment / rooming list",
+  "parent Company Reservation CR-100",
+  "Contact / Member invent",
+  "RTC invent",
+  "rate-adjustment engines",
+  "Corporate as separate product",
+  "Group as separate product",
+  "reopen issue 127",
+  "Phase 1 COMPLETE",
+  "Create Reservation DONE",
+  "reopen Guest GE1-GE3",
+  "credit approval engine",
+  "LIVE OTA connector",
+  "email/SMS send confirmation",
+  "new entitlement / RLS architecture",
+  "clone legacy PMS chrome",
+] as const;
 
 export const CREATE_RESERVATION_BOOKING_AGENT_COPY =
   "Defaults to the signed-in staff member. The writer records that user — a different booking agent is not offered here.";
@@ -300,7 +368,15 @@ export function mastersForCreateMode(
   if (mode === "travel_agency") {
     return { companyMasterId: null, travelAgentMasterId };
   }
-  return { companyMasterId: null, travelAgentMasterId: null };
+  return { companyMasterId, travelAgentMasterId };
+}
+
+export function createReservationPrefillRoles(
+  mode: ReservationTypeMode,
+): Array<"employer" | "booker_ta"> {
+  if (mode === "corporate") return ["employer"];
+  if (mode === "travel_agency") return ["booker_ta"];
+  return ["employer", "booker_ta"];
 }
 
 export function typeSwitchDiscardsMaster(
@@ -310,7 +386,7 @@ export function typeSwitchDiscardsMaster(
 ): boolean {
   if (from === "corporate") return companyMasterId != null;
   if (from === "travel_agency") return travelAgentMasterId != null;
-  return false;
+  return companyMasterId != null || travelAgentMasterId != null;
 }
 
 export function activeSet6Options(rows: PmsSet6CatalogueItem[] | null | undefined): ContextPickOption[] {
