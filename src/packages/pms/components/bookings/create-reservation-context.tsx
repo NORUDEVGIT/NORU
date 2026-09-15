@@ -9,11 +9,7 @@ import {
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 import {
-  CREATE_RESERVATION_BOOKING_AGENT_COPY,
   CREATE_RESERVATION_COMPANY_PLACEHOLDER,
-  CREATE_RESERVATION_CONFIRM_REQUIRED_COPY,
-  CREATE_RESERVATION_SEGMENT_HONESTY,
-  CREATE_RESERVATION_SOURCE_HONESTY,
   CREATE_RESERVATION_TA_PLACEHOLDER,
   RESERVATION_TYPE_LABELS,
   RESERVATION_TYPE_MODES,
@@ -107,8 +103,6 @@ export function CreateReservationContext({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_CONFIRM_REQUIRED_COPY}</p>
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_SOURCE_HONESTY}</p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="market-segment">Market segment</Label>
@@ -124,8 +118,6 @@ export function CreateReservationContext({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_CONFIRM_REQUIRED_COPY}</p>
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_SEGMENT_HONESTY}</p>
         </div>
       </div>
 
@@ -144,7 +136,6 @@ export function CreateReservationContext({
         <div className="space-y-1">
           <Label htmlFor="booking-agent">Booking agent</Label>
           <Input id="booking-agent" data-testid="booking-agent" value={bookingAgentName} readOnly />
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_BOOKING_AGENT_COPY}</p>
         </div>
       </div>
     </section>

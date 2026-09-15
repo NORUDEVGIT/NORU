@@ -187,7 +187,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(page, /resolveMarketSegmentOptions/);
     assert.match(context, /booking-source/);
     assert.match(context, /market-segment/);
-    assert.match(context, /CREATE_RESERVATION_SOURCE_HONESTY/);
+    assert.doesNotMatch(context, /CREATE_RESERVATION_SOURCE_HONESTY|CREATE_RESERVATION_SEGMENT_HONESTY|CREATE_RESERVATION_CONFIRM_REQUIRED_COPY/);
     assert.match(CREATE_RESERVATION_SOURCE_HONESTY, /Not a LIVE OTA/);
     assert.match(CREATE_RESERVATION_SEGMENT_HONESTY, /not a rate engine/);
     assert.match(CREATE_RESERVATION_CONFIRM_REQUIRED_COPY, /Section 7/);
@@ -219,6 +219,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(context, /placeholder="Optional"/);
     assert.match(context, /booking-agent/);
     assert.match(context, /readOnly/);
+    assert.doesNotMatch(context, /CREATE_RESERVATION_BOOKING_AGENT_COPY/);
     assert.match(page, /actorName/);
     assert.match(functions, /actorName:/);
     assert.match(functions, /created_by_staff_membership_id|_membership_id: me.id/);
