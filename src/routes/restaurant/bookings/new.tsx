@@ -1,22 +1,16 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { CreateReservationRoomType, OccupancySoftWarn } from "@/packages/pms/components/bookings/create-reservation-room-type";
 import { CreateReservationRate } from "@/packages/pms/components/bookings/create-reservation-rate";
 import { CreateReservationRoomAssignment } from "@/packages/pms/components/bookings/create-reservation-room-assignment";
+import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/create-reservation-guarantee";
+import { CreateReservationConfirmation } from "@/packages/pms/components/bookings/create-reservation-confirmation";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +43,7 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { getPmsPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-admin.functions";
 import { getGuestAccount, listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   CREATE_RESERVATION_DENIED_COPY,
@@ -84,7 +79,6 @@ import {
   CREATE_RESERVATION_SECTION5_SCOPE,
   canCreateUnpricedPending,
   canSubmitCreateReservation,
-  createSubmitBlockCopy,
   fromNightlyRate,
   resolveCreatePricingState,
   shouldClearStaleRatePlan,
@@ -99,6 +93,20 @@ import {
   stickyRoomAssignmentLabel,
   type AssignedRoomView,
 } from "@/packages/pms/lib/create-reservation-phase1-section6";
+import {
+  CREATE_RESERVATION_CONFIRM_LABEL,
+  CREATE_RESERVATION_PENDING_LABEL,
+  CREATE_RESERVATION_SECTION7_SCOPE,
+  canSubmitConfirmReservation,
+  createConfirmBlockCopy,
+  createPendingBlockCopy,
+  guaranteeCatalogueWarning,
+  paymentTermsReviewCopy,
+  requiredMasterForConfirm,
+  resolveGuaranteeMethodOptions,
+  section7PersistApplied,
+  type CreatedReservationConfirmation,
+} from "@/packages/pms/lib/create-reservation-phase1-section7";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
@@ -144,13 +152,13 @@ const UNASSIGNED = "unassigned";
 
 function NewReservationPage({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
-  const navigate = useNavigate();
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
+  const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
   const fetchGuestLinks = useServerFn(listGuestAccountLinks);
   const fetchGuestAccount = useServerFn(getGuestAccount);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
@@ -181,6 +189,8 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"pending" | "confirmed">("pending");
   const [ratePlanId, setRatePlanId] = useState("");
+  const [guaranteeMethod, setGuaranteeMethod] = useState("");
+  const [createdView, setCreatedView] = useState<CreatedReservationConfirmation | null>(null);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -204,6 +214,16 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   });
   const sourceOptions = resolveBookingSourceOptions(set6Query.data?.snapshot.sourceCodes);
   const segmentOptions = resolveMarketSegmentOptions(set6Query.data?.snapshot.marketSegments);
+
+  const polish1Query = useQuery({
+    queryKey: ["pms-polish1-snapshot", restaurantId, "create-reservation-guarantee"],
+    queryFn: () => fetchPolish1({ data: { restaurantId } }),
+    enabled: canManage,
+    retry: false,
+  });
+  const guaranteeOptions = resolveGuaranteeMethodOptions(polish1Query.data?.snapshot);
+  const guaranteeWarning = guaranteeCatalogueWarning(polish1Query.data?.snapshot);
+  const persistApplied = section7PersistApplied();
 
   const datesValid = isStayRangeValid(arrival, departure);
   const nights = nightsBetween(arrival, departure);
@@ -370,7 +390,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   );
 
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (nextStatus: "pending" | "confirmed") =>
       submitReservation({
         data: {
           restaurantId,
@@ -383,17 +403,54 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           children,
           specialRequests: specialRequests.trim() || null,
           notes: notes.trim() || null,
-          status,
+          status: nextStatus,
           ratePlanId: ratePlanId || null,
           companyMasterId: boundMasters.companyMasterId,
           travelAgentMasterId: boundMasters.travelAgentMasterId,
+          commercialBookingSource: bookingSource.trim() || null,
+          marketSegment: marketSegment.trim() || null,
+          externalReference: externalReference.trim() || null,
+          guaranteeMethod: guaranteeMethod.trim() || null,
+          requireGuarantee: nextStatus === "confirmed",
+          reservationType,
         },
       }),
-    onSuccess: (result) => {
-      toast.success(`Reservation ${result.confirmationNumber} created.`);
-      void navigate({
-        to: "/restaurant/pms/reservations/$reservationId",
-        params: { reservationId: result.id },
+    onSuccess: (result, nextStatus) => {
+      const sourceLabel = sourceOptions.find((row) => row.value === bookingSource)?.label ?? bookingSource;
+      const segmentLabel = segmentOptions.find((row) => row.value === marketSegment)?.label ?? marketSegment;
+      const guaranteeLabel =
+        guaranteeOptions.find((row) => row.value === guaranteeMethod)?.label ?? guaranteeMethod;
+      setCreatedView({
+        id: result.id,
+        confirmationNumber: result.confirmationNumber,
+        status: nextStatus,
+        guestName: guest?.fullName ?? "Guest",
+        stayDates: datesValid ? `${formatStayDate(arrival)} → ${formatStayDate(departure)}` : "Dates not set",
+        occupancy: formatStayOccupancySummary(adults, children),
+        roomType: selectedRoomType?.name ?? stickyRoomTypeLabel(selectedRoomType),
+        room: stickyRoomAssignmentLabel({
+          roomTypeId,
+          roomId,
+          unassignedValue: UNASSIGNED,
+          room: selectedAssignedRoom,
+        }),
+        rate: selectedQuote?.quote
+          ? `${selectedQuote.quote.ratePlanCode}${selectedQuote.quote.ratePlanName ? ` · ${selectedQuote.quote.ratePlanName}` : ""}`
+          : null,
+        stayTotal: selectedQuote?.quote
+          ? `${money(selectedQuote.quote.subtotal)}${selectedQuote.quote.currency ? ` ${selectedQuote.quote.currency}` : ""}`
+          : null,
+        unpriced: selectedQuote?.quote == null,
+        guaranteeMethod: nextStatus === "confirmed" ? guaranteeLabel || null : guaranteeLabel || null,
+        paymentTerms: paymentTermsReviewCopy({
+          companyName: companyMaster?.name ?? null,
+          companyTerms: companyMaster?.paymentTerms ?? null,
+          travelAgentName: travelAgentMaster?.name ?? null,
+          travelAgentTerms: travelAgentMaster?.paymentTerms ?? null,
+        }),
+        bookingSource: sourceLabel || null,
+        marketSegment: segmentLabel || null,
+        externalReference: externalReference.trim() || null,
       });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -409,26 +466,52 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
     );
   }
 
+  if (createdView) {
+    return <CreateReservationConfirmation view={createdView} />;
+  }
+
   const availability = availabilityQuery.data ?? [];
   const selectedType = availability.find((a) => a.roomTypeId === roomTypeId);
   const rooms = roomsQuery.data ?? [];
+  const submitInput = {
+    hasGuest: !!guest,
+    datesValid,
+    roomTypeId,
+    available: selectedType?.available ?? 0,
+    priced,
+    canCreateUnpriced,
+  };
   const canSubmit = canSubmitCreateReservation({
-    hasGuest: !!guest,
-    datesValid,
-    roomTypeId,
-    available: selectedType?.available ?? 0,
-    status,
-    priced,
-    canCreateUnpriced,
+    ...submitInput,
+    status: "pending",
   });
-  const submitBlockCopy = createSubmitBlockCopy({
-    hasGuest: !!guest,
-    datesValid,
-    roomTypeId,
-    available: selectedType?.available ?? 0,
-    status,
-    priced,
-    canCreateUnpriced,
+  const canSubmitConfirm = canSubmitConfirmReservation({
+    ...submitInput,
+    hasGuarantee: !!guaranteeMethod,
+    hasSource: !!bookingSource,
+    hasSegment: !!marketSegment,
+    hasRequiredMaster: requiredMasterForConfirm(
+      reservationType,
+      companyMaster?.id ?? null,
+      travelAgentMaster?.id ?? null,
+    ),
+    persistApplied,
+  });
+  const pendingBlockCopy = createPendingBlockCopy({
+    ...submitInput,
+    status: "pending",
+  });
+  const confirmBlockCopy = createConfirmBlockCopy({
+    ...submitInput,
+    hasGuarantee: !!guaranteeMethod,
+    hasSource: !!bookingSource,
+    hasSegment: !!marketSegment,
+    hasRequiredMaster: requiredMasterForConfirm(
+      reservationType,
+      companyMaster?.id ?? null,
+      travelAgentMaster?.id ?? null,
+    ),
+    persistApplied,
   });
   const bookingAgentName = accessQuery.data?.actorName ?? "Current user";
   const selectedMeta =
@@ -508,14 +591,41 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
 
   const actions = (
     <div className="flex flex-wrap items-center gap-3" data-testid="create-reservation-actions">
-      <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
-        {create.isPending ? "Creating…" : "Create reservation"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3" data-testid="create-as-status">
+        <Button
+          variant="outline"
+          disabled={!canSubmit || create.isPending}
+          data-testid="save-as-pending"
+          onClick={() => {
+            setStatus("pending");
+            create.mutate("pending");
+          }}
+        >
+          {create.isPending && status === "pending" ? "Creating…" : CREATE_RESERVATION_PENDING_LABEL}
+        </Button>
+        <Button
+          disabled={!canSubmitConfirm || create.isPending}
+          data-testid="confirm-guarantee"
+          onClick={() => {
+            setStatus("confirmed");
+            create.mutate("confirmed");
+          }}
+        >
+          {create.isPending && status === "confirmed" ? "Creating…" : CREATE_RESERVATION_CONFIRM_LABEL}
+        </Button>
+      </div>
       <Button asChild variant="outline">
         <Link to="/restaurant/pms/reservations">Cancel</Link>
       </Button>
-      {!canSubmit && submitBlockCopy ? (
-        <p className="text-xs text-muted-foreground">{submitBlockCopy}</p>
+      {!canSubmit && pendingBlockCopy ? (
+        <p className="text-xs text-muted-foreground" data-testid="pending-block-copy">
+          {pendingBlockCopy}
+        </p>
+      ) : null}
+      {!canSubmitConfirm && confirmBlockCopy ? (
+        <p className="text-xs text-muted-foreground" data-testid="confirm-block-copy">
+          {confirmBlockCopy}
+        </p>
       ) : null}
     </div>
   );
@@ -534,6 +644,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION3_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION5_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION6_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION7_SCOPE}</p>
         </div>
 
         <CreateReservationContext
@@ -643,21 +754,17 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           onSelect={handleRoomChange}
         />
 
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg">Details</h2>
-          <div className="mt-3 max-w-sm space-y-1">
-            <Label htmlFor="status">Create as</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as "pending" | "confirmed")}>
-              <SelectTrigger id="status" data-testid="create-as-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </section>
+        <CreateReservationGuarantee
+          guaranteeMethod={guaranteeMethod}
+          options={guaranteeOptions}
+          catalogueWarning={guaranteeWarning}
+          persistApplied={persistApplied}
+          companyName={companyMaster?.name ?? null}
+          companyTerms={companyMaster?.paymentTerms ?? null}
+          travelAgentName={travelAgentMaster?.name ?? null}
+          travelAgentTerms={travelAgentMaster?.paymentTerms ?? null}
+          onGuaranteeMethodChange={setGuaranteeMethod}
+        />
 
         <div className="xl:hidden">{actions}</div>
       </div>
@@ -767,6 +874,51 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
                   </dd>
                 </div>
               </>
+            ) : null}
+            <div data-testid="summary-source">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Booking source</dt>
+              <dd>
+                {sourceOptions.find((row) => row.value === bookingSource)?.label ??
+                  (bookingSource || "Not selected")}
+              </dd>
+            </div>
+            <div data-testid="summary-segment">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Market segment</dt>
+              <dd>
+                {segmentOptions.find((row) => row.value === marketSegment)?.label ??
+                  (marketSegment || "Not selected")}
+              </dd>
+            </div>
+            {externalReference.trim() ? (
+              <div data-testid="summary-external-ref">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">External reference</dt>
+                <dd>{externalReference.trim()}</dd>
+              </div>
+            ) : null}
+            <div data-testid="summary-guarantee">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guarantee</dt>
+              <dd>
+                {guaranteeOptions.find((row) => row.value === guaranteeMethod)?.label ??
+                  (guaranteeMethod || "Not selected")}
+              </dd>
+            </div>
+            {paymentTermsReviewCopy({
+              companyName: companyMaster?.name ?? null,
+              companyTerms: companyMaster?.paymentTerms ?? null,
+              travelAgentName: travelAgentMaster?.name ?? null,
+              travelAgentTerms: travelAgentMaster?.paymentTerms ?? null,
+            }) ? (
+              <div data-testid="summary-payment-terms">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Payment terms</dt>
+                <dd>
+                  {paymentTermsReviewCopy({
+                    companyName: companyMaster?.name ?? null,
+                    companyTerms: companyMaster?.paymentTerms ?? null,
+                    travelAgentName: travelAgentMaster?.name ?? null,
+                    travelAgentTerms: travelAgentMaster?.paymentTerms ?? null,
+                  })}
+                </dd>
+              </div>
             ) : null}
           </dl>
           {pricingState.kind !== "priced" ? (

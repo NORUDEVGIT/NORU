@@ -337,7 +337,8 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.doesNotMatch(guest, /hard blacklist block|cannot continue because this guest is blacklisted/i);
     assert.doesNotMatch(context, /LIVE OTA connector|channel manager/i);
     assert.doesNotMatch(functions, /sendConfirmation|createDeposit|offlineQueue|allotmentPickup/i);
-    assert.doesNotMatch(page, /package catalog|guarantee method|Send confirmation email/i);
+    assert.doesNotMatch(page, /package catalog|Send confirmation email/i);
+    assert.doesNotMatch(context, /guarantee method/i);
   });
 
   it("AC-CR1-17 Guest Waves 1–5 + GE1–GE3 stay closed", () => {
@@ -352,25 +353,24 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
 
   it("AC-CR1-18 Migration is NONE — no additive reservation columns in this section", () => {
     const helpers = readRel("./create-reservation-phase1.ts");
-    const functions = readRel("./reservations.functions.ts");
     const types = readRel("../../../integrations/supabase/types.ts");
     const reservationStart = types.indexOf("      hotel_reservations: {");
     const reservationRowStart = types.indexOf("Row: {", reservationStart);
     const reservationRow = types.slice(reservationRowStart, types.indexOf("Insert: {", reservationRowStart));
     assert.equal(CREATE_RESERVATION_SECTION1_MIGRATION, "NONE");
     assert.match(CREATE_RESERVATION_MIGRATION_REASON, /channel origin/);
+    assert.match(CREATE_RESERVATION_MIGRATION_REASON, /Section 7/);
     assert.match(helpers, /Migration for this section: NONE/);
     assert.match(reservationRow, /source: string/);
-    assert.doesNotMatch(functions, /booking_source|market_segment|external_reference/);
     assert.doesNotMatch(reservationRow, /booking_source|market_segment|external_reference/);
     const drizzleDir = join(here, "../../../../drizzle/migrations");
     const supabaseDir = join(here, "../../../../supabase/migrations");
     for (const file of readdirSync(drizzleDir)) {
-      assert.doesNotMatch(file, /create.reservation.phase1|booking_source|cr1.section1/i);
+      assert.doesNotMatch(file, /create.reservation.phase1.section1|cr1.section1/i);
     }
     if (existsSync(supabaseDir)) {
       for (const file of readdirSync(supabaseDir)) {
-        assert.doesNotMatch(file, /create.reservation.phase1|booking_source|cr1.section1/i);
+        assert.doesNotMatch(file, /create.reservation.phase1.section1|cr1.section1/i);
       }
     }
   });
@@ -972,13 +972,14 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/stay"\)/);
   });
 
-  it("AC-CR3-15 Walk-in / same-form honesty — no new status model; Details keep pending/confirmed", () => {
+  it("AC-CR3-15 Walk-in / same-form honesty — no new status model; create still pending|confirmed only", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     assert.match(page, /useState<"pending" \| "confirmed">\("pending"\)/);
     assert.match(page, /data-testid="create-as-status"/);
-    assert.match(page, /SelectItem value="pending"/);
-    assert.match(page, /SelectItem value="confirmed"/);
+    assert.match(page, /save-as-pending/);
+    assert.match(page, /confirm-guarantee/);
+    assert.doesNotMatch(page, /SelectItem value="cancelled"|SelectItem value="no_show"/);
     assert.doesNotMatch(page, /walk_in_unpriced|often-unpriced|invented_status|statusModel/);
     assert.match(dialogs, /createReservation/);
     assert.doesNotMatch(dialogs, /createWalkInReservation/);
