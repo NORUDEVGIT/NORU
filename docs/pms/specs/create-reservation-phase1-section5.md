@@ -4,23 +4,21 @@
 |---|---|
 | **PACKAGE** | PMS · Reservations |
 | **FEATURE** | Create Reservation Phase 1 — Section 5: Rate plan + sticky pricing |
-| **STATUS** | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik AUTHORIZED 2026-09-15 via Hospitality Product Advisor) |
-| **ENGINEERING STATUS** | **NOT STARTED** — no code until TIP + Rekik plan approval |
-| **Issue** | Relates upcoming Eng issue (not opened by this docs PR). Do not claim PASS / LIVE / COMPLETE until Independent QA + Outcome Review |
-| **Migration** | **LIKELY NONE** for core bind/quote (`hotel_reservations.rate_plan_id`, `room_subtotal`, `nightly_rate_snapshot`, `price_hotel_stay`, `quoteStay`, nullable `_rate_plan_id` on `create_hotel_reservation_priced`). Dual-lane APPLY **N/A** unless Eng replaces those SECURITY DEFINER RPCs. **Unpriced permission** may need a small capability / role rule — Eng confirms; **flag Abel** if entitlement / RLS **model** must change. No new RMS / OTA / commission / rate-adjustment engine |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (DER PASS) |
+| **ENGINEERING STATUS** | **PASS** for Section 5 — delivery [#142](https://github.com/NORUDEVGIT/NORU/pull/142) MERGED (`fafd329e5682523457f57ad99f54b9fa0f6ed708` by AK21ER @ 2026-09-15T13:59:51Z) |
+| **Issue** | [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **CLOSED** completed — OPERATIONALLY ACCEPTED. Do **not** claim LIVE / Phase 1 COMPLETE |
+| **Migration** | **NONE** (DER). Quote / bind / snapshot columns and RPCs already existed. Capability-only unpriced (`owner` \| `manager`). Dual-lane APPLY **N/A** (SECURITY DEFINER pricing/create RPCs were **not** replaced). RLS **UNCHANGED**. Flag Abel **NOT** required |
 | **Guest Waves 1–5 + GE1 + GE2 + GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
-| **Phase 1 / module COMPLETE** | **NO** — this section does **not** claim full Create Reservation DONE |
+| **Phase 1 / module COMPLETE** | **NO** — Section 5 only; room assign / guarantee / packages later sections own DONE claims |
 | **Canonical location** | This file (lean Spec). Programme note: [`../create-reservation-phase1-section5-programme.md`](../create-reservation-phase1-section5-programme.md) |
 | **Prior / sibling sections** | [`create-reservation-phase1-section1.md`](./create-reservation-phase1-section1.md) (Context + Guest). Sections 2–4 are sibling Specs. Individual Associations amend (Spec [#137](https://github.com/NORUDEVGIT/NORU/pull/137) / impl [#139](https://github.com/NORUDEVGIT/NORU/pull/139) MERGED; [#138](https://github.com/NORUDEVGIT/NORU/issues/138) **CLOSED** / OPERATIONALLY ACCEPTED) — does **not** reopen [#127](https://github.com/NORUDEVGIT/NORU/issues/127). This section **consumes** stay dates + room type from the create draft |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
 > **Rekik AUTHORIZED 2026-09-15** via Hospitality Product Advisor. Additive expansion of the **existing** Create Reservation surface. **Do not** rebuild a second product. Walk-in remains a **mode of the same writer**.
 >
-> Functional Create Reservation Spec = business rules. UI/UX layout notes = Doc2 shell from Section 1. **Functional wins** on conflicts.
+> **Docs CURRENT recon 2026-09-15** after Eng DER PASS (#142) and Rekik **formal closure YES**. Spec docs baseline [#140](https://github.com/NORUDEVGIT/NORU/pull/140). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
 >
-> **Programme rule (LOCKED):** Include efficient **rate** functionality from the user’s reference Individual create screen (**Rate Code**, **Rate & Total**, **Fixed Rate only if CURRENT supports**) with **modern NORU UI** (sticky summary, boxes). **Do not** clone legacy chrome. Placement may borrow from reference.
->
-> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → **5 Rate + sticky pricing (THIS)** → 6 Room assign → 7 Guarantee + confirm → 8 Packages if catalog. Later sections own room assign / guarantee chrome.
+> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → **5 Rate + sticky pricing (THIS — OPERATIONALLY ACCEPTED / #141 CLOSED)** → 6 Room assign → 7 Guarantee + confirm → 8 Packages if catalog.
 >
 > **Server / RPC remains source of truth.** Sticky totals come from **server** `quoteStay` / `price_hotel_stay`. Browser math is **ignored**. Do **not** invent LIVE RMS / OTA / commission / rate-adjustment engines.
 
@@ -30,14 +28,14 @@
 
 | Item | Value |
 |---|---|
-| Route to **extend** | `/restaurant/bookings/new` (same product as Sections 1–4) |
-| Writer to **extend** | `createReservation` → `create_hotel_reservation_priced` (same stack as FO walk-in). Already takes optional `_rate_plan_id`; when set, RPC calls `price_hotel_stay` and snapshots totals |
+| Route **extended** | `/restaurant/bookings/new` (same product as Sections 1–4) |
+| Writer **extended** | `createReservation` → `create_hotel_reservation_priced` (same stack as FO walk-in). `_rate_plan_id` bind **kept**; server re-prices + snapshots when set |
 | Phase 1 | Individual Create Reservation workspace, including corporate / TA-**linked individual** stays (not a parent Company Reservation CR-100) |
-| UI | Extend the existing **Rate plan** card + sticky summary: plan/code select for stay + room-type context; nightly breakdown + **honest server total** in sticky; modern NORU boxes (not legacy clone). Doc2 shell / sidebar collapse from Section 1 unchanged |
-| Quote source | Reuse CURRENT `quoteStay` → `price_hotel_stay` for active plans matching `room_type_id` + stay dates. **No** parallel pricing API |
-| Product locks (D5) | **Rate required** to Confirm / Guarantee. **Unpriced** Pending/Draft **only with permission**. Sticky shows honest quoted total from **server** — no fake totals; browser totals ignored |
-| Confirm honesty | Hard Confirm / Guarantee chrome may live in **Section 7**. Section 5 **exposes** priced vs unpriced state and must not weaken the D5 rate-required rule |
-| Fixed rate | **Only if CURRENT supports** a real fixed/manual create path — researched: **does not**. **GATE / OUT** for Phase 1 Section 5 (see §3.5) |
+| UI | `CreateReservationRate` card + sticky: plan/code select for stay + room-type context; nightly table on the Rate card; **honest server total** in sticky from the **same** `quoteStay` object. Doc2 shell / sidebar collapse from Section 1 unchanged |
+| Quote source | CURRENT `quoteStay` → `price_hotel_stay` for active plans matching `room_type_id` + stay dates. **No** parallel pricing API |
+| Product locks (D5) | **Rate required** to Confirm. **Unpriced** Pending **only** + `owner` \| `manager`. Sticky shows honest quoted total from **server** — no fake totals; browser totals ignored |
+| Confirm honesty | Hard Confirm / Guarantee chrome may live in **Section 7**. Section 5 **exposes** priced vs unpriced and **tightens** create submit so **confirmed** without a successful quote is blocked |
+| Fixed rate | **OUT** — CURRENT has no create fixed/manual path (see §3.5) |
 
 ---
 
@@ -45,107 +43,110 @@
 
 | Kind | Path |
 |---|---|
-| Create route | `src/routes/restaurant/bookings/new.tsx` — Rate plan section; `useQuery` `["stay-quotes", restaurantId, roomTypeId, arrival, departure]`; `ratePlanId` state; sticky `create-reservation-summary` still uses `CREATE_RESERVATION_SUMMARY_NO_TOTAL` |
+| Create route | `src/routes/restaurant/bookings/new.tsx` — mounts `CreateReservationRate`; `useQuery` `["stay-quotes", restaurantId, roomTypeId, arrival, departure]`; `selectedQuote` from `quoteStay`; sticky `summary-rate` / `summary-rate-and-total` / `summary-stay-total`; `canSubmitCreateReservation` |
+| Rate UI | `src/packages/pms/components/bookings/create-reservation-rate.tsx` — `CreateReservationRate` (code + name, server from-rate / total, nightly table, Unpriced badge, unavailable reason) |
+| Locks / helpers | `src/packages/pms/lib/create-reservation-phase1-section5.ts` + `create-reservation-phase1-section5.test.ts` (**AC-CR5-1…21 PASS**) |
 | Quote server fn | `src/packages/pms/lib/rates.functions.ts` — `quoteStay` → lists active `hotel_rate_plans` for room type, then `price_hotel_stay` per plan → `RatePlanQuote` (`plan`, `quote` \| null, `unavailableReason`) |
-| Quote gate (CURRENT) | `quoteStay` calls `requireRateManager` (`owner` \| `manager` only). Create path uses `requireReservationManager` (`owner` \| `manager` \| `receptionist`) — **role mismatch** Eng must confirm |
+| Quote gate (CURRENT) | `quoteStay` calls `requireReservationManager` (`owner` \| `manager` \| `receptionist`). Rate admin writers stay `requireRateManager`. Unpriced Pending stays `owner` \| `manager` |
 | Pricing RPC | `price_hotel_stay(_restaurant_id, _rate_plan_id, _room_type_id, _arrival, _departure)` — base rate + `hotel_rate_calendar` nightly overrides + restriction checks (CTA/CTD/stop-sell/min-max stay) |
-| Writer | `createReservation` — Zod `ratePlanId: idSchema.nullable().optional()`; comment: browser totals ignored; RPC `_rate_plan_id` |
-| RPC (priced) | `create_hotel_reservation_priced` — if `_rate_plan_id IS NOT NULL` then `price_hotel_stay` + set `rate_plan_id` / `currency` / `room_subtotal` / `nightly_rate_snapshot` / `priced_at`; **null skips pricing** |
+| Writer | `createReservation` — Zod `ratePlanId: idSchema.nullable().optional()`; `assertCreateReservationPricing`; comment: browser totals ignored; RPC `_rate_plan_id` |
+| RPC (priced) | `create_hotel_reservation_priced` — if `_rate_plan_id IS NOT NULL` then `price_hotel_stay` + set `rate_plan_id` / `currency` / `room_subtotal` / `nightly_rate_snapshot` / `priced_at`; **null skips pricing** (Pending + manager only) |
 | Rate plans table | `hotel_rate_plans`: `code`, `name`, `room_type_id`, `base_rate`, `currency`, `valid_from` / `valid_to`, `active`, category FK |
 | Calendar overrides (admin) | Rates UI `saveOverride` / `hotel_rate_calendar.nightly_rate` — **configuration**, not a create-time Fixed Rate field |
 | Reprice (existing stay) | `repriceReservation` → `reprice_hotel_reservation` — detail amend path; **not** create Fixed Rate |
-| Sticky honesty constant | `CREATE_RESERVATION_SUMMARY_NO_TOTAL` in `create-reservation-phase1.ts` — currently “Rate and pricing belong to a later section.” |
-| Submit gate (today) | `canSubmit` = guest + valid dates + room type with `available > 0` — **does not** require `ratePlanId` |
-| Status (today) | Details Select `pending` \| `confirmed` — unpriced confirmed create is **allowed** today |
+| Sticky honesty | Priced: `pricingState.quote` (same `selectedQuote` object as the Rate card). Unpriced / loading / error: `stickyPricingCopy` — **no** fake `0.00`. `CREATE_RESERVATION_SUMMARY_NO_TOTAL` is now an **alias** of the unpriced copy |
+| Submit gate (CURRENT) | `canSubmitCreateReservation` = guest + valid dates + room type with `available > 0` + (**priced** **or** Pending + `canCreateUnpricedPending`) |
+| Status (CURRENT) | Details Select `pending` \| `confirmed` — **confirmed** without a successful quote is **blocked** (UI + writer) |
 | Access | `getBookingsAccess` / `canManageReservations` / `requireReservationManager` + `requireRoutePackage("pms")` |
+| FO walk-in (same writer) | `front-office-dialogs.tsx` — walk-in creates **confirmed**, so it now **requires** a quoted plan from `quoteStay` |
 | FO rate-missing signal | `fo-cancel-noshow.functions.ts` — `rateMissing: rate_plan_id == null && (room_subtotal == null || 0)` (honesty reference only; not a create permission) |
 
 ---
 
-## 2. CURRENT (code wins)
+## 2. CURRENT (code wins — post #142)
 
-- `/restaurant/bookings/new` already shows a **Rate plan** card once stay dates are valid and a room type is selected.
-- Quotes load via **`quoteStay`**: active plans for that `room_type_id`, each priced by server **`price_hotel_stay`**. Unavailable plans show `unavailableReason` (restrictions / mismatch) and are not selectable.
-- Cards show **name + code**, from-rate / night, and **server** stay total. Selecting a plan sets `ratePlanId` (toggle clears). Changing room type **clears** `ratePlanId` (Section 4 dependency).
-- Selected plan shows a **nightly breakdown table** + stay total in the Rate card, with copy that pricing is re-checked on create. Sticky summary **does not** yet show rate code / total — it still prints `CREATE_RESERVATION_SUMMARY_NO_TOTAL`.
-- **Create bind:** `ratePlanId: ratePlanId || null` → `_rate_plan_id`. When set, RPC prices and snapshots. When null, reservation is created **unpriced** (no `room_subtotal` / snapshot). Writer comment already: **browser totals ignored**.
-- **Unpriced path today:** open to any create-capable staff. Empty catalogue copy: “No rate plans for this room type yet — the stay can be booked without pricing.” **No** dedicated unpriced permission. **Confirmed** status can be chosen without a rate.
-- **`canSubmit` does not require a rate.** D5 “rate required for Confirm” is **not** enforced yet.
+- `/restaurant/bookings/new` shows a **Rate plan** card (`CreateReservationRate`) once stay dates are valid and a room type is selected.
+- Quotes load via **`quoteStay`**: active plans for that `room_type_id`, each priced by server **`price_hotel_stay`**. Unavailable plans show `unavailableReason` (restrictions / mismatch) and are **not** selectable as priced (`data-rate-available="unavailable"`).
+- Cards show **name + code**, from-rate / night, and **server** stay total. Selecting a plan sets `ratePlanId` (toggle clears). Changing room type **clears** `ratePlanId`. Stay arrival / nights / departure change also **clears** `ratePlanId`. After a re-quote, `shouldClearStaleRatePlan` clears a selection that no longer has a successful quote (`CREATE_RESERVATION_STALE_RATE_RULE = clear-on-type-and-invalid-stay`).
+- Selected plan shows a **nightly breakdown table** + stay total on the Rate card, with copy that pricing is re-checked on create and **browser totals are ignored**.
+- **Sticky SoT:** when priced, sticky `summary-rate` / `summary-rate-and-total` / `summary-stay-total` render **rate code (+ name)**, nights / from-night, and **stay total** from `pricingState.quote` — the **same** `selectedQuote` object as the Rate card (`quoteStay` row). **No** second calculator.
+- **Unpriced / loading / error:** sticky shows honest copy (`CREATE_RESERVATION_SUMMARY_UNPRICED` / loading / quote-error) and an **Unpriced** badge when unpriced. **No** fake `0.00` stay total. The Section 1 “later section” placeholder is **replaced** (`CREATE_RESERVATION_SUMMARY_NO_TOTAL` is now an alias of the unpriced copy).
+- **Create bind:** `ratePlanId: ratePlanId || null` → `_rate_plan_id`. When set, RPC prices and snapshots. When null, reservation is created **unpriced** (no `room_subtotal` / snapshot) **only** if Pending + `owner` \| `manager`. Writer comment already: **browser totals ignored**. Writer also `assertCreateReservationPricing`.
+- **Unpriced path:** Pending only + `canCreateUnpricedPending` (`owner` \| `manager`, align `requireRateManager`). Receptionist **must** pick a quoted plan. Empty catalogue copy is role-honest (manager may create Pending unpriced; receptionist is told a quoted plan is required). **Confirmed** without a successful quote is **blocked**.
+- **`quoteStay` gate:** `requireReservationManager` so create UX (including receptionist) can quote. Rate admin writers stay `requireRateManager`. Capability-only — **no** RLS / entitlement model change.
 - **Fixed / manual rate on create:** **absent**. No Fixed Rate field, no create-time amount override, no adjustment %/amount API on this path. Rates admin calendar overrides feed `price_hotel_stay` only.
 - **RTC** (room type charged ≠ reserved type): **absent** on create.
 - **No** LIVE OTA / RMS / commission settlement / invent rate-adjustment engine on create.
-- Role quirk: receptionist can open create (`requireReservationManager`) but `quoteStay` requires **`requireRateManager`** — receptionist may see quote failures (`retry: false`). Documented for Eng confirm — do not silently invent a second quote service.
+- **Walk-in:** still the same `createReservation` writer. Because walk-in creates **confirmed**, FO now requires a quoted `ratePlanId`.
+- **DATABASE IMPACT:** **NONE**. No Section 5 migration file. Dual-lane APPLY **N/A**. Flag Abel: **NOT** required.
+
+### DOCUMENTATION / IMPLEMENTATION notes
+
+- Spec [#140](https://github.com/NORUDEVGIT/NORU/pull/140) EXPECTED AC-CR5-1…21 remain the acceptance baseline; delivery [#142](https://github.com/NORUDEVGIT/NORU/pull/142) matched locks **21/21** (+ Section 1–4 locks still PASS on regression). Independent QA **PASS** (Rekik, pre-merge). Browser **NOT RUN ≠ PASS** (IQ covered).
+- **No DOCUMENTATION / IMPLEMENTATION DISCREPANCY:** Spec ACs that shipped are present in code. Sticky nightly **table** lives on the Rate card; sticky shows nights / from-rate / total from the **same** `quoteStay` object (Spec §3.3 “and/or”). Date change **always** clears `ratePlanId` (stricter than “clear when invalid” — still honest).
+- Pre-existing Stay / room / details / Section 6 assign picker on the same page **remain**. Section 5 Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE.
+- Issue [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
-## 3. EXPECTED — Rate plan + sticky pricing
+## 3. EXPECTED — Rate plan + sticky pricing (authorized baseline — delivered)
 
-### 3.1 Rate plan / rate code select (reference capability, NORU UI)
+### 3.1 Rate plan / rate code select — **delivered**
 
-- Staff select **one** rate plan (code + name) from CURRENT property plans returned by `quoteStay` (or equivalent — same `price_hotel_stay` SoT) for the **draft stay + selected room type**.
-- Show at least **code** + **name** (reference “Rate Code”). Server quote snippet (from-rate / total) is fine on the card — **modern NORU boxes**, not legacy chrome clone.
-- Empty catalogue: honest copy (no fake plan). Invalid dates / no room type: do not invent quotes (CURRENT gate).
+- Staff select **one** rate plan (code + name) from CURRENT property plans returned by `quoteStay` for the **draft stay + selected room type**.
+- Code + name + server quote snippet (from-rate / total) on modern NORU boxes — **not** a legacy chrome clone.
+- Empty catalogue: honest copy (no fake plan). Invalid dates / no room type: do not invent quotes.
 - Plans that fail `price_hotel_stay` stay visible as **unavailable** with reason — not silently selectable as priced.
 
-### 3.2 Select binds on create
+### 3.2 Select binds on create — **delivered**
 
-- Selected plan **binds** `hotel_reservations.rate_plan_id` via the same `createReservation` → `create_hotel_reservation_priced` (`_rate_plan_id`) stack. Keep server re-price + snapshot (`room_subtotal`, `nightly_rate_snapshot`, `priced_at`).
-- **Do not** add a parallel pricing writer or accept browser-computed totals as authority. Client may display the last server quote for UX; create **re-derives** from plan id.
-- Changing stay dates or room type **re-fetches** quotes and **clears or revalidates** selection (CURRENT clears on type change — keep honesty).
+- Selected plan **binds** `hotel_reservations.rate_plan_id` via the same `createReservation` → `create_hotel_reservation_priced` (`_rate_plan_id`) stack. Server re-price + snapshot kept.
+- **No** parallel pricing writer. Client displays the last server quote; create **re-derives** from plan id.
+- Changing stay dates or room type **re-fetches** quotes and **clears** selection (type change + stay-date change + stale-quote effect).
 
-### 3.3 Sticky pricing (server quote only)
+### 3.3 Sticky pricing (server quote only) — **delivered**
 
-- Sticky summary (`create-reservation-summary`) shows, when a **priced** plan is selected:
-  - Rate **code** (+ name if cheap)
-  - **Nightly breakdown** and/or clear nights summary from the **server** quote
-  - **Stay total** = `quote.subtotal` (and currency) from `quoteStay` / `price_hotel_stay` — **not** `sum(client)` / invented ADR
-- When **unpriced** (no plan, or permitted Pending path): honest unpriced copy — **no** fake `0.00` total. Replace the Section 1 “later section” placeholder once this section ships.
-- **Ignore client math.** If sticky and Rate card both show totals, both must be the **same server quote object** (or an Eng-documented single derived view of it) — no second calculator.
+- Sticky summary shows, when a **priced** plan is selected:
+  - Rate **code** (+ name)
+  - Nights / from-night summary from the **server** quote (full nightly table on the Rate card)
+  - **Stay total** = `quote.subtotal` (and currency) from the **same** `quoteStay` object as the Rate card
+- When **unpriced** (no plan, or permitted Pending path): honest unpriced copy — **no** fake `0.00` total.
+- **Ignore client math.** Sticky and Rate card share `selectedQuote`.
 
-### 3.4 Rate required for Confirm / Guarantee (D5)
+### 3.4 Rate required for Confirm / Guarantee (D5) — **delivered** (create tighten; Section 7 chrome later)
 
-- **Confirm / Guarantee** require a selected rate that has a successful server quote (**priced** state), unless the staffed **unpriced Pending** permission path applies (§3.6).
-- Section **7** may own Confirm / Guarantee button chrome. Section 5 must **expose**:
-  - `priced` — plan selected + server quote present
-  - `unpriced` — no plan / no successful quote
-  - whether unpriced Pending is **allowed for this actor**
-- Until Section 7 ships: do **not** invent a second Confirm product; do **not** weaken D5. Prefer tightening create submit so **confirmed** without rate is blocked, while **pending** follows §3.6. Eng confirms exact button ownership with Section 7.
+- **Confirmed** create requires a selected rate that has a successful server quote, unless the staffed **unpriced Pending** permission path applies (§3.6).
+- Section 5 **exposes** `priced` / `unpriced` / whether unpriced Pending is allowed for this actor (`canCreateUnpricedPending`).
+- Section **7** still owns Confirm / Guarantee **button chrome**. No second Confirm product.
 
-### 3.5 Fixed rate — GATE / OUT (CURRENT does not support)
+### 3.5 Fixed rate — GATE / OUT (CURRENT does not support) — **honoured**
 
-- Reference screen “Fixed Rate” is **in scope only if CURRENT has a real fixed/manual create path**.
-- **CURRENT finding:** no create-time Fixed Rate / manual amount / per-stay override API. Calendar overrides are Rates **admin** configuration consumed by `price_hotel_stay`. `repriceReservation` is post-create.
-- Therefore Phase 1 Section 5: **Fixed Rate = OUT / gated**. Do not fake a Fixed Rate checkbox that writes a client total. Prefer a later Spec if product wants manual override.
-- **Rate adjustment amount/%** on create: **OUT** (no CURRENT create adjustment API). Folio adjustment is Cashiering — not this section.
-- **RTC**: **OUT** unless CURRENT already has it (it does not).
+- **Fixed Rate = OUT.** No fake Fixed Rate checkbox. No create-time manual amount.
+- **Rate adjustment amount/%** on create: **OUT**.
+- **RTC**: **OUT**.
 
-### 3.6 Unpriced path (permission + Pending only)
+### 3.6 Unpriced path (permission + Pending only) — **delivered**
 
-- Unpriced create is allowed **only** as **Pending** (or draft-equivalent CURRENT status — today `pending`), and **only with permission**.
-- **CURRENT:** no dedicated unpriced permission; any create-capable role can omit rate and even choose Confirmed. Section 5 **closes** that honesty gap.
-- Eng confirms the permission shape (recommended options — pick one documented in Eng plan):
-  1. Reuse `owner` \| `manager` (align with `requireRateManager`), or
-  2. Explicit named capability / entitlement (flag Abel if RLS / entitlement **model** changes), or
-  3. Temporarily: any `requireReservationManager` for Pending-only unpriced — **weaker**; document residual
-- UI must make unpriced **visible** (badge / sticky copy / helper) — not a silent null.
-- Without permission: staff cannot submit unpriced; must pick a quoted plan (or abort).
+- Unpriced create is allowed **only** as **Pending**, and **only** for `owner` \| `manager` (align `requireRateManager`).
+- Receptionist must pick a quoted plan.
+- Capability-only — **no** RLS / entitlement model change. Flag Abel: **NOT** required.
+- UI makes unpriced **visible** (badge + sticky copy).
 
-### 3.7 No second pricing writer / no invented engines
+### 3.7 No second pricing writer / no invented engines — **delivered**
 
-- Same route + same writer. Walk-in remains a mode of `createReservation`.
-- Do **not** invent LIVE RMS, OTA channel pricing, commission settlement, or a create-time rate-adjustment engine.
-- Restrictions already enforced inside `price_hotel_stay` stay as CURRENT behaviour — do not rebuild a parallel restriction UI product here.
+- Same route + same writer. Walk-in remains a mode of `createReservation` (confirmed walk-in now binds a quoted plan).
+- **No** invented LIVE RMS, OTA channel pricing, commission settlement, or create-time rate-adjustment engine.
 
 ---
 
-## 4. Out of Section 5 (locked)
+## 4. Out of Section 5 (locked — still out)
 
 - **Fixed Rate / manual create override** (CURRENT unsupported — GATE / OUT; later Spec if needed)
 - **Rate adjustment amount/%** on create (no CURRENT create API)
 - **RTC** (room type charged ≠ room type)
 - Inventing **LIVE RMS / OTA / commission / yield** engines
 - **Room assign** (Section 6) — do not expand assignable-room behaviour
-- **Guarantee + Confirm UI product** (Section 7) — expose priced/unpriced state only; do not invent second Confirm chrome
+- **Guarantee + Confirm UI product** (Section 7) — expose priced/unpriced state; create-status tighten is Section 5; do not invent second Confirm chrome
 - **Packages** (Section 8)
 - Email / SMS send confirmation
 - **Corporate / Group** as separate products / CR-100 / allotment
@@ -156,51 +157,36 @@
 
 ---
 
-## 5. Acceptance criteria (AC-CR5)
+## 5. Acceptance criteria (AC-CR5) — locks PASS
 
-| ID | Criterion |
-|---|---|
-| **AC-CR5-1** | Rate plan / rate code select lists CURRENT property **active** plans for the selected **room type + stay** via `quoteStay` (or equivalent same `price_hotel_stay` SoT) on `/restaurant/bookings/new` |
-| **AC-CR5-2** | Selecting a plan **binds** `ratePlanId` → `_rate_plan_id` on the same `createReservation` → `create_hotel_reservation_priced` writer; server re-prices and snapshots |
-| **AC-CR5-3** | Sticky summary shows **honest server** nightly/breakdown and **total** from the selected `quoteStay` quote when priced — **not** client-invented math |
-| **AC-CR5-4** | Browser / client totals are **ignored** as authority (writer already documents this). UI display must not present a second conflicting calculator as SoT |
-| **AC-CR5-5** | **Unpriced** path: Pending (draft-equivalent) **only**, and **only with permission**. Clear UI honesty (sticky / badge). Eng documents the permission rule |
-| **AC-CR5-6** | **Confirm / Guarantee** blocked without a successful rate quote unless the permitted unpriced Pending path applies. Section 5 exposes priced vs unpriced state; Section 7 may own button chrome |
-| **AC-CR5-7** | **No fake totals** — unpriced sticky must not show `0.00` as a real stay total; empty / loading / error states are honest |
-| **AC-CR5-8** | **No second pricing writer** — no parallel create API; walk-in remains a mode of the same writer |
-| **AC-CR5-9** | **Fixed Rate** gated **OUT** for this section (CURRENT has no create fixed/manual path). No fake Fixed Rate control |
-| **AC-CR5-10** | **No** create-time rate adjustment amount/% and **no** RTC invented |
-| **AC-CR5-11** | **No** invented LIVE RMS / OTA / commission / yield engine — CURRENT `quoteStay` / `price_hotel_stay` only |
-| **AC-CR5-12** | Date or room-type change **revalidates** quotes; stale priced selection is not kept silently as valid |
-| **AC-CR5-13** | Empty rate catalogue and restriction-unavailable plans are honest (reason visible; not selectable as priced) |
-| **AC-CR5-14** | Existing permission gates preserved for create: `requireRoutePackage("pms")`, `getBookingsAccess` / `requireReservationManager`. Quote access role mismatch (`requireRateManager` vs receptionist create) is **resolved or documented** in Eng plan — do not leave receptionist create broken. Flag Abel if entitlement / RLS **model** must change |
-| **AC-CR5-15** | Room assign (Section 6), Guarantee/Confirm product (Section 7), packages (Section 8), email/SMS are **not** expanded |
-| **AC-CR5-16** | Guest Waves 1–5 + GE1 + GE2 + GE3 stay **OPERATIONALLY ACCEPTED** / closed. This section does **not** reopen them |
-| **AC-CR5-17** | Section 5 does **not** claim Phase 1 or full Create Reservation **DONE** |
-| **AC-CR5-18** | Locked non-goals in §4 are **absent** |
-| **AC-CR5-19** | Migration honesty: core path **LIKELY NONE**. Eng **confirms**. Dual-lane APPLY HELD only if SECURITY DEFINER pricing/create RPCs replaced. Unpriced permission must not silently change RLS model |
-| **AC-CR5-20** | Additive expansion of existing `/restaurant/bookings/new` — **do not** rebuild a second Create Reservation product. Modern NORU sticky/boxes OK; **do not** clone legacy chrome |
-| **AC-CR5-21** | Modern sticky UI may borrow **placement** from the reference Individual create screen (Rate Code / Rate & Total) but must not claim Fixed Rate LIVE |
+| ID | Criterion | Delivery |
+|---|---|---|
+| **AC-CR5-1…21** | As authorized in Spec #140 | **PASS** (#142) |
+
+Full AC text remains the #140 baseline; do not reopen Guest GE; do not claim Phase 1 DONE.
 
 ---
 
 ## 6. QA / Security / Regression (summary)
 
-- Developer (when authorised): `tsc` + lock tests for AC-CR5-1…21; browser rate list / select / sticky server total on `/restaurant/bookings/new`; unpriced permission Pending path; Confirm/confirmed blocked without rate when not permitted; null `_rate_plan_id` still creates unpriced only when allowed; create still re-prices from plan id.
-- Independent QA (Rekik): required before merge PASS of the **engineering** PR (not this docs PR).
-- Security: staff-only; tenant-scoped plans; preserve reservation gates; resolve quote role mismatch honestly; no new SECURITY DEFINER unless Abel-approved.
-- Regression: Sections 1–4 shell / stay / availability / Company-TA (as shipped); walk-in same writer; `price_hotel_stay` restrictions unchanged; Rates admin calendar not broken; Guest GE closed; no Fixed Rate / adjustment / RTC invent.
+- Eng DER: **PASS** Section 5 only (#142 MERGED 2026-09-15, SHA `fafd329e5682523457f57ad99f54b9fa0f6ed708`). Independent QA **PASS** (Rekik, pre-merge). `tsc` PASS; locks **AC-CR5-1…21 PASS** (+ AC-CR1 / AC-CR2 / AC-CR4 regression PASS). Browser **NOT RUN ≠ PASS** (IQ covered).
+- Security: staff-only; tenant-scoped plans; existing FO / reservation gates preserved; quote gate aligned to reservation managers; unpriced capability-only; **no** new SECURITY DEFINER; **no** new RLS policies.
+- Regression: Sections 1–4 shell / stay / availability / Company-TA (as shipped); walk-in same writer (now requires a quoted plan because confirmed); `price_hotel_stay` restrictions unchanged; Rates admin calendar not broken; Guest GE closed; no Fixed Rate / adjustment / RTC invent.
+- Migration: **NONE**. Dual-lane APPLY **N/A**. Flag Abel: **NOT** required.
+- **#141** **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
-## 7. Open Eng confirm items
+## 7. Eng confirm items (resolved in #142)
 
-1. **Unpriced permission shape:** owner/manager reuse vs named capability vs temporary Pending-for-all-managers. Document; Abel if RLS/entitlement model changes.
-2. **`quoteStay` role vs create role:** receptionist can create today but `quoteStay` is `requireRateManager`. Align quote gate to reservation managers, keep manager-only, or dual-path — pick one honest rule so create quoting works for intended roles.
-3. **Confirm gate ownership:** Section 7 vs tightening CURRENT status/submit now so Confirmed without rate cannot ship. Section 5 must expose state either way.
-4. **Sticky vs Rate card duplication:** single server quote object rendered in both places vs sticky summary-only total + card detail — avoid two maths.
-5. **Stale quote on date/type change:** auto-clear `ratePlanId` (CURRENT on type change) vs keep + mark invalid until re-quote succeeds.
-6. **Fixed Rate later Spec?** Confirm OUT for Phase 1 Section 5; file follow-up only if product still wants manual override after seeing CURRENT.
+| Item | Resolution |
+|---|---|
+| Unpriced permission shape | **`owner` \| `manager` only** (align `requireRateManager`); Pending-only. Receptionist must select a quoted plan. Capability-only — Flag Abel **NOT** required |
+| `quoteStay` role vs create role | **`requireReservationManager`** (owner \| manager \| receptionist) so create UX can quote. Rate admin writers stay `requireRateManager` |
+| Confirm gate ownership | Create **confirmed** without a successful quote is **blocked** now (UI + `assertCreateReservationPricing`). Guarantee / Confirm **chrome** stays **Section 7** |
+| Sticky vs Rate card duplication | **Single** `selectedQuote` / `quoteStay` object rendered in both places |
+| Stale quote on date/type change | **Clear `ratePlanId`** on room-type change and on stay-date / nights change; plus `shouldClearStaleRatePlan` when the re-quote has no successful quote |
+| Fixed Rate later Spec? | **OUT** for Phase 1 Section 5. No follow-up filed from this recon |
 
 ---
 
@@ -208,11 +194,12 @@
 
 | Item | Status |
 |---|---|
-| Spec | **ACCEPTED for Engineering** / **READY FOR PLANNING** |
-| ENGINEERING | **NOT STARTED** — no code until TIP + Rekik plan approval |
-| Implemented / PASS / LIVE / COMPLETE | **No** |
-| Migration | **LIKELY NONE** (core). Eng confirms. Unpriced permission may be capability-only; Abel if model changes |
+| Spec | **OPERATIONALLY ACCEPTED** (#141 CLOSED) |
+| ENGINEERING | **PASS** (#142) |
+| Implemented / PASS (Section 5) | **Yes** (DER) |
+| LIVE / module COMPLETE / Phase 1 COMPLETE | **No** |
+| Migration | **NONE**. Dual-lane APPLY **N/A**. RLS **UNCHANGED**. Flag Abel **NOT** required |
 | Fixed Rate / create adjustment / RTC | **OUT** (CURRENT unsupported) |
-| LIVE RMS / OTA / commission engine | **Not invented** |
-| Phase 1 COMPLETE | **NO** |
+| LIVE RMS / OTA / commission engine | **Not invented** — CURRENT `quoteStay` / `price_hotel_stay` only |
 | Create Reservation DONE | **NO** |
+| Issue #141 | **CLOSED** completed |
