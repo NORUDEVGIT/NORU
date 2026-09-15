@@ -18,6 +18,7 @@ import {
   CREATE_RESERVATION_SECTION1_ISSUE,
   CREATE_RESERVATION_SECTION1_MIGRATION,
   CREATE_RESERVATION_SECTION1_SCOPE,
+  CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED,
   CREATE_RESERVATION_SEGMENT_HONESTY,
   CREATE_RESERVATION_SOURCE_HONESTY,
   CREATE_RESERVATION_SUMMARY_NO_TOTAL,
@@ -37,10 +38,10 @@ function readRel(rel: string) {
   return readFileSync(join(here, rel), "utf8");
 }
 
-const CR1 = Array.from({ length: 20 }, (_, i) => `AC-CR1-${i + 1}`);
+const CR1 = Array.from({ length: 21 }, (_, i) => `AC-CR1-${i + 1}`);
 
-describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…20", () => {
-  it("locks AC-CR1-1…20 (Spec #120 / issue #121)", () => {
+describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
+  it("locks AC-CR1-1…21 (Spec #120 amend / issue #121)", () => {
     assert.deepEqual([...CREATE_RESERVATION_ACCEPTANCE_CRITERIA], CR1);
     assert.equal(CREATE_RESERVATION_SECTION1_ISSUE, 121);
     assert.deepEqual(CREATE_RESERVATION_TIP_AC_MAP["plan-context-ui"], [
@@ -69,6 +70,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…20", () => {
       "AC-CR1-19",
       "AC-CR1-20",
     ]);
+    assert.deepEqual(CREATE_RESERVATION_TIP_AC_MAP["plan-sidebar-collapse"], ["AC-CR1-21"]);
   });
 
   it("AC-CR1-1 Context fields render; type switch shows Corporate/TA chrome without clearing guest", () => {
@@ -346,5 +348,25 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…20", () => {
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
     assert.match(CREATE_RESERVATION_DENIED_COPY, /receptionists/);
+  });
+
+  it("AC-CR1-21 Create Reservation collapses the existing app sidebar; expand stays; other pages unchanged", () => {
+    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const shell = readRel("../../../core/components/restaurant-shell.tsx");
+    const bookingsIndex = readRel("../../../routes/restaurant/bookings/index.tsx");
+    const reservationsIndex = readRel("../../../routes/restaurant/pms/reservations.index.tsx");
+    assert.equal(CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED, true);
+    assert.equal(CREATE_RESERVATION_SECTION1_MIGRATION, "NONE");
+    assert.match(page, /sidebarDefaultCollapsed=\{CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED\}/);
+    assert.doesNotMatch(page, /sidebarDefaultCollapsed=\{reservationType/);
+    assert.match(shell, /sidebarDefaultCollapsed\?: boolean/);
+    assert.match(shell, /useState\(Boolean\(sidebarDefaultCollapsed\)\)/);
+    assert.match(shell, /hidePackageRail \|\| sidebarCollapsed/);
+    assert.match(shell, /data-testid="expand-app-sidebar"/);
+    assert.match(shell, /Expand navigation/);
+    assert.doesNotMatch(bookingsIndex, /sidebarDefaultCollapsed/);
+    assert.doesNotMatch(reservationsIndex, /sidebarDefaultCollapsed/);
+    assert.match(page, /CREATE_RESERVATION_SUMMARY_NO_TOTAL/);
+    assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
   });
 });
