@@ -1,8 +1,9 @@
 /**
  * Create Reservation Phase 1 — Section 1 Context + Guest (Issue #121),
  * Section 2 Company / Travel Agency on create (Issue #127),
- * Individual Associations amend (Issue #138 / AC-CR2A), and
- * Section 3 Stay (Issue #129).
+ * Individual Associations amend (Issue #138 / AC-CR2A),
+ * Section 3 Stay (Issue #129), and
+ * Section 5 Rate + sticky pricing (Issue #141).
  *
  * Additive expansion of `/restaurant/bookings/new` + `createReservation` →
  * `create_hotel_reservation_priced`. Walk-in stays a mode of the same writer.
@@ -12,9 +13,10 @@
  * Section 1 is Context + Guest. Section 2 binds Company or TA masters on create
  * (AC-W4-5 for create). AC-CR2A always shows optional Company + TA on Individual
  * and lifts dual-bind XOR so both can persist together. Section 3 upgrades Stay
- * UX (linked dates/nights, occupancy soft-warn, notes, sticky honesty). None of
- * these sections claim Phase 1 or Create Reservation DONE. Rate / availability
- * invent / room / guarantee / packages / send confirmation remain later sections.
+ * UX (linked dates/nights, occupancy soft-warn, notes, sticky honesty).
+ * Section 5 (Issue #141) owns Rate + sticky pricing on the same writer.
+ * None of these sections claim Phase 1 or Create Reservation DONE.
+ * Room / guarantee / packages / send confirmation remain later sections.
  * Issue #127 stays CLOSED — AC-CR2-1…18 stand as prior lock.
  * Programme rule (Rekik / Docs 2026-09-15): take efficient Individual
  * Associations function (optional Company + TA, prefill, persist); modernize
@@ -290,8 +292,9 @@ export const CREATE_RESERVATION_BOOKING_AGENT_COPY =
 export const CREATE_RESERVATION_SECTION1_SCOPE =
   "Section 1 is Context + Guest only. Stay, rate, room, guarantee, packages, and send confirmation are later sections.";
 
+/** Replaced by Section 5 honest unpriced sticky. Kept as an alias so older locks still resolve. */
 export const CREATE_RESERVATION_SUMMARY_NO_TOTAL =
-  "No stay total is shown here. Rate and pricing belong to a later section.";
+  "This stay is unpriced. No stay total is shown — a server quote is required before a total can appear.";
 
 export const CREATE_RESERVATION_MIGRATION_REASON =
   "Section 1 collects commercial source, segment, and external reference in the draft only. hotel_reservations.source remains channel origin. Confirm-time persistence is Section 7. No additive columns in this section.";
