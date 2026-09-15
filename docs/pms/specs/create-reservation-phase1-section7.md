@@ -4,21 +4,21 @@
 |---|---|
 | **PACKAGE** | PMS · Reservations |
 | **FEATURE** | Create Reservation Phase 1 — Section 7: Guarantee + review/confirm + on-screen confirmation |
-| **STATUS** | **IMPLEMENTATION PASS** (Section 7 only) — Eng DER PASS 2026-09-15. Awaiting Outcome Review / Rekik formal closure. Do **not** claim OPERATIONALLY ACCEPTED / CLOSED |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (DER PASS) |
 | **ENGINEERING STATUS** | **PASS** for Section 7 — delivery [#155](https://github.com/NORUDEVGIT/NORU/pull/155) MERGED (`b3994fd98df89077c3c34f31b563f43e4603640b` by AK21ER @ 2026-09-15T18:29:07Z) |
-| **Issue** | [#153](https://github.com/NORUDEVGIT/NORU/issues/153) **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED / LIVE / Phase 1 COMPLETE |
+| **Issue** | [#153](https://github.com/NORUDEVGIT/NORU/issues/153) **CLOSED** completed — OPERATIONALLY ACCEPTED. Do **not** claim LIVE / Phase 1 COMPLETE |
 | **Migration** | **0061** `pms_create_reservation_guarantee_confirm` dual-lane (supabase + drizzle). Additive columns `commercial_booking_source`, `market_segment`, `external_reference`, `guarantee_method` + optional RPC params DEFAULT NULL. Do **not** overload channel-origin `hotel_reservations.source`. **Non-prod APPLY PASS** on `qcwptraosaudcbjasmul` version `20260915144627` (columns verified). **Prod 0061 / 0059 / 0060 Abel-gated** — do **not** apply. Writer constant `CREATE_RESERVATION_SECTION7_APPLY` is still **HELD** → Confirm that would claim persist **fail-closes** until the flag is flipped (schema apply ≠ flip). RLS **UNCHANGED**. Additive policies: NONE. Flag Abel **NOT** required. No payment-gateway table. No create-time folio / deposit RPC |
 | **Guest Waves 1–5 + GE1 + GE2 + GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
 | **Phase 1 / module COMPLETE** | **NO** — Section 7 only. Packages (Section 8 GATE) remain. This section does **not** claim full Create Reservation DONE |
 | **Canonical location** | This file (lean Spec). Programme note: [`../create-reservation-phase1-section7-programme.md`](../create-reservation-phase1-section7-programme.md) |
-| **Prior / sibling sections** | [`create-reservation-phase1-section1.md`](./create-reservation-phase1-section1.md) (Context + Guest). [`create-reservation-phase1-section5.md`](./create-reservation-phase1-section5.md) owns Rate + sticky **room** pricing. [`create-reservation-phase1-section6.md`](./create-reservation-phase1-section6.md) owns Room assign. Individual Associations [#139](https://github.com/NORUDEVGIT/NORU/pull/139) shipped. Section 8 Packages GATE is a sibling on the same page. This section **owns** guarantee, Confirm/Guarantee vs Pending, persist of source/segment/ref, and on-screen/print confirmation |
+| **Prior / sibling sections** | [`create-reservation-phase1-section1.md`](./create-reservation-phase1-section1.md) (Context + Guest). [`create-reservation-phase1-section5.md`](./create-reservation-phase1-section5.md) owns Rate + sticky **room** pricing. [`create-reservation-phase1-section6.md`](./create-reservation-phase1-section6.md) owns Room assign. Individual Associations [#139](https://github.com/NORUDEVGIT/NORU/pull/139) shipped. Section 8 Packages GATE ([#151](https://github.com/NORUDEVGIT/NORU/issues/151) CLOSED / OA; [#154](https://github.com/NORUDEVGIT/NORU/pull/154) MERGED) is a sibling on the same page. This section **owns** guarantee, Confirm/Guarantee vs Pending, persist of source/segment/ref, and on-screen/print confirmation |
 | **Boundaries** | [`../../architecture-ownership.md`](../../architecture-ownership.md) — this Spec does not redefine package or shared-service ownership |
 
 > **Rekik AUTHORIZED 2026-09-15** via Hospitality Product Advisor. Additive expansion of the **existing** Create Reservation surface. **Do not** rebuild a second product. Walk-in remains a **mode of the same writer**.
 >
-> **Docs CURRENT recon 2026-09-15** after Eng DER **PASS** (#155 MERGED) and Rekik Independent QA **PASS**. Spec docs baseline [#150](https://github.com/NORUDEVGIT/NORU/pull/150) (may still be open/draft). **#153 remains OPEN** until Outcome Review / formal closure. Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
+> **Docs CURRENT recon 2026-09-15** after Eng DER **PASS** (#155 MERGED) and Rekik **formal closure YES**. Spec docs baseline [#150](https://github.com/NORUDEVGIT/NORU/pull/150) (may still be open/draft). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
 >
-> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → 5 Rate + sticky pricing → 6 Room assign → **7 Guarantee + confirm (THIS — IMPLEMENTATION PASS / #153 OPEN)** → 8 Packages GATE.
+> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → 5 Rate + sticky pricing → 6 Room assign → **7 Guarantee + confirm (THIS — OPERATIONALLY ACCEPTED / #153 CLOSED)** → 8 Packages GATE (#151 CLOSED / OA).
 >
 > **Programme rule (LOCKED):** Reference Individual create **guarantee / confirm** function with **modern NORU UI** (own box, sticky summary, sticky actions). **Do not** clone legacy chrome.
 >
@@ -146,7 +146,7 @@ Commercial booking source `walk_in` on the Context card is **not** FO walk-in mo
   - Pending confirmation may show a selected guarantee label when one was picked (optional on Pending); Confirm still **requires** it.
   - Payment terms remain display-only (not a reservation column).
 - Pre-existing Stay / Rate / Room / Packages GATE / Details UI on the same page **remain**. Section 7 Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE.
-- Issue [#153](https://github.com/NORUDEVGIT/NORU/issues/153) remains **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED.
+- Issue [#153](https://github.com/NORUDEVGIT/NORU/issues/153) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -266,7 +266,7 @@ Full AC text remains the #150 baseline; do not reopen Guest GE; do not claim Pha
 - Security: staff-only; tenant-scoped; existing FO / reservation gates preserved; guarantee labels do **not** grant cashier post permission; **no** new RLS policies; Flag Abel **NOT** required (RLS model unchanged). SECURITY DEFINER create RPCs were **replaced** (0061) — dual-lane; prod apply Abel-gated.
 - Regression: Sections 1–6 shell / stay / availability / Company-TA / Rate / Room / Associations (as shipped); Section 8 Packages GATE detect-only (composed, no bind); walk-in same writer + room+rate, no guarantee; FO check-in deposit unchanged; Guest GE closed; `setReservationStatus` cancel/no-show still FO/detail — not create.
 - Migration: **0061** dual-lane. Non-prod **APPLY PASS** (`20260915144627`). **Prod 0061 / 0059 / 0060 Abel-gated**. Writer persist flag still **HELD**.
-- **#153** remains **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED.
+- **#153** **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -288,11 +288,11 @@ Full AC text remains the #150 baseline; do not reopen Guest GE; do not claim Pha
 
 | Item | Status |
 |---|---|
-| Spec | **ACCEPTED for Engineering** (baseline [#150](https://github.com/NORUDEVGIT/NORU/pull/150); may still be open/draft). CURRENT recon on this file |
+| Spec | **OPERATIONALLY ACCEPTED** (#153 CLOSED) |
 | ENGINEERING | **PASS** (#155) — Section 7 only |
 | Implemented / PASS (Section 7) | **Yes** (DER) |
-| OPERATIONALLY ACCEPTED / LIVE / module COMPLETE / Phase 1 COMPLETE | **No** — Outcome Review pending |
-| Issue #153 | **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED |
+| LIVE / module COMPLETE / Phase 1 COMPLETE | **No** |
+| Issue #153 | **CLOSED** completed — OPERATIONALLY ACCEPTED |
 | Migration | **0061** dual-lane. Non-prod **APPLY PASS** (`qcwptraosaudcbjasmul` / `20260915144627`). **Prod 0061 / 0059 / 0060 Abel-gated**. Writer `CREATE_RESERVATION_SECTION7_APPLY` still **HELD** (Confirm fail-closes). RLS **UNCHANGED**. Flag Abel **NOT** required |
 | Guarantee Setup catalogue | **Absent** — reuse `pms_payment_methods` / `PAYMENT_METHODS` as labels only |
 | Source / segment / ref / guarantee persist | **0061 schema on non-prod.** Writer flag **HELD** — Confirm fail-closes; Pending omits new params |

@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **STATUS** | **IMPLEMENTATION PASS** (Section 7 only) — awaiting Outcome Review / Rekik formal closure. Do **not** claim OPERATIONALLY ACCEPTED |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 |
 | **Spec** | [`docs/pms/specs/create-reservation-phase1-section7.md`](./specs/create-reservation-phase1-section7.md) |
 | **ENGINEERING** | **PASS** — [#155](https://github.com/NORUDEVGIT/NORU/pull/155) MERGED (`b3994fd9`) |
-| **Issue** | [#153](https://github.com/NORUDEVGIT/NORU/issues/153) **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED |
+| **Issue** | [#153](https://github.com/NORUDEVGIT/NORU/issues/153) **CLOSED** completed |
 | **Implemented** | Section 7 **Yes** (DER). Email / SMS / deposit / gateway **OUT**. Phase 1 / Create Reservation DONE = **NO** |
 | **Section** | 7 of 8 — Guarantee + review/confirm + on-screen confirmation only. **Not** full Create Reservation DONE |
 | **Route** | `/restaurant/bookings/new` (additive) |
