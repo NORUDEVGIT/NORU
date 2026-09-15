@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -46,15 +46,21 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { getGuestAccount, listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   CREATE_RESERVATION_DENIED_COPY,
   CREATE_RESERVATION_SECTION1_SCOPE,
+  CREATE_RESERVATION_SECTION2_SCOPE,
   CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED,
   CREATE_RESERVATION_SUMMARY_NO_TOTAL,
   CREATE_RESERVATION_TYPE_CHANGE_WARN,
   RESERVATION_TYPE_LABELS,
+  mastersForCreateMode,
+  pickPrefillMasterId,
   resolveBookingSourceOptions,
   resolveMarketSegmentOptions,
+  toPickedReservationMaster,
+  type PickedReservationMaster,
   type ReservationTypeMode,
 } from "@/packages/pms/lib/create-reservation-phase1";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
@@ -109,6 +115,8 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
+  const fetchGuestLinks = useServerFn(listGuestAccountLinks);
+  const fetchGuestAccount = useServerFn(getGuestAccount);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitReservation = useServerFn(createReservation);
@@ -121,6 +129,9 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [marketSegment, setMarketSegment] = useState("");
   const [externalReference, setExternalReference] = useState("");
   const [guest, setGuest] = useState<PickedReservationGuest | null>(null);
+  const [companyMaster, setCompanyMaster] = useState<PickedReservationMaster | null>(null);
+  const [travelAgentMaster, setTravelAgentMaster] = useState<PickedReservationMaster | null>(null);
+  const [masterOverride, setMasterOverride] = useState(false);
   const [arrival, setArrival] = useState(today);
   const [departure, setDeparture] = useState(addDays(today, 1));
   const [adults, setAdults] = useState(1);
@@ -179,6 +190,53 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const quotes = quotesQuery.data ?? [];
   const selectedQuote = quotes.find((q) => q.plan.id === ratePlanId) ?? null;
 
+  const linksQuery = useQuery({
+    queryKey: ["guest-account-links", restaurantId, guest?.id, "create-reservation-prefill"],
+    queryFn: () => fetchGuestLinks({ data: { restaurantId, guestId: guest!.id } }),
+    enabled: canManage && !!guest && reservationType !== "individual" && !masterOverride,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (masterOverride) return;
+    if (!guest || reservationType === "individual") {
+      setCompanyMaster(null);
+      setTravelAgentMaster(null);
+      return;
+    }
+    const links = linksQuery.data;
+    if (!links) return;
+    const role = reservationType === "corporate" ? "employer" : "booker_ta";
+    const masterId = pickPrefillMasterId(links, role);
+    if (!masterId) {
+      if (reservationType === "corporate") setCompanyMaster(null);
+      else setTravelAgentMaster(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchGuestAccount({ data: { restaurantId, accountId: masterId } })
+      .then((profile) => {
+        if (cancelled) return;
+        const picked = toPickedReservationMaster(profile);
+        if (reservationType === "corporate") setCompanyMaster(picked);
+        else setTravelAgentMaster(picked);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        if (reservationType === "corporate") setCompanyMaster(null);
+        else setTravelAgentMaster(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchGuestAccount, guest, linksQuery.data, masterOverride, reservationType, restaurantId]);
+
+  const boundMasters = mastersForCreateMode(
+    reservationType,
+    companyMaster?.id ?? null,
+    travelAgentMaster?.id ?? null,
+  );
+
   const create = useMutation({
     mutationFn: () =>
       submitReservation({
@@ -195,6 +253,8 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           notes: notes.trim() || null,
           status,
           ratePlanId: ratePlanId || null,
+          companyMasterId: boundMasters.companyMasterId,
+          travelAgentMasterId: boundMasters.travelAgentMasterId,
         },
       }),
     onSuccess: (result) => {
@@ -231,7 +291,20 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   function applyTypeChange() {
     if (!pendingType) return;
     setReservationType(pendingType);
+    setCompanyMaster(null);
+    setTravelAgentMaster(null);
+    setMasterOverride(false);
     setPendingType(null);
+  }
+
+  function handleCompanyMasterChange(next: PickedReservationMaster | null) {
+    setCompanyMaster(next);
+    setMasterOverride(true);
+  }
+
+  function handleTravelAgentMasterChange(next: PickedReservationMaster | null) {
+    setTravelAgentMaster(next);
+    setMasterOverride(true);
   }
 
   const actions = (
@@ -259,9 +332,12 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
             Create a stay for {membership.restaurant.name}. Availability updates as you change the dates.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION1_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION2_SCOPE}</p>
         </div>
 
         <CreateReservationContext
+          restaurantId={restaurantId}
+          canCreateMaster={guestAccessQuery.data?.canManage ?? false}
           reservationType={reservationType}
           onRequestTypeChange={requestTypeChange}
           bookingSource={bookingSource}
@@ -273,6 +349,10 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           externalReference={externalReference}
           onExternalReferenceChange={setExternalReference}
           bookingAgentName={bookingAgentName}
+          companyMaster={companyMaster}
+          onCompanyMasterChange={handleCompanyMasterChange}
+          travelAgentMaster={travelAgentMaster}
+          onTravelAgentMasterChange={handleTravelAgentMasterChange}
         />
 
         <CreateReservationGuest
@@ -523,6 +603,18 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
               <dd>{guest?.fullName ?? "No guest selected"}</dd>
             </div>
+            {reservationType === "corporate" ? (
+              <div data-testid="summary-company">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Company</dt>
+                <dd>{companyMaster?.name ?? "Not selected"}</dd>
+              </div>
+            ) : null}
+            {reservationType === "travel_agency" ? (
+              <div data-testid="summary-ta">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Travel Agency</dt>
+                <dd>{travelAgentMaster?.name ?? "Not selected"}</dd>
+              </div>
+            ) : null}
             <div>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay</dt>
               <dd>
