@@ -266,12 +266,12 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.doesNotMatch(functions, /requireAvailabilityManager|inventory_entitlement/);
   });
 
-  it("AC-CR4-14 Confirm chrome is not invented; none still disables create", () => {
+  it("AC-CR4-14 Confirm chrome is Section 7; none still disables create", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /Create reservation/);
+    assert.match(page, /create-reservation-actions/);
     assert.match(page, /disabled=\{!canSubmit \|\| create\.isPending\}/);
     assert.match(page, /available: selectedType\?\.available \?\? 0/);
-    assert.doesNotMatch(page, /Confirm stay|Guarantee and confirm|Send confirmation/);
+    assert.doesNotMatch(page, /Send confirmation email/);
     assert.match(CREATE_RESERVATION_SECTION4_SCOPE, /guarantee/);
   });
 
