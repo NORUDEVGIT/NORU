@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
+import { CreateReservationRoomType, OccupancySoftWarn } from "@/packages/pms/components/bookings/create-reservation-room-type";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
@@ -41,6 +42,7 @@ import {
   getBookingsAccess,
   getRoomTypeAvailability,
   listAssignableRooms,
+  type RoomTypeAvailability,
 } from "@/packages/pms/lib/reservations.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -57,6 +59,12 @@ import {
   resolveMarketSegmentOptions,
   type ReservationTypeMode,
 } from "@/packages/pms/lib/create-reservation-phase1";
+import {
+  stickyAvailability,
+  stickyAvailabilityCopy,
+  stickyRoomTypeLabel,
+  type SelectedRoomTypeMeta,
+} from "@/packages/pms/lib/create-reservation-phase1-section4";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
@@ -126,6 +134,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [roomTypeId, setRoomTypeId] = useState("");
+  const [selectedRoomType, setSelectedRoomType] = useState<SelectedRoomTypeMeta | null>(null);
   const [roomId, setRoomId] = useState(UNASSIGNED);
   const [specialRequests, setSpecialRequests] = useState("");
   const [notes, setNotes] = useState("");
@@ -222,6 +231,39 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const rooms = roomsQuery.data ?? [];
   const canSubmit = !!guest && datesValid && !!roomTypeId && (selectedType?.available ?? 0) > 0;
   const bookingAgentName = accessQuery.data?.actorName ?? "Current user";
+  const selectedMeta =
+    selectedType != null
+      ? {
+          roomTypeId: selectedType.roomTypeId,
+          name: selectedType.name,
+          code: selectedType.code,
+          maxOccupancy: selectedType.maxOccupancy,
+          adultCapacity: selectedType.adultCapacity,
+          childCapacity: selectedType.childCapacity,
+        }
+      : selectedRoomType?.roomTypeId === roomTypeId
+        ? selectedRoomType
+        : null;
+  const summaryAvailability = stickyAvailability({
+    roomTypeId,
+    datesValid,
+    loading: availabilityQuery.isLoading || availabilityQuery.isFetching,
+    live: selectedType,
+  });
+
+  function selectRoomType(type: RoomTypeAvailability) {
+    setRoomTypeId(type.roomTypeId);
+    setSelectedRoomType({
+      roomTypeId: type.roomTypeId,
+      name: type.name,
+      code: type.code,
+      maxOccupancy: type.maxOccupancy,
+      adultCapacity: type.adultCapacity,
+      childCapacity: type.childCapacity,
+    });
+    setRoomId(UNASSIGNED);
+    setRatePlanId("");
+  }
 
   function requestTypeChange(next: ReservationTypeMode) {
     if (next === reservationType) return;
@@ -323,53 +365,16 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           </p>
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg">Room type</h2>
-          {!datesValid ? (
-            <p className="mt-3 text-sm text-muted-foreground">Choose valid dates to see availability.</p>
-          ) : availabilityQuery.isLoading ? (
-            <p className="mt-3 text-sm text-muted-foreground">Checking availability…</p>
-          ) : availability.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              No sellable room types yet. Add them in Configuration → Rooms.
-            </p>
-          ) : (
-            <ul className="mt-3 grid gap-3 md:grid-cols-2">
-              {availability.map((a) => {
-                const disabled = a.available <= 0;
-                const selected = a.roomTypeId === roomTypeId;
-                return (
-                  <li key={a.roomTypeId}>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        setRoomTypeId(a.roomTypeId);
-                        setRoomId(UNASSIGNED);
-                        setRatePlanId("");
-                      }}
-                      className={cn(
-                        "w-full rounded-xl border p-3 text-left transition-colors",
-                        selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
-                        disabled && "cursor-not-allowed opacity-60",
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{a.name}</span>
-                        <span className="text-xs text-muted-foreground">{a.code}</span>
-                        {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Sleeps {a.maxOccupancy} · {a.available} of {a.totalRooms} available
-                        {disabled ? " · fully booked" : ""}
-                      </p>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        <CreateReservationRoomType
+          datesValid={datesValid}
+          loading={availabilityQuery.isLoading}
+          availability={availability}
+          roomTypeId={roomTypeId}
+          adults={adults}
+          childCount={children}
+          selectedMaxOccupancy={selectedMeta?.maxOccupancy}
+          onSelect={selectRoomType}
+        />
 
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg">Rate plan</h2>
@@ -531,7 +536,25 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
                   : "Dates not set"}
               </dd>
             </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Room type</dt>
+              <dd data-testid="summary-room-type">{stickyRoomTypeLabel(selectedMeta)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Availability</dt>
+              <dd data-testid="summary-availability">{stickyAvailabilityCopy(summaryAvailability)}</dd>
+            </div>
           </dl>
+          {selectedMeta ? (
+            <div className="mt-3">
+              <OccupancySoftWarn
+                adults={adults}
+                childCount={children}
+                maxOccupancy={selectedMeta.maxOccupancy}
+                testId="summary-occupancy-warn"
+              />
+            </div>
+          ) : null}
           <p className="mt-3 text-xs text-muted-foreground" data-testid="summary-no-fake-total">
             {CREATE_RESERVATION_SUMMARY_NO_TOTAL}
           </p>
