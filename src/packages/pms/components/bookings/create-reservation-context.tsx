@@ -1,3 +1,4 @@
+import { CreateReservationMasterPicker } from "@/packages/pms/components/bookings/create-reservation-master-picker";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -9,15 +10,16 @@ import {
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 import {
-  CREATE_RESERVATION_COMPANY_PLACEHOLDER,
-  CREATE_RESERVATION_TA_PLACEHOLDER,
   RESERVATION_TYPE_LABELS,
   RESERVATION_TYPE_MODES,
   type ContextPickOption,
+  type PickedReservationMaster,
   type ReservationTypeMode,
 } from "@/packages/pms/lib/create-reservation-phase1";
 
 export function CreateReservationContext({
+  restaurantId,
+  canCreateMaster,
   reservationType,
   onRequestTypeChange,
   bookingSource,
@@ -29,7 +31,13 @@ export function CreateReservationContext({
   externalReference,
   onExternalReferenceChange,
   bookingAgentName,
+  companyMaster,
+  onCompanyMasterChange,
+  travelAgentMaster,
+  onTravelAgentMasterChange,
 }: {
+  restaurantId: string;
+  canCreateMaster: boolean;
   reservationType: ReservationTypeMode;
   onRequestTypeChange: (next: ReservationTypeMode) => void;
   bookingSource: string;
@@ -41,6 +49,10 @@ export function CreateReservationContext({
   externalReference: string;
   onExternalReferenceChange: (value: string) => void;
   bookingAgentName: string;
+  companyMaster: PickedReservationMaster | null;
+  onCompanyMasterChange: (master: PickedReservationMaster | null) => void;
+  travelAgentMaster: PickedReservationMaster | null;
+  onTravelAgentMasterChange: (master: PickedReservationMaster | null) => void;
 }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-4" data-testid="create-reservation-context">
@@ -72,20 +84,22 @@ export function CreateReservationContext({
       </div>
 
       {reservationType === "corporate" ? (
-        <p
-          className="mt-3 rounded-xl border border-dashed border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
-          data-testid="company-chrome-placeholder"
-        >
-          {CREATE_RESERVATION_COMPANY_PLACEHOLDER}
-        </p>
+        <CreateReservationMasterPicker
+          restaurantId={restaurantId}
+          kind="company"
+          canCreate={canCreateMaster}
+          master={companyMaster}
+          onMasterChange={onCompanyMasterChange}
+        />
       ) : null}
       {reservationType === "travel_agency" ? (
-        <p
-          className="mt-3 rounded-xl border border-dashed border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
-          data-testid="ta-chrome-placeholder"
-        >
-          {CREATE_RESERVATION_TA_PLACEHOLDER}
-        </p>
+        <CreateReservationMasterPicker
+          restaurantId={restaurantId}
+          kind="travel_agent"
+          canCreate={canCreateMaster}
+          master={travelAgentMaster}
+          onMasterChange={onTravelAgentMasterChange}
+        />
       ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
