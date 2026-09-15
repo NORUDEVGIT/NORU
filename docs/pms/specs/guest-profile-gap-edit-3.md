@@ -4,20 +4,20 @@
 |---|---|
 | **PACKAGE** | PMS |
 | **FEATURE** | Guest Profile — Travel Agency (TA) master enrichment + Company Payment Terms |
-| **STATUS** | **IMPLEMENTED ON MAIN** / Independent QA **PASS** (post-merge 2026-09-15). **Not** OPERATIONALLY ACCEPTED / closed yet |
+| **STATUS** | **IMPLEMENTED ON MAIN** / **OPERATIONALLY ACCEPTED** / closed |
 | **ENGINEERING STATUS** | **COMPLETE / MERGED** — PR [#118](https://github.com/NORUDEVGIT/NORU/pull/118) MERGED 2026-09-15T07:50:05Z |
 | **IMPLEMENTATION STATUS** | **PASS** — AC-GE3-1…18 **PASS** |
 | **Independent QA** | **PASS** (Rekik 2026-09-15) — **post-merge** accept on `main`. #118 MERGED 2026-09-15T07:50:05Z **before** Independent QA routing; PASS is for the record, not a pre-merge gate |
 | **Developer QA** | **PARTIAL** — `tsc` PASS; locks **161/161**; browser **deferred** until 0058 non-prod. `NOT RUN` is never PASS |
-| **Issue** | [#115](https://github.com/NORUDEVGIT/NORU/issues/115) remains **OPEN** — READY TO CLOSE after Outcome Review. Advisor Feedback **sent**; Outcome Review **pending**. This recon **Relates** only — do **not** close #115; do **not** claim closed / OPERATIONALLY ACCEPTED closed |
-| **Migration** | **0058** dual-lane (`0058_pms_travel_agency_enrichment.sql`) **APPLY HELD**. Rekik has **requested** non-prod apply on `qcwptraosaudcbjasmul`. Do **not** claim APPLY PASS until Eng reports it. Production not applied |
+| **Issue** | [#115](https://github.com/NORUDEVGIT/NORU/issues/115) **CLOSED** completed 2026-09-15T07:56:25Z (Rekik formal closure YES / Advisor Outcome Review). This recon **Relates** only |
+| **Migration** | **0058** dual-lane (`0058_pms_travel_agency_enrichment.sql`) — non-prod APPLY **requested / in flight** on `qcwptraosaudcbjasmul`. Do **not** claim APPLY PASS until Eng reports it. Production **0058** Abel/PM gated — **not** applied |
 | **Waves 1–5** | Stay OPERATIONALLY ACCEPTED / closed — do **not** reopen |
 | **GE1 (#103/#105)** | Stay OPERATIONALLY ACCEPTED / closed — do **not** reopen |
 | **GE2 (#109/#111/#112)** | Stay OPERATIONALLY ACCEPTED / closed — do **not** reopen |
 | **Module COMPLETE** | **NO** — hotel UAT still required |
 | **Canonical location** | This file (lean addendum). Programme note: [`../guest-profile-gap-edit-3-programme.md`](../guest-profile-gap-edit-3-programme.md) |
 
-> **Rekik Independent QA PASS 2026-09-15 (post-merge).** Additive only. Extend `guest_account_masters` / `guest_account_links`. **No** second link store. **No** commission settlement engine. **No** rate engine. **No** AP/AR engine. Group form stays **thin**. Company Payment Terms added on the existing GE1 sectioned form. Gap-edit 3 is **not** OPERATIONALLY ACCEPTED / closed — #115 stays **OPEN** until Outcome Review. Advisor Feedback sent. This recon does **not** close #115.
+> **Rekik Independent QA PASS 2026-09-15 (post-merge).** Formal closure **YES**. Additive only. Extend `guest_account_masters` / `guest_account_links`. **No** second link store. **No** commission settlement engine. **No** rate engine. **No** AP/AR engine. Group form stays **thin**. Company Payment Terms added on the existing GE1 sectioned form. Gap-edit 3 is **OPERATIONALLY ACCEPTED** / closed. Issue [#115](https://github.com/NORUDEVGIT/NORU/issues/115) **CLOSED** completed. This recon **Relates** only.
 
 ## 1. CURRENT (code wins — tip of `main` after #118)
 
@@ -27,7 +27,7 @@
 - **Company** sectioned form (GE1) now includes **Payment Terms** (terms / credit limit note / billing instruction) — **not** AP/AR.
 - **Group** form stays **thin** (shared `GuestAccountFormDialog`).
 - Commission / rates / payment terms are **reference only** — no settlement, rate engine, or AP/AR product.
-- Surfaces degrade honestly with `TA_ENRICHMENT_UNAVAILABLE` (or equivalent) until **0058** is applied. **0058 APPLY HELD** — Rekik requested non-prod apply on `qcwptraosaudcbjasmul`; **not** APPLY PASS until Eng reports it.
+- Surfaces degrade honestly with `TA_ENRICHMENT_UNAVAILABLE` (or equivalent) until **0058** is applied. Non-prod **0058** APPLY **requested / in flight** on `qcwptraosaudcbjasmul` — **not** APPLY PASS until Eng reports it. Production **0058** Abel-gated.
 - Developer QA **PARTIAL** (browser deferred until 0058 non-prod). `NOT RUN` is never PASS.
 
 ## 2. EXPECTED — Scope A (sectioned TA form) — delivered on `main`
@@ -73,13 +73,13 @@ Same honesty as TA Payment Terms. Do **not** invent AP/AR, city-ledger, or folio
 
 ## 5. DATABASE IMPACT
 
-**YES — additive migration `0058` (APPLY HELD — not APPLY PASS):**
+**YES — additive migration `0058` (non-prod requested / in flight — not APPLY PASS):**
 
 - Additive columns on `guest_account_masters` for TA enrichment + shared/company payment-terms fields (nullable; TA-only fields ignored for company/group where appropriate)
 - **No** new link table (reuse `guest_account_links`)
-- Dual-lane drizzle + supabase; **APPLY HELD**
-- Rekik has **requested** non-prod apply on `qcwptraosaudcbjasmul`. Do **not** claim APPLY PASS until Eng reports it
-- Production: separate Abel/PM gate; **not** applied
+- Dual-lane drizzle + supabase
+- Non-prod APPLY **requested / in flight** on `qcwptraosaudcbjasmul`. Do **not** claim APPLY PASS until Eng reports it
+- Production **0058** Abel/PM gated — **not** applied
 - Additive RLS matching guest/account tables OK; **flag Abel** if entitlement/RLS **model** must change
 - Surfaces degrade honestly until apply (`TA_ENRICHMENT_UNAVAILABLE` / equivalent)
 
@@ -114,6 +114,6 @@ Live commission posting/settlement; rate engine; allotment inventory ops; e-sign
 
 - Developer QA: **PARTIAL** — `tsc --noEmit` **PASS**; Guest Profile locks **161/161 PASS** (Waves 1–5 + GE1 + GE2 + AC-GE3-1…18); browser **deferred** until 0058 non-prod. `NOT RUN` is never PASS
 - Independent QA (Rekik): **PASS** 2026-09-15 — **post-merge** on #118 (early-merge: #118 MERGED 2026-09-15T07:50:05Z before Independent QA routing)
-- Advisor Feedback **sent**; Outcome Review **pending** — #115 remains **OPEN** (READY TO CLOSE after Outcome Review). Do **not** claim closed / OPERATIONALLY ACCEPTED closed
+- Rekik formal closure **YES** / Advisor Outcome Review — #115 **CLOSED** completed. Gap-edit 3 is **OPERATIONALLY ACCEPTED** / closed
 - Security: staff-only; no public TA PII; no new SECURITY DEFINER unless Abel-approved
 - Regression: Company GE1 form; Individual GE2; Group thin form; Wave 4 links; Wave 5 privacy — prior batches stay closed
