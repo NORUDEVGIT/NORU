@@ -2,13 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **STATUS** | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik AUTHORIZED 2026-09-15 via Advisor; D1–D13 locked) |
+| **STATUS** | **OPERATIONALLY ACCEPTED** (pending Outcome Review / Rekik formal closure YES) — DER PASS 2026-09-15 |
 | **Spec** | [`docs/pms/specs/create-reservation-phase1-section1.md`](./specs/create-reservation-phase1-section1.md) |
-| **ENGINEERING** | **NOT STARTED** — no code until TIP + Rekik plan approval |
-| **Implemented** | **No** |
-| **Section** | 1 of 8 — Context + Guest only. **Not** full Create Reservation DONE |
-| **Route** | Extend `/restaurant/bookings/new` (additive — do **not** rebuild a second product) |
-| **Writer** | `createReservation` → `create_hotel_reservation_priced` (walk-in stays a mode of the same writer) |
-| **Migration** | Likely **NONE** for Section 1 alone. Eng confirms if additive columns are needed for booking source / market segment / external ref |
-| **Guest Waves 1–5 + GE1–GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
+| **ENGINEERING** | **PASS** — [#122](https://github.com/NORUDEVGIT/NORU/pull/122) + [#123](https://github.com/NORUDEVGIT/NORU/pull/123) + polish [#124](https://github.com/NORUDEVGIT/NORU/pull/124) MERGED |
+| **Issue** | [#121](https://github.com/NORUDEVGIT/NORU/issues/121) OPEN until Outcome Review |
+| **Implemented** | Section 1 **Yes** (DER). Phase 1 / Create Reservation DONE = **NO** |
+| **Section** | 1 of 8 — Context + Guest (+ sidebar AC-CR1-21). Company/TA persistence = Section 2 |
+| **Route** | `/restaurant/bookings/new` (additive) |
+| **Writer** | `createReservation` → `create_hotel_reservation_priced` |
+| **Migration** | **NONE** |
+| **Guest Waves 1–5 + GE1–GE3** | Stay **OPERATIONALLY ACCEPTED** / closed |
 | **Phase 1 COMPLETE** | **NO** |
