@@ -22,6 +22,8 @@ export const CREATE_RESERVATION_PHASE1_COMPLETE = false;
 export const CREATE_RESERVATION_MODULE_DONE = false;
 export const CREATE_RESERVATION_SECTION1_MIGRATION = "NONE";
 export const CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS = 300;
+/** AC-CR1-21 — collapse the existing RestaurantShell rail on this route only. */
+export const CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED = true;
 
 export const CREATE_RESERVATION_ACCEPTANCE_CRITERIA = [
   "AC-CR1-1",
@@ -44,12 +46,14 @@ export const CREATE_RESERVATION_ACCEPTANCE_CRITERIA = [
   "AC-CR1-18",
   "AC-CR1-19",
   "AC-CR1-20",
+  "AC-CR1-21",
 ] as const;
 
 export const CREATE_RESERVATION_TIP_AC_MAP = {
   "plan-context-ui": ["AC-CR1-1", "AC-CR1-8", "AC-CR1-9", "AC-CR1-10", "AC-CR1-14"],
   "plan-guest-search-create": ["AC-CR1-2", "AC-CR1-3", "AC-CR1-4", "AC-CR1-5", "AC-CR1-6", "AC-CR1-11", "AC-CR1-12", "AC-CR1-13"],
   "plan-gates-honesty": ["AC-CR1-7", "AC-CR1-15", "AC-CR1-16", "AC-CR1-17", "AC-CR1-18", "AC-CR1-19", "AC-CR1-20"],
+  "plan-sidebar-collapse": ["AC-CR1-21"],
 } as const;
 
 export const RESERVATION_TYPE_MODES = ["individual", "corporate", "travel_agency"] as const;

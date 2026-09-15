@@ -49,6 +49,7 @@ import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distributi
 import {
   CREATE_RESERVATION_DENIED_COPY,
   CREATE_RESERVATION_SECTION1_SCOPE,
+  CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED,
   CREATE_RESERVATION_SUMMARY_NO_TOTAL,
   CREATE_RESERVATION_TYPE_CHANGE_WARN,
   RESERVATION_TYPE_LABELS,
@@ -88,7 +89,12 @@ export const Route = createFileRoute("/restaurant/bookings/new")({
 
 function NewReservationRoute() {
   return (
-    <RestaurantShell active="New Reservation">{(m) => <NewReservationPage membership={m} />}</RestaurantShell>
+    <RestaurantShell
+      active="New Reservation"
+      sidebarDefaultCollapsed={CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED}
+    >
+      {(m) => <NewReservationPage membership={m} />}
+    </RestaurantShell>
   );
 }
 
