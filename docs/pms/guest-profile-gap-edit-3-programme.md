@@ -2,10 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **STATUS** | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik 2026-09-15) |
+| **STATUS** | **IMPLEMENTED ON MAIN** / Independent QA **PASS** (post-merge 2026-09-15) |
+| **ENGINEERING STATUS** | **COMPLETE / MERGED** — [#118](https://github.com/NORUDEVGIT/NORU/pull/118) MERGED |
+| **IMPLEMENTATION STATUS** | **PASS** — AC-GE3-1…18 **PASS** |
 | **Spec** | [`docs/pms/specs/guest-profile-gap-edit-3.md`](./specs/guest-profile-gap-edit-3.md) |
-| **Implemented** | **No** — Eng not started |
-| **Migration** | Proposed **0058** APPLY HELD (Abel/PM) |
-| **CURRENT** | TA form still thin; Company missing Payment Terms until Eng merges |
+| **Issue** | [#115](https://github.com/NORUDEVGIT/NORU/issues/115) remains **OPEN** — READY TO CLOSE after Feedback / Outcome Review. This note does **not** close #115 |
+| **Migration** | **0058** dual-lane **APPLY HELD** — not applied (non-prod or production). Abel/PM gate |
+| **CURRENT LIVE on `main`** | Sectioned TA form; Linking via `guest_account_links` / `booker_ta` (+ staged Create); Company Payment Terms; Group stays thin; commission/rates/payment terms **reference only**. Honest degrade until 0058 apply |
+| **Dev / QA** | `tsc` PASS; locks **161/161**; browser **PARTIAL / deferred** until 0058 non-prod |
+| **Early-merge honesty** | #118 MERGED before Independent QA routing; PASS is **post-merge** for the record |
 | **Prior** | Waves 1–5 + GE1 (#103) + GE2 (#109) stay OPERATIONALLY ACCEPTED / closed — do not reopen |
 | **Module COMPLETE** | **NO** (hotel UAT) |
