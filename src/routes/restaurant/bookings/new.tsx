@@ -28,6 +28,7 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { addDays, formatStayDate, propertyToday } from "@/packages/pms/components/bookings/reservation-bits";
 import { CreateReservationContext } from "@/packages/pms/components/bookings/create-reservation-context";
+import { CreateReservationAssociations } from "@/packages/pms/components/bookings/create-reservation-associations";
 import {
   CreateReservationGuest,
   type PickedReservationGuest,
@@ -53,6 +54,7 @@ import {
   CREATE_RESERVATION_MIN_NIGHTS,
   CREATE_RESERVATION_SECTION1_SCOPE,
   CREATE_RESERVATION_SECTION2_SCOPE,
+  CREATE_RESERVATION_SECTION2A_SCOPE,
   CREATE_RESERVATION_SECTION3_SCOPE,
   CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED,
   CREATE_RESERVATION_SUMMARY_NO_TOTAL,
@@ -65,6 +67,7 @@ import {
   linkedStayFromNights,
   mastersForCreateMode,
   pickPrefillMasterId,
+  createReservationPrefillRoles,
   resolveBookingSourceOptions,
   resolveMarketSegmentOptions,
   toPickedReservationMaster,
@@ -145,7 +148,8 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [guest, setGuest] = useState<PickedReservationGuest | null>(null);
   const [companyMaster, setCompanyMaster] = useState<PickedReservationMaster | null>(null);
   const [travelAgentMaster, setTravelAgentMaster] = useState<PickedReservationMaster | null>(null);
-  const [masterOverride, setMasterOverride] = useState(false);
+  const [companyOverride, setCompanyOverride] = useState(false);
+  const [travelAgentOverride, setTravelAgentOverride] = useState(false);
   const [arrival, setArrival] = useState(today);
   const [departure, setDeparture] = useState(addDays(today, 1));
   const [adults, setAdults] = useState(1);
@@ -226,46 +230,63 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const quotes = quotesQuery.data ?? [];
   const selectedQuote = quotes.find((q) => q.plan.id === ratePlanId) ?? null;
 
+  const prefillRoles = createReservationPrefillRoles(reservationType);
+  const prefillCompany = !companyOverride && prefillRoles.includes("employer");
+  const prefillTravelAgent = !travelAgentOverride && prefillRoles.includes("booker_ta");
+
   const linksQuery = useQuery({
     queryKey: ["guest-account-links", restaurantId, guest?.id, "create-reservation-prefill"],
     queryFn: () => fetchGuestLinks({ data: { restaurantId, guestId: guest!.id } }),
-    enabled: canManage && !!guest && reservationType !== "individual" && !masterOverride,
+    enabled: canManage && !!guest && (prefillCompany || prefillTravelAgent),
     retry: false,
   });
 
   useEffect(() => {
-    if (masterOverride) return;
-    if (!guest || reservationType === "individual") {
-      setCompanyMaster(null);
-      setTravelAgentMaster(null);
+    if (!guest) {
+      if (!companyOverride) setCompanyMaster(null);
+      if (!travelAgentOverride) setTravelAgentMaster(null);
       return;
     }
+    if (!prefillCompany && !prefillTravelAgent) return;
     const links = linksQuery.data;
     if (!links) return;
-    const role = reservationType === "corporate" ? "employer" : "booker_ta";
-    const masterId = pickPrefillMasterId(links, role);
-    if (!masterId) {
-      if (reservationType === "corporate") setCompanyMaster(null);
-      else setTravelAgentMaster(null);
-      return;
-    }
+    const rows = links;
+
     let cancelled = false;
-    void fetchGuestAccount({ data: { restaurantId, accountId: masterId } })
-      .then((profile) => {
-        if (cancelled) return;
-        const picked = toPickedReservationMaster(profile);
-        if (reservationType === "corporate") setCompanyMaster(picked);
-        else setTravelAgentMaster(picked);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        if (reservationType === "corporate") setCompanyMaster(null);
-        else setTravelAgentMaster(null);
-      });
+
+    async function applyPrefill(
+      role: "employer" | "booker_ta",
+      setter: (master: PickedReservationMaster | null) => void,
+    ) {
+      const masterId = pickPrefillMasterId(rows, role);
+      if (!masterId) {
+        setter(null);
+        return;
+      }
+      try {
+        const profile = await fetchGuestAccount({ data: { restaurantId, accountId: masterId } });
+        if (!cancelled) setter(toPickedReservationMaster(profile));
+      } catch {
+        if (!cancelled) setter(null);
+      }
+    }
+
+    if (prefillCompany) void applyPrefill("employer", setCompanyMaster);
+    if (prefillTravelAgent) void applyPrefill("booker_ta", setTravelAgentMaster);
+
     return () => {
       cancelled = true;
     };
-  }, [fetchGuestAccount, guest, linksQuery.data, masterOverride, reservationType, restaurantId]);
+  }, [
+    companyOverride,
+    fetchGuestAccount,
+    guest,
+    linksQuery.data,
+    prefillCompany,
+    prefillTravelAgent,
+    restaurantId,
+    travelAgentOverride,
+  ]);
 
   const boundMasters = mastersForCreateMode(
     reservationType,
@@ -362,18 +383,19 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
     setReservationType(pendingType);
     setCompanyMaster(null);
     setTravelAgentMaster(null);
-    setMasterOverride(false);
+    setCompanyOverride(false);
+    setTravelAgentOverride(false);
     setPendingType(null);
   }
 
   function handleCompanyMasterChange(next: PickedReservationMaster | null) {
     setCompanyMaster(next);
-    setMasterOverride(true);
+    setCompanyOverride(true);
   }
 
   function handleTravelAgentMasterChange(next: PickedReservationMaster | null) {
     setTravelAgentMaster(next);
-    setMasterOverride(true);
+    setTravelAgentOverride(true);
   }
 
   const actions = (
@@ -402,6 +424,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION1_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION2_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION2A_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION3_SCOPE}</p>
         </div>
 
@@ -425,12 +448,29 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           onTravelAgentMasterChange={handleTravelAgentMasterChange}
         />
 
-        <CreateReservationGuest
-          restaurantId={restaurantId}
-          canCreateGuest={guestAccessQuery.data?.canManage ?? false}
-          guest={guest}
-          onGuestChange={setGuest}
-        />
+        <div
+          className={cn(
+            "grid gap-6",
+            reservationType === "individual" ? "xl:grid-cols-2 xl:items-start" : "",
+          )}
+        >
+          <CreateReservationGuest
+            restaurantId={restaurantId}
+            canCreateGuest={guestAccessQuery.data?.canManage ?? false}
+            guest={guest}
+            onGuestChange={setGuest}
+          />
+          {reservationType === "individual" ? (
+            <CreateReservationAssociations
+              restaurantId={restaurantId}
+              canCreateMaster={guestAccessQuery.data?.canManage ?? false}
+              companyMaster={companyMaster}
+              onCompanyMasterChange={handleCompanyMasterChange}
+              travelAgentMaster={travelAgentMaster}
+              onTravelAgentMasterChange={handleTravelAgentMasterChange}
+            />
+          ) : null}
+        </div>
 
         <CreateReservationStay
           arrival={arrival}
@@ -608,13 +648,13 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
               <dd>{guest?.fullName ?? "No guest selected"}</dd>
             </div>
-            {reservationType === "corporate" ? (
+            {reservationType === "corporate" || reservationType === "individual" ? (
               <div data-testid="summary-company">
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">Company</dt>
                 <dd>{companyMaster?.name ?? "Not selected"}</dd>
               </div>
             ) : null}
-            {reservationType === "travel_agency" ? (
+            {reservationType === "travel_agency" || reservationType === "individual" ? (
               <div data-testid="summary-ta">
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">Travel Agency</dt>
                 <dd>{travelAgentMaster?.name ?? "Not selected"}</dd>

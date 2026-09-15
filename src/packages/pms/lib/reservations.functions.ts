@@ -446,14 +446,6 @@ export const createReservation = createServerFn({ method: "POST" })
         companyMasterId: idSchema.nullable().optional(),
         travelAgentMasterId: idSchema.nullable().optional(),
       })
-      .superRefine((value, ctx) => {
-        if (value.companyMasterId && value.travelAgentMasterId) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "This create path cannot bind Company and Travel Agency together.",
-          });
-        }
-      })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; confirmationNumber: string }> => {
