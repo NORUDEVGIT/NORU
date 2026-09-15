@@ -38,7 +38,6 @@ import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import type { ExceptionCtaId, ExceptionRow, FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
-import { useAuth } from "@/core/state/auth-store";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 type LiveDialog = "assign" | "checkin" | "move" | "stay" | "checkout" | "noshow";
@@ -67,7 +66,6 @@ export function FrontOfficeWorkspace({
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = usePropertyBusinessDate(restaurantId, timezone);
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [view, setView] = useState<FoNavId>(() => resolveFoNav(initialTab));
@@ -274,10 +272,6 @@ export function FrontOfficeWorkspace({
 
   return (
     <FrontOfficeChrome
-      propertyName={membership.restaurant.name}
-      userLabel={user?.email ?? membership.restaurant.name}
-      roleLabel={membership.role}
-      businessDate={today}
       active={view}
       onNavigate={(id) => {
         setComingSoon(null);

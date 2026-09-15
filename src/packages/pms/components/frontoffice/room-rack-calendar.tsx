@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Filter, GripVertical, ScanSearch, Triangle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/components/ui/collapsible";
 import { Input } from "@/shared/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -13,18 +15,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { ComingSoonChip, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
 import { StayBadgeStrip } from "@/packages/pms/components/frontoffice/fo-stay-badges";
 import {
   EMPTY_RACK_FILTERS,
   FO_BRAND,
+  FO_LEGEND_DEFAULT_OPEN,
+  HK_LEGEND,
   LIVE_HORIZONS,
   RESERVATION_LEGEND,
   ROOM_LEGEND,
+  countActiveRackFilters,
   dateRange,
+  hkStatusAriaLabel,
   isLiveHorizon,
   isPermissionDeniedMessage,
+  liveHkStatus,
   reservationBarColor,
   reservationBarPlacement,
   roomMatchesFilters,
@@ -33,6 +41,7 @@ import {
   stayMatchesFilters,
   stayOverlapsRange,
   type CalendarHorizon,
+  type LiveHkStatus,
   type RackFilters,
 } from "@/packages/pms/lib/front-office-shell";
 import {
@@ -238,6 +247,14 @@ export function RoomRackCalendar({
               {n} day{n === 1 ? "" : "s"}
             </Button>
           ))}
+          <RackFiltersButton
+            filters={filters}
+            onChange={setFilters}
+            floors={floors}
+            types={types}
+            sources={sources}
+            hkAvailable={hkAvailable}
+          />
         </div>
       </div>
 
@@ -253,15 +270,6 @@ export function RoomRackCalendar({
         occupancyTrusted={!occupancyQuery.isError && !dashboardQuery.isError}
         openDiscrepancies={discrepancyLive ? (feedsQuery.data?.discrepancies.length ?? 0) : null}
         onFilter={(next) => setFilters({ ...EMPTY_RACK_FILTERS, ...next })}
-      />
-
-      <FilterRow
-        filters={filters}
-        onChange={setFilters}
-        floors={floors}
-        types={types}
-        sources={sources}
-        hkAvailable={hkAvailable}
       />
 
       {hkDenied ? (
@@ -313,10 +321,7 @@ export function RoomRackCalendar({
         />
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Legend title="Room states" items={ROOM_LEGEND} />
-        <Legend title="Reservation states" items={RESERVATION_LEGEND} />
-      </div>
+      <RackLegend />
 
       <FoRackConfirmSheet
         restaurantId={restaurantId}
@@ -403,6 +408,53 @@ function OpsStrip({
         </button>
       ))}
     </div>
+  );
+}
+
+function RackFiltersButton({
+  filters,
+  onChange,
+  floors,
+  types,
+  sources,
+  hkAvailable,
+}: {
+  filters: RackFilters;
+  onChange: (next: RackFilters) => void;
+  floors: string[];
+  types: string[];
+  sources: string[];
+  hkAvailable: boolean;
+}) {
+  const activeCount = countActiveRackFilters(filters);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" data-testid="fo-filters-button">
+          <Filter className="size-3.5" />
+          Filters
+          {activeCount > 0 ? (
+            <span
+              data-testid="fo-filters-count"
+              className="ml-1 min-w-5 rounded-full bg-[#C89933] px-1.5 text-center text-[10px] leading-5 text-[#251605]"
+            >
+              {activeCount}
+            </span>
+          ) : null}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-3" data-testid="fo-filters-popover">
+        <FilterRow
+          filters={filters}
+          onChange={onChange}
+          floors={floors}
+          types={types}
+          sources={sources}
+          hkAvailable={hkAvailable}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -519,6 +571,11 @@ function FilterRow({
         onChange={(v) => set("source", v)}
         options={sources.map((s) => [s, s] as const)}
       />
+      {countActiveRackFilters(filters) > 0 ? (
+        <Button type="button" variant="ghost" size="sm" onClick={() => onChange(EMPTY_RACK_FILTERS)}>
+          Clear
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -844,9 +901,10 @@ function RoomRow({
             : undefined
         }
       >
-        <p className="font-medium">
-          {room.roomNumber}
-          <span className="ml-1 text-xs font-normal text-muted-foreground">{room.roomTypeName}</span>
+        <p className="inline-flex items-center gap-1.5 font-medium">
+          <span>{room.roomNumber}</span>
+          <FoHkStatusGlyph status={hk?.housekeepingStatus} />
+          <span className="text-xs font-normal text-muted-foreground">{room.roomTypeName}</span>
         </p>
         <StayBadgeStrip
           badges={liveStayBadges({ guestVip: false, hasOpenDiscrepancy })}
@@ -854,7 +912,6 @@ function RoomRow({
         />
         <p className="text-xs text-muted-foreground">
           {room.floor ? `Floor ${room.floor}` : "—"} · {room.occupancy}
-          {hk ? ` · HK ${hk.housekeepingStatus}` : ""}
         </p>
         <p className="truncate text-xs text-muted-foreground">{room.guestName ?? "Vacant"}</p>
       </div>
@@ -1157,16 +1214,17 @@ function PhoneRackList({
           const hk = hkByRoom.get(room.id);
           return (
             <li key={room.id} className="rounded-2xl border border-border bg-card p-3">
-              <p className="font-medium">
-                {room.roomNumber} · {room.roomTypeName}
+              <p className="inline-flex items-center gap-1.5 font-medium">
+                <span>{room.roomNumber}</span>
+                <FoHkStatusGlyph status={hk?.housekeepingStatus} />
+                <span className="font-normal text-muted-foreground">· {room.roomTypeName}</span>
               </p>
               <StayBadgeStrip
                 badges={liveStayBadges({ guestVip: false, hasOpenDiscrepancy: openDiscrepancyRoomIds.has(room.id) })}
                 mode="full"
               />
               <p className="text-xs text-muted-foreground">
-                {room.occupancy}
-                {hk ? ` · HK ${hk.housekeepingStatus}` : ""} · {room.guestName ?? "Vacant"}
+                {room.occupancy} · {room.guestName ?? "Vacant"}
               </p>
             </li>
           );
@@ -1199,20 +1257,94 @@ function PhoneRackList({
   );
 }
 
-function Legend({ title, items }: { title: string; items: { key: string; label: string; color: string }[] }) {
+function RackLegend() {
+  return (
+    <Collapsible defaultOpen={FO_LEGEND_DEFAULT_OPEN} data-testid="fo-rack-legend">
+      <CollapsibleTrigger
+        type="button"
+        data-testid="fo-legend-toggle"
+        className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+      >
+        <span>Legend</span>
+        <span className="text-xs text-muted-foreground">Room · Housekeeping · Reservation</span>
+        <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-3">
+        <div className="grid gap-4 md:grid-cols-3">
+          <Legend title="Room" items={ROOM_LEGEND} />
+          <Legend title="Housekeeping" items={HK_LEGEND} />
+          <Legend title="Reservation" items={RESERVATION_LEGEND} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function Legend({
+  title,
+  items,
+}: {
+  title: string;
+  items: { key: string; label: string; color: string; shape: "swatch" | "glyph" | "bar" }[];
+}) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
       <ul className="mt-2 flex flex-wrap gap-2">
         {items.map((item) => (
           <li key={item.key} className="inline-flex items-center gap-1.5 text-xs">
-            <span className="size-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+            <LegendMark item={item} />
             {item.label}
           </li>
         ))}
       </ul>
     </div>
   );
+}
+
+function LegendMark({
+  item,
+}: {
+  item: { key: string; color: string; shape: "swatch" | "glyph" | "bar" };
+}) {
+  if (item.shape === "bar") {
+    return <span className="h-2 w-5 rounded-sm" style={{ backgroundColor: item.color }} aria-hidden />;
+  }
+  if (item.shape === "glyph") {
+    return <FoHkStatusGlyph status={item.key} />;
+  }
+  return <span className="size-2.5 rounded-sm" style={{ backgroundColor: item.color }} aria-hidden />;
+}
+
+function FoHkStatusGlyph({ status }: { status: string | null | undefined }) {
+  const live = liveHkStatus(status);
+  const label = hkStatusAriaLabel(status);
+  if (!live || !label) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          data-testid="fo-hk-glyph"
+          data-hk-status={live}
+          className="inline-flex size-4 items-center justify-center"
+          aria-label={label}
+        >
+          <HkGlyphIcon status={live} />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function HkGlyphIcon({ status }: { status: LiveHkStatus }) {
+  const color = HK_LEGEND.find((item) => item.key === status)?.color;
+  const iconClass = "size-3.5";
+  if (status === "clean") return <Check className={iconClass} style={{ color }} aria-hidden />;
+  if (status === "dirty") return <Circle className={iconClass} fill={color} style={{ color }} aria-hidden />;
+  if (status === "inspected") return <ScanSearch className={iconClass} style={{ color }} aria-hidden />;
+  return <Triangle className={iconClass} fill={color} style={{ color }} aria-hidden />;
 }
 
 export function dropReservationOnRoom(reservationId: string, targetRoomId: string) {

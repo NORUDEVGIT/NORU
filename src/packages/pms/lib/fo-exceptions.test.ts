@@ -284,7 +284,7 @@ describe("FO-FS0 / chrome locks", () => {
   it("Help opens a real panel and the user menu has FO activity", () => {
     const chrome = readFileSync(new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url), "utf8");
     assert.match(chrome, /FO activity/);
-    assert.match(chrome, /fo-user-menu/);
+    assert.match(chrome, /fo-activity/);
     assert.match(chrome, /fo-help/);
     assert.match(chrome, /FoHelpSheet/);
     assert.doesNotMatch(chrome, /Help — Coming soon/);
