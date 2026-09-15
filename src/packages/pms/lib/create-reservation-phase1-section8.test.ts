@@ -380,7 +380,8 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     const packagesIdx = page.indexOf('data-testid="summary-packages"');
     assert.ok(roomIdx > 0 && rateIdx > roomIdx && totalIdx > rateIdx);
     assert.ok(packagesIdx > totalIdx);
-    assert.doesNotMatch(page, /Guarantee method|Send confirmation email/);
+    assert.match(page, /CreateReservationGuarantee/);
+    assert.doesNotMatch(page, /Send confirmation email/);
     assert.doesNotMatch(page, /replacePricingLines|removeStayTotal|replaceRoomLine/);
   });
 
