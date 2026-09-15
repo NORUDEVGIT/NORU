@@ -4,9 +4,9 @@
 |---|---|
 | **PACKAGE** | PMS · Reservations |
 | **FEATURE** | Create Reservation Phase 1 — Section 8: Packages (conditional / GATE) |
-| **STATUS** | **IMPLEMENTATION PASS** (Section 8 GATE only) — Eng DER PASS 2026-09-15. Awaiting Outcome Review / Rekik formal closure. Do **not** claim OPERATIONALLY ACCEPTED / CLOSED |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (DER PASS). Section 8 GATE only |
 | **ENGINEERING STATUS** | **PASS** for Section 8 GATE — delivery [#154](https://github.com/NORUDEVGIT/NORU/pull/154) MERGED (`e891f5c13157a5383056ec124d194400548ffef8` by AK21ER @ 2026-09-15T14:34:34Z) |
-| **Issue** | [#151](https://github.com/NORUDEVGIT/NORU/issues/151) **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED / LIVE / Phase 1 COMPLETE |
+| **Issue** | [#151](https://github.com/NORUDEVGIT/NORU/issues/151) **CLOSED** completed — OPERATIONALLY ACCEPTED. Do **not** claim LIVE / Phase 1 COMPLETE |
 | **Catalog finding (LOCKED)** | **Setup stay-package catalogue EXISTS.** **Create bind + `quoteStay` package lines DO NOT EXIST.** **GATE** detect + honesty box only — no attach / no fake sticky totals |
 | **Migration** | **NONE** (DER). Setup `pms_packages` already exists (0049). `createReservation` → `create_hotel_reservation_priced` has no package arg. `hotel_reservations` has no package column. `quoteStay` / `price_hotel_stay` are room-plan only. Dual-lane APPLY **N/A** (SECURITY DEFINER create/pricing RPCs were **not** replaced). RLS **UNCHANGED**. Flag Abel **NOT** required. No new package pricing engine |
 | **Guest Waves 1–5 + GE1 + GE2 + GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
@@ -17,9 +17,9 @@
 
 > **Rekik AUTHORIZED 2026-09-15** via Hospitality Product Advisor. Additive expansion of the **existing** Create Reservation surface. **Do not** rebuild a second product. Walk-in remains a **mode of the same writer**.
 >
-> **Docs CURRENT recon 2026-09-15** after Eng DER **PASS** (#154 MERGED) and Rekik Independent QA **PASS**. Spec docs baseline [#149](https://github.com/NORUDEVGIT/NORU/pull/149) (may still be open/draft). **#151 remains OPEN** until Outcome Review / formal closure. Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
+> **Docs CURRENT recon 2026-09-15** after Eng DER **PASS** (#154 MERGED) and Rekik **formal closure YES**. Spec docs baseline [#149](https://github.com/NORUDEVGIT/NORU/pull/149) (may still be open/draft). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
 >
-> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → 5 Rate + sticky pricing → 6 Room assign → 7 Guarantee + confirm → **8 Packages GATE (THIS — IMPLEMENTATION PASS / #151 OPEN)**.
+> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → 5 Rate + sticky pricing → 6 Room assign → 7 Guarantee + confirm → **8 Packages GATE (THIS — OPERATIONALLY ACCEPTED / #151 CLOSED)**.
 >
 > **Programme rule (LOCKED):** Reference Individual create **packages** function + **modern NORU UI** **if CURRENT supports**. Create bind / quote **do not**. Detect Setup catalogue. **Do not** clone legacy chrome. **Do not** invent a catalog or a pricing engine.
 >
@@ -109,7 +109,7 @@ Full EXPECTED list/select/bind applies **only** when the Setup catalog exists **
 - Spec [#149](https://github.com/NORUDEVGIT/NORU/pull/149) EXPECTED AC-CR8-1…22 remain the acceptance baseline; delivery [#154](https://github.com/NORUDEVGIT/NORU/pull/154) matched locks **22/22** (+ Section 1–6 / Associations locks still PASS on regression). Independent QA **PASS** (Rekik, pre-merge). Browser **NOT RUN ≠ PASS** (IQ covered).
 - **No DOCUMENTATION / IMPLEMENTATION DISCREPANCY:** Spec ACs that shipped are present in code. Honest notes (not discrepancies): loading / error views wrap the three catalog states; the gated box does not list package names (GATE — detect only); sticky Packages line sits **after** Stay total; Settings link copy is “Open Settings packages”; badge is always **Not attached**.
 - Pre-existing Stay / Rate / Room / Details UI on the same page **remain**. Section 8 Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE. Attach remains **OUT**.
-- Issue [#151](https://github.com/NORUDEVGIT/NORU/issues/151) remains **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED.
+- Issue [#151](https://github.com/NORUDEVGIT/NORU/issues/151) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -201,7 +201,7 @@ Full AC text remains the #149 baseline; do not reopen Guest GE; do not claim Pha
 - Security: staff-only; tenant-scoped SET3 reads for detect; existing FO / reservation gates preserved; Settings link SET3 editors only (`canEditSet1`); **no** new SECURITY DEFINER; **no** new RLS policies.
 - Regression: Sections 1–6 shell / stay / availability / Company-TA / Rate / Room / Associations (as shipped); walk-in same writer; `quoteStay` room-only; Guest GE closed; SET3 meal/package Setup; FO extras amend.
 - Migration: **NONE**. Dual-lane APPLY **N/A**. Flag Abel: **NOT** required.
-- **#151** remains **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED.
+- **#151** **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -221,11 +221,11 @@ Full AC text remains the #149 baseline; do not reopen Guest GE; do not claim Pha
 
 | Item | Status |
 |---|---|
-| Spec | **ACCEPTED for Engineering** (baseline [#149](https://github.com/NORUDEVGIT/NORU/pull/149); may still be open/draft). CURRENT recon on this file |
+| Spec | **OPERATIONALLY ACCEPTED** (#151 CLOSED) |
 | ENGINEERING | **PASS** (#154) — Section 8 GATE only |
 | Implemented / PASS (Section 8 GATE) | **Yes** (DER) |
-| OPERATIONALLY ACCEPTED / LIVE / module COMPLETE / Phase 1 COMPLETE | **No** — Outcome Review pending |
-| Issue #151 | **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED |
+| LIVE / module COMPLETE / Phase 1 COMPLETE | **No** |
+| Issue #151 | **CLOSED** completed |
 | Setup `pms_packages` catalogue | **EXISTS** (table + Settings UI + list/save fns) |
 | Create list/select that binds | **DOES NOT EXIST** — **GATE** / attach **OUT** |
 | `quoteStay` package lines | **DOES NOT EXIST** — sticky **not in quote** |

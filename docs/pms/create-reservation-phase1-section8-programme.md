@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **STATUS** | **IMPLEMENTATION PASS** (Section 8 GATE only) — awaiting Outcome Review / Rekik formal closure. Do **not** claim OPERATIONALLY ACCEPTED |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (Section 8 GATE only) |
 | **Spec** | [`docs/pms/specs/create-reservation-phase1-section8.md`](./specs/create-reservation-phase1-section8.md) |
 | **ENGINEERING** | **PASS** — [#154](https://github.com/NORUDEVGIT/NORU/pull/154) MERGED (`e891f5c1`) |
-| **Issue** | [#151](https://github.com/NORUDEVGIT/NORU/issues/151) **OPEN** until Outcome Review / Rekik formal closure. Do **not** claim CLOSED |
+| **Issue** | [#151](https://github.com/NORUDEVGIT/NORU/issues/151) **CLOSED** completed |
 | **Implemented** | Section 8 GATE **Yes** (DER). Attach / bind / quote lines **OUT**. Phase 1 / Create Reservation DONE = **NO** |
 | **Section** | 8 of 8 — Packages (**conditional / GATE**). Catalog detect + honesty box only. **Not** full Create Reservation DONE |
 | **Catalog finding** | Setup stay-package catalogue **EXISTS** (`pms_packages` + SET3 UI). Create bind + `quoteStay` package lines **DO NOT EXIST**. **GATE** — no attach / no fake sticky totals |
