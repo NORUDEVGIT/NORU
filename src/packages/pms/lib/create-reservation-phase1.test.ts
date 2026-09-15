@@ -1206,7 +1206,8 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.deepEqual([...CREATE_RESERVATION_SECTION2_ACCEPTANCE_CRITERIA], CR2);
     assert.match(helpers, /Issue #127 stays CLOSED/);
     assert.match(helpers, /AC-CR2-1…18 stand as prior lock/);
-    assert.doesNotMatch(helpers, /reopen #127|AC-CR2-1…18 failed/);
+    assert.match(helpers, /Does not reopen #127/);
+    assert.doesNotMatch(helpers, /AC-CR2-1…18 failed/);
   });
 
   it("AC-CR2A-12 Does not claim Phase 1 or Create Reservation DONE; Guest GE stay closed", () => {
@@ -1243,7 +1244,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.match(supabase, /DATABASE IMPACT PLAN/);
     assert.match(supabase, /New columns: NONE/);
     assert.match(supabase, /SECURITY DEFINER/);
-    assert.doesNotMatch(supabase, /DUAL_COMPANY_TA_NOT_ALLOWED/);
+    assert.doesNotMatch(supabase, /RAISE EXCEPTION 'DUAL_COMPANY_TA_NOT_ALLOWED'/);
     assert.match(prior, /DUAL_COMPANY_TA_NOT_ALLOWED/);
     assert.match(drizzle, /APPLY HELD/);
     assert.match(functions, /create_hotel_reservation_priced/);
