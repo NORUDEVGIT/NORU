@@ -22,6 +22,13 @@ The commercial-readiness record is advice from a read-only review of `main`. The
 
 Wave 1–5 engineering gates exited after Independent QA PASS (Rekik), merge, and DER. Canonical routes: `/restaurant/pms/guests` and `/restaurant/pms/guests/$guestId`. Catalogue key `guest-profile` (`partial`). Guest Services (`guest-services`) was not repurposed. Wave 5 CURRENT: Notes / Comms / Activity hub LIVE; Admin & Privacy LIVE (export JSON, anonymise, unmerge or `unmerge_blocked`, privacy audit). Send only if SET5 email + Resend + from-address. Consent still on Information (+ Privacy). Directory-back + empty Open Directory inherit for the new LIVE cards. Production migrations `0051` / `0053` / `0054` remain **held** (Abel / PM); non-prod applied (`qcwptraosaudcbjasmul`). Wave 4 residuals untouched (AC-W4-5 create-reservation master IDs; production 0053). Do **not** claim Wave 5 unimplemented. Programme is **READY FOR HOTEL UAT**. Module COMPLETE remains **NO** until hotel UAT PASS + this docs recon merge + Advisor module close.
 
+## Gap-edit #3 — TA enrichment Spec Eng-ready (lean)
+
+| Record | Classification |
+|---|---|
+| [Gap-edit #3 Spec (lean addendum)](./specs/guest-profile-gap-edit-3.md) | **ACCEPTED for Engineering** / **READY FOR PLANNING** (Rekik 2026-09-15). TA sectioned form + Linking (`guest_account_links` / `booker_ta`) + Company Payment Terms. **Not** implemented. Migration proposed **0058** APPLY HELD. Waves 1–5 + GE1 + GE2 stay closed. Module COMPLETE **NO**. |
+| [Gap-edit #3 programme note](./guest-profile-gap-edit-3-programme.md) | Short CURRENT / status pointer (avoids rewriting full `guests.md` in this PR). |
+
 ## Surfaces documented in this cycle
 
 | Surface | Doc |
