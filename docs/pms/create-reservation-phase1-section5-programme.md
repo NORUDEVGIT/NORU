@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **STATUS** | **OPERATIONALLY ACCEPTED** pending Outcome Review — IMPLEMENTATION PASS / DER PASS 2026-09-15 |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 |
 | **Spec** | [`docs/pms/specs/create-reservation-phase1-section5.md`](./specs/create-reservation-phase1-section5.md) |
 | **ENGINEERING** | **PASS** — [#142](https://github.com/NORUDEVGIT/NORU/pull/142) MERGED (`fafd329e`) |
-| **Issue** | [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **OPEN** until Outcome Review / Rekik formal closure YES |
+| **Issue** | [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **CLOSED** completed |
 | **Implemented** | Section 5 **Yes** (DER). Phase 1 / Create Reservation DONE = **NO** |
 | **Section** | 5 of 8 — Rate plan + sticky pricing only. Room assign / guarantee / packages = later sections |
 | **Route** | `/restaurant/bookings/new` (additive) |

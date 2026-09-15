@@ -4,9 +4,9 @@
 |---|---|
 | **PACKAGE** | PMS · Reservations |
 | **FEATURE** | Create Reservation Phase 1 — Section 5: Rate plan + sticky pricing |
-| **STATUS** | **OPERATIONALLY ACCEPTED** pending Outcome Review — IMPLEMENTATION PASS / DER PASS 2026-09-15 |
+| **STATUS** | **OPERATIONALLY ACCEPTED** — Rekik formal closure YES 2026-09-15 (DER PASS) |
 | **ENGINEERING STATUS** | **PASS** for Section 5 — delivery [#142](https://github.com/NORUDEVGIT/NORU/pull/142) MERGED (`fafd329e5682523457f57ad99f54b9fa0f6ed708` by AK21ER @ 2026-09-15T13:59:51Z) |
-| **Issue** | [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **OPEN** until Outcome Review / Rekik formal closure YES. Do **not** claim CLOSED / LIVE / Phase 1 COMPLETE |
+| **Issue** | [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **CLOSED** completed — OPERATIONALLY ACCEPTED. Do **not** claim LIVE / Phase 1 COMPLETE |
 | **Migration** | **NONE** (DER). Quote / bind / snapshot columns and RPCs already existed. Capability-only unpriced (`owner` \| `manager`). Dual-lane APPLY **N/A** (SECURITY DEFINER pricing/create RPCs were **not** replaced). RLS **UNCHANGED**. Flag Abel **NOT** required |
 | **Guest Waves 1–5 + GE1 + GE2 + GE3** | Stay **OPERATIONALLY ACCEPTED** / closed — do **not** reopen |
 | **Phase 1 / module COMPLETE** | **NO** — Section 5 only; room assign / guarantee / packages later sections own DONE claims |
@@ -16,9 +16,9 @@
 
 > **Rekik AUTHORIZED 2026-09-15** via Hospitality Product Advisor. Additive expansion of the **existing** Create Reservation surface. **Do not** rebuild a second product. Walk-in remains a **mode of the same writer**.
 >
-> **Docs CURRENT recon 2026-09-15** after Eng DER PASS (#142). Spec docs baseline [#140](https://github.com/NORUDEVGIT/NORU/pull/140). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
+> **Docs CURRENT recon 2026-09-15** after Eng DER PASS (#142) and Rekik **formal closure YES**. Spec docs baseline [#140](https://github.com/NORUDEVGIT/NORU/pull/140). Functional Spec = business rules. UI/UX Doc2 note = layout. **Functional wins** on conflicts. **Code wins** for CURRENT.
 >
-> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → **5 Rate + sticky pricing (THIS — IMPLEMENTATION PASS pending Outcome Review / #141 OPEN)** → 6 Room assign → 7 Guarantee + confirm → 8 Packages if catalog.
+> Section delivery order: 1 Context + Guest → 2 Company/TA on create → 3 Stay → 4 Availability / room type → **5 Rate + sticky pricing (THIS — OPERATIONALLY ACCEPTED / #141 CLOSED)** → 6 Room assign → 7 Guarantee + confirm → 8 Packages if catalog.
 >
 > **Server / RPC remains source of truth.** Sticky totals come from **server** `quoteStay` / `price_hotel_stay`. Browser math is **ignored**. Do **not** invent LIVE RMS / OTA / commission / rate-adjustment engines.
 
@@ -85,7 +85,7 @@
 - Spec [#140](https://github.com/NORUDEVGIT/NORU/pull/140) EXPECTED AC-CR5-1…21 remain the acceptance baseline; delivery [#142](https://github.com/NORUDEVGIT/NORU/pull/142) matched locks **21/21** (+ Section 1–4 locks still PASS on regression). Independent QA **PASS** (Rekik, pre-merge). Browser **NOT RUN ≠ PASS** (IQ covered).
 - **No DOCUMENTATION / IMPLEMENTATION DISCREPANCY:** Spec ACs that shipped are present in code. Sticky nightly **table** lives on the Rate card; sticky shows nights / from-rate / total from the **same** `quoteStay` object (Spec §3.3 “and/or”). Date change **always** clears `ratePlanId` (stricter than “clear when invalid” — still honest).
 - Pre-existing Stay / room / details / Section 6 assign picker on the same page **remain**. Section 5 Spec does **not** claim those sections DONE. No silent claim of Phase 1 COMPLETE.
-- Issue [#141](https://github.com/NORUDEVGIT/NORU/issues/141) remains **OPEN** until Outcome Review / Rekik formal closure YES. This docs recon does **not** close #141.
+- Issue [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -163,7 +163,7 @@
 |---|---|---|
 | **AC-CR5-1…21** | As authorized in Spec #140 | **PASS** (#142) |
 
-Full AC text remains the #140 baseline; do not reopen Guest GE; do not claim Phase 1 DONE; do not close #141 from this docs recon.
+Full AC text remains the #140 baseline; do not reopen Guest GE; do not claim Phase 1 DONE.
 
 ---
 
@@ -173,7 +173,7 @@ Full AC text remains the #140 baseline; do not reopen Guest GE; do not claim Pha
 - Security: staff-only; tenant-scoped plans; existing FO / reservation gates preserved; quote gate aligned to reservation managers; unpriced capability-only; **no** new SECURITY DEFINER; **no** new RLS policies.
 - Regression: Sections 1–4 shell / stay / availability / Company-TA (as shipped); walk-in same writer (now requires a quoted plan because confirmed); `price_hotel_stay` restrictions unchanged; Rates admin calendar not broken; Guest GE closed; no Fixed Rate / adjustment / RTC invent.
 - Migration: **NONE**. Dual-lane APPLY **N/A**. Flag Abel: **NOT** required.
-- Issue [#141](https://github.com/NORUDEVGIT/NORU/issues/141) **OPEN** until Outcome Review / Rekik formal closure YES.
+- **#141** **CLOSED** completed (Rekik formal closure YES / OPERATIONALLY ACCEPTED).
 
 ---
 
@@ -194,7 +194,7 @@ Full AC text remains the #140 baseline; do not reopen Guest GE; do not claim Pha
 
 | Item | Status |
 |---|---|
-| Spec | **OPERATIONALLY ACCEPTED** pending Outcome Review — IMPLEMENTATION PASS / DER PASS 2026-09-15 |
+| Spec | **OPERATIONALLY ACCEPTED** (#141 CLOSED) |
 | ENGINEERING | **PASS** (#142) |
 | Implemented / PASS (Section 5) | **Yes** (DER) |
 | LIVE / module COMPLETE / Phase 1 COMPLETE | **No** |
@@ -202,4 +202,4 @@ Full AC text remains the #140 baseline; do not reopen Guest GE; do not claim Pha
 | Fixed Rate / create adjustment / RTC | **OUT** (CURRENT unsupported) |
 | LIVE RMS / OTA / commission engine | **Not invented** — CURRENT `quoteStay` / `price_hotel_stay` only |
 | Create Reservation DONE | **NO** |
-| Issue #141 | **OPEN** until Outcome Review / Rekik formal closure YES |
+| Issue #141 | **CLOSED** completed |
