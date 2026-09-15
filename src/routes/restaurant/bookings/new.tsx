@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { CreateReservationRoomType, OccupancySoftWarn } from "@/packages/pms/components/bookings/create-reservation-room-type";
 import { CreateReservationRate } from "@/packages/pms/components/bookings/create-reservation-rate";
+import { CreateReservationRoomAssignment } from "@/packages/pms/components/bookings/create-reservation-room-assignment";
+import { CreateReservationPackages } from "@/packages/pms/components/bookings/create-reservation-packages";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
@@ -48,6 +50,7 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 import { getGuestAccount, listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   CREATE_RESERVATION_DENIED_COPY,
@@ -89,7 +92,22 @@ import {
   shouldClearStaleRatePlan,
   stickyPricingCopy,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
+import {
+  CREATE_RESERVATION_ROOM_STALE_DATE_WARN,
+  CREATE_RESERVATION_ROOM_TYPE_CHANGE_WARN,
+  CREATE_RESERVATION_SECTION6_SCOPE,
+  shouldClearStaleAssignedRoom,
+  shouldWarnRoomClearedOnTypeChange,
+  stickyRoomAssignmentLabel,
+  type AssignedRoomView,
+} from "@/packages/pms/lib/create-reservation-phase1-section6";
+import {
+  CREATE_RESERVATION_SECTION8_SCOPE,
+  activePackageCountFromRows,
+  stickyPackagesCopy,
+} from "@/packages/pms/lib/create-reservation-phase1-section8";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,
@@ -140,6 +158,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
+  const fetchSet3 = useServerFn(getPmsSet3Snapshot);
   const fetchGuestLinks = useServerFn(listGuestAccountLinks);
   const fetchGuestAccount = useServerFn(getGuestAccount);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
@@ -165,6 +184,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [roomTypeId, setRoomTypeId] = useState("");
   const [selectedRoomType, setSelectedRoomType] = useState<SelectedRoomTypeMeta | null>(null);
   const [roomId, setRoomId] = useState(UNASSIGNED);
+  const [selectedAssignedRoom, setSelectedAssignedRoom] = useState<AssignedRoomView | null>(null);
   const [specialRequests, setSpecialRequests] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"pending" | "confirmed">("pending");
@@ -187,6 +207,12 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const set6Query = useQuery({
     queryKey: ["pms-set6-snapshot", restaurantId, "create-reservation"],
     queryFn: () => fetchSet6({ data: { restaurantId } }),
+    enabled: canManage,
+    retry: false,
+  });
+  const set3Query = useQuery({
+    queryKey: ["pms-set3-snapshot", restaurantId, "create-reservation-packages"],
+    queryFn: () => fetchSet3({ data: { restaurantId } }),
     enabled: canManage,
     retry: false,
   });
@@ -263,6 +289,35 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
       setRatePlanId("");
     }
   }, [quotes, quotesQuery.isError, quotesQuery.isFetching, quotesQuery.isLoading, ratePlanId]);
+
+  useEffect(() => {
+    const roomsReady =
+      !!roomTypeId &&
+      datesValid &&
+      !roomsQuery.isLoading &&
+      !roomsQuery.isFetching &&
+      !roomsQuery.isError;
+    if (
+      shouldClearStaleAssignedRoom({
+        roomId,
+        unassignedValue: UNASSIGNED,
+        roomsReady,
+        assignableIds: (roomsQuery.data ?? []).map((row) => row.id),
+      })
+    ) {
+      setRoomId(UNASSIGNED);
+      setSelectedAssignedRoom(null);
+      toast.warning(CREATE_RESERVATION_ROOM_STALE_DATE_WARN);
+    }
+  }, [
+    datesValid,
+    roomId,
+    roomTypeId,
+    roomsQuery.data,
+    roomsQuery.isError,
+    roomsQuery.isFetching,
+    roomsQuery.isLoading,
+  ]);
 
   const prefillRoles = createReservationPrefillRoles(reservationType);
   const prefillCompany = !companyOverride && prefillRoles.includes("employer");
@@ -411,6 +466,9 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   });
 
   function selectRoomType(type: RoomTypeAvailability) {
+    if (shouldWarnRoomClearedOnTypeChange({ previousRoomId: roomId, unassignedValue: UNASSIGNED })) {
+      toast.warning(CREATE_RESERVATION_ROOM_TYPE_CHANGE_WARN);
+    }
     setRoomTypeId(type.roomTypeId);
     setSelectedRoomType({
       roomTypeId: type.roomTypeId,
@@ -421,7 +479,20 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
       childCapacity: type.childCapacity,
     });
     setRoomId(UNASSIGNED);
+    setSelectedAssignedRoom(null);
     setRatePlanId("");
+  }
+
+  function handleRoomChange(nextId: string) {
+    setRoomId(nextId);
+    if (nextId === UNASSIGNED) {
+      setSelectedAssignedRoom(null);
+      return;
+    }
+    const room = rooms.find((row) => row.id === nextId);
+    if (room) {
+      setSelectedAssignedRoom({ id: room.id, roomNumber: room.roomNumber, floor: room.floor });
+    }
   }
 
   function requestTypeChange(next: ReservationTypeMode) {
@@ -476,6 +547,8 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION2A_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION3_SCOPE}</p>
           <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION5_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION6_SCOPE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION8_SCOPE}</p>
         </div>
 
         <CreateReservationContext
@@ -573,31 +646,25 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           onSelect={setRatePlanId}
         />
 
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg">Room assignment (optional)</h2>
+        <CreateReservationRoomAssignment
+          title="Room assignment (optional)"
+          emptyCopy="No free rooms of this type for those dates — the stay can still be booked and assigned later."
+          datesValid={datesValid}
+          roomTypeId={roomTypeId}
+          loading={roomsQuery.isLoading || roomsQuery.isFetching}
+          rooms={rooms}
+          roomId={roomId}
+          unassignedValue={UNASSIGNED}
+          onSelect={handleRoomChange}
+        />
 
-          <div className="mt-3 max-w-sm">
-            <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Assign later" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
-                {rooms.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    Room {r.roomNumber}
-                    {r.floor ? ` · Floor ${r.floor}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {roomTypeId && rooms.length === 0 && !roomsQuery.isLoading ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                No free rooms of this type for those dates — the stay can still be booked and assigned later.
-              </p>
-            ) : null}
-          </div>
-        </section>
+        <CreateReservationPackages
+          loading={set3Query.isLoading || set3Query.isFetching}
+          error={set3Query.isError}
+          packagesAvailable={set3Query.data?.snapshot.packagesAvailable ?? false}
+          activePackageCount={activePackageCountFromRows(set3Query.data?.snapshot.packages ?? [])}
+          canEditSet3={set3Query.data?.canEdit ?? false}
+        />
 
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg">Details</h2>
@@ -686,6 +753,17 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Availability</dt>
               <dd data-testid="summary-availability">{stickyAvailabilityCopy(summaryAvailability)}</dd>
             </div>
+            <div data-testid="summary-room">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Room</dt>
+              <dd data-testid="summary-room-assignment">
+                {stickyRoomAssignmentLabel({
+                  roomTypeId,
+                  roomId,
+                  unassignedValue: UNASSIGNED,
+                  room: selectedAssignedRoom,
+                })}
+              </dd>
+            </div>
             {pricingState.kind === "priced" ? (
               <>
                 <div data-testid="summary-rate">
@@ -739,6 +817,12 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
               />
             </div>
           ) : null}
+          <div className="mt-3" data-testid="summary-packages">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Packages</p>
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="summary-packages-honesty">
+              {stickyPackagesCopy()}
+            </p>
+          </div>
         </section>
         <div className="hidden xl:block">{actions}</div>
       </aside>
