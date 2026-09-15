@@ -3,7 +3,7 @@ import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-ro
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check, Search, UserPlus } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { Button } from "@/shared/components/ui/button";
@@ -17,11 +17,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import { addDays, formatStayDate, propertyToday } from "@/packages/pms/components/bookings/reservation-bits";
+import { CreateReservationContext } from "@/packages/pms/components/bookings/create-reservation-context";
+import {
+  CreateReservationGuest,
+  type PickedReservationGuest,
+} from "@/packages/pms/components/bookings/create-reservation-guest";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { GuestRestrictionBadges, GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
-import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
+import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getBookingsAccess,
@@ -31,6 +45,17 @@ import {
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
+import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import {
+  CREATE_RESERVATION_DENIED_COPY,
+  CREATE_RESERVATION_SECTION1_SCOPE,
+  CREATE_RESERVATION_SUMMARY_NO_TOTAL,
+  CREATE_RESERVATION_TYPE_CHANGE_WARN,
+  RESERVATION_TYPE_LABELS,
+  resolveBookingSourceOptions,
+  resolveMarketSegmentOptions,
+  type ReservationTypeMode,
+} from "@/packages/pms/lib/create-reservation-phase1";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { cn } from "@/shared/lib/utils";
 
@@ -76,15 +101,20 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const today = propertyToday(timezone);
 
   const fetchAccess = useServerFn(getBookingsAccess);
-  const fetchGuests = useServerFn(listGuests);
+  const fetchGuestAccess = useServerFn(getGuestsAccess);
+  const fetchSet6 = useServerFn(getPmsSet6Snapshot);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitReservation = useServerFn(createReservation);
   const fetchQuotes = useServerFn(quoteStay);
   const money = useMoney();
 
-  const [guestSearch, setGuestSearch] = useState("");
-  const [guest, setGuest] = useState<GuestSummary | null>(null);
+  const [reservationType, setReservationType] = useState<ReservationTypeMode>("individual");
+  const [pendingType, setPendingType] = useState<ReservationTypeMode | null>(null);
+  const [bookingSource, setBookingSource] = useState("");
+  const [marketSegment, setMarketSegment] = useState("");
+  const [externalReference, setExternalReference] = useState("");
+  const [guest, setGuest] = useState<PickedReservationGuest | null>(null);
   const [arrival, setArrival] = useState(today);
   const [departure, setDeparture] = useState(addDays(today, 1));
   const [adults, setAdults] = useState(1);
@@ -103,14 +133,21 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   });
   const canManage = accessQuery.data?.canManage ?? false;
 
-  const guestsQuery = useQuery({
-    queryKey: ["guests", restaurantId, guestSearch, "reservation-picker"],
-    queryFn: () =>
-      fetchGuests({
-        data: { restaurantId, status: "active", limit: 8, ...(guestSearch.trim() ? { search: guestSearch.trim() } : {}) },
-      }),
+  const guestAccessQuery = useQuery({
+    queryKey: ["guests-access", restaurantId],
+    queryFn: () => fetchGuestAccess({ data: { restaurantId } }),
     enabled: canManage,
+    retry: false,
   });
+
+  const set6Query = useQuery({
+    queryKey: ["pms-set6-snapshot", restaurantId, "create-reservation"],
+    queryFn: () => fetchSet6({ data: { restaurantId } }),
+    enabled: canManage,
+    retry: false,
+  });
+  const sourceOptions = resolveBookingSourceOptions(set6Query.data?.snapshot.sourceCodes);
+  const segmentOptions = resolveMarketSegmentOptions(set6Query.data?.snapshot.marketSegments);
 
   const datesValid = departure > arrival;
   const nights = datesValid ? nightsBetween(arrival, departure) : 0;
@@ -169,9 +206,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl">New Reservation</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can create reservations for this property.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{CREATE_RESERVATION_DENIED_COPY}</p>
       </div>
     );
   }
@@ -180,316 +215,336 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const selectedType = availability.find((a) => a.roomTypeId === roomTypeId);
   const rooms = roomsQuery.data ?? [];
   const canSubmit = !!guest && datesValid && !!roomTypeId && (selectedType?.available ?? 0) > 0;
+  const bookingAgentName = accessQuery.data?.actorName ?? "Current user";
+
+  function requestTypeChange(next: ReservationTypeMode) {
+    if (next === reservationType) return;
+    setPendingType(next);
+  }
+
+  function applyTypeChange() {
+    if (!pendingType) return;
+    setReservationType(pendingType);
+    setPendingType(null);
+  }
+
+  const actions = (
+    <div className="flex flex-wrap items-center gap-3" data-testid="create-reservation-actions">
+      <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
+        {create.isPending ? "Creating…" : "Create reservation"}
+      </Button>
+      <Button asChild variant="outline">
+        <Link to="/restaurant/pms/reservations">Cancel</Link>
+      </Button>
+      {!canSubmit ? (
+        <p className="text-xs text-muted-foreground">
+          Pick a guest, valid dates and an available room type to continue.
+        </p>
+      ) : null}
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl">New Reservation</h1>
-        <p className="text-sm text-muted-foreground">
-          Create a stay for {membership.restaurant.name}. Availability updates as you change the dates.
-        </p>
-      </div>
-
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">1. Guest</h2>
-        {guest ? (
-          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-border p-3">
-            <div>
-              <p className="flex flex-wrap items-center gap-2 font-medium">
-                {guest.fullName}
-                <GuestRestrictionBadges guest={guest} />
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {[guest.phone, guest.email].filter(Boolean).join(" · ") || "No contact details"}
-              </p>
-            </div>
-            <Button className="ml-auto" variant="outline" size="sm" onClick={() => setGuest(null)}>
-              Change guest
-            </Button>
-          </div>
-        ) : null}
-        {guest ? <div className="mt-3"><GuestRestrictionWarn guest={guest} /></div> : null}
-        {!guest ? (
-          <div className="mt-3 space-y-3">
-            <div className="flex flex-wrap gap-3">
-              <div className="relative min-w-56 flex-1">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  placeholder="Search guests by name, phone or email"
-                  value={guestSearch}
-                  onChange={(e) => setGuestSearch(e.target.value)}
-                />
-              </div>
-              <Button asChild variant="outline">
-                <Link to="/restaurant/pms/guests">
-                  <UserPlus className="size-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Create guest</span>
-                </Link>
-              </Button>
-            </div>
-            <ul className="space-y-2">
-              {(guestsQuery.data ?? []).map((g) => (
-                <li key={g.id}>
-                  <button
-                    type="button"
-                    onClick={() => setGuest(g)}
-                    className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
-                  >
-                    <span className="inline-flex flex-wrap items-center gap-2 font-medium">
-                      {g.fullName}
-                      <GuestRestrictionBadges guest={g} />
-                    </span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {[g.phone, g.email].filter(Boolean).join(" · ")}
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {guestsQuery.data?.length === 0 ? (
-                <li className="text-sm text-muted-foreground">No matching guests — create one first.</li>
-              ) : null}
-            </ul>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">2. Stay</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1">
-            <Label htmlFor="arrival">Arrival</Label>
-            <Input id="arrival" type="date" value={arrival} onChange={(e) => setArrival(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="departure">Departure</Label>
-            <Input id="departure" type="date" value={departure} onChange={(e) => setDeparture(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="adults">Adults</Label>
-            <Input
-              id="adults"
-              type="number"
-              min={1}
-              max={20}
-              value={adults}
-              onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="children">Children</Label>
-            <Input
-              id="children"
-              type="number"
-              min={0}
-              max={20}
-              value={children}
-              onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
-            />
-          </div>
+    <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+      <div className="min-w-0 flex-1 space-y-6">
+        <div>
+          <h1 className="font-display text-2xl">New Reservation</h1>
+          <p className="text-sm text-muted-foreground">
+            Create a stay for {membership.restaurant.name}. Availability updates as you change the dates.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION1_SCOPE}</p>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          {datesValid
-            ? `${nights} night${nights === 1 ? "" : "s"} · ${formatStayDate(arrival)} → ${formatStayDate(departure)}`
-            : "Departure must be after arrival."}
-        </p>
-      </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">3. Room type</h2>
-        {!datesValid ? (
-          <p className="mt-3 text-sm text-muted-foreground">Choose valid dates to see availability.</p>
-        ) : availabilityQuery.isLoading ? (
-          <p className="mt-3 text-sm text-muted-foreground">Checking availability…</p>
-        ) : availability.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No sellable room types yet. Add them in Configuration → Rooms.
-          </p>
-        ) : (
-          <ul className="mt-3 grid gap-3 md:grid-cols-2">
-            {availability.map((a) => {
-              const disabled = a.available <= 0;
-              const selected = a.roomTypeId === roomTypeId;
-              return (
-                <li key={a.roomTypeId}>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => {
-                      setRoomTypeId(a.roomTypeId);
-                      setRoomId(UNASSIGNED);
-                      setRatePlanId("");
-                    }}
-                    className={cn(
-                      "w-full rounded-xl border p-3 text-left transition-colors",
-                      selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
-                      disabled && "cursor-not-allowed opacity-60",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{a.name}</span>
-                      <span className="text-xs text-muted-foreground">{a.code}</span>
-                      {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Sleeps {a.maxOccupancy} · {a.available} of {a.totalRooms} available
-                      {disabled ? " · fully booked" : ""}
-                    </p>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+        <CreateReservationContext
+          reservationType={reservationType}
+          onRequestTypeChange={requestTypeChange}
+          bookingSource={bookingSource}
+          onBookingSourceChange={setBookingSource}
+          sourceOptions={sourceOptions}
+          marketSegment={marketSegment}
+          onMarketSegmentChange={setMarketSegment}
+          segmentOptions={segmentOptions}
+          externalReference={externalReference}
+          onExternalReferenceChange={setExternalReference}
+          bookingAgentName={bookingAgentName}
+        />
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">4. Rate plan</h2>
-        {!roomTypeId || !datesValid ? (
-          <p className="mt-3 text-sm text-muted-foreground">Pick dates and a room type to see rates.</p>
-        ) : quotesQuery.isLoading ? (
-          <p className="mt-3 text-sm text-muted-foreground">Pricing the stay…</p>
-        ) : quotes.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No rate plans for this room type yet — the stay can be booked without pricing.
+        <CreateReservationGuest
+          restaurantId={restaurantId}
+          canCreateGuest={guestAccessQuery.data?.canManage ?? false}
+          guest={guest}
+          onGuestChange={setGuest}
+        />
+
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg">Stay</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <Label htmlFor="arrival">Arrival</Label>
+              <Input id="arrival" type="date" value={arrival} onChange={(e) => setArrival(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="departure">Departure</Label>
+              <Input id="departure" type="date" value={departure} onChange={(e) => setDeparture(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="adults">Adults</Label>
+              <Input
+                id="adults"
+                type="number"
+                min={1}
+                max={20}
+                value={adults}
+                onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="children">Children</Label>
+              <Input
+                id="children"
+                type="number"
+                min={0}
+                max={20}
+                value={children}
+                onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {datesValid
+              ? `${nights} night${nights === 1 ? "" : "s"} · ${formatStayDate(arrival)} → ${formatStayDate(departure)}`
+              : "Departure must be after arrival."}
           </p>
-        ) : (
-          <ul className="mt-3 grid gap-3 md:grid-cols-2">
-            {quotes.map((q) => {
-              const selected = q.plan.id === ratePlanId;
-              const disabled = !q.quote;
-              return (
-                <li key={q.plan.id}>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => setRatePlanId(selected ? "" : q.plan.id)}
-                    className={cn(
-                      "w-full rounded-xl border p-3 text-left transition-colors",
-                      selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
-                      disabled && "cursor-not-allowed opacity-60",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{q.plan.name}</span>
-                      <span className="text-xs text-muted-foreground">{q.plan.code}</span>
-                      {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
-                    </div>
-                    {q.quote ? (
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg">Room type</h2>
+          {!datesValid ? (
+            <p className="mt-3 text-sm text-muted-foreground">Choose valid dates to see availability.</p>
+          ) : availabilityQuery.isLoading ? (
+            <p className="mt-3 text-sm text-muted-foreground">Checking availability…</p>
+          ) : availability.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No sellable room types yet. Add them in Configuration → Rooms.
+            </p>
+          ) : (
+            <ul className="mt-3 grid gap-3 md:grid-cols-2">
+              {availability.map((a) => {
+                const disabled = a.available <= 0;
+                const selected = a.roomTypeId === roomTypeId;
+                return (
+                  <li key={a.roomTypeId}>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        setRoomTypeId(a.roomTypeId);
+                        setRoomId(UNASSIGNED);
+                        setRatePlanId("");
+                      }}
+                      className={cn(
+                        "w-full rounded-xl border p-3 text-left transition-colors",
+                        selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
+                        disabled && "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{a.name}</span>
+                        <span className="text-xs text-muted-foreground">{a.code}</span>
+                        {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
+                      </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        From {money(Math.min(...q.quote.nightly.map((n) => n.rate)))} / night · total{" "}
-                        <span className="font-medium text-foreground">{money(q.quote.subtotal)}</span> for{" "}
-                        {q.quote.nights} night{q.quote.nights === 1 ? "" : "s"}
+                        Sleeps {a.maxOccupancy} · {a.available} of {a.totalRooms} available
+                        {disabled ? " · fully booked" : ""}
                       </p>
-                    ) : (
-                      <p className="mt-1 text-xs text-destructive">{q.unavailableReason}</p>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-        {selectedQuote?.quote ? (
-          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Night</th>
-                  <th className="px-3 py-2 text-right">Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedQuote.quote.nightly.map((n) => (
-                  <tr key={n.date} className="border-t border-border">
-                    <td className="px-3 py-2">{formatStayDate(n.date)}</td>
-                    <td className="px-3 py-2 text-right">{money(n.rate)}</td>
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg">Rate plan</h2>
+          {!roomTypeId || !datesValid ? (
+            <p className="mt-3 text-sm text-muted-foreground">Pick dates and a room type to see rates.</p>
+          ) : quotesQuery.isLoading ? (
+            <p className="mt-3 text-sm text-muted-foreground">Pricing the stay…</p>
+          ) : quotes.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No rate plans for this room type yet — the stay can be booked without pricing.
+            </p>
+          ) : (
+            <ul className="mt-3 grid gap-3 md:grid-cols-2">
+              {quotes.map((q) => {
+                const selected = q.plan.id === ratePlanId;
+                const disabled = !q.quote;
+                return (
+                  <li key={q.plan.id}>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setRatePlanId(selected ? "" : q.plan.id)}
+                      className={cn(
+                        "w-full rounded-xl border p-3 text-left transition-colors",
+                        selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
+                        disabled && "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{q.plan.name}</span>
+                        <span className="text-xs text-muted-foreground">{q.plan.code}</span>
+                        {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
+                      </div>
+                      {q.quote ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          From {money(Math.min(...q.quote.nightly.map((n) => n.rate)))} / night · total{" "}
+                          <span className="font-medium text-foreground">{money(q.quote.subtotal)}</span> for{" "}
+                          {q.quote.nights} night{q.quote.nights === 1 ? "" : "s"}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs text-destructive">{q.unavailableReason}</p>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {selectedQuote?.quote ? (
+            <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">Night</th>
+                    <th className="px-3 py-2 text-right">Rate</th>
                   </tr>
-                ))}
-                <tr className="border-t border-border bg-muted/30 font-medium">
-                  <td className="px-3 py-2">Stay total</td>
-                  <td className="px-3 py-2 text-right">{money(selectedQuote.quote.subtotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p className="px-3 py-2 text-xs text-muted-foreground">
-              Pricing is calculated and re-checked on the server when the reservation is created.
-            </p>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">5. Room assignment (optional)</h2>
-
-        <div className="mt-3 max-w-sm">
-          <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Assign later" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
-              {rooms.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  Room {r.roomNumber}
-                  {r.floor ? ` · Floor ${r.floor}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {roomTypeId && rooms.length === 0 && !roomsQuery.isLoading ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              No free rooms of this type for those dates — the stay can still be booked and assigned later.
-            </p>
+                </thead>
+                <tbody>
+                  {selectedQuote.quote.nightly.map((n) => (
+                    <tr key={n.date} className="border-t border-border">
+                      <td className="px-3 py-2">{formatStayDate(n.date)}</td>
+                      <td className="px-3 py-2 text-right">{money(n.rate)}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-border bg-muted/30 font-medium">
+                    <td className="px-3 py-2">Stay total</td>
+                    <td className="px-3 py-2 text-right">{money(selectedQuote.quote.subtotal)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                Pricing is calculated and re-checked on the server when the reservation is created.
+              </p>
+            </div>
           ) : null}
-        </div>
-      </section>
+        </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">6. Details</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="requests">Special requests</Label>
-            <Textarea
-              id="requests"
-              rows={3}
-              value={specialRequests}
-              onChange={(e) => setSpecialRequests(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="notes">Internal notes</Label>
-            <Textarea id="notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-        </div>
-        <div className="mt-3 max-w-sm space-y-1">
-          <Label htmlFor="status">Create as</Label>
-          <Select value={status} onValueChange={(v) => setStatus(v as "pending" | "confirmed")}>
-            <SelectTrigger id="status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </section>
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg">Room assignment (optional)</h2>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
-          {create.isPending ? "Creating…" : "Create reservation"}
-        </Button>
-        <Button asChild variant="outline">
-          <Link to="/restaurant/pms/reservations">Cancel</Link>
-        </Button>
-        {!canSubmit ? (
-          <p className="text-xs text-muted-foreground">
-            Pick a guest, valid dates and an available room type to continue.
-          </p>
-        ) : null}
+          <div className="mt-3 max-w-sm">
+            <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Assign later" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
+                {rooms.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    Room {r.roomNumber}
+                    {r.floor ? ` · Floor ${r.floor}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {roomTypeId && rooms.length === 0 && !roomsQuery.isLoading ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No free rooms of this type for those dates — the stay can still be booked and assigned later.
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg">Details</h2>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="requests">Special requests</Label>
+              <Textarea
+                id="requests"
+                rows={3}
+                value={specialRequests}
+                onChange={(e) => setSpecialRequests(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="notes">Internal notes</Label>
+              <Textarea id="notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+          </div>
+          <div className="mt-3 max-w-sm space-y-1">
+            <Label htmlFor="status">Create as</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as "pending" | "confirmed")}>
+              <SelectTrigger id="status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </section>
+
+        <div className="xl:hidden">{actions}</div>
       </div>
+
+      <aside
+        className="space-y-4 xl:sticky xl:top-4 xl:w-80"
+        data-testid="create-reservation-summary"
+      >
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg">Summary</h2>
+          <dl className="mt-3 space-y-2 text-sm">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Type</dt>
+              <dd>{RESERVATION_TYPE_LABELS[reservationType]}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
+              <dd>{guest?.fullName ?? "No guest selected"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay</dt>
+              <dd>
+                {datesValid
+                  ? `${formatStayDate(arrival)} → ${formatStayDate(departure)}`
+                  : "Dates not set"}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs text-muted-foreground" data-testid="summary-no-fake-total">
+            {CREATE_RESERVATION_SUMMARY_NO_TOTAL}
+          </p>
+        </section>
+        <div className="hidden xl:block">{actions}</div>
+      </aside>
+
+      <AlertDialog open={pendingType !== null} onOpenChange={(open) => !open && setPendingType(null)}>
+        <AlertDialogContent data-testid="type-change-warn">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change reservation type?</AlertDialogTitle>
+            <AlertDialogDescription>{CREATE_RESERVATION_TYPE_CHANGE_WARN}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep current type</AlertDialogCancel>
+            <AlertDialogAction onClick={applyTypeChange}>Switch type</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
