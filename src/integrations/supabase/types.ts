@@ -5593,21 +5593,36 @@ export type Database = {
         Row: {
           active: boolean
           address: string | null
+          address_house_no: string | null
+          address_kebele: string | null
+          address_region: string | null
+          address_subcity: string | null
+          address_woreda: string | null
+          address_zone: string | null
           approved: boolean
           approved_at: string | null
           approved_by: string | null
           booking_contact_email: string | null
           booking_contact_phone: string | null
           booking_message: string | null
+          brand_code: string | null
+          brand_name: string | null
           business_date: string | null
+          business_date_blockers: Json
+          business_date_config: Json
           cancel_fee_basis: string | null
           cancel_window_hours: number | null
+          chain_name: string | null
           check_in_time: string | null
           check_out_time: string | null
+          checkin_policy_text: string | null
+          checkout_policy_text: string | null
           city: string | null
           country: string | null
           created_at: string
           currency_code: string
+          default_language: string | null
+          department_contacts: Json
           deposit_required: boolean | null
           deposit_type: string | null
           deposit_value: number | null
@@ -5615,22 +5630,33 @@ export type Database = {
           early_checkin_allowed: boolean | null
           early_checkin_fee: number | null
           early_checkin_needs_approval: boolean | null
+          early_checkin_policy_text: string | null
           email: string | null
           fo_cancel_fee_default: number
           fo_cancel_fee_required: boolean
           fo_noshow_fee_default: number
           fo_noshow_fee_required: boolean
+          full_address: string | null
           hotel_day_open: boolean | null
           id: string
+          identity_toggles: Json
           late_checkout_allowed: boolean | null
           late_checkout_fee: number | null
           late_checkout_needs_approval: boolean | null
+          late_checkout_policy_text: string | null
+          latitude: number | null
+          legal_entity_name: string | null
+          legal_entity_type: string | null
           legal_name: string | null
+          legal_upload_refs: Json
+          licence_number: string | null
           logo_url: string | null
+          longitude: number | null
           name: string
           noshow_fee_basis: string | null
           phone: string | null
           pms_admin_controls: Json
+          pms_property_setup_status: Json
           pms_audit_retention_posture: Json
           pms_distribution_channel_posture: Json
           pms_distribution_mapping_posture: Json
@@ -5653,37 +5679,63 @@ export type Database = {
           single_building_mode: boolean
           property_code: string | null
           property_type: string | null
+          registration_number: string | null
           rejection_reason: string | null
           service_enabled: boolean
           service_rate: number
+          short_description: string | null
           slug: string
+          social_contacts: Json
+          star_rating: number | null
           status_updated_at: string | null
+          structure_rules_posture: Json
           suspension_reason: string | null
           tax_identities: Json
           tax_inclusive: boolean
           tax_name: string | null
           tax_rate: number
+          tax_upload_refs: Json
           timezone: string
+          tin_number: string | null
+          trading_name: string | null
           updated_at: string
+          vat_number: string | null
+          vat_registered: boolean
+          whatsapp: string | null
         }
         Insert: {
           active?: boolean
           address?: string | null
+          address_house_no?: string | null
+          address_kebele?: string | null
+          address_region?: string | null
+          address_subcity?: string | null
+          address_woreda?: string | null
+          address_zone?: string | null
           approved?: boolean
           approved_at?: string | null
           approved_by?: string | null
           booking_contact_email?: string | null
           booking_contact_phone?: string | null
           booking_message?: string | null
+          brand_code?: string | null
+          brand_name?: string | null
           business_date?: string | null
+          business_date_blockers?: Json
+          business_date_config?: Json
           cancel_fee_basis?: string | null
           cancel_window_hours?: number | null
+          chain_name?: string | null
           check_in_time?: string | null
           check_out_time?: string | null
+          checkin_policy_text?: string | null
+          checkout_policy_text?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
           currency_code?: string
+          default_language?: string | null
+          department_contacts?: Json
           deposit_required?: boolean | null
           deposit_type?: string | null
           deposit_value?: number | null
@@ -5691,22 +5743,33 @@ export type Database = {
           early_checkin_allowed?: boolean | null
           early_checkin_fee?: number | null
           early_checkin_needs_approval?: boolean | null
+          early_checkin_policy_text?: string | null
           email?: string | null
           fo_cancel_fee_default?: number
           fo_cancel_fee_required?: boolean
           fo_noshow_fee_default?: number
           fo_noshow_fee_required?: boolean
+          full_address?: string | null
           hotel_day_open?: boolean | null
           id?: string
+          identity_toggles?: Json
           late_checkout_allowed?: boolean | null
           late_checkout_fee?: number | null
           late_checkout_needs_approval?: boolean | null
+          late_checkout_policy_text?: string | null
+          latitude?: number | null
+          legal_entity_name?: string | null
+          legal_entity_type?: string | null
           legal_name?: string | null
+          legal_upload_refs?: Json
+          licence_number?: string | null
           logo_url?: string | null
+          longitude?: number | null
           name: string
           noshow_fee_basis?: string | null
           phone?: string | null
           pms_admin_controls?: Json
+          pms_property_setup_status?: Json
           pms_audit_retention_posture?: Json
           pms_distribution_channel_posture?: Json
           pms_distribution_mapping_posture?: Json
@@ -5728,38 +5791,64 @@ export type Database = {
           postcode?: string | null
           property_code?: string | null
           property_type?: string | null
+          registration_number?: string | null
           rejection_reason?: string | null
           service_enabled?: boolean
           service_rate?: number
+          short_description?: string | null
           single_building_mode?: boolean
           slug: string
+          social_contacts?: Json
+          star_rating?: number | null
           status_updated_at?: string | null
+          structure_rules_posture?: Json
           suspension_reason?: string | null
           tax_identities?: Json
           tax_inclusive?: boolean
           tax_name?: string | null
           tax_rate?: number
+          tax_upload_refs?: Json
           timezone?: string
+          tin_number?: string | null
+          trading_name?: string | null
           updated_at?: string
+          vat_number?: string | null
+          vat_registered?: boolean
+          whatsapp?: string | null
         }
         Update: {
           active?: boolean
           address?: string | null
+          address_house_no?: string | null
+          address_kebele?: string | null
+          address_region?: string | null
+          address_subcity?: string | null
+          address_woreda?: string | null
+          address_zone?: string | null
           approved?: boolean
           approved_at?: string | null
           approved_by?: string | null
           booking_contact_email?: string | null
           booking_contact_phone?: string | null
           booking_message?: string | null
+          brand_code?: string | null
+          brand_name?: string | null
           business_date?: string | null
+          business_date_blockers?: Json
+          business_date_config?: Json
           cancel_fee_basis?: string | null
           cancel_window_hours?: number | null
+          chain_name?: string | null
           check_in_time?: string | null
           check_out_time?: string | null
+          checkin_policy_text?: string | null
+          checkout_policy_text?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
           currency_code?: string
+          default_language?: string | null
+          department_contacts?: Json
           deposit_required?: boolean | null
           deposit_type?: string | null
           deposit_value?: number | null
@@ -5767,18 +5856,28 @@ export type Database = {
           early_checkin_allowed?: boolean | null
           early_checkin_fee?: number | null
           early_checkin_needs_approval?: boolean | null
+          early_checkin_policy_text?: string | null
           email?: string | null
           fo_cancel_fee_default?: number
           fo_cancel_fee_required?: boolean
           fo_noshow_fee_default?: number
           fo_noshow_fee_required?: boolean
+          full_address?: string | null
           hotel_day_open?: boolean | null
           id?: string
+          identity_toggles?: Json
           late_checkout_allowed?: boolean | null
           late_checkout_fee?: number | null
           late_checkout_needs_approval?: boolean | null
+          late_checkout_policy_text?: string | null
+          latitude?: number | null
+          legal_entity_name?: string | null
+          legal_entity_type?: string | null
           legal_name?: string | null
+          legal_upload_refs?: Json
+          licence_number?: string | null
           logo_url?: string | null
+          longitude?: number | null
           name?: string
           noshow_fee_basis?: string | null
           phone?: string | null
@@ -5795,6 +5894,7 @@ export type Database = {
           pms_offline_enablement_posture?: Json
           pms_offline_sync_posture?: Json
           pms_ooo_oos_posture?: Json
+          pms_property_setup_status?: Json
           pms_rate_package_rules?: Json
           pms_reports_catalogue_posture?: Json
           pms_reports_schedule_access_posture?: Json
@@ -5804,19 +5904,30 @@ export type Database = {
           postcode?: string | null
           property_code?: string | null
           property_type?: string | null
+          registration_number?: string | null
           rejection_reason?: string | null
           service_enabled?: boolean
           service_rate?: number
+          short_description?: string | null
           single_building_mode?: boolean
           slug?: string
+          social_contacts?: Json
+          star_rating?: number | null
           status_updated_at?: string | null
+          structure_rules_posture?: Json
           suspension_reason?: string | null
           tax_identities?: Json
           tax_inclusive?: boolean
           tax_name?: string | null
           tax_rate?: number
+          tax_upload_refs?: Json
           timezone?: string
+          tin_number?: string | null
+          trading_name?: string | null
           updated_at?: string
+          vat_number?: string | null
+          vat_registered?: boolean
+          whatsapp?: string | null
         }
         Relationships: []
       }
