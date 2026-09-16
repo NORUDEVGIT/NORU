@@ -57,6 +57,7 @@ import { SET6_AUDIT_ACTIONS, activateInputFromSet6Snapshot } from "./pms-set6-sa
 import { loadSet6Snapshot } from "./pms-set6-sales-distribution.functions";
 import { POLISH1_AUDIT_ACTIONS, activateInputFromPolish1Snapshot } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
+import { CARD1_AUDIT_ACTIONS } from "./pms-property-setup-card1";
 
 const idSchema = z.string().uuid();
 
@@ -581,6 +582,7 @@ export const listPmsSet1Audit = createServerFn({ method: "POST" })
         ...SET5_AUDIT_ACTIONS,
         ...SET6_AUDIT_ACTIONS,
         ...POLISH1_AUDIT_ACTIONS,
+        ...CARD1_AUDIT_ACTIONS,
       ])
       .order("created_at", { ascending: false })
       .limit(40);

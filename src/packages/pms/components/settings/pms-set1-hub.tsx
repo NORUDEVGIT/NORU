@@ -6,7 +6,8 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
-import { ReadinessChip, Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
+import { Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
+import { PmsPropertySetupCard1Section } from "@/packages/pms/components/settings/pms-property-setup-card1-section";
 import { Set2OutletsSection, Set2RoomsSection, Set2StructureSection } from "@/packages/pms/components/settings/pms-set2-section";
 import { Set3GuestSection, Set3RatesSection } from "@/packages/pms/components/settings/pms-set3-section";
 import { Set4HousekeepingSection, Set4MaintenanceSection, Set4RoomInventorySection } from "@/packages/pms/components/settings/pms-set4-section";
@@ -29,7 +30,6 @@ import {
   SET1_DENIED,
   SET1_FOUNDATION_CHIP,
   SET1_HUB_HREF,
-  SET1_LIVE_CARDS,
   SET1_PMS_BACK_HREF,
   SET1_TITLE,
   SET2_LIVE_HASHES,
@@ -49,28 +49,50 @@ import { emptySet5Snapshot } from "@/packages/pms/lib/pms-set5-depts-guestsvc";
 import { emptySet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution";
 import { emptyPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import { Polish1AdministrationSection, Polish1PaymentMethodsSection } from "@/packages/pms/components/settings/pms-polish1-section";
+import { getPmsPropertySetupCard1 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
+import {
+  CARD1_HASH,
+  PROPERTY_SETUP_CARDS,
+  evaluateCard1Status,
+  evaluateProgrammeCardStatus,
+  isCard1WorkspaceHash,
+  propertySetupStatusLabel,
+  type PropertySetupCardStatus,
+} from "@/packages/pms/lib/pms-property-setup-card1";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { cn } from "@/shared/lib/utils";
 
 function currentSection(): Set1SectionId | null {
   if (typeof window === "undefined") return null;
   return resolveSet1SectionHash(window.location.hash);
 }
 
+function currentCard1Open(): boolean {
+  if (typeof window === "undefined") return false;
+  return isCard1WorkspaceHash(window.location.hash);
+}
+
 export function PmsSet1Hub({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const load = useServerFn(getPmsSet1Foundation);
+  const loadCard1 = useServerFn(getPmsPropertySetupCard1);
   const loadAudit = useServerFn(listPmsSet1Audit);
   const [section, setSection] = useState<Set1SectionId | null>(currentSection);
+  const [card1Open, setCard1Open] = useState(currentCard1Open);
   const [showAllChanges, setShowAllChanges] = useState(false);
 
   useEffect(() => {
     const apply = () => {
       const raw = window.location.hash.replace(/^#/, "");
+      if (raw === "card-1" || raw === "card1") {
+        window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD1_HASH}`);
+      }
       const resolved = resolveSet1SectionHash(raw);
       if (resolved && resolved !== raw) {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${resolved}`);
       }
       setSection(currentSection());
+      setCard1Open(currentCard1Open());
     };
     apply();
     window.addEventListener("hashchange", apply);
@@ -81,6 +103,12 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     queryKey: ["pms-set1-foundation", restaurantId],
     queryFn: () => load({ data: { restaurantId } }),
     retry: false,
+  });
+  const card1Query = useQuery({
+    queryKey: ["pms-card1", restaurantId],
+    queryFn: () => loadCard1({ data: { restaurantId } }),
+    retry: false,
+    enabled: canOpenSet1Hub(membership.role),
   });
   const auditQuery = useQuery({
     queryKey: ["pms-set1-audit", restaurantId],
@@ -116,11 +144,25 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Identity, times, taxes, structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, departments, guest services types, notifications, payment methods, administration, integrations, security, sales, distribution, reports and offline posture for {membership.restaurant.name}.
+          Property Setup for {membership.restaurant.name}. Eight cards. Only Property & Business is Spec’d in this wave.
         </p>
       </div>
 
-      {section ? (
+      {card1Open ? (
+        card1Query.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading Property & Business…</p>
+        ) : card1Query.isError || !card1Query.data ? (
+          <p className="text-sm text-destructive">{(card1Query.error as Error | undefined)?.message ?? "Card 1 is unavailable."}</p>
+        ) : (
+          <PmsPropertySetupCard1Section
+            restaurantId={restaurantId}
+            snapshot={card1Query.data.snapshot}
+            set2={query.data.set2 ?? emptySet2Snapshot()}
+            checklist={checklist}
+            canEdit={canEdit}
+          />
+        )
+      ) : section ? (
         <div className="space-y-4">
           <Button variant="outline" size="sm" asChild>
             <a href={SET1_HUB_HREF}>Back to Settings</a>
@@ -284,22 +326,52 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {SET1_LIVE_CARDS.map((card) => {
-              const domain = checklist.domains[card.id];
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="property-setup-cards">
+            {PROPERTY_SETUP_CARDS.map((card) => {
+              const card1Status = card1Query.data
+                ? evaluateCard1Status(card1Query.data.snapshot.draft, card1Query.data.snapshot.status, card1Query.data.set2)
+                : "not_started";
+              const status: PropertySetupCardStatus = card1Query.data
+                ? evaluateProgrammeCardStatus(card.id, card1Query.data.snapshot.status, card1Status)
+                : "not_started";
               return (
-                <article key={card.id} className="flex flex-col rounded-2xl border border-border bg-card p-5">
+                <article
+                  key={card.id}
+                  className={cn(
+                    "flex flex-col rounded-2xl border bg-card p-5",
+                    card.specced ? "border-border" : "border-dashed border-[#CCCCCC] bg-muted/20",
+                  )}
+                  data-testid={card.specced ? "property-setup-card-1" : "property-setup-coming-soon-card"}
+                >
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className="font-display text-lg text-[#251605]">{card.title}</h2>
-                    <ReadinessChip readiness={domain.readiness} />
+                    <h2 className={cn("font-display text-lg", card.specced ? "text-[#251605]" : "text-muted-foreground")}>
+                      {card.number}. {card.title}
+                    </h2>
+                    {card.specced ? (
+                      <span
+                        className={cn(
+                          "rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                          status === "complete" && "border-[#436436]/40 bg-[#436436]/10 text-[#436436]",
+                          status === "in_progress" && "border-[#C89933]/50 bg-[#C89933]/10 text-[#251605]",
+                          status === "not_started" && "border-[#CCCCCC] bg-muted/60 text-muted-foreground",
+                        )}
+                      >
+                        {propertySetupStatusLabel(status)}
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-[#CCCCCC] px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Coming soon
+                      </span>
+                    )}
                   </div>
                   <p className="mt-2 flex-1 text-sm text-muted-foreground">{card.purpose}</p>
-                  <a
-                    href={`${SET1_HUB_HREF}#${card.id}`}
-                    className="mt-4 inline-flex text-sm font-medium text-[#C89933]"
-                  >
-                    Configure
-                  </a>
+                  {card.specced ? (
+                    <a href={`${SET1_HUB_HREF}#${card.id}`} className="mt-4 inline-flex text-sm font-medium text-[#C89933]">
+                      Configure
+                    </a>
+                  ) : (
+                    <p className="mt-4 text-xs text-muted-foreground">Programme context only — not Spec’d / not build.</p>
+                  )}
                 </article>
               );
             })}

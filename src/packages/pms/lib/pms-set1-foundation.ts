@@ -309,6 +309,9 @@ export function propertySetupRedirectHref(hash = ""): string {
   const raw = hash.startsWith("#") ? hash.slice(1) : hash;
   if (!raw) return SET1_HUB_HREF;
   if (raw === "cancel-noshow-fees") return `${SET1_HUB_HREF}#policies`;
+  if (raw === "card-1" || raw === "card1" || raw === "property-business") {
+    return `${SET1_HUB_HREF}#property-business`;
+  }
   const resolved = resolveSet1SectionHash(raw);
   if (resolved) return `${SET1_HUB_HREF}#${resolved}`;
   return `${SET1_HUB_HREF}#${raw}`;
