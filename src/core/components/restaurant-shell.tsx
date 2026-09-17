@@ -488,6 +488,7 @@ export function RestaurantShell({
   boDetailLabel,
   posModule,
   sidebarDefaultCollapsed,
+  hidePackageRail: hidePackageRailProp,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -529,6 +530,8 @@ export function RestaurantShell({
    * default remains expanded. Leaving the page remounts the shell expanded.
    */
   sidebarDefaultCollapsed?: boolean;
+  /** Hide the left package / SETTINGS rail (FO chrome and Card 1 full-screen). */
+  hidePackageRail?: boolean;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -559,7 +562,7 @@ export function RestaurantShell({
   const restaurant = membership?.restaurant;
   const operational = restaurant?.status === "approved";
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
-  const hidePackageRail = shouldSuppressRestaurantPmsRail(pmsModule);
+  const hidePackageRail = Boolean(hidePackageRailProp) || shouldSuppressRestaurantPmsRail(pmsModule);
   const rmMod = rmModule ? RM_MODULES.find((m) => m.key === rmModule) : undefined;
   const boMod = boModule ? getBoModule(boModule) : undefined;
   const posMod = posModule ? getPosModule(posModule) : undefined;

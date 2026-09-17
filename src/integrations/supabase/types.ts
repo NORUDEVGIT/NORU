@@ -1118,29 +1118,44 @@ export type Database = {
       hotel_buildings: {
         Row: {
           active: boolean
+          building_type: string | null
           code: string
           created_at: string
+          description: string | null
+          floor_count: number | null
           id: string
+          location: string | null
           name: string
           restaurant_id: string
+          status: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
+          building_type?: string | null
           code: string
           created_at?: string
+          description?: string | null
+          floor_count?: number | null
           id?: string
+          location?: string | null
           name: string
           restaurant_id: string
+          status?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
+          building_type?: string | null
           code?: string
           created_at?: string
+          description?: string | null
+          floor_count?: number | null
           id?: string
+          location?: string | null
           name?: string
           restaurant_id?: string
+          status?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1159,30 +1174,42 @@ export type Database = {
           building_id: string
           code: string
           created_at: string
+          description: string | null
+          floor_number: number | null
           id: string
           name: string
           restaurant_id: string
+          status: string | null
           updated_at: string
+          wing_id: string | null
         }
         Insert: {
           active?: boolean
           building_id: string
           code: string
           created_at?: string
+          description?: string | null
+          floor_number?: number | null
           id?: string
           name: string
           restaurant_id: string
+          status?: string | null
           updated_at?: string
+          wing_id?: string | null
         }
         Update: {
           active?: boolean
           building_id?: string
           code?: string
           created_at?: string
+          description?: string | null
+          floor_number?: number | null
           id?: string
           name?: string
           restaurant_id?: string
+          status?: string | null
           updated_at?: string
+          wing_id?: string | null
         }
         Relationships: [
           {
@@ -1783,32 +1810,41 @@ export type Database = {
       hotel_wings: {
         Row: {
           active: boolean
+          code: string | null
           created_at: string
+          description: string | null
           id: string
           name: string
           parent_building_id: string | null
           parent_floor_id: string | null
           restaurant_id: string
+          status: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
+          code?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           name: string
           parent_building_id?: string | null
           parent_floor_id?: string | null
           restaurant_id: string
+          status?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
+          code?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           name?: string
           parent_building_id?: string | null
           parent_floor_id?: string | null
           restaurant_id?: string
+          status?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -5605,9 +5641,13 @@ export type Database = {
           booking_contact_email: string | null
           booking_contact_phone: string | null
           booking_message: string | null
+          brand_affiliation: string | null
           brand_code: string | null
           brand_name: string | null
           business_date: string | null
+          business_type: string | null
+          checkin_ops: Json
+          cover_image_url: string | null
           business_date_blockers: Json
           business_date_config: Json
           cancel_fee_basis: string | null
@@ -5632,6 +5672,7 @@ export type Database = {
           early_checkin_needs_approval: boolean | null
           early_checkin_policy_text: string | null
           email: string | null
+          emergency_contacts: Json
           fo_cancel_fee_default: number
           fo_cancel_fee_required: boolean
           fo_noshow_fee_default: number
@@ -5645,14 +5686,17 @@ export type Database = {
           late_checkout_needs_approval: boolean | null
           late_checkout_policy_text: string | null
           latitude: number | null
+          legal_extras: Json
           legal_entity_name: string | null
           legal_entity_type: string | null
           legal_name: string | null
           legal_upload_refs: Json
           licence_number: string | null
+          location_extras: Json
           logo_url: string | null
           longitude: number | null
           name: string
+          opening_date: string | null
           noshow_fee_basis: string | null
           phone: string | null
           pms_admin_controls: Json
@@ -5676,9 +5720,12 @@ export type Database = {
           pms_session_access_posture: Json
           pms_set1_live: boolean
           postcode: string | null
+          primary_brand_colour: string | null
+          property_areas: Json
           single_building_mode: boolean
           property_code: string | null
           property_type: string | null
+          secondary_brand_colour: string | null
           registration_number: string | null
           rejection_reason: string | null
           service_enabled: boolean
@@ -5701,6 +5748,7 @@ export type Database = {
           updated_at: string
           vat_number: string | null
           vat_registered: boolean
+          website_url: string | null
           whatsapp: string | null
         }
         Insert: {
@@ -5718,20 +5766,24 @@ export type Database = {
           booking_contact_email?: string | null
           booking_contact_phone?: string | null
           booking_message?: string | null
+          brand_affiliation?: string | null
           brand_code?: string | null
           brand_name?: string | null
           business_date?: string | null
           business_date_blockers?: Json
           business_date_config?: Json
+          business_type?: string | null
           cancel_fee_basis?: string | null
           cancel_window_hours?: number | null
           chain_name?: string | null
           check_in_time?: string | null
           check_out_time?: string | null
+          checkin_ops?: Json
           checkin_policy_text?: string | null
           checkout_policy_text?: string | null
           city?: string | null
           country?: string | null
+          cover_image_url?: string | null
           created_at?: string
           currency_code?: string
           default_language?: string | null
@@ -5745,6 +5797,7 @@ export type Database = {
           early_checkin_needs_approval?: boolean | null
           early_checkin_policy_text?: string | null
           email?: string | null
+          emergency_contacts?: Json
           fo_cancel_fee_default?: number
           fo_cancel_fee_required?: boolean
           fo_noshow_fee_default?: number
@@ -5758,14 +5811,17 @@ export type Database = {
           late_checkout_needs_approval?: boolean | null
           late_checkout_policy_text?: string | null
           latitude?: number | null
+          legal_extras?: Json
           legal_entity_name?: string | null
           legal_entity_type?: string | null
           legal_name?: string | null
           legal_upload_refs?: Json
           licence_number?: string | null
+          location_extras?: Json
           logo_url?: string | null
           longitude?: number | null
           name: string
+          opening_date?: string | null
           noshow_fee_basis?: string | null
           phone?: string | null
           pms_admin_controls?: Json
@@ -5789,10 +5845,13 @@ export type Database = {
           pms_session_access_posture?: Json
           pms_set1_live?: boolean
           postcode?: string | null
+          primary_brand_colour?: string | null
+          property_areas?: Json
           property_code?: string | null
           property_type?: string | null
           registration_number?: string | null
           rejection_reason?: string | null
+          secondary_brand_colour?: string | null
           service_enabled?: boolean
           service_rate?: number
           short_description?: string | null
@@ -5814,6 +5873,7 @@ export type Database = {
           updated_at?: string
           vat_number?: string | null
           vat_registered?: boolean
+          website_url?: string | null
           whatsapp?: string | null
         }
         Update: {
@@ -5831,20 +5891,24 @@ export type Database = {
           booking_contact_email?: string | null
           booking_contact_phone?: string | null
           booking_message?: string | null
+          brand_affiliation?: string | null
           brand_code?: string | null
           brand_name?: string | null
           business_date?: string | null
           business_date_blockers?: Json
           business_date_config?: Json
+          business_type?: string | null
           cancel_fee_basis?: string | null
           cancel_window_hours?: number | null
           chain_name?: string | null
           check_in_time?: string | null
           check_out_time?: string | null
+          checkin_ops?: Json
           checkin_policy_text?: string | null
           checkout_policy_text?: string | null
           city?: string | null
           country?: string | null
+          cover_image_url?: string | null
           created_at?: string
           currency_code?: string
           default_language?: string | null
@@ -5858,6 +5922,7 @@ export type Database = {
           early_checkin_needs_approval?: boolean | null
           early_checkin_policy_text?: string | null
           email?: string | null
+          emergency_contacts?: Json
           fo_cancel_fee_default?: number
           fo_cancel_fee_required?: boolean
           fo_noshow_fee_default?: number
@@ -5871,15 +5936,18 @@ export type Database = {
           late_checkout_needs_approval?: boolean | null
           late_checkout_policy_text?: string | null
           latitude?: number | null
+          legal_extras?: Json
           legal_entity_name?: string | null
           legal_entity_type?: string | null
           legal_name?: string | null
           legal_upload_refs?: Json
           licence_number?: string | null
+          location_extras?: Json
           logo_url?: string | null
           longitude?: number | null
           name?: string
           noshow_fee_basis?: string | null
+          opening_date?: string | null
           phone?: string | null
           pms_admin_controls?: Json
           pms_audit_retention_posture?: Json
@@ -5902,10 +5970,13 @@ export type Database = {
           pms_session_access_posture?: Json
           pms_set1_live?: boolean
           postcode?: string | null
+          primary_brand_colour?: string | null
+          property_areas?: Json
           property_code?: string | null
           property_type?: string | null
           registration_number?: string | null
           rejection_reason?: string | null
+          secondary_brand_colour?: string | null
           service_enabled?: boolean
           service_rate?: number
           short_description?: string | null
@@ -5927,6 +5998,7 @@ export type Database = {
           updated_at?: string
           vat_number?: string | null
           vat_registered?: boolean
+          website_url?: string | null
           whatsapp?: string | null
         }
         Relationships: []

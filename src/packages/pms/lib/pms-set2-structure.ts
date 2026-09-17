@@ -54,6 +54,11 @@ export type HotelBuilding = {
   code: string;
   name: string;
   active: boolean;
+  floorCount: number | null;
+  buildingType: string;
+  description: string;
+  location: string;
+  status: string;
 };
 
 export type HotelFloor = {
@@ -62,6 +67,10 @@ export type HotelFloor = {
   code: string;
   name: string;
   active: boolean;
+  floorNumber: number | null;
+  description: string;
+  status: string;
+  wingId: string | null;
 };
 
 export type HotelWing = {
@@ -70,6 +79,9 @@ export type HotelWing = {
   active: boolean;
   parentBuildingId: string | null;
   parentFloorId: string | null;
+  code: string;
+  description: string;
+  status: string;
 };
 
 export type PmsOutlet = {

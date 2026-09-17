@@ -31,7 +31,6 @@ import {
   SET1_FOUNDATION_CHIP,
   SET1_HUB_HREF,
   SET1_PMS_BACK_HREF,
-  SET1_TITLE,
   SET2_LIVE_HASHES,
   SET3_LIVE_HASHES,
   SET4_LIVE_HASHES,
@@ -130,6 +129,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
+      {card1Open ? null : (
       <div>
         <Link
           to={SET1_PMS_BACK_HREF as "/restaurant/pms"}
@@ -138,15 +138,14 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           <ArrowLeft className="size-3" /> PMS modules
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <h1 className="font-display text-3xl text-[#251605]">{SET1_TITLE}</h1>
-          <span className="rounded-full border border-[#C89933]/50 px-2.5 py-0.5 text-xs font-medium text-[#251605]">
-            {SET1_FOUNDATION_CHIP}
-          </span>
+          <h1 className="font-display text-3xl text-[#251605]">Property Setup</h1>
+          <span className="sr-only">{SET1_FOUNDATION_CHIP}</span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           Property Setup for {membership.restaurant.name}. Eight cards. Only Property & Business is Spec’d in this wave.
         </p>
       </div>
+      )}
 
       {card1Open ? (
         card1Query.isLoading ? (
