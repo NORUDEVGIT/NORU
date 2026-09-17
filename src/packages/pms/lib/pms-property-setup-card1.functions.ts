@@ -26,6 +26,8 @@ import {
   CARD1_AUDIT_COMPLETED,
   CARD1_AUDIT_DRAFT,
   CARD1_AUDIT_STEP,
+  CARD1_BRAND_IMAGE_MAX_BYTES,
+  CARD1_BRAND_IMAGE_TYPES,
   CARD1_COLUMNS_UNAVAILABLE,
   CARD1_STEPS,
   card1StepComplete,
@@ -35,6 +37,7 @@ import {
   emptyCard1Snapshot,
   emptyCurrentState,
   formatPropertyCode,
+  isHttpOrDataAsset,
   markCard1Complete,
   markStepComplete,
   markStepInProgress,
@@ -61,6 +64,7 @@ import {
   type Card1StepId,
   type PropertySetupStatus,
 } from "./pms-property-setup-card1";
+import { IMAGE_EXT_BY_TYPE, ROOM_BUCKET, signRoomImages } from "./rooms.server";
 
 const idSchema = z.string().uuid();
 
@@ -365,6 +369,25 @@ function snapshotFromRow(
       status: hotelOpen ? "OPEN" : "CLOSED",
       lastSuccessfulNightAudit,
     }),
+    logoPreviewUrl: isHttpOrDataAsset(draft.logoUrl) ? draft.logoUrl : "",
+    coverPreviewUrl: isHttpOrDataAsset(draft.coverImageUrl) ? draft.coverImageUrl : "",
+  };
+}
+
+async function withBrandPreviews(snapshot: Card1Snapshot): Promise<Card1Snapshot> {
+  const paths = [snapshot.draft.logoUrl, snapshot.draft.coverImageUrl].filter(
+    (value) => value.trim() && !isHttpOrDataAsset(value),
+  );
+  if (paths.length === 0) return snapshot;
+  const signed = await signRoomImages(paths);
+  return {
+    ...snapshot,
+    logoPreviewUrl: isHttpOrDataAsset(snapshot.draft.logoUrl)
+      ? snapshot.draft.logoUrl
+      : (signed.get(snapshot.draft.logoUrl) ?? ""),
+    coverPreviewUrl: isHttpOrDataAsset(snapshot.draft.coverImageUrl)
+      ? snapshot.draft.coverImageUrl
+      : (signed.get(snapshot.draft.coverImageUrl) ?? ""),
   };
 }
 
@@ -605,13 +628,15 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     const lastSuccessfulNightAudit = await loadLastNightAudit(supabaseAdmin, data.restaurantId);
-    const snapshot = snapshotFromRow(
-      loaded.row,
-      loaded.card1ColumnsAvailable,
-      loaded.fidelityColumnsAvailable,
-      loaded.foundationColumnsAvailable,
-      set2,
-      lastSuccessfulNightAudit,
+    const snapshot = await withBrandPreviews(
+      snapshotFromRow(
+        loaded.row,
+        loaded.card1ColumnsAvailable,
+        loaded.fidelityColumnsAvailable,
+        loaded.foundationColumnsAvailable,
+        set2,
+        lastSuccessfulNightAudit,
+      ),
     );
     return {
       snapshot,
@@ -687,13 +712,15 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
 
     const afterLoad = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
-    const after = snapshotFromRow(
-      afterLoad.row,
-      afterLoad.card1ColumnsAvailable,
-      afterLoad.fidelityColumnsAvailable,
-      afterLoad.foundationColumnsAvailable,
-      set2,
-      lastSuccessfulNightAudit,
+    const after = await withBrandPreviews(
+      snapshotFromRow(
+        afterLoad.row,
+        afterLoad.card1ColumnsAvailable,
+        afterLoad.fidelityColumnsAvailable,
+        afterLoad.foundationColumnsAvailable,
+        set2,
+        lastSuccessfulNightAudit,
+      ),
     );
     const action = data.mode === "finish" ? CARD1_AUDIT_COMPLETED : data.mode === "continue" ? CARD1_AUDIT_STEP : CARD1_AUDIT_DRAFT;
     const auditWritten = await writeAudit(supabaseAdmin, {
@@ -705,6 +732,30 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
       after,
     });
     return { ok: true as const, snapshot: after, set2, auditWritten, activated: false as const };
+  });
+
+export const createPropertyBrandImageUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        kind: z.enum(["logo", "cover"]),
+        contentType: z.enum(CARD1_BRAND_IMAGE_TYPES),
+        size: z.number().int().positive().max(CARD1_BRAND_IMAGE_MAX_BYTES),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    const ext = IMAGE_EXT_BY_TYPE[data.contentType];
+    if (!ext) return { ok: false as const, message: "Only PNG, JPG, JPEG and WEBP images are allowed." };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const path = `${data.restaurantId}/branding/${data.kind}-${crypto.randomUUID()}.${ext}`;
+    const { data: signed, error } = await supabaseAdmin.storage.from(ROOM_BUCKET).createSignedUploadUrl(path);
+    if (error || !signed) return { ok: false as const, message: "Image upload failed. Please try again." };
+    return { ok: true as const, path, token: signed.token };
   });
 
 export type { Card1Snapshot };

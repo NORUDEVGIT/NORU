@@ -15,7 +15,8 @@ import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
 
 export const CARD1_TITLE = "Property & Business";
 export const CARD1_WORKSPACE_TITLE = "Property & Business Setup";
-export const CARD1_SUBTITLE = "Complete your property information and operating details for this Card 1 setup.";
+export const CARD1_SUBTITLE =
+  "Complete your property information, operating details and compliance for your NORU setup.";
 export const CARD1_PURPOSE = "Identity, address, contacts, check-in times, business-date config, legal, tax and structure rules.";
 export const CARD1_HASH = "property-business";
 export const CARD1_HREF = `${SET1_HUB_HREF}#${CARD1_HASH}`;
@@ -33,7 +34,18 @@ export const CARD1_CAPACITY_COPY = "Capacity is derived from Room Inventory. Roo
 export const CARD1_SIDEBAR_OUT = "Card 1 uses full-screen PMS top-nav chrome. The old Settings left sidebar is out.";
 export const CARD1_STRUCTURE_CRUD_COPY = "Full hierarchy CRUD — not a Coming soon stub.";
 export const CARD1_PROPERTY_CODE_TOOLTIP = "Assigned by NORU platform";
-export const CARD1_IDENTITY_HELPER = "This information is used for property setup and compliance.";
+export const CARD1_IDENTITY_HELPER =
+  "This information is used for property setup and compliance. Opening date is required on Property Identity.";
+export const CARD1_BRANDING_HELPER =
+  "Add your brand assets and visual identity. These will be used across NORU and guest-facing channels.";
+export const CARD1_INDEPENDENT_HELPER = "This is an independently owned and operated property.";
+export const CARD1_PUBLIC_HELPER = "Show this property on public channels (e.g. booking engine, directory).";
+export const CARD1_BRAND_IMAGE_HELPER = "PNG, JPG or WEBP. Maximum 1 MB.";
+export const CARD1_BRAND_IMAGE_TYPE_ERROR = "Only PNG, JPG, JPEG and WEBP images are allowed.";
+export const CARD1_BRAND_IMAGE_SIZE_ERROR = "Image must be smaller than 1 MB.";
+export const CARD1_BRAND_IMAGE_UPLOAD_ERROR = "Image upload failed. Please try again.";
+export const CARD1_BRAND_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export const CARD1_BRAND_IMAGE_MAX_BYTES = 1024 * 1024;
 
 export const CARD1_AUDIT_DRAFT = "pms_card1_draft_saved";
 export const CARD1_AUDIT_STEP = "pms_card1_step_saved";
@@ -44,10 +56,10 @@ export const CARD1_STEPS = [
   { id: "identity", number: 1, title: "Property Identity" },
   { id: "address", number: 2, title: "Address & Location" },
   { id: "contacts", number: 3, title: "Contacts" },
-  { id: "checkin", number: 4, title: "Check-in & Check-out" },
+  { id: "checkin", number: 4, title: "Check-In & Check-Out" },
   { id: "business-date", number: 5, title: "Business Date" },
   { id: "legal", number: 6, title: "Legal Identity" },
-  { id: "tax", number: 7, title: "Tax & Documents" },
+  { id: "tax", number: 7, title: "Tax Documents" },
   { id: "structure", number: 8, title: "Property Structure" },
 ] as const;
 
@@ -184,7 +196,7 @@ export const CARD1_BRAND_AFFILIATION_LABELS: Record<Card1BrandAffiliation, strin
   hilton: "Hilton",
   sheraton: "Sheraton",
   ihg: "IHG",
-  none: "None",
+  none: "Independent / No Chain",
   other: "Other",
 };
 
@@ -193,8 +205,86 @@ export const CARD1_LANGUAGES = [
   { id: "am", label: "Amharic" },
   { id: "om", label: "Afaan Oromo" },
   { id: "ti", label: "Tigrinya" },
-  { id: "so", label: "Somali" },
+  { id: "ar", label: "Arabic" },
+  { id: "es", label: "Spanish" },
+  { id: "nl", label: "Dutch" },
+  { id: "zh", label: "Chinese" },
+  { id: "pt", label: "Portuguese" },
 ] as const;
+
+const STORED_LANGUAGE_LABELS: Record<string, string> = {
+  so: "Somali",
+};
+
+export function card1LanguageOptions(currentId: string): { id: string; label: string }[] {
+  const options: { id: string; label: string }[] = CARD1_LANGUAGES.map((row) => ({
+    id: row.id,
+    label: row.label,
+  }));
+  if (currentId && !options.some((row) => row.id === currentId)) {
+    options.push({ id: currentId, label: STORED_LANGUAGE_LABELS[currentId] ?? currentId });
+  }
+  return options;
+}
+
+export function isHttpOrDataAsset(value: string): boolean {
+  return /^(https?:\/\/|data:)/i.test(value.trim());
+}
+
+export function isBrandHex(value: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(value.trim());
+}
+
+export function isPlausibleHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function validateBrandImageFile(file: { type: string; size: number }): string | null {
+  if (!(CARD1_BRAND_IMAGE_TYPES as readonly string[]).includes(file.type)) return CARD1_BRAND_IMAGE_TYPE_ERROR;
+  if (file.size > CARD1_BRAND_IMAGE_MAX_BYTES) return CARD1_BRAND_IMAGE_SIZE_ERROR;
+  return null;
+}
+
+export type Card1IdentityFieldErrors = Partial<{
+  name: string;
+  propertyType: string;
+  businessType: string;
+  openingDate: string;
+  timezone: string;
+  currencyCode: string;
+  defaultLanguage: string;
+  websiteUrl: string;
+  primaryBrandColour: string;
+  secondaryBrandColour: string;
+  logoUrl: string;
+  coverImageUrl: string;
+}>;
+
+export function validateIdentityFields(draft: Card1Draft): Card1IdentityFieldErrors {
+  const errors: Card1IdentityFieldErrors = {};
+  if (draft.name.trim().length < 2) errors.name = "Property name is required.";
+  if (!draft.propertyType.trim()) errors.propertyType = "Property type is required.";
+  if (!draft.businessType.trim()) errors.businessType = "Business type is required.";
+  if (!draft.openingDate.trim()) errors.openingDate = "Opening date is required.";
+  if (!draft.timezone.trim()) errors.timezone = "Time zone is required.";
+  if (!draft.currencyCode.trim()) errors.currencyCode = "Primary currency is required.";
+  if (!draft.defaultLanguage.trim()) errors.defaultLanguage = "Language is required.";
+  if (draft.websiteUrl.trim() && !isPlausibleHttpUrl(draft.websiteUrl)) {
+    errors.websiteUrl = "Enter a valid website address.";
+  }
+  if (draft.primaryBrandColour.trim() && !isBrandHex(draft.primaryBrandColour.trim())) {
+    errors.primaryBrandColour = "Enter a valid HEX colour.";
+  }
+  if (draft.secondaryBrandColour.trim() && !isBrandHex(draft.secondaryBrandColour.trim())) {
+    errors.secondaryBrandColour = "Enter a valid HEX colour.";
+  }
+  return errors;
+}
 
 export const ETHIOPIA_REGIONS = [
   "Addis Ababa",
@@ -489,6 +579,8 @@ export type Card1Snapshot = {
   status: PropertySetupStatus;
   derivedCapacity: Card1DerivedCapacity;
   currentState: Card1CurrentState;
+  logoPreviewUrl: string;
+  coverPreviewUrl: string;
 };
 
 export function emptyIdentityToggles(partial?: Partial<Card1IdentityToggles>): Card1IdentityToggles {
@@ -667,6 +759,8 @@ export function emptyCard1Snapshot(partial?: Partial<Card1Snapshot>): Card1Snaps
     status: emptyPropertySetupStatus(),
     derivedCapacity: emptyDerivedCapacity(),
     currentState: emptyCurrentState(),
+    logoPreviewUrl: "",
+    coverPreviewUrl: "",
     ...partial,
   };
 }
