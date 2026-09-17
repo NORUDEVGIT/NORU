@@ -1,9 +1,9 @@
 /**
- * PMS Property Setup Card 1 — load / save Property & Business.
+ * PMS Property Setup Card 1 — load / save Property & Business (Issue #162).
  *
  * Reuses Live SET1 identity / CI-CO / legal_name / business_date and Live SET2
- * structure masters. 0062 columns are optional at runtime: missing columns
- * never crash the hub. Completing Card 1 never flips pms_set1_live.
+ * structure masters. 0062 / 0063 columns are optional at runtime: missing
+ * columns never crash the hub. Completing Card 1 never flips pms_set1_live.
  * Audit insert failure does not roll back the save.
  */
 import { createServerFn } from "@tanstack/react-start";
@@ -33,14 +33,22 @@ import {
   derivedCapacityFromSet2,
   emptyCard1Draft,
   emptyCard1Snapshot,
+  emptyCurrentState,
+  formatPropertyCode,
   markCard1Complete,
   markStepComplete,
   markStepInProgress,
   parseBusinessDateBlockers,
   parseBusinessDateConfig,
+  parseCheckinOps,
   parseDepartmentContacts,
+  parseEmergencyContact,
   parseIdentityToggles,
   parseLegalEntityType,
+  parseLegalExtras,
+  parseLocationExtras,
+  parsePropertyAreas,
+  parsePropertyCodeSeq,
   parsePropertySetupStatus,
   parseSocialContacts,
   parseStarRating,
@@ -57,10 +65,13 @@ import {
 const idSchema = z.string().uuid();
 
 const SET1_COLUMNS =
-  "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, property_code, legal_name, property_type, check_in_time, check_out_time, pms_set1_live";
+  "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, property_code, legal_name, property_type, check_in_time, check_out_time, pms_set1_live, hotel_day_open";
 
 const CARD1_COLUMNS =
   `${SET1_COLUMNS}, trading_name, star_rating, default_language, short_description, identity_toggles, brand_name, brand_code, chain_name, address_region, address_zone, address_woreda, address_kebele, address_subcity, address_house_no, latitude, longitude, full_address, whatsapp, social_contacts, department_contacts, checkin_policy_text, checkout_policy_text, early_checkin_policy_text, late_checkout_policy_text, business_date_config, business_date_blockers, legal_entity_name, legal_entity_type, registration_number, legal_upload_refs, vat_registered, vat_number, tin_number, licence_number, tax_upload_refs, structure_rules_posture, pms_property_setup_status`;
+
+const CARD1_FIDELITY_COLUMNS =
+  `${CARD1_COLUMNS}, opening_date, cover_image_url, primary_brand_colour, secondary_brand_colour, website_url, brand_affiliation, business_type, emergency_contacts, property_areas, location_extras, checkin_ops, legal_extras`;
 
 type RestaurantRow = Database["public"]["Tables"]["restaurants"]["Row"];
 type RestaurantUpdate = Database["public"]["Tables"]["restaurants"]["Update"];
@@ -73,21 +84,34 @@ const departmentSchema = z.object({
   phone: z.string().trim().max(30),
   email: z.string().trim().max(254),
 });
+const socialLinkSchema = z.object({
+  platform: z.string().trim().max(40),
+  url: z.string().trim().max(200),
+});
 
 const draftSchema = z.object({
   name: z.string().trim().min(2).max(120),
   tradingName: z.string().trim().max(160).optional().nullable(),
   propertyCode: z.string().trim().max(40).optional().nullable(),
   propertyType: z.string().trim().max(40).optional().nullable(),
+  businessType: z.string().trim().max(40).optional().nullable(),
   starRating: z.union([z.literal(""), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+  openingDate: z.string().trim().max(10).optional().nullable(),
   defaultLanguage: z.string().trim().max(16).optional().nullable(),
   shortDescription: z.string().trim().max(500).optional().nullable(),
   timezone: z.string().trim().min(1).max(64),
   currencyCode: z.string().trim().length(3),
-  logoUrl: z.string().trim().max(500).optional().nullable(),
+  logoUrl: z.string().trim().max(2000).optional().nullable(),
+  coverImageUrl: z.string().trim().max(2000).optional().nullable(),
+  primaryBrandColour: z.string().trim().max(16).optional().nullable(),
+  secondaryBrandColour: z.string().trim().max(16).optional().nullable(),
+  websiteUrl: z.string().trim().max(200).optional().nullable(),
+  brandAffiliation: z.string().trim().max(40).optional().nullable(),
   identityToggles: z.object({
     showTradingNameOnDocuments: z.boolean(),
     chainProperty: z.boolean(),
+    independentProperty: z.boolean(),
+    displayPublicly: z.boolean(),
   }),
   brandName: z.string().trim().max(160).optional().nullable(),
   brandCode: z.string().trim().max(40).optional().nullable(),
@@ -104,6 +128,11 @@ const draftSchema = z.object({
   country: z.string().trim().max(80).optional().nullable(),
   latitude: z.string().trim().max(20).optional().nullable(),
   longitude: z.string().trim().max(20).optional().nullable(),
+  locationExtras: z.object({
+    googleMapsLink: z.string().trim().max(300),
+    nearbyLandmark: z.string().trim().max(200),
+    pinVisible: z.boolean(),
+  }),
   phone: z.string().trim().max(30).optional().nullable(),
   email: z.string().trim().max(254).optional().nullable().or(z.literal("")),
   whatsapp: z.string().trim().max(30).optional().nullable(),
@@ -112,17 +141,46 @@ const draftSchema = z.object({
     facebook: z.string().trim().max(200),
     instagram: z.string().trim().max(200),
     tripadvisor: z.string().trim().max(200),
+    links: z.array(socialLinkSchema).max(20),
   }),
   departmentContacts: z.array(departmentSchema).max(20),
+  emergency: z.object({
+    name: z.string().trim().max(120),
+    phone: z.string().trim().max(30),
+    notes: z.string().trim().max(500),
+  }),
   checkInTime: z.string().trim().max(8).optional().nullable(),
   checkOutTime: z.string().trim().max(8).optional().nullable(),
   checkinPolicyText: z.string().trim().max(2000).optional().nullable(),
   checkoutPolicyText: z.string().trim().max(2000).optional().nullable(),
   earlyCheckinPolicyText: z.string().trim().max(2000).optional().nullable(),
   lateCheckoutPolicyText: z.string().trim().max(2000).optional().nullable(),
+  checkinOps: z.object({
+    minLeadTime: z.string().trim().max(40),
+    earlyCheckinPolicy: z.string().trim().max(80),
+    lateCheckoutPolicy: z.string().trim().max(80),
+    dayUseAllowed: z.boolean(),
+    frontDesk24h: z.boolean(),
+    sameDayCutoff: z.string().trim().max(8),
+    overstayGrace: z.string().trim().max(40),
+    childPolicy: z.string().trim().max(200),
+    extraBedAvailable: z.boolean(),
+    idRequiredAtCheckin: z.boolean(),
+  }),
   businessDateConfig: z.object({
     notes: z.string().trim().max(500),
     closeBlockersEnabled: z.boolean(),
+    calendarDisplay: z.enum(["gregorian", "ethiopian", "dual"]),
+    approvalRequired: z.boolean(),
+    dayBoundary: z.string().trim().max(8),
+    nightAuditWindowStart: z.string().trim().max(8),
+    nightAuditWindowEnd: z.string().trim().max(8),
+    automaticRollover: z.boolean(),
+    manualRolloverRoles: z.array(z.string().trim().max(40)).max(8),
+    lockDuringAudit: z.boolean(),
+    reservationSellDateRule: z.string().trim().max(40),
+    housekeepingBoardDate: z.string().trim().max(40),
+    frontOfficeDeskDate: z.string().trim().max(40),
   }),
   businessDateBlockers: z.array(z.string().trim().max(120)).max(20),
   legalName: z.string().trim().max(160).optional().nullable(),
@@ -130,6 +188,10 @@ const draftSchema = z.object({
   legalEntityType: z.enum(["", "plc", "private_limited", "sole_proprietor", "partnership", "other"]),
   registrationNumber: z.string().trim().max(80).optional().nullable(),
   legalUploadRefs: z.array(uploadRefSchema).max(12),
+  legalExtras: z.object({
+    ownershipType: z.string().trim().max(80),
+    incorporationDate: z.string().trim().max(10),
+  }),
   vatRegistered: z.boolean(),
   vatNumber: z.string().trim().max(80).optional().nullable(),
   tinNumber: z.string().trim().max(80).optional().nullable(),
@@ -139,7 +201,11 @@ const draftSchema = z.object({
     buildingRequired: z.boolean(),
     wingOptional: z.boolean(),
     floorRequired: z.boolean(),
+    roomCodeFormat: z.string().trim().max(40),
+    autoNumbering: z.boolean(),
+    duplicateCodePrevention: z.boolean(),
   }),
+  propertyAreas: z.array(z.string().trim().max(40)).max(24),
 });
 
 const saveSchema = z.object({
@@ -154,23 +220,82 @@ function text(row: RestaurantRow | null, key: keyof RestaurantRow): string {
   return value == null ? "" : String(value);
 }
 
+function calendarDate(timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function localTime(timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(11, 16);
+  }
+}
+
+async function loadLastNightAudit(supabaseAdmin: Admin, restaurantId: string): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("night_audit_runs")
+    .select("closed_at, business_date, status")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "closed")
+    .order("closed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return "";
+  return String(data.closed_at ?? data.business_date ?? "");
+}
+
+async function assignPropertyCode(supabaseAdmin: Admin, current: string): Promise<string> {
+  if (parsePropertyCodeSeq(current) != null) return current.trim().toUpperCase();
+  const { data } = await supabaseAdmin.from("restaurants").select("property_code");
+  let max = 0;
+  for (const row of data ?? []) {
+    const seq = parsePropertyCodeSeq(String(row.property_code ?? ""));
+    if (seq != null && seq > max) max = seq;
+  }
+  return formatPropertyCode(max + 1);
+}
+
 function snapshotFromRow(
   row: RestaurantRow | null,
   card1ColumnsAvailable: boolean,
+  fidelityColumnsAvailable: boolean,
   foundationColumnsAvailable: boolean,
   set2: Set2Snapshot,
+  lastSuccessfulNightAudit = "",
 ): Card1Snapshot {
+  const social = parseSocialContacts(card1ColumnsAvailable ? row?.social_contacts : null);
   const draft = emptyCard1Draft({
     name: String(row?.name ?? ""),
     tradingName: card1ColumnsAvailable ? text(row, "trading_name") : "",
     propertyCode: foundationColumnsAvailable ? text(row, "property_code") : "",
     propertyType: foundationColumnsAvailable ? text(row, "property_type") : "",
+    businessType: fidelityColumnsAvailable ? text(row, "business_type") : "",
     starRating: card1ColumnsAvailable ? parseStarRating(row?.star_rating) : "",
+    openingDate: fidelityColumnsAvailable ? text(row, "opening_date") : "",
     defaultLanguage: card1ColumnsAvailable ? text(row, "default_language") || "en" : "en",
     shortDescription: card1ColumnsAvailable ? text(row, "short_description") : "",
     timezone: String(row?.timezone ?? DEFAULT_TIMEZONE),
     currencyCode: String(row?.currency_code ?? DEFAULT_CURRENCY),
     logoUrl: String(row?.logo_url ?? ""),
+    coverImageUrl: fidelityColumnsAvailable ? text(row, "cover_image_url") : "",
+    primaryBrandColour: fidelityColumnsAvailable ? text(row, "primary_brand_colour") : "",
+    secondaryBrandColour: fidelityColumnsAvailable ? text(row, "secondary_brand_colour") : "",
+    websiteUrl: fidelityColumnsAvailable ? text(row, "website_url") : social.website,
+    brandAffiliation: fidelityColumnsAvailable ? text(row, "brand_affiliation") : "",
     identityToggles: parseIdentityToggles(card1ColumnsAvailable ? row?.identity_toggles : null),
     brandName: card1ColumnsAvailable ? text(row, "brand_name") : "",
     brandCode: card1ColumnsAvailable ? text(row, "brand_code") : "",
@@ -187,17 +312,20 @@ function snapshotFromRow(
     country: String(row?.country ?? "Ethiopia"),
     latitude: card1ColumnsAvailable && row?.latitude != null ? String(row.latitude) : "",
     longitude: card1ColumnsAvailable && row?.longitude != null ? String(row.longitude) : "",
+    locationExtras: parseLocationExtras(fidelityColumnsAvailable ? row?.location_extras : null),
     phone: String(row?.phone ?? ""),
     email: String(row?.email ?? ""),
     whatsapp: card1ColumnsAvailable ? text(row, "whatsapp") : "",
-    social: parseSocialContacts(card1ColumnsAvailable ? row?.social_contacts : null),
+    social,
     departmentContacts: card1ColumnsAvailable ? parseDepartmentContacts(row?.department_contacts) : [],
+    emergency: parseEmergencyContact(fidelityColumnsAvailable ? row?.emergency_contacts : null),
     checkInTime: foundationColumnsAvailable ? normalizeClock(String(row?.check_in_time ?? "")) : "",
     checkOutTime: foundationColumnsAvailable ? normalizeClock(String(row?.check_out_time ?? "")) : "",
     checkinPolicyText: card1ColumnsAvailable ? text(row, "checkin_policy_text") : "",
     checkoutPolicyText: card1ColumnsAvailable ? text(row, "checkout_policy_text") : "",
     earlyCheckinPolicyText: card1ColumnsAvailable ? text(row, "early_checkin_policy_text") : "",
     lateCheckoutPolicyText: card1ColumnsAvailable ? text(row, "late_checkout_policy_text") : "",
+    checkinOps: parseCheckinOps(fidelityColumnsAvailable ? row?.checkin_ops : null),
     businessDateConfig: parseBusinessDateConfig(card1ColumnsAvailable ? row?.business_date_config : null),
     businessDateBlockers: card1ColumnsAvailable ? parseBusinessDateBlockers(row?.business_date_blockers) : [],
     legalName: foundationColumnsAvailable ? text(row, "legal_name") : "",
@@ -205,41 +333,78 @@ function snapshotFromRow(
     legalEntityType: card1ColumnsAvailable ? parseLegalEntityType(row?.legal_entity_type) : "",
     registrationNumber: card1ColumnsAvailable ? text(row, "registration_number") : "",
     legalUploadRefs: card1ColumnsAvailable ? parseUploadRefs(row?.legal_upload_refs) : [],
+    legalExtras: parseLegalExtras(fidelityColumnsAvailable ? row?.legal_extras : null),
     vatRegistered: card1ColumnsAvailable ? row?.vat_registered === true : false,
     vatNumber: card1ColumnsAvailable ? text(row, "vat_number") : "",
     tinNumber: card1ColumnsAvailable ? text(row, "tin_number") : "",
     licenceNumber: card1ColumnsAvailable ? text(row, "licence_number") : "",
     taxUploadRefs: card1ColumnsAvailable ? parseUploadRefs(row?.tax_upload_refs) : [],
     structureRules: parseStructureRules(card1ColumnsAvailable ? row?.structure_rules_posture : null),
+    propertyAreas: parsePropertyAreas(fidelityColumnsAvailable ? row?.property_areas : null),
   });
   draft.fullAddress = card1ColumnsAvailable && text(row, "full_address") ? text(row, "full_address") : composeFullAddress(draft);
   const status = card1ColumnsAvailable
     ? parsePropertySetupStatus(row?.pms_property_setup_status)
     : emptyCard1Snapshot().status;
+  const timezone = draft.timezone;
+  const hotelOpen = foundationColumnsAvailable ? row?.hotel_day_open !== false : true;
   return {
     draft,
     businessDate: row?.business_date ?? null,
-    timezone: draft.timezone,
+    timezone,
     pmsSet1Live: foundationColumnsAvailable ? row?.pms_set1_live === true : false,
     card1ColumnsAvailable,
+    fidelityColumnsAvailable,
     foundationColumnsAvailable,
     status,
     derivedCapacity: derivedCapacityFromSet2(set2),
+    currentState: emptyCurrentState({
+      businessDate: row?.business_date ?? null,
+      systemDate: calendarDate(timezone),
+      propertyLocalTime: localTime(timezone),
+      status: hotelOpen ? "OPEN" : "CLOSED",
+      lastSuccessfulNightAudit,
+    }),
   };
 }
 
 async function loadRestaurantRow(
   supabaseAdmin: Admin,
   restaurantId: string,
-): Promise<{ row: RestaurantRow | null; card1ColumnsAvailable: boolean; foundationColumnsAvailable: boolean }> {
+): Promise<{
+  row: RestaurantRow | null;
+  card1ColumnsAvailable: boolean;
+  fidelityColumnsAvailable: boolean;
+  foundationColumnsAvailable: boolean;
+}> {
+  const fidelity = await supabaseAdmin.from("restaurants").select(CARD1_FIDELITY_COLUMNS).eq("id", restaurantId).maybeSingle();
+  if (!fidelity.error) {
+    return {
+      row: (fidelity.data as RestaurantRow | null) ?? null,
+      card1ColumnsAvailable: true,
+      fidelityColumnsAvailable: true,
+      foundationColumnsAvailable: true,
+    };
+  }
+  if (!isMissingColumnError(fidelity.error)) throw new Error(fidelity.error.message);
   const full = await supabaseAdmin.from("restaurants").select(CARD1_COLUMNS).eq("id", restaurantId).maybeSingle();
   if (!full.error) {
-    return { row: (full.data as RestaurantRow | null) ?? null, card1ColumnsAvailable: true, foundationColumnsAvailable: true };
+    return {
+      row: (full.data as RestaurantRow | null) ?? null,
+      card1ColumnsAvailable: true,
+      fidelityColumnsAvailable: false,
+      foundationColumnsAvailable: true,
+    };
   }
   if (!isMissingColumnError(full.error)) throw new Error(full.error.message);
   const foundation = await supabaseAdmin.from("restaurants").select(SET1_COLUMNS).eq("id", restaurantId).maybeSingle();
   if (!foundation.error) {
-    return { row: (foundation.data as RestaurantRow | null) ?? null, card1ColumnsAvailable: false, foundationColumnsAvailable: true };
+    return {
+      row: (foundation.data as RestaurantRow | null) ?? null,
+      card1ColumnsAvailable: false,
+      fidelityColumnsAvailable: false,
+      foundationColumnsAvailable: true,
+    };
   }
   if (!isMissingColumnError(foundation.error)) throw new Error(foundation.error.message);
   const core = await supabaseAdmin
@@ -248,7 +413,12 @@ async function loadRestaurantRow(
     .eq("id", restaurantId)
     .maybeSingle();
   if (core.error) throw new Error(core.error.message);
-  return { row: (core.data as RestaurantRow | null) ?? null, card1ColumnsAvailable: false, foundationColumnsAvailable: false };
+  return {
+    row: (core.data as RestaurantRow | null) ?? null,
+    card1ColumnsAvailable: false,
+    fidelityColumnsAvailable: false,
+    foundationColumnsAvailable: false,
+  };
 }
 
 async function writeAudit(
@@ -281,15 +451,22 @@ async function writeAudit(
   return true;
 }
 
-function draftFromSave(data: z.infer<typeof draftSchema>): Card1Draft {
+function draftFromSave(data: z.infer<typeof draftSchema>, propertyCode: string): Card1Draft {
   const draft = emptyCard1Draft({
     ...data,
+    propertyCode,
     tradingName: data.tradingName ?? "",
-    propertyCode: data.propertyCode ?? "",
     propertyType: data.propertyType ?? "",
+    businessType: data.businessType ?? "",
+    openingDate: data.openingDate ?? "",
     defaultLanguage: data.defaultLanguage || "en",
     shortDescription: data.shortDescription ?? "",
     logoUrl: data.logoUrl ?? "",
+    coverImageUrl: data.coverImageUrl ?? "",
+    primaryBrandColour: data.primaryBrandColour ?? "",
+    secondaryBrandColour: data.secondaryBrandColour ?? "",
+    websiteUrl: data.websiteUrl ?? "",
+    brandAffiliation: data.brandAffiliation ?? "",
     brandName: data.brandName ?? "",
     brandCode: data.brandCode ?? "",
     chainName: data.chainName ?? "",
@@ -325,7 +502,12 @@ function draftFromSave(data: z.infer<typeof draftSchema>): Card1Draft {
   return draft;
 }
 
-function card1Patch(draft: Card1Draft, status: PropertySetupStatus, foundationColumnsAvailable: boolean): RestaurantUpdate {
+function card1Patch(
+  draft: Card1Draft,
+  status: PropertySetupStatus,
+  foundationColumnsAvailable: boolean,
+  fidelityColumnsAvailable: boolean,
+): RestaurantUpdate {
   const patch: RestaurantUpdate = {
     name: draft.name,
     email: draft.email.trim() || null,
@@ -355,7 +537,7 @@ function card1Patch(draft: Card1Draft, status: PropertySetupStatus, foundationCo
     longitude: optionalNumber(draft.longitude),
     full_address: composeFullAddress(draft) || null,
     whatsapp: draft.whatsapp.trim() || null,
-    social_contacts: draft.social as unknown as Json,
+    social_contacts: { links: draft.social.links } as unknown as Json,
     department_contacts: draft.departmentContacts as unknown as Json,
     checkin_policy_text: draft.checkinPolicyText.trim() || null,
     checkout_policy_text: draft.checkoutPolicyText.trim() || null,
@@ -375,6 +557,20 @@ function card1Patch(draft: Card1Draft, status: PropertySetupStatus, foundationCo
     structure_rules_posture: draft.structureRules as unknown as Json,
     pms_property_setup_status: status as unknown as Json,
   };
+  if (fidelityColumnsAvailable) {
+    patch.opening_date = draft.openingDate.trim() || null;
+    patch.cover_image_url = draft.coverImageUrl.trim() || null;
+    patch.primary_brand_colour = draft.primaryBrandColour.trim() || null;
+    patch.secondary_brand_colour = draft.secondaryBrandColour.trim() || null;
+    patch.website_url = draft.websiteUrl.trim() || null;
+    patch.brand_affiliation = draft.brandAffiliation.trim() || null;
+    patch.business_type = draft.businessType.trim() || null;
+    patch.emergency_contacts = draft.emergency as unknown as Json;
+    patch.property_areas = draft.propertyAreas as unknown as Json;
+    patch.location_extras = draft.locationExtras as unknown as Json;
+    patch.checkin_ops = draft.checkinOps as unknown as Json;
+    patch.legal_extras = draft.legalExtras as unknown as Json;
+  }
   if (foundationColumnsAvailable) {
     patch.property_code = draft.propertyCode.trim() || null;
     patch.legal_name = draft.legalName.trim() || null;
@@ -408,7 +604,15 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
-    const snapshot = snapshotFromRow(loaded.row, loaded.card1ColumnsAvailable, loaded.foundationColumnsAvailable, set2);
+    const lastSuccessfulNightAudit = await loadLastNightAudit(supabaseAdmin, data.restaurantId);
+    const snapshot = snapshotFromRow(
+      loaded.row,
+      loaded.card1ColumnsAvailable,
+      loaded.fidelityColumnsAvailable,
+      loaded.foundationColumnsAvailable,
+      set2,
+      lastSuccessfulNightAudit,
+    );
     return {
       snapshot,
       set2,
@@ -424,15 +628,34 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
 
-    const draft = draftFromSave(data.draft);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
+    const assignedCode = await assignPropertyCode(supabaseAdmin, loaded.row?.property_code ? String(loaded.row.property_code) : "");
+    const draft = draftFromSave(data.draft, assignedCode);
     if (data.mode !== "draft" && vatCertificateRequired(draft.vatRegistered) && !hasVatCertificate(draft.taxUploadRefs)) {
       throw new Error("VAT certificate is required while VAT Registered is On.");
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2Before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
-    const before = snapshotFromRow(loaded.row, loaded.card1ColumnsAvailable, loaded.foundationColumnsAvailable, set2Before);
+    const lastSuccessfulNightAudit = await loadLastNightAudit(supabaseAdmin, data.restaurantId);
+    const before = snapshotFromRow(
+      loaded.row,
+      loaded.card1ColumnsAvailable,
+      loaded.fidelityColumnsAvailable,
+      loaded.foundationColumnsAvailable,
+      set2Before,
+      lastSuccessfulNightAudit,
+    );
+
+    if (data.mode !== "draft" && !card1StepComplete(data.step, draft, set2Before)) {
+      if (data.step === "identity" && !draft.openingDate.trim()) {
+        throw new Error("Opening Date is required to complete Property Identity.");
+      }
+      if (data.step === "contacts" && (!draft.emergency.name.trim() || !draft.emergency.phone.trim())) {
+        throw new Error("Emergency contact name and phone are required to complete Contacts.");
+      }
+      throw new Error("Complete the required fields on this step before continuing.");
+    }
 
     let status = before.status;
     if (data.mode === "finish") {
@@ -446,7 +669,7 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
     }
 
     const patch = loaded.card1ColumnsAvailable
-      ? card1Patch(draft, status, loaded.foundationColumnsAvailable)
+      ? card1Patch(draft, status, loaded.foundationColumnsAvailable, loaded.fidelityColumnsAvailable)
       : corePatch(draft);
     if ("pms_set1_live" in patch) delete patch.pms_set1_live;
     if ("business_date" in patch) delete patch.business_date;
@@ -464,7 +687,14 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
 
     const afterLoad = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
-    const after = snapshotFromRow(afterLoad.row, afterLoad.card1ColumnsAvailable, afterLoad.foundationColumnsAvailable, set2);
+    const after = snapshotFromRow(
+      afterLoad.row,
+      afterLoad.card1ColumnsAvailable,
+      afterLoad.fidelityColumnsAvailable,
+      afterLoad.foundationColumnsAvailable,
+      set2,
+      lastSuccessfulNightAudit,
+    );
     const action = data.mode === "finish" ? CARD1_AUDIT_COMPLETED : data.mode === "continue" ? CARD1_AUDIT_STEP : CARD1_AUDIT_DRAFT;
     const auditWritten = await writeAudit(supabaseAdmin, {
       restaurantId: data.restaurantId,

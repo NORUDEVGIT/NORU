@@ -125,25 +125,49 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
 
   const buildingsRes = await supabaseAdmin
     .from("hotel_buildings")
-    .select("id, code, name, active")
+    .select("id, code, name, active, floor_count, building_type, description, location, status")
     .eq("restaurant_id", restaurantId)
     .order("name");
-  if (buildingsRes.error && isMissingSchemaError(buildingsRes.error)) {
+  const buildingsCore =
+    buildingsRes.error && isMissingSchemaError(buildingsRes.error)
+      ? await supabaseAdmin.from("hotel_buildings").select("id, code, name, active").eq("restaurant_id", restaurantId).order("name")
+      : buildingsRes;
+  if (buildingsCore.error && isMissingSchemaError(buildingsCore.error)) {
     snapshot.structureColumnsAvailable = false;
-  } else if (buildingsRes.error) {
-    throw new Error(buildingsRes.error.message);
+  } else if (buildingsCore.error) {
+    throw new Error(buildingsCore.error.message);
   } else {
     snapshot.structureColumnsAvailable = true;
-    snapshot.buildings = (buildingsRes.data ?? []) as HotelBuilding[];
+    snapshot.buildings = ((buildingsCore.data ?? []) as Array<{
+      id: string;
+      code: string;
+      name: string;
+      active: boolean;
+      floor_count?: number | null;
+      building_type?: string | null;
+      description?: string | null;
+      location?: string | null;
+      status?: string | null;
+    }>).map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      active: row.active,
+      floorCount: row.floor_count ?? null,
+      buildingType: String(row.building_type ?? ""),
+      description: String(row.description ?? ""),
+      location: String(row.location ?? ""),
+      status: String(row.status ?? (row.active ? "active" : "inactive")),
+    }));
     const [floorsRes, wingsRes, roomsRes] = await Promise.all([
       supabaseAdmin
         .from("hotel_floors")
-        .select("id, building_id, code, name, active")
+        .select("id, building_id, code, name, active, floor_number, description, status, wing_id")
         .eq("restaurant_id", restaurantId)
         .order("name"),
       supabaseAdmin
         .from("hotel_wings")
-        .select("id, name, active, parent_building_id, parent_floor_id")
+        .select("id, name, active, parent_building_id, parent_floor_id, code, description, status")
         .eq("restaurant_id", restaurantId)
         .order("name"),
       supabaseAdmin
@@ -151,33 +175,63 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
         .select("id, active, building_id, floor_id, wing_id, building")
         .eq("restaurant_id", restaurantId),
     ]);
-    if (floorsRes.error && !isMissingSchemaError(floorsRes.error)) throw new Error(floorsRes.error.message);
-    if (wingsRes.error && !isMissingSchemaError(wingsRes.error)) throw new Error(wingsRes.error.message);
-    snapshot.floors = ((floorsRes.data ?? []) as Array<{
+    const floorsCore =
+      floorsRes.error && isMissingSchemaError(floorsRes.error)
+        ? await supabaseAdmin
+            .from("hotel_floors")
+            .select("id, building_id, code, name, active")
+            .eq("restaurant_id", restaurantId)
+            .order("name")
+        : floorsRes;
+    const wingsCore =
+      wingsRes.error && isMissingSchemaError(wingsRes.error)
+        ? await supabaseAdmin
+            .from("hotel_wings")
+            .select("id, name, active, parent_building_id, parent_floor_id")
+            .eq("restaurant_id", restaurantId)
+            .order("name")
+        : wingsRes;
+    if (floorsCore.error && !isMissingSchemaError(floorsCore.error)) throw new Error(floorsCore.error.message);
+    if (wingsCore.error && !isMissingSchemaError(wingsCore.error)) throw new Error(wingsCore.error.message);
+    snapshot.floors = ((floorsCore.data ?? []) as Array<{
       id: string;
       building_id: string;
       code: string;
       name: string;
       active: boolean;
+      floor_number?: number | null;
+      description?: string | null;
+      status?: string | null;
+      wing_id?: string | null;
     }>).map((row) => ({
       id: row.id,
       buildingId: row.building_id,
       code: row.code,
       name: row.name,
       active: row.active,
+      floorNumber: row.floor_number ?? null,
+      description: String(row.description ?? ""),
+      status: String(row.status ?? (row.active ? "active" : "inactive")),
+      wingId: row.wing_id ?? null,
     }));
-    snapshot.wings = ((wingsRes.data ?? []) as Array<{
+    snapshot.wings = ((wingsCore.data ?? []) as Array<{
       id: string;
       name: string;
       active: boolean;
       parent_building_id: string | null;
       parent_floor_id: string | null;
+      code?: string | null;
+      description?: string | null;
+      status?: string | null;
     }>).map((row) => ({
       id: row.id,
       name: row.name,
       active: row.active,
       parentBuildingId: row.parent_building_id,
       parentFloorId: row.parent_floor_id,
+      code: String(row.code ?? ""),
+      description: String(row.description ?? ""),
+      status: String(row.status ?? (row.active ? "active" : "inactive")),
     }));
     if (roomsRes.error && isMissingSchemaError(roomsRes.error)) {
       const textOnly = await supabaseAdmin
@@ -257,6 +311,11 @@ const buildingSchema = z.object({
   code: z.string().trim().min(1).max(20),
   name: z.string().trim().min(1).max(120),
   active: z.boolean(),
+  floorCount: z.number().int().min(0).max(200).optional().nullable(),
+  buildingType: z.string().trim().max(80).optional().nullable(),
+  description: z.string().trim().max(500).optional().nullable(),
+  location: z.string().trim().max(160).optional().nullable(),
+  status: z.string().trim().max(40).optional().nullable(),
 });
 
 const floorSchema = z.object({
@@ -266,6 +325,10 @@ const floorSchema = z.object({
   code: z.string().trim().min(1).max(20),
   name: z.string().trim().min(1).max(120),
   active: z.boolean(),
+  floorNumber: z.number().int().min(-5).max(200).optional().nullable(),
+  description: z.string().trim().max(500).optional().nullable(),
+  status: z.string().trim().max(40).optional().nullable(),
+  wingId: idSchema.optional().nullable(),
 });
 
 const wingSchema = z.object({
@@ -275,6 +338,9 @@ const wingSchema = z.object({
   active: z.boolean(),
   parentBuildingId: idSchema.optional().nullable(),
   parentFloorId: idSchema.optional().nullable(),
+  code: z.string().trim().max(20).optional().nullable(),
+  description: z.string().trim().max(500).optional().nullable(),
+  status: z.string().trim().max(40).optional().nullable(),
 });
 
 export const saveHotelBuilding = createServerFn({ method: "POST" })
@@ -291,10 +357,21 @@ export const saveHotelBuilding = createServerFn({ method: "POST" })
       code: data.code.toUpperCase(),
       name: data.name,
       active: data.active,
+      floor_count: data.floorCount ?? null,
+      building_type: data.buildingType?.trim() || null,
+      description: data.description?.trim() || null,
+      location: data.location?.trim() || null,
+      status: data.status?.trim() || (data.active ? "active" : "inactive"),
     };
-    const result = data.id
+    let result = data.id
       ? await supabaseAdmin.from("hotel_buildings").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("hotel_buildings").insert(payload);
+    if (result.error && isMissingSchemaError(result.error)) {
+      const core = { restaurant_id: data.restaurantId, code: data.code.toUpperCase(), name: data.name, active: data.active };
+      result = data.id
+        ? await supabaseAdmin.from("hotel_buildings").update(core).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        : await supabaseAdmin.from("hotel_buildings").insert(core);
+    }
     if (result.error) {
       if (result.error.code === "23505") throw new Error("That building code is already used.");
       if (isMissingSchemaError(result.error)) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -334,10 +411,26 @@ export const saveHotelFloor = createServerFn({ method: "POST" })
       code: data.code.toUpperCase(),
       name: data.name,
       active: data.active,
+      floor_number: data.floorNumber ?? null,
+      description: data.description?.trim() || null,
+      status: data.status?.trim() || (data.active ? "active" : "inactive"),
+      wing_id: data.wingId || null,
     };
-    const result = data.id
+    let result = data.id
       ? await supabaseAdmin.from("hotel_floors").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("hotel_floors").insert(payload);
+    if (result.error && isMissingSchemaError(result.error)) {
+      const core = {
+        restaurant_id: data.restaurantId,
+        building_id: data.buildingId,
+        code: data.code.toUpperCase(),
+        name: data.name,
+        active: data.active,
+      };
+      result = data.id
+        ? await supabaseAdmin.from("hotel_floors").update(core).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        : await supabaseAdmin.from("hotel_floors").insert(core);
+    }
     if (result.error) {
       if (result.error.code === "23505") throw new Error("That floor code is already used in this building.");
       if (isMissingSchemaError(result.error)) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -382,10 +475,25 @@ export const saveHotelWing = createServerFn({ method: "POST" })
       active: data.active,
       parent_building_id: parentBuildingId,
       parent_floor_id: parentFloorId,
+      code: data.code?.trim().toUpperCase() || null,
+      description: data.description?.trim() || null,
+      status: data.status?.trim() || (data.active ? "active" : "inactive"),
     };
-    const result = data.id
+    let result = data.id
       ? await supabaseAdmin.from("hotel_wings").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("hotel_wings").insert(payload);
+    if (result.error && isMissingSchemaError(result.error)) {
+      const core = {
+        restaurant_id: data.restaurantId,
+        name: data.name,
+        active: data.active,
+        parent_building_id: parentBuildingId,
+        parent_floor_id: parentFloorId,
+      };
+      result = data.id
+        ? await supabaseAdmin.from("hotel_wings").update(core).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        : await supabaseAdmin.from("hotel_wings").insert(core);
+    }
     if (result.error) {
       if (result.error.code === "23505") throw new Error("That wing name is already used.");
       if (isMissingSchemaError(result.error)) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -551,7 +659,19 @@ export const ensureSingleBuildingAssist = createServerFn({ method: "POST" })
           .select("id, code, name, active")
           .maybeSingle();
         if (created.error) throw new Error(created.error.message);
-        if (created.data) building = created.data as HotelBuilding;
+        if (created.data) {
+          building = {
+            id: created.data.id,
+            code: created.data.code,
+            name: created.data.name,
+            active: created.data.active,
+            floorCount: null,
+            buildingType: "",
+            description: "",
+            location: "",
+            status: "active",
+          };
+        }
       }
       if (building) {
         const existingFloor = before.floors.find(
