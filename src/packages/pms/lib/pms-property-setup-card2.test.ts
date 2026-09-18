@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { SET1_HUB_HREF, isSet1SectionHash, propertySetupRedirectHref } from "./pms-set1-foundation.ts";
 import { PROPERTY_SETUP_CARDS } from "./pms-property-setup-card1.ts";
@@ -19,6 +21,7 @@ import {
   resolveCard2Hash,
 } from "./pms-property-setup-card2.ts";
 
+const here = dirname(fileURLToPath(import.meta.url));
 const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
 const section = readFileSync(new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url), "utf8");
 const chrome = readFileSync(new URL("../components/settings/pms-property-setup-workspace.tsx", import.meta.url), "utf8");
@@ -62,17 +65,78 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.equal(propertySetupRedirectHref("#rooms"), `${SET1_HUB_HREF}#rooms`);
   });
 
-  it("opens from the hub with Card 1 chrome, a status rail, and a disabled draft save", () => {
+  it("opens from the hub with Card 1 chrome, a status rail, and a draft save", () => {
     assert.match(hub, /PmsPropertySetupCard2Section/);
-    assert.match(hub, /property-setup-card-\$\{card.number\}/);
+    assert.match(hub, /restaurantId=\{restaurantId\}/);
+    assert.match(hub, /card2Steps=/);
     assert.match(section, /testIdPrefix="pms-card2"/);
+    assert.match(section, /PmsPropertySetupCard2RoomTypes/);
+    assert.match(section, /onSaveDraft/);
     assert.match(chrome, /Setup Progress/);
     assert.match(chrome, /Save Draft/);
     assert.match(chrome, /Save & Continue/);
-    assert.match(chrome, /sticky/);
+    assert.match(chrome, /onSaveDraft/);
+    assert.match(chrome, /pointer-events-none/);
+    assert.match(chrome, /\[&>\*\]:pointer-events-auto/);
+    assert.match(chrome, /pb-28/);
     assert.match(settings, /isCard2WorkspaceHash/);
     assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
     assert.match(card1Ui, /pms-card1-fullscreen/);
     assert.doesNotMatch(card1Ui, /PmsPropertySetupWorkspace/);
+  });
+
+  it("ships dual-lane 0064 without live apply, operational rewrite, or sample seed", () => {
+    const drizzle064 = join(here, "../../../../drizzle/migrations/0064_pms_card2_room_types_rooms.sql");
+    const supabase064 = join(here, "../../../../supabase/migrations/0064_pms_card2_room_types_rooms.sql");
+    assert.equal(existsSync(drizzle064), true);
+    assert.equal(existsSync(supabase064), true);
+    const drizzle = readFileSync(drizzle064, "utf8");
+    const supabase = readFileSync(supabase064, "utf8");
+    assert.equal(drizzle, supabase);
+    assert.match(drizzle, /APPLY AFTER MERGE/);
+    assert.match(drizzle, /do not apply to production from an agent/i);
+    assert.match(drizzle, /room_type_beds/);
+    assert.match(drizzle, /hotel_room_links/);
+    assert.match(drizzle, /maintenance_status/);
+    assert.match(drizzle, /maintenance_required/);
+    assert.match(drizzle, /room_features/);
+    assert.match(drizzle, /default_building_id/);
+    assert.match(drizzle, /preferred_floor_id/);
+    assert.match(drizzle, /hotel_rooms_code_unique/);
+    assert.doesNotMatch(drizzle, /CREATE FUNCTION/);
+    assert.match(drizzle, /No SECURITY DEFINER/);
+    assert.doesNotMatch(drizzle, /DROP COLUMN IF EXISTS status/);
+    assert.match(drizzle, /Operational status only/);
+    assert.doesNotMatch(drizzle, /INSERT INTO public\.hotel_rooms/);
+  });
+});
+
+describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
+  it("calls live room APIs and keeps later steps as placeholders", () => {
+    const ui = readFileSync(new URL("../components/settings/pms-property-setup-card2-room-types.tsx", import.meta.url), "utf8");
+    const sectionSrc = readFileSync(new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url), "utf8");
+    assert.match(ui, /saveRoomType/);
+    assert.match(ui, /saveRoom/);
+    assert.match(ui, /bulkCreateRooms/);
+    assert.match(ui, /evaluateCard2RoomTypesReadiness/);
+    assert.match(ui, /listRoomTypes/);
+    assert.match(ui, /listRooms/);
+    assert.match(ui, /sequentialRoomLabels/);
+    assert.match(ui, /cascadeLocationIds/);
+    assert.match(ui, /wingsForBuilding/);
+    assert.match(ui, /floorsForBuildingAndWing/);
+    assert.match(ui, /scroll-mb-32/);
+    assert.match(ui, /changed: "building"/);
+    assert.match(ui, /changed: "wing"/);
+    assert.doesNotMatch(ui, /pmsDb/);
+    assert.doesNotMatch(ui, /localStorage/);
+    assert.match(ui, /Bed configuration/);
+    assert.match(ui, /Bulk room generation/);
+    assert.match(ui, /Connecting \/ adjacent/);
+    assert.match(ui, /maintenanceStatus/);
+    assert.match(ui, /housekeepingStatus/);
+    assert.match(sectionSrc, /step === "room-types"/);
+    assert.match(sectionSrc, /current.placeholder/);
+    assert.doesNotMatch(sectionSrc, /Amenities configuration will be implemented in Phase 1/);
   });
 });

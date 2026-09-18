@@ -37,6 +37,7 @@ export function PmsPropertySetupWorkspace({
   saveDraftDisabled = false,
   continueDisabled = false,
   continuePending = false,
+  onSaveDraft,
   onContinue,
 }: {
   testIdPrefix: string;
@@ -58,6 +59,7 @@ export function PmsPropertySetupWorkspace({
   saveDraftDisabled?: boolean;
   continueDisabled?: boolean;
   continuePending?: boolean;
+  onSaveDraft?: () => void;
   onContinue: () => void;
 }) {
   return (
@@ -121,7 +123,7 @@ export function PmsPropertySetupWorkspace({
           })}
         </ol>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem]">
+        <div className="grid gap-4 pb-28 xl:grid-cols-[minmax(0,1fr)_17.5rem]">
           <div className="min-w-0">{children}</div>
           <aside
             className="space-y-3 xl:sticky xl:top-4 xl:self-start"
@@ -166,13 +168,13 @@ export function PmsPropertySetupWorkspace({
         </div>
 
         <div
-          className="sticky bottom-0 z-10 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-[#CCCCCC] bg-[#F7F4EE]/95 py-3"
+          className="pointer-events-none sticky bottom-0 z-10 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-[#CCCCCC] bg-[#F7F4EE]/95 py-3 [&>*]:pointer-events-auto"
           data-testid={`${testIdPrefix}-chrome`}
         >
           <Button type="button" variant="outline" onClick={onBack}>
             Back
           </Button>
-          <Button type="button" variant="outline" disabled={saveDraftDisabled}>
+          <Button type="button" variant="outline" disabled={saveDraftDisabled} onClick={() => onSaveDraft?.()}>
             Save Draft
           </Button>
           <Button

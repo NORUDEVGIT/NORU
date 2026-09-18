@@ -12,6 +12,7 @@
 
 import { SET1_HUB_HREF, displayedBusinessDate, normalizeClock } from "./pms-set1-foundation.ts";
 import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
+import { CARD2_STEPS, type Card2StepId } from "./pms-property-setup-card2.ts";
 import {
   countryNameFromInput,
   isRegionValidForCountry,
@@ -471,10 +472,12 @@ export type Card1StructureRules = {
 };
 
 export type Card1StepStatusMap = Partial<Record<Card1StepId, PropertySetupCardStatus>>;
+export type Card2StepStatusMap = Partial<Record<Card2StepId, PropertySetupCardStatus>>;
 
 export type PropertySetupStatus = {
   cards: Partial<Record<PropertySetupCardId, PropertySetupCardStatus>>;
   card1Steps: Card1StepStatusMap;
+  card2Steps?: Card2StepStatusMap;
 };
 
 export type Card1DerivedCapacity = {
@@ -643,7 +646,7 @@ export function emptyStructureRules(partial?: Partial<Card1StructureRules>): Car
 }
 
 export function emptyPropertySetupStatus(partial?: Partial<PropertySetupStatus>): PropertySetupStatus {
-  return { cards: {}, card1Steps: {}, ...partial };
+  return { cards: {}, card1Steps: {}, card2Steps: {}, ...partial };
 }
 
 export function emptyDerivedCapacity(partial?: Partial<Card1DerivedCapacity>): Card1DerivedCapacity {
@@ -1027,7 +1030,7 @@ export function parseCardStatus(value: unknown): PropertySetupCardStatus {
 
 export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
   if (!value || typeof value !== "object") return emptyPropertySetupStatus();
-  const rec = value as { cards?: unknown; card1Steps?: unknown };
+  const rec = value as { cards?: unknown; card1Steps?: unknown; card2Steps?: unknown };
   const cards: PropertySetupStatus["cards"] = {};
   if (rec.cards && typeof rec.cards === "object") {
     for (const card of PROPERTY_SETUP_CARDS) {
@@ -1042,7 +1045,14 @@ export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
       if (raw != null) card1Steps[step.id] = parseCardStatus(raw);
     }
   }
-  return { cards, card1Steps };
+  const card2Steps: Card2StepStatusMap = {};
+  if (rec.card2Steps && typeof rec.card2Steps === "object") {
+    for (const step of CARD2_STEPS) {
+      const raw = (rec.card2Steps as Record<string, unknown>)[step.id];
+      if (raw != null) card2Steps[step.id] = parseCardStatus(raw);
+    }
+  }
+  return { cards, card1Steps, card2Steps };
 }
 
 function plausiblePhone(value: string): boolean {
@@ -1251,12 +1261,13 @@ export function markStepInProgress(status: PropertySetupStatus, step: Card1StepI
   return {
     cards: { ...status.cards, "property-business": "in_progress" },
     card1Steps: { ...status.card1Steps, [step]: status.card1Steps[step] === "complete" ? "complete" : "in_progress" },
+    card2Steps: { ...(status.card2Steps ?? {}) },
   };
 }
 
 export function markStepComplete(status: PropertySetupStatus, step: Card1StepId, draft: Card1Draft, set2?: Pick<Set2Snapshot, "buildings" | "floors">): PropertySetupStatus {
   const nextSteps = { ...status.card1Steps, [step]: card1StepComplete(step, draft, set2) ? "complete" : "in_progress" };
-  const next: PropertySetupStatus = { cards: { ...status.cards }, card1Steps: nextSteps };
+  const next: PropertySetupStatus = { cards: { ...status.cards }, card1Steps: nextSteps, card2Steps: { ...(status.card2Steps ?? {}) } };
   next.cards["property-business"] = evaluateCard1Status(draft, next, set2);
   return next;
 }
@@ -1267,5 +1278,6 @@ export function markCard1Complete(status: PropertySetupStatus): PropertySetupSta
   return {
     cards: { ...status.cards, "property-business": "complete" },
     card1Steps,
+    card2Steps: { ...(status.card2Steps ?? {}) },
   };
 }

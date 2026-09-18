@@ -20,6 +20,7 @@ import {
   normalizeClock,
   optionalNumber,
 } from "./pms-set1-foundation";
+import { persistCard2RoomTypesReadiness } from "./rooms.functions";
 import { loadSet2Snapshot } from "./pms-set2-structure.functions";
 import type { Set2Snapshot } from "./pms-set2-structure";
 import {
@@ -638,6 +639,15 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
         lastSuccessfulNightAudit,
       ),
     );
+    if (canEditSet1(me.role) && loaded.card1ColumnsAvailable) {
+      await persistCard2RoomTypesReadiness(supabaseAdmin, data.restaurantId);
+      const { data: refreshed } = await supabaseAdmin
+        .from("restaurants")
+        .select("pms_property_setup_status")
+        .eq("id", data.restaurantId)
+        .maybeSingle();
+      snapshot.status = parsePropertySetupStatus(refreshed?.pms_property_setup_status);
+    }
     return {
       snapshot,
       set2,

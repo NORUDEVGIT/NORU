@@ -175,6 +175,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
         )
       ) : card2Open ? (
         <PmsPropertySetupCard2Section
+          restaurantId={restaurantId}
           cardStatus={
             card1Query.data
               ? evaluateProgrammeCardStatus(
@@ -184,6 +185,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 )
               : "not_started"
           }
+          card2Steps={card1Query.data?.snapshot.status.card2Steps ?? {}}
           canEdit={canEdit}
         />
       ) : section ? (
