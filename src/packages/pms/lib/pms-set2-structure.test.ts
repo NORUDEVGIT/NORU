@@ -173,7 +173,7 @@ describe("PMS-SET2 RI deep-link and hub unmute", () => {
     assert.deepEqual(SET1_COMING_SOON, []);
 
     const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
-    assert.match(hub, /SET1_HUB_HREF}#\$\{card\.id/);
+    assert.match(hub, /SET1_HUB_HREF}#\$\{card\.hash/);
     assert.match(hub, /Configure/);
     assert.match(hub, /section === "structure"/);
     assert.match(hub, /section === "rooms"/);

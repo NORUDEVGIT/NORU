@@ -13,6 +13,7 @@
 import { SET1_HUB_HREF, displayedBusinessDate, normalizeClock } from "./pms-set1-foundation.ts";
 import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
 import { CARD2_STEPS, type Card2StepId } from "./pms-property-setup-card2.ts";
+import { CARD6_HASH, CARD6_PURPOSE, CARD6_TITLE } from "./pms-property-setup-card6.ts";
 import {
   countryNameFromInput,
   isRegionValidForCountry,
@@ -131,10 +132,10 @@ export const PROPERTY_SETUP_CARDS = [
   {
     id: "notifications-security",
     number: 6,
-    title: "Connectivity & Distribution",
-    purpose: "Integrations and Distribution.",
-    specced: false,
-    hash: null,
+    title: CARD6_TITLE,
+    purpose: CARD6_PURPOSE,
+    specced: true,
+    hash: CARD6_HASH,
   },
   {
     id: "sales-distribution",

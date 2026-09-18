@@ -27,7 +27,8 @@ export const SET5_GUEST_SERVICES_HREF = "/restaurant/pms/guest-services";
 export const SET5_NOTIFICATIONS_HREF = "/restaurant/pms/notifications";
 export const SET5_ADMIN_HREF = "/restaurant/pms/administration";
 export const SET5_SECURITY_HREF = "/restaurant/pms/security-audit";
-export const SET5_INTEGRATIONS_HREF = "/restaurant/settings#integrations";
+/** Card 6 owns integration setup. The honesty board below stays at #integrations. */
+export const SET5_INTEGRATIONS_HREF = "/restaurant/settings#connectivity-distribution";
 export const SET5_INTEGRATIONS_ALIAS = "/restaurant/pms/integrations";
 
 export const SET5_DEPTS_UNAVAILABLE = "Unavailable — department catalogues are not applied yet.";
