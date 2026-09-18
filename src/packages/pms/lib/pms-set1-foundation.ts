@@ -315,6 +315,9 @@ export function propertySetupRedirectHref(hash = ""): string {
   if (raw === "card-2" || raw === "card2" || raw === "rooms-inventory") {
     return `${SET1_HUB_HREF}#rooms-inventory`;
   }
+  if (raw === "card-3" || raw === "card3" || raw === "financial-commercial") {
+    return `${SET1_HUB_HREF}#financial-commercial`;
+  }
   const resolved = resolveSet1SectionHash(raw);
   if (resolved) return `${SET1_HUB_HREF}#${resolved}`;
   return `${SET1_HUB_HREF}#${raw}`;
