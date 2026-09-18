@@ -11,6 +11,10 @@ import {
   PmsPropertySetupCard2Inventory,
   type InventoryRailStats,
 } from "@/packages/pms/components/settings/pms-property-setup-card2-inventory";
+import {
+  PmsPropertySetupCard2Maintenance,
+  type MaintenanceRailStats,
+} from "@/packages/pms/components/settings/pms-property-setup-card2-maintenance";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   CARD1_PMS_NAV,
@@ -69,6 +73,10 @@ export function PmsPropertySetupCard2Section({
     card2Steps?.["inventory-rules"] ?? "not_started",
   );
   const [inventoryStats, setInventoryStats] = useState<InventoryRailStats | null>(null);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<PropertySetupCardStatus>(
+    card2Steps?.maintenance ?? "not_started",
+  );
+  const [maintenanceStats, setMaintenanceStats] = useState<MaintenanceRailStats | null>(null);
   const [continuePending, setContinuePending] = useState(false);
   const actionsRef = useRef<{ saveDraft: () => Promise<boolean>; saveAndContinue: () => Promise<boolean> } | null>(
     null,
@@ -82,6 +90,7 @@ export function PmsPropertySetupCard2Section({
     amenities: amenitiesStatus,
     housekeeping: housekeepingStatus,
     "inventory-rules": inventoryStatus,
+    maintenance: maintenanceStatus,
   };
   const completedCount = card2CompletedCount(stepStatuses);
   const progressPct = card2ProgressPct(stepStatuses);
@@ -103,6 +112,9 @@ export function PmsPropertySetupCard2Section({
   const onInventoryReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
     setInventoryStatus(status);
   }, []);
+  const onMaintenanceReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
+    setMaintenanceStatus(status);
+  }, []);
 
   function goBack() {
     const previous = previousCard2Step(step);
@@ -120,7 +132,8 @@ export function PmsPropertySetupCard2Section({
       step === "room-types" ||
       step === "amenities" ||
       step === "housekeeping" ||
-      step === "inventory-rules"
+      step === "inventory-rules" ||
+      step === "maintenance"
     ) {
       setContinuePending(true);
       const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
@@ -240,6 +253,44 @@ export function PmsPropertySetupCard2Section({
       </>
     ) : null;
 
+  const maintenanceRail =
+    step === "maintenance" && maintenanceStats ? (
+      <>
+        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Maintenance Status</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">
+            {amenitiesStatusLabel(maintenanceStats.stepStatus, maintenanceStats.blockers)}
+          </p>
+        </section>
+        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Status Rules Configured</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{maintenanceStats.configuredStatusRules} / 6</p>
+          <p className="mt-2 text-xs text-muted-foreground">OOS Policy</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">
+            {maintenanceStats.oosPolicyConfigured ? "Enabled" : "Disabled"}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">OOO Policy</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">
+            {maintenanceStats.oooPolicyConfigured ? "Enabled" : "Disabled"}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Preventive Maintenance</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">
+            {maintenanceStats.preventiveMaintenanceEnabled ? "Enabled" : "Disabled"}
+          </p>
+        </section>
+        {maintenanceStats.blockers.length > 0 ? (
+          <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+            <p className="text-xs text-muted-foreground">Blockers</p>
+            <ul className="mt-1 list-disc pl-4 text-sm text-[#251605]">
+              {maintenanceStats.blockers.map((row) => (
+                <li key={row}>{row}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </>
+    ) : null;
+
   return (
     <PmsPropertySetupWorkspace
       testIdPrefix="pms-card2"
@@ -258,7 +309,7 @@ export function PmsPropertySetupCard2Section({
       progressPct={progressPct}
       completedCount={completedCount}
       currentSection={current.title}
-      nextStepTitle={next ? card2StepById(next).title : null}
+      nextStepTitle={next ? card2StepById(next).title : "Card 2 Review"}
       cardStatusLabel={propertySetupStatusLabel(cardStatus === "complete" ? "in_progress" : cardStatus)}
       progressLabel="Rooms & Operations Progress"
       onBack={goBack}
@@ -267,13 +318,14 @@ export function PmsPropertySetupCard2Section({
         (step !== "room-types" &&
           step !== "amenities" &&
           step !== "housekeeping" &&
-          step !== "inventory-rules")
+          step !== "inventory-rules" &&
+          step !== "maintenance")
       }
       onSaveDraft={() => void actionsRef.current?.saveDraft()}
-      continueDisabled={!canEdit || !next}
+      continueDisabled={!canEdit}
       continuePending={continuePending}
       onContinue={() => void goContinue()}
-      railExtras={inventoryRail ?? housekeepingRail ?? amenitiesRail}
+      railExtras={maintenanceRail ?? inventoryRail ?? housekeepingRail ?? amenitiesRail}
     >
       {step === "room-types" ? (
         <PmsPropertySetupCard2RoomTypes
@@ -309,6 +361,16 @@ export function PmsPropertySetupCard2Section({
           restaurantId={restaurantId}
           canEdit={canEdit}
           onReadiness={onHousekeepingReadiness}
+          registerActions={(actions) => {
+            actionsRef.current = actions;
+          }}
+        />
+      ) : step === "maintenance" ? (
+        <PmsPropertySetupCard2Maintenance
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onReadiness={onMaintenanceReadiness}
+          onStats={setMaintenanceStats}
           registerActions={(actions) => {
             actionsRef.current = actions;
           }}

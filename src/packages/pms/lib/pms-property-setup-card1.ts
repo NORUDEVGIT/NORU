@@ -27,7 +27,8 @@ export const CARD1_TITLE = "Property & Business";
 export const CARD1_WORKSPACE_TITLE = "Property & Business Setup";
 export const CARD1_SUBTITLE =
   "Complete your property information, operating details and compliance for your NORU setup.";
-export const CARD1_PURPOSE = "Identity, address, contacts, check-in times, business-date config, legal, tax and structure rules.";
+export const CARD1_PURPOSE =
+  "Identity & Branding, Check-In & Check-Out, Business Date, Property Structure.";
 export const CARD1_HASH = "property-business";
 export const CARD1_HREF = `${SET1_HUB_HREF}#${CARD1_HASH}`;
 export const CARD1_ROOMS_HREF = SET2_RI_ROOMS_HREF;
@@ -99,55 +100,55 @@ export const PROPERTY_SETUP_CARDS = [
     id: "rooms-inventory",
     number: 2,
     title: "Rooms & Operations",
-    purpose: "Configure room types, physical rooms, amenities, housekeeping, inventory and maintenance rules.",
+    purpose: "Rooms & Room Types, Amenities, Housekeeping Rules, Room Inventory Rules, Maintenance Rules.",
     specced: true,
     hash: "rooms-inventory",
   },
   {
     id: "rates-guest-rules",
     number: 3,
-    title: "Rates & Guest Rules",
-    purpose: "Rate plans, meal plans and guest-profile rules. Programme context — not Spec’d in this wave.",
+    title: "Financial & Commercial",
+    purpose: "Taxes, Policies & Fees, Rates & Meal Plans, Payment Methods.",
     specced: false,
     hash: null,
   },
   {
     id: "housekeeping-maintenance",
     number: 4,
-    title: "Housekeeping & Maintenance",
-    purpose: "Housekeeping statuses, OOO/OOS and maintenance categories. Programme context — not Spec’d in this wave.",
+    title: "Guest & Services",
+    purpose: "Guest Profile Rules, Guest Service Types, Notifications & Communication.",
     specced: false,
     hash: null,
   },
   {
     id: "departments-services",
     number: 5,
-    title: "Departments & Guest Services",
-    purpose: "Departments, work centres and guest-request types. Programme context — not Spec’d in this wave.",
+    title: "Organization & Facilities",
+    purpose: "Departments, Outlets & Facilities, Sales & Events.",
     specced: false,
     hash: null,
   },
   {
     id: "notifications-security",
     number: 6,
-    title: "Notifications & Security",
-    purpose: "Channels, templates and session/audit posture. Programme context — not Spec’d in this wave.",
+    title: "Connectivity & Distribution",
+    purpose: "Integrations and Distribution.",
     specced: false,
     hash: null,
   },
   {
     id: "sales-distribution",
     number: 7,
-    title: "Sales & Distribution",
-    purpose: "Market segments, source codes and channel posture. Programme context — not Spec’d in this wave.",
+    title: "Security, Data & Reports",
+    purpose: "Security & Roles, Audit, Reports & Analytics, Data Import & Migration.",
     specced: false,
     hash: null,
   },
   {
     id: "payments-administration",
     number: 8,
-    title: "Payments & Administration",
-    purpose: "Payment methods, shifts and thin HR. Programme context — not Spec’d in this wave.",
+    title: "System & Go-Live",
+    purpose: "Offline & Sync, System Validation, Go-Live, Property Activation.",
     specced: false,
     hash: null,
   },
