@@ -1,28 +1,44 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
-import { CARD1_PMS_NAV, propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
+import { CARD1_PMS_NAV, propertySetupStatusLabel, type PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   CARD3_DOMAIN_PLACEHOLDER,
   CARD3_DOMAINS,
   CARD3_PROGRESS_DETAIL,
   CARD3_PROGRESS_LABEL,
-  CARD3_PROGRESS_PERCENT,
   CARD3_SIDEBAR_OUT,
   CARD3_SUBTITLE,
   CARD3_WORKSPACE_TITLE,
   type Card3DomainId,
 } from "@/packages/pms/lib/pms-property-setup-card3";
 import { Card3DomainIcon, PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
+import { PmsPropertySetupCard3Currency } from "@/packages/pms/components/settings/pms-property-setup-card3-currency";
+import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
 
-/**
- * Card 3 landing + placeholder domain navigation. Phase 0 only.
- */
-export function PmsPropertySetupCard3Section() {
+export function PmsPropertySetupCard3Section({
+  restaurantId,
+  canEdit,
+}: {
+  restaurantId: string;
+  canEdit: boolean;
+}) {
   const [activeDomain, setActiveDomain] = useState<Card3DomainId | null>(null);
   const domain = CARD3_DOMAINS.find((row) => row.id === activeDomain) ?? null;
+  const loadCurrency = useServerFn(getCurrencyCard3);
+  const currencyQuery = useQuery({
+    queryKey: ["pms-card3-currency", restaurantId],
+    queryFn: () => loadCurrency({ data: { restaurantId } }),
+  });
+  const currencyStatus: PropertySetupCardStatus = currencyQuery.data?.readiness.status ?? "not_started";
+  const completeCount = currencyStatus === "complete" ? 1 : 0;
+  const progressPct = Math.round((completeCount / CARD3_DOMAINS.length) * 100);
+  const progressLabel = completeCount === 0 ? CARD3_PROGRESS_LABEL : propertySetupStatusLabel(currencyStatus);
+  const progressDetail = completeCount === 0 ? CARD3_PROGRESS_DETAIL : `${completeCount} of 8 domains configured`;
 
   function goBackToHub() {
     window.location.hash = "";
@@ -59,7 +75,14 @@ export function PmsPropertySetupCard3Section() {
       </nav>
 
       <div className="px-4 py-5 sm:px-6" data-testid="pms-card3-fullscreen">
-        {domain ? (
+        {domain?.id === "currency-financial-settings" ? (
+          <PmsPropertySetupCard3Currency
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            domain={domain}
+            onBack={() => setActiveDomain(null)}
+          />
+        ) : domain ? (
           <PmsPropertySetupCard3Workspace domain={domain} onBack={() => setActiveDomain(null)}>
             <div
               className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8 text-center"
@@ -95,52 +118,56 @@ export function PmsPropertySetupCard3Section() {
                   Configuration Progress
                 </h2>
                 <span className="rounded-full border border-[#CCCCCC] bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                  {propertySetupStatusLabel("not_started")}
+                  {progressLabel}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">{CARD3_PROGRESS_DETAIL}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{progressDetail}</p>
               <div
                 className="mt-3 h-2 overflow-hidden rounded-full bg-[#EFE8DC]"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={CARD3_PROGRESS_PERCENT}
-                aria-valuetext={`${CARD3_PROGRESS_PERCENT}% ${CARD3_PROGRESS_LABEL}`}
+                aria-valuenow={progressPct}
+                aria-valuetext={`${progressPct}% ${progressLabel}`}
               >
-                <div className="h-full w-0 rounded-full bg-[#C89933]" />
+                <div className="h-full rounded-full bg-[#C89933]" style={{ width: `${progressPct}%` }} />
               </div>
               <p className="mt-2 text-sm font-medium text-[#251605]">
-                {CARD3_PROGRESS_PERCENT}% · {CARD3_PROGRESS_LABEL}
+                {progressPct}% · {progressLabel}
               </p>
             </section>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="pms-card3-domain-grid">
-              {CARD3_DOMAINS.map((item) => (
-                <article
-                  key={item.id}
-                  className="flex flex-col rounded-2xl border border-border bg-white p-5 shadow-sm"
-                  data-testid={`pms-card3-domain-card-${item.id}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#E6D7B8] bg-[#C89933]/10 text-[#251605]">
-                      <Card3DomainIcon icon={item.icon} className="size-5" />
-                    </span>
-                    <span className="shrink-0 rounded-full border border-[#CCCCCC] bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      {propertySetupStatusLabel("not_started")}
-                    </span>
-                  </div>
-                  <h2 className="mt-3 font-display text-lg leading-snug text-[#251605]">{item.title}</h2>
-                  <p className="mt-2 flex-1 text-sm text-muted-foreground">{item.description}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-4 w-full border-[#C89933] text-[#251605] hover:bg-[#C89933]/10 focus-visible:ring-[#C89933] sm:w-auto"
-                    onClick={() => setActiveDomain(item.id)}
+              {CARD3_DOMAINS.map((item) => {
+                const status: PropertySetupCardStatus =
+                  item.id === "currency-financial-settings" ? currencyStatus : "not_started";
+                return (
+                  <article
+                    key={item.id}
+                    className="flex flex-col rounded-2xl border border-border bg-white p-5 shadow-sm"
+                    data-testid={`pms-card3-domain-card-${item.id}`}
                   >
-                    Open
-                  </Button>
-                </article>
-              ))}
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#E6D7B8] bg-[#C89933]/10 text-[#251605]">
+                        <Card3DomainIcon icon={item.icon} className="size-5" />
+                      </span>
+                      <span className="shrink-0 rounded-full border border-[#CCCCCC] bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                        {propertySetupStatusLabel(status)}
+                      </span>
+                    </div>
+                    <h2 className="mt-3 font-display text-lg leading-snug text-[#251605]">{item.title}</h2>
+                    <p className="mt-2 flex-1 text-sm text-muted-foreground">{item.description}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-4 w-full border-[#C89933] text-[#251605] hover:bg-[#C89933]/10 focus-visible:ring-[#C89933] sm:w-auto"
+                      onClick={() => setActiveDomain(item.id)}
+                    >
+                      Open
+                    </Button>
+                  </article>
+                );
+              })}
             </div>
           </div>
         )}

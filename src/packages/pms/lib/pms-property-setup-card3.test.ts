@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -105,22 +105,34 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
   });
 
-  it("does not add schema, migrations, APIs, or financial persistence", () => {
-    const drizzleDir = join(here, "../../../../drizzle/migrations");
-    const supabaseDir = join(here, "../../../../supabase/migrations");
-    const drizzleHits = existsSync(drizzleDir)
-      ? readdirSync(drizzleDir).filter((name) => /card3|financial-commercial/i.test(name))
-      : [];
-    const supabaseHits = existsSync(supabaseDir)
-      ? readdirSync(supabaseDir).filter((name) => /card3|financial-commercial/i.test(name))
-      : [];
-    assert.deepEqual(drizzleHits, []);
-    assert.deepEqual(supabaseHits, []);
+  it("authors dual-lane 0070 without applying APIs, Card 1 ownership, or a currency activity table", () => {
+    const drizzle = join(here, "../../../../drizzle/migrations/0070_pms_card3_currency_financial.sql");
+    const supabase = join(here, "../../../../supabase/migrations/0070_pms_card3_currency_financial.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_property_currencies/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_exchange_rates/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_financial_settings/);
+    assert.doesNotMatch(sql, /CREATE TABLE IF NOT EXISTS public\.pms_currency_activity/);
+    assert.doesNotMatch(sql, /^\s+is_base\b/m);
+    assert.match(sql, /quote currency units per 1 base currency unit/);
+    assert.match(sql, /quote_currency_code/);
+    assert.match(sql, /pms_exchange_rates_rate_positive CHECK \(rate > 0\)/);
+    assert.match(sql, /source IN \('manual', 'bank', 'system'\)/);
+    assert.match(sql, /fiscal_year_start_month BETWEEN 1 AND 12/);
+    assert.match(sql, /fiscal_year_start_day BETWEEN 1 AND 31/);
+    assert.match(sql, /restaurant_staff_audit_log/);
+    assert.doesNotMatch(sql, /ALTER TABLE public\.restaurants/);
+    assert.doesNotMatch(sql, /UPDATE public\.restaurants/);
+    assert.match(sql, /is_restaurant_member\(restaurant_id\)/);
+    assert.match(sql, /has_restaurant_role\(restaurant_id, 'owner'\)/);
+    assert.match(sql, /WITH CHECK/);
+    assert.match(sql, /IN THE PR ONLY/);
     assert.equal(existsSync(join(here, "./pms-property-setup-card3.functions.ts")), false);
     assert.equal(existsSync(join(here, "./pms-property-setup-card3.server.ts")), false);
     assert.doesNotMatch(lib, /pmsDb|createServerFn|from\("pms_/);
-    assert.doesNotMatch(section, /pmsDb|createServerFn|useServerFn/);
     assert.doesNotMatch(workspace, /pmsDb|createServerFn/);
-    assert.doesNotMatch(section, /Room Types|primary currency|Inventory Rules/);
   });
 });

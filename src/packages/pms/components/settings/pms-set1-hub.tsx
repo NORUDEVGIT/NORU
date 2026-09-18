@@ -213,7 +213,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           canEdit={canEdit}
         />
       ) : card3Open ? (
-        <PmsPropertySetupCard3Section />
+        <PmsPropertySetupCard3Section restaurantId={restaurantId} canEdit={canEdit} />
       ) : card6Open ? (
         <PmsPropertySetupCard6Section restaurantId={restaurantId} canEdit={canEdit} />
       ) : section ? (
