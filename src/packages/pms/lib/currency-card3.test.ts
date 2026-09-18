@@ -96,7 +96,7 @@ describe("Card 3 Phase 1 currency readiness", () => {
     assert.doesNotMatch(types, /pms_property_currencies/);
   });
 
-  it("keeps five currency tabs and leaves Taxes as a Phase 0 placeholder", () => {
+  it("keeps five currency tabs and leaves remaining Card 3 domains as placeholders", () => {
     assert.deepEqual(
       CARD3_CURRENCY_TABS.map((tab) => tab.label),
       ["Overview", "Currencies", "Exchange Rates", "Financial Calendar", "Settings"],

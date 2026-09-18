@@ -135,4 +135,38 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.doesNotMatch(lib, /pmsDb|createServerFn|from\("pms_/);
     assert.doesNotMatch(workspace, /pmsDb|createServerFn/);
   });
+
+  it("authors dual-lane 0071 Taxes & Fees masters without SET1, snapshots, or applied exemptions", () => {
+    const drizzle = join(here, "../../../../drizzle/migrations/0071_pms_card3_taxes_fees.sql");
+    const supabase = join(here, "../../../../supabase/migrations/0071_pms_card3_taxes_fees.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_taxes/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_tax_groups/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_tax_group_taxes/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_service_charges/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_fees/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_tax_exemption_rules/);
+    assert.doesNotMatch(sql, /CREATE TABLE IF NOT EXISTS public\.pms_tax_exemptions\b/);
+    assert.doesNotMatch(sql, /CREATE TABLE IF NOT EXISTS public\.pms_tax_activity/);
+    assert.doesNotMatch(sql, /ALTER TABLE public\.restaurants/);
+    assert.doesNotMatch(sql, /UPDATE public\.restaurants/);
+    assert.doesNotMatch(sql, /\breservation_id\b/);
+    assert.doesNotMatch(sql, /\bfolio_id\b/);
+    assert.match(sql, /pms_taxes_charge_type_check CHECK \(charge_type IN \('percentage', 'fixed'\)\)/);
+    assert.match(sql, /pms_taxes_calculation_check CHECK \(calculation IN \('inclusive', 'exclusive'\)\)/);
+    assert.match(sql, /pms_tax_group_taxes_mapping_unique UNIQUE \(tax_group_id, tax_id\)/);
+    assert.match(sql, /REFERENCES public\.pms_tax_groups \(id, restaurant_id\)/);
+    assert.match(sql, /REFERENCES public\.pms_taxes \(id, restaurant_id\)/);
+    assert.match(sql, /documentation_required/);
+    assert.match(sql, /approval_required/);
+    assert.match(sql, /restaurant_staff_audit_log/);
+    assert.match(sql, /is_restaurant_member\(restaurant_id\)/);
+    assert.match(sql, /has_restaurant_role\(restaurant_id, 'owner'\)/);
+    assert.match(sql, /WITH CHECK/);
+    assert.match(sql, /IN THE PR ONLY/);
+    assert.doesNotMatch(sql, /ALTER TABLE public\.restaurants/);
+  });
 });

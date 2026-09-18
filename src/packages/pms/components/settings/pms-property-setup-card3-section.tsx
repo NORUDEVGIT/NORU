@@ -18,7 +18,9 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card3";
 import { Card3DomainIcon, PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import { PmsPropertySetupCard3Currency } from "@/packages/pms/components/settings/pms-property-setup-card3-currency";
+import { PmsPropertySetupCard3Taxes } from "@/packages/pms/components/settings/pms-property-setup-card3-taxes";
 import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
+import { getTaxesCard3 } from "@/packages/pms/lib/taxes-card3.functions";
 
 export function PmsPropertySetupCard3Section({
   restaurantId,
@@ -30,14 +32,20 @@ export function PmsPropertySetupCard3Section({
   const [activeDomain, setActiveDomain] = useState<Card3DomainId | null>(null);
   const domain = CARD3_DOMAINS.find((row) => row.id === activeDomain) ?? null;
   const loadCurrency = useServerFn(getCurrencyCard3);
+  const loadTaxes = useServerFn(getTaxesCard3);
   const currencyQuery = useQuery({
     queryKey: ["pms-card3-currency", restaurantId],
     queryFn: () => loadCurrency({ data: { restaurantId } }),
   });
+  const taxesQuery = useQuery({
+    queryKey: ["pms-card3-taxes", restaurantId],
+    queryFn: () => loadTaxes({ data: { restaurantId } }),
+  });
   const currencyStatus: PropertySetupCardStatus = currencyQuery.data?.readiness.status ?? "not_started";
-  const completeCount = currencyStatus === "complete" ? 1 : 0;
+  const taxesStatus: PropertySetupCardStatus = taxesQuery.data?.readiness.status ?? "not_started";
+  const completeCount = [currencyStatus, taxesStatus].filter((status) => status === "complete").length;
   const progressPct = Math.round((completeCount / CARD3_DOMAINS.length) * 100);
-  const progressLabel = completeCount === 0 ? CARD3_PROGRESS_LABEL : propertySetupStatusLabel(currencyStatus);
+  const progressLabel = completeCount === 0 ? CARD3_PROGRESS_LABEL : "In Progress";
   const progressDetail = completeCount === 0 ? CARD3_PROGRESS_DETAIL : `${completeCount} of 8 domains configured`;
 
   function goBackToHub() {
@@ -77,6 +85,13 @@ export function PmsPropertySetupCard3Section({
       <div className="px-4 py-5 sm:px-6" data-testid="pms-card3-fullscreen">
         {domain?.id === "currency-financial-settings" ? (
           <PmsPropertySetupCard3Currency
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            domain={domain}
+            onBack={() => setActiveDomain(null)}
+          />
+        ) : domain?.id === "taxes-fees" ? (
+          <PmsPropertySetupCard3Taxes
             restaurantId={restaurantId}
             canEdit={canEdit}
             domain={domain}
@@ -140,7 +155,11 @@ export function PmsPropertySetupCard3Section({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="pms-card3-domain-grid">
               {CARD3_DOMAINS.map((item) => {
                 const status: PropertySetupCardStatus =
-                  item.id === "currency-financial-settings" ? currencyStatus : "not_started";
+                  item.id === "currency-financial-settings"
+                    ? currencyStatus
+                    : item.id === "taxes-fees"
+                      ? taxesStatus
+                      : "not_started";
                 return (
                   <article
                     key={item.id}
