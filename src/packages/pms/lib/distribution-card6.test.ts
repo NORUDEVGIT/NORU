@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 import {
   DIRECT_CHANNEL_CODE,
+  DEFAULT_DISTRIBUTION_SYNC_CONFIG,
   mappingStatusAfterSave,
   mappingStatusAfterToggle,
   summarizeDistribution,
@@ -15,8 +16,10 @@ import {
   distributionChannel,
   distributionProvider,
   draftHasBlockingErrors,
+  distributionSyncCapabilities,
   isEligibleDistributionIntegration,
   validateDistributionDraft,
+  validateDistributionSyncConfig,
 } from "./distribution-catalog.ts";
 import { CARD6_TABS } from "./pms-property-setup-card6.ts";
 
@@ -96,15 +99,16 @@ describe("Card 6 distribution eligibility and honesty", () => {
     assert.match(functions, /status: "not_connected"/);
   });
 
-  it("keeps Last Sync empty and Sync Now disabled", () => {
+  it("keeps external Sync Now disabled and does not invent results", () => {
     const tab = readFileSync(
       new URL("../components/settings/pms-card6-distribution-tab.tsx", import.meta.url),
       "utf8",
     );
-    assert.match(tab, /LAST_SYNC_PHASE3_NOTICE/);
+    assert.match(tab, /external sync service is not connected/i);
     assert.match(tab, /Sync now/);
-    assert.match(tab, /disabled title=\{SYNC_PHASE3_NOTICE\}/);
+    assert.match(tab, /disabled title=\{SYNC_SERVICE_NOTICE\}/);
     assert.doesNotMatch(tab, /Today 10:24/);
+    assert.doesNotMatch(tab, /records processed:\s*128/i);
   });
 });
 
@@ -247,14 +251,59 @@ describe("Card 6 distribution wiring", () => {
 });
 
 describe("Card 6 distribution summary", () => {
-  it("counts pending and attention and keeps connected at zero", () => {
+  it("counts operationally active, pending and attention configurations", () => {
     assert.deepEqual(
       summarizeDistribution([
-        { mappingStatus: "pending" },
-        { mappingStatus: "attention" },
-        { mappingStatus: "disabled" },
+        { mappingStatus: "pending", activationStatus: "active" },
+        { mappingStatus: "pending", activationStatus: "inactive" },
+        { mappingStatus: "attention", activationStatus: "inactive" },
+        { mappingStatus: "disabled", activationStatus: "inactive" },
       ]),
-      { total: 3, connected: 0, pending: 1, attention: 1 },
+      { total: 4, connected: 1, pending: 1, attention: 1 },
     );
+  });
+});
+
+describe("Card 6 Phase 3 sync configuration", () => {
+  it("uses channel capabilities and blocks activation with no enabled sync type", () => {
+    const capabilities = distributionSyncCapabilities("aiosell", "booking_com");
+    assert.ok(capabilities);
+    assert.equal(capabilities.manualSync, false);
+    assert.equal(capabilities.retry, false);
+    assert.equal(capabilities.restrictions.supported, false);
+    assert.equal(
+      draftHasBlockingErrors(
+        validateDistributionSyncConfig(DEFAULT_DISTRIBUTION_SYNC_CONFIG, capabilities),
+      ),
+      true,
+    );
+    assert.equal(
+      draftHasBlockingErrors(
+        validateDistributionSyncConfig(
+          {
+            ...DEFAULT_DISTRIBUTION_SYNC_CONFIG,
+            inventory: { ...DEFAULT_DISTRIBUTION_SYNC_CONFIG.inventory, enabled: true },
+          },
+          capabilities,
+        ),
+      ),
+      false,
+    );
+  });
+
+  it("ships byte-identical dual-lane 0071 without fake history tables", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0071_pms_card6_distribution_sync.sql");
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0071_pms_card6_distribution_sync.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /sync_config/);
+    assert.match(sql, /sync_active/);
+    assert.match(sql, /activated_at/);
+    assert.doesNotMatch(sql, /sync_runs|sync_errors|INSERT INTO/);
   });
 });

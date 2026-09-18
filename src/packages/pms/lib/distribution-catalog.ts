@@ -8,6 +8,7 @@
 
 import {
   isSelectableDistributionIntegration,
+  type DistributionSyncConfig,
   type DistributionDraft,
   type MappingPair,
   type NamedEntity,
@@ -28,6 +29,34 @@ export const DISTRIBUTION_PROVIDER_KIND_LABELS: Record<DistributionProviderKind,
 
 export type CatalogEntity = { id: string; label: string };
 
+export type DistributionSyncCapabilities = {
+  inventory: {
+    supported: boolean;
+    availability: boolean;
+    roomStatus: boolean;
+    outOfOrder: boolean;
+    outOfService: boolean;
+  };
+  rates: {
+    supported: boolean;
+    rateUpdates: boolean;
+    baseRates: boolean;
+    derivedRates: boolean;
+  };
+  restrictions: {
+    supported: boolean;
+    minimumStay: boolean;
+    maximumStay: boolean;
+    closedToArrival: boolean;
+    closedToDeparture: boolean;
+    stopSell: boolean;
+  };
+  frequencies: readonly ["manual"];
+  automaticSync: false;
+  manualSync: false;
+  retry: false;
+};
+
 export type DistributionChannelDef = {
   id: string;
   label: string;
@@ -35,7 +64,40 @@ export type DistributionChannelDef = {
   rooms: readonly CatalogEntity[];
   rates: readonly CatalogEntity[];
   meals: readonly CatalogEntity[];
+  sync: DistributionSyncCapabilities;
 };
+
+function mappedDataCapabilities(
+  mappingKinds: readonly MappingKind[],
+): DistributionSyncCapabilities {
+  return {
+    inventory: {
+      supported: mappingKinds.includes("rooms"),
+      availability: mappingKinds.includes("rooms"),
+      roomStatus: false,
+      outOfOrder: false,
+      outOfService: false,
+    },
+    rates: {
+      supported: mappingKinds.includes("rates"),
+      rateUpdates: mappingKinds.includes("rates"),
+      baseRates: mappingKinds.includes("rates"),
+      derivedRates: false,
+    },
+    restrictions: {
+      supported: false,
+      minimumStay: false,
+      maximumStay: false,
+      closedToArrival: false,
+      closedToDeparture: false,
+      stopSell: false,
+    },
+    frequencies: ["manual"],
+    automaticSync: false,
+    manualSync: false,
+    retry: false,
+  };
+}
 
 export type DistributionProviderDef = {
   id: string;
@@ -64,6 +126,7 @@ const BOOKING_COM: DistributionChannelDef = {
     { id: "bcom_bb", label: "Breakfast" },
     { id: "bcom_hb", label: "Half Board" },
   ],
+  sync: mappedDataCapabilities(["rooms", "rates", "meals"]),
 };
 
 const EXPEDIA: DistributionChannelDef = {
@@ -83,6 +146,7 @@ const EXPEDIA: DistributionChannelDef = {
     { id: "exp_ro", label: "Room Only" },
     { id: "exp_bb", label: "Breakfast Included" },
   ],
+  sync: mappedDataCapabilities(["rooms", "rates", "meals"]),
 };
 
 const AGODA: DistributionChannelDef = {
@@ -99,6 +163,7 @@ const AGODA: DistributionChannelDef = {
     { id: "agoda_saver", label: "Saver" },
   ],
   meals: [],
+  sync: mappedDataCapabilities(["rooms", "rates"]),
 };
 
 export const DISTRIBUTION_PROVIDERS: readonly DistributionProviderDef[] = [
@@ -143,6 +208,57 @@ export function distributionChannelLabel(provider: string, channel: string): str
 
 export function channelSupports(provider: string, channel: string, kind: MappingKind): boolean {
   return distributionChannel(provider, channel)?.mappingKinds.includes(kind) === true;
+}
+
+export function distributionSyncCapabilities(
+  provider: string,
+  channel: string,
+): DistributionSyncCapabilities | null {
+  return distributionChannel(provider, channel)?.sync ?? null;
+}
+
+export function validateDistributionSyncConfig(
+  config: DistributionSyncConfig,
+  capabilities: DistributionSyncCapabilities | null,
+): ValidationCheck[] {
+  if (!capabilities) {
+    return [
+      check("sync_provider", "Sync capabilities available", false, false, "Choose a channel."),
+    ];
+  }
+  const enabled =
+    (capabilities.inventory.supported && config.inventory.enabled) ||
+    (capabilities.rates.supported && config.rates.enabled) ||
+    (capabilities.restrictions.supported && config.restrictions.enabled);
+  const unsupportedEnabled =
+    (!capabilities.inventory.supported && config.inventory.enabled) ||
+    (!capabilities.rates.supported && config.rates.enabled) ||
+    (!capabilities.restrictions.supported && config.restrictions.enabled);
+  return [
+    check(
+      "sync_type",
+      "At least one supported sync type enabled",
+      enabled,
+      false,
+      enabled ? null : "Enable inventory or rate synchronization.",
+    ),
+    check(
+      "sync_supported",
+      "Enabled sync types are supported",
+      !unsupportedEnabled,
+      false,
+      unsupportedEnabled ? "This channel does not support one of the enabled sync types." : null,
+    ),
+    check(
+      "sync_frequency",
+      "Sync settings valid",
+      capabilities.frequencies.includes(config.frequency),
+      false,
+      capabilities.frequencies.includes(config.frequency)
+        ? null
+        : "Choose a supported sync frequency.",
+    ),
+  ];
 }
 
 export function externalEntities(

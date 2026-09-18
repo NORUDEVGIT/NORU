@@ -1,9 +1,8 @@
 /**
- * Card 6 Phase 2 — Distribution mapping types.
+ * Card 6 Distribution mapping and Phase 3 operational-sync types.
  *
  * Pure module. Channel rows reference Phase 1 integrations; they never carry
- * credentials. mapping_status is never "connected" — that would claim a live
- * OTA handshake Phase 2 does not perform.
+ * credentials. Operational activation does not claim a live OTA handshake.
  */
 
 import type { IntegrationEnvironment, IntegrationRecord } from "./integrations-card6.server.ts";
@@ -13,16 +12,98 @@ export const DIRECT_CHANNEL_CODE = "DIRECT";
 export const DISTRIBUTION_MAPPING_STATUSES = ["pending", "attention", "disabled"] as const;
 export type DistributionMappingStatus = (typeof DISTRIBUTION_MAPPING_STATUSES)[number];
 
+export const DISTRIBUTION_ACTIVATION_STATUSES = ["inactive", "active"] as const;
+export type DistributionActivationStatus = (typeof DISTRIBUTION_ACTIVATION_STATUSES)[number];
+
+export const DISTRIBUTION_SYNC_STATUSES = ["never_synced", "disabled"] as const;
+export type DistributionSyncStatus = (typeof DISTRIBUTION_SYNC_STATUSES)[number];
+
+export const SYNC_DIRECTIONS = ["outbound"] as const;
+export type SyncDirection = (typeof SYNC_DIRECTIONS)[number];
+
+export const SYNC_FREQUENCIES = ["manual"] as const;
+export type SyncFrequency = (typeof SYNC_FREQUENCIES)[number];
+
+export type DistributionSyncConfig = {
+  inventory: {
+    enabled: boolean;
+    direction: SyncDirection;
+    availability: boolean;
+    roomStatus: boolean;
+    outOfOrder: boolean;
+    outOfService: boolean;
+  };
+  rates: {
+    enabled: boolean;
+    direction: SyncDirection;
+    rateUpdates: boolean;
+    baseRates: boolean;
+    derivedRates: boolean;
+  };
+  restrictions: {
+    enabled: boolean;
+    minimumStay: boolean;
+    maximumStay: boolean;
+    closedToArrival: boolean;
+    closedToDeparture: boolean;
+    stopSell: boolean;
+  };
+  frequency: SyncFrequency;
+  automaticSync: boolean;
+  retryEnabled: boolean;
+  maxRetries: number;
+};
+
+export type DistributionSyncSummary = {
+  status: DistributionSyncStatus;
+  lastSyncAt: null;
+  nextSyncAt: null;
+  lastResult: null;
+  recordsProcessed: null;
+  recordsUpdated: null;
+  recordsSkipped: null;
+  errorCount: null;
+};
+
+export const DEFAULT_DISTRIBUTION_SYNC_CONFIG: DistributionSyncConfig = {
+  inventory: {
+    enabled: false,
+    direction: "outbound",
+    availability: true,
+    roomStatus: false,
+    outOfOrder: false,
+    outOfService: false,
+  },
+  rates: {
+    enabled: false,
+    direction: "outbound",
+    rateUpdates: true,
+    baseRates: true,
+    derivedRates: false,
+  },
+  restrictions: {
+    enabled: false,
+    minimumStay: false,
+    maximumStay: false,
+    closedToArrival: false,
+    closedToDeparture: false,
+    stopSell: false,
+  },
+  frequency: "manual",
+  automaticSync: false,
+  retryEnabled: false,
+  maxRetries: 0,
+};
+
 export const DISTRIBUTION_ENVIRONMENTS = ["sandbox", "production"] as const;
 export type DistributionEnvironment = (typeof DISTRIBUTION_ENVIRONMENTS)[number];
 
-export const LAST_SYNC_PHASE3_NOTICE =
-  "Last sync is empty until Phase 3. Nothing here was sent to a channel.";
 export const EXTERNAL_CATALOG_NOTICE =
   "External room types, rates and meals come from NORU's channel catalog, not from a live provider call.";
 export const POLICY_MAPPING_NOTICE =
   "Policy mapping is not available. NORU has no cancellation or no-show policy catalogue to map from.";
-export const SYNC_PHASE3_NOTICE = "Sync arrives in Phase 3. This action does not reach a channel.";
+export const SYNC_SERVICE_NOTICE =
+  "Sync service not connected. This action cannot reach the external channel.";
 
 export type NamedEntity = { id: string; name: string };
 
@@ -43,6 +124,7 @@ export type DistributionChannelRecord = {
   channelLabel: string;
   environment: DistributionEnvironment;
   mappingStatus: DistributionMappingStatus;
+  activationStatus: DistributionActivationStatus;
   enabled: boolean;
   roomMapped: number;
   roomTotal: number;
@@ -50,7 +132,9 @@ export type DistributionChannelRecord = {
   rateTotal: number;
   mealMapped: number;
   mealTotal: number;
-  lastSyncAt: null;
+  syncConfig: DistributionSyncConfig;
+  syncStatus: DistributionSyncSummary;
+  activatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -114,13 +198,51 @@ export function distributionMappingStatusLabel(status: DistributionMappingStatus
 }
 
 export function summarizeDistribution(
-  channels: readonly { mappingStatus: DistributionMappingStatus }[],
+  channels: readonly {
+    mappingStatus: DistributionMappingStatus;
+    activationStatus: DistributionActivationStatus;
+  }[],
 ): DistributionSummary {
   return {
     total: channels.length,
-    connected: 0,
-    pending: channels.filter((row) => row.mappingStatus === "pending").length,
-    attention: channels.filter((row) => row.mappingStatus === "attention").length,
+    connected: channels.filter((row) => row.activationStatus === "active").length,
+    pending: channels.filter(
+      (row) => row.activationStatus === "inactive" && row.mappingStatus === "pending",
+    ).length,
+    attention: channels.filter(
+      (row) => row.activationStatus === "inactive" && row.mappingStatus === "attention",
+    ).length,
+  };
+}
+
+export function distributionActivationStatusLabel(status: DistributionActivationStatus): string {
+  return status === "active" ? "Active" : "Inactive";
+}
+
+export function distributionSyncStatusLabel(status: DistributionSyncStatus): string {
+  return status === "disabled" ? "Disabled" : "Never Synced";
+}
+
+export function normalizeDistributionSyncConfig(value: unknown): DistributionSyncConfig {
+  if (!value || typeof value !== "object") return structuredClone(DEFAULT_DISTRIBUTION_SYNC_CONFIG);
+  const input = value as Partial<DistributionSyncConfig>;
+  return {
+    inventory: {
+      ...DEFAULT_DISTRIBUTION_SYNC_CONFIG.inventory,
+      ...(input.inventory ?? {}),
+    },
+    rates: {
+      ...DEFAULT_DISTRIBUTION_SYNC_CONFIG.rates,
+      ...(input.rates ?? {}),
+    },
+    restrictions: {
+      ...DEFAULT_DISTRIBUTION_SYNC_CONFIG.restrictions,
+      ...(input.restrictions ?? {}),
+    },
+    frequency: input.frequency === "manual" ? "manual" : "manual",
+    automaticSync: false,
+    retryEnabled: false,
+    maxRetries: 0,
   };
 }
 

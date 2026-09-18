@@ -20,7 +20,9 @@ import { IntegrationNotice } from "@/packages/pms/components/settings/pms-card6-
 import { DistributionStatusBadge } from "@/packages/pms/components/settings/pms-card6-distribution-bits";
 import { Card6DistributionValidation } from "@/packages/pms/components/settings/pms-card6-distribution-validation";
 import { Card6MappingSection } from "@/packages/pms/components/settings/pms-card6-mapping-section";
+import { Card6DistributionSyncSections } from "@/packages/pms/components/settings/pms-card6-distribution-sync-sections";
 import {
+  DEFAULT_DISTRIBUTION_SYNC_CONFIG,
   EXTERNAL_CATALOG_NOTICE,
   POLICY_MAPPING_NOTICE,
   mappingStatusAfterSave,
@@ -28,6 +30,7 @@ import {
   type DistributionChannelDetail,
   type DistributionDraft,
   type DistributionEnvironment,
+  type DistributionSyncConfig,
   type MappingPair,
 } from "@/packages/pms/lib/distribution-card6.server";
 import {
@@ -37,6 +40,8 @@ import {
   distributionProvider,
   draftHasBlockingErrors,
   draftHasIncompleteMappings,
+  distributionSyncCapabilities,
+  validateDistributionSyncConfig,
   validateDistributionDraft,
 } from "@/packages/pms/lib/distribution-catalog";
 
@@ -49,6 +54,7 @@ export type DistributionSavePayload = {
   rooms: MappingPair[];
   rates: MappingPair[];
   meals: MappingPair[];
+  syncConfig: DistributionSyncConfig;
 };
 
 export function Card6DistributionDrawer({
@@ -60,6 +66,7 @@ export function Card6DistributionDrawer({
   canEdit,
   onSave,
   onGoToIntegrations,
+  onRequestActivation,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,6 +76,7 @@ export function Card6DistributionDrawer({
   canEdit: boolean;
   onSave: (payload: DistributionSavePayload) => void;
   onGoToIntegrations: () => void;
+  onRequestActivation: (active: boolean) => void;
 }) {
   const selectable = useMemo(
     () => snapshot.integrations.filter((row) => row.selectable),
@@ -90,6 +98,9 @@ export function Card6DistributionDrawer({
   const [meals, setMeals] = useState<MappingPair[]>(
     record?.mealMappings.map((row) => ({ noruId: row.noruId, externalId: row.externalId })) ?? [],
   );
+  const [syncConfig, setSyncConfig] = useState<DistributionSyncConfig>(
+    record?.syncConfig ?? structuredClone(DEFAULT_DISTRIBUTION_SYNC_CONFIG),
+  );
   const [dirty, setDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [validateOpen, setValidateOpen] = useState(false);
@@ -109,6 +120,7 @@ export function Card6DistributionDrawer({
     setMeals(
       record?.mealMappings.map((row) => ({ noruId: row.noruId, externalId: row.externalId })) ?? [],
     );
+    setSyncConfig(record?.syncConfig ?? structuredClone(DEFAULT_DISTRIBUTION_SYNC_CONFIG));
     setDirty(false);
     setConfirmDiscard(false);
   }, [open, record, selectable]);
@@ -117,13 +129,14 @@ export function Card6DistributionDrawer({
   const providerDef = integration ? distributionProvider(integration.provider) : null;
   const channelDef = integration ? distributionChannel(integration.provider, channel) : null;
   const provider = integration?.provider ?? "";
+  const syncCapabilities = distributionSyncCapabilities(provider, channel);
 
   const draft: DistributionDraft = useMemo(
     () => ({ integrationId, channel, environment, rooms, rates, meals }),
     [integrationId, channel, environment, rooms, rates, meals],
   );
 
-  const checks = validateDistributionDraft(draft, {
+  const mappingChecks = validateDistributionDraft(draft, {
     integration,
     roomTypes: snapshot.roomTypes,
     ratePlans: snapshot.ratePlans,
@@ -135,6 +148,9 @@ export function Card6DistributionDrawer({
     })),
     excludeId: record?.id ?? null,
   });
+  const checks = syncCapabilities
+    ? [...mappingChecks, ...validateDistributionSyncConfig(syncConfig, syncCapabilities)]
+    : mappingChecks;
 
   const mappingStatus = mappingStatusAfterSave(
     record?.enabled ?? true,
@@ -166,6 +182,7 @@ export function Card6DistributionDrawer({
       rooms: channelSupports(provider, channel, "rooms") ? rooms : [],
       rates: channelSupports(provider, channel, "rates") ? rates : [],
       meals: channelSupports(provider, channel, "meals") ? meals : [],
+      syncConfig,
     };
     if (record?.id) payload.id = record.id;
     onSave(payload);
@@ -207,9 +224,19 @@ export function Card6DistributionDrawer({
             ) : (
               <>
                 <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-3">
+                  {record ? (
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <span className="text-muted-foreground">Operational status</span>
+                      <span>
+                        {record.activationStatus === "active" ? "● Active" : "○ Inactive"}
+                      </span>
+                      <span className="text-muted-foreground">Last sync</span>
+                      <span>Never</span>
+                    </div>
+                  ) : null}
                   <h3 className="text-sm font-medium text-[#251605]">Distribution provider</h3>
                   <div className="space-y-1.5">
-                    <Label>Connected integration *</Label>
+                    <Label>Distribution integration *</Label>
                     <Select
                       value={integrationId}
                       onValueChange={(value) => {
@@ -218,6 +245,7 @@ export function Card6DistributionDrawer({
                         setRooms([]);
                         setRates([]);
                         setMeals([]);
+                        setSyncConfig(structuredClone(DEFAULT_DISTRIBUTION_SYNC_CONFIG));
                         setDirty(true);
                       }}
                       disabled={!canEdit || Boolean(record)}
@@ -276,6 +304,18 @@ export function Card6DistributionDrawer({
                         setRooms([]);
                         setRates([]);
                         setMeals([]);
+                        const nextCapabilities = distributionSyncCapabilities(provider, value);
+                        setSyncConfig({
+                          ...structuredClone(DEFAULT_DISTRIBUTION_SYNC_CONFIG),
+                          inventory: {
+                            ...DEFAULT_DISTRIBUTION_SYNC_CONFIG.inventory,
+                            enabled: nextCapabilities?.inventory.supported === true,
+                          },
+                          rates: {
+                            ...DEFAULT_DISTRIBUTION_SYNC_CONFIG.rates,
+                            enabled: nextCapabilities?.rates.supported === true,
+                          },
+                        });
                         setDirty(true);
                       }}
                       disabled={!canEdit || !providerDef}
@@ -349,6 +389,67 @@ export function Card6DistributionDrawer({
                       </IntegrationNotice>
                     )}
                     <IntegrationNotice>{POLICY_MAPPING_NOTICE}</IntegrationNotice>
+                    {syncCapabilities ? (
+                      <Card6DistributionSyncSections
+                        config={syncConfig}
+                        capabilities={syncCapabilities}
+                        canEdit={canEdit}
+                        onChange={(value) => {
+                          setSyncConfig(value);
+                          setDirty(true);
+                        }}
+                      />
+                    ) : null}
+                    {record ? (
+                      <section className="space-y-3 rounded-2xl border border-[#CCCCCC] bg-white p-4">
+                        <h3 className="text-sm font-medium text-[#251605]">Configuration Check</h3>
+                        <div className="space-y-1 text-sm">
+                          {checks.map((item) => (
+                            <p
+                              key={item.id}
+                              className={
+                                item.passed
+                                  ? "text-[#436436]"
+                                  : item.warning
+                                    ? "text-[#7A5511]"
+                                    : "text-destructive"
+                              }
+                            >
+                              {item.passed ? "✓" : item.warning ? "⚠" : "✕"} {item.label}
+                            </p>
+                          ))}
+                        </div>
+                        <Button
+                          type="button"
+                          variant={record.activationStatus === "active" ? "outline" : "default"}
+                          disabled={
+                            !canEdit || dirty || checks.some((item) => !item.passed) || saving
+                          }
+                          onClick={() => onRequestActivation(record.activationStatus !== "active")}
+                        >
+                          {record.activationStatus === "active"
+                            ? "Deactivate"
+                            : "Activate Distribution"}
+                        </Button>
+                        {dirty ? (
+                          <p className="text-xs text-muted-foreground">
+                            Save changes before activation.
+                          </p>
+                        ) : null}
+                      </section>
+                    ) : null}
+                    <section className="space-y-2 rounded-2xl border border-[#CCCCCC] bg-white p-4">
+                      <h3 className="text-sm font-medium text-[#251605]">Sync Status</h3>
+                      <p className="text-sm">
+                        ○ {record?.activationStatus === "active" ? "Never Synced" : "Disabled"}
+                      </p>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        <dt className="text-muted-foreground">Last sync</dt>
+                        <dd>Never</dd>
+                        <dt className="text-muted-foreground">Sync history</dt>
+                        <dd>No synchronization history yet.</dd>
+                      </dl>
+                    </section>
                   </>
                 ) : null}
 

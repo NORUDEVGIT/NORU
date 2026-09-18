@@ -1,8 +1,8 @@
 /**
  * PMS Property Setup Card 6 — Connectivity & Distribution.
  *
- * Phase 1: Integrations tab. Phase 2: Distribution mapping tab. Sync and
- * activation stay in Phase 3.
+ * Phase 1: Integrations. Phase 2: Distribution mapping. Phase 3:
+ * operational sync configuration and activation inside Distribution.
  */
 
 import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";

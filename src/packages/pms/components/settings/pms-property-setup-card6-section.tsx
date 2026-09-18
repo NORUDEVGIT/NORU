@@ -15,9 +15,7 @@ import {
   type Card6TabId,
 } from "@/packages/pms/lib/pms-property-setup-card6";
 
-/**
- * Card 6 shell. Integrations is Phase 1. Distribution mapping is Phase 2.
- */
+/** Card 6 shell for integrations, distribution mapping, and operations. */
 export function PmsPropertySetupCard6Section({
   restaurantId,
   canEdit,
