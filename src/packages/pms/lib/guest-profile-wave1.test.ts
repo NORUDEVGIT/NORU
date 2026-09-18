@@ -20,6 +20,7 @@ import {
   defaultGuestProfileCard,
   guestProfileCardSearch,
   initialGuestProfileCard,
+  isGuestProfileNavCard,
   isGuestRequiredProfileCard,
   parseGuestProfileCardSearch,
   showEmptyDirectoryCta,
@@ -48,7 +49,7 @@ describe("Guest Profile Wave 1 catalogue", () => {
       /Guest profiles today; requests and concierge tracking are planned/,
     );
     assert.equal(GUEST_PROFILE_MODULE_KEY, "guest-profile");
-    assert.equal(GUEST_PROFILE_TITLE, "Guest Profile");
+    assert.equal(GUEST_PROFILE_TITLE, "Guest Profiles");
     assert.equal(GUEST_PROFILE_DIRECTORY_PATH, "/restaurant/pms/guests");
     assert.equal(GUEST_PROFILE_DETAIL_PATH, "/restaurant/pms/guests/$guestId");
   });
@@ -120,6 +121,35 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.doesNotMatch(functions, /guest_profiles_wave|guest_profile_v2/);
   });
 
+  it("uses a directory-first landing with compact global KPIs and compact profile sections", () => {
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    const functions = readRel("./guests.functions.ts");
+    assert.match(directory, /Guest Profiles/);
+    assert.match(directory, /Search, manage and open guest profiles/);
+    assert.match(directory, /guest-directory-kpis/);
+    assert.match(directory, /Total guests/);
+    assert.match(directory, /Returning guests/);
+    assert.match(functions, /export const getGuestDirectoryStats/);
+    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /count > 1/);
+    assert.match(shell, /guest-profile-section-nav/);
+    assert.match(shell, /isGuestProfileNavCard/);
+    assert.match(shell, /overflow-x-auto/);
+    assert.doesNotMatch(shell, /sm:grid-cols-2 xl:grid-cols-5/);
+    assert.deepEqual(
+      GUEST_PROFILE_CARDS.filter((card) => isGuestProfileNavCard(card.id)).map((card) => card.id),
+      ["dashboard", "information", "identity", "stay-history", "preferences", "relationships"],
+    );
+    assert.equal(isGuestProfileNavCard("loyalty"), false);
+    assert.equal(isGuestProfileNavCard("notes-comms"), false);
+    assert.equal(isGuestProfileNavCard("admin-privacy"), false);
+    assert.equal(isGuestProfileNavCard("directory"), false);
+    assert.equal(isGuestRequiredProfileCard("loyalty"), true);
+    assert.equal(isGuestRequiredProfileCard("notes-comms"), true);
+    assert.equal(isGuestRequiredProfileCard("admin-privacy"), true);
+  });
+
   it("keeps compatibility paths pointing at the new canonical guest profile", () => {
     const guestsIndex = readRel("../../../routes/restaurant/guests/index.tsx");
     const guestsDetail = readRel("../../../routes/restaurant/guests/$guestId.tsx");
@@ -147,15 +177,10 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
 
 describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
   it("locks AC-DIR-1…7", () => {
-    assert.deepEqual([...DIRECTORY_BACK_ACCEPTANCE_CRITERIA], [
-      "AC-DIR-1",
-      "AC-DIR-2",
-      "AC-DIR-3",
-      "AC-DIR-4",
-      "AC-DIR-5",
-      "AC-DIR-6",
-      "AC-DIR-7",
-    ]);
+    assert.deepEqual(
+      [...DIRECTORY_BACK_ACCEPTANCE_CRITERIA],
+      ["AC-DIR-1", "AC-DIR-2", "AC-DIR-3", "AC-DIR-4", "AC-DIR-5", "AC-DIR-6", "AC-DIR-7"],
+    );
   });
 
   it("treats every LIVE card except Directory as guest-required", () => {
@@ -171,20 +196,17 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     assert.equal(isGuestRequiredProfileCard("admin-privacy"), true);
   });
 
-  it("AC-DIR-1…5 shell shows Information's Directory back on guest-required cards", () => {
+  it("AC-DIR-1…5 selected profile header links back while preserving the active card", () => {
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
-    const back = readRel("../components/guests/guest-directory-back-link.tsx");
+    const header = readRel("../components/guests/guest-profile-header.tsx");
     const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
-    assert.match(shell, /GuestDirectoryBackLink/);
-    assert.match(shell, /showDirectoryBack/);
-    assert.match(shell, /isGuestRequiredProfileCard\(card\)/);
-    assert.match(back, /ArrowLeft/);
-    assert.match(back, /> Directory/);
-    assert.match(back, /GUEST_PROFILE_DIRECTORY_PATH/);
-    assert.match(back, /guest-profile-directory-back/);
-    assert.match(back, /Spec §5\.15/);
-    assert.match(back, /not Waves 4–5/);
-    assert.match(detail, /backTo === "guest-profile" \? null/);
+    assert.match(shell, /GuestProfileHeader/);
+    assert.match(shell, /returnCard=\{card\}/);
+    assert.match(header, /ArrowLeft/);
+    assert.match(header, /Guest Profiles/);
+    assert.match(header, /GUEST_PROFILE_DIRECTORY_PATH/);
+    assert.match(header, /guestProfileSearch\(\{ card: returnCard, type: profileType \}\)/);
+    assert.match(detail, /hideHeader \|\| backTo === "guest-profile"/);
   });
 
   it("AC-DIR-6 Directory-back returns to Directory and reopens the same card", () => {
@@ -200,12 +222,12 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     assert.equal(initialGuestProfileCard(true), "information");
     assert.equal(initialGuestProfileCard(false, "dashboard"), "directory");
 
-    const back = readRel("../components/guests/guest-directory-back-link.tsx");
+    const header = readRel("../components/guests/guest-profile-header.tsx");
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const indexRoute = readRel("../../../routes/restaurant/pms/guests.index.tsx");
     const detailRoute = readRel("../../../routes/restaurant/pms/guests.$guestId.tsx");
-    assert.match(back, /guestProfileSearch\(\{ card: fromCard, type: profileType \}\)/);
+    assert.match(header, /guestProfileSearch\(\{ card: returnCard, type: profileType \}\)/);
     assert.match(directory, /guestProfileCardSearch\(returnCard\)/);
     assert.match(shell, /initialGuestProfileCard/);
     assert.match(indexRoute, /parseGuestProfileSearch/);
@@ -217,22 +239,18 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
   it("AC-DIR-7 Directory itself does not render a back-to-Directory control", () => {
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
-    assert.doesNotMatch(directory, /GuestDirectoryBackLink|guest-profile-directory-back/);
+    assert.doesNotMatch(directory, /GuestProfileHeader/);
     assert.match(shell, /card === "directory"/);
-    assert.match(shell, /showDirectoryBack \? <GuestDirectoryBackLink/);
+    assert.match(shell, /GuestProfileHeader/);
   });
 });
 
 describe("Guest Profile empty guest — AC-EMPTY-1…6 (Spec §5.16)", () => {
   it("locks AC-EMPTY-1…6", () => {
-    assert.deepEqual([...EMPTY_GUEST_ACCEPTANCE_CRITERIA], [
-      "AC-EMPTY-1",
-      "AC-EMPTY-2",
-      "AC-EMPTY-3",
-      "AC-EMPTY-4",
-      "AC-EMPTY-5",
-      "AC-EMPTY-6",
-    ]);
+    assert.deepEqual(
+      [...EMPTY_GUEST_ACCEPTANCE_CRITERIA],
+      ["AC-EMPTY-1", "AC-EMPTY-2", "AC-EMPTY-3", "AC-EMPTY-4", "AC-EMPTY-5", "AC-EMPTY-6"],
+    );
   });
 
   it("shows the empty-state CTA on every guest-required card and not on Directory or Coming cards", () => {
@@ -288,6 +306,6 @@ describe("Guest Profile empty guest — AC-EMPTY-1…6 (Spec §5.16)", () => {
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     assert.doesNotMatch(directory, /GuestDirectoryOpenButton|guest-profile-open-directory/);
     assert.match(shell, /card === "directory"/);
-    assert.match(shell, /showDirectoryBack \? <GuestDirectoryBackLink/);
+    assert.match(shell, /GuestProfileHeader/);
   });
 });

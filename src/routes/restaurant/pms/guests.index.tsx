@@ -21,12 +21,13 @@ export const Route = createFileRoute("/restaurant/pms/guests/")({
   },
   head: () => ({
     meta: [
-      { title: "Guest Profile — NORU PMS" },
+      { title: "Guest Profiles — NORU PMS" },
       {
         name: "description",
-        content: "Guest directory: individuals plus Company, Group account and Travel Agent masters.",
+        content:
+          "Guest directory: individuals plus Company, Group account and Travel Agent masters.",
       },
-      { property: "og:title", content: "Guest Profile — NORU PMS" },
+      { property: "og:title", content: "Guest Profiles — NORU PMS" },
       { property: "og:description", content: "Search, create and open guest and account masters." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -40,7 +41,13 @@ function GuestProfileDirectoryRoute() {
   const { card, type } = Route.useSearch();
   return (
     <RestaurantShell active="Guests" module="rooms" pms pmsModule="guest-profile">
-      {(m) => <GuestProfileWorkspace membership={m} returnCard={card} profileType={type ?? "individual"} />}
+      {(m) => (
+        <GuestProfileWorkspace
+          membership={m}
+          returnCard={card}
+          profileType={type ?? "individual"}
+        />
+      )}
     </RestaurantShell>
   );
 }

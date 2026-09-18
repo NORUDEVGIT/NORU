@@ -6,7 +6,7 @@
  */
 
 export const GUEST_PROFILE_MODULE_KEY = "guest-profile";
-export const GUEST_PROFILE_TITLE = "Guest Profile";
+export const GUEST_PROFILE_TITLE = "Guest Profiles";
 
 export const GUEST_PROFILE_DIRECTORY_PATH = "/restaurant/pms/guests";
 export const GUEST_PROFILE_DETAIL_PATH = "/restaurant/pms/guests/$guestId";
@@ -114,6 +114,11 @@ export function isGuestRequiredProfileCard(id: GuestProfileCardId): boolean {
   return id !== "directory" && guestProfileCard(id).live;
 }
 
+/** Cards shown in the selected-guest tab bar. Hidden ids stay LIVE for deep links. */
+export function isGuestProfileNavCard(id: GuestProfileCardId): boolean {
+  return id !== "directory" && id !== "loyalty" && id !== "notes-comms" && id !== "admin-privacy";
+}
+
 /** Empty / no-guest-selected CTA (Spec §5.16). Later LIVE cards inherit this. */
 export function showEmptyDirectoryCta(hasGuest: boolean, card: GuestProfileCardId): boolean {
   return !hasGuest && isGuestRequiredProfileCard(card);
@@ -139,17 +144,13 @@ export function parseGuestProfileCardSearch(
   return { card: match.id };
 }
 
-export function parseGuestProfileTypeSearch(
-  search: Record<string, unknown>,
-): GuestProfileTypeId {
+export function parseGuestProfileTypeSearch(search: Record<string, unknown>): GuestProfileTypeId {
   const raw = typeof search["type"] === "string" ? search["type"] : undefined;
   const match = GUEST_PROFILE_TYPES.find((item) => item.id === raw && item.live);
   return match?.id ?? "individual";
 }
 
-export function parseGuestProfileSearch(
-  search: Record<string, unknown>,
-): GuestProfileSearch {
+export function parseGuestProfileSearch(search: Record<string, unknown>): GuestProfileSearch {
   const card = parseGuestProfileCardSearch(search);
   const type = parseGuestProfileTypeSearch(search);
   return type === "individual" ? card : { ...card, type };

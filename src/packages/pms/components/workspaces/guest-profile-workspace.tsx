@@ -7,10 +7,10 @@ import { GuestAccountDetail } from "@/packages/pms/components/guests/guest-accou
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
 import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
 import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
-import { GuestDirectoryBackLink } from "@/packages/pms/components/guests/guest-directory-back-link";
 import { GuestDirectoryOpenButton } from "@/packages/pms/components/guests/guest-directory-open-button";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
 import { GuestLoyaltyCard } from "@/packages/pms/components/guests/guest-loyalty-card";
+import { GuestProfileHeader } from "@/packages/pms/components/guests/guest-profile-header";
 import { GuestPrivacyCard } from "@/packages/pms/components/guests/guest-privacy-card";
 import { GuestRelationshipsCard } from "@/packages/pms/components/guests/guest-relationships-card";
 import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
@@ -20,19 +20,18 @@ import {
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
-  GUEST_PROFILE_TITLE,
   GUEST_PROFILE_TYPES,
   comingInWaveLabel,
   guestProfileCard,
   guestProfileSearch,
   initialGuestProfileCard,
+  isGuestProfileNavCard,
   isGuestRequiredProfileCard,
   showEmptyDirectoryCta,
   type GuestProfileCardId,
   type GuestProfileTypeId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { profileTypeToAccountType } from "@/packages/pms/lib/guest-profile-wave4";
-import { GuestRestrictionBadges } from "@/packages/pms/components/guests/guest-bits";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
 import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { cn } from "@/shared/lib/utils";
@@ -70,7 +69,13 @@ export function GuestProfileWorkspace({
   const accountQuery = useQuery({
     queryKey: ["guest-account", restaurantId, guestId],
     queryFn: () => fetchAccount({ data: { restaurantId, accountId: guestId! } }),
-    enabled: Boolean(guestId) && isAccount && (card === "loyalty" || card === "relationships" || card === "notes-comms" || card === "admin-privacy"),
+    enabled:
+      Boolean(guestId) &&
+      isAccount &&
+      (card === "loyalty" ||
+        card === "relationships" ||
+        card === "notes-comms" ||
+        card === "admin-privacy"),
     retry: false,
   });
 
@@ -103,7 +108,6 @@ export function GuestProfileWorkspace({
   }
 
   const detailSection = card === "preferences" ? "preferences" : "overview";
-  const showDirectoryBack = Boolean(guestId) && isGuestRequiredProfileCard(card);
   const emptyDirectoryFrom = showEmptyDirectoryCta(Boolean(guestId), card) ? card : undefined;
   const partyName = isAccount
     ? (accountQuery.data?.name ?? "")
@@ -115,83 +119,117 @@ export function GuestProfileWorkspace({
     setCard("directory");
   }
 
+  const typeSwitcher = (
+    <div
+      className="flex w-full gap-2 overflow-x-auto pb-1"
+      data-testid="guest-profile-type-switcher"
+      role="tablist"
+      aria-label="Profile type"
+    >
+      {GUEST_PROFILE_TYPES.map((type) => {
+        const active = type.id === profileType;
+        return (
+          <button
+            key={type.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            disabled={!type.live}
+            data-testid={`guest-profile-type-${type.id}`}
+            onClick={() => selectType(type.id)}
+            className={cn(
+              "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium",
+              type.live && active
+                ? "border-primary bg-primary text-primary-foreground"
+                : type.live
+                  ? "border-border bg-card text-foreground hover:border-primary/50"
+                  : "cursor-not-allowed border-dashed border-border text-muted-foreground",
+            )}
+            title={type.live ? `${type.title} profiles are LIVE` : `${type.title} is not LIVE`}
+          >
+            {type.title}
+            {type.live ? null : (
+              <span className="ml-2 text-[11px] uppercase tracking-wide">
+                not LIVE · Wave {type.wave}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (!guestId && card === "directory" && !isAccount) {
+    return (
+      <div className="space-y-6" data-testid="guest-profile-shell">
+        <GuestDirectoryWorkspace
+          membership={membership}
+          compact
+          returnCard={returnCard ?? emptyReturnCard}
+          typeSwitcher={typeSwitcher}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6" data-testid="guest-profile-shell">
-      <div>
-        <h1 className="font-display text-2xl">{GUEST_PROFILE_TITLE}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {!isAccount && guestQuery.data ? (
-            <GuestRestrictionBadges guest={guestQuery.data.guest} />
-          ) : null}
+      {!isAccount && guestQuery.data ? (
+        <>
+          <GuestProfileHeader
+            restaurantId={restaurantId}
+            guest={guestQuery.data.guest}
+            returnCard={card}
+            profileType={profileType}
+          />
+          <GuestDashboardCard
+            restaurantId={restaurantId}
+            guestId={guestId!}
+            guestName={guestQuery.data.guest.fullName}
+            timezone={membership.restaurant.timezone}
+            vipStatus={guestQuery.data.guest.vipStatus}
+            showQuickActions={card === "dashboard"}
+          />
+        </>
+      ) : (
+        <div>
+          <h1 className="font-display text-2xl">Guest Profiles</h1>
+          <p className="text-sm text-muted-foreground">Search, manage and open guest profiles.</p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Individual directory plus Company, Group account and Travel Agent masters. Loyalty uses
-          real stay figures only. Notes / Comms / Activity and Admin & Privacy are LIVE.
-        </p>
-      </div>
+      )}
 
-      <div
-        className="flex flex-wrap gap-2"
-        data-testid="guest-profile-type-switcher"
-        role="tablist"
-        aria-label="Profile type"
-      >
-        {GUEST_PROFILE_TYPES.map((type) => {
-          const active = type.id === profileType;
-          return (
-            <button
-              key={type.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              disabled={!type.live}
-              data-testid={`guest-profile-type-${type.id}`}
-              onClick={() => selectType(type.id)}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm font-medium",
-                type.live && active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : type.live
-                    ? "border-border bg-card text-foreground hover:border-primary/50"
-                    : "cursor-not-allowed border-dashed border-border text-muted-foreground",
-              )}
-              title={type.live ? `${type.title} profiles are LIVE` : `${type.title} is not LIVE`}
-            >
-              {type.title}
-              {type.live ? null : (
-                <span className="ml-2 text-[11px] uppercase tracking-wide">
-                  not LIVE · Wave {type.wave}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {typeSwitcher}
 
-      <nav aria-label="Guest profile cards" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        {GUEST_PROFILE_CARDS.map((item) => {
-          const active = item.id === card;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              data-testid={`guest-profile-card-${item.id}`}
-              onClick={() => selectCard(item.id)}
-              className={cn(
-                "rounded-2xl border px-3 py-3 text-left transition-colors",
-                active
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-card hover:border-primary/50",
-              )}
-            >
-              <p className="text-sm font-medium">{item.title}</p>
-              <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">
-                {item.live ? "LIVE" : comingInWaveLabel(item.wave)}
-              </p>
-            </button>
-          );
-        })}
-      </nav>
+      {guestId ? (
+        <nav
+          aria-label="Guest profile sections"
+          className="flex w-full gap-1 overflow-x-auto border-b border-border pb-px"
+          role="tablist"
+          data-testid="guest-profile-section-nav"
+        >
+          {GUEST_PROFILE_CARDS.filter((item) => isGuestProfileNavCard(item.id)).map((item) => {
+            const active = item.id === card;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                data-testid={`guest-profile-card-${item.id}`}
+                onClick={() => selectCard(item.id)}
+                role="tab"
+                aria-selected={active}
+                className={cn(
+                  "shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {profileSectionLabel(item.id)}
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
 
       {card === "directory" ? (
         isAccount ? (
@@ -209,13 +247,13 @@ export function GuestProfileWorkspace({
         )
       ) : (
         <>
-          {showDirectoryBack ? <GuestDirectoryBackLink fromCard={card} profileType={profileType} /> : null}
           {(card === "information" || card === "preferences") && guestId && !isAccount ? (
             <GuestDetailWorkspace
               membership={membership}
               guestId={guestId}
               backTo="guest-profile"
               section={detailSection}
+              hideHeader
               onSectionChange={(next) => {
                 const nextCard = next === "preferences" ? "preferences" : "information";
                 setCard(nextCard);
@@ -272,14 +310,7 @@ export function GuestProfileWorkspace({
               copy="Dashboard and Stay History are for individual guests. Linked members appear on Relationships and Loyalty & Value."
             />
           ) : (card === "dashboard" || card === "stay-history") && guestId && guestQuery.data ? (
-            card === "dashboard" ? (
-              <GuestDashboardCard
-                restaurantId={restaurantId}
-                guestId={guestId}
-                guestName={guestQuery.data.guest.fullName}
-                timezone={membership.restaurant.timezone}
-              />
-            ) : (
+            card === "dashboard" ? null : (
               <GuestStayHistoryCard
                 restaurantId={restaurantId}
                 guestId={guestId}
@@ -343,7 +374,10 @@ export function GuestProfileWorkspace({
               accountId={isAccount ? guestId : undefined}
               partyName={partyName || (isAccount ? "Account" : "Guest")}
             />
-          ) : card === "loyalty" || card === "relationships" || card === "notes-comms" || card === "admin-privacy" ? (
+          ) : card === "loyalty" ||
+            card === "relationships" ||
+            card === "notes-comms" ||
+            card === "admin-privacy" ? (
             <ComingCard
               title={selected.title}
               copy={
@@ -399,4 +433,20 @@ function ComingCard({
       ) : null}
     </div>
   );
+}
+
+function profileSectionLabel(id: GuestProfileCardId): string {
+  const labels: Record<GuestProfileCardId, string> = {
+    dashboard: "Overview",
+    directory: "Directory",
+    information: "Information",
+    identity: "Documents",
+    "stay-history": "Stay History",
+    preferences: "Preferences",
+    loyalty: "Loyalty & Value",
+    relationships: "Relationships",
+    "notes-comms": "Notes & Activity",
+    "admin-privacy": "Admin & Privacy",
+  };
+  return labels[id];
 }

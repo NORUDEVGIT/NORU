@@ -85,6 +85,7 @@ export function GuestDetailWorkspace({
   backTo = "guest-profile",
   section = "overview",
   onSectionChange,
+  hideHeader = false,
 }: {
   membership: RestaurantMembership;
   guestId: string;
@@ -92,6 +93,7 @@ export function GuestDetailWorkspace({
   /** Overview vs Preferences — kept in sync with the shell card selection. */
   section?: GuestDetailSection;
   onSectionChange?: (section: GuestDetailSection) => void;
+  hideHeader?: boolean;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -212,7 +214,7 @@ export function GuestDetailWorkspace({
 
   return (
     <div className="space-y-6">
-      {backTo === "guest-profile" ? null : (
+      {hideHeader || backTo === "guest-profile" ? null : (
         <button
           type="button"
           onClick={() => goBack()}
@@ -222,52 +224,54 @@ export function GuestDetailWorkspace({
         </button>
       )}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-2">
-          <h1 className="font-display text-2xl">{guest.fullName}</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            {guest.vipStatus ? <VipBadge /> : null}
-            <StatusBadge status={guest.guestStatus} />
-            <GuestRestrictionBadges guest={guest} />
+      {hideHeader ? null : (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <h1 className="font-display text-2xl">{guest.fullName}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              {guest.vipStatus ? <VipBadge /> : null}
+              <StatusBadge status={guest.guestStatus} />
+              <GuestRestrictionBadges guest={guest} />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Pencil className="size-4 sm:mr-2" />
-            <span className="hidden sm:inline">Edit</span>
-          </Button>
-          <Button variant="outline" onClick={() => setNoteOpen(true)}>
-            <StickyNote className="size-4 sm:mr-2" />
-            <span className="hidden sm:inline">Add note</span>
-          </Button>
-          {guest.mergedIntoGuestId ? null : (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Edit</span>
+            </Button>
+            <Button variant="outline" onClick={() => setNoteOpen(true)}>
+              <StickyNote className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Add note</span>
+            </Button>
+            {guest.mergedIntoGuestId ? null : (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMergeRetiredId(undefined);
+                  setMergeOpen(true);
+                }}
+              >
+                Merge guests
+              </Button>
+            )}
             <Button
               variant="outline"
-              onClick={() => {
-                setMergeRetiredId(undefined);
-                setMergeOpen(true);
-              }}
+              disabled={statusMutation.isPending}
+              onClick={() =>
+                statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")
+              }
             >
-              Merge guests
+              <Power className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">
+                {guest.guestStatus === "active" ? "Deactivate" : "Reactivate"}
+              </span>
             </Button>
-          )}
-          <Button
-            variant="outline"
-            disabled={statusMutation.isPending}
-            onClick={() =>
-              statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")
-            }
-          >
-            <Power className="size-4 sm:mr-2" />
-            <span className="hidden sm:inline">
-              {guest.guestStatus === "active" ? "Deactivate" : "Reactivate"}
-            </span>
-          </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       <Tabs
-        value={historyOpen ? "history" : section}
+        value={hideHeader ? section : historyOpen ? "history" : section}
         onValueChange={(next) => {
           if (next === "history") {
             setHistoryOpen(true);
@@ -277,22 +281,24 @@ export function GuestDetailWorkspace({
           onSectionChange?.(next === "preferences" ? "preferences" : "overview");
         }}
       >
-        <TabsList>
-          <TabsTrigger value="overview" data-testid="guest-detail-tab-overview">
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="preferences" data-testid="guest-detail-tab-preferences">
-            Preferences
-          </TabsTrigger>
-          <TabsTrigger value="history" data-testid="guest-detail-tab-history">
-            History
-          </TabsTrigger>
-        </TabsList>
+        {hideHeader ? null : (
+          <TabsList>
+            <TabsTrigger value="overview" data-testid="guest-detail-tab-overview">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="preferences" data-testid="guest-detail-tab-preferences">
+              Preferences
+            </TabsTrigger>
+            <TabsTrigger value="history" data-testid="guest-detail-tab-history">
+              History
+            </TabsTrigger>
+          </TabsList>
+        )}
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           <GuestRestrictionWarn guest={guest} />
           <div className="grid gap-4 md:grid-cols-2">
-            <Panel title="Basic">
+            <Panel title="Basic Information">
               <Row label="Title" value={guest.title ? GUEST_TITLE_LABELS[guest.title] : null} />
               <Row label="Preferred name" value={guest.preferredName} />
               <Row label="Middle name" value={guest.middleName} />
@@ -316,7 +322,7 @@ export function GuestDetailWorkspace({
               <Row label="Postal code" value={guest.postalCode} />
             </Panel>
             <div className="md:col-span-2">
-              <Panel title="Identity">
+              <Panel title="Identity & Documents">
                 <Row
                   label="ID type"
                   value={guest.idDocumentType ? ID_DOCUMENT_LABELS[guest.idDocumentType] : null}
@@ -345,11 +351,15 @@ export function GuestDetailWorkspace({
                 <p className="text-sm text-muted-foreground">No emergency contacts yet.</p>
               ) : (
                 guest.emergencyContacts.map((contact) => (
-                  <div key={contact.id} className="rounded-xl border border-border px-3 py-2 text-sm">
+                  <div
+                    key={contact.id}
+                    className="rounded-xl border border-border px-3 py-2 text-sm"
+                  >
                     <p className="font-medium">{contact.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {[contact.relationship, contact.phone, contact.email].filter(Boolean).join(" · ") ||
-                        "No extra details"}
+                      {[contact.relationship, contact.phone, contact.email]
+                        .filter(Boolean)
+                        .join(" · ") || "No extra details"}
                     </p>
                   </div>
                 ))
@@ -419,7 +429,10 @@ export function GuestDetailWorkspace({
         </TabsContent>
 
         <TabsContent value="history" className="mt-4" data-testid="guest-detail-history-panel">
-          <p className="mb-3 text-sm text-muted-foreground" data-testid="guest-profile-history-copy">
+          <p
+            className="mb-3 text-sm text-muted-foreground"
+            data-testid="guest-profile-history-copy"
+          >
             {WAVE3_PROFILE_HISTORY_COPY}
           </p>
           {history.length === 0 ? (

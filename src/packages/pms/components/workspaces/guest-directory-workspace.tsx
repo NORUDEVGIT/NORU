@@ -7,7 +7,11 @@ import { Plus, Search, Star } from "lucide-react";
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
-import { GuestRestrictionBadges, StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import {
+  GuestRestrictionBadges,
+  StatusBadge,
+  VipBadge,
+} from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   guestProfileCardSearch,
@@ -22,7 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { getGuestsAccess, listGuests } from "@/packages/pms/lib/guests.functions";
+import {
+  getGuestDirectoryStats,
+  getGuestsAccess,
+  listGuests,
+} from "@/packages/pms/lib/guests.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
@@ -32,11 +40,13 @@ export function GuestDirectoryWorkspace({
   membership,
   compact = false,
   returnCard,
+  typeSwitcher,
 }: {
   membership: RestaurantMembership;
   compact?: boolean;
   /** Reopen this guest-required card after staff pick another guest. */
   returnCard?: GuestProfileCardId | undefined;
+  typeSwitcher?: React.ReactNode;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -44,6 +54,7 @@ export function GuestDirectoryWorkspace({
 
   const fetchAccess = useServerFn(getGuestsAccess);
   const fetchGuests = useServerFn(listGuests);
+  const fetchStats = useServerFn(getGuestDirectoryStats);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>(ALL);
@@ -71,6 +82,12 @@ export function GuestDirectoryWorkspace({
         },
       }),
     enabled: canManage,
+  });
+  const statsQuery = useQuery({
+    queryKey: ["guest-directory-stats", restaurantId],
+    queryFn: () => fetchStats({ data: { restaurantId } }),
+    enabled: canManage,
+    retry: false,
   });
 
   function openGuest(id: string) {
@@ -101,22 +118,39 @@ export function GuestDirectoryWorkspace({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           {compact ? (
-            <h2 className="font-display text-xl">Individual directory</h2>
+            <h1 className="font-display text-2xl">Guest Profiles</h1>
           ) : (
             <h1 className="font-display text-2xl">Directory</h1>
           )}
           <p className="text-sm text-muted-foreground">
-            Search and open individual guest profiles for {membership.restaurant.name}.
+            {compact
+              ? "Search, manage and open guest profiles."
+              : `Search and open individual guest profiles for ${membership.restaurant.name}.`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setMergeOpen(true)}>
-            Merge guests
+            Merge Guests
           </Button>
           <Button onClick={() => setFormOpen(true)}>
             <Plus className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">New Guest</span>
           </Button>
+        </div>
+      </div>
+
+      {typeSwitcher}
+
+      <div
+        className="overflow-x-auto rounded-2xl border border-border bg-card"
+        data-testid="guest-directory-kpis"
+      >
+        <div className="grid min-w-[680px] grid-cols-5 divide-x divide-border">
+          <DirectoryKpi label="Total guests" value={statsQuery.data?.totalGuests} />
+          <DirectoryKpi label="Active guests" value={statsQuery.data?.activeGuests} />
+          <DirectoryKpi label="VIP guests" value={statsQuery.data?.vipGuests} />
+          <DirectoryKpi label="Returning guests" value={statsQuery.data?.returningGuests} />
+          <DirectoryKpi label="In-house guests" value={statsQuery.data?.inHouseGuests} />
         </div>
       </div>
 
@@ -244,6 +278,17 @@ export function GuestDirectoryWorkspace({
         onOpenChange={setMergeOpen}
         onMerged={openGuest}
       />
+    </div>
+  );
+}
+
+function DirectoryKpi({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div className="px-4 py-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 font-display text-xl">{value ?? "—"}</p>
     </div>
   );
 }

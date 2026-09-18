@@ -21,12 +21,12 @@ export const Route = createFileRoute("/restaurant/pms/guests/$guestId")({
   },
   head: () => ({
     meta: [
-      { title: "Guest Profile — NORU PMS" },
+      { title: "Guest Profiles — NORU PMS" },
       {
         name: "description",
         content: "Individual guest information, identity text and profile history.",
       },
-      { property: "og:title", content: "Guest Profile — NORU PMS" },
+      { property: "og:title", content: "Guest Profiles — NORU PMS" },
       { property: "og:description", content: "Guest information and directory inside NORU PMS." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

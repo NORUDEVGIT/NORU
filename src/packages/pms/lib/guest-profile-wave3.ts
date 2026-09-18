@@ -99,6 +99,11 @@ export type GuestStayOverview = {
     arrivalDate: string;
     departureDate: string;
   } | null;
+  nextStay: {
+    confirmationNumber: string;
+    arrivalDate: string;
+    departureDate: string;
+  } | null;
   inHouseCount: number;
   upcomingCount: number;
   roomTotal: KnownMoney | null;
@@ -127,9 +132,7 @@ export function isReservationRlsBlocked(
   if (error.code === "42501" || error.code === "PGRST301") return true;
   const msg = (error.message ?? "").toLowerCase();
   return (
-    msg.includes("row-level security") ||
-    msg.includes("permission denied") ||
-    msg.includes("42501")
+    msg.includes("row-level security") || msg.includes("permission denied") || msg.includes("42501")
   );
 }
 
@@ -141,7 +144,11 @@ export function isCompletedStay(status: ReservationStatus): boolean {
   return status === "checked_out";
 }
 
-export function isUpcomingStay(status: ReservationStatus, arrivalDate: string, today: string): boolean {
+export function isUpcomingStay(
+  status: ReservationStatus,
+  arrivalDate: string,
+  today: string,
+): boolean {
   return (UPCOMING_STAY_STATUSES as readonly string[]).includes(status) && arrivalDate >= today;
 }
 
@@ -218,6 +225,10 @@ export function deriveStayOverview(
     .filter((stay) => isCompletedStay(stay.status))
     .sort((a, b) => b.departureDate.localeCompare(a.departureDate));
   const last = completed[0] ?? null;
+  const upcoming = stays
+    .filter((stay) => isUpcomingStay(stay.status, stay.arrivalDate, today))
+    .sort((a, b) => a.arrivalDate.localeCompare(b.arrivalDate));
+  const next = upcoming[0] ?? null;
   const roomTotal = knownMoneyTotal(
     stays.map((stay) => ({ amount: stay.roomSubtotal, currency: stay.currency })),
   );
@@ -239,8 +250,16 @@ export function deriveStayOverview(
           departureDate: last.departureDate,
         }
       : null,
+    nextStay: next
+      ? {
+          confirmationNumber: next.confirmationNumber,
+          arrivalDate: next.arrivalDate,
+          departureDate: next.departureDate,
+        }
+      : null,
     inHouseCount: stays.filter((stay) => isInHouseStay(stay.status)).length,
-    upcomingCount: stays.filter((stay) => isUpcomingStay(stay.status, stay.arrivalDate, today)).length,
+    upcomingCount: stays.filter((stay) => isUpcomingStay(stay.status, stay.arrivalDate, today))
+      .length,
     roomTotal,
     folioOutstanding,
     featuredStay: pickFeaturedStay(stays, today),
@@ -253,7 +272,8 @@ export function stayQuickActions(
   access: GuestStayAccess,
   today: string,
 ): { reservation: QuickActionState; frontOffice: QuickActionState; folio: QuickActionState } {
-  const operational = isInHouseStay(stay.status) || isUpcomingStay(stay.status, stay.arrivalDate, today);
+  const operational =
+    isInHouseStay(stay.status) || isUpcomingStay(stay.status, stay.arrivalDate, today);
   return {
     reservation: access.reservation ? "enabled" : "hidden",
     frontOffice: access.frontOffice ? (operational ? "enabled" : "disabled") : "hidden",
