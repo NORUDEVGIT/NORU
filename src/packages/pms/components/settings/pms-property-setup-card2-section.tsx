@@ -6,6 +6,10 @@ import {
   PmsPropertySetupCard2Amenities,
   type AmenitiesRailStats,
 } from "@/packages/pms/components/settings/pms-property-setup-card2-amenities";
+import {
+  PmsPropertySetupCard2Inventory,
+  type InventoryRailStats,
+} from "@/packages/pms/components/settings/pms-property-setup-card2-inventory";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   CARD1_PMS_NAV,
@@ -55,6 +59,10 @@ export function PmsPropertySetupCard2Section({
     card2Steps?.amenities ?? "not_started",
   );
   const [amenitiesStats, setAmenitiesStats] = useState<AmenitiesRailStats | null>(null);
+  const [inventoryStatus, setInventoryStatus] = useState<PropertySetupCardStatus>(
+    card2Steps?.["inventory-rules"] ?? "not_started",
+  );
+  const [inventoryStats, setInventoryStats] = useState<InventoryRailStats | null>(null);
   const [continuePending, setContinuePending] = useState(false);
   const actionsRef = useRef<{ saveDraft: () => Promise<boolean>; saveAndContinue: () => Promise<boolean> } | null>(
     null,
@@ -66,6 +74,7 @@ export function PmsPropertySetupCard2Section({
     ...card2Steps,
     "room-types": roomTypesStatus,
     amenities: amenitiesStatus,
+    "inventory-rules": inventoryStatus,
   };
   const completedCount = card2CompletedCount(stepStatuses);
   const progressPct = card2ProgressPct(stepStatuses);
@@ -75,6 +84,9 @@ export function PmsPropertySetupCard2Section({
   }, []);
   const onAmenitiesReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
     setAmenitiesStatus(status);
+  }, []);
+  const onInventoryReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
+    setInventoryStatus(status);
   }, []);
 
   function goBack() {
@@ -89,7 +101,7 @@ export function PmsPropertySetupCard2Section({
   }
 
   async function goContinue() {
-    if (step === "room-types" || step === "amenities") {
+    if (step === "room-types" || step === "amenities" || step === "inventory-rules") {
       setContinuePending(true);
       const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
       setContinuePending(false);
@@ -98,6 +110,44 @@ export function PmsPropertySetupCard2Section({
     if (!next) return;
     setStep(next);
   }
+
+  const inventoryRail =
+    step === "inventory-rules" && inventoryStats ? (
+      <>
+        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Current Inventory Rules</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">
+            {amenitiesStatusLabel(inventoryStats.stepStatus, inventoryStats.blockers)}
+          </p>
+        </section>
+        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Physical Rooms</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{inventoryStats.physicalRoomCount}</p>
+          <p className="mt-2 text-xs text-muted-foreground">Room-Level Sellable</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{inventoryStats.roomLevelSellableCount}</p>
+          <p className="mt-2 text-xs text-muted-foreground">Canonical Capacity</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{inventoryStats.canonicalEngineSellableRoomCount}</p>
+          <p className="mt-2 text-xs text-muted-foreground">Block Policies Configured</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{inventoryStats.blockPoliciesConfigured} / 9</p>
+        </section>
+        {inventoryStats.configuredButNotOperational ? (
+          <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+            <p className="text-xs text-muted-foreground">Overbooking</p>
+            <p className="mt-1 text-sm text-[#251605]">Overbooking policy configured — engine support not active</p>
+          </section>
+        ) : null}
+        {inventoryStats.blockers.length > 0 ? (
+          <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+            <p className="text-xs text-muted-foreground">Blockers</p>
+            <ul className="mt-1 list-disc pl-4 text-sm text-[#251605]">
+              {inventoryStats.blockers.map((row) => (
+                <li key={row}>{row}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </>
+    ) : null;
 
   const amenitiesRail =
     step === "amenities" && amenitiesStats ? (
@@ -153,12 +203,12 @@ export function PmsPropertySetupCard2Section({
       cardStatusLabel={propertySetupStatusLabel(cardStatus === "complete" ? "in_progress" : cardStatus)}
       progressLabel="Rooms & Operations Progress"
       onBack={goBack}
-      saveDraftDisabled={!canEdit || (step !== "room-types" && step !== "amenities")}
+      saveDraftDisabled={!canEdit || (step !== "room-types" && step !== "amenities" && step !== "inventory-rules")}
       onSaveDraft={() => void actionsRef.current?.saveDraft()}
       continueDisabled={!canEdit || !next}
       continuePending={continuePending}
       onContinue={() => void goContinue()}
-      railExtras={amenitiesRail}
+      railExtras={inventoryRail ?? amenitiesRail}
     >
       {step === "room-types" ? (
         <PmsPropertySetupCard2RoomTypes
@@ -175,6 +225,16 @@ export function PmsPropertySetupCard2Section({
           canEdit={canEdit}
           onReadiness={onAmenitiesReadiness}
           onStats={setAmenitiesStats}
+          registerActions={(actions) => {
+            actionsRef.current = actions;
+          }}
+        />
+      ) : step === "inventory-rules" ? (
+        <PmsPropertySetupCard2Inventory
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onReadiness={onInventoryReadiness}
+          onStats={setInventoryStats}
           registerActions={(actions) => {
             actionsRef.current = actions;
           }}
