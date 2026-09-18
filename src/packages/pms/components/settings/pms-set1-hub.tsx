@@ -8,6 +8,7 @@ import { Button } from "@/shared/components/ui/button";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
 import { PmsPropertySetupCard1Section } from "@/packages/pms/components/settings/pms-property-setup-card1-section";
+import { PmsPropertySetupCard2Section } from "@/packages/pms/components/settings/pms-property-setup-card2-section";
 import { Set2OutletsSection, Set2RoomsSection, Set2StructureSection } from "@/packages/pms/components/settings/pms-set2-section";
 import { Set3GuestSection, Set3RatesSection } from "@/packages/pms/components/settings/pms-set3-section";
 import { Set4HousekeepingSection, Set4MaintenanceSection, Set4RoomInventorySection } from "@/packages/pms/components/settings/pms-set4-section";
@@ -58,6 +59,7 @@ import {
   propertySetupStatusLabel,
   type PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
+import { CARD2_HASH, isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
 
@@ -71,6 +73,11 @@ function currentCard1Open(): boolean {
   return isCard1WorkspaceHash(window.location.hash);
 }
 
+function currentCard2Open(): boolean {
+  if (typeof window === "undefined") return false;
+  return isCard2WorkspaceHash(window.location.hash);
+}
+
 export function PmsSet1Hub({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const load = useServerFn(getPmsSet1Foundation);
@@ -78,6 +85,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   const loadAudit = useServerFn(listPmsSet1Audit);
   const [section, setSection] = useState<Set1SectionId | null>(currentSection);
   const [card1Open, setCard1Open] = useState(currentCard1Open);
+  const [card2Open, setCard2Open] = useState(currentCard2Open);
   const [showAllChanges, setShowAllChanges] = useState(false);
 
   useEffect(() => {
@@ -86,12 +94,16 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       if (raw === "card-1" || raw === "card1") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD1_HASH}`);
       }
+      if (raw === "card-2" || raw === "card2") {
+        window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD2_HASH}`);
+      }
       const resolved = resolveSet1SectionHash(raw);
       if (resolved && resolved !== raw) {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${resolved}`);
       }
       setSection(currentSection());
       setCard1Open(currentCard1Open());
+      setCard2Open(currentCard2Open());
     };
     apply();
     window.addEventListener("hashchange", apply);
@@ -129,7 +141,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
-      {card1Open ? null : (
+      {card1Open || card2Open ? null : (
       <div>
         <Link
           to={SET1_PMS_BACK_HREF as "/restaurant/pms"}
@@ -142,7 +154,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           <span className="sr-only">{SET1_FOUNDATION_CHIP}</span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Property Setup for {membership.restaurant.name}. Eight cards. Only Property & Business is Spec’d in this wave.
+          Property Setup for {membership.restaurant.name}. Eight cards. Property & Business and Rooms & Operations are Spec’d in this wave.
         </p>
       </div>
       )}
@@ -161,6 +173,19 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
             canEdit={canEdit}
           />
         )
+      ) : card2Open ? (
+        <PmsPropertySetupCard2Section
+          cardStatus={
+            card1Query.data
+              ? evaluateProgrammeCardStatus(
+                  "rooms-inventory",
+                  card1Query.data.snapshot.status,
+                  evaluateCard1Status(card1Query.data.snapshot.draft, card1Query.data.snapshot.status, card1Query.data.set2),
+                )
+              : "not_started"
+          }
+          canEdit={canEdit}
+        />
       ) : section ? (
         <div className="space-y-4">
           <Button variant="outline" size="sm" asChild>
@@ -340,7 +365,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                     "flex flex-col rounded-2xl border bg-card p-5",
                     card.specced ? "border-border" : "border-dashed border-[#CCCCCC] bg-muted/20",
                   )}
-                  data-testid={card.specced ? "property-setup-card-1" : "property-setup-coming-soon-card"}
+                  data-testid={card.specced ? `property-setup-card-${card.number}` : "property-setup-coming-soon-card"}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h2 className={cn("font-display text-lg", card.specced ? "text-[#251605]" : "text-muted-foreground")}>
