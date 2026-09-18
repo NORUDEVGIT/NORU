@@ -144,7 +144,7 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.doesNotMatch(types, /pms_taxes:/);
   });
 
-  it("keeps six taxes tabs and leaves Rates as a Phase 0 placeholder", () => {
+  it("keeps six taxes tabs and leaves remaining Card 3 domains as placeholders", () => {
     assert.deepEqual(
       CARD3_TAXES_TABS.map((tab) => tab.label),
       ["Overview", "Taxes", "Tax Groups", "Service Charges", "Fees", "Exemptions"],
@@ -153,6 +153,5 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.match(ui, /CARD3_TAXES_SET1_COPY/);
     assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.doesNotMatch(ui, /Rates & Pricing/);
-    assert.equal(existsSync(join(here, "../components/settings/pms-property-setup-card3-rates.tsx")), false);
   });
 });
