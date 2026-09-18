@@ -7,6 +7,7 @@ import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { isCard1WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card1";
+import { isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
 
 export const Route = createFileRoute("/restaurant/settings")({
   ssr: false,
@@ -29,17 +30,20 @@ export const Route = createFileRoute("/restaurant/settings")({
 });
 
 function RestaurantSettings() {
-  const [card1Open, setCard1Open] = useState(() =>
-    typeof window !== "undefined" ? isCard1WorkspaceHash(window.location.hash) : false,
+  const [workspaceOpen, setWorkspaceOpen] = useState(() =>
+    typeof window !== "undefined"
+      ? isCard1WorkspaceHash(window.location.hash) || isCard2WorkspaceHash(window.location.hash)
+      : false,
   );
   useEffect(() => {
-    const apply = () => setCard1Open(isCard1WorkspaceHash(window.location.hash));
+    const apply = () =>
+      setWorkspaceOpen(isCard1WorkspaceHash(window.location.hash) || isCard2WorkspaceHash(window.location.hash));
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   return (
-    <RestaurantShell active="Settings" hidePackageRail={card1Open}>
+    <RestaurantShell active="Settings" hidePackageRail={workspaceOpen}>
       {(m) => <PropertySettingsPage membership={m} />}
     </RestaurantShell>
   );

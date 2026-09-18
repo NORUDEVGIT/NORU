@@ -273,11 +273,13 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(steps, /\+ Add department/);
   });
 
-  it("shows Cards 2–8 as Coming soon and keeps status honesty", () => {
+  it("shows Cards 3–8 as Coming soon and keeps status honesty", () => {
     assert.equal(PROPERTY_SETUP_CARDS.length, 8);
     assert.equal(PROPERTY_SETUP_CARDS[0].title, CARD1_TITLE);
     assert.equal(PROPERTY_SETUP_CARDS[0].specced, true);
-    assert.ok(PROPERTY_SETUP_CARDS.slice(1).every((card) => card.specced === false));
+    assert.equal(PROPERTY_SETUP_CARDS[1].title, "Rooms & Operations");
+    assert.equal(PROPERTY_SETUP_CARDS[1].specced, true);
+    assert.ok(PROPERTY_SETUP_CARDS.slice(2).every((card) => card.specced === false));
     assert.equal(CARD1_STEPS.length, 8);
     assert.deepEqual(
       CARD1_STEPS.map((step) => step.title),
@@ -308,6 +310,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(hub, /PROPERTY_SETUP_CARDS.map/);
     assert.match(hub, /Coming soon/);
     assert.match(hub, /PmsPropertySetupCard1Section/);
+    assert.match(hub, /PmsPropertySetupCard2Section/);
     assert.match(hub, /Complete \/ In Progress \/ Not Started|propertySetupStatusLabel/);
     assert.doesNotMatch(hub, /FO-CHROME1/);
     assert.doesNotMatch(hub, /overbooking/i);
@@ -333,8 +336,9 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(ui, /CARD1_WORKSPACE_TITLE/);
     assert.match(ui, /CARD1_SIDEBAR_OUT/);
     assert.doesNotMatch(ui, /Foundation badge|SET1_FOUNDATION_CHIP/);
-    assert.match(settings, /hidePackageRail=\{card1Open\}/);
+    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
     assert.match(settings, /isCard1WorkspaceHash/);
+    assert.match(settings, /isCard2WorkspaceHash/);
     assert.match(shell, /hidePackageRailProp/);
     assert.doesNotMatch(ui, /SETTINGS rail/);
   });

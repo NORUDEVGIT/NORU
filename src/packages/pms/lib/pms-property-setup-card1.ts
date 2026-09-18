@@ -97,10 +97,10 @@ export const PROPERTY_SETUP_CARDS = [
   {
     id: "rooms-inventory",
     number: 2,
-    title: "Rooms & Inventory",
-    purpose: "Room types, physical rooms and inventory rules. Programme context — not Spec’d in this wave.",
-    specced: false,
-    hash: null,
+    title: "Rooms & Operations",
+    purpose: "Configure room types, physical rooms, amenities, housekeeping, inventory and maintenance rules.",
+    specced: true,
+    hash: "rooms-inventory",
   },
   {
     id: "rates-guest-rules",
