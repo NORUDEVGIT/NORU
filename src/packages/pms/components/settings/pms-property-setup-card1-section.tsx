@@ -29,6 +29,7 @@ import {
   validateAddressFields,
   type Card1AddressFieldErrors,
   type Card1Draft,
+  type Card1IdentityFieldErrors,
   type Card1Snapshot,
   type Card1StepId,
 } from "@/packages/pms/lib/pms-property-setup-card1";
@@ -95,7 +96,11 @@ export function PmsPropertySetupCard1Section({
         window.history.replaceState(null, "", SET1_HUB_HREF);
         window.dispatchEvent(new HashChangeEvent("hashchange"));
       }
-      if (result.snapshot) setDraft(result.snapshot.draft);
+      if (result.snapshot) {
+        setDraft(result.snapshot.draft);
+        setLogoPreviewUrl(result.snapshot.logoPreviewUrl);
+        setCoverPreviewUrl(result.snapshot.coverPreviewUrl);
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -138,6 +143,22 @@ export function PmsPropertySetupCard1Section({
     window.history.replaceState(null, "", SET1_HUB_HREF);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   }
+
+  function saveMode(mode: "draft" | "continue" | "finish") {
+    if (mode === "continue" && step === "identity") {
+      const nextErrors = validateIdentityFields(draft);
+      setIdentityErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) return;
+    }
+    mutation.mutate(mode);
+  }
+
+  const completedCount = CARD1_STEPS.filter(
+    (row) => evaluateCard1StepStatus(row.id, draft, snapshot.status.card1Steps[row.id], set2) === "complete",
+  ).length;
+  const progressPct = Math.round((completedCount / CARD1_STEPS.length) * 100);
+  const currentStatus = evaluateCard1StepStatus(step, draft, snapshot.status.card1Steps[step], set2);
+  const nextStep = nextCard1Step(step);
 
   return (
     <section

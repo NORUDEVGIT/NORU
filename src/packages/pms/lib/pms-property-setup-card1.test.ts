@@ -17,18 +17,21 @@ import {
   CARD1_AUDIT_COMPLETED,
   CARD1_FINISH_COPY,
   CARD1_HASH,
+  CARD1_LANGUAGES,
   CARD1_OPENING_DATE_IN,
   CARD1_PMS_NAV,
   CARD1_ROOMS_HREF,
   CARD1_SIDEBAR_OUT,
   CARD1_STEPS,
   CARD1_STRUCTURE_CRUD_COPY,
+  CARD1_SUBTITLE,
   CARD1_TITLE,
   CARD1_VAT_GATE_COPY,
   CARD1_WORKSPACE_TITLE,
   D8_STRUCTURE_DEFAULTS,
   PROPERTY_SETUP_CARDS,
   card1FinishActivatesProperty,
+  card1LanguageOptions,
   card1StepComplete,
   card1TaxWarnings,
   composeFullAddress,
@@ -105,6 +108,8 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(steps, /card1-branding-panel/);
     assert.match(steps, /readOnly/);
     assert.match(steps, /card1-property-code/);
+    assert.doesNotMatch(steps, /https:\/\/ or uploaded URL/);
+    assert.match(fns, /createPropertyBrandImageUpload/);
     assert.equal(formatPropertyCode(1), "NRC0001");
     assert.equal(isNrcPropertyCode("NRC0002"), true);
     assert.equal(isNrcPropertyCode("HH"), false);
@@ -278,10 +283,10 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
         "Property Identity",
         "Address & Location",
         "Contacts",
-        "Check-in & Check-out",
+        "Check-In & Check-Out",
         "Business Date",
         "Legal Identity",
-        "Tax & Documents",
+        "Tax Documents",
         "Property Structure",
       ],
     );
@@ -340,6 +345,33 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(isCard1WorkspaceHash("#property-business"), true);
     assert.equal(isCard1WorkspaceHash("#identity"), false);
     assert.equal(CARD1_HASH, "property-business");
+  });
+
+  it("matches Property Identity language, validation, and image rules", () => {
+    assert.match(CARD1_SUBTITLE, /compliance for your NORU setup/);
+    assert.deepEqual(
+      CARD1_LANGUAGES.map((row) => row.label),
+      ["English", "Amharic", "Afaan Oromo", "Tigrinya", "Arabic", "Spanish", "Dutch", "Chinese", "Portuguese"],
+    );
+    assert.ok(card1LanguageOptions("so").some((row) => row.id === "so" && row.label === "Somali"));
+    assert.equal(validateIdentityFields(emptyCard1Draft()).name, "Property name is required.");
+    assert.equal(validateIdentityFields(emptyCard1Draft()).openingDate, "Opening date is required.");
+    assert.equal(
+      validateIdentityFields(emptyCard1Draft({ websiteUrl: "not-a-url" })).websiteUrl,
+      "Enter a valid website address.",
+    );
+    assert.equal(
+      validateBrandImageFile({ type: "application/pdf", size: 100 }),
+      "Only PNG, JPG, JPEG and WEBP images are allowed.",
+    );
+    assert.equal(
+      validateBrandImageFile({ type: "image/png", size: 2 * 1024 * 1024 }),
+      "Image must be smaller than 1 MB.",
+    );
+    assert.equal(validateBrandImageFile({ type: "image/webp", size: 512 }), null);
+    assert.match(ui, /pms-card1-status-rail/);
+    assert.match(steps, /BrandImageField/);
+    assert.match(steps, /createPropertyBrandImageUpload/);
   });
 
   it("ships dual-lane 0063 without live apply, seed, or a second live flag", () => {

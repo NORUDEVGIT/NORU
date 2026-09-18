@@ -1,6 +1,7 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -19,6 +20,7 @@ import {
   saveHotelWing,
 } from "@/packages/pms/lib/pms-set2-structure.functions";
 import type { Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
+import { createPropertyBrandImageUpload } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   CARD1_ADDRESS_ADAPT_COPY,
   CARD1_ADDRESS_SUBTITLE,
@@ -26,6 +28,9 @@ import {
   CARD1_BLOCKER_LABELS,
   CARD1_BRAND_AFFILIATION_LABELS,
   CARD1_BRAND_AFFILIATIONS,
+  CARD1_BRAND_IMAGE_HELPER,
+  CARD1_BRAND_IMAGE_UPLOAD_ERROR,
+  CARD1_BRANDING_HELPER,
   CARD1_BUSINESS_DATE_CURRENT_COPY,
   CARD1_BUSINESS_TYPE_LABELS,
   CARD1_BUSINESS_TYPES,
@@ -35,13 +40,14 @@ import {
   CARD1_DEFAULT_BLOCKERS,
   CARD1_FULL_ADDRESS_COPY,
   CARD1_IDENTITY_HELPER,
-  CARD1_LANGUAGES,
+  CARD1_INDEPENDENT_HELPER,
   CARD1_MANUAL_ROLLOVER_ROLES,
   CARD1_OPENING_DATE_IN,
   CARD1_PROPERTY_AREA_OPTIONS,
   CARD1_PROPERTY_CODE_TOOLTIP,
   CARD1_PROPERTY_TYPE_LABELS,
   CARD1_PROPERTY_TYPES,
+  CARD1_PUBLIC_HELPER,
   CARD1_ROOMS_HREF,
   CARD1_SOCIAL_PLATFORM_LABELS,
   CARD1_SOCIAL_PLATFORMS,
@@ -50,11 +56,13 @@ import {
   LEGAL_ENTITY_TYPE_LABELS,
   LEGAL_ENTITY_TYPES,
   STAR_RATINGS,
+  card1LanguageOptions,
   liveBlockPreview,
   structureRoomCodeExample,
   vatCertificateRequired,
   type Card1AddressFieldErrors,
   type Card1Draft,
+  type Card1IdentityFieldErrors,
   type Card1Snapshot,
   type Card1CurrentState,
 } from "@/packages/pms/lib/pms-property-setup-card1";
@@ -136,135 +144,377 @@ function Panel({ title, helper, children, testId }: { title: string; helper?: st
   );
 }
 
-export function IdentityStep({
+function SelectField({
+  id,
+  label,
+  required,
+  error,
+  children,
+}: {
+  id: string;
+  label: string;
+  required?: boolean | undefined;
+  error?: string | undefined;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>
+        {label}
+        {required ? <span className="text-red-600"> *</span> : null}
+      </Label>
+      {children}
+      {error ? (
+        <p id={`${id}-error`} className="text-xs text-red-600" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function AffiliationSelect({
+  id,
   draft,
   setDraft,
   canEdit,
 }: {
+  id: string;
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
 }) {
   return (
+    <Select
+      value={draft.brandAffiliation || "unset"}
+      onValueChange={(value) => setDraft((p) => ({ ...p, brandAffiliation: value === "unset" ? "" : value }))}
+      disabled={!canEdit}
+    >
+      <SelectTrigger id={id} className="h-11">
+        <SelectValue placeholder="Independent / No Chain" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="unset">Not set</SelectItem>
+        {CARD1_BRAND_AFFILIATIONS.map((item) => (
+          <SelectItem key={item} value={item}>
+            {CARD1_BRAND_AFFILIATION_LABELS[item]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function IdentityStep({
+  restaurantId,
+  draft,
+  setDraft,
+  canEdit,
+  logoPreviewUrl,
+  coverPreviewUrl,
+  errors,
+  onClearError,
+}: {
+  restaurantId: string;
+  draft: Card1Draft;
+  setDraft: Dispatch<SetStateAction<Card1Draft>>;
+  canEdit: boolean;
+  logoPreviewUrl: string;
+  coverPreviewUrl: string;
+  errors: Card1IdentityFieldErrors;
+  onClearError: (key: keyof Card1IdentityFieldErrors) => void;
+}) {
+  const languages = card1LanguageOptions(draft.defaultLanguage);
+  return (
     <div className="space-y-4" data-testid="pms-card1-step-identity">
       <Panel title="Property Identity" helper={CARD1_IDENTITY_HELPER} testId="card1-identity-panel">
-        <p className="text-sm text-muted-foreground">{CARD1_OPENING_DATE_IN}</p>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <span className="sr-only">{CARD1_OPENING_DATE_IN}</span>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="card1-property-code">Property Code</Label>
-            <Input
-              id="card1-property-code"
-              value={draft.propertyCode || "NRC————"}
-              readOnly
-              disabled
-              title={CARD1_PROPERTY_CODE_TOOLTIP}
-              className="h-11 bg-muted/40"
-              data-testid="card1-property-code"
-            />
+            <div className="relative">
+              <Input
+                id="card1-property-code"
+                value={draft.propertyCode || "NRC————"}
+                readOnly
+                disabled
+                title={CARD1_PROPERTY_CODE_TOOLTIP}
+                className="h-11 bg-muted/40 pr-10"
+                data-testid="card1-property-code"
+              />
+              <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            </div>
             <p className="text-xs text-muted-foreground">{CARD1_PROPERTY_CODE_TOOLTIP}</p>
           </div>
-          <Field id="card1-name" label="Property / Business Name" required value={draft.name} disabled={!canEdit} onChange={(name) => setDraft((p) => ({ ...p, name }))} />
-          <Field id="card1-trading-name" label="Trading Name" value={draft.tradingName} disabled={!canEdit} onChange={(tradingName) => setDraft((p) => ({ ...p, tradingName }))} />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-property-type">Property Type <span className="text-red-600">*</span></Label>
-            <Select value={draft.propertyType || "unset"} onValueChange={(value) => setDraft((p) => ({ ...p, propertyType: value === "unset" ? "" : value }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-property-type" className="h-11"><SelectValue placeholder="Select" /></SelectTrigger>
+          <Field
+            id="card1-name"
+            label="Property / Business Name"
+            required
+            value={draft.name}
+            disabled={!canEdit}
+            error={errors.name}
+            onChange={(name) => {
+              onClearError("name");
+              setDraft((p) => ({ ...p, name }));
+            }}
+          />
+          <Field
+            id="card1-trading-name"
+            label="Trading Name"
+            value={draft.tradingName}
+            disabled={!canEdit}
+            onChange={(tradingName) => setDraft((p) => ({ ...p, tradingName }))}
+          />
+          <SelectField id="card1-property-type" label="Property Type" required error={errors.propertyType}>
+            <Select
+              value={draft.propertyType || "unset"}
+              onValueChange={(value) => {
+                onClearError("propertyType");
+                setDraft((p) => ({ ...p, propertyType: value === "unset" ? "" : value }));
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-property-type" className="h-11" aria-invalid={Boolean(errors.propertyType)}>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="unset">Not set</SelectItem>
                 {CARD1_PROPERTY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>{CARD1_PROPERTY_TYPE_LABELS[type]}</SelectItem>
+                  <SelectItem key={type} value={type}>
+                    {CARD1_PROPERTY_TYPE_LABELS[type]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-business-type">Business Type <span className="text-red-600">*</span></Label>
-            <Select value={draft.businessType || "unset"} onValueChange={(value) => setDraft((p) => ({ ...p, businessType: value === "unset" ? "" : value }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-business-type" className="h-11"><SelectValue placeholder="Select" /></SelectTrigger>
+          </SelectField>
+          <SelectField id="card1-business-type" label="Business Type" required error={errors.businessType}>
+            <Select
+              value={draft.businessType || "unset"}
+              onValueChange={(value) => {
+                onClearError("businessType");
+                setDraft((p) => ({ ...p, businessType: value === "unset" ? "" : value }));
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-business-type" className="h-11" aria-invalid={Boolean(errors.businessType)}>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="unset">Not set</SelectItem>
                 {CARD1_BUSINESS_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>{CARD1_BUSINESS_TYPE_LABELS[type]}</SelectItem>
+                  <SelectItem key={type} value={type}>
+                    {CARD1_BUSINESS_TYPE_LABELS[type]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-star">Star Rating</Label>
-            <Select value={draft.starRating === "" ? "unset" : String(draft.starRating)} onValueChange={(value) => setDraft((p) => ({ ...p, starRating: value === "unset" ? "" : (Number(value) as 1 | 2 | 3 | 4 | 5) }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-star" className="h-11"><SelectValue placeholder="Not set" /></SelectTrigger>
+          </SelectField>
+          <SelectField id="card1-star" label="Star Rating">
+            <Select
+              value={draft.starRating === "" ? "unset" : String(draft.starRating)}
+              onValueChange={(value) =>
+                setDraft((p) => ({ ...p, starRating: value === "unset" ? "" : (Number(value) as 1 | 2 | 3 | 4 | 5) }))
+              }
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-star" className="h-11">
+                <SelectValue placeholder="Not set" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="unset">Not set</SelectItem>
                 {STAR_RATINGS.map((rating) => (
-                  <SelectItem key={rating} value={String(rating)}>{rating} Star</SelectItem>
+                  <SelectItem key={rating} value={String(rating)}>
+                    {rating} Star
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <Field id="card1-opening-date" label="Opening Date" required type="date" value={draft.openingDate} disabled={!canEdit} onChange={(openingDate) => setDraft((p) => ({ ...p, openingDate }))} />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-timezone">Time Zone <span className="text-red-600">*</span></Label>
-            <Select value={draft.timezone} onValueChange={(timezone) => setDraft((p) => ({ ...p, timezone }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-timezone" className="h-11"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {COMMON_TIMEZONES.map((tz) => (
-                  <SelectItem key={tz} value={tz}>{tz.replace(/_/g, " ")}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-currency">Primary Currency <span className="text-red-600">*</span></Label>
-            <Select value={draft.currencyCode} onValueChange={(currencyCode) => setDraft((p) => ({ ...p, currencyCode }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-currency" className="h-11"><SelectValue /></SelectTrigger>
+          </SelectField>
+          <Field
+            id="card1-opening-date"
+            label="Opening Date"
+            required
+            type="date"
+            value={draft.openingDate}
+            disabled={!canEdit}
+            error={errors.openingDate}
+            onChange={(openingDate) => {
+              onClearError("openingDate");
+              setDraft((p) => ({ ...p, openingDate }));
+            }}
+          />
+          <SelectField id="card1-currency" label="Primary Currency" required error={errors.currencyCode}>
+            <Select
+              value={draft.currencyCode}
+              onValueChange={(currencyCode) => {
+                onClearError("currencyCode");
+                setDraft((p) => ({ ...p, currencyCode }));
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-currency" className="h-11">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {COMMON_CURRENCIES.map((currency) => (
-                  <SelectItem key={currency.code} value={currency.code}>{currency.code}</SelectItem>
+                  <SelectItem key={currency.code} value={currency.code}>
+                    {currency.code} — {currency.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-language">Language <span className="text-red-600">*</span></Label>
-            <Select value={draft.defaultLanguage || "en"} onValueChange={(defaultLanguage) => setDraft((p) => ({ ...p, defaultLanguage }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-language" className="h-11"><SelectValue /></SelectTrigger>
+          </SelectField>
+          <SelectField id="card1-timezone" label="Time Zone" required error={errors.timezone}>
+            <Select
+              value={draft.timezone}
+              onValueChange={(timezone) => {
+                onClearError("timezone");
+                setDraft((p) => ({ ...p, timezone }));
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-timezone" className="h-11">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {CARD1_LANGUAGES.map((language) => (
-                  <SelectItem key={language.id} value={language.id}>{language.label}</SelectItem>
+                {COMMON_TIMEZONES.map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {tz.replace(/_/g, " ")}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </SelectField>
+          <SelectField id="card1-language" label="Language" required error={errors.defaultLanguage}>
+            <Select
+              value={draft.defaultLanguage || "en"}
+              onValueChange={(defaultLanguage) => {
+                onClearError("defaultLanguage");
+                setDraft((p) => ({ ...p, defaultLanguage }));
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-language" className="h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {languages.map((language) => (
+                  <SelectItem key={language.id} value={language.id}>
+                    {language.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SelectField>
+          <SelectField id="card1-affiliation" label="Brand / Chain Affiliation">
+            <AffiliationSelect id="card1-affiliation" draft={draft} setDraft={setDraft} canEdit={canEdit} />
+          </SelectField>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="card1-short-description">Short Description</Label>
-          <Textarea id="card1-short-description" maxLength={500} value={draft.shortDescription} disabled={!canEdit} onChange={(event) => setDraft((p) => ({ ...p, shortDescription: event.target.value.slice(0, 500) }))} />
-          <p className="text-xs text-muted-foreground">{draft.shortDescription.length}/500</p>
+          <Textarea
+            id="card1-short-description"
+            maxLength={500}
+            value={draft.shortDescription}
+            disabled={!canEdit}
+            onChange={(event) => setDraft((p) => ({ ...p, shortDescription: event.target.value.slice(0, 500) }))}
+          />
+          <p className="text-xs text-muted-foreground text-right">{draft.shortDescription.length}/500</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ToggleRow id="card1-independent" label="Independent property" checked={draft.identityToggles.independentProperty} disabled={!canEdit} onChange={(independentProperty) => setDraft((p) => ({ ...p, identityToggles: { ...p.identityToggles, independentProperty } }))} />
-          <ToggleRow id="card1-public" label="Display property publicly" checked={draft.identityToggles.displayPublicly} disabled={!canEdit} onChange={(displayPublicly) => setDraft((p) => ({ ...p, identityToggles: { ...p.identityToggles, displayPublicly } }))} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ToggleRow
+            id="card1-independent"
+            label="Independent Property"
+            helper={CARD1_INDEPENDENT_HELPER}
+            checked={draft.identityToggles.independentProperty}
+            disabled={!canEdit}
+            onChange={(independentProperty) =>
+              setDraft((p) => ({ ...p, identityToggles: { ...p.identityToggles, independentProperty } }))
+            }
+          />
+          <ToggleRow
+            id="card1-public"
+            label="Display Property Publicly"
+            helper={CARD1_PUBLIC_HELPER}
+            checked={draft.identityToggles.displayPublicly}
+            disabled={!canEdit}
+            onChange={(displayPublicly) =>
+              setDraft((p) => ({ ...p, identityToggles: { ...p.identityToggles, displayPublicly } }))
+            }
+          />
         </div>
       </Panel>
-      <Panel title="Branding & Visual Identity" helper="Hotel brand colours are accents only — they do not recolour PMS chrome." testId="card1-branding-panel">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <AssetField id="card1-logo" label="Logo" value={draft.logoUrl} disabled={!canEdit} onChange={(logoUrl) => setDraft((p) => ({ ...p, logoUrl }))} />
-          <AssetField id="card1-cover" label="Cover Image" value={draft.coverImageUrl} disabled={!canEdit} onChange={(coverImageUrl) => setDraft((p) => ({ ...p, coverImageUrl }))} />
-          <ColourField id="card1-primary-colour" label="Primary Colour" value={draft.primaryBrandColour} disabled={!canEdit} onChange={(primaryBrandColour) => setDraft((p) => ({ ...p, primaryBrandColour }))} />
-          <ColourField id="card1-secondary-colour" label="Secondary Colour" value={draft.secondaryBrandColour} disabled={!canEdit} onChange={(secondaryBrandColour) => setDraft((p) => ({ ...p, secondaryBrandColour }))} />
-          <Field id="card1-website" label="Company Website" value={draft.websiteUrl} disabled={!canEdit} onChange={(websiteUrl) => setDraft((p) => ({ ...p, websiteUrl }))} placeholder="https://" />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-affiliation">Brand / Chain Affiliation</Label>
-            <Select value={draft.brandAffiliation || "unset"} onValueChange={(value) => setDraft((p) => ({ ...p, brandAffiliation: value === "unset" ? "" : value }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-affiliation" className="h-11"><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unset">Not set</SelectItem>
-                {CARD1_BRAND_AFFILIATIONS.map((item) => (
-                  <SelectItem key={item} value={item}>{CARD1_BRAND_AFFILIATION_LABELS[item]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <Panel title="Branding & Visual Identity" helper={CARD1_BRANDING_HELPER} testId="card1-branding-panel">
+        <p className="sr-only">Hotel brand colours are accents only — they do not recolour PMS chrome.</p>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <BrandImageField
+            id="card1-logo"
+            label="Property Logo"
+            kind="logo"
+            restaurantId={restaurantId}
+            value={draft.logoUrl}
+            previewUrl={logoPreviewUrl}
+            disabled={!canEdit}
+            error={errors.logoUrl}
+            onChange={(logoUrl) => {
+              onClearError("logoUrl");
+              setDraft((p) => ({ ...p, logoUrl }));
+            }}
+          />
+          <BrandImageField
+            id="card1-cover"
+            label="Cover Image"
+            kind="cover"
+            restaurantId={restaurantId}
+            value={draft.coverImageUrl}
+            previewUrl={coverPreviewUrl}
+            disabled={!canEdit}
+            error={errors.coverImageUrl}
+            onChange={(coverImageUrl) => {
+              onClearError("coverImageUrl");
+              setDraft((p) => ({ ...p, coverImageUrl }));
+            }}
+          />
+          <ColourField
+            id="card1-primary-colour"
+            label="Primary Colour"
+            value={draft.primaryBrandColour}
+            disabled={!canEdit}
+            error={errors.primaryBrandColour}
+            onChange={(primaryBrandColour) => {
+              onClearError("primaryBrandColour");
+              setDraft((p) => ({ ...p, primaryBrandColour }));
+            }}
+          />
+          <ColourField
+            id="card1-secondary-colour"
+            label="Secondary Colour"
+            value={draft.secondaryBrandColour}
+            disabled={!canEdit}
+            error={errors.secondaryBrandColour}
+            onChange={(secondaryBrandColour) => {
+              onClearError("secondaryBrandColour");
+              setDraft((p) => ({ ...p, secondaryBrandColour }));
+            }}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            id="card1-website"
+            label="Company Website"
+            type="url"
+            value={draft.websiteUrl}
+            disabled={!canEdit}
+            placeholder="https://"
+            error={errors.websiteUrl}
+            onChange={(websiteUrl) => {
+              onClearError("websiteUrl");
+              setDraft((p) => ({ ...p, websiteUrl }));
+            }}
+          />
+          <SelectField id="card1-affiliation-branding" label="Brand / Chain Affiliation">
+            <AffiliationSelect id="card1-affiliation-branding" draft={draft} setDraft={setDraft} canEdit={canEdit} />
+          </SelectField>
         </div>
       </Panel>
     </div>
@@ -1144,11 +1394,28 @@ function FloorForm({
   );
 }
 
-function ToggleRow({ id, label, checked, disabled, onChange }: { id: string; label: string; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
+function ToggleRow({
+  id,
+  label,
+  helper,
+  checked,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  helper?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-[#CCCCCC] px-3 py-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />
+    <div className="flex items-start gap-3 rounded-xl border border-[#E8E2D6] bg-[#FBF9F5] px-3 py-3">
+      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} className="mt-0.5" />
+      <div>
+        <Label htmlFor={id}>{label}</Label>
+        {helper ? <p className="mt-0.5 text-xs text-muted-foreground">{helper}</p> : null}
+      </div>
     </div>
   );
 }
@@ -1162,44 +1429,187 @@ function RuleChip({ label, on }: { label: string; on: boolean }) {
   );
 }
 
-function ColourField({ id, label, value, disabled, onChange }: { id: string; label: string; value: string; disabled?: boolean; onChange: (value: string) => void }) {
-  const hex = value.startsWith("#") ? value : value ? `#${value}` : "#C89933";
+function ColourField({
+  id,
+  label,
+  value,
+  disabled,
+  error,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  disabled?: boolean | undefined;
+  error?: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const hex = value.startsWith("#") ? value : value ? `#${value}` : "#C9A227";
+  const pickerValue = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#C9A227";
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <div className="flex gap-2">
-        <Input id={id} value={value} disabled={disabled} placeholder="#C89933" onChange={(event) => onChange(event.target.value)} className="h-11" />
-        <Input type="color" aria-label={`${label} picker`} value={/^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#C89933"} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="h-11 w-14 p-1" />
+      <div className="flex items-center gap-2">
+        <label className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border border-[#CCCCCC]">
+          <span className="sr-only">{label} swatch</span>
+          <Input
+            type="color"
+            aria-label={`${label} picker`}
+            value={pickerValue}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value.toUpperCase())}
+            className="absolute inset-0 h-full w-full cursor-pointer border-0 p-0"
+          />
+        </label>
+        <Input
+          id={id}
+          value={value}
+          disabled={disabled}
+          placeholder="#C9A227"
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className={`h-11 ${error ? "border-red-500" : ""}`}
+        />
       </div>
+      {error ? (
+        <p id={`${id}-error`} className="text-xs text-red-600" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function AssetField({ id, label, value, disabled, onChange }: { id: string; label: string; value: string; disabled?: boolean; onChange: (value: string) => void }) {
+function BrandImageField({
+  id,
+  label,
+  kind,
+  restaurantId,
+  value,
+  previewUrl,
+  disabled,
+  error,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  kind: "logo" | "cover";
+  restaurantId: string;
+  value: string;
+  previewUrl: string;
+  disabled?: boolean | undefined;
+  error?: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const startUpload = useServerFn(createPropertyBrandImageUpload);
+  const [localPreview, setLocalPreview] = useState("");
+  const [localError, setLocalError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const shown = localPreview || (value ? previewUrl : "");
+  const message = localError || error;
+  const landscape = kind === "cover";
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    const invalid = validateBrandImageFile(file);
+    if (invalid) {
+      setLocalError(invalid);
+      return;
+    }
+    setLocalError("");
+    setUploading(true);
+    try {
+      const ticket = await startUpload({
+        data: {
+          restaurantId,
+          kind,
+          contentType: file.type as "image/png" | "image/jpeg" | "image/webp",
+          size: file.size,
+        },
+      });
+      if (!ticket.ok) {
+        setLocalError(ticket.message ?? CARD1_BRAND_IMAGE_UPLOAD_ERROR);
+        return;
+      }
+      const { error: uploadError } = await supabase.storage.from("property-images").uploadToSignedUrl(ticket.path, ticket.token, file);
+      if (uploadError) {
+        setLocalError(CARD1_BRAND_IMAGE_UPLOAD_ERROR);
+        return;
+      }
+      if (localPreview) URL.revokeObjectURL(localPreview);
+      setLocalPreview(URL.createObjectURL(file));
+      onChange(ticket.path);
+    } catch {
+      setLocalError(CARD1_BRAND_IMAGE_UPLOAD_ERROR);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      {value ? <img src={value} alt={`${label} preview`} className="h-16 rounded-lg border border-[#CCCCCC] object-contain" /> : null}
-      <Input id={id} value={value} disabled={disabled} placeholder="https:// or uploaded URL" onChange={(event) => onChange(event.target.value)} className="h-11" />
-      {!disabled ? (
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById(`${id}-file`)?.click()}>{value ? "Replace" : "Upload"}</Button>
-          {value ? <Button type="button" variant="outline" size="sm" onClick={() => onChange("")}>Remove</Button> : null}
-          <input
-            id={`${id}-file`}
-            type="file"
-            accept="image/png,image/jpeg,image/svg+xml"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = () => onChange(String(reader.result ?? ""));
-              reader.readAsDataURL(file);
-            }}
-          />
+      <Label htmlFor={`${id}-file`}>{label}</Label>
+      <div className={`flex items-center gap-3 ${landscape ? "sm:items-stretch" : ""}`}>
+        <div
+          className={`overflow-hidden rounded-xl border border-[#E8E2D6] bg-[#F7F4EE] ${
+            landscape ? "h-20 w-36" : "h-16 w-16"
+          }`}
+        >
+          {shown ? (
+            <img src={shown} alt={`${label} preview`} className="h-full w-full object-cover" />
+          ) : (
+            <button
+              type="button"
+              disabled={disabled || uploading}
+              onClick={() => fileRef.current?.click()}
+              className="flex h-full w-full items-center justify-center text-center text-[11px] text-muted-foreground"
+            >
+              Upload image
+            </button>
+          )}
         </div>
+        <div className="min-w-0 space-y-1">
+          {shown && !disabled ? (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                {uploading ? "Uploading…" : "Change Image"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => {
+                  if (localPreview) URL.revokeObjectURL(localPreview);
+                  setLocalPreview("");
+                  setLocalError("");
+                  onChange("");
+                }}
+              >
+                Remove Image
+              </Button>
+            </div>
+          ) : null}
+          <p className="text-xs text-muted-foreground">{CARD1_BRAND_IMAGE_HELPER}</p>
+        </div>
+      </div>
+      {message ? (
+        <p id={`${id}-error`} className="text-xs text-red-600" role="alert">
+          {message}
+        </p>
       ) : null}
+      <input
+        id={`${id}-file`}
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="sr-only"
+        disabled={disabled}
+        onChange={(event) => void onFile(event.target.files?.[0])}
+      />
     </div>
   );
 }
