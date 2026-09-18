@@ -106,7 +106,7 @@ describe("Card 3 Phase 3 rates readiness", () => {
     assert.doesNotMatch(fns, /Database\[/);
   });
 
-  it("keeps four rates tabs and leaves Meal Plans as a Phase 0 placeholder", () => {
+  it("keeps four rates tabs while Meal Plans owns its Phase 4 workspace", () => {
     assert.deepEqual(
       CARD3_RATES_TABS.map((tab) => tab.label),
       ["Overview", "Rate Plans", "Room Rates", "Rate Calendar"],
@@ -115,7 +115,11 @@ describe("Card 3 Phase 3 rates readiness", () => {
     assert.match(ui, /CARD3_RATES_DERIVED_COPY/);
     assert.match(ui, /CARD3_RATES_CARD2_COPY/);
     assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
-    assert.equal(existsSync(join(here, "../components/settings/pms-property-setup-card3-meals.tsx")), false);
+    assert.equal(
+      existsSync(join(here, "../components/settings/pms-property-setup-card3-meals.tsx")),
+      true,
+    );
+    assert.match(section, /PmsPropertySetupCard3Meals/);
     assert.doesNotMatch(ui, /Meal Plans & Packages/);
   });
 });
