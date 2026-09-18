@@ -4,11 +4,10 @@ import { Button } from "@/shared/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { cn } from "@/shared/lib/utils";
 import { Card6IntegrationsTab } from "@/packages/pms/components/settings/pms-card6-integrations-tab";
+import { Card6DistributionTab } from "@/packages/pms/components/settings/pms-card6-distribution-tab";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { CARD1_PMS_NAV } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
-  CARD6_DISTRIBUTION_PLACEHOLDER_BODY,
-  CARD6_DISTRIBUTION_PLACEHOLDER_TITLE,
   CARD6_SIDEBAR_OUT,
   CARD6_SUBTITLE,
   CARD6_TABS,
@@ -17,9 +16,7 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card6";
 
 /**
- * Card 6 shell. Phase 1 fills the Integrations tab only; Distribution stays
- * visible and inert so the eventual Phase 2 home is obvious without
- * pretending it works.
+ * Card 6 shell. Integrations is Phase 1. Distribution mapping is Phase 2.
  */
 export function PmsPropertySetupCard6Section({
   restaurantId,
@@ -89,7 +86,7 @@ export function PmsPropertySetupCard6Section({
                 {item.label}
                 {item.available ? null : (
                   <span className="ml-2 rounded-full border border-[#CCCCCC] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Phase 2
+                    Later
                   </span>
                 )}
               </TabsTrigger>
@@ -101,15 +98,11 @@ export function PmsPropertySetupCard6Section({
           </TabsContent>
 
           <TabsContent value="distribution">
-            <div
-              className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8 text-center"
-              data-testid="card6-distribution-placeholder"
-            >
-              <p className="font-medium text-[#251605]">{CARD6_DISTRIBUTION_PLACEHOLDER_TITLE}</p>
-              <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-                {CARD6_DISTRIBUTION_PLACEHOLDER_BODY}
-              </p>
-            </div>
+            <Card6DistributionTab
+              restaurantId={restaurantId}
+              canEdit={canEdit}
+              onGoToIntegrations={() => setTab("integrations")}
+            />
           </TabsContent>
         </Tabs>
       </div>

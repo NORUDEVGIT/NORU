@@ -1,0 +1,260 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, it } from "node:test";
+
+import {
+  DIRECT_CHANNEL_CODE,
+  mappingStatusAfterSave,
+  mappingStatusAfterToggle,
+  summarizeDistribution,
+  type DistributionDraft,
+} from "./distribution-card6.server.ts";
+import {
+  channelSupports,
+  distributionChannel,
+  distributionProvider,
+  draftHasBlockingErrors,
+  isEligibleDistributionIntegration,
+  validateDistributionDraft,
+} from "./distribution-catalog.ts";
+import { CARD6_TABS } from "./pms-property-setup-card6.ts";
+
+const rooms = [
+  { id: "11111111-1111-1111-1111-111111111111", name: "Deluxe" },
+  { id: "22222222-2222-2222-2222-222222222222", name: "Twin" },
+];
+const rates = [{ id: "33333333-3333-3333-3333-333333333333", name: "BAR" }];
+const meals = [{ id: "44444444-4444-4444-4444-444444444444", name: "BB" }];
+
+const aiosell = {
+  id: "55555555-5555-5555-5555-555555555555",
+  name: "Aiosell",
+  provider: "aiosell",
+  enabled: true,
+  status: "pending",
+};
+
+function draft(overrides: Partial<DistributionDraft> = {}): DistributionDraft {
+  return {
+    integrationId: aiosell.id,
+    channel: "booking_com",
+    environment: "sandbox",
+    rooms: [],
+    rates: [],
+    meals: [],
+    ...overrides,
+  };
+}
+
+describe("Card 6 distribution catalog", () => {
+  it("varies channels and mapping kinds by provider", () => {
+    const aiosellDef = distributionProvider("aiosell");
+    const ota = distributionProvider("generic_ota");
+    assert.ok(aiosellDef);
+    assert.ok(ota);
+    assert.ok(aiosellDef.channels.some((row) => row.id === "expedia"));
+    assert.ok(!ota.channels.some((row) => row.id === "expedia"));
+    assert.equal(channelSupports("aiosell", "agoda", "meals"), false);
+    assert.equal(channelSupports("aiosell", "booking_com", "meals"), true);
+    assert.ok(distributionChannel("aiosell", "booking_com")?.rooms.length);
+  });
+
+  it("does not invent a policy mapping kind", () => {
+    const catalog = readFileSync(new URL("./distribution-catalog.ts", import.meta.url), "utf8");
+    assert.doesNotMatch(catalog, /policyMappings|policy_type/);
+    const drawer = readFileSync(
+      new URL("../components/settings/pms-card6-distribution-drawer.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(drawer, /POLICY_MAPPING_NOTICE/);
+    assert.doesNotMatch(drawer, /Noru Policy/);
+  });
+});
+
+describe("Card 6 distribution eligibility and honesty", () => {
+  it("accepts enabled pending integrations and rejects disabled or error", () => {
+    assert.equal(isEligibleDistributionIntegration(aiosell), true);
+    assert.equal(isEligibleDistributionIntegration({ ...aiosell, status: "connected" }), true);
+    assert.equal(isEligibleDistributionIntegration({ ...aiosell, enabled: false }), false);
+    assert.equal(isEligibleDistributionIntegration({ ...aiosell, status: "error" }), false);
+    assert.equal(isEligibleDistributionIntegration({ ...aiosell, status: "disabled" }), false);
+    assert.equal(isEligibleDistributionIntegration({ ...aiosell, provider: "stripe" }), false);
+  });
+
+  it("never promotes a save to connected", () => {
+    assert.equal(mappingStatusAfterSave(true, false), "pending");
+    assert.equal(mappingStatusAfterSave(true, true), "attention");
+    assert.equal(mappingStatusAfterSave(false, false), "disabled");
+    assert.equal(mappingStatusAfterToggle(false, "pending"), "disabled");
+    assert.equal(mappingStatusAfterToggle(true, "disabled"), "pending");
+    const functions = readFileSync(
+      new URL("./distribution-card6.functions.ts", import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(functions, /mapping_status:\s*"connected"/);
+    assert.match(functions, /status: "not_connected"/);
+  });
+
+  it("keeps Last Sync empty and Sync Now disabled", () => {
+    const tab = readFileSync(
+      new URL("../components/settings/pms-card6-distribution-tab.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(tab, /LAST_SYNC_PHASE3_NOTICE/);
+    assert.match(tab, /Sync now/);
+    assert.match(tab, /disabled title=\{SYNC_PHASE3_NOTICE\}/);
+    assert.doesNotMatch(tab, /Today 10:24/);
+  });
+});
+
+describe("Card 6 distribution validation", () => {
+  it("blocks a missing integration or channel and allows a partial mapping save", () => {
+    const missing = validateDistributionDraft(draft({ integrationId: "" }), {
+      integration: null,
+      roomTypes: rooms,
+      ratePlans: rates,
+      mealPlans: meals,
+      takenChannels: [],
+      excludeId: null,
+    });
+    assert.equal(draftHasBlockingErrors(missing), true);
+
+    const partial = validateDistributionDraft(draft(), {
+      integration: aiosell,
+      roomTypes: rooms,
+      ratePlans: rates,
+      mealPlans: meals,
+      takenChannels: [],
+      excludeId: null,
+    });
+    assert.equal(draftHasBlockingErrors(partial), false);
+    assert.ok(partial.some((row) => row.id === "rooms_complete" && row.warning));
+  });
+
+  it("rejects duplicate Noru or external mappings and inactive PMS ids", () => {
+    const duplicate = validateDistributionDraft(
+      draft({
+        rooms: [
+          { noruId: rooms[0]!.id, externalId: "bcom_deluxe_double" },
+          { noruId: rooms[0]!.id, externalId: "bcom_suite" },
+        ],
+      }),
+      {
+        integration: aiosell,
+        roomTypes: rooms,
+        ratePlans: rates,
+        mealPlans: meals,
+        takenChannels: [],
+        excludeId: null,
+      },
+    );
+    assert.equal(duplicate.find((row) => row.id === "rooms_valid")?.passed, false);
+
+    const ghost = validateDistributionDraft(
+      draft({
+        rooms: [
+          { noruId: "99999999-9999-9999-9999-999999999999", externalId: "bcom_deluxe_double" },
+        ],
+      }),
+      {
+        integration: aiosell,
+        roomTypes: rooms,
+        ratePlans: rates,
+        mealPlans: meals,
+        takenChannels: [],
+        excludeId: null,
+      },
+    );
+    assert.equal(ghost.find((row) => row.id === "rooms_valid")?.passed, false);
+  });
+
+  it("hides meal completeness when the channel does not support meals", () => {
+    const checks = validateDistributionDraft(draft({ channel: "agoda" }), {
+      integration: aiosell,
+      roomTypes: rooms,
+      ratePlans: rates,
+      mealPlans: meals,
+      takenChannels: [],
+      excludeId: null,
+    });
+    assert.ok(!checks.some((row) => row.id === "meals_complete"));
+  });
+});
+
+describe("Card 6 distribution wiring", () => {
+  it("enables the Distribution tab and excludes DIRECT", () => {
+    assert.deepEqual(
+      CARD6_TABS.map((tab) => [tab.id, tab.available]),
+      [
+        ["integrations", true],
+        ["distribution", true],
+      ],
+    );
+    const functions = readFileSync(
+      new URL("./distribution-card6.functions.ts", import.meta.url),
+      "utf8",
+    );
+    assert.match(functions, /requireDistributionManager/);
+    assert.match(functions, new RegExp(DIRECT_CHANNEL_CODE));
+    assert.match(functions, /NORU Direct Booking is not configured from this tab/);
+    assert.match(functions, /rejectSecrets/);
+    assert.match(functions, /\.strict\(\)/);
+  });
+
+  it("does not ask for credentials in the distribution drawer", () => {
+    const drawer = readFileSync(
+      new URL("../components/settings/pms-card6-distribution-drawer.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(drawer, /apiKey|clientSecret|merchantId|webhookSecret|SecretInput/);
+    const tab = readFileSync(
+      new URL("../components/settings/pms-card6-distribution-tab.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(tab, /Go to Integrations/);
+  });
+
+  it("ships dual-lane 0070 that extends distribution tables without touching DIRECT seed", () => {
+    const drizzle = join(
+      process.cwd(),
+      "drizzle/migrations/0070_pms_card6_distribution_mapping.sql",
+    );
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0070_pms_card6_distribution_mapping.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /integration_id/);
+    assert.match(sql, /mapping_status/);
+    assert.match(sql, /distribution_meal_mappings/);
+    assert.match(sql, /external_entity_id/);
+    assert.match(sql, /'distribution'/);
+    assert.doesNotMatch(sql, /INSERT INTO public\.distribution_channels/);
+    assert.doesNotMatch(sql, /DROP TABLE/);
+  });
+
+  it("hides the package rail for Card 6", () => {
+    const settings = readFileSync(
+      new URL("../../../routes/restaurant/settings.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(settings, /isCard6WorkspaceHash/);
+  });
+});
+
+describe("Card 6 distribution summary", () => {
+  it("counts pending and attention and keeps connected at zero", () => {
+    assert.deepEqual(
+      summarizeDistribution([
+        { mappingStatus: "pending" },
+        { mappingStatus: "attention" },
+        { mappingStatus: "disabled" },
+      ]),
+      { total: 3, connected: 0, pending: 1, attention: 1 },
+    );
+  });
+});
