@@ -9,6 +9,7 @@ import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
 import type { Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { savePmsPropertySetupCard1 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
+  CARD1_ADDRESS_SUBTITLE,
   CARD1_AGREEMENT_OUT,
   CARD1_COLUMNS_UNAVAILABLE,
   CARD1_FINISH_COPY,
@@ -25,7 +26,8 @@ import {
   card1StructureWarnings,
   card1TaxWarnings,
   propertySetupStatusLabel,
-  validateIdentityFields,
+  validateAddressFields,
+  type Card1AddressFieldErrors,
   type Card1Draft,
   type Card1IdentityFieldErrors,
   type Card1Snapshot,
@@ -62,14 +64,8 @@ export function PmsPropertySetupCard1Section({
   const save = useServerFn(savePmsPropertySetupCard1);
   const [step, setStep] = useState<Card1StepId>(initialStep);
   const [draft, setDraft] = useState<Card1Draft>(snapshot.draft);
-  const [identityErrors, setIdentityErrors] = useState<Card1IdentityFieldErrors>({});
-  const [logoPreviewUrl, setLogoPreviewUrl] = useState(snapshot.logoPreviewUrl);
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState(snapshot.coverPreviewUrl);
-  useEffect(() => {
-    setDraft(snapshot.draft);
-    setLogoPreviewUrl(snapshot.logoPreviewUrl);
-    setCoverPreviewUrl(snapshot.coverPreviewUrl);
-  }, [snapshot.draft, snapshot.logoPreviewUrl, snapshot.coverPreviewUrl]);
+  const [addressErrors, setAddressErrors] = useState<Card1AddressFieldErrors>({});
+  useEffect(() => setDraft(snapshot.draft), [snapshot.draft]);
   const composedAddress = useMemo(() => composeFullAddress(draft), [draft]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(snapshot.draft);
 
@@ -111,6 +107,29 @@ export function PmsPropertySetupCard1Section({
 
   const taxWarnings = card1TaxWarnings(draft);
   const structureWarnings = card1StructureWarnings(draft, set2);
+
+  function saveMode(mode: "draft" | "continue" | "finish") {
+    if (mode === "continue" && step === "address") {
+      const nextErrors = validateAddressFields(draft);
+      setAddressErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) return;
+    }
+    mutation.mutate(mode);
+  }
+
+  const completedCount = CARD1_STEPS.filter(
+    (row) => evaluateCard1StepStatus(row.id, draft, snapshot.status.card1Steps[row.id], set2) === "complete",
+  ).length;
+  const progressPct = Math.round((completedCount / CARD1_STEPS.length) * 100);
+  const addressStatus = evaluateCard1StepStatus("address", draft, snapshot.status.card1Steps.address, set2);
+  const addressLiveErrors = validateAddressFields(draft);
+  const addressStatusLabel =
+    addressStatus === "complete"
+      ? "Complete"
+      : Object.keys(addressLiveErrors).length > 0
+        ? "Needs Attention"
+        : "In Progress";
+  const nextStep = nextCard1Step(step);
 
   function goBack() {
     const previous = previousCard1Step(step);
@@ -165,8 +184,10 @@ export function PmsPropertySetupCard1Section({
 
       <div className="px-4 py-5 sm:px-6" data-testid="pms-card1-fullscreen">
         <div className="mb-5">
-          <h1 className="font-display text-3xl text-[#251605]">{CARD1_WORKSPACE_TITLE}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{CARD1_SUBTITLE}</p>
+          <h1 className="font-display text-3xl text-[#251605]">
+            {step === "address" ? "Address & Location" : CARD1_WORKSPACE_TITLE}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">{step === "address" ? CARD1_ADDRESS_SUBTITLE : CARD1_SUBTITLE}</p>
         </div>
 
         <ol
@@ -209,17 +230,16 @@ export function PmsPropertySetupCard1Section({
           <p className="mb-4 text-sm text-muted-foreground">{CARD1_COLUMNS_UNAVAILABLE}</p>
         ) : null}
 
-        {step === "identity" ? (
+        {step === "identity" ? <IdentityStep draft={draft} setDraft={setDraft} canEdit={canEdit} /> : null}
+        {step === "address" ? (
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem]">
-            <IdentityStep
-              restaurantId={restaurantId}
+            <AddressStep
               draft={draft}
               setDraft={setDraft}
               canEdit={canEdit}
-              logoPreviewUrl={logoPreviewUrl}
-              coverPreviewUrl={coverPreviewUrl}
-              errors={identityErrors}
-              onClearError={(key) => setIdentityErrors((prev) => ({ ...prev, [key]: undefined }))}
+              composedAddress={composedAddress}
+              errors={addressErrors}
+              onClearError={(key) => setAddressErrors((prev) => ({ ...prev, [key]: undefined }))}
             />
             <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start" data-testid="pms-card1-status-rail">
               <section className="rounded-2xl border border-[#E4DCCB] bg-white p-4">
@@ -227,9 +247,7 @@ export function PmsPropertySetupCard1Section({
                 <div className="mt-3 flex items-center gap-3">
                   <div
                     className="relative h-14 w-14 shrink-0 rounded-full"
-                    style={{
-                      background: `conic-gradient(#C89933 ${progressPct}%, #EDE6D8 ${progressPct}%)`,
-                    }}
+                    style={{ background: `conic-gradient(#C89933 ${progressPct}%, #EDE6D8 ${progressPct}%)` }}
                     aria-hidden
                   >
                     <div className="absolute inset-1 flex items-center justify-center rounded-full bg-white text-[11px] font-semibold text-[#251605]">
@@ -240,14 +258,12 @@ export function PmsPropertySetupCard1Section({
                     <p className="text-sm text-[#251605]">
                       {completedCount} of {CARD1_STEPS.length} sections completed
                     </p>
-                    <p className="text-xs text-muted-foreground">Complete all sections for your NORU setup.</p>
                   </div>
                 </div>
               </section>
               <section className="rounded-2xl border border-[#E4DCCB] bg-white p-4">
                 <p className="text-xs text-muted-foreground">Current Section</p>
-                <p className="mt-1 text-sm font-medium text-[#251605]">Property Identity</p>
-                <p className="mt-1 text-xs text-[#C89933]">{propertySetupStatusLabel(currentStatus)}</p>
+                <p className="mt-1 text-sm font-medium text-[#251605]">Address & Location</p>
               </section>
               {nextStep ? (
                 <section className="rounded-2xl border border-[#E4DCCB] bg-white p-4">
@@ -262,10 +278,14 @@ export function PmsPropertySetupCard1Section({
                 <p className="mt-1 text-sm font-medium text-[#251605]">{draft.propertyCode || "NRC————"}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{CARD1_PROPERTY_CODE_TOOLTIP}</p>
               </section>
+              <section className="rounded-2xl border border-[#E4DCCB] bg-white p-4">
+                <p className="text-xs text-muted-foreground">Address Status</p>
+                <p className="mt-1 text-sm font-medium text-[#251605]">{addressStatusLabel}</p>
+                <p className="sr-only">{propertySetupStatusLabel(addressStatus)}</p>
+              </section>
             </aside>
           </div>
         ) : null}
-        {step === "address" ? <AddressStep draft={draft} setDraft={setDraft} canEdit={canEdit} composedAddress={composedAddress} /> : null}
         {step === "contacts" ? <ContactsStep draft={draft} setDraft={setDraft} canEdit={canEdit} /> : null}
         {step === "checkin" ? <CheckinStep draft={draft} setDraft={setDraft} canEdit={canEdit} /> : null}
         {step === "business-date" ? (

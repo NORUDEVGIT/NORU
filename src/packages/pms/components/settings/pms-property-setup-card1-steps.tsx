@@ -11,7 +11,7 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+import { SearchableSelect } from "@/shared/components/ui/searchable-select";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
@@ -22,6 +22,8 @@ import {
 import type { Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { createPropertyBrandImageUpload } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
+  CARD1_ADDRESS_ADAPT_COPY,
+  CARD1_ADDRESS_SUBTITLE,
   CARD1_AGREEMENT_OUT,
   CARD1_BLOCKER_LABELS,
   CARD1_BRAND_AFFILIATION_LABELS,
@@ -51,7 +53,6 @@ import {
   CARD1_SOCIAL_PLATFORMS,
   CARD1_STRUCTURE_CRUD_COPY,
   CARD1_VAT_GATE_COPY,
-  ETHIOPIA_REGIONS,
   LEGAL_ENTITY_TYPE_LABELS,
   LEGAL_ENTITY_TYPES,
   STAR_RATINGS,
@@ -59,12 +60,21 @@ import {
   liveBlockPreview,
   structureRoomCodeExample,
   vatCertificateRequired,
-  validateBrandImageFile,
+  type Card1AddressFieldErrors,
   type Card1Draft,
   type Card1IdentityFieldErrors,
   type Card1Snapshot,
   type Card1CurrentState,
 } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  ISO_COUNTRIES,
+  addressLayoutForCountry,
+  clearDependentGeography,
+  countryCodeFromInput,
+  countryNameFromInput,
+  regionsForCountry,
+  type AddressFieldKey,
+} from "@/packages/pms/lib/pms-geography";
 
 export function Field({
   id,
@@ -516,56 +526,187 @@ export function AddressStep({
   setDraft,
   canEdit,
   composedAddress,
+  errors,
+  onClearError,
 }: {
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
   composedAddress: string;
+  errors: Card1AddressFieldErrors;
+  onClearError: (key: keyof Card1AddressFieldErrors) => void;
 }) {
-  const ethiopia = draft.country.trim().toLowerCase() === "ethiopia";
+  const layout = addressLayoutForCountry(draft.country);
+  const countryCode = countryCodeFromInput(draft.country);
+  const regionOptions = regionsForCountry(draft.country).map((region) => ({ value: region, label: region }));
+  const countryOptions = ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name }));
+
+  function extraValue(key: AddressFieldKey): string {
+    if (key === "nearbyLandmark") return draft.locationExtras.nearbyLandmark;
+    return draft[key];
+  }
+
+  function setExtra(key: AddressFieldKey, value: string) {
+    if (key === "nearbyLandmark") {
+      setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, nearbyLandmark: value } }));
+      return;
+    }
+    setDraft((p) => ({ ...p, [key]: value }));
+  }
+
   return (
     <div className="space-y-4" data-testid="pms-card1-step-address">
-      <Panel title="Address & Location" helper="Country-first. Ethiopian addresses often use Kebele / Woreda / Zone rather than a postal code.">
+      <Panel title="Address & Location" helper={CARD1_ADDRESS_SUBTITLE} testId="card1-address-panel">
+        <p className="text-sm text-muted-foreground">{CARD1_ADDRESS_ADAPT_COPY}</p>
         <p className="text-sm text-muted-foreground">{CARD1_FULL_ADDRESS_COPY}</p>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <Field id="card1-country" label="Country" required value={draft.country} disabled={!canEdit} onChange={(country) => setDraft((p) => ({ ...p, country }))} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <div className="space-y-1.5">
-            <Label htmlFor="card1-region">Region / State <span className="text-red-600">*</span></Label>
-            <Select value={draft.addressRegion || "unset"} onValueChange={(value) => setDraft((p) => ({ ...p, addressRegion: value === "unset" ? "" : value }))} disabled={!canEdit}>
-              <SelectTrigger id="card1-region" className="h-11"><SelectValue placeholder="Not set" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unset">Not set</SelectItem>
-                {ETHIOPIA_REGIONS.map((region) => (
-                  <SelectItem key={region} value={region}>{region}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="card1-country">
+              Country <span className="text-red-600"> *</span>
+            </Label>
+            <SearchableSelect
+              id="card1-country"
+              value={countryCode}
+              options={countryOptions}
+              disabled={!canEdit}
+              placeholder="Select a country"
+              searchPlaceholder="Search countries"
+              error={errors.country}
+              onChange={(code) => {
+                onClearError("country");
+                onClearError("addressRegion");
+                const name = countryNameFromInput(code);
+                setDraft((p) => clearDependentGeography({ ...p, country: name }));
+              }}
+            />
+            {errors.country ? (
+              <p id="card1-country-error" className="text-xs text-red-600" role="alert">
+                {errors.country}
+              </p>
+            ) : null}
           </div>
-          <Field id="card1-city" label="City / Town" required value={draft.city} disabled={!canEdit} onChange={(city) => setDraft((p) => ({ ...p, city }))} />
-          {ethiopia ? (
-            <>
-              <Field id="card1-subcity" label="Sub-city" value={draft.addressSubcity} disabled={!canEdit} onChange={(addressSubcity) => setDraft((p) => ({ ...p, addressSubcity }))} />
-              <Field id="card1-woreda" label="Woreda" value={draft.addressWoreda} disabled={!canEdit} onChange={(addressWoreda) => setDraft((p) => ({ ...p, addressWoreda }))} helper="District-level unit" />
-              <Field id="card1-kebele" label="Kebele" value={draft.addressKebele} disabled={!canEdit} onChange={(addressKebele) => setDraft((p) => ({ ...p, addressKebele }))} helper="Neighbourhood / kebele unit" />
-              <Field id="card1-zone" label="Zone" value={draft.addressZone} disabled={!canEdit} onChange={(addressZone) => setDraft((p) => ({ ...p, addressZone }))} />
-            </>
-          ) : (
-            <Field id="card1-postcode" label="Postcode" value={draft.postcode} disabled={!canEdit} onChange={(postcode) => setDraft((p) => ({ ...p, postcode }))} />
-          )}
-          <Field id="card1-street" label="Street / Area Name" value={draft.address} disabled={!canEdit} onChange={(address) => setDraft((p) => ({ ...p, address }))} />
-          <Field id="card1-house" label="Building / Landmark" value={draft.addressHouseNo} disabled={!canEdit} onChange={(addressHouseNo) => setDraft((p) => ({ ...p, addressHouseNo }))} />
+          <div className="space-y-1.5">
+            <Label htmlFor="card1-region">
+              {layout.regionLabel} <span className="text-red-600"> *</span>
+            </Label>
+            {layout.regionMode === "select" ? (
+              <>
+                <SearchableSelect
+                  id="card1-region"
+                  value={draft.addressRegion}
+                  options={regionOptions}
+                  disabled={!canEdit}
+                  placeholder={`Select ${layout.regionLabel.toLowerCase()}`}
+                  searchPlaceholder={`Search ${layout.regionLabel.toLowerCase()}`}
+                  error={errors.addressRegion}
+                  onChange={(addressRegion) => {
+                    onClearError("addressRegion");
+                    setDraft((p) => ({ ...p, addressRegion }));
+                  }}
+                />
+                {errors.addressRegion ? (
+                  <p id="card1-region-error" className="text-xs text-red-600" role="alert">
+                    {errors.addressRegion}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <Input
+                id="card1-region"
+                value={draft.addressRegion}
+                disabled={!canEdit}
+                aria-invalid={Boolean(errors.addressRegion)}
+                className={`h-11 ${errors.addressRegion ? "border-red-500" : ""}`}
+                onChange={(event) => {
+                  onClearError("addressRegion");
+                  setDraft((p) => ({ ...p, addressRegion: event.target.value }));
+                }}
+              />
+            )}
+            {layout.regionMode === "text" && errors.addressRegion ? (
+              <p id="card1-region-error" className="text-xs text-red-600" role="alert">
+                {errors.addressRegion}
+              </p>
+            ) : null}
+          </div>
+          <Field
+            id="card1-city"
+            label="City / Town"
+            required
+            value={draft.city}
+            disabled={!canEdit}
+            error={errors.city}
+            onChange={(city) => {
+              onClearError("city");
+              setDraft((p) => ({ ...p, city }));
+            }}
+          />
+          {layout.extras.map((extra) => (
+            <Field
+              key={extra.key}
+              id={`card1-${extra.key}`}
+              label={extra.label}
+              helper={extra.helper}
+              value={extraValue(extra.key)}
+              disabled={!canEdit}
+              onChange={(value) => setExtra(extra.key, value)}
+            />
+          ))}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="card1-full-address">Full Address</Label>
+          <Label htmlFor="card1-full-address">Physical / Full Address</Label>
           <Input id="card1-full-address" value={composedAddress} readOnly disabled data-testid="card1-full-address" className="h-11 bg-muted/40" />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <Field id="card1-lat" label="Latitude" value={draft.latitude} disabled={!canEdit} onChange={(latitude) => setDraft((p) => ({ ...p, latitude }))} />
-          <Field id="card1-lng" label="Longitude" value={draft.longitude} disabled={!canEdit} onChange={(longitude) => setDraft((p) => ({ ...p, longitude }))} />
-          <Field id="card1-maps" label="Google Maps Link" value={draft.locationExtras.googleMapsLink} disabled={!canEdit} onChange={(googleMapsLink) => setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, googleMapsLink } }))} />
-          <Field id="card1-landmark" label="Nearby Landmark" value={draft.locationExtras.nearbyLandmark} disabled={!canEdit} onChange={(nearbyLandmark) => setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, nearbyLandmark } }))} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <Field
+            id="card1-lat"
+            label="Latitude"
+            value={draft.latitude}
+            disabled={!canEdit}
+            error={errors.latitude}
+            onChange={(latitude) => {
+              onClearError("latitude");
+              setDraft((p) => ({ ...p, latitude }));
+            }}
+          />
+          <Field
+            id="card1-lng"
+            label="Longitude"
+            value={draft.longitude}
+            disabled={!canEdit}
+            error={errors.longitude}
+            onChange={(longitude) => {
+              onClearError("longitude");
+              setDraft((p) => ({ ...p, longitude }));
+            }}
+          />
+          <Field
+            id="card1-maps"
+            label="Google Maps Link"
+            type="url"
+            value={draft.locationExtras.googleMapsLink}
+            disabled={!canEdit}
+            error={errors.googleMapsLink}
+            onChange={(googleMapsLink) => {
+              onClearError("googleMapsLink");
+              setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, googleMapsLink } }));
+            }}
+          />
+          <Field
+            id="card1-landmark"
+            label="Nearby Landmark"
+            value={draft.locationExtras.nearbyLandmark}
+            disabled={!canEdit}
+            onChange={(nearbyLandmark) => setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, nearbyLandmark } }))}
+          />
         </div>
-        <ToggleRow id="card1-pin" label="Show property location on NORU and guest platforms" checked={draft.locationExtras.pinVisible} disabled={!canEdit} onChange={(pinVisible) => setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, pinVisible } }))} />
+        <ToggleRow
+          id="card1-pin"
+          label="Show property location on NORU and guest platforms"
+          checked={draft.locationExtras.pinVisible}
+          disabled={!canEdit}
+          onChange={(pinVisible) => setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, pinVisible } }))}
+        />
       </Panel>
     </div>
   );

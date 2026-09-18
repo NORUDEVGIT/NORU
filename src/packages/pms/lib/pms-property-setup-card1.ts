@@ -12,6 +12,15 @@
 
 import { SET1_HUB_HREF, displayedBusinessDate, normalizeClock } from "./pms-set1-foundation.ts";
 import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
+import {
+  countryNameFromInput,
+  isRegionValidForCountry,
+  isValidHttpUrl,
+  isValidLatitude,
+  isValidLongitude,
+} from "./pms-geography.ts";
+
+export { ETHIOPIA_REGIONS } from "./pms-geography.ts";
 
 export const CARD1_TITLE = "Property & Business";
 export const CARD1_WORKSPACE_TITLE = "Property & Business Setup";
@@ -27,6 +36,8 @@ export const CARD1_FINISH_COPY =
 export const CARD1_BUSINESS_DATE_CURRENT_COPY =
   "Staff always see what the house thinks today is before editing rules. CURRENT STATE is the Night Audit business date. Settings cannot roll it.";
 export const CARD1_FULL_ADDRESS_COPY = "Full Address is composed from the parts below. It is not editable.";
+export const CARD1_ADDRESS_ADAPT_COPY = "Address fields adapt to the selected country.";
+export const CARD1_ADDRESS_SUBTITLE = "Configure the property's physical address and geographic location.";
 export const CARD1_VAT_GATE_COPY = "VAT certificate is required only when VAT Registered is On.";
 export const CARD1_OPENING_DATE_IN = "Opening Date is required on Property Identity.";
 export const CARD1_AGREEMENT_OUT = "Agreement signing is out of Card 1.";
@@ -210,97 +221,6 @@ export const CARD1_LANGUAGES = [
   { id: "nl", label: "Dutch" },
   { id: "zh", label: "Chinese" },
   { id: "pt", label: "Portuguese" },
-] as const;
-
-const STORED_LANGUAGE_LABELS: Record<string, string> = {
-  so: "Somali",
-};
-
-export function card1LanguageOptions(currentId: string): { id: string; label: string }[] {
-  const options: { id: string; label: string }[] = CARD1_LANGUAGES.map((row) => ({
-    id: row.id,
-    label: row.label,
-  }));
-  if (currentId && !options.some((row) => row.id === currentId)) {
-    options.push({ id: currentId, label: STORED_LANGUAGE_LABELS[currentId] ?? currentId });
-  }
-  return options;
-}
-
-export function isHttpOrDataAsset(value: string): boolean {
-  return /^(https?:\/\/|data:)/i.test(value.trim());
-}
-
-export function isBrandHex(value: string): boolean {
-  return /^#[0-9A-Fa-f]{6}$/.test(value.trim());
-}
-
-export function isPlausibleHttpUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value.trim());
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-export function validateBrandImageFile(file: { type: string; size: number }): string | null {
-  if (!(CARD1_BRAND_IMAGE_TYPES as readonly string[]).includes(file.type)) return CARD1_BRAND_IMAGE_TYPE_ERROR;
-  if (file.size > CARD1_BRAND_IMAGE_MAX_BYTES) return CARD1_BRAND_IMAGE_SIZE_ERROR;
-  return null;
-}
-
-export type Card1IdentityFieldErrors = Partial<{
-  name: string;
-  propertyType: string;
-  businessType: string;
-  openingDate: string;
-  timezone: string;
-  currencyCode: string;
-  defaultLanguage: string;
-  websiteUrl: string;
-  primaryBrandColour: string;
-  secondaryBrandColour: string;
-  logoUrl: string;
-  coverImageUrl: string;
-}>;
-
-export function validateIdentityFields(draft: Card1Draft): Card1IdentityFieldErrors {
-  const errors: Card1IdentityFieldErrors = {};
-  if (draft.name.trim().length < 2) errors.name = "Property name is required.";
-  if (!draft.propertyType.trim()) errors.propertyType = "Property type is required.";
-  if (!draft.businessType.trim()) errors.businessType = "Business type is required.";
-  if (!draft.openingDate.trim()) errors.openingDate = "Opening date is required.";
-  if (!draft.timezone.trim()) errors.timezone = "Time zone is required.";
-  if (!draft.currencyCode.trim()) errors.currencyCode = "Primary currency is required.";
-  if (!draft.defaultLanguage.trim()) errors.defaultLanguage = "Language is required.";
-  if (draft.websiteUrl.trim() && !isPlausibleHttpUrl(draft.websiteUrl)) {
-    errors.websiteUrl = "Enter a valid website address.";
-  }
-  if (draft.primaryBrandColour.trim() && !isBrandHex(draft.primaryBrandColour.trim())) {
-    errors.primaryBrandColour = "Enter a valid HEX colour.";
-  }
-  if (draft.secondaryBrandColour.trim() && !isBrandHex(draft.secondaryBrandColour.trim())) {
-    errors.secondaryBrandColour = "Enter a valid HEX colour.";
-  }
-  return errors;
-}
-
-export const ETHIOPIA_REGIONS = [
-  "Addis Ababa",
-  "Afar",
-  "Amhara",
-  "Benishangul-Gumuz",
-  "Central Ethiopia",
-  "Dire Dawa",
-  "Gambela",
-  "Harari",
-  "Oromia",
-  "Sidama",
-  "Somali",
-  "South Ethiopia",
-  "Southwest Ethiopia",
-  "Tigray",
 ] as const;
 
 export const LEGAL_ENTITY_TYPES = ["plc", "private_limited", "sole_proprietor", "partnership", "other"] as const;
@@ -791,20 +711,47 @@ export function composeFullAddress(input: {
   country?: string;
 }): string {
   const street = [input.addressHouseNo, input.address].map((part) => String(part ?? "").trim()).filter(Boolean).join(" ");
-  const parts = [
-    input.country,
-    input.addressRegion,
-    input.city,
-    input.addressSubcity,
-    input.addressWoreda,
-    input.addressKebele,
-    input.addressZone,
-    street,
-    input.postcode,
-  ]
+  const countryName = countryNameFromInput(String(input.country ?? ""));
+  const ethiopia = countryName.toLowerCase() === "ethiopia";
+  const parts = ethiopia
+    ? [
+        countryName || input.country,
+        input.addressRegion,
+        input.city,
+        input.addressSubcity,
+        input.addressWoreda,
+        input.addressKebele,
+        input.addressZone,
+        street,
+        input.postcode,
+      ]
+    : [street, input.city, input.addressSubcity, input.addressRegion, input.postcode, countryName || input.country];
+  return parts
     .map((part) => String(part ?? "").trim())
-    .filter(Boolean);
-  return parts.join(", ");
+    .filter(Boolean)
+    .join(", ");
+}
+
+export type Card1AddressFieldErrors = Partial<{
+  country: string;
+  addressRegion: string;
+  city: string;
+  latitude: string;
+  longitude: string;
+  googleMapsLink: string;
+}>;
+
+export function validateAddressFields(draft: Card1Draft): Card1AddressFieldErrors {
+  const errors: Card1AddressFieldErrors = {};
+  if (!draft.country.trim()) errors.country = "Select a country.";
+  if (!draft.addressRegion.trim() || !isRegionValidForCountry(draft.country, draft.addressRegion)) {
+    errors.addressRegion = "Select a region or state for the selected country.";
+  }
+  if (!draft.city.trim()) errors.city = "City / Town is required.";
+  if (!isValidLatitude(draft.latitude)) errors.latitude = "Latitude must be between -90 and 90.";
+  if (!isValidLongitude(draft.longitude)) errors.longitude = "Longitude must be between -180 and 180.";
+  if (!isValidHttpUrl(draft.locationExtras.googleMapsLink)) errors.googleMapsLink = "Enter a valid URL.";
+  return errors;
 }
 
 export function vatCertificateRequired(vatRegistered: boolean): boolean {
@@ -1054,7 +1001,7 @@ export function card1StepComplete(step: Card1StepId, draft: Card1Draft, set2?: P
     );
   }
   if (step === "address") {
-    return Boolean(draft.country.trim() && draft.addressRegion.trim() && draft.city.trim() && composeFullAddress(draft));
+    return Object.keys(validateAddressFields(draft)).length === 0;
   }
   if (step === "contacts") {
     const departmentsOk = draft.departmentContacts.every((row) => !departmentRowPresent(row) || departmentRowComplete(row));
