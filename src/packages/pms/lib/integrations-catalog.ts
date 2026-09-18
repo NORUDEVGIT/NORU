@@ -16,6 +16,7 @@ export const INTEGRATION_CATEGORIES = [
   "accounting",
   "hospitality",
   "government",
+  "distribution",
   "other",
 ] as const;
 export type IntegrationCategory = (typeof INTEGRATION_CATEGORIES)[number];
@@ -668,6 +669,58 @@ const GOVERNMENT_PROVIDERS: readonly IntegrationProviderDef[] = [
   },
 ];
 
+const DISTRIBUTION_INTEGRATION_PROVIDERS: readonly IntegrationProviderDef[] = [
+  {
+    id: "aiosell",
+    label: "Aiosell",
+    blurb:
+      "Channel manager. Credentials stay on this integration; Card 6 Distribution maps the channels.",
+    authMethods: ["api_key", "bearer_token"],
+    supportsWebhook: true,
+    fields: [
+      text("endpointUrl", "API base URL", { required: true, format: "url" }),
+      credential("apiKey", "API key", { required: true, authMethods: ["api_key"] }),
+      credential("bearerToken", "Bearer token", { required: true, authMethods: ["bearer_token"] }),
+      text("hotelCode", "Hotel code", { required: true, maxLength: 40 }),
+      ...HTTP_TECHNICAL,
+      ...WEBHOOK_SECURITY,
+    ],
+  },
+  {
+    id: "generic_channel_manager",
+    label: "Generic channel manager",
+    blurb: "Any channel manager that exposes OTAs through one connection.",
+    authMethods: ["api_key", "oauth2", "bearer_token"],
+    supportsWebhook: true,
+    fields: [
+      text("endpointUrl", "API base URL", { required: true, format: "url" }),
+      credential("apiKey", "API key", { required: true, authMethods: ["api_key"] }),
+      text("clientId", "Client ID", { required: true, authMethods: ["oauth2"], maxLength: 80 }),
+      credential("clientSecret", "Client secret", { required: true, authMethods: ["oauth2"] }),
+      credential("bearerToken", "Bearer token", { required: true, authMethods: ["bearer_token"] }),
+      text("propertyCode", "Property code", { required: true, maxLength: 40 }),
+      ...HTTP_TECHNICAL,
+      ...WEBHOOK_SECURITY,
+    ],
+  },
+  {
+    id: "generic_ota",
+    label: "Generic OTA connectivity",
+    blurb: "A single OTA connected without a channel manager in between.",
+    authMethods: ["api_key", "oauth2"],
+    supportsWebhook: true,
+    fields: [
+      text("endpointUrl", "API base URL", { required: true, format: "url" }),
+      credential("apiKey", "API key", { required: true, authMethods: ["api_key"] }),
+      text("clientId", "Client ID", { required: true, authMethods: ["oauth2"], maxLength: 80 }),
+      credential("clientSecret", "Client secret", { required: true, authMethods: ["oauth2"] }),
+      text("hotelId", "Hotel ID at the OTA", { required: true, maxLength: 40 }),
+      ...HTTP_TECHNICAL,
+      ...WEBHOOK_SECURITY,
+    ],
+  },
+];
+
 const OTHER_PROVIDERS: readonly IntegrationProviderDef[] = [
   {
     id: "webhook_endpoint",
@@ -799,6 +852,19 @@ export const INTEGRATION_CATALOG: readonly IntegrationCategoryDef[] = [
       { value: "report.z_daily", label: "Daily Z report" },
     ],
     providers: GOVERNMENT_PROVIDERS,
+  },
+  {
+    id: "distribution",
+    label: "Distribution",
+    description: "Channel managers and OTA connectivity. Mapping happens on the Distribution tab.",
+    events: [
+      { value: "inventory.updated", label: "Inventory updated" },
+      { value: "rate.updated", label: "Rate updated" },
+      { value: "reservation.inbound", label: "Inbound reservation" },
+      { value: "reservation.modified", label: "Reservation modified" },
+      { value: "reservation.cancelled", label: "Reservation cancelled" },
+    ],
+    providers: DISTRIBUTION_INTEGRATION_PROVIDERS,
   },
   {
     id: "other",

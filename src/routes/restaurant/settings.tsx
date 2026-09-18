@@ -22,7 +22,10 @@ export const Route = createFileRoute("/restaurant/settings")({
       { title: "Settings — NORU" },
       { name: "description", content: "Property identity, check-in times, taxes and policies." },
       { property: "og:title", content: "Settings — NORU" },
-      { property: "og:description", content: "Property identity, check-in times, taxes and policies." },
+      {
+        property: "og:description",
+        content: "Property identity, check-in times, taxes and policies.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },

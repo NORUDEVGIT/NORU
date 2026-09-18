@@ -266,16 +266,15 @@ describe("Card 6 wiring and phase isolation", () => {
     );
   });
 
-  it("keeps Distribution inactive and out of the Phase 1 implementation", () => {
+  it("keeps Phase 1 integration sources off the live distribution tables", () => {
     assert.deepEqual(
       CARD6_TABS.map((tab) => [tab.id, tab.available]),
       [
         ["integrations", true],
-        ["distribution", false],
+        ["distribution", true],
       ],
     );
     const sources = [
-      "./integrations-catalog.ts",
       "./integrations-card6.server.ts",
       "./integrations-card6.functions.ts",
       "../components/settings/pms-card6-integrations-tab.tsx",
