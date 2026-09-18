@@ -28,10 +28,12 @@ import { PmsPropertySetupCard3Currency } from "@/packages/pms/components/setting
 import { PmsPropertySetupCard3Taxes } from "@/packages/pms/components/settings/pms-property-setup-card3-taxes";
 import { PmsPropertySetupCard3Rates } from "@/packages/pms/components/settings/pms-property-setup-card3-rates";
 import { PmsPropertySetupCard3Meals } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
+import { PmsPropertySetupCard3Payments } from "@/packages/pms/components/settings/pms-property-setup-card3-payments";
 import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
 import { getTaxesCard3 } from "@/packages/pms/lib/taxes-card3.functions";
 import { getRatesCard3 } from "@/packages/pms/lib/rates-card3.functions";
 import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
+import { getPaymentsCard3 } from "@/packages/pms/lib/payments-card3.functions";
 
 export function PmsPropertySetupCard3Section({
   restaurantId,
@@ -46,6 +48,7 @@ export function PmsPropertySetupCard3Section({
   const loadTaxes = useServerFn(getTaxesCard3);
   const loadRates = useServerFn(getRatesCard3);
   const loadMeals = useServerFn(getMealsCard3);
+  const loadPayments = useServerFn(getPaymentsCard3);
   const currencyQuery = useQuery({
     queryKey: ["pms-card3-currency", restaurantId],
     queryFn: () => loadCurrency({ data: { restaurantId } }),
@@ -62,16 +65,30 @@ export function PmsPropertySetupCard3Section({
     queryKey: ["pms-card3-meals", restaurantId],
     queryFn: () => loadMeals({ data: { restaurantId } }),
   });
+  const paymentsQuery = useQuery({
+    queryKey: ["pms-card3-payments", restaurantId],
+    queryFn: () => loadPayments({ data: { restaurantId } }),
+  });
   const readinessLoading =
-    currencyQuery.isLoading || taxesQuery.isLoading || ratesQuery.isLoading || mealsQuery.isLoading;
+    currencyQuery.isLoading ||
+    taxesQuery.isLoading ||
+    ratesQuery.isLoading ||
+    mealsQuery.isLoading ||
+    paymentsQuery.isLoading;
   const currencyStatus: PropertySetupCardStatus =
     currencyQuery.data?.readiness.status ?? "not_started";
   const taxesStatus: PropertySetupCardStatus = taxesQuery.data?.readiness.status ?? "not_started";
   const ratesStatus: PropertySetupCardStatus = ratesQuery.data?.readiness.status ?? "not_started";
   const mealsStatus: PropertySetupCardStatus = mealsQuery.data?.readiness.status ?? "not_started";
-  const completeCount = [currencyStatus, taxesStatus, ratesStatus, mealsStatus].filter(
-    (status) => status === "complete",
-  ).length;
+  const paymentsStatus: PropertySetupCardStatus =
+    paymentsQuery.data?.readiness.status ?? "not_started";
+  const completeCount = [
+    currencyStatus,
+    taxesStatus,
+    ratesStatus,
+    mealsStatus,
+    paymentsStatus,
+  ].filter((status) => status === "complete").length;
   const progressPct = Math.round((completeCount / CARD3_DOMAINS.length) * 100);
   const progressLabel = readinessLoading
     ? "Loading"
@@ -142,6 +159,13 @@ export function PmsPropertySetupCard3Section({
           />
         ) : domain?.id === "meal-plans-packages" ? (
           <PmsPropertySetupCard3Meals
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            domain={domain}
+            onBack={() => setActiveDomain(null)}
+          />
+        ) : domain?.id === "payments-deposits" ? (
+          <PmsPropertySetupCard3Payments
             restaurantId={restaurantId}
             canEdit={canEdit}
             domain={domain}
@@ -226,7 +250,9 @@ export function PmsPropertySetupCard3Section({
                         ? ratesStatus
                         : item.id === "meal-plans-packages"
                           ? mealsStatus
-                          : "not_started";
+                          : item.id === "payments-deposits"
+                            ? paymentsStatus
+                            : "not_started";
                 return (
                   <article
                     key={item.id}
