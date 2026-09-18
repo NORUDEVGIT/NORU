@@ -29,7 +29,7 @@ export const CARD2_STEPS = [
     id: "amenities",
     number: 2,
     title: "Amenities",
-    placeholder: "Amenities configuration will be implemented in a later phase.",
+    placeholder: "Amenities configuration is available in this Card 2 step.",
   },
   {
     id: "housekeeping",
