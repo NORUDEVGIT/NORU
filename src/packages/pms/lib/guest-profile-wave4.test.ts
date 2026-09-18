@@ -47,31 +47,34 @@ const FULL_ACCESS: GuestStayAccess = { reservation: true, frontOffice: true, fol
 
 describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
   it("locks AC-W4-1…23", () => {
-    assert.deepEqual([...WAVE4_ACCEPTANCE_CRITERIA], [
-      "AC-W4-1",
-      "AC-W4-2",
-      "AC-W4-3",
-      "AC-W4-4",
-      "AC-W4-5",
-      "AC-W4-6",
-      "AC-W4-7",
-      "AC-W4-8",
-      "AC-W4-9",
-      "AC-W4-10",
-      "AC-W4-11",
-      "AC-W4-12",
-      "AC-W4-13",
-      "AC-W4-14",
-      "AC-W4-15",
-      "AC-W4-16",
-      "AC-W4-17",
-      "AC-W4-18",
-      "AC-W4-19",
-      "AC-W4-20",
-      "AC-W4-21",
-      "AC-W4-22",
-      "AC-W4-23",
-    ]);
+    assert.deepEqual(
+      [...WAVE4_ACCEPTANCE_CRITERIA],
+      [
+        "AC-W4-1",
+        "AC-W4-2",
+        "AC-W4-3",
+        "AC-W4-4",
+        "AC-W4-5",
+        "AC-W4-6",
+        "AC-W4-7",
+        "AC-W4-8",
+        "AC-W4-9",
+        "AC-W4-10",
+        "AC-W4-11",
+        "AC-W4-12",
+        "AC-W4-13",
+        "AC-W4-14",
+        "AC-W4-15",
+        "AC-W4-16",
+        "AC-W4-17",
+        "AC-W4-18",
+        "AC-W4-19",
+        "AC-W4-20",
+        "AC-W4-21",
+        "AC-W4-22",
+        "AC-W4-23",
+      ],
+    );
   });
 
   it("AC-W4-1 staff can create a Company master and find it by search", () => {
@@ -96,7 +99,11 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     const directory = readRel("../components/guests/guest-account-directory.tsx");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     assert.deepEqual(
-      GUEST_PROFILE_TYPES.filter((type) => type.id !== "individual").map((type) => [type.id, type.live, type.wave]),
+      GUEST_PROFILE_TYPES.filter((type) => type.id !== "individual").map((type) => [
+        type.id,
+        type.live,
+        type.wave,
+      ]),
       [
         ["company", true, 4],
         ["group", true, 4],
@@ -115,12 +122,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
   it("AC-W4-3 staff can link employer / bill-to / booker TA / group member", () => {
     const functions = readRel("./guest-accounts.functions.ts");
     const card = readRel("../components/guests/guest-relationships-card.tsx");
-    assert.deepEqual([...GUEST_RELATIONSHIP_ROLES], [
-      "employer",
-      "bill_to",
-      "booker_ta",
-      "group_member",
-    ]);
+    assert.deepEqual(
+      [...GUEST_RELATIONSHIP_ROLES],
+      ["employer", "bill_to", "booker_ta", "group_member"],
+    );
     assert.equal(ROLE_ACCOUNT_TYPE.employer, "company");
     assert.equal(ROLE_ACCOUNT_TYPE.bill_to, "company");
     assert.equal(ROLE_ACCOUNT_TYPE.booker_ta, "travel_agent");
@@ -145,7 +150,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     assert.match(unlink, /\.delete\(\)/);
     assert.match(unlink, /from\("guest_account_links"\)/);
     assert.doesNotMatch(unlink.slice(0, 1800), /from\("guest_profiles"\)[\s\S]{0,200}\.delete\(/);
-    assert.doesNotMatch(unlink.slice(0, 1800), /from\("guest_account_masters"\)[\s\S]{0,200}\.delete\(/);
+    assert.doesNotMatch(
+      unlink.slice(0, 1800),
+      /from\("guest_account_masters"\)[\s\S]{0,200}\.delete\(/,
+    );
     assert.match(unlink, /guestRemaining/);
     assert.match(unlink, /masterRemaining/);
     assert.match(card, /guest-relationship-unlink/);
@@ -178,10 +186,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
   it("AC-W4-6 Loyalty & Value is real-derived only with no placeholder points", () => {
     const loyalty = readRel("../components/guests/guest-loyalty-card.tsx");
     const wave4 = readRel("./guest-profile-wave4.ts");
-    const empty = loyaltyFromStayOverview(
-      deriveStayOverview([], "2026-09-14", FULL_ACCESS),
-      false,
-    );
+    const empty = loyaltyFromStayOverview(deriveStayOverview([], "2026-09-14", FULL_ACCESS), false);
     assert.equal(hasDerivedLoyaltyFigures(empty), false);
     assert.equal(empty.stayCount, 0);
     assert.equal(empty.roomTotal, null);
@@ -224,7 +229,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
 
   it("AC-W4-9 profile-type switcher is LIVE for Company Group TA", () => {
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
-    assert.equal(GUEST_PROFILE_TYPES.every((type) => type.live), true);
+    assert.equal(
+      GUEST_PROFILE_TYPES.every((type) => type.live),
+      true,
+    );
     assert.match(shell, /guest-profile-type-switcher/);
     assert.match(shell, /selectType/);
     assert.match(shell, /disabled=\{!type\.live\}/);
@@ -248,8 +256,14 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     const functions = readRel("./guest-accounts.functions.ts");
     const migration = readRel("../../../../supabase/migrations/0053_pms_guest_profile_wave4.sql");
     assert.match(functions, /from\("guest_account_masters"\)/);
-    assert.doesNotMatch(functions, /from\("sales_event_companies"|from\("cashiering_companies"|from\("reservation_companies"/);
-    assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS public\.(reservation_companies|cashiering_companies|sales_event_companies)/);
+    assert.doesNotMatch(
+      functions,
+      /from\("sales_event_companies"|from\("cashiering_companies"|from\("reservation_companies"/,
+    );
+    assert.doesNotMatch(
+      migration,
+      /CREATE TABLE IF NOT EXISTS public\.(reservation_companies|cashiering_companies|sales_event_companies)/,
+    );
   });
 
   it("AC-W4-12 bill-to is association only while transfersSupported is false", () => {
@@ -305,7 +319,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     assert.match(set3, /WAVE4_SET3_FLAG_COPY/);
     assert.match(set3Lib, /companyRelationshipEnabled: rec\.companyRelationshipEnabled === true/);
     assert.match(fo, /company_name, group_name/);
-    assert.doesNotMatch(fo, /rewrite typed labels as masters|migrate company_name into company_master_id/);
+    assert.doesNotMatch(
+      fo,
+      /rewrite typed labels as masters|migrate company_name into company_master_id/,
+    );
   });
 
   it("AC-W4-17 Wave 4 files do not invent comms / privacy product", () => {
@@ -317,7 +334,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     const loyalty = readRel("../components/guests/guest-loyalty-card.tsx");
     const relationships = readRel("../components/guests/guest-relationships-card.tsx");
     for (const source of [wave4, accounts, loyalty, relationships]) {
-      assert.doesNotMatch(source, /exportGuestProfile|anonymiseGuest\b|unmergeGuests|sendGuestMessage/);
+      assert.doesNotMatch(
+        source,
+        /exportGuestProfile|anonymiseGuest\b|unmergeGuests|sendGuestMessage/,
+      );
       assert.doesNotMatch(source, /marketing cloud|email sent successfully/i);
     }
   });
@@ -367,7 +387,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     const relationships = readRel("../components/guests/guest-relationships-card.tsx");
     const wave4 = readRel("./guest-profile-wave4.ts");
     for (const source of [loyalty, relationships, wave4]) {
-      assert.doesNotMatch(source, /channel points|commission due|NA room\+tax loyalty|gateway settlement/i);
+      assert.doesNotMatch(
+        source,
+        /channel points|commission due|NA room\+tax loyalty|gateway settlement/i,
+      );
     }
   });
 
@@ -377,7 +400,10 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     const modules = readRel("./pms-modules.ts");
     assert.match(functions, /requireGuestManager/);
     assert.doesNotMatch(functions, /requirePackage\("guest-accounts"|newGuestRole/);
-    assert.match(migration, /has_restaurant_role\(restaurant_id, 'owner'\) OR public\.has_restaurant_role\(restaurant_id, 'manager'\)/);
+    assert.match(
+      migration,
+      /has_restaurant_role\(restaurant_id, 'owner'\) OR public\.has_restaurant_role\(restaurant_id, 'manager'\)/,
+    );
     assert.doesNotMatch(migration, /SECURITY DEFINER/i);
     assert.match(modules, /moduleKey: "front_office"/);
     assert.doesNotMatch(modules, /key: "guest-accounts"/);
@@ -391,7 +417,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     assert.equal(showEmptyDirectoryCta(false, "loyalty"), true);
     assert.equal(showEmptyDirectoryCta(false, "relationships"), true);
     assert.equal(isGuestRequiredProfileCard("notes-comms"), true);
-    assert.match(shell, /GuestDirectoryBackLink/);
+    assert.match(shell, /GuestProfileHeader/);
     assert.match(shell, /showEmptyDirectoryCta/);
     assert.match(shell, /GuestDirectoryOpenButton/);
     assert.deepEqual(parseGuestProfileCardSearch({ card: "loyalty" }), { card: "loyalty" });
@@ -422,7 +448,7 @@ describe("Guest Profile Wave 4 catalogue, honesty and gates", () => {
     assert.doesNotMatch(shell, /not LIVE · Wave 4/);
   });
 
-  it("preserves pms + guest manage gate and Directory-back / empty CTA", () => {
+  it("preserves pms + guest manage gate and selected-profile back / empty CTA", () => {
     const functions = readRel("./guest-accounts.functions.ts");
     const routes = [
       readRel("../../../routes/restaurant/pms/guests.index.tsx"),
@@ -433,7 +459,7 @@ describe("Guest Profile Wave 4 catalogue, honesty and gates", () => {
     assert.match(functions, /requireReservationManager/);
     assert.match(routes, /requireRoutePackage\("pms"\)/);
     assert.match(routes, /parseGuestProfileSearch/);
-    assert.match(shell, /GuestDirectoryBackLink/);
+    assert.match(shell, /GuestProfileHeader/);
     assert.match(shell, /showEmptyDirectoryCta/);
     assert.match(shell, /GuestDirectoryOpenButton/);
   });
@@ -450,10 +476,16 @@ describe("Guest Profile Wave 4 catalogue, honesty and gates", () => {
     assert.match(drizzle, /guest_account_links/);
     assert.doesNotMatch(supabase, /SECURITY DEFINER/i);
     assert.doesNotMatch(supabase, /CREATE FUNCTION/i);
-    assert.match(supabase, /has_restaurant_role\(restaurant_id, 'owner'\) OR public.has_restaurant_role\(restaurant_id, 'manager'\)/);
+    assert.match(
+      supabase,
+      /has_restaurant_role\(restaurant_id, 'owner'\) OR public.has_restaurant_role\(restaurant_id, 'manager'\)/,
+    );
     assert.match(supabase, /ENABLE ROW LEVEL SECURITY/);
     const functions = readRel("./guest-accounts.functions.ts");
-    assert.doesNotMatch(functions, /from\("sales_event_companies"|from\("cashiering_companies"|from\("reservation_companies"/);
+    assert.doesNotMatch(
+      functions,
+      /from\("sales_event_companies"|from\("cashiering_companies"|from\("reservation_companies"/,
+    );
     assert.match(functions, /WAVE4_MIGRATION_UNAVAILABLE/);
   });
 

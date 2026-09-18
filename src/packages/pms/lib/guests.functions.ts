@@ -16,10 +16,7 @@ import {
   type GuestEventType,
   type GuestStatus,
 } from "./guests.server";
-import {
-  WAVE5_ANONYMISED_GUEST_LABEL,
-  type GuestMergeLedgerPayload,
-} from "./guest-profile-wave5";
+import { WAVE5_ANONYMISED_GUEST_LABEL, type GuestMergeLedgerPayload } from "./guest-profile-wave5";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
@@ -104,6 +101,14 @@ export interface GuestSummary {
   anonymisedAt: string | null;
   restricted: boolean;
   blacklisted: boolean;
+}
+
+export interface GuestDirectoryStats {
+  totalGuests: number;
+  activeGuests: number;
+  vipGuests: number;
+  returningGuests: number;
+  inHouseGuests: number;
 }
 
 export interface GuestProfile extends GuestSummary {
@@ -584,14 +589,16 @@ async function loadEmergencyContacts(
   if (result.error) throw new Error(result.error.message);
   return {
     available: true,
-    contacts: ((result.data ?? []) as Array<{
-      id: string;
-      name: string;
-      relationship: string | null;
-      phone: string | null;
-      email: string | null;
-      sort_order: number;
-    }>).map((row) => ({
+    contacts: (
+      (result.data ?? []) as Array<{
+        id: string;
+        name: string;
+        relationship: string | null;
+        phone: string | null;
+        email: string | null;
+        sort_order: number;
+      }>
+    ).map((row) => ({
       id: row.id,
       name: row.name,
       relationship: row.relationship,
@@ -708,6 +715,80 @@ export const listGuests = createServerFn({ method: "POST" })
     }
     if (result.error) throw new Error(result.error.message);
     return ((result.data ?? []) as unknown as GuestRow[]).map(toSummary);
+  });
+
+export const getGuestDirectoryStats = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<GuestDirectoryStats> => {
+    await requireGuestManager(context as never, data.restaurantId);
+
+    const pageSize = 1_000;
+    const loadProfiles = async (excludeMerged: boolean) => {
+      const rows: Array<{ id: string; guest_status: GuestStatus; vip_status: boolean }> = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = context.supabase
+          .from("guest_profiles")
+          .select("id, guest_status, vip_status")
+          .eq("restaurant_id", data.restaurantId)
+          .range(from, from + pageSize - 1);
+        if (excludeMerged) query = query.is("merged_into_guest_id", null);
+        const result = await query;
+        if (result.error) return { rows, error: result.error };
+        const page = (result.data ?? []) as Array<{
+          id: string;
+          guest_status: GuestStatus;
+          vip_status: boolean;
+        }>;
+        rows.push(...page);
+        if (page.length < pageSize) return { rows, error: null };
+      }
+    };
+
+    let profiles = await loadProfiles(true);
+    if (profiles.error && isMissingSchemaError(profiles.error)) {
+      profiles = await loadProfiles(false);
+    }
+    if (profiles.error) throw new Error(profiles.error.message);
+
+    const profileIds = new Set(profiles.rows.map((profile) => profile.id));
+    const completedByGuest = new Map<string, number>();
+    const inHouseIds = new Set<string>();
+
+    for (let from = 0; ; from += pageSize) {
+      const result = await context.supabase
+        .from("hotel_reservations")
+        .select("guest_id, status")
+        .eq("restaurant_id", data.restaurantId)
+        .in("status", ["checked_out", "checked_in"])
+        .range(from, from + pageSize - 1);
+      if (result.error && isReservationRlsBlocked(result.error)) {
+        throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
+      }
+      if (result.error) throw new Error(result.error.message);
+
+      const page = (result.data ?? []) as Array<{
+        guest_id: string | null;
+        status: ReservationStatus;
+      }>;
+      for (const stay of page) {
+        if (!stay.guest_id || !profileIds.has(stay.guest_id)) continue;
+        if (stay.status === "checked_in") {
+          inHouseIds.add(stay.guest_id);
+        } else if (stay.status === "checked_out") {
+          completedByGuest.set(stay.guest_id, (completedByGuest.get(stay.guest_id) ?? 0) + 1);
+        }
+      }
+      if (page.length < pageSize) break;
+    }
+
+    return {
+      totalGuests: profiles.rows.length,
+      activeGuests: profiles.rows.filter((profile) => profile.guest_status === "active").length,
+      vipGuests: profiles.rows.filter((profile) => profile.vip_status).length,
+      returningGuests: [...completedByGuest.values()].filter((count) => count > 1).length,
+      inHouseGuests: inHouseIds.size,
+    };
   });
 
 /* ------------------------------------------------------------ duplicates */
@@ -929,7 +1010,11 @@ export const createGuest = createServerFn({ method: "POST" })
     let inserted: { id: string } | null = null;
     let error: { message?: string; code?: string } | null = null;
     let enrichmentApplied = true;
-    const first = await context.supabase.from("guest_profiles").insert(insertRow as never).select("id").single();
+    const first = await context.supabase
+      .from("guest_profiles")
+      .insert(insertRow as never)
+      .select("id")
+      .single();
     inserted = first.data;
     error = first.error;
     if (error && isMissingSchemaError(error)) {
@@ -1946,8 +2031,10 @@ export const mergeGuests = createServerFn({ method: "POST" })
       toConsentState(retired.marketing_consent) !== "not_asked"
     ) {
       previousSurvivorConsent["marketing_consent"] = survivor.marketing_consent;
-      previousSurvivorConsent["marketing_consent_recorded_at"] = survivor.marketing_consent_recorded_at;
-      previousSurvivorConsent["marketing_consent_recorded_by"] = survivor.marketing_consent_recorded_by;
+      previousSurvivorConsent["marketing_consent_recorded_at"] =
+        survivor.marketing_consent_recorded_at;
+      previousSurvivorConsent["marketing_consent_recorded_by"] =
+        survivor.marketing_consent_recorded_by;
       consentWinner["marketing_consent"] = retired.marketing_consent;
       consentWinner["marketing_consent_recorded_at"] = retired.marketing_consent_recorded_at;
       consentWinner["marketing_consent_recorded_by"] = retired.marketing_consent_recorded_by;
@@ -1979,7 +2066,9 @@ export const mergeGuests = createServerFn({ method: "POST" })
       .select("id")
       .eq("restaurant_id", data.restaurantId)
       .eq("guest_id", data.retiredId);
-    const movedReservationIds = ((reservationRows ?? []) as Array<{ id: string }>).map((row) => row.id);
+    const movedReservationIds = ((reservationRows ?? []) as Array<{ id: string }>).map(
+      (row) => row.id,
+    );
 
     const reservations = await supabaseAdmin
       .from("hotel_reservations")
@@ -1999,7 +2088,11 @@ export const mergeGuests = createServerFn({ method: "POST" })
     }
     const movedLinkIds: string[] = [];
     const deletedLinkIds: string[] = [];
-    for (const link of (retiredLinks.data ?? []) as Array<{ id: string; master_id: string; role: string }>) {
+    for (const link of (retiredLinks.data ?? []) as Array<{
+      id: string;
+      master_id: string;
+      role: string;
+    }>) {
       const existing = await wave4
         .from("guest_account_links")
         .select("id")
@@ -2008,7 +2101,8 @@ export const mergeGuests = createServerFn({ method: "POST" })
         .eq("master_id", link.master_id)
         .eq("role", link.role)
         .maybeSingle();
-      if (existing.error && !isMissingSchemaError(existing.error)) throw new Error(existing.error.message);
+      if (existing.error && !isMissingSchemaError(existing.error))
+        throw new Error(existing.error.message);
       if (existing.data) {
         deletedLinkIds.push(link.id);
         await wave4
@@ -2069,7 +2163,8 @@ export const mergeGuests = createServerFn({ method: "POST" })
       copiedProfile: winner,
       previousSurvivorProfile,
       copiedPrefs: prefWinner,
-      previousSurvivorPrefs: Object.keys(previousSurvivorPrefs).length > 0 ? previousSurvivorPrefs : null,
+      previousSurvivorPrefs:
+        Object.keys(previousSurvivorPrefs).length > 0 ? previousSurvivorPrefs : null,
       copiedConsent: consentWinner,
       previousSurvivorConsent,
       movedReservationIds,
@@ -2177,7 +2272,10 @@ export async function loadGuestStaysForProfile(
       roomId: row.room_id,
       roomTypeName: row.room_types?.name ?? null,
       roomNumber: row.hotel_rooms?.room_number ?? null,
-      roomSubtotal: row.room_subtotal === null || row.room_subtotal === undefined ? null : Number(row.room_subtotal),
+      roomSubtotal:
+        row.room_subtotal === null || row.room_subtotal === undefined
+          ? null
+          : Number(row.room_subtotal),
       currency: row.currency,
     }),
   );
@@ -2248,38 +2346,38 @@ export const listGuestStays = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<{ stays: GuestStay[]; access: GuestStayAccess }> => {
-      const me = await requireGuestManager(context as never, data.restaurantId);
-      const access = guestStayAccessForRole(me.role);
-      const stays = await loadGuestStaysForProfile(context as never, data.restaurantId, data.guestId, access);
-      return { stays, access };
-    },
-  );
+  .handler(async ({ data, context }): Promise<{ stays: GuestStay[]; access: GuestStayAccess }> => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const access = guestStayAccessForRole(me.role);
+    const stays = await loadGuestStaysForProfile(
+      context as never,
+      data.restaurantId,
+      data.guestId,
+      access,
+    );
+    return { stays, access };
+  });
 
 export const getGuestStayOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<GuestStayOverview> => {
-      const me = await requireGuestManager(context as never, data.restaurantId);
-      const access = guestStayAccessForRole(me.role);
-      const stays = await loadGuestStaysForProfile(context as never, data.restaurantId, data.guestId, access);
+  .handler(async ({ data, context }): Promise<GuestStayOverview> => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const access = guestStayAccessForRole(me.role);
+    const stays = await loadGuestStaysForProfile(
+      context as never,
+      data.restaurantId,
+      data.guestId,
+      access,
+    );
 
-      const { data: restaurant } = await context.supabase
-        .from("restaurants")
-        .select("timezone")
-        .eq("id", data.restaurantId)
-        .maybeSingle();
-      const today = propertyToday((restaurant as { timezone?: string } | null)?.timezone ?? "UTC");
-      return deriveStayOverview(stays, today, access);
-    },
-  );
+    const { data: restaurant } = await context.supabase
+      .from("restaurants")
+      .select("timezone")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const today = propertyToday((restaurant as { timezone?: string } | null)?.timezone ?? "UTC");
+    return deriveStayOverview(stays, today, access);
+  });

@@ -38,15 +38,10 @@ function readRel(rel: string) {
 
 describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
   it("locks AC-W5-1…7", () => {
-    assert.deepEqual([...WAVE5_ACCEPTANCE_CRITERIA], [
-      "AC-W5-1",
-      "AC-W5-2",
-      "AC-W5-3",
-      "AC-W5-4",
-      "AC-W5-5",
-      "AC-W5-6",
-      "AC-W5-7",
-    ]);
+    assert.deepEqual(
+      [...WAVE5_ACCEPTANCE_CRITERIA],
+      ["AC-W5-1", "AC-W5-2", "AC-W5-3", "AC-W5-4", "AC-W5-5", "AC-W5-6", "AC-W5-7"],
+    );
   });
 
   it("AC-W5-1 Activity hub shows notes, profile history and real comms in one place", () => {
@@ -73,7 +68,10 @@ describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
 
   it("AC-W5-2 send control only when a real channel is configured — never fake email sent", () => {
     assert.equal(
-      platformEmailTransportConfigured({ RESEND_API_KEY: "rk", RECEIPT_EMAIL_FROM: "desk@hotel.test" }),
+      platformEmailTransportConfigured({
+        RESEND_API_KEY: "rk",
+        RECEIPT_EMAIL_FROM: "desk@hotel.test",
+      }),
       true,
     );
     assert.equal(platformEmailTransportConfigured({ RESEND_API_KEY: "rk" }), false);
@@ -81,10 +79,9 @@ describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
     assert.equal(propertyEmailChannelConfigured({ email: true, savedAt: "2026-09-14" }), true);
     assert.equal(propertyEmailChannelConfigured({ email: true, savedAt: null }), false);
     assert.equal(propertyEmailChannelConfigured({ email: false, savedAt: "2026-09-14" }), false);
-    assert.deepEqual(
-      resolveGuestSendChannel({ platformTransport: true, propertyEmail: true }),
-      { kind: "email" },
-    );
+    assert.deepEqual(resolveGuestSendChannel({ platformTransport: true, propertyEmail: true }), {
+      kind: "email",
+    });
     assert.equal(resolveGuestSendChannel({ platformTransport: true, propertyEmail: false }), null);
     assert.equal(resolveGuestSendChannel({ platformTransport: false, propertyEmail: true }), null);
 
@@ -140,7 +137,10 @@ describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
       phone: null,
       email: null,
     });
-    assert.doesNotMatch(functions, /DELETE FROM hotel_reservations|from\("hotel_reservations"\)[\s\S]{0,80}\.delete\(/);
+    assert.doesNotMatch(
+      functions,
+      /DELETE FROM hotel_reservations|from\("hotel_reservations"\)[\s\S]{0,80}\.delete\(/,
+    );
   });
 
   it("AC-W5-5 unmerge when reversible or recorded exception — never silent undo", () => {
@@ -168,7 +168,10 @@ describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
     const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
     const migration = readRel("../../../../supabase/migrations/0054_pms_guest_profile_wave5.sql");
     assert.match(functions, /export const listGuestPrivacyAudit/);
-    assert.match(functions, /\.in\("event_type", \["exported", "anonymised", "unmerged", "unmerge_blocked"\]\)/);
+    assert.match(
+      functions,
+      /\.in\("event_type", \["exported", "anonymised", "unmerged", "unmerge_blocked"\]\)/,
+    );
     assert.match(card, /guest-privacy-audit/);
     assert.match(detail, /Profile exported|anonymised|Unmerge not available/);
     assert.match(migration, /'exported'/);
@@ -191,7 +194,10 @@ describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
     assert.match(card, /accountId/);
     assert.match(shell, /GuestPrivacyCard/);
     assert.match(shell, /isAccount \? guestId : undefined/);
-    assert.equal(anonymisedMasterDisplayName(true, "company", "Acme"), WAVE5_ANONYMISED_MASTER_LABELS.company);
+    assert.equal(
+      anonymisedMasterDisplayName(true, "company", "Acme"),
+      WAVE5_ANONYMISED_MASTER_LABELS.company,
+    );
     assert.equal(WAVE5_ANONYMISED_MASTER_LABELS.group, "Anonymised group account");
     assert.equal(WAVE5_ANONYMISED_MASTER_LABELS.travel_agent, "Anonymised travel agent");
   });
@@ -207,9 +213,11 @@ describe("Guest Profile Wave 5 catalogue, honesty and gates", () => {
     assert.equal(showEmptyDirectoryCta(false, "notes-comms"), true);
     assert.equal(showEmptyDirectoryCta(false, "admin-privacy"), true);
     assert.deepEqual(parseGuestProfileCardSearch({ card: "notes-comms" }), { card: "notes-comms" });
-    assert.deepEqual(parseGuestProfileCardSearch({ card: "admin-privacy" }), { card: "admin-privacy" });
+    assert.deepEqual(parseGuestProfileCardSearch({ card: "admin-privacy" }), {
+      card: "admin-privacy",
+    });
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
-    assert.match(shell, /GuestDirectoryBackLink/);
+    assert.match(shell, /GuestProfileHeader/);
     assert.match(shell, /showEmptyDirectoryCta/);
     assert.match(shell, /GuestDirectoryOpenButton/);
     assert.match(shell, /GuestActivityHubCard/);

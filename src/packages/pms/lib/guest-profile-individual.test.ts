@@ -90,7 +90,10 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     const functions = readRel("./guests.functions.ts");
     assert.match(form, /First name is required/);
     assert.match(form, /individual-first-name/);
-    assert.match(functions, /firstName: z\.string\(\)\.trim\(\)\.min\(1, "First name is required\."\)/);
+    assert.match(
+      functions,
+      /firstName: z\.string\(\)\.trim\(\)\.min\(1, "First name is required\."\)/,
+    );
     assert.equal(validateEmergencyContacts([{ name: "" }]), null);
     assert.match(functions, /namedEmergencyContacts\(data\.guest\.emergencyContacts\)\.length/);
   });
@@ -203,7 +206,9 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     const staged = readRel("../components/guests/guest-form-staged-links.tsx");
     const links = readRel("../components/guests/guest-individual-links.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
-    const migration = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
+    const migration = readRel(
+      "../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql",
+    );
     assert.match(form, /submitLink/);
     assert.match(form, /linkGuestAccount/);
     assert.match(form, /applyStagedFollowups/);
@@ -212,12 +217,10 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.doesNotMatch(staged, /linkGuestAccount/);
     assert.doesNotMatch(form, /guest_pending_links|pre-id link/);
     assert.doesNotMatch(migration, /CREATE TABLE.*guest_pending|pre_id_link/);
-    assert.deepEqual([...INDIVIDUAL_LINK_ROLES], [
-      "employer",
-      "bill_to",
-      "booker_ta",
-      "group_member",
-    ]);
+    assert.deepEqual(
+      [...INDIVIDUAL_LINK_ROLES],
+      ["employer", "bill_to", "booker_ta", "group_member"],
+    );
     assert.deepEqual([...GUEST_RELATIONSHIP_ROLES], [...INDIVIDUAL_LINK_ROLES]);
     assert.equal(ROLE_ACCOUNT_TYPE.employer, "company");
     assert.equal(ROLE_ACCOUNT_TYPE.booker_ta, "travel_agent");
@@ -244,7 +247,10 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(unlink, /from\("guest_account_links"\)/);
     assert.match(unlink, /\.delete\(\)/);
     assert.doesNotMatch(unlink.slice(0, 1800), /from\("guest_profiles"\)[\s\S]{0,200}\.delete\(/);
-    assert.doesNotMatch(unlink.slice(0, 1800), /from\("guest_account_masters"\)[\s\S]{0,200}\.delete\(/);
+    assert.doesNotMatch(
+      unlink.slice(0, 1800),
+      /from\("guest_account_masters"\)[\s\S]{0,200}\.delete\(/,
+    );
   });
 
   it("AC-GE2-12 Relationships card stays on the same store, including staged-create links", () => {
@@ -257,8 +263,14 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(card, /guest-relationship-link/);
     assert.match(shell, /GuestRelationshipsCard/);
     assert.match(links, /listGuestAccountLinks/);
-    assert.match(links, /invalidateQueries\(\{ queryKey: \["guest-account-links", restaurantId\] \}\)/);
-    assert.match(form, /invalidateQueries\(\{ queryKey: \["guest-account-links", restaurantId\] \}\)/);
+    assert.match(
+      links,
+      /invalidateQueries\(\{ queryKey: \["guest-account-links", restaurantId\] \}\)/,
+    );
+    assert.match(
+      form,
+      /invalidateQueries\(\{ queryKey: \["guest-account-links", restaurantId\] \}\)/,
+    );
   });
 
   it("AC-GE2-13 no guest↔guest family graph; no folio routing; no AC-W4-5 boil-in", () => {
@@ -267,7 +279,9 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     const links = readRel("../components/guests/guest-individual-links.tsx");
     const functions = readRel("./guests.functions.ts");
     const cashiering = readRel("./cashiering.functions.ts");
-    const migration = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
+    const migration = readRel(
+      "../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql",
+    );
     assert.match(helpers, /no second link table/i);
     assert.doesNotMatch(links, /family graph|folio routed|create_hotel_reservation_priced/i);
     assert.doesNotMatch(functions, /from\("guest_family_links"|from\("guest_to_guest"/);
@@ -326,7 +340,9 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
   it("AC-GE2-17 emergency contacts add/remove; empty first-name-only create succeeds", () => {
     const form = readRel("../components/guests/guest-form-dialog.tsx");
     const functions = readRel("./guests.functions.ts");
-    const migration = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
+    const migration = readRel(
+      "../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql",
+    );
     assert.equal(countNamedEmergencyContacts([{ name: "" }, { name: "Pat" }]), 1);
     assert.equal(validateEmergencyContacts([{ name: "" }]), null);
     assert.equal(validateEmergencyContacts([{ name: "Pat" }]), null);
@@ -356,7 +372,10 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
   it("AC-GE2-19 set restricted/blacklisted only with reason; server records by + at", () => {
     const form = readRel("../components/guests/guest-form-dialog.tsx");
     const functions = readRel("./guests.functions.ts");
-    assert.equal(validateRestrictionReason(true, false, ""), INDIVIDUAL_RESTRICTION_REASON_REQUIRED);
+    assert.equal(
+      validateRestrictionReason(true, false, ""),
+      INDIVIDUAL_RESTRICTION_REASON_REQUIRED,
+    );
     assert.equal(validateRestrictionReason(true, false, "Chargeback"), null);
     assert.match(form, /individual-restricted/);
     assert.match(form, /individual-blacklisted/);
@@ -371,7 +390,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
     const identity = readRel("../components/guests/guest-identity-card.tsx");
-    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
+    const header = readRel("../components/guests/guest-profile-header.tsx");
     assert.match(bits, /guest-restricted-badge/);
     assert.match(bits, /guest-blacklisted-badge/);
     assert.match(directory, /GuestRestrictionBadges/);
@@ -380,7 +399,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(detail, /guest\.restrictionReason/);
     assert.match(bits, /guest-restriction-warn-reason/);
     assert.match(identity, /GuestRestrictionBadges/);
-    assert.match(shell, /GuestRestrictionBadges/);
+    assert.match(header, /GuestRestrictionBadges/);
   });
 
   it("AC-GE2-21 History records restriction set and clear", () => {
@@ -459,7 +478,9 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
   it("AC-GE2-27 Individual data, emergency contacts, documents, restriction, and links stay tenant-scoped", () => {
     const functions = readRel("./guests.functions.ts");
     const accounts = readRel("./guest-accounts.functions.ts");
-    const migration = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
+    const migration = readRel(
+      "../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql",
+    );
     assert.match(functions, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(accounts, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(migration, /restaurant_id uuid NOT NULL REFERENCES public\.restaurants\(id\)/);
@@ -467,7 +488,9 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
 
   it("AC-GE2-28 no entitlement / RLS model change unless Abel-flagged", () => {
     const helpers = readRel("./guest-profile-individual.ts");
-    const migration = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
+    const migration = readRel(
+      "../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql",
+    );
     assert.match(helpers, /Additive RLS matching guest tables OK/);
     assert.match(migration, /Additive RLS/);
     assert.match(migration, /Entitlement model is/);
@@ -485,10 +508,16 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
   });
 
   it("AC-GE2-30 production schema apply is not claimed; 0056 collision uses 0057 APPLY HELD", () => {
-    const supabase = readRel("../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql");
-    const drizzle = readRel("../../../../drizzle/migrations/0057_pms_individual_form_enrichment.sql");
+    const supabase = readRel(
+      "../../../../supabase/migrations/0057_pms_individual_form_enrichment.sql",
+    );
+    const drizzle = readRel(
+      "../../../../drizzle/migrations/0057_pms_individual_form_enrichment.sql",
+    );
     const functions = readRel("./guests.functions.ts");
-    const polish = readRel("../../../../supabase/migrations/0056_pms_polish1_payment_methods_admin_fee_presets.sql");
+    const polish = readRel(
+      "../../../../supabase/migrations/0056_pms_polish1_payment_methods_admin_fee_presets.sql",
+    );
     assert.equal(INDIVIDUAL_ENRICHMENT_MIGRATION_FILE, "0057_pms_individual_form_enrichment.sql");
     assert.match(INDIVIDUAL_ENRICHMENT_UNAVAILABLE, /0057/);
     assert.match(supabase, /APPLY HELD/);
