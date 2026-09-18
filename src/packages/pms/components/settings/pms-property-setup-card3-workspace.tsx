@@ -53,6 +53,7 @@ export function PmsPropertySetupCard3Workspace({
   tabs,
   search,
   drawer,
+  onAuditHistory,
   children,
 }: {
   domain: Card3Domain;
@@ -60,6 +61,7 @@ export function PmsPropertySetupCard3Workspace({
   tabs?: ReactNode;
   search?: ReactNode;
   drawer?: ReactNode;
+  onAuditHistory?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -85,7 +87,14 @@ export function PmsPropertySetupCard3Workspace({
             </div>
           </div>
         </div>
-        <Button type="button" variant="outline" disabled data-testid="pms-card3-audit-history">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!onAuditHistory}
+          onClick={onAuditHistory}
+          className="focus-visible:ring-[#C89933]"
+          data-testid="pms-card3-audit-history"
+        >
           <History aria-hidden="true" className="size-4" />
           {CARD3_AUDIT_HISTORY_LABEL}
         </Button>
