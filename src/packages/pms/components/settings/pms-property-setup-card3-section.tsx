@@ -5,7 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
-import { CARD1_PMS_NAV, propertySetupStatusLabel, type PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  CARD1_PMS_NAV,
+  propertySetupStatusLabel,
+  type PropertySetupCardStatus,
+} from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   CARD3_DOMAIN_PLACEHOLDER,
   CARD3_DOMAINS,
@@ -16,13 +20,18 @@ import {
   CARD3_WORKSPACE_TITLE,
   type Card3DomainId,
 } from "@/packages/pms/lib/pms-property-setup-card3";
-import { Card3DomainIcon, PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
+import {
+  Card3DomainIcon,
+  PmsPropertySetupCard3Workspace,
+} from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import { PmsPropertySetupCard3Currency } from "@/packages/pms/components/settings/pms-property-setup-card3-currency";
 import { PmsPropertySetupCard3Taxes } from "@/packages/pms/components/settings/pms-property-setup-card3-taxes";
 import { PmsPropertySetupCard3Rates } from "@/packages/pms/components/settings/pms-property-setup-card3-rates";
+import { PmsPropertySetupCard3Meals } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
 import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
 import { getTaxesCard3 } from "@/packages/pms/lib/taxes-card3.functions";
 import { getRatesCard3 } from "@/packages/pms/lib/rates-card3.functions";
+import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 
 export function PmsPropertySetupCard3Section({
   restaurantId,
@@ -36,6 +45,7 @@ export function PmsPropertySetupCard3Section({
   const loadCurrency = useServerFn(getCurrencyCard3);
   const loadTaxes = useServerFn(getTaxesCard3);
   const loadRates = useServerFn(getRatesCard3);
+  const loadMeals = useServerFn(getMealsCard3);
   const currencyQuery = useQuery({
     queryKey: ["pms-card3-currency", restaurantId],
     queryFn: () => loadCurrency({ data: { restaurantId } }),
@@ -48,13 +58,31 @@ export function PmsPropertySetupCard3Section({
     queryKey: ["pms-card3-rates", restaurantId],
     queryFn: () => loadRates({ data: { restaurantId } }),
   });
-  const currencyStatus: PropertySetupCardStatus = currencyQuery.data?.readiness.status ?? "not_started";
+  const mealsQuery = useQuery({
+    queryKey: ["pms-card3-meals", restaurantId],
+    queryFn: () => loadMeals({ data: { restaurantId } }),
+  });
+  const readinessLoading =
+    currencyQuery.isLoading || taxesQuery.isLoading || ratesQuery.isLoading || mealsQuery.isLoading;
+  const currencyStatus: PropertySetupCardStatus =
+    currencyQuery.data?.readiness.status ?? "not_started";
   const taxesStatus: PropertySetupCardStatus = taxesQuery.data?.readiness.status ?? "not_started";
   const ratesStatus: PropertySetupCardStatus = ratesQuery.data?.readiness.status ?? "not_started";
-  const completeCount = [currencyStatus, taxesStatus, ratesStatus].filter((status) => status === "complete").length;
+  const mealsStatus: PropertySetupCardStatus = mealsQuery.data?.readiness.status ?? "not_started";
+  const completeCount = [currencyStatus, taxesStatus, ratesStatus, mealsStatus].filter(
+    (status) => status === "complete",
+  ).length;
   const progressPct = Math.round((completeCount / CARD3_DOMAINS.length) * 100);
-  const progressLabel = completeCount === 0 ? CARD3_PROGRESS_LABEL : "In Progress";
-  const progressDetail = completeCount === 0 ? CARD3_PROGRESS_DETAIL : `${completeCount} of 8 domains configured`;
+  const progressLabel = readinessLoading
+    ? "Loading"
+    : completeCount === 0
+      ? CARD3_PROGRESS_LABEL
+      : "In Progress";
+  const progressDetail = readinessLoading
+    ? "Checking configuration readiness…"
+    : completeCount === 0
+      ? CARD3_PROGRESS_DETAIL
+      : `${completeCount} of 8 domains configured`;
 
   function goBackToHub() {
     window.location.hash = "";
@@ -112,6 +140,13 @@ export function PmsPropertySetupCard3Section({
             domain={domain}
             onBack={() => setActiveDomain(null)}
           />
+        ) : domain?.id === "meal-plans-packages" ? (
+          <PmsPropertySetupCard3Meals
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            domain={domain}
+            onBack={() => setActiveDomain(null)}
+          />
         ) : domain ? (
           <PmsPropertySetupCard3Workspace domain={domain} onBack={() => setActiveDomain(null)}>
             <div
@@ -153,21 +188,34 @@ export function PmsPropertySetupCard3Section({
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{progressDetail}</p>
               <div
-                className="mt-3 h-2 overflow-hidden rounded-full bg-[#EFE8DC]"
+                className={cn(
+                  "mt-3 h-2 overflow-hidden rounded-full bg-[#EFE8DC]",
+                  readinessLoading && "animate-pulse",
+                )}
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={progressPct}
-                aria-valuetext={`${progressPct}% ${progressLabel}`}
+                aria-valuenow={readinessLoading ? undefined : progressPct}
+                aria-valuetext={
+                  readinessLoading
+                    ? "Loading configuration readiness"
+                    : `${progressPct}% ${progressLabel}`
+                }
               >
-                <div className="h-full rounded-full bg-[#C89933]" style={{ width: `${progressPct}%` }} />
+                <div
+                  className="h-full rounded-full bg-[#C89933]"
+                  style={{ width: readinessLoading ? "35%" : `${progressPct}%` }}
+                />
               </div>
               <p className="mt-2 text-sm font-medium text-[#251605]">
-                {progressPct}% · {progressLabel}
+                {readinessLoading ? "Loading…" : `${progressPct}% · ${progressLabel}`}
               </p>
             </section>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="pms-card3-domain-grid">
+            <div
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+              data-testid="pms-card3-domain-grid"
+            >
               {CARD3_DOMAINS.map((item) => {
                 const status: PropertySetupCardStatus =
                   item.id === "currency-financial-settings"
@@ -176,7 +224,9 @@ export function PmsPropertySetupCard3Section({
                       ? taxesStatus
                       : item.id === "rates-pricing"
                         ? ratesStatus
-                        : "not_started";
+                        : item.id === "meal-plans-packages"
+                          ? mealsStatus
+                          : "not_started";
                 return (
                   <article
                     key={item.id}
@@ -188,10 +238,12 @@ export function PmsPropertySetupCard3Section({
                         <Card3DomainIcon icon={item.icon} className="size-5" />
                       </span>
                       <span className="shrink-0 rounded-full border border-[#CCCCCC] bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {propertySetupStatusLabel(status)}
+                        {readinessLoading ? "Loading" : propertySetupStatusLabel(status)}
                       </span>
                     </div>
-                    <h2 className="mt-3 font-display text-lg leading-snug text-[#251605]">{item.title}</h2>
+                    <h2 className="mt-3 font-display text-lg leading-snug text-[#251605]">
+                      {item.title}
+                    </h2>
                     <p className="mt-2 flex-1 text-sm text-muted-foreground">{item.description}</p>
                     <Button
                       type="button"
