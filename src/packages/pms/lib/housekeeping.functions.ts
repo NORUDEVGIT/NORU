@@ -41,6 +41,7 @@ import {
   restrictionSaveBlocked,
 } from "./pms-set4-hk-inventory";
 import { loadSet4Snapshot } from "./pms-set4-hk-inventory.functions";
+import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -165,6 +166,7 @@ type RoomRow = {
   floor: string | null;
   status: RoomRestriction;
   housekeeping_status: HkStatus;
+  maintenance_status: string | null;
   active: boolean;
   room_type_id: string;
   room_types: { name: string } | null;
@@ -334,11 +336,13 @@ export const listRoomRack = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<RackRoom[]> => {
     const me = await requireHousekeepingAccess(context as never, data.restaurantId);
     const rackScope = housekeepingScope(me.role);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
       .select(
-        "id, room_number, floor, status, housekeeping_status, active, room_type_id, restriction_reason, restriction_expected_return, room_types!inner ( name )",
+        "id, room_number, floor, status, housekeeping_status, maintenance_status, active, room_type_id, restriction_reason, restriction_expected_return, room_types!inner ( name )",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("active", true)
@@ -399,6 +403,8 @@ export const listRoomRack = createServerFn({ method: "POST" })
           status: room.status,
           occupied: isOccupied,
           housekeepingStatus: room.housekeeping_status,
+          maintenanceStatus: room.maintenance_status,
+          settings: housekeepingPolicy.settings,
         }),
       };
     });
@@ -551,6 +557,25 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
         throw new Error("That staff member can't be assigned housekeeping tasks.");
       }
 
+      const assignmentOverride =
+        Boolean(task.assigned_membership_id) && task.assigned_membership_id !== assignee.id;
+      if (assignmentOverride) {
+        const policy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
+        if (!policy.settings.assignmentOverrideAllowed) {
+          throw new Error("Assignment overrides are disabled in Housekeeping Setup.");
+        }
+        const allowed =
+          (policy.settings.overridePermission === "any_supervisor" && scope === "supervisor") ||
+          (policy.settings.overridePermission === "owner_manager" &&
+            (me.role === "owner" || me.role === "manager")) ||
+          (policy.settings.overridePermission === "housekeeping_supervisor" &&
+            (me.role === "housekeeping" || me.role === "housekeeping_supervisor"));
+        if (!allowed) throw new Error("You don't have the configured assignment override permission.");
+        if (policy.settings.overrideReasonRequired && !blankToNull(data.notes)) {
+          throw new Error("An override reason is required.");
+        }
+      }
+
       if (task.assigned_membership_id === assignee.id && task.status !== "pending") {
         return { id: task.id, status: task.status as TaskStatus };
       }
@@ -697,8 +722,11 @@ export const inspectRoom = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ inspectionId: string; result: string }> => {
-    const me = await requireHousekeepingManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const policy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
+    const me = policy.settings.supervisorApprovalRequired
+      ? await requireHousekeepingManager(context as never, data.restaurantId)
+      : await requireHousekeepingOperator(context as never, data.restaurantId);
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
 
     const { data: inspectionId, error } = await supabaseAdmin.rpc("housekeeping_inspect_room", {

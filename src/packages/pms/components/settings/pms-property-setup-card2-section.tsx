@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { PmsPropertySetupWorkspace } from "@/packages/pms/components/settings/pms-property-setup-workspace";
 import { PmsPropertySetupCard2RoomTypes } from "@/packages/pms/components/settings/pms-property-setup-card2-room-types";
+import { PmsPropertySetupCard2Housekeeping } from "@/packages/pms/components/settings/pms-property-setup-card2-housekeeping";
 import {
   PmsPropertySetupCard2Amenities,
   type AmenitiesRailStats,
@@ -59,6 +60,11 @@ export function PmsPropertySetupCard2Section({
   const [roomTypesStatus, setRoomTypesStatus] = useState<PropertySetupCardStatus>(
     card2Steps?.["room-types"] ?? "not_started",
   );
+  const [housekeepingStatus, setHousekeepingStatus] = useState<PropertySetupCardStatus>(
+    card2Steps?.housekeeping ?? "not_started",
+  );
+  const [housekeepingBlockers, setHousekeepingBlockers] = useState<string[]>([]);
+  const [housekeepingWarnings, setHousekeepingWarnings] = useState<string[]>([]);
   const [amenitiesStatus, setAmenitiesStatus] = useState<PropertySetupCardStatus>(
     card2Steps?.amenities ?? "not_started",
   );
@@ -82,6 +88,7 @@ export function PmsPropertySetupCard2Section({
     ...card2Steps,
     "room-types": roomTypesStatus,
     amenities: amenitiesStatus,
+    housekeeping: housekeepingStatus,
     "inventory-rules": inventoryStatus,
     maintenance: maintenanceStatus,
   };
@@ -91,6 +98,14 @@ export function PmsPropertySetupCard2Section({
   const onRoomTypesReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
     setRoomTypesStatus(status);
   }, []);
+  const onHousekeepingReadiness = useCallback(
+    (status: PropertySetupCardStatus, blockers: string[], warnings: string[]) => {
+      setHousekeepingStatus(status);
+      setHousekeepingBlockers(blockers);
+      setHousekeepingWarnings(warnings);
+    },
+    [],
+  );
   const onAmenitiesReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
     setAmenitiesStatus(status);
   }, []);
@@ -113,7 +128,13 @@ export function PmsPropertySetupCard2Section({
   }
 
   async function goContinue() {
-    if (step === "room-types" || step === "amenities" || step === "inventory-rules" || step === "maintenance") {
+    if (
+      step === "room-types" ||
+      step === "amenities" ||
+      step === "housekeeping" ||
+      step === "inventory-rules" ||
+      step === "maintenance"
+    ) {
       setContinuePending(true);
       const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
       setContinuePending(false);
@@ -122,6 +143,45 @@ export function PmsPropertySetupCard2Section({
     if (!next) return;
     setStep(next);
   }
+
+  async function selectStep(target: Card2StepId) {
+    const currentIndex = CARD2_STEPS.findIndex((item) => item.id === step);
+    const targetIndex = CARD2_STEPS.findIndex((item) => item.id === target);
+    if (step === "housekeeping" && targetIndex > currentIndex) {
+      setContinuePending(true);
+      const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
+      setContinuePending(false);
+      if (!ready) return;
+    }
+    setStep(target);
+  }
+
+  const housekeepingRail =
+    step === "housekeeping" ? (
+      <>
+        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Housekeeping Status</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">
+            {amenitiesStatusLabel(housekeepingStatus, housekeepingBlockers)}
+          </p>
+        </section>
+        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Validation</p>
+          <p className="mt-1 text-sm text-[#251605]">{housekeepingBlockers.length} blockers</p>
+          <p className="text-sm text-muted-foreground">{housekeepingWarnings.length} warnings</p>
+        </section>
+        {housekeepingBlockers.length > 0 ? (
+          <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+            <p className="text-xs text-muted-foreground">Blockers</p>
+            <ul className="mt-1 list-disc pl-4 text-sm text-[#251605]">
+              {housekeepingBlockers.map((row) => (
+                <li key={row}>{row}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </>
+    ) : null;
 
   const inventoryRail =
     step === "inventory-rules" && inventoryStats ? (
@@ -245,7 +305,7 @@ export function PmsPropertySetupCard2Section({
         status: evaluateCard2StepStatus(row.id, stepStatuses[row.id]),
       }))}
       activeStepId={step}
-      onSelectStep={(id) => setStep(id as Card2StepId)}
+      onSelectStep={(id) => void selectStep(id as Card2StepId)}
       progressPct={progressPct}
       completedCount={completedCount}
       currentSection={current.title}
@@ -253,12 +313,19 @@ export function PmsPropertySetupCard2Section({
       cardStatusLabel={propertySetupStatusLabel(cardStatus === "complete" ? "in_progress" : cardStatus)}
       progressLabel="Rooms & Operations Progress"
       onBack={goBack}
-      saveDraftDisabled={!canEdit || (step !== "room-types" && step !== "amenities" && step !== "inventory-rules" && step !== "maintenance")}
+      saveDraftDisabled={
+        !canEdit ||
+        (step !== "room-types" &&
+          step !== "amenities" &&
+          step !== "housekeeping" &&
+          step !== "inventory-rules" &&
+          step !== "maintenance")
+      }
       onSaveDraft={() => void actionsRef.current?.saveDraft()}
       continueDisabled={!canEdit}
       continuePending={continuePending}
       onContinue={() => void goContinue()}
-      railExtras={maintenanceRail ?? inventoryRail ?? amenitiesRail}
+      railExtras={maintenanceRail ?? inventoryRail ?? housekeepingRail ?? amenitiesRail}
     >
       {step === "room-types" ? (
         <PmsPropertySetupCard2RoomTypes
@@ -285,6 +352,15 @@ export function PmsPropertySetupCard2Section({
           canEdit={canEdit}
           onReadiness={onInventoryReadiness}
           onStats={setInventoryStats}
+          registerActions={(actions) => {
+            actionsRef.current = actions;
+          }}
+        />
+      ) : step === "housekeeping" ? (
+        <PmsPropertySetupCard2Housekeeping
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onReadiness={onHousekeepingReadiness}
           registerActions={(actions) => {
             actionsRef.current = actions;
           }}

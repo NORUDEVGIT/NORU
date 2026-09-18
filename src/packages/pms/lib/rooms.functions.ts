@@ -39,6 +39,7 @@ import {
   type LocationMasters,
   type NormalizedBedRow,
 } from "./rooms-card2.server";
+import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 import { persistCard2AmenitiesReadiness } from "./rooms-amenities.functions";
 
 const idSchema = z.string().uuid();
@@ -793,6 +794,30 @@ export const saveRoom = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => roomInput.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireRoomManager(context as never, data.restaurantId);
+    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
+      (await import("@/integrations/supabase/client.server")).supabaseAdmin,
+      data.restaurantId,
+    );
+    let effectiveHousekeepingStatus =
+      data.housekeepingStatus ?? housekeepingPolicy.settings.defaultStatus;
+    if (!data.id && !housekeepingPolicy.settings.manualStatusChangeAllowed) {
+      effectiveHousekeepingStatus = housekeepingPolicy.settings.defaultStatus;
+    }
+    if (data.id && data.housekeepingStatus && !housekeepingPolicy.settings.manualStatusChangeAllowed) {
+      const { data: existingRoom } = await pmsDb(context.supabase)
+        .from("hotel_rooms")
+        .select("housekeeping_status")
+        .eq("id", data.id)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (existingRoom && existingRoom.housekeeping_status !== data.housekeepingStatus) {
+        return {
+          ok: false as const,
+          message: "Manual housekeeping status changes are disabled in Housekeeping Setup.",
+        };
+      }
+      effectiveHousekeepingStatus = existingRoom?.housekeeping_status ?? housekeepingPolicy.settings.defaultStatus;
+    }
 
     const { data: type } = await pmsDb(context.supabase)
       .from("room_types")
@@ -855,7 +880,7 @@ export const saveRoom = createServerFn({ method: "POST" })
       smoking: data.smoking,
       accessible: data.accessible,
       status: data.status,
-      housekeeping_status: data.housekeepingStatus ?? "clean",
+      housekeeping_status: effectiveHousekeepingStatus,
       maintenance_status: data.maintenanceStatus ?? "normal",
       sellable: data.sellable ?? true,
       room_features: normalizeRoomFeatures(data.roomFeatures),
@@ -963,6 +988,14 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       validationErrors: [] as string[],
     };
     const me = await requireRoomManager(context as never, data.restaurantId);
+    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
+      (await import("@/integrations/supabase/client.server")).supabaseAdmin,
+      data.restaurantId,
+    );
+    const defaultHousekeepingStatus =
+      housekeepingPolicy.settings.manualStatusChangeAllowed && data.housekeepingStatus
+        ? data.housekeepingStatus
+        : housekeepingPolicy.settings.defaultStatus;
 
     const generated = sequentialRoomLabels({
       startNumber: data.startNumber,
@@ -1027,7 +1060,7 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       smoking: data.smoking ?? false,
       accessible: data.accessible ?? false,
       status: data.status ?? "available",
-      housekeeping_status: data.housekeepingStatus ?? "clean",
+      housekeeping_status: defaultHousekeepingStatus,
       maintenance_status: data.maintenanceStatus ?? "normal",
       sellable: data.sellable ?? true,
       room_features: [] as string[],

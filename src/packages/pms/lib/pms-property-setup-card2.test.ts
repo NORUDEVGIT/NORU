@@ -143,8 +143,8 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(sectionSrc, /step === "maintenance"/);
     assert.match(sectionSrc, /PmsPropertySetupCard2Maintenance/);
     assert.match(
-      sectionSrc,
-      /saveDraftDisabled=\{!canEdit \|\| \(step !== "room-types" && step !== "amenities" && step !== "inventory-rules" && step !== "maintenance"\)\}/,
+      sectionSrc.replace(/\s+/g, " "),
+      /saveDraftDisabled=\{ ?!canEdit \|\| \( ?step !== "room-types" && step !== "amenities" && step !== "housekeeping" && step !== "inventory-rules" && step !== "maintenance" ?\)/,
     );
     assert.match(sectionSrc, /current.placeholder/);
     assert.match(sectionSrc, /Card 2 Review/);
