@@ -20,6 +20,23 @@ export const ROOM_BUCKET = "property-images";
 export const ROOM_STATUSES = ["available", "out_of_order", "out_of_service"] as const;
 export type RoomStatus = (typeof ROOM_STATUSES)[number];
 
+/** Independent of hotel_rooms.status (operational). Overlapping OOO/OOS labels are intentional. */
+export const MAINTENANCE_STATUSES = [
+  "normal",
+  "maintenance_required",
+  "in_progress",
+  "out_of_service",
+  "out_of_order",
+  "inspection",
+] as const;
+export type MaintenanceStatus = (typeof MAINTENANCE_STATUSES)[number];
+
+export const SMOKING_POLICIES = ["smoking", "non_smoking", "either"] as const;
+export type SmokingPolicy = (typeof SMOKING_POLICIES)[number];
+
+export const ROOM_LINK_KINDS = ["connecting", "adjacent"] as const;
+export type RoomLinkKind = (typeof ROOM_LINK_KINDS)[number];
+
 export const DEFAULT_AMENITIES = [
   "Wi-Fi",
   "Air Conditioning",

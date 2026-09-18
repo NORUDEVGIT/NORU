@@ -1,8 +1,8 @@
 /**
- * PMS Property Setup Card 2 — Rooms & Operations (Phase 0 shell).
+ * PMS Property Setup Card 2 — Rooms & Operations.
  *
- * Frontend workspace only. No save API, schema, or Phase 1 forms.
- * Stored programme id remains `rooms-inventory`.
+ * Phase 0: workspace shell. Phase 1 API: Room Types & Rooms server functions
+ * live in rooms.functions.ts. This module stays UI-hash/step ids only.
  */
 
 import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";

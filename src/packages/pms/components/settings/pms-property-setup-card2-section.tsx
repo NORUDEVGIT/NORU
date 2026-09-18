@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { PmsPropertySetupWorkspace } from "@/packages/pms/components/settings/pms-property-setup-workspace";
+import { PmsPropertySetupCard2RoomTypes } from "@/packages/pms/components/settings/pms-property-setup-card2-room-types";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
+  type Card2StepStatusMap,
   type PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
@@ -22,20 +24,39 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card2";
 
 export function PmsPropertySetupCard2Section({
+  restaurantId,
   cardStatus,
+  card2Steps,
   canEdit,
   initialStep = "room-types",
 }: {
+  restaurantId: string;
   cardStatus: PropertySetupCardStatus;
+  card2Steps?: Card2StepStatusMap;
   canEdit: boolean;
   initialStep?: Card2StepId;
 }) {
   const [step, setStep] = useState<Card2StepId>(initialStep);
+  const [roomTypesStatus, setRoomTypesStatus] = useState<PropertySetupCardStatus>(
+    card2Steps?.["room-types"] ?? "not_started",
+  );
+  const [continuePending, setContinuePending] = useState(false);
+  const actionsRef = useRef<{ saveDraft: () => Promise<boolean>; saveAndContinue: () => Promise<boolean> } | null>(
+    null,
+  );
+
   const current = card2StepById(step);
   const next = nextCard2Step(step);
-  const stepStatuses = {} as Partial<Record<Card2StepId, PropertySetupCardStatus>>;
+  const stepStatuses: Partial<Record<Card2StepId, PropertySetupCardStatus>> = {
+    ...card2Steps,
+    "room-types": roomTypesStatus,
+  };
   const completedCount = card2CompletedCount(stepStatuses);
   const progressPct = card2ProgressPct(stepStatuses);
+
+  const onReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
+    setRoomTypesStatus(status);
+  }, []);
 
   function goBack() {
     const previous = previousCard2Step(step);
@@ -48,7 +69,13 @@ export function PmsPropertySetupCard2Section({
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   }
 
-  function goContinue() {
+  async function goContinue() {
+    if (step === "room-types") {
+      setContinuePending(true);
+      const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
+      setContinuePending(false);
+      if (!ready) return;
+    }
     if (!next) return;
     setStep(next);
   }
@@ -72,22 +99,30 @@ export function PmsPropertySetupCard2Section({
       completedCount={completedCount}
       currentSection={current.title}
       nextStepTitle={next ? card2StepById(next).title : null}
-      cardStatusLabel={propertySetupStatusLabel(cardStatus)}
+      cardStatusLabel={propertySetupStatusLabel(cardStatus === "complete" ? "in_progress" : cardStatus)}
       progressLabel="Rooms & Operations Progress"
       onBack={goBack}
-      saveDraftDisabled
+      saveDraftDisabled={!canEdit || step !== "room-types"}
+      onSaveDraft={() => void actionsRef.current?.saveDraft()}
       continueDisabled={!canEdit || !next}
-      onContinue={goContinue}
+      continuePending={continuePending}
+      onContinue={() => void goContinue()}
     >
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm" data-testid={`pms-card2-step-${step}`}>
-        <h2 className="font-display text-xl text-[#251605]">{current.title}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {step === "room-types"
-            ? "Configure room types, physical rooms and bulk room generation."
-            : current.placeholder}
-        </p>
-        <p className="mt-4 text-sm text-[#251605]">{current.placeholder}</p>
-      </section>
+      {step === "room-types" ? (
+        <PmsPropertySetupCard2RoomTypes
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onReadiness={onReadiness}
+          registerActions={(actions) => {
+            actionsRef.current = actions;
+          }}
+        />
+      ) : (
+        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm" data-testid={`pms-card2-step-${step}`}>
+          <h2 className="font-display text-xl text-[#251605]">{current.title}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{current.placeholder}</p>
+        </section>
+      )}
     </PmsPropertySetupWorkspace>
   );
 }
