@@ -10,6 +10,8 @@
 --
 -- Deliberately separate from distribution_channels and the room/rate mapping
 -- tables. Those stay the operational Direct/OTA distribution model (Phase 2).
+--
+-- Applied to qcwptraosaudcbjasmul on 2026-09-18 after explicit user request.
 
 -- Check constraints cannot hold subqueries, so the key scan lives in an
 -- immutable helper that the constraint calls.
