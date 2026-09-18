@@ -370,13 +370,13 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                   data-testid={card.specced ? `property-setup-card-${card.number}` : "property-setup-coming-soon-card"}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className={cn("font-display text-lg", card.specced ? "text-[#251605]" : "text-muted-foreground")}>
+                    <h2 className={cn("min-w-0 flex-1 font-display text-lg leading-snug", card.specced ? "text-[#251605]" : "text-muted-foreground")}>
                       {card.number}. {card.title}
                     </h2>
                     {card.specced ? (
                       <span
                         className={cn(
-                          "rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                          "shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium",
                           status === "complete" && "border-[#436436]/40 bg-[#436436]/10 text-[#436436]",
                           status === "in_progress" && "border-[#C89933]/50 bg-[#C89933]/10 text-[#251605]",
                           status === "not_started" && "border-[#CCCCCC] bg-muted/60 text-muted-foreground",
@@ -385,7 +385,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                         {propertySetupStatusLabel(status)}
                       </span>
                     ) : (
-                      <span className="rounded-full border border-[#CCCCCC] px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <span className="shrink-0 rounded-full border border-[#CCCCCC] px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                         Coming soon
                       </span>
                     )}

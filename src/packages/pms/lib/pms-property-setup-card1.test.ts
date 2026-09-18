@@ -275,6 +275,51 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
 
   it("shows Cards 3–8 as Coming soon and keeps status honesty", () => {
     assert.equal(PROPERTY_SETUP_CARDS.length, 8);
+    assert.deepEqual(
+      PROPERTY_SETUP_CARDS.map((card) => ({ number: card.number, title: card.title, purpose: card.purpose })),
+      [
+        {
+          number: 1,
+          title: "Property & Business",
+          purpose: "Identity & Branding, Check-In & Check-Out, Business Date, Property Structure.",
+        },
+        {
+          number: 2,
+          title: "Rooms & Operations",
+          purpose: "Rooms & Room Types, Amenities, Housekeeping Rules, Room Inventory Rules, Maintenance Rules.",
+        },
+        {
+          number: 3,
+          title: "Financial & Commercial",
+          purpose: "Taxes, Policies & Fees, Rates & Meal Plans, Payment Methods.",
+        },
+        {
+          number: 4,
+          title: "Guest & Services",
+          purpose: "Guest Profile Rules, Guest Service Types, Notifications & Communication.",
+        },
+        {
+          number: 5,
+          title: "Organization & Facilities",
+          purpose: "Departments, Outlets & Facilities, Sales & Events.",
+        },
+        {
+          number: 6,
+          title: "Connectivity & Distribution",
+          purpose: "Integrations and Distribution.",
+        },
+        {
+          number: 7,
+          title: "Security, Data & Reports",
+          purpose: "Security & Roles, Audit, Reports & Analytics, Data Import & Migration.",
+        },
+        {
+          number: 8,
+          title: "System & Go-Live",
+          purpose: "Offline & Sync, System Validation, Go-Live, Property Activation.",
+        },
+      ],
+    );
     assert.equal(PROPERTY_SETUP_CARDS[0].title, CARD1_TITLE);
     assert.equal(PROPERTY_SETUP_CARDS[0].specced, true);
     assert.equal(PROPERTY_SETUP_CARDS[1].title, "Rooms & Operations");
