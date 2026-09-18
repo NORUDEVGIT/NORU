@@ -19,8 +19,10 @@ import {
 import { Card3DomainIcon, PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import { PmsPropertySetupCard3Currency } from "@/packages/pms/components/settings/pms-property-setup-card3-currency";
 import { PmsPropertySetupCard3Taxes } from "@/packages/pms/components/settings/pms-property-setup-card3-taxes";
+import { PmsPropertySetupCard3Rates } from "@/packages/pms/components/settings/pms-property-setup-card3-rates";
 import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
 import { getTaxesCard3 } from "@/packages/pms/lib/taxes-card3.functions";
+import { getRatesCard3 } from "@/packages/pms/lib/rates-card3.functions";
 
 export function PmsPropertySetupCard3Section({
   restaurantId,
@@ -33,6 +35,7 @@ export function PmsPropertySetupCard3Section({
   const domain = CARD3_DOMAINS.find((row) => row.id === activeDomain) ?? null;
   const loadCurrency = useServerFn(getCurrencyCard3);
   const loadTaxes = useServerFn(getTaxesCard3);
+  const loadRates = useServerFn(getRatesCard3);
   const currencyQuery = useQuery({
     queryKey: ["pms-card3-currency", restaurantId],
     queryFn: () => loadCurrency({ data: { restaurantId } }),
@@ -41,9 +44,14 @@ export function PmsPropertySetupCard3Section({
     queryKey: ["pms-card3-taxes", restaurantId],
     queryFn: () => loadTaxes({ data: { restaurantId } }),
   });
+  const ratesQuery = useQuery({
+    queryKey: ["pms-card3-rates", restaurantId],
+    queryFn: () => loadRates({ data: { restaurantId } }),
+  });
   const currencyStatus: PropertySetupCardStatus = currencyQuery.data?.readiness.status ?? "not_started";
   const taxesStatus: PropertySetupCardStatus = taxesQuery.data?.readiness.status ?? "not_started";
-  const completeCount = [currencyStatus, taxesStatus].filter((status) => status === "complete").length;
+  const ratesStatus: PropertySetupCardStatus = ratesQuery.data?.readiness.status ?? "not_started";
+  const completeCount = [currencyStatus, taxesStatus, ratesStatus].filter((status) => status === "complete").length;
   const progressPct = Math.round((completeCount / CARD3_DOMAINS.length) * 100);
   const progressLabel = completeCount === 0 ? CARD3_PROGRESS_LABEL : "In Progress";
   const progressDetail = completeCount === 0 ? CARD3_PROGRESS_DETAIL : `${completeCount} of 8 domains configured`;
@@ -92,6 +100,13 @@ export function PmsPropertySetupCard3Section({
           />
         ) : domain?.id === "taxes-fees" ? (
           <PmsPropertySetupCard3Taxes
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            domain={domain}
+            onBack={() => setActiveDomain(null)}
+          />
+        ) : domain?.id === "rates-pricing" ? (
+          <PmsPropertySetupCard3Rates
             restaurantId={restaurantId}
             canEdit={canEdit}
             domain={domain}
@@ -159,7 +174,9 @@ export function PmsPropertySetupCard3Section({
                     ? currencyStatus
                     : item.id === "taxes-fees"
                       ? taxesStatus
-                      : "not_started";
+                      : item.id === "rates-pricing"
+                        ? ratesStatus
+                        : "not_started";
                 return (
                   <article
                     key={item.id}
