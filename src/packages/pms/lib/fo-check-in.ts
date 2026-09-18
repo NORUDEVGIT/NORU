@@ -4,6 +4,10 @@
  * Policy A: deposit must be posted on the Cashiering folio or waived.
  * Registration and key are the same shape: complete/record or supervisor waiver.
  */
+import {
+  evaluateRoomReadinessWithPolicy,
+  type HousekeepingCard2Settings,
+} from "./housekeeping-card2.server.ts";
 
 export const CHECK_IN_STEPS = ["stay", "registration", "deposit", "key", "complete"] as const;
 export type CheckInStepId = (typeof CHECK_IN_STEPS)[number];
@@ -56,6 +60,7 @@ export const WALK_IN_INCOMPLETE_BANNER = "Walk-in incomplete — finish check-in
 export type RoomReadiness = {
   status: string | null;
   housekeepingStatus: string | null;
+  maintenanceStatus?: string | null;
 };
 
 export type RegistrationDraft = {
@@ -74,30 +79,14 @@ export function mapDepositMethod(chipId: string): DepositLedgerMethod {
   return chip?.ledger ?? "other";
 }
 
-export function isRoomReady(room: RoomReadiness | null): { ready: boolean; reason: string | null } {
-  if (!room || !room.status) {
-    return { ready: false, reason: "Assign a room before continuing." };
-  }
-  if (room.status === "out_of_order") {
-    return { ready: false, reason: "This room is out of order and cannot be used for check-in." };
-  }
-  if (room.status === "out_of_service") {
-    return { ready: false, reason: "This room is out of service and cannot be used for check-in." };
-  }
-  if (room.status !== "available") {
-    return { ready: false, reason: "This room is not available." };
-  }
-  const hk = room.housekeepingStatus ?? "";
-  if (hk === "dirty") {
-    return { ready: false, reason: "This room is dirty. Housekeeping must clean it before check-in." };
-  }
-  if (hk === "pickup") {
-    return { ready: false, reason: "This room is on pickup. It is not ready for check-in." };
-  }
-  if (hk === "clean" || hk === "inspected") {
-    return { ready: true, reason: null };
-  }
-  return { ready: false, reason: "Housekeeping has not marked this room clean or inspected." };
+export function isRoomReady(
+  room: RoomReadiness | null,
+  settings?: Pick<
+    HousekeepingCard2Settings,
+    "enabled" | "cleanRequired" | "inspectionRequired" | "maintenanceClearRequired"
+  >,
+): { ready: boolean; reason: string | null } {
+  return evaluateRoomReadinessWithPolicy(room, settings);
 }
 
 export function isRegistrationComplete(draft: RegistrationDraft): boolean {

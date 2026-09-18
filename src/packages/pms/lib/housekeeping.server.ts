@@ -9,6 +9,12 @@ import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 import { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope } from "@/core/lib/module-access";
+import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
+import {
+  emptyHousekeepingCard2Settings,
+  evaluateRoomReadinessWithPolicy,
+  type HousekeepingCard2Settings,
+} from "./housekeeping-card2.server";
 
 export { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope };
 export type { HousekeepingScope } from "@/core/lib/module-access";
@@ -95,12 +101,20 @@ export function canManageHousekeeping(role: string): boolean {
 const NO_HK_ACCESS = "You don't have access to Housekeeping for this property.";
 const NO_HK_PERMISSION = "You don't have permission to perform that housekeeping action.";
 
+async function requireHousekeepingEnabled(restaurantId: string): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const snapshot = await loadCard2HousekeepingSnapshot(supabaseAdmin, restaurantId);
+  if (!snapshot.settings.enabled) {
+    throw new Error("Housekeeping Management is disabled in Property Setup.");
+  }
+}
+
 /** Module entry for any housekeeping-side role. */
 export async function requireHousekeepingAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  const membership = await withPmsPackage(
     restaurantId,
     requireModuleRole(
       context,
@@ -110,6 +124,8 @@ export async function requireHousekeepingAccess(
       NO_HK_ACCESS,
     ),
   );
+  await requireHousekeepingEnabled(restaurantId);
+  return membership;
 }
 
 /** Supervisor actions: assignments, inspections, discrepancies, restrictions. */
@@ -117,7 +133,7 @@ export async function requireHousekeepingSupervisor(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  const membership = await withPmsPackage(
     restaurantId,
     requireModuleRole(
       context,
@@ -127,6 +143,8 @@ export async function requireHousekeepingSupervisor(
       NO_HK_PERMISSION,
     ),
   );
+  await requireHousekeepingEnabled(restaurantId);
+  return membership;
 }
 
 /** Cleaning operations (own tasks for attendants, all tasks for supervisors). */
@@ -134,7 +152,7 @@ export async function requireHousekeepingOperator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  const membership = await withPmsPackage(
     restaurantId,
     requireModuleRole(
       context,
@@ -144,6 +162,8 @@ export async function requireHousekeepingOperator(
       NO_HK_PERMISSION,
     ),
   );
+  await requireHousekeepingEnabled(restaurantId);
+  return membership;
 }
 
 /** Maintenance request handling. */
@@ -151,10 +171,12 @@ export async function requireMaintenanceAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  const membership = await withPmsPackage(
     restaurantId,
     requireModuleRole(context, restaurantId, "housekeeping", MAINTENANCE_ROLES, NO_HK_PERMISSION),
   );
+  await requireHousekeepingEnabled(restaurantId);
+  return membership;
 }
 
 /** Backwards-compatible supervisor gate used by existing call sites. */
@@ -229,11 +251,23 @@ export function isRoomReady(params: {
   status: RoomRestriction;
   occupied: boolean;
   housekeepingStatus: HkStatus;
+  maintenanceStatus?: string | null;
+  settings?: HousekeepingCard2Settings;
 }): boolean {
-  return (
-    params.active &&
-    params.status === "available" &&
-    !params.occupied &&
-    params.housekeepingStatus === "inspected"
-  );
+  if (!params.active || params.occupied) return false;
+  const settings =
+    params.settings ??
+    emptyHousekeepingCard2Settings({
+      enabled: true,
+      inspectionRequired: true,
+      maintenanceClearRequired: false,
+    });
+  return evaluateRoomReadinessWithPolicy(
+    {
+      status: params.status,
+      housekeepingStatus: params.housekeepingStatus,
+      maintenanceStatus: params.maintenanceStatus ?? null,
+    },
+    settings,
+  ).ready;
 }

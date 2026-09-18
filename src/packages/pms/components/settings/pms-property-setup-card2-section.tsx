@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { PmsPropertySetupWorkspace } from "@/packages/pms/components/settings/pms-property-setup-workspace";
 import { PmsPropertySetupCard2RoomTypes } from "@/packages/pms/components/settings/pms-property-setup-card2-room-types";
+import { PmsPropertySetupCard2Housekeeping } from "@/packages/pms/components/settings/pms-property-setup-card2-housekeeping";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   CARD1_PMS_NAV,
@@ -40,6 +41,11 @@ export function PmsPropertySetupCard2Section({
   const [roomTypesStatus, setRoomTypesStatus] = useState<PropertySetupCardStatus>(
     card2Steps?.["room-types"] ?? "not_started",
   );
+  const [housekeepingStatus, setHousekeepingStatus] = useState<PropertySetupCardStatus>(
+    card2Steps?.housekeeping ?? "not_started",
+  );
+  const [housekeepingBlockers, setHousekeepingBlockers] = useState<string[]>([]);
+  const [housekeepingWarnings, setHousekeepingWarnings] = useState<string[]>([]);
   const [continuePending, setContinuePending] = useState(false);
   const actionsRef = useRef<{ saveDraft: () => Promise<boolean>; saveAndContinue: () => Promise<boolean> } | null>(
     null,
@@ -50,6 +56,7 @@ export function PmsPropertySetupCard2Section({
   const stepStatuses: Partial<Record<Card2StepId, PropertySetupCardStatus>> = {
     ...card2Steps,
     "room-types": roomTypesStatus,
+    housekeeping: housekeepingStatus,
   };
   const completedCount = card2CompletedCount(stepStatuses);
   const progressPct = card2ProgressPct(stepStatuses);
@@ -57,6 +64,14 @@ export function PmsPropertySetupCard2Section({
   const onReadiness = useCallback((status: PropertySetupCardStatus, _blockers: string[]) => {
     setRoomTypesStatus(status);
   }, []);
+  const onHousekeepingReadiness = useCallback(
+    (status: PropertySetupCardStatus, blockers: string[], warnings: string[]) => {
+      setHousekeepingStatus(status);
+      setHousekeepingBlockers(blockers);
+      setHousekeepingWarnings(warnings);
+    },
+    [],
+  );
 
   function goBack() {
     const previous = previousCard2Step(step);
@@ -70,7 +85,7 @@ export function PmsPropertySetupCard2Section({
   }
 
   async function goContinue() {
-    if (step === "room-types") {
+    if (step === "room-types" || step === "housekeeping") {
       setContinuePending(true);
       const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
       setContinuePending(false);
@@ -78,6 +93,18 @@ export function PmsPropertySetupCard2Section({
     }
     if (!next) return;
     setStep(next);
+  }
+
+  async function selectStep(target: Card2StepId) {
+    const currentIndex = CARD2_STEPS.findIndex((item) => item.id === step);
+    const targetIndex = CARD2_STEPS.findIndex((item) => item.id === target);
+    if (step === "housekeeping" && targetIndex > currentIndex) {
+      setContinuePending(true);
+      const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
+      setContinuePending(false);
+      if (!ready) return;
+    }
+    setStep(target);
   }
 
   return (
@@ -94,7 +121,7 @@ export function PmsPropertySetupCard2Section({
         status: evaluateCard2StepStatus(row.id, stepStatuses[row.id]),
       }))}
       activeStepId={step}
-      onSelectStep={(id) => setStep(id as Card2StepId)}
+      onSelectStep={(id) => void selectStep(id as Card2StepId)}
       progressPct={progressPct}
       completedCount={completedCount}
       currentSection={current.title}
@@ -102,17 +129,49 @@ export function PmsPropertySetupCard2Section({
       cardStatusLabel={propertySetupStatusLabel(cardStatus === "complete" ? "in_progress" : cardStatus)}
       progressLabel="Rooms & Operations Progress"
       onBack={goBack}
-      saveDraftDisabled={!canEdit || step !== "room-types"}
+      saveDraftDisabled={!canEdit || (step !== "room-types" && step !== "housekeeping")}
       onSaveDraft={() => void actionsRef.current?.saveDraft()}
       continueDisabled={!canEdit || !next}
       continuePending={continuePending}
       onContinue={() => void goContinue()}
+      statusRailContent={
+        step === "housekeeping" ? (
+          <>
+            <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+              <p className="text-xs text-muted-foreground">Housekeeping Status</p>
+              <p className="mt-1 text-sm font-medium text-[#251605]">
+                {housekeepingStatus === "complete"
+                  ? "Ready"
+                  : housekeepingBlockers.length
+                    ? "Needs Attention"
+                    : housekeepingStatus === "in_progress"
+                      ? "In Progress"
+                      : "Not Started"}
+              </p>
+            </section>
+            <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
+              <p className="text-xs text-muted-foreground">Validation</p>
+              <p className="mt-1 text-sm text-[#251605]">{housekeepingBlockers.length} blockers</p>
+              <p className="text-sm text-muted-foreground">{housekeepingWarnings.length} warnings</p>
+            </section>
+          </>
+        ) : null
+      }
     >
       {step === "room-types" ? (
         <PmsPropertySetupCard2RoomTypes
           restaurantId={restaurantId}
           canEdit={canEdit}
           onReadiness={onReadiness}
+          registerActions={(actions) => {
+            actionsRef.current = actions;
+          }}
+        />
+      ) : step === "housekeeping" ? (
+        <PmsPropertySetupCard2Housekeeping
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onReadiness={onHousekeepingReadiness}
           registerActions={(actions) => {
             actionsRef.current = actions;
           }}

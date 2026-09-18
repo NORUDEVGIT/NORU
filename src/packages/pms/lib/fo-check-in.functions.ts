@@ -33,6 +33,7 @@ import type { FrontOfficeStay } from "./frontoffice.functions";
 import { nightsBetween } from "./reservation-dates";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
+import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 
 const idSchema = z.string().uuid();
 
@@ -810,14 +811,27 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
 
     const { data: roomRow } = await supabaseAdmin
       .from("hotel_rooms")
-      .select("id, room_number, status, housekeeping_status")
+      .select("id, room_number, status, housekeeping_status, maintenance_status")
       .eq("restaurant_id", data.restaurantId)
       .eq("id", loaded.stay.roomId)
       .maybeSingle();
+    const readinessRoom = roomRow as unknown as {
+      id: string;
+      room_number: string;
+      status: string;
+      housekeeping_status: string;
+      maintenance_status: string | null;
+    } | null;
+    const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
     const readiness = isRoomReady(
-      roomRow
-        ? { status: roomRow.status, housekeepingStatus: roomRow.housekeeping_status }
+      readinessRoom
+        ? {
+            status: readinessRoom.status,
+            housekeepingStatus: readinessRoom.housekeeping_status,
+            maintenanceStatus: readinessRoom.maintenance_status,
+          }
         : null,
+      housekeeping.settings,
     );
     if (!readiness.ready) throw new Error(readiness.reason ?? "The assigned room is not ready.");
 
@@ -861,5 +875,5 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       walk_in_incomplete: false,
       completed_at: new Date().toISOString(),
     });
-    return { id: data.reservationId, roomNumber: roomRow?.room_number ?? loaded.stay.roomNumber };
+    return { id: data.reservationId, roomNumber: readinessRoom?.room_number ?? loaded.stay.roomNumber };
   });
