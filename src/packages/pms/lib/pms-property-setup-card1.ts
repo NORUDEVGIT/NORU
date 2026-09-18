@@ -12,6 +12,15 @@
 
 import { SET1_HUB_HREF, displayedBusinessDate, normalizeClock } from "./pms-set1-foundation.ts";
 import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
+import {
+  countryNameFromInput,
+  isRegionValidForCountry,
+  isValidHttpUrl,
+  isValidLatitude,
+  isValidLongitude,
+} from "./pms-geography.ts";
+
+export { ETHIOPIA_REGIONS } from "./pms-geography.ts";
 
 export const CARD1_TITLE = "Property & Business";
 export const CARD1_WORKSPACE_TITLE = "Property & Business Setup";
@@ -26,6 +35,8 @@ export const CARD1_FINISH_COPY =
 export const CARD1_BUSINESS_DATE_CURRENT_COPY =
   "Staff always see what the house thinks today is before editing rules. CURRENT STATE is the Night Audit business date. Settings cannot roll it.";
 export const CARD1_FULL_ADDRESS_COPY = "Full Address is composed from the parts below. It is not editable.";
+export const CARD1_ADDRESS_ADAPT_COPY = "Address fields adapt to the selected country.";
+export const CARD1_ADDRESS_SUBTITLE = "Configure the property's physical address and geographic location.";
 export const CARD1_VAT_GATE_COPY = "VAT certificate is required only when VAT Registered is On.";
 export const CARD1_OPENING_DATE_IN = "Opening Date is required on Property Identity.";
 export const CARD1_AGREEMENT_OUT = "Agreement signing is out of Card 1.";
@@ -194,23 +205,6 @@ export const CARD1_LANGUAGES = [
   { id: "om", label: "Afaan Oromo" },
   { id: "ti", label: "Tigrinya" },
   { id: "so", label: "Somali" },
-] as const;
-
-export const ETHIOPIA_REGIONS = [
-  "Addis Ababa",
-  "Afar",
-  "Amhara",
-  "Benishangul-Gumuz",
-  "Central Ethiopia",
-  "Dire Dawa",
-  "Gambela",
-  "Harari",
-  "Oromia",
-  "Sidama",
-  "Somali",
-  "South Ethiopia",
-  "Southwest Ethiopia",
-  "Tigray",
 ] as const;
 
 export const LEGAL_ENTITY_TYPES = ["plc", "private_limited", "sole_proprietor", "partnership", "other"] as const;
@@ -697,20 +691,47 @@ export function composeFullAddress(input: {
   country?: string;
 }): string {
   const street = [input.addressHouseNo, input.address].map((part) => String(part ?? "").trim()).filter(Boolean).join(" ");
-  const parts = [
-    input.country,
-    input.addressRegion,
-    input.city,
-    input.addressSubcity,
-    input.addressWoreda,
-    input.addressKebele,
-    input.addressZone,
-    street,
-    input.postcode,
-  ]
+  const countryName = countryNameFromInput(String(input.country ?? ""));
+  const ethiopia = countryName.toLowerCase() === "ethiopia";
+  const parts = ethiopia
+    ? [
+        countryName || input.country,
+        input.addressRegion,
+        input.city,
+        input.addressSubcity,
+        input.addressWoreda,
+        input.addressKebele,
+        input.addressZone,
+        street,
+        input.postcode,
+      ]
+    : [street, input.city, input.addressSubcity, input.addressRegion, input.postcode, countryName || input.country];
+  return parts
     .map((part) => String(part ?? "").trim())
-    .filter(Boolean);
-  return parts.join(", ");
+    .filter(Boolean)
+    .join(", ");
+}
+
+export type Card1AddressFieldErrors = Partial<{
+  country: string;
+  addressRegion: string;
+  city: string;
+  latitude: string;
+  longitude: string;
+  googleMapsLink: string;
+}>;
+
+export function validateAddressFields(draft: Card1Draft): Card1AddressFieldErrors {
+  const errors: Card1AddressFieldErrors = {};
+  if (!draft.country.trim()) errors.country = "Select a country.";
+  if (!draft.addressRegion.trim() || !isRegionValidForCountry(draft.country, draft.addressRegion)) {
+    errors.addressRegion = "Select a region or state for the selected country.";
+  }
+  if (!draft.city.trim()) errors.city = "City / Town is required.";
+  if (!isValidLatitude(draft.latitude)) errors.latitude = "Latitude must be between -90 and 90.";
+  if (!isValidLongitude(draft.longitude)) errors.longitude = "Longitude must be between -180 and 180.";
+  if (!isValidHttpUrl(draft.locationExtras.googleMapsLink)) errors.googleMapsLink = "Enter a valid URL.";
+  return errors;
 }
 
 export function vatCertificateRequired(vatRegistered: boolean): boolean {
@@ -960,7 +981,7 @@ export function card1StepComplete(step: Card1StepId, draft: Card1Draft, set2?: P
     );
   }
   if (step === "address") {
-    return Boolean(draft.country.trim() && draft.addressRegion.trim() && draft.city.trim() && composeFullAddress(draft));
+    return Object.keys(validateAddressFields(draft)).length === 0;
   }
   if (step === "contacts") {
     const departmentsOk = draft.departmentContacts.every((row) => !departmentRowPresent(row) || departmentRowComplete(row));

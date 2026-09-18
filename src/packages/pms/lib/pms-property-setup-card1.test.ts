@@ -43,8 +43,16 @@ import {
   isCard1WorkspaceHash,
   isNrcPropertyCode,
   propertySetupStatusLabel,
+  validateAddressFields,
   vatCertificateRequired,
 } from "./pms-property-setup-card1.ts";
+import {
+  ISO_COUNTRIES,
+  KENYA_COUNTIES,
+  clearDependentGeography,
+  isRegionValidForCountry,
+  regionsForCountry,
+} from "./pms-geography.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ui = readFileSync(new URL("../components/settings/pms-property-setup-card1-section.tsx", import.meta.url), "utf8");
@@ -140,6 +148,46 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.doesNotMatch(steps, /name="businessDate"/);
     assert.doesNotMatch(steps, /setDraft\(\(p\) => \(\{ \.\.\.p, fullAddress/);
     assert.doesNotMatch(steps, /setDraft\(\(p\) => \(\{ \.\.\.p, businessDate:/);
+  });
+
+  it("uses searchable country/region catalogues and rejects invalid geography", () => {
+    assert.ok(ISO_COUNTRIES.some((row) => row.code === "ET" && row.name === "Ethiopia"));
+    assert.ok(ISO_COUNTRIES.some((row) => row.code === "KE"));
+    assert.ok(ISO_COUNTRIES.some((row) => row.code === "GB"));
+    assert.ok(ISO_COUNTRIES.some((row) => row.code === "US"));
+    assert.ok(ISO_COUNTRIES.length > 180);
+    assert.ok(regionsForCountry("ET").includes("Addis Ababa"));
+    assert.ok(!regionsForCountry("ET").includes("Nairobi"));
+    assert.ok(KENYA_COUNTIES.includes("Nairobi"));
+    assert.equal(isRegionValidForCountry("Kenya", "Addis Ababa"), false);
+    assert.equal(isRegionValidForCountry("KE", "Nairobi"), true);
+    const cleared = clearDependentGeography(
+      emptyCard1Draft({ country: "Kenya", addressRegion: "Addis Ababa", city: "Addis Ababa", addressWoreda: "03" }),
+    );
+    assert.equal(cleared.addressRegion, "");
+    assert.equal(cleared.city, "");
+    assert.equal(cleared.addressWoreda, "");
+    assert.equal(
+      card1StepComplete("address", emptyCard1Draft({ country: "Kenya", addressRegion: "Addis Ababa", city: "Nairobi" })),
+      false,
+    );
+    assert.equal(
+      card1StepComplete("address", emptyCard1Draft({ country: "Kenya", addressRegion: "Nairobi", city: "Nairobi" })),
+      true,
+    );
+    assert.equal(validateAddressFields(emptyCard1Draft({ latitude: "99999" })).latitude, "Latitude must be between -90 and 90.");
+    assert.equal(
+      validateAddressFields(emptyCard1Draft({ longitude: "9898989" })).longitude,
+      "Longitude must be between -180 and 180.",
+    );
+    assert.equal(
+      validateAddressFields(emptyCard1Draft({ locationExtras: { googleMapsLink: "not-a-url", nearbyLandmark: "", pinVisible: true } }))
+        .googleMapsLink,
+      "Enter a valid URL.",
+    );
+    assert.match(steps, /SearchableSelect/);
+    assert.match(ui, /pms-card1-status-rail/);
+    assert.match(steps, /CARD1_ADDRESS_ADAPT_COPY/);
   });
 
   it("requires VAT certificate only when VAT Registered is On", () => {
@@ -275,7 +323,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     );
     assert.match(ui, /pms-card1-fullscreen/);
     assert.match(ui, /pms-card1-top-nav/);
-    assert.match(ui, /Property & Business Setup/);
+    assert.match(ui, /CARD1_WORKSPACE_TITLE/);
     assert.match(ui, /CARD1_SIDEBAR_OUT/);
     assert.doesNotMatch(ui, /Foundation badge|SET1_FOUNDATION_CHIP/);
     assert.match(settings, /hidePackageRail=\{card1Open\}/);
