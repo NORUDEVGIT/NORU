@@ -140,13 +140,17 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(sectionSrc, /PmsPropertySetupCard2Amenities/);
     assert.match(sectionSrc, /step === "inventory-rules"/);
     assert.match(sectionSrc, /PmsPropertySetupCard2Inventory/);
+    assert.match(sectionSrc, /step === "maintenance"/);
+    assert.match(sectionSrc, /PmsPropertySetupCard2Maintenance/);
     assert.match(
       sectionSrc,
-      /saveDraftDisabled=\{!canEdit \|\| \(step !== "room-types" && step !== "amenities" && step !== "inventory-rules"\)\}/,
+      /saveDraftDisabled=\{!canEdit \|\| \(step !== "room-types" && step !== "amenities" && step !== "inventory-rules" && step !== "maintenance"\)\}/,
     );
     assert.match(sectionSrc, /current.placeholder/);
+    assert.match(sectionSrc, /Card 2 Review/);
     assert.doesNotMatch(sectionSrc, /Amenities configuration will be implemented in a later phase/);
     assert.doesNotMatch(sectionSrc, /Inventory Rules configuration will be implemented in a later phase/);
+    assert.doesNotMatch(sectionSrc, /Maintenance configuration will be implemented in a later phase/);
     const inventoryUi = readFileSync(
       new URL("../components/settings/pms-property-setup-card2-inventory.tsx", import.meta.url),
       "utf8",
@@ -158,5 +162,36 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(inventoryUi, /OVERBOOKING_CAPACITY_NOTE/);
     assert.doesNotMatch(inventoryUi, /Available to Sell/);
     assert.doesNotMatch(inventoryUi, /pmsDb/);
+  });
+});
+
+describe("PMS Property Setup Card 2 Phase 5 Maintenance UI", () => {
+  it("wires maintenance APIs and keeps housekeeping as a placeholder", () => {
+    const ui = readFileSync(
+      new URL("../components/settings/pms-property-setup-card2-maintenance.tsx", import.meta.url),
+      "utf8",
+    );
+    const sectionSrc = readFileSync(
+      new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(ui, /getMaintenanceRules/);
+    assert.match(ui, /saveMaintenanceRules/);
+    assert.match(ui, /getMaintenanceSummary/);
+    assert.match(ui, /evaluateCard2MaintenanceReadiness/);
+    assert.match(ui, /listMaintenanceDepartments/);
+    assert.match(ui, /Maintenance Status Rules control restrictions/);
+    assert.match(ui, /Out of Service \/ Out of Order policies below govern operational room restrictions/);
+    assert.match(ui, /maintenance-status-\$\{status\}-\$\{field\.key\}/);
+    assert.match(ui, /maintenance-oos-enabled/);
+    assert.match(ui, /maintenance-ooo-ticket-required/);
+    assert.match(ui, /scroll-mb-32/);
+    assert.doesNotMatch(ui, /Available to Sell/);
+    assert.doesNotMatch(ui, /Repair Complete/);
+    assert.doesNotMatch(ui, /removes_from_inventory/);
+    assert.doesNotMatch(ui, /pmsDb/);
+    assert.doesNotMatch(ui, /pms_card2_housekeeping/);
+    assert.match(sectionSrc, /PmsPropertySetupCard2Maintenance/);
+    assert.match(sectionSrc, /pms-card2-step-\$\{step\}/);
   });
 });
