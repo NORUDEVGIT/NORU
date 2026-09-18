@@ -273,7 +273,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(steps, /\+ Add department/);
   });
 
-  it("shows Cards 3–8 as Coming soon and keeps status honesty", () => {
+  it("keeps the eight-card programme and status honesty as cards are spec'd", () => {
     assert.equal(PROPERTY_SETUP_CARDS.length, 8);
     assert.deepEqual(
       PROPERTY_SETUP_CARDS.map((card) => ({ number: card.number, title: card.title, purpose: card.purpose })),
@@ -324,7 +324,13 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(PROPERTY_SETUP_CARDS[0].specced, true);
     assert.equal(PROPERTY_SETUP_CARDS[1].title, "Rooms & Operations");
     assert.equal(PROPERTY_SETUP_CARDS[1].specced, true);
-    assert.ok(PROPERTY_SETUP_CARDS.slice(2).every((card) => card.specced === false));
+    assert.equal(PROPERTY_SETUP_CARDS[5].title, "Connectivity & Distribution");
+    assert.equal(PROPERTY_SETUP_CARDS[5].specced, true);
+    assert.deepEqual(
+      PROPERTY_SETUP_CARDS.filter((card) => !card.specced).map((card) => card.number),
+      [3, 4, 5, 7, 8],
+    );
+    assert.ok(PROPERTY_SETUP_CARDS.every((card) => (card.specced ? card.hash !== null : card.hash === null)));
     assert.equal(CARD1_STEPS.length, 8);
     assert.deepEqual(
       CARD1_STEPS.map((step) => step.title),

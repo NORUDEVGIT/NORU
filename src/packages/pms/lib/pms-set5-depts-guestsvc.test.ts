@@ -196,7 +196,7 @@ describe("PMS-SET5 hub unmute and deep-links", () => {
     assert.equal(SET5_NOTIFICATIONS_HREF, "/restaurant/pms/notifications");
     assert.equal(SET5_ADMIN_HREF, "/restaurant/pms/administration");
     assert.equal(SET5_SECURITY_HREF, "/restaurant/pms/security-audit");
-    assert.equal(SET5_INTEGRATIONS_HREF, "/restaurant/settings#integrations");
+    assert.equal(SET5_INTEGRATIONS_HREF, "/restaurant/settings#connectivity-distribution");
     assert.equal(SET5_INTEGRATIONS_ALIAS, "/restaurant/pms/integrations");
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "departments" && card.title === "Departments"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "guest-services-types"));

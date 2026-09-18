@@ -24,6 +24,7 @@ import {
   SET5_DEPTS_UNAVAILABLE,
   SET5_DEPTS_WARNING,
   SET5_GUEST_SERVICES_HREF,
+  SET5_INTEGRATIONS_HREF,
   SET5_NOTIFICATIONS_HREF,
   SET5_NOTIFICATIONS_UNAVAILABLE,
   SET5_PAYMENTS_WARNING,
@@ -995,8 +996,8 @@ export function Set5IntegrationsSection({
         <div>
           <h2 className="font-display text-lg text-[#251605]">Integrations</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Connection status only. Settings is the home. `/restaurant/pms/integrations` redirects here. Nothing is shown
-            as connected unless it genuinely is.
+            Connection status only. Setting a connector up happens in Connectivity & Distribution. Nothing is
+            shown as connected unless it genuinely is.
           </p>
         </div>
         <ReadinessChip readiness={domain.readiness} />
@@ -1016,6 +1017,12 @@ export function Set5IntegrationsSection({
       <p className="text-xs text-muted-foreground">
         {SET5_POS_LIVE_NOTE} {SET5_PAYMENTS_WARNING} {SET5_TENDERS_LIVE_ON_PAYMENT_METHODS} {SET5_ACCOUNTING_WARNING} {SET5_API_WARNING} {SET5_THIRD_PARTY_WARNING}
       </p>
+
+      <Button variant="outline" asChild>
+        <a href={SET5_INTEGRATIONS_HREF} data-testid="set5-open-integrations">
+          Open Connectivity & Distribution
+        </a>
+      </Button>
     </section>
   );
 }

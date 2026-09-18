@@ -60,6 +60,8 @@ import {
   type PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import { CARD2_HASH, isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
+import { CARD6_HASH, isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
+import { PmsPropertySetupCard6Section } from "@/packages/pms/components/settings/pms-property-setup-card6-section";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
 
@@ -78,6 +80,11 @@ function currentCard2Open(): boolean {
   return isCard2WorkspaceHash(window.location.hash);
 }
 
+function currentCard6Open(): boolean {
+  if (typeof window === "undefined") return false;
+  return isCard6WorkspaceHash(window.location.hash);
+}
+
 export function PmsSet1Hub({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const load = useServerFn(getPmsSet1Foundation);
@@ -86,6 +93,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   const [section, setSection] = useState<Set1SectionId | null>(currentSection);
   const [card1Open, setCard1Open] = useState(currentCard1Open);
   const [card2Open, setCard2Open] = useState(currentCard2Open);
+  const [card6Open, setCard6Open] = useState(currentCard6Open);
   const [showAllChanges, setShowAllChanges] = useState(false);
 
   useEffect(() => {
@@ -97,6 +105,9 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       if (raw === "card-2" || raw === "card2") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD2_HASH}`);
       }
+      if (raw === "card-6" || raw === "card6") {
+        window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD6_HASH}`);
+      }
       const resolved = resolveSet1SectionHash(raw);
       if (resolved && resolved !== raw) {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${resolved}`);
@@ -104,6 +115,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       setSection(currentSection());
       setCard1Open(currentCard1Open());
       setCard2Open(currentCard2Open());
+      setCard6Open(currentCard6Open());
     };
     apply();
     window.addEventListener("hashchange", apply);
@@ -141,7 +153,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
-      {card1Open || card2Open ? null : (
+      {card1Open || card2Open || card6Open ? null : (
       <div>
         <Link
           to={SET1_PMS_BACK_HREF as "/restaurant/pms"}
@@ -154,7 +166,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           <span className="sr-only">{SET1_FOUNDATION_CHIP}</span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Property Setup for {membership.restaurant.name}. Eight cards. Property & Business and Rooms & Operations are Spec’d in this wave.
+          Property Setup for {membership.restaurant.name}. Eight cards. Property & Business, Rooms & Operations and Connectivity & Distribution are Spec’d in this wave.
         </p>
       </div>
       )}
@@ -188,6 +200,8 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           card2Steps={card1Query.data?.snapshot.status.card2Steps ?? {}}
           canEdit={canEdit}
         />
+      ) : card6Open ? (
+        <PmsPropertySetupCard6Section restaurantId={restaurantId} canEdit={canEdit} />
       ) : section ? (
         <div className="space-y-4">
           <Button variant="outline" size="sm" asChild>
@@ -392,7 +406,10 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                   </div>
                   <p className="mt-2 flex-1 text-sm text-muted-foreground">{card.purpose}</p>
                   {card.specced ? (
-                    <a href={`${SET1_HUB_HREF}#${card.id}`} className="mt-4 inline-flex text-sm font-medium text-[#C89933]">
+                    <a
+                      href={`${SET1_HUB_HREF}#${card.hash}`}
+                      className="mt-4 inline-flex text-sm font-medium text-[#C89933]"
+                    >
                       Configure
                     </a>
                   ) : (
