@@ -7,6 +7,7 @@ import { requireDistributionManager } from "./distribution.server";
 import {
   DIRECT_CHANNEL_CODE,
   DISTRIBUTION_ENVIRONMENTS,
+  DEFAULT_DISTRIBUTION_SYNC_CONFIG,
   asDistributionEnvironment,
   isSelectableDistributionIntegration,
   mappingStatusAfterSave,
@@ -16,9 +17,11 @@ import {
   type DistributionMappingRow,
   type DistributionMappingStatus,
   type DistributionCard6Snapshot,
+  type DistributionSyncConfig,
   type EligibleIntegration,
   type MappingPair,
   type NamedEntity,
+  normalizeDistributionSyncConfig,
 } from "./distribution-card6.server";
 import {
   channelSupports,
@@ -29,10 +32,14 @@ import {
   draftHasIncompleteMappings,
   externalEntityLabel,
   isEligibleDistributionIntegration,
+  distributionSyncCapabilities,
+  validateDistributionSyncConfig,
   validateDistributionDraft,
 } from "./distribution-catalog";
 import { SECRET_KEY_PATTERN } from "./integrations-card6.server";
 
+// Supabase's generated schema predates the additive Card 6 migrations.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbClient = any;
 
 const idSchema = z.string().uuid();
@@ -48,6 +55,44 @@ const pairSchema = z.object({
   externalId: slugSchema,
 });
 
+const syncConfigSchema = z
+  .object({
+    inventory: z
+      .object({
+        enabled: z.boolean(),
+        direction: z.literal("outbound"),
+        availability: z.boolean(),
+        roomStatus: z.boolean(),
+        outOfOrder: z.boolean(),
+        outOfService: z.boolean(),
+      })
+      .strict(),
+    rates: z
+      .object({
+        enabled: z.boolean(),
+        direction: z.literal("outbound"),
+        rateUpdates: z.boolean(),
+        baseRates: z.boolean(),
+        derivedRates: z.boolean(),
+      })
+      .strict(),
+    restrictions: z
+      .object({
+        enabled: z.boolean(),
+        minimumStay: z.boolean(),
+        maximumStay: z.boolean(),
+        closedToArrival: z.boolean(),
+        closedToDeparture: z.boolean(),
+        stopSell: z.boolean(),
+      })
+      .strict(),
+    frequency: z.literal("manual"),
+    automaticSync: z.literal(false),
+    retryEnabled: z.literal(false),
+    maxRetries: z.literal(0),
+  })
+  .strict();
+
 const saveSchema = z
   .object({
     restaurantId: idSchema,
@@ -59,6 +104,7 @@ const saveSchema = z
     rooms: z.array(pairSchema).max(80),
     rates: z.array(pairSchema).max(80),
     meals: z.array(pairSchema).max(80),
+    syncConfig: syncConfigSchema.optional(),
   })
   .strict();
 
@@ -195,7 +241,7 @@ async function loadSnapshot(
   const channelsRes = await db
     .from("distribution_channels")
     .select(
-      "id, code, name, status, notes, integration_id, environment, mapping_status, created_at, updated_at",
+      "id, code, name, status, notes, integration_id, environment, mapping_status, sync_config, sync_active, activated_at, created_at, updated_at",
     )
     .eq("restaurant_id", restaurantId)
     .order("name");
@@ -291,6 +337,8 @@ async function loadSnapshot(
         ),
     );
     const mappingStatus = (row.mapping_status ?? "pending") as DistributionMappingStatus;
+    const syncConfig = normalizeDistributionSyncConfig(row.sync_config);
+    const active = row.sync_active === true;
     details.push({
       id: row.id,
       integrationId: row.integration_id,
@@ -300,6 +348,7 @@ async function loadSnapshot(
       channelLabel: distributionChannelLabel(provider, channel) || row.name,
       environment: asDistributionEnvironment(row.environment),
       mappingStatus,
+      activationStatus: active ? "active" : "inactive",
       enabled: mappingStatus !== "disabled",
       roomMapped: roomMappings.length,
       roomTotal: entities.roomTypes.length,
@@ -307,7 +356,18 @@ async function loadSnapshot(
       rateTotal: entities.ratePlans.length,
       mealMapped: mealMappings.length,
       mealTotal: entities.mealPlans.length,
-      lastSyncAt: null,
+      syncConfig,
+      syncStatus: {
+        status: active ? "never_synced" : "disabled",
+        lastSyncAt: null,
+        nextSyncAt: null,
+        lastResult: null,
+        recordsProcessed: null,
+        recordsUpdated: null,
+        recordsSkipped: null,
+        errorCount: null,
+      },
+      activatedAt: row.activated_at ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       roomMappings,
@@ -328,7 +388,9 @@ async function loadSnapshot(
 async function requireOwnChannel(db: DbClient, restaurantId: string, id: string) {
   const result = await db
     .from("distribution_channels")
-    .select("id, code, name, integration_id, environment, mapping_status")
+    .select(
+      "id, code, name, integration_id, environment, mapping_status, sync_config, sync_active, activated_at",
+    )
     .eq("id", id)
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -479,6 +541,15 @@ export const savePmsCard6Distribution = createServerFn({ method: "POST" })
     }
 
     const mappingStatus = mappingStatusAfterSave(data.enabled, draftHasIncompleteMappings(checks));
+    const syncConfig = data.syncConfig ?? DEFAULT_DISTRIBUTION_SYNC_CONFIG;
+    const syncChecks = validateDistributionSyncConfig(
+      syncConfig,
+      distributionSyncCapabilities(integration.provider, data.channel),
+    );
+    if (draftHasBlockingErrors(syncChecks)) {
+      const first = syncChecks.find((row) => !row.passed && !row.warning);
+      throw new Error(first?.detail ?? first?.label ?? "Fix the sync settings before saving.");
+    }
     const payload = {
       restaurant_id: data.restaurantId,
       channel_type: "ota",
@@ -489,6 +560,9 @@ export const savePmsCard6Distribution = createServerFn({ method: "POST" })
       integration_id: data.integrationId,
       environment: data.environment,
       mapping_status: mappingStatus,
+      sync_config: syncConfig as unknown as Json,
+      sync_active: false,
+      activated_at: null,
     };
 
     let channelId = data.id;
@@ -554,7 +628,10 @@ export const setPmsCard6DistributionEnabled = createServerFn({ method: "POST" })
     );
     const result = await db
       .from("distribution_channels")
-      .update({ mapping_status: mappingStatus })
+      .update({
+        mapping_status: mappingStatus,
+        ...(data.enabled ? {} : { sync_active: false, activated_at: null }),
+      })
       .eq("id", existing.id)
       .eq("restaurant_id", data.restaurantId)
       .select("id")
@@ -564,6 +641,88 @@ export const setPmsCard6DistributionEnabled = createServerFn({ method: "POST" })
       channelId: existing.id,
       enabled: data.enabled,
     });
+    return { ok: true as const };
+  });
+
+export const setPmsCard6DistributionActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireDistributionManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+    const existing = await requireOwnChannel(db, data.restaurantId, data.id);
+
+    if (data.active) {
+      if ((existing.mapping_status ?? "pending") === "disabled") {
+        throw new Error("Enable this distribution before activating it.");
+      }
+      const snapshot = await loadSnapshot(db, data.restaurantId);
+      const channel = snapshot.channels.find((row) => row.id === data.id);
+      if (!channel) throw new Error("That distribution configuration no longer exists.");
+      const integration =
+        snapshot.integrations.find((row) => row.id === channel.integrationId) ?? null;
+      const mappingChecks = validateDistributionDraft(
+        toDraft({
+          integrationId: channel.integrationId,
+          channel: channel.channel,
+          environment: channel.environment,
+          rooms: channel.roomMappings.map((row) => ({
+            noruId: row.noruId,
+            externalId: row.externalId,
+          })),
+          rates: channel.rateMappings.map((row) => ({
+            noruId: row.noruId,
+            externalId: row.externalId,
+          })),
+          meals: channel.mealMappings.map((row) => ({
+            noruId: row.noruId,
+            externalId: row.externalId,
+          })),
+        }),
+        {
+          integration,
+          roomTypes: snapshot.roomTypes,
+          ratePlans: snapshot.ratePlans,
+          mealPlans: snapshot.mealPlans,
+          takenChannels: snapshot.channels.map((row) => ({
+            integrationId: row.integrationId,
+            channel: row.channel,
+            excludeId: row.id,
+          })),
+          excludeId: channel.id,
+        },
+      );
+      const syncChecks = validateDistributionSyncConfig(
+        channel.syncConfig,
+        distributionSyncCapabilities(channel.provider, channel.channel),
+      );
+      const blocking = [...mappingChecks, ...syncChecks].find((row) => !row.passed);
+      if (blocking) {
+        throw new Error(blocking.detail ?? blocking.label);
+      }
+    }
+
+    const result = await db
+      .from("distribution_channels")
+      .update({
+        sync_active: data.active,
+        activated_at: data.active ? new Date().toISOString() : null,
+      })
+      .eq("id", existing.id)
+      .eq("restaurant_id", data.restaurantId)
+      .select("id")
+      .maybeSingle();
+    if (result.error) unavailable(result.error);
+    await writeAudit(
+      db,
+      data.restaurantId,
+      context.userId,
+      data.active ? "pms_card6_distribution_activated" : "pms_card6_distribution_deactivated",
+      { channelId: existing.id },
+    );
     return { ok: true as const };
   });
 
@@ -601,7 +760,7 @@ export const validatePmsCard6Distribution = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const snapshot = await loadSnapshot(supabaseAdmin, data.restaurantId);
     const integration = snapshot.integrations.find((row) => row.id === data.integrationId) ?? null;
-    const checks = validateDistributionDraft(toDraft(data), {
+    const mappingChecks = validateDistributionDraft(toDraft(data), {
       integration,
       roomTypes: snapshot.roomTypes,
       ratePlans: snapshot.ratePlans,
@@ -613,5 +772,12 @@ export const validatePmsCard6Distribution = createServerFn({ method: "POST" })
       })),
       excludeId: data.id ?? null,
     });
+    const checks = [
+      ...mappingChecks,
+      ...validateDistributionSyncConfig(
+        data.syncConfig ?? DEFAULT_DISTRIBUTION_SYNC_CONFIG,
+        distributionSyncCapabilities(integration?.provider ?? "", data.channel),
+      ),
+    ];
     return { checks, blocking: draftHasBlockingErrors(checks) };
   });

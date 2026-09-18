@@ -49,7 +49,11 @@ import {
   IntegrationNotice,
   IntegrationSummaryCard,
 } from "@/packages/pms/components/settings/pms-card6-integration-bits";
-import { DistributionStatusBadge } from "@/packages/pms/components/settings/pms-card6-distribution-bits";
+import {
+  DistributionActivationBadge,
+  DistributionStatusBadge,
+  DistributionSyncStatusBadge,
+} from "@/packages/pms/components/settings/pms-card6-distribution-bits";
 import {
   Card6DistributionDrawer,
   type DistributionSavePayload,
@@ -59,19 +63,21 @@ import {
   deletePmsCard6Distribution,
   getPmsCard6Distribution,
   savePmsCard6Distribution,
+  setPmsCard6DistributionActive,
   setPmsCard6DistributionEnabled,
 } from "@/packages/pms/lib/distribution-card6.functions";
 import {
-  LAST_SYNC_PHASE3_NOTICE,
-  SYNC_PHASE3_NOTICE,
+  SYNC_SERVICE_NOTICE,
   summarizeDistribution,
   type DistributionChannelDetail,
   type DistributionDraft,
 } from "@/packages/pms/lib/distribution-card6.server";
 import {
   DISTRIBUTION_PROVIDERS,
+  distributionSyncCapabilities,
   distributionProviderLabel,
   validateDistributionDraft,
+  validateDistributionSyncConfig,
 } from "@/packages/pms/lib/distribution-catalog";
 
 const ENVIRONMENT_LABELS = { sandbox: "Sandbox", production: "Production" } as const;
@@ -100,6 +106,7 @@ export function Card6DistributionTab({
   const load = useServerFn(getPmsCard6Distribution);
   const save = useServerFn(savePmsCard6Distribution);
   const setEnabled = useServerFn(setPmsCard6DistributionEnabled);
+  const setActive = useServerFn(setPmsCard6DistributionActive);
   const remove = useServerFn(deletePmsCard6Distribution);
 
   const [search, setSearch] = useState("");
@@ -112,6 +119,10 @@ export function Card6DistributionTab({
   const [pendingDisable, setPendingDisable] = useState<DistributionChannelDetail | null>(null);
   const [detailsFor, setDetailsFor] = useState<DistributionChannelDetail | null>(null);
   const [validateFor, setValidateFor] = useState<DistributionChannelDetail | null>(null);
+  const [pendingActivation, setPendingActivation] = useState<{
+    row: DistributionChannelDetail;
+    active: boolean;
+  } | null>(null);
 
   const queryKey = ["pms-card6-distribution", restaurantId];
   const query = useQuery({
@@ -174,6 +185,23 @@ export function Card6DistributionTab({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const activationMutation = useMutation({
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setActive({ data: { restaurantId, ...input } }),
+    onSuccess: async (_result, input) => {
+      await invalidate();
+      setPendingActivation(null);
+      setDrawerOpen(false);
+      setEditing(null);
+      toast.success(
+        input.active
+          ? "Distribution activated. No external synchronization has run."
+          : "Distribution deactivated. Mappings were preserved.",
+      );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const emptySnapshot = {
     channels: [],
     integrations: [],
@@ -208,7 +236,7 @@ export function Card6DistributionTab({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <IntegrationSummaryCard label="Total channels" value={summary.total} />
-        <IntegrationSummaryCard label="Connected" value={summary.connected} tone="positive" />
+        <IntegrationSummaryCard label="Active" value={summary.connected} tone="positive" />
         <IntegrationSummaryCard label="Pending" value={summary.pending} tone="warning" />
         <IntegrationSummaryCard
           label="Attention required"
@@ -217,7 +245,10 @@ export function Card6DistributionTab({
         />
       </div>
 
-      <IntegrationNotice>{LAST_SYNC_PHASE3_NOTICE}</IntegrationNotice>
+      <IntegrationNotice>
+        The external sync service is not connected. Sync status and history remain empty until a
+        backend confirms real synchronization.
+      </IntegrationNotice>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[14rem] flex-1">
@@ -345,6 +376,7 @@ export function Card6DistributionTab({
                 <TableHead>Channel</TableHead>
                 <TableHead>Environment</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Sync status</TableHead>
                 <TableHead>Room types</TableHead>
                 <TableHead>Rate plans</TableHead>
                 <TableHead>Last sync</TableHead>
@@ -362,7 +394,13 @@ export function Card6DistributionTab({
                     {ENVIRONMENT_LABELS[row.environment]}
                   </TableCell>
                   <TableCell>
-                    <DistributionStatusBadge status={row.mappingStatus} />
+                    <div className="flex flex-col items-start gap-1">
+                      <DistributionActivationBadge status={row.activationStatus} />
+                      <DistributionStatusBadge status={row.mappingStatus} />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <DistributionSyncStatusBadge status={row.syncStatus.status} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {row.roomMapped} / {row.roomTotal}
@@ -370,7 +408,7 @@ export function Card6DistributionTab({
                   <TableCell className="text-muted-foreground">
                     {row.rateMapped} / {row.rateTotal}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">Never</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -395,10 +433,10 @@ export function Card6DistributionTab({
                           Validate
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => setDetailsFor(row)}>
-                          View details
+                          View sync history
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled title={SYNC_PHASE3_NOTICE}>
+                        <DropdownMenuItem disabled title={SYNC_SERVICE_NOTICE}>
                           Sync now
                         </DropdownMenuItem>
                         {canEdit ? (
@@ -442,6 +480,9 @@ export function Card6DistributionTab({
           setDrawerOpen(false);
           onGoToIntegrations();
         }}
+        onRequestActivation={(active) => {
+          if (editing) setPendingActivation({ row: editing, active });
+        }}
       />
 
       <Card6DistributionValidation
@@ -451,19 +492,26 @@ export function Card6DistributionTab({
         }}
         checks={
           validateFor && snapshot
-            ? validateDistributionDraft(toDraft(validateFor), {
-                integration:
-                  snapshot.integrations.find((row) => row.id === validateFor.integrationId) ?? null,
-                roomTypes: snapshot.roomTypes,
-                ratePlans: snapshot.ratePlans,
-                mealPlans: snapshot.mealPlans,
-                takenChannels: snapshot.channels.map((row) => ({
-                  integrationId: row.integrationId,
-                  channel: row.channel,
-                  excludeId: row.id,
-                })),
-                excludeId: validateFor.id,
-              })
+            ? [
+                ...validateDistributionDraft(toDraft(validateFor), {
+                  integration:
+                    snapshot.integrations.find((row) => row.id === validateFor.integrationId) ??
+                    null,
+                  roomTypes: snapshot.roomTypes,
+                  ratePlans: snapshot.ratePlans,
+                  mealPlans: snapshot.mealPlans,
+                  takenChannels: snapshot.channels.map((row) => ({
+                    integrationId: row.integrationId,
+                    channel: row.channel,
+                    excludeId: row.id,
+                  })),
+                  excludeId: validateFor.id,
+                }),
+                ...validateDistributionSyncConfig(
+                  validateFor.syncConfig,
+                  distributionSyncCapabilities(validateFor.provider, validateFor.channel),
+                ),
+              ]
             : []
         }
       />
@@ -471,33 +519,15 @@ export function Card6DistributionTab({
       <Dialog open={Boolean(detailsFor)} onOpenChange={(open) => !open && setDetailsFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{detailsFor?.channelLabel}</DialogTitle>
+            <DialogTitle>Sync History — {detailsFor?.channelLabel}</DialogTitle>
             <DialogDescription>
-              {detailsFor
-                ? `${distributionProviderLabel(detailsFor.provider)} · ${detailsFor.integrationName}`
-                : ""}
+              No synchronization history yet. Results will appear here once a real sync service
+              runs.
             </DialogDescription>
           </DialogHeader>
-          {detailsFor ? (
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <dt className="text-muted-foreground">Environment</dt>
-              <dd>{ENVIRONMENT_LABELS[detailsFor.environment]}</dd>
-              <dt className="text-muted-foreground">Status</dt>
-              <dd>
-                <DistributionStatusBadge status={detailsFor.mappingStatus} />
-              </dd>
-              <dt className="text-muted-foreground">Room types</dt>
-              <dd>
-                {detailsFor.roomMapped} / {detailsFor.roomTotal}
-              </dd>
-              <dt className="text-muted-foreground">Rate plans</dt>
-              <dd>
-                {detailsFor.rateMapped} / {detailsFor.rateTotal}
-              </dd>
-              <dt className="text-muted-foreground">Last sync</dt>
-              <dd>—</dd>
-            </dl>
-          ) : null}
+          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+            No synchronization history yet.
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -519,6 +549,61 @@ export function Card6DistributionTab({
               onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(pendingActivation)}
+        onOpenChange={(open) => !open && setPendingActivation(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingActivation?.active ? "Activate Distribution?" : "Deactivate Distribution?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingActivation?.active
+                ? "This enables the saved synchronization configuration. No external sync will run until a backend service is connected."
+                : "Synchronization will stop for this channel. Existing mappings will remain saved."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingActivation?.active ? (
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <dt className="text-muted-foreground">Provider</dt>
+              <dd>{distributionProviderLabel(pendingActivation.row.provider)}</dd>
+              <dt className="text-muted-foreground">Channel</dt>
+              <dd>{pendingActivation.row.channelLabel}</dd>
+              <dt className="text-muted-foreground">Environment</dt>
+              <dd>{ENVIRONMENT_LABELS[pendingActivation.row.environment]}</dd>
+              <dt className="text-muted-foreground">Inventory Sync</dt>
+              <dd>{pendingActivation.row.syncConfig.inventory.enabled ? "ON" : "OFF"}</dd>
+              <dt className="text-muted-foreground">Rate Sync</dt>
+              <dd>{pendingActivation.row.syncConfig.rates.enabled ? "ON" : "OFF"}</dd>
+              <dt className="text-muted-foreground">Restriction Sync</dt>
+              <dd>{pendingActivation.row.syncConfig.restrictions.enabled ? "ON" : "OFF"}</dd>
+            </dl>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={activationMutation.isPending}
+              onClick={() =>
+                pendingActivation &&
+                activationMutation.mutate({
+                  id: pendingActivation.row.id,
+                  active: pendingActivation.active,
+                })
+              }
+            >
+              {activationMutation.isPending
+                ? pendingActivation?.active
+                  ? "Activating…"
+                  : "Deactivating…"
+                : pendingActivation?.active
+                  ? "Activate"
+                  : "Deactivate"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
