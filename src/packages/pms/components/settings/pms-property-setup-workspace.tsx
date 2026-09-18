@@ -39,6 +39,7 @@ export function PmsPropertySetupWorkspace({
   continuePending = false,
   onSaveDraft,
   onContinue,
+  railExtras,
 }: {
   testIdPrefix: string;
   sidebarOutCopy: string;
@@ -61,6 +62,7 @@ export function PmsPropertySetupWorkspace({
   continuePending?: boolean;
   onSaveDraft?: () => void;
   onContinue: () => void;
+  railExtras?: ReactNode;
 }) {
   return (
     <section
@@ -164,6 +166,7 @@ export function PmsPropertySetupWorkspace({
               <p className="text-xs text-muted-foreground">{progressLabel}</p>
               <p className="mt-1 text-sm font-medium text-[#251605]">{progressPct}%</p>
             </section>
+            {railExtras}
           </aside>
         </div>
 

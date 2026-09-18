@@ -39,6 +39,7 @@ import {
   type LocationMasters,
   type NormalizedBedRow,
 } from "./rooms-card2.server";
+import { persistCard2AmenitiesReadiness } from "./rooms-amenities.functions";
 
 const idSchema = z.string().uuid();
 const smokingPolicySchema = z.enum(SMOKING_POLICIES);
@@ -174,6 +175,7 @@ export async function persistCard2RoomTypesReadiness(supabase: DbClient, restaur
     .from("restaurants")
     .update({ pms_property_setup_status: next as unknown as Json })
     .eq("id", restaurantId);
+  await persistCard2AmenitiesReadiness(supabase, restaurantId);
 }
 
 async function replaceRoomTypeBeds(

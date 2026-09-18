@@ -136,7 +136,10 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(ui, /maintenanceStatus/);
     assert.match(ui, /housekeepingStatus/);
     assert.match(sectionSrc, /step === "room-types"/);
+    assert.match(sectionSrc, /step === "amenities"/);
+    assert.match(sectionSrc, /PmsPropertySetupCard2Amenities/);
+    assert.match(sectionSrc, /saveDraftDisabled=\{!canEdit \|\| \(step !== "room-types" && step !== "amenities"\)\}/);
     assert.match(sectionSrc, /current.placeholder/);
-    assert.doesNotMatch(sectionSrc, /Amenities configuration will be implemented in Phase 1/);
+    assert.doesNotMatch(sectionSrc, /Amenities configuration will be implemented in a later phase/);
   });
 });
