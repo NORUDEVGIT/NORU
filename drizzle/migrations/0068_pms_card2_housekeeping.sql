@@ -1,6 +1,6 @@
 -- PMS Property Setup Card 2 — Phase 3 Housekeeping.
--- Sequential after 0064. Dual-lane with
---   supabase/migrations/0065_pms_card2_housekeeping.sql
+-- Sequential after 0067. Dual-lane with
+--   supabase/migrations/0068_pms_card2_housekeeping.sql
 -- PM-approved normalized model. Additive schema plus constrained rule catalogues.
 -- Applied to qcwptraosaudcbjasmul on 2026-09-18 after explicit user request.
 

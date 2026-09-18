@@ -29,7 +29,7 @@ export const CARD2_STEPS = [
     id: "amenities",
     number: 2,
     title: "Amenities",
-    placeholder: "Amenities configuration will be implemented in a later phase.",
+    placeholder: "Amenities configuration is available in this Card 2 step.",
   },
   {
     id: "housekeeping",
@@ -41,7 +41,7 @@ export const CARD2_STEPS = [
     id: "inventory-rules",
     number: 4,
     title: "Inventory Rules",
-    placeholder: "Inventory Rules configuration will be implemented in a later phase.",
+    placeholder: "Inventory Rules configuration is available in this Card 2 step.",
   },
   {
     id: "maintenance",

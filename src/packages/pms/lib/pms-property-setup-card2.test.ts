@@ -136,7 +136,27 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(ui, /maintenanceStatus/);
     assert.match(ui, /housekeepingStatus/);
     assert.match(sectionSrc, /step === "room-types"/);
+    assert.match(sectionSrc, /step === "amenities"/);
+    assert.match(sectionSrc, /PmsPropertySetupCard2Amenities/);
+    assert.match(sectionSrc, /step === "inventory-rules"/);
+    assert.match(sectionSrc, /PmsPropertySetupCard2Inventory/);
+    assert.match(
+      sectionSrc.replace(/\s+/g, " "),
+      /saveDraftDisabled=\{ ?!canEdit \|\| \( ?step !== "room-types" && step !== "amenities" && step !== "housekeeping" && step !== "inventory-rules" ?\)/,
+    );
     assert.match(sectionSrc, /current.placeholder/);
-    assert.doesNotMatch(sectionSrc, /Amenities configuration will be implemented in Phase 1/);
+    assert.doesNotMatch(sectionSrc, /Amenities configuration will be implemented in a later phase/);
+    assert.doesNotMatch(sectionSrc, /Inventory Rules configuration will be implemented in a later phase/);
+    const inventoryUi = readFileSync(
+      new URL("../components/settings/pms-property-setup-card2-inventory.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(inventoryUi, /getInventoryRules/);
+    assert.match(inventoryUi, /saveInventoryRules/);
+    assert.match(inventoryUi, /getInventorySummary/);
+    assert.match(inventoryUi, /evaluateCard2InventoryReadiness/);
+    assert.match(inventoryUi, /OVERBOOKING_CAPACITY_NOTE/);
+    assert.doesNotMatch(inventoryUi, /Available to Sell/);
+    assert.doesNotMatch(inventoryUi, /pmsDb/);
   });
 });

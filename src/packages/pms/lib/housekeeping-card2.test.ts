@@ -188,9 +188,9 @@ describe("Card 2 Phase 3 isolation and server wiring", () => {
     assert.doesNotMatch(ui, /saveRoomAmenity|pms-card2-amenities/);
   });
 
-  it("ships dual-lane 0065 with tenant RLS and protected core statuses", () => {
-    const drizzle = join(process.cwd(), "drizzle/migrations/0065_pms_card2_housekeeping.sql");
-    const supabase = join(process.cwd(), "supabase/migrations/0065_pms_card2_housekeeping.sql");
+  it("ships dual-lane 0068 with tenant RLS and protected core statuses", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0068_pms_card2_housekeeping.sql");
+    const supabase = join(process.cwd(), "supabase/migrations/0068_pms_card2_housekeeping.sql");
     assert.equal(existsSync(drizzle), true);
     assert.equal(existsSync(supabase), true);
     const sql = readFileSync(drizzle, "utf8");
