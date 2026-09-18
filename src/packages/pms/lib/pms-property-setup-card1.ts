@@ -13,6 +13,7 @@
 import { SET1_HUB_HREF, displayedBusinessDate, normalizeClock } from "./pms-set1-foundation.ts";
 import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
 import { CARD2_STEPS, type Card2StepId } from "./pms-property-setup-card2.ts";
+import { CARD3_HASH, CARD3_PURPOSE, CARD3_TITLE } from "./pms-property-setup-card3.ts";
 import { CARD6_HASH, CARD6_PURPOSE, CARD6_TITLE } from "./pms-property-setup-card6.ts";
 import {
   countryNameFromInput,
@@ -108,10 +109,10 @@ export const PROPERTY_SETUP_CARDS = [
   {
     id: "rates-guest-rules",
     number: 3,
-    title: "Financial & Commercial",
-    purpose: "Taxes, Policies & Fees, Rates & Meal Plans, Payment Methods.",
-    specced: false,
-    hash: null,
+    title: CARD3_TITLE,
+    purpose: CARD3_PURPOSE,
+    specced: true,
+    hash: CARD3_HASH,
   },
   {
     id: "housekeeping-maintenance",

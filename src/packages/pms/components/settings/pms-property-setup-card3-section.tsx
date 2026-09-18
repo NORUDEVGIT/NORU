@@ -1,0 +1,150 @@
+import { useState } from "react";
+
+import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
+import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { CARD1_PMS_NAV, propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  CARD3_DOMAIN_PLACEHOLDER,
+  CARD3_DOMAINS,
+  CARD3_PROGRESS_DETAIL,
+  CARD3_PROGRESS_LABEL,
+  CARD3_PROGRESS_PERCENT,
+  CARD3_SIDEBAR_OUT,
+  CARD3_SUBTITLE,
+  CARD3_WORKSPACE_TITLE,
+  type Card3DomainId,
+} from "@/packages/pms/lib/pms-property-setup-card3";
+import { Card3DomainIcon, PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
+
+/**
+ * Card 3 landing + placeholder domain navigation. Phase 0 only.
+ */
+export function PmsPropertySetupCard3Section() {
+  const [activeDomain, setActiveDomain] = useState<Card3DomainId | null>(null);
+  const domain = CARD3_DOMAINS.find((row) => row.id === activeDomain) ?? null;
+
+  function goBackToHub() {
+    window.location.hash = "";
+    window.history.replaceState(null, "", SET1_HUB_HREF);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  }
+
+  return (
+    <section
+      className="min-h-[calc(100dvh-3.75rem)] bg-[#f7f4ef]"
+      data-testid="pms-card3-workspace"
+      data-card-fullscreen="true"
+    >
+      <div className="sr-only">{CARD3_SIDEBAR_OUT}</div>
+      <nav
+        className="flex flex-wrap items-center gap-1 bg-[#251605] px-4 py-2 text-white"
+        data-testid="pms-card3-top-nav"
+        aria-label="PMS"
+      >
+        {CARD1_PMS_NAV.map((item) => (
+          <a
+            key={item.id}
+            href={item.href}
+            className={cn(
+              "rounded-lg px-2.5 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2 focus-visible:ring-offset-[#251605]",
+              item.id === "settings"
+                ? "bg-[#C89933] text-[#251605]"
+                : "text-white/80 hover:bg-white/10 hover:text-white",
+            )}
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
+
+      <div className="px-4 py-5 sm:px-6" data-testid="pms-card3-fullscreen">
+        {domain ? (
+          <PmsPropertySetupCard3Workspace domain={domain} onBack={() => setActiveDomain(null)}>
+            <div
+              className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8 text-center"
+              data-testid="pms-card3-domain-placeholder"
+            >
+              <p className="text-sm text-muted-foreground">{CARD3_DOMAIN_PLACEHOLDER}</p>
+            </div>
+          </PmsPropertySetupCard3Workspace>
+        ) : (
+          <div className="space-y-6">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h1 className="font-display text-3xl text-[#251605]">{CARD3_WORKSPACE_TITLE}</h1>
+                <p className="mt-1 text-sm text-muted-foreground">{CARD3_SUBTITLE}</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goBackToHub}
+                className="focus-visible:ring-[#C89933]"
+              >
+                Back to Property Setup
+              </Button>
+            </div>
+
+            <section
+              className="rounded-2xl border border-[#E6D7B8] bg-white p-5 shadow-sm"
+              aria-labelledby="card3-progress-heading"
+              data-testid="pms-card3-progress"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="card3-progress-heading" className="font-display text-lg text-[#251605]">
+                  Configuration Progress
+                </h2>
+                <span className="rounded-full border border-[#CCCCCC] bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                  {propertySetupStatusLabel("not_started")}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">{CARD3_PROGRESS_DETAIL}</p>
+              <div
+                className="mt-3 h-2 overflow-hidden rounded-full bg-[#EFE8DC]"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={CARD3_PROGRESS_PERCENT}
+                aria-valuetext={`${CARD3_PROGRESS_PERCENT}% ${CARD3_PROGRESS_LABEL}`}
+              >
+                <div className="h-full w-0 rounded-full bg-[#C89933]" />
+              </div>
+              <p className="mt-2 text-sm font-medium text-[#251605]">
+                {CARD3_PROGRESS_PERCENT}% · {CARD3_PROGRESS_LABEL}
+              </p>
+            </section>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="pms-card3-domain-grid">
+              {CARD3_DOMAINS.map((item) => (
+                <article
+                  key={item.id}
+                  className="flex flex-col rounded-2xl border border-border bg-white p-5 shadow-sm"
+                  data-testid={`pms-card3-domain-card-${item.id}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#E6D7B8] bg-[#C89933]/10 text-[#251605]">
+                      <Card3DomainIcon icon={item.icon} className="size-5" />
+                    </span>
+                    <span className="shrink-0 rounded-full border border-[#CCCCCC] bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                      {propertySetupStatusLabel("not_started")}
+                    </span>
+                  </div>
+                  <h2 className="mt-3 font-display text-lg leading-snug text-[#251605]">{item.title}</h2>
+                  <p className="mt-2 flex-1 text-sm text-muted-foreground">{item.description}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-4 w-full border-[#C89933] text-[#251605] hover:bg-[#C89933]/10 focus-visible:ring-[#C89933] sm:w-auto"
+                    onClick={() => setActiveDomain(item.id)}
+                  >
+                    Open
+                  </Button>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

@@ -1,0 +1,126 @@
+import assert from "node:assert/strict";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { SET1_HUB_HREF, isSet1SectionHash, propertySetupRedirectHref } from "./pms-set1-foundation.ts";
+import { PROPERTY_SETUP_CARDS } from "./pms-property-setup-card1.ts";
+import {
+  CARD3_BACK_LABEL,
+  CARD3_DOMAIN_PLACEHOLDER,
+  CARD3_DOMAINS,
+  CARD3_HASH,
+  CARD3_HREF,
+  CARD3_PROGRAMME_ID,
+  CARD3_PROGRESS_LABEL,
+  CARD3_PROGRESS_PERCENT,
+  CARD3_PURPOSE,
+  CARD3_SUBTITLE,
+  CARD3_TITLE,
+  isCard3WorkspaceHash,
+  resolveCard3Hash,
+} from "./pms-property-setup-card3.ts";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
+const section = readFileSync(
+  new URL("../components/settings/pms-property-setup-card3-section.tsx", import.meta.url),
+  "utf8",
+);
+const workspace = readFileSync(
+  new URL("../components/settings/pms-property-setup-card3-workspace.tsx", import.meta.url),
+  "utf8",
+);
+const settings = readFileSync(new URL("../../../routes/restaurant/settings.tsx", import.meta.url), "utf8");
+const lib = readFileSync(new URL("./pms-property-setup-card3.ts", import.meta.url), "utf8");
+
+describe("PMS Property Setup Card 3 Phase 0 shell", () => {
+  it("keeps Financial & Commercial title, eight domains, and financial-commercial hash", () => {
+    assert.equal(CARD3_TITLE, "Financial & Commercial");
+    assert.equal(CARD3_SUBTITLE, "Configure pricing, taxes, payments & billing");
+    assert.equal(CARD3_PURPOSE, "Taxes, Policies & Fees, Rates & Meal Plans, Payment Methods.");
+    assert.equal(CARD3_HASH, "financial-commercial");
+    assert.equal(CARD3_HREF, `${SET1_HUB_HREF}#financial-commercial`);
+    assert.equal(CARD3_PROGRAMME_ID, "rates-guest-rules");
+    assert.equal(PROPERTY_SETUP_CARDS[2]?.id, "rates-guest-rules");
+    assert.equal(PROPERTY_SETUP_CARDS[2]?.title, CARD3_TITLE);
+    assert.equal(PROPERTY_SETUP_CARDS[2]?.specced, true);
+    assert.equal(PROPERTY_SETUP_CARDS[2]?.hash, CARD3_HASH);
+    assert.deepEqual(
+      CARD3_DOMAINS.map((row) => row.title),
+      [
+        "Currency & Financial Settings",
+        "Taxes & Fees",
+        "Rates & Pricing",
+        "Meal Plans & Packages",
+        "Payments & Deposits",
+        "Billing & Invoicing",
+        "Corporate & Contract Rates",
+        "Revenue & Commercial Rules",
+      ],
+    );
+    assert.equal(CARD3_DOMAINS.length, 8);
+    assert.equal(CARD3_PROGRESS_PERCENT, 0);
+    assert.equal(CARD3_PROGRESS_LABEL, "Not Started");
+    assert.doesNotMatch(lib, /86%/);
+    assert.doesNotMatch(section, /86%/);
+  });
+
+  it("does not collide with SET1 rates or invent live completion", () => {
+    assert.equal(isCard3WorkspaceHash("#financial-commercial"), true);
+    assert.equal(isCard3WorkspaceHash("#card-3"), true);
+    assert.equal(isCard3WorkspaceHash("#card3"), true);
+    assert.equal(isCard3WorkspaceHash("#rates"), false);
+    assert.equal(isCard3WorkspaceHash("#rates-guest-rules"), false);
+    assert.equal(resolveCard3Hash("#card-3"), CARD3_HASH);
+    assert.equal(isSet1SectionHash("#rates"), true);
+    assert.equal(isSet1SectionHash("#financial-commercial"), false);
+    assert.equal(propertySetupRedirectHref("#card-3"), `${SET1_HUB_HREF}#financial-commercial`);
+    assert.equal(propertySetupRedirectHref("#financial-commercial"), `${SET1_HUB_HREF}#financial-commercial`);
+    assert.equal(propertySetupRedirectHref("#rates"), `${SET1_HUB_HREF}#rates`);
+  });
+
+  it("opens from the hub with Card 3 chrome, landing grid, and placeholder workspaces", () => {
+    assert.match(hub, /PmsPropertySetupCard3Section/);
+    assert.match(hub, /card3Open/);
+    assert.match(hub, /isCard3WorkspaceHash/);
+    assert.match(section, /pms-card3-fullscreen/);
+    assert.match(section, /pms-card3-top-nav/);
+    assert.match(section, /CARD3_WORKSPACE_TITLE/);
+    assert.match(section, /CARD3_SUBTITLE/);
+    assert.match(section, /Configuration Progress/);
+    assert.match(section, /pms-card3-domain-grid/);
+    assert.match(section, />\s*Open\s*</);
+    assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
+    assert.equal(CARD3_DOMAIN_PLACEHOLDER, "This workspace will be implemented in Phase 1.");
+    assert.equal(CARD3_BACK_LABEL, "Financial & Commercial");
+    assert.match(workspace, /pms-card3-tabs-slot/);
+    assert.match(workspace, /pms-card3-drawer-slot/);
+    assert.match(workspace, /pms-card3-content-slot/);
+    assert.match(workspace, /CARD3_AUDIT_HISTORY_LABEL/);
+    assert.match(workspace, /CARD3_BACK_LABEL/);
+    assert.match(settings, /isCard3WorkspaceHash/);
+    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
+  });
+
+  it("does not add schema, migrations, APIs, or financial persistence", () => {
+    const drizzleDir = join(here, "../../../../drizzle/migrations");
+    const supabaseDir = join(here, "../../../../supabase/migrations");
+    const drizzleHits = existsSync(drizzleDir)
+      ? readdirSync(drizzleDir).filter((name) => /card3|financial-commercial/i.test(name))
+      : [];
+    const supabaseHits = existsSync(supabaseDir)
+      ? readdirSync(supabaseDir).filter((name) => /card3|financial-commercial/i.test(name))
+      : [];
+    assert.deepEqual(drizzleHits, []);
+    assert.deepEqual(supabaseHits, []);
+    assert.equal(existsSync(join(here, "./pms-property-setup-card3.functions.ts")), false);
+    assert.equal(existsSync(join(here, "./pms-property-setup-card3.server.ts")), false);
+    assert.doesNotMatch(lib, /pmsDb|createServerFn|from\("pms_/);
+    assert.doesNotMatch(section, /pmsDb|createServerFn|useServerFn/);
+    assert.doesNotMatch(workspace, /pmsDb|createServerFn/);
+    assert.doesNotMatch(section, /Room Types|primary currency|Inventory Rules/);
+  });
+});

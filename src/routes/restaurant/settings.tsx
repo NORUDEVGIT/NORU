@@ -8,6 +8,8 @@ import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { isCard1WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card1";
 import { isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
+import { isCard3WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card3";
+import { isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
 
 export const Route = createFileRoute("/restaurant/settings")({
   ssr: false,
@@ -32,12 +34,20 @@ export const Route = createFileRoute("/restaurant/settings")({
 function RestaurantSettings() {
   const [workspaceOpen, setWorkspaceOpen] = useState(() =>
     typeof window !== "undefined"
-      ? isCard1WorkspaceHash(window.location.hash) || isCard2WorkspaceHash(window.location.hash)
+      ? isCard1WorkspaceHash(window.location.hash) ||
+        isCard2WorkspaceHash(window.location.hash) ||
+        isCard3WorkspaceHash(window.location.hash) ||
+        isCard6WorkspaceHash(window.location.hash)
       : false,
   );
   useEffect(() => {
     const apply = () =>
-      setWorkspaceOpen(isCard1WorkspaceHash(window.location.hash) || isCard2WorkspaceHash(window.location.hash));
+      setWorkspaceOpen(
+        isCard1WorkspaceHash(window.location.hash) ||
+          isCard2WorkspaceHash(window.location.hash) ||
+          isCard3WorkspaceHash(window.location.hash) ||
+          isCard6WorkspaceHash(window.location.hash),
+      );
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
