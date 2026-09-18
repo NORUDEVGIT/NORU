@@ -223,6 +223,80 @@ export const CARD1_LANGUAGES = [
   { id: "pt", label: "Portuguese" },
 ] as const;
 
+const STORED_LANGUAGE_LABELS: Record<string, string> = {
+  so: "Somali",
+};
+
+export function card1LanguageOptions(currentId: string): { id: string; label: string }[] {
+  const options: { id: string; label: string }[] = CARD1_LANGUAGES.map((row) => ({
+    id: row.id,
+    label: row.label,
+  }));
+  if (currentId && !options.some((row) => row.id === currentId)) {
+    options.push({ id: currentId, label: STORED_LANGUAGE_LABELS[currentId] ?? currentId });
+  }
+  return options;
+}
+
+export function isHttpOrDataAsset(value: string): boolean {
+  return /^(https?:\/\/|data:)/i.test(value.trim());
+}
+
+export function isBrandHex(value: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(value.trim());
+}
+
+export function isPlausibleHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function validateBrandImageFile(file: { type: string; size: number }): string | null {
+  if (!(CARD1_BRAND_IMAGE_TYPES as readonly string[]).includes(file.type)) return CARD1_BRAND_IMAGE_TYPE_ERROR;
+  if (file.size > CARD1_BRAND_IMAGE_MAX_BYTES) return CARD1_BRAND_IMAGE_SIZE_ERROR;
+  return null;
+}
+
+export type Card1IdentityFieldErrors = Partial<{
+  name: string;
+  propertyType: string;
+  businessType: string;
+  openingDate: string;
+  timezone: string;
+  currencyCode: string;
+  defaultLanguage: string;
+  websiteUrl: string;
+  primaryBrandColour: string;
+  secondaryBrandColour: string;
+  logoUrl: string;
+  coverImageUrl: string;
+}>;
+
+export function validateIdentityFields(draft: Card1Draft): Card1IdentityFieldErrors {
+  const errors: Card1IdentityFieldErrors = {};
+  if (draft.name.trim().length < 2) errors.name = "Property name is required.";
+  if (!draft.propertyType.trim()) errors.propertyType = "Property type is required.";
+  if (!draft.businessType.trim()) errors.businessType = "Business type is required.";
+  if (!draft.openingDate.trim()) errors.openingDate = "Opening date is required.";
+  if (!draft.timezone.trim()) errors.timezone = "Time zone is required.";
+  if (!draft.currencyCode.trim()) errors.currencyCode = "Primary currency is required.";
+  if (!draft.defaultLanguage.trim()) errors.defaultLanguage = "Language is required.";
+  if (draft.websiteUrl.trim() && !isPlausibleHttpUrl(draft.websiteUrl)) {
+    errors.websiteUrl = "Enter a valid website address.";
+  }
+  if (draft.primaryBrandColour.trim() && !isBrandHex(draft.primaryBrandColour.trim())) {
+    errors.primaryBrandColour = "Enter a valid HEX colour.";
+  }
+  if (draft.secondaryBrandColour.trim() && !isBrandHex(draft.secondaryBrandColour.trim())) {
+    errors.secondaryBrandColour = "Enter a valid HEX colour.";
+  }
+  return errors;
+}
+
 export const LEGAL_ENTITY_TYPES = ["plc", "private_limited", "sole_proprietor", "partnership", "other"] as const;
 export type LegalEntityType = (typeof LEGAL_ENTITY_TYPES)[number];
 
