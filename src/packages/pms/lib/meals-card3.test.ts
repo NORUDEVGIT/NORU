@@ -137,7 +137,11 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.match(section, /domain\?\.id === "meal-plans-packages"/);
     assert.match(section, /currencyQuery\.isLoading/);
     assert.match(section, /mealsQuery\.isLoading/);
-    assert.match(section, /\[currencyStatus, taxesStatus, ratesStatus, mealsStatus\]/);
+    assert.match(section, /currencyStatus/);
+    assert.match(section, /taxesStatus/);
+    assert.match(section, /ratesStatus/);
+    assert.match(section, /mealsStatus/);
+    assert.match(section, /paymentsStatus/);
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_MEALS_TABS/);
