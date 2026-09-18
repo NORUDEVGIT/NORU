@@ -47,6 +47,8 @@ import {
   isNrcPropertyCode,
   propertySetupStatusLabel,
   validateAddressFields,
+  validateBrandImageFile,
+  validateIdentityFields,
   vatCertificateRequired,
 } from "./pms-property-setup-card1.ts";
 import {

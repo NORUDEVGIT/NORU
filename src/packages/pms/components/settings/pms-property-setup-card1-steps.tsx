@@ -12,6 +12,7 @@ import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { SearchableSelect } from "@/shared/components/ui/searchable-select";
+import { supabase } from "@/integrations/supabase/client";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
@@ -57,6 +58,7 @@ import {
   LEGAL_ENTITY_TYPES,
   STAR_RATINGS,
   card1LanguageOptions,
+  validateBrandImageFile,
   liveBlockPreview,
   structureRoomCodeExample,
   vatCertificateRequired,

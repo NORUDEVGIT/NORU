@@ -27,6 +27,7 @@ import {
   card1TaxWarnings,
   propertySetupStatusLabel,
   validateAddressFields,
+  validateIdentityFields,
   type Card1AddressFieldErrors,
   type Card1Draft,
   type Card1IdentityFieldErrors,
@@ -64,8 +65,15 @@ export function PmsPropertySetupCard1Section({
   const save = useServerFn(savePmsPropertySetupCard1);
   const [step, setStep] = useState<Card1StepId>(initialStep);
   const [draft, setDraft] = useState<Card1Draft>(snapshot.draft);
+  const [identityErrors, setIdentityErrors] = useState<Card1IdentityFieldErrors>({});
   const [addressErrors, setAddressErrors] = useState<Card1AddressFieldErrors>({});
-  useEffect(() => setDraft(snapshot.draft), [snapshot.draft]);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState(snapshot.logoPreviewUrl);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState(snapshot.coverPreviewUrl);
+  useEffect(() => {
+    setDraft(snapshot.draft);
+    setLogoPreviewUrl(snapshot.logoPreviewUrl);
+    setCoverPreviewUrl(snapshot.coverPreviewUrl);
+  }, [snapshot.draft, snapshot.logoPreviewUrl, snapshot.coverPreviewUrl]);
   const composedAddress = useMemo(() => composeFullAddress(draft), [draft]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(snapshot.draft);
 
@@ -108,7 +116,25 @@ export function PmsPropertySetupCard1Section({
   const taxWarnings = card1TaxWarnings(draft);
   const structureWarnings = card1StructureWarnings(draft, set2);
 
+  function goBack() {
+    const previous = previousCard1Step(step);
+    if (previous) {
+      if (dirty && !window.confirm("Leave this step with unsaved changes?")) return;
+      setStep(previous);
+      return;
+    }
+    if (dirty && !window.confirm("Return to Property Setup with unsaved changes?")) return;
+    window.location.hash = "";
+    window.history.replaceState(null, "", SET1_HUB_HREF);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  }
+
   function saveMode(mode: "draft" | "continue" | "finish") {
+    if (mode === "continue" && step === "identity") {
+      const nextErrors = validateIdentityFields(draft);
+      setIdentityErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) return;
+    }
     if (mode === "continue" && step === "address") {
       const nextErrors = validateAddressFields(draft);
       setAddressErrors(nextErrors);
@@ -129,35 +155,6 @@ export function PmsPropertySetupCard1Section({
       : Object.keys(addressLiveErrors).length > 0
         ? "Needs Attention"
         : "In Progress";
-  const nextStep = nextCard1Step(step);
-
-  function goBack() {
-    const previous = previousCard1Step(step);
-    if (previous) {
-      if (dirty && !window.confirm("Leave this step with unsaved changes?")) return;
-      setStep(previous);
-      return;
-    }
-    if (dirty && !window.confirm("Return to Property Setup with unsaved changes?")) return;
-    window.location.hash = "";
-    window.history.replaceState(null, "", SET1_HUB_HREF);
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-  }
-
-  function saveMode(mode: "draft" | "continue" | "finish") {
-    if (mode === "continue" && step === "identity") {
-      const nextErrors = validateIdentityFields(draft);
-      setIdentityErrors(nextErrors);
-      if (Object.keys(nextErrors).length > 0) return;
-    }
-    mutation.mutate(mode);
-  }
-
-  const completedCount = CARD1_STEPS.filter(
-    (row) => evaluateCard1StepStatus(row.id, draft, snapshot.status.card1Steps[row.id], set2) === "complete",
-  ).length;
-  const progressPct = Math.round((completedCount / CARD1_STEPS.length) * 100);
-  const currentStatus = evaluateCard1StepStatus(step, draft, snapshot.status.card1Steps[step], set2);
   const nextStep = nextCard1Step(step);
 
   return (
@@ -230,7 +227,18 @@ export function PmsPropertySetupCard1Section({
           <p className="mb-4 text-sm text-muted-foreground">{CARD1_COLUMNS_UNAVAILABLE}</p>
         ) : null}
 
-        {step === "identity" ? <IdentityStep draft={draft} setDraft={setDraft} canEdit={canEdit} /> : null}
+        {step === "identity" ? (
+          <IdentityStep
+            restaurantId={restaurantId}
+            draft={draft}
+            setDraft={setDraft}
+            canEdit={canEdit}
+            logoPreviewUrl={logoPreviewUrl}
+            coverPreviewUrl={coverPreviewUrl}
+            errors={identityErrors}
+            onClearError={(key) => setIdentityErrors((prev) => ({ ...prev, [key]: undefined }))}
+          />
+        ) : null}
         {step === "address" ? (
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem]">
             <AddressStep
