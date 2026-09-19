@@ -7,8 +7,14 @@ import {
   Card4ProfileTypesGuide,
   PmsCard4ProfileTypes,
 } from "@/packages/pms/components/settings/pms-card4-profile-types";
+import {
+  Card4RequiredFieldsGuide,
+  PmsCard4RequiredFields,
+} from "@/packages/pms/components/settings/pms-card4-required-fields";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { getPmsCard4ProfileTypes } from "@/packages/pms/lib/profile-types-card4.functions";
+import { getPmsCard4RequiredFields } from "@/packages/pms/lib/required-fields-card4.functions";
+import { guestFieldsConfigured } from "@/packages/pms/lib/required-fields-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -41,12 +47,19 @@ export function PmsPropertySetupCard4Section({
   const [saving, setSaving] = useState(false);
   const [canSave, setCanSave] = useState(false);
   const loadTypes = useServerFn(getPmsCard4ProfileTypes);
+  const loadFields = useServerFn(getPmsCard4RequiredFields);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
     retry: false,
   });
+  const fieldsQuery = useQuery({
+    queryKey: ["pms-card4-required-fields", restaurantId],
+    queryFn: () => loadFields({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
+  const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
     setSaving(nextSaving);
@@ -56,17 +69,26 @@ export function PmsPropertySetupCard4Section({
   const current = card4StepById(step);
   const next = nextCard4Step(step);
   const stepStatuses: Partial<Record<Card4StepId, PropertySetupCardStatus>> = {
-    "profile-types": evaluateCard4StepStatus("profile-types", undefined, profileTypesConfigured),
-    "required-fields": "not_started",
+    "profile-types": evaluateCard4StepStatus(
+      "profile-types",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+    ),
+    "required-fields": evaluateCard4StepStatus(
+      "required-fields",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+    ),
     "identity-documents": "not_started",
     preferences: "not_started",
     "company-business": "not_started",
   };
   const completedCount = card4CompletedCount(stepStatuses);
   const progressPct = card4ProgressPct(completedCount);
-  const cardStatus: PropertySetupCardStatus = profileTypesConfigured
-    ? "in_progress"
-    : "not_started";
+  const cardStatus: PropertySetupCardStatus =
+    profileTypesConfigured || requiredFieldsConfigured ? "in_progress" : "not_started";
 
   function goHub() {
     window.location.hash = "";
@@ -83,13 +105,14 @@ export function PmsPropertySetupCard4Section({
   }
 
   function goContinue() {
-    if (step === "profile-types") {
+    if (step === "profile-types" || step === "required-fields") {
       requestSave(true);
       return;
     }
     if (next) setStep(next);
   }
 
+  const liveStep = step === "profile-types" || step === "required-fields";
   const placeholder = current.placeholder;
 
   return (
@@ -115,8 +138,8 @@ export function PmsPropertySetupCard4Section({
       progressLabel="Guest Profile Rules"
       onBack={goHub}
       backLabel="Cancel"
-      saveDraftDisabled={!canEdit || step !== "profile-types" || !canSave || saving}
-      continueDisabled={!canEdit || (step === "profile-types" && (!canSave || saving))}
+      saveDraftDisabled={!canEdit || !liveStep || !canSave || saving}
+      continueDisabled={!canEdit || (liveStep && (!canSave || saving))}
       continuePending={saving}
       onSaveDraft={() => requestSave(false)}
       onContinue={goContinue}
@@ -124,6 +147,11 @@ export function PmsPropertySetupCard4Section({
       railExtras={
         step === "profile-types" ? (
           <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
+        ) : step === "required-fields" ? (
+          <Card4RequiredFieldsGuide
+            count={fieldsQuery.data?.fields.length ?? 0}
+            onGoIdentityDocuments={() => setStep("identity-documents")}
+          />
         ) : null
       }
     >
@@ -134,6 +162,15 @@ export function PmsPropertySetupCard4Section({
           onSavingChange={onSavingChange}
           saveRequest={saveRequest}
           onSaved={onSaved}
+        />
+      ) : step === "required-fields" ? (
+        <PmsCard4RequiredFields
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onSavingChange={onSavingChange}
+          saveRequest={saveRequest}
+          onSaved={onSaved}
+          onGoIdentityDocuments={() => setStep("identity-documents")}
         />
       ) : (
         <div

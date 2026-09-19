@@ -29,7 +29,7 @@ export const CARD4_STEPS = [
     id: "required-fields",
     number: 2,
     title: "Required Fields",
-    placeholder: "Required Fields configuration will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "identity-documents",
@@ -73,9 +73,15 @@ export function evaluateCard4StepStatus(
   step: Card4StepId,
   stored: PropertySetupCardStatus | undefined,
   profileTypesConfigured: boolean,
+  requiredFieldsConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "profile-types") {
     if (profileTypesConfigured) return "complete";
+    if (stored === "in_progress" || stored === "complete") return stored;
+    return "not_started";
+  }
+  if (step === "required-fields") {
+    if (requiredFieldsConfigured) return "complete";
     if (stored === "in_progress" || stored === "complete") return stored;
     return "not_started";
   }
