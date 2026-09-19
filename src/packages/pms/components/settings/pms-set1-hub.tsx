@@ -66,8 +66,6 @@ import { CARD6_HASH, isCard6WorkspaceHash } from "@/packages/pms/lib/pms-propert
 import { PmsPropertySetupCard3Section } from "@/packages/pms/components/settings/pms-property-setup-card3-section";
 import { PmsPropertySetupCard5Section } from "@/packages/pms/components/settings/pms-property-setup-card5-section";
 import { CARD4_HASH, isCard4WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card4";
-import { CARD6_HASH, isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
-import { PmsPropertySetupCard3Section } from "@/packages/pms/components/settings/pms-property-setup-card3-section";
 import { PmsPropertySetupCard4Section } from "@/packages/pms/components/settings/pms-property-setup-card4-section";
 import { PmsPropertySetupCard6Section } from "@/packages/pms/components/settings/pms-property-setup-card6-section";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -96,6 +94,8 @@ function currentCard3Open(): boolean {
 function currentCard5Open(): boolean {
   if (typeof window === "undefined") return false;
   return isCard5WorkspaceHash(window.location.hash);
+}
+
 function currentCard4Open(): boolean {
   if (typeof window === "undefined") return false;
   return isCard4WorkspaceHash(window.location.hash);
@@ -134,6 +134,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       }
       if (raw === "card-5" || raw === "card5") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD5_HASH}`);
+      }
       if (raw === "card-4" || raw === "card4") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD4_HASH}`);
       }
@@ -188,8 +189,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
-      {card1Open || card2Open || card3Open || card5Open || card6Open ? null : (
-      {card1Open || card2Open || card3Open || card4Open || card6Open ? null : (
+      {card1Open || card2Open || card3Open || card4Open || card5Open || card6Open ? null : (
       <div>
         <Link
           to={SET1_PMS_BACK_HREF as "/restaurant/pms"}
@@ -202,8 +202,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           <span className="sr-only">{SET1_FOUNDATION_CHIP}</span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Property Setup for {membership.restaurant.name}. Eight cards. Property & Business, Rooms & Operations, Financial & Commercial, Organization & Facilities and Connectivity & Distribution are Spec’d in this wave.
-          Property Setup for {membership.restaurant.name}. Eight cards. Property & Business, Rooms & Operations, Financial & Commercial, Guest & Services and Connectivity & Distribution are Spec’d in this wave.
+          Property Setup for {membership.restaurant.name}. Eight cards. Property & Business, Rooms & Operations, Financial & Commercial, Guest & Services, Organization & Facilities and Connectivity & Distribution are Spec’d in this wave.
         </p>
       </div>
       )}
