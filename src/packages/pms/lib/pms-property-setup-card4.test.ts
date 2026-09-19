@@ -71,8 +71,13 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
       evaluateCard4StepStatus("identity-documents", undefined, true, true, true),
       "complete",
     );
+    assert.equal(
+      evaluateCard4StepStatus("preferences", undefined, true, true, true, true),
+      "complete",
+    );
     assert.equal(nextCard4Step("required-fields"), "identity-documents");
     assert.equal(nextCard4Step("identity-documents"), "preferences");
+    assert.equal(nextCard4Step("preferences"), "company-business");
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -90,6 +95,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
     assert.match(section, /PmsCard4RequiredFields/);
     assert.match(section, /PmsCard4IdentityDocuments/);
+    assert.match(section, /PmsCard4Preferences/);
     assert.match(section, /identity-documents/);
     assert.match(lib, /later phase/);
     assert.match(section, /cardStatusLabel=\{propertySetupStatusLabel\(cardStatus\)\}/);
@@ -139,7 +145,22 @@ describe("Card 4 dual-lane 0079", () => {
     assert.match(sql, /normalize_pms_guest_id_type_flags/);
     assert.match(sql, /NEW\.required_at_check_in := false/);
   });
+});
 
+describe("Card 4 dual-lane 0081", () => {
+  it("ships identical category and type SQL without guest preference values", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0081_pms_card4_preferences.sql");
+    const supabase = join(process.cwd(), "supabase/migrations/0081_pms_card4_preferences.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_preference_categories/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_preference_types/);
+    assert.match(sql, /pms_guest_pref_types_inactive_not_required/);
+    assert.doesNotMatch(sql, /CREATE TABLE IF NOT EXISTS public\.guest_preferences/);
+    assert.doesNotMatch(sql, /ALTER TABLE public\.pms_preference_options/);
+  });
 });
 
 describe("Card 4 dual-lane 0078", () => {

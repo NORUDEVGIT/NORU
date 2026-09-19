@@ -82,7 +82,9 @@ function mapRow(row: {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id),
     ),
     documentTypeIds: row.document_type_ids ?? [],
-    preferenceTypeIds: row.preference_type_ids ?? [],
+    preferenceTypeIds: (row.preference_type_ids ?? []).filter((id) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id),
+    ),
     defaults: normalizeProfileTypeDefaults(row.defaults),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -153,13 +155,21 @@ async function loadSnapshot(
     .order("name");
   const documentTypes: NamedOption[] = docsRes.error ? [] : (docsRes.data ?? []);
 
+  const prefsRes = await db
+    .from("pms_guest_preference_types")
+    .select("id, name")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true)
+    .order("name");
+  const preferenceTypes: NamedOption[] = prefsRes.error ? [] : (prefsRes.data ?? []);
+
   const types = (typesRes.data ?? []).map(mapRow);
   const lastUpdatedAt = types.reduce<string | null>((latest, row) => {
     if (!latest || row.updatedAt > latest) return row.updatedAt;
     return latest;
   }, null);
 
-  return { types, documentTypes, lastUpdatedAt };
+  return { types, documentTypes, preferenceTypes, lastUpdatedAt };
 }
 
 export const getPmsCard4ProfileTypes = createServerFn({ method: "POST" })
