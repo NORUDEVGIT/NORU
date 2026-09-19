@@ -1,7 +1,7 @@
 /**
  * PMS Property Setup Card 4 — Guest & Services (Issue #195).
  *
- * Phase 1: Profile Types. Other Guest Profile Rules steps are placeholders.
+ * Phases 1–3: Profile Types, Required Fields, and Identity Documents.
  * Operational Guest Profiles are not configured from this card.
  */
 
@@ -35,7 +35,7 @@ export const CARD4_STEPS = [
     id: "identity-documents",
     number: 3,
     title: "Identity Documents",
-    placeholder: "Identity Documents configuration will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "preferences",
@@ -74,6 +74,7 @@ export function evaluateCard4StepStatus(
   stored: PropertySetupCardStatus | undefined,
   profileTypesConfigured: boolean,
   requiredFieldsConfigured = false,
+  identityDocumentsConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "profile-types") {
     if (profileTypesConfigured) return "complete";
@@ -82,6 +83,11 @@ export function evaluateCard4StepStatus(
   }
   if (step === "required-fields") {
     if (requiredFieldsConfigured) return "complete";
+    if (stored === "in_progress" || stored === "complete") return stored;
+    return "not_started";
+  }
+  if (step === "identity-documents") {
+    if (identityDocumentsConfigured) return "complete";
     if (stored === "in_progress" || stored === "complete") return stored;
     return "not_started";
   }
