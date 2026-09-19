@@ -56,6 +56,7 @@ import {
   type Set5Snapshot,
 } from "@/packages/pms/lib/pms-set5-depts-guestsvc";
 import { SET5_TENDERS_LIVE_ON_PAYMENT_METHODS } from "@/packages/pms/lib/pms-polish1-payment-admin";
+import { CARD7_HREF } from "@/packages/pms/lib/pms-property-setup-card7";
 import {
   savePmsAdminControls,
   savePmsAuditRetention,
@@ -1091,8 +1092,13 @@ export function Set5SecuritySection({
         <div>
           <h2 className="font-display text-lg text-[#251605]">Security &amp; audit</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Session access and audit-retention posture, plus thin sensitive-data flags aligned with Guest Profile ID
-            types. This is not IAM and does not rebuild Guest Profile.
+            Session access stays here. Audit retention is mirrored to Card 7, which is the source of truth for
+            policy, categories and coverage. This is not IAM and does not rebuild Guest Profile.
+          </p>
+          <p className="mt-2 text-sm">
+            <a href={CARD7_HREF} className="text-[#C89933] underline-offset-2 hover:underline" data-testid="set5-open-card7-audit">
+              Open Card 7 Audit
+            </a>
           </p>
         </div>
         <ReadinessChip readiness={domain.readiness} />

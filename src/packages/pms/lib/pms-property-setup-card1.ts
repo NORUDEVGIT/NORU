@@ -17,6 +17,7 @@ import { CARD3_HASH, CARD3_PURPOSE, CARD3_TITLE } from "./pms-property-setup-car
 import { CARD5_HASH, CARD5_PURPOSE, CARD5_TITLE } from "./pms-property-setup-card5.ts";
 import { CARD4_HASH, CARD4_PURPOSE, CARD4_TITLE } from "./pms-property-setup-card4.ts";
 import { CARD6_HASH, CARD6_PURPOSE, CARD6_TITLE } from "./pms-property-setup-card6.ts";
+import { CARD7_HASH, CARD7_PURPOSE, CARD7_TITLE } from "./pms-property-setup-card7.ts";
 import {
   countryNameFromInput,
   isRegionValidForCountry,
@@ -143,10 +144,10 @@ export const PROPERTY_SETUP_CARDS = [
   {
     id: "sales-distribution",
     number: 7,
-    title: "Security, Data & Reports",
-    purpose: "Security & Roles, Audit, Reports & Analytics, Data Import & Migration.",
-    specced: false,
-    hash: null,
+    title: CARD7_TITLE,
+    purpose: CARD7_PURPOSE,
+    specced: true,
+    hash: CARD7_HASH,
   },
   {
     id: "payments-administration",
