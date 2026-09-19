@@ -47,6 +47,10 @@ import {
   Card4ServiceDepartmentAssignmentGuide,
   PmsCard4ServiceDepartmentAssignment,
 } from "@/packages/pms/components/settings/pms-card4-service-department-assignment";
+import {
+  Card4ServiceSlaRulesGuide,
+  PmsCard4ServiceSlaRules,
+} from "@/packages/pms/components/settings/pms-card4-service-sla-rules";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
@@ -57,6 +61,8 @@ import { getPmsCard4ServicePricing } from "@/packages/pms/lib/service-pricing-ca
 import { servicePricingConfigured } from "@/packages/pms/lib/service-pricing-card4.server";
 import { getPmsCard4ServiceDepartmentAssignments } from "@/packages/pms/lib/service-department-assignment-card4.functions";
 import { serviceDepartmentAssignmentsConfigured } from "@/packages/pms/lib/service-department-assignment-card4.server";
+import { getPmsCard4ServiceSlaRules } from "@/packages/pms/lib/service-sla-rules-card4.functions";
+import { serviceSlaRulesConfigured } from "@/packages/pms/lib/service-sla-rules-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -110,6 +116,7 @@ export function PmsPropertySetupCard4Section({
   const loadServiceTypes = useServerFn(getPmsCard4ServiceTypes);
   const loadServicePricing = useServerFn(getPmsCard4ServicePricing);
   const loadAssignments = useServerFn(getPmsCard4ServiceDepartmentAssignments);
+  const loadSlaRules = useServerFn(getPmsCard4ServiceSlaRules);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -156,6 +163,11 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadAssignments({ data: { restaurantId } }),
     retry: false,
   });
+  const slaRulesQuery = useQuery({
+    queryKey: ["pms-card4-service-sla-rules", restaurantId],
+    queryFn: () => loadSlaRules({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -189,6 +201,10 @@ export function PmsPropertySetupCard4Section({
     assignmentsQuery.data?.assignments ?? [],
     assignmentsQuery.data?.serviceTypes ?? [],
     assignmentsQuery.data?.departments ?? [],
+  );
+  const slaRulesReady = serviceSlaRulesConfigured(
+    slaRulesQuery.data?.rules ?? [],
+    slaRulesQuery.data?.serviceTypes ?? [],
   );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
@@ -251,6 +267,7 @@ export function PmsPropertySetupCard4Section({
       typesReady,
       pricingReady,
       assignmentsReady,
+      slaRulesReady,
     ),
     "service-types": evaluateGstStepStatus(
       "service-types",
@@ -258,6 +275,7 @@ export function PmsPropertySetupCard4Section({
       typesReady,
       pricingReady,
       assignmentsReady,
+      slaRulesReady,
     ),
     "service-pricing": evaluateGstStepStatus(
       "service-pricing",
@@ -265,6 +283,7 @@ export function PmsPropertySetupCard4Section({
       typesReady,
       pricingReady,
       assignmentsReady,
+      slaRulesReady,
     ),
     "department-assignment": evaluateGstStepStatus(
       "department-assignment",
@@ -272,6 +291,7 @@ export function PmsPropertySetupCard4Section({
       typesReady,
       pricingReady,
       assignmentsReady,
+      slaRulesReady,
     ),
     "sla-rules": evaluateGstStepStatus(
       "sla-rules",
@@ -279,6 +299,7 @@ export function PmsPropertySetupCard4Section({
       typesReady,
       pricingReady,
       assignmentsReady,
+      slaRulesReady,
     ),
     "service-availability": evaluateGstStepStatus(
       "service-availability",
@@ -286,6 +307,7 @@ export function PmsPropertySetupCard4Section({
       typesReady,
       pricingReady,
       assignmentsReady,
+      slaRulesReady,
     ),
   };
   const gprCompleted = card4CompletedCount(stepStatuses);
@@ -303,7 +325,12 @@ export function PmsPropertySetupCard4Section({
     preferencesReady &&
     companyReady;
   const cardStatus: PropertySetupCardStatus =
-    allGprComplete && categoriesReady && typesReady && pricingReady && assignmentsReady
+    allGprComplete &&
+    categoriesReady &&
+    typesReady &&
+    pricingReady &&
+    assignmentsReady &&
+    slaRulesReady
       ? "complete"
       : profileTypesConfigured ||
           requiredFieldsConfigured ||
@@ -313,7 +340,8 @@ export function PmsPropertySetupCard4Section({
           categoriesReady ||
           typesReady ||
           pricingReady ||
-          assignmentsReady
+          assignmentsReady ||
+          slaRulesReady
         ? "in_progress"
         : "not_started";
 
@@ -351,7 +379,8 @@ export function PmsPropertySetupCard4Section({
         gstStep === "service-categories" ||
         gstStep === "service-types" ||
         gstStep === "service-pricing" ||
-        gstStep === "department-assignment"
+        gstStep === "department-assignment" ||
+        gstStep === "sla-rules"
       ) {
         requestSave(true);
         return;
@@ -382,7 +411,8 @@ export function PmsPropertySetupCard4Section({
     gstStep === "service-categories" ||
     gstStep === "service-types" ||
     gstStep === "service-pricing" ||
-    gstStep === "department-assignment";
+    gstStep === "department-assignment" ||
+    gstStep === "sla-rules";
   const liveStep =
     mainSection === "profile-rules"
       ? gprLive
@@ -521,6 +551,13 @@ export function PmsPropertySetupCard4Section({
               assignmentsQuery.data?.departments.filter((row) => row.active).length ?? 0
             }
           />
+        ) : mainSection === "guest-service-types" && gstStep === "sla-rules" ? (
+          <Card4ServiceSlaRulesGuide
+            ruleCount={slaRulesQuery.data?.rules.length ?? 0}
+            activeServiceTypeCount={
+              slaRulesQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
+            }
+          />
         ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
           <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
         ) : step === "required-fields" ? (
@@ -584,6 +621,14 @@ export function PmsPropertySetupCard4Section({
           />
         ) : gstStep === "department-assignment" ? (
           <PmsCard4ServiceDepartmentAssignment
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onSavingChange={onSavingChange}
+            saveRequest={saveRequest}
+            onSaved={onSaved}
+          />
+        ) : gstStep === "sla-rules" ? (
+          <PmsCard4ServiceSlaRules
             restaurantId={restaurantId}
             canEdit={canEdit}
             onSavingChange={onSavingChange}
