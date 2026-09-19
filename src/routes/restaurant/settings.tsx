@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isCard1WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card1";
 import { isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
 import { isCard3WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card3";
+import { isCard5WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card5";
 import { isCard4WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card4";
 import { isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
 
@@ -41,6 +42,7 @@ function RestaurantSettings() {
       ? isCard1WorkspaceHash(window.location.hash) ||
         isCard2WorkspaceHash(window.location.hash) ||
         isCard3WorkspaceHash(window.location.hash) ||
+        isCard5WorkspaceHash(window.location.hash) ||
         isCard4WorkspaceHash(window.location.hash) ||
         isCard6WorkspaceHash(window.location.hash)
       : false,
@@ -51,6 +53,7 @@ function RestaurantSettings() {
         isCard1WorkspaceHash(window.location.hash) ||
           isCard2WorkspaceHash(window.location.hash) ||
           isCard3WorkspaceHash(window.location.hash) ||
+          isCard5WorkspaceHash(window.location.hash) ||
           isCard4WorkspaceHash(window.location.hash) ||
           isCard6WorkspaceHash(window.location.hash),
       );
