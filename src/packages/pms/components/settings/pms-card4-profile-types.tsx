@@ -56,7 +56,6 @@ import {
   PROFILE_TYPE_CURRENCIES,
   PROFILE_TYPE_ICONS,
   PROFILE_TYPE_LANGUAGES,
-  PROFILE_TYPE_PREFERENCE_TYPES,
   emptyProfileTypeDraft,
   normalizeProfileTypeCode,
   type ProfileTypeDraft,
@@ -504,24 +503,30 @@ export function PmsCard4ProfileTypes({
             )}
           </TabsContent>
           <TabsContent value="preferences" className="space-y-2 pt-3">
-            {PROFILE_TYPE_PREFERENCE_TYPES.map((pref) => (
-              <div key={pref.id} className="flex items-center gap-2">
-                <Checkbox
-                  id={`pref-${pref.id}`}
-                  checked={draft.preferenceTypeIds.includes(pref.id)}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) =>
-                    mark(
-                      "preferenceTypeIds",
-                      toggleId(draft.preferenceTypeIds, pref.id, checked === true),
-                    )
-                  }
-                />
-                <Label htmlFor={`pref-${pref.id}`} className="font-normal">
-                  {pref.label}
-                </Label>
-              </div>
-            ))}
+            {(query.data?.preferenceTypes ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No preference types are configured yet. Add them on Preferences later.
+              </p>
+            ) : (
+              (query.data?.preferenceTypes ?? []).map((pref) => (
+                <div key={pref.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`pref-${pref.id}`}
+                    checked={draft.preferenceTypeIds.includes(pref.id)}
+                    disabled={!canEdit}
+                    onCheckedChange={(checked) =>
+                      mark(
+                        "preferenceTypeIds",
+                        toggleId(draft.preferenceTypeIds, pref.id, checked === true),
+                      )
+                    }
+                  />
+                  <Label htmlFor={`pref-${pref.id}`} className="font-normal">
+                    {pref.name}
+                  </Label>
+                </div>
+              ))
+            )}
           </TabsContent>
           <TabsContent value="defaults" className="grid gap-3 sm:grid-cols-2 pt-3">
             <DefaultSelect

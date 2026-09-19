@@ -139,6 +139,7 @@ export type NamedOption = { id: string; name: string };
 export type ProfileTypeSnapshot = {
   types: ProfileTypeRecord[];
   documentTypes: NamedOption[];
+  preferenceTypes: NamedOption[];
   lastUpdatedAt: string | null;
 };
 
@@ -220,8 +221,7 @@ export function validateProfileTypeDraft(
       message: "A required field is not in the catalogue.",
     });
   }
-  const knownPrefs = new Set(PROFILE_TYPE_PREFERENCE_TYPES.map((row) => row.id));
-  if (draft.preferenceTypeIds.some((id) => !knownPrefs.has(id))) {
+  if (draft.preferenceTypeIds.some((id) => !uuid.test(id))) {
     errors.push({
       field: "preferenceTypeIds",
       message: "A preference type is not in the catalogue.",

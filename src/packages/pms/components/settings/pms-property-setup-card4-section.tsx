@@ -21,6 +21,12 @@ import { getPmsCard4RequiredFields } from "@/packages/pms/lib/required-fields-ca
 import { guestFieldsConfigured } from "@/packages/pms/lib/required-fields-card4.server";
 import { getPmsCard4IdentityDocumentTypes } from "@/packages/pms/lib/identity-documents-card4.functions";
 import { identityDocumentTypesConfigured } from "@/packages/pms/lib/identity-documents-card4.server";
+import { getPmsCard4Preferences } from "@/packages/pms/lib/preferences-card4.functions";
+import { preferencesConfigured } from "@/packages/pms/lib/preferences-card4.server";
+import {
+  Card4PreferencesGuide,
+  PmsCard4Preferences,
+} from "@/packages/pms/components/settings/pms-card4-preferences";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -55,6 +61,7 @@ export function PmsPropertySetupCard4Section({
   const loadTypes = useServerFn(getPmsCard4ProfileTypes);
   const loadFields = useServerFn(getPmsCard4RequiredFields);
   const loadDocuments = useServerFn(getPmsCard4IdentityDocumentTypes);
+  const loadPreferences = useServerFn(getPmsCard4Preferences);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -71,10 +78,19 @@ export function PmsPropertySetupCard4Section({
     enabled: typesQuery.isSuccess,
     retry: false,
   });
+  const preferencesQuery = useQuery({
+    queryKey: ["pms-card4-preferences", restaurantId],
+    queryFn: () => loadPreferences({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
     documentsQuery.data?.documentTypes ?? [],
+  );
+  const preferencesReady = preferencesConfigured(
+    preferencesQuery.data?.categories ?? [],
+    preferencesQuery.data?.types ?? [],
   );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
@@ -91,6 +107,7 @@ export function PmsPropertySetupCard4Section({
       profileTypesConfigured,
       requiredFieldsConfigured,
       identityDocumentsConfigured,
+      preferencesReady,
     ),
     "required-fields": evaluateCard4StepStatus(
       "required-fields",
@@ -98,6 +115,7 @@ export function PmsPropertySetupCard4Section({
       profileTypesConfigured,
       requiredFieldsConfigured,
       identityDocumentsConfigured,
+      preferencesReady,
     ),
     "identity-documents": evaluateCard4StepStatus(
       "identity-documents",
@@ -105,14 +123,25 @@ export function PmsPropertySetupCard4Section({
       profileTypesConfigured,
       requiredFieldsConfigured,
       identityDocumentsConfigured,
+      preferencesReady,
     ),
-    preferences: "not_started",
+    preferences: evaluateCard4StepStatus(
+      "preferences",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+      identityDocumentsConfigured,
+      preferencesReady,
+    ),
     "company-business": "not_started",
   };
   const completedCount = card4CompletedCount(stepStatuses);
   const progressPct = card4ProgressPct(completedCount);
   const cardStatus: PropertySetupCardStatus =
-    profileTypesConfigured || requiredFieldsConfigured || identityDocumentsConfigured
+    profileTypesConfigured ||
+    requiredFieldsConfigured ||
+    identityDocumentsConfigured ||
+    preferencesReady
       ? "in_progress"
       : "not_started";
 
@@ -131,7 +160,12 @@ export function PmsPropertySetupCard4Section({
   }
 
   function goContinue() {
-    if (step === "profile-types" || step === "required-fields" || step === "identity-documents") {
+    if (
+      step === "profile-types" ||
+      step === "required-fields" ||
+      step === "identity-documents" ||
+      step === "preferences"
+    ) {
       requestSave(true);
       return;
     }
@@ -139,7 +173,10 @@ export function PmsPropertySetupCard4Section({
   }
 
   const liveStep =
-    step === "profile-types" || step === "required-fields" || step === "identity-documents";
+    step === "profile-types" ||
+    step === "required-fields" ||
+    step === "identity-documents" ||
+    step === "preferences";
   const placeholder = current.placeholder;
 
   return (
@@ -183,6 +220,11 @@ export function PmsPropertySetupCard4Section({
           <Card4IdentityDocumentsGuide
             activeCount={documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0}
           />
+        ) : step === "preferences" ? (
+          <Card4PreferencesGuide
+            categoryCount={preferencesQuery.data?.categories.length ?? 0}
+            typeCount={preferencesQuery.data?.types.length ?? 0}
+          />
         ) : null
       }
     >
@@ -205,6 +247,14 @@ export function PmsPropertySetupCard4Section({
         />
       ) : step === "identity-documents" ? (
         <PmsCard4IdentityDocuments
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onSavingChange={onSavingChange}
+          saveRequest={saveRequest}
+          onSaved={onSaved}
+        />
+      ) : step === "preferences" ? (
+        <PmsCard4Preferences
           restaurantId={restaurantId}
           canEdit={canEdit}
           onSavingChange={onSavingChange}
