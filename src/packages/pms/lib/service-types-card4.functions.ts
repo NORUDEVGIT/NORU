@@ -322,13 +322,24 @@ export const deletePmsCard4ServiceType = createServerFn({ method: "POST" })
     if ((pricing.count ?? 0) > 0) {
       throw new Error("This service type cannot be deleted because pricing is configured.");
     }
+    const assignments = await db
+      .from("pms_guest_service_department_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("service_type_id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (assignments.error && assignments.error.code !== "42P01") unavailable(assignments.error);
+    if ((assignments.count ?? 0) > 0) {
+      throw new Error("This service type cannot be deleted because a department is assigned.");
+    }
     const result = await db
       .from("pms_guest_service_types")
       .delete()
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId);
     if (result.error?.code === "23503") {
-      throw new Error("This service type cannot be deleted because pricing is configured.");
+      throw new Error(
+        "This service type cannot be deleted because pricing or a department assignment is configured.",
+      );
     }
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_type_deleted", {

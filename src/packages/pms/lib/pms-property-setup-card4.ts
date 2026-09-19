@@ -88,7 +88,7 @@ export const CARD4_GST_STEPS = [
     id: "department-assignment",
     number: 4,
     title: "Department Assignment",
-    placeholder: "Department Assignment will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "sla-rules",
@@ -121,6 +121,7 @@ export function evaluateGstStepStatus(
   serviceCategoriesConfigured: boolean,
   serviceTypesConfigured = false,
   servicePricingConfigured = false,
+  departmentAssignmentsConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "service-categories") {
     return serviceCategoriesConfigured ? "complete" : "not_started";
@@ -130,6 +131,9 @@ export function evaluateGstStepStatus(
   }
   if (step === "service-pricing") {
     return servicePricingConfigured ? "complete" : "not_started";
+  }
+  if (step === "department-assignment") {
+    return departmentAssignmentsConfigured ? "complete" : "not_started";
   }
   return "not_started";
 }
