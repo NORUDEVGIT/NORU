@@ -66,6 +66,8 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.equal(nextCard4Step("profile-types"), "required-fields");
     assert.equal(evaluateCard4StepStatus("profile-types", undefined, true), "complete");
     assert.equal(evaluateCard4StepStatus("required-fields", undefined, true), "not_started");
+    assert.equal(evaluateCard4StepStatus("required-fields", undefined, true, true), "complete");
+    assert.equal(nextCard4Step("required-fields"), "identity-documents");
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -81,7 +83,8 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(hub, /CARD4_HASH/);
     assert.match(settings, /isCard4WorkspaceHash/);
     assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
-    assert.match(section, /Save & Next/);
+    assert.match(section, /PmsCard4RequiredFields/);
+    assert.match(section, /identity-documents/);
     assert.match(lib, /later phase/);
     assert.match(section, /cardStatusLabel=\{propertySetupStatusLabel\(cardStatus\)\}/);
     assert.doesNotMatch(section, /cardStatus = "complete"/);
@@ -94,6 +97,21 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(wave1, /id: "travel-agent"/);
     assert.doesNotMatch(wave1, /\bIND\b/);
     assert.doesNotMatch(wave1, /pms_guest_profile_types/);
+  });
+});
+
+describe("Card 4 dual-lane 0078", () => {
+  it("ships identical supabase and drizzle SQL with tenant RLS and no guest_profiles FK", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0078_pms_card4_required_fields.sql");
+    const supabase = join(process.cwd(), "supabase/migrations/0078_pms_card4_required_fields.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_fields/);
+    assert.match(sql, /ALTER TABLE public\.pms_guest_fields ENABLE ROW LEVEL SECURITY/);
+    assert.match(sql, /pms_guest_fields_inactive_not_required/);
+    assert.doesNotMatch(sql, /REFERENCES public\.guest_profiles/);
   });
 });
 

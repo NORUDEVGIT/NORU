@@ -44,6 +44,7 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import { GUEST_PROFILE_TYPES } from "@/packages/pms/lib/guest-profile-wave1";
+import { getPmsCard4RequiredFields } from "@/packages/pms/lib/required-fields-card4.functions";
 import {
   deletePmsCard4ProfileType,
   getPmsCard4ProfileTypes,
@@ -56,7 +57,6 @@ import {
   PROFILE_TYPE_ICONS,
   PROFILE_TYPE_LANGUAGES,
   PROFILE_TYPE_PREFERENCE_TYPES,
-  PROFILE_TYPE_REQUIRED_FIELDS,
   emptyProfileTypeDraft,
   normalizeProfileTypeCode,
   type ProfileTypeDraft,
@@ -100,6 +100,7 @@ export function PmsCard4ProfileTypes({
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(getPmsCard4ProfileTypes);
+  const loadFields = useServerFn(getPmsCard4RequiredFields);
   const save = useServerFn(savePmsCard4ProfileType);
   const setActive = useServerFn(setPmsCard4ProfileTypeActive);
   const remove = useServerFn(deletePmsCard4ProfileType);
@@ -110,6 +111,12 @@ export function PmsCard4ProfileTypes({
     queryFn: () => load({ data: { restaurantId } }),
     retry: false,
   });
+  const fieldsQuery = useQuery({
+    queryKey: ["pms-card4-required-fields", restaurantId],
+    queryFn: () => loadFields({ data: { restaurantId } }),
+    retry: false,
+  });
+  const catalogueFields = (fieldsQuery.data?.fields ?? []).filter((row) => row.active);
 
   const types = query.data?.types ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -445,24 +452,30 @@ export function PmsCard4ProfileTypes({
             </div>
           </TabsContent>
           <TabsContent value="fields" className="space-y-2 pt-3">
-            {PROFILE_TYPE_REQUIRED_FIELDS.map((field) => (
-              <div key={field.id} className="flex items-center gap-2">
-                <Checkbox
-                  id={`field-${field.id}`}
-                  checked={draft.requiredFieldIds.includes(field.id)}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) =>
-                    mark(
-                      "requiredFieldIds",
-                      toggleId(draft.requiredFieldIds, field.id, checked === true),
-                    )
-                  }
-                />
-                <Label htmlFor={`field-${field.id}`} className="font-normal">
-                  {field.label}
-                </Label>
-              </div>
-            ))}
+            {catalogueFields.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No required fields are configured yet. Add them on Required Fields.
+              </p>
+            ) : (
+              catalogueFields.map((field) => (
+                <div key={field.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`field-${field.id}`}
+                    checked={draft.requiredFieldIds.includes(field.id)}
+                    disabled={!canEdit}
+                    onCheckedChange={(checked) =>
+                      mark(
+                        "requiredFieldIds",
+                        toggleId(draft.requiredFieldIds, field.id, checked === true),
+                      )
+                    }
+                  />
+                  <Label htmlFor={`field-${field.id}`} className="font-normal">
+                    {field.name}
+                  </Label>
+                </div>
+              ))
+            )}
           </TabsContent>
           <TabsContent value="documents" className="space-y-2 pt-3">
             {(query.data?.documentTypes ?? []).length === 0 ? (

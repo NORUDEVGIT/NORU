@@ -7,7 +7,6 @@ import { GUEST_PROFILE_TYPES } from "./guest-profile-wave1.ts";
 import {
   DEFAULT_PROFILE_TYPES,
   PROFILE_TYPE_PREFERENCE_TYPES,
-  PROFILE_TYPE_REQUIRED_FIELDS,
   emptyProfileTypeDraft,
   normalizeProfileTypeCode,
   validateProfileTypeDraft,
@@ -24,20 +23,6 @@ describe("Card 4 Profile Types catalogue", () => {
     assert.deepEqual(
       DEFAULT_PROFILE_TYPES.map((row) => row.code),
       ["IND", "COM", "TRA", "TOU", "ORG", "CON"],
-    );
-    assert.deepEqual(
-      PROFILE_TYPE_REQUIRED_FIELDS.map((row) => row.id),
-      [
-        "firstName",
-        "lastName",
-        "phone",
-        "email",
-        "nationality",
-        "dateOfBirth",
-        "identityDocument",
-        "address",
-        "company",
-      ],
     );
     assert.deepEqual(
       PROFILE_TYPE_PREFERENCE_TYPES.map((row) => row.id),

@@ -213,8 +213,8 @@ export function validateProfileTypeDraft(
   if (!isProfileTypeIcon(draft.icon)) {
     errors.push({ field: "icon", message: "Choose an icon from the catalogue." });
   }
-  const knownFields = new Set(PROFILE_TYPE_REQUIRED_FIELDS.map((row) => row.id));
-  if (draft.requiredFieldIds.some((id) => !knownFields.has(id))) {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (draft.requiredFieldIds.some((id) => !uuid.test(id))) {
     errors.push({
       field: "requiredFieldIds",
       message: "A required field is not in the catalogue.",
