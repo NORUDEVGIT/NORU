@@ -11,10 +11,16 @@ import {
   Card4RequiredFieldsGuide,
   PmsCard4RequiredFields,
 } from "@/packages/pms/components/settings/pms-card4-required-fields";
+import {
+  Card4IdentityDocumentsGuide,
+  PmsCard4IdentityDocuments,
+} from "@/packages/pms/components/settings/pms-card4-identity-documents";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { getPmsCard4ProfileTypes } from "@/packages/pms/lib/profile-types-card4.functions";
 import { getPmsCard4RequiredFields } from "@/packages/pms/lib/required-fields-card4.functions";
 import { guestFieldsConfigured } from "@/packages/pms/lib/required-fields-card4.server";
+import { getPmsCard4IdentityDocumentTypes } from "@/packages/pms/lib/identity-documents-card4.functions";
+import { identityDocumentTypesConfigured } from "@/packages/pms/lib/identity-documents-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -48,6 +54,7 @@ export function PmsPropertySetupCard4Section({
   const [canSave, setCanSave] = useState(false);
   const loadTypes = useServerFn(getPmsCard4ProfileTypes);
   const loadFields = useServerFn(getPmsCard4RequiredFields);
+  const loadDocuments = useServerFn(getPmsCard4IdentityDocumentTypes);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -58,8 +65,17 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadFields({ data: { restaurantId } }),
     retry: false,
   });
+  const documentsQuery = useQuery({
+    queryKey: ["pms-card4-identity-documents", restaurantId],
+    queryFn: () => loadDocuments({ data: { restaurantId } }),
+    enabled: typesQuery.isSuccess,
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
+  const identityDocumentsConfigured = identityDocumentTypesConfigured(
+    documentsQuery.data?.documentTypes ?? [],
+  );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
     setSaving(nextSaving);
@@ -74,21 +90,31 @@ export function PmsPropertySetupCard4Section({
       undefined,
       profileTypesConfigured,
       requiredFieldsConfigured,
+      identityDocumentsConfigured,
     ),
     "required-fields": evaluateCard4StepStatus(
       "required-fields",
       undefined,
       profileTypesConfigured,
       requiredFieldsConfigured,
+      identityDocumentsConfigured,
     ),
-    "identity-documents": "not_started",
+    "identity-documents": evaluateCard4StepStatus(
+      "identity-documents",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+      identityDocumentsConfigured,
+    ),
     preferences: "not_started",
     "company-business": "not_started",
   };
   const completedCount = card4CompletedCount(stepStatuses);
   const progressPct = card4ProgressPct(completedCount);
   const cardStatus: PropertySetupCardStatus =
-    profileTypesConfigured || requiredFieldsConfigured ? "in_progress" : "not_started";
+    profileTypesConfigured || requiredFieldsConfigured || identityDocumentsConfigured
+      ? "in_progress"
+      : "not_started";
 
   function goHub() {
     window.location.hash = "";
@@ -105,14 +131,15 @@ export function PmsPropertySetupCard4Section({
   }
 
   function goContinue() {
-    if (step === "profile-types" || step === "required-fields") {
+    if (step === "profile-types" || step === "required-fields" || step === "identity-documents") {
       requestSave(true);
       return;
     }
     if (next) setStep(next);
   }
 
-  const liveStep = step === "profile-types" || step === "required-fields";
+  const liveStep =
+    step === "profile-types" || step === "required-fields" || step === "identity-documents";
   const placeholder = current.placeholder;
 
   return (
@@ -152,6 +179,10 @@ export function PmsPropertySetupCard4Section({
             count={fieldsQuery.data?.fields.length ?? 0}
             onGoIdentityDocuments={() => setStep("identity-documents")}
           />
+        ) : step === "identity-documents" ? (
+          <Card4IdentityDocumentsGuide
+            activeCount={documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0}
+          />
         ) : null
       }
     >
@@ -171,6 +202,14 @@ export function PmsPropertySetupCard4Section({
           saveRequest={saveRequest}
           onSaved={onSaved}
           onGoIdentityDocuments={() => setStep("identity-documents")}
+        />
+      ) : step === "identity-documents" ? (
+        <PmsCard4IdentityDocuments
+          restaurantId={restaurantId}
+          canEdit={canEdit}
+          onSavingChange={onSavingChange}
+          saveRequest={saveRequest}
+          onSaved={onSaved}
         />
       ) : (
         <div

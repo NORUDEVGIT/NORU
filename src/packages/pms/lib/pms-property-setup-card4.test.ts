@@ -67,7 +67,12 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.equal(evaluateCard4StepStatus("profile-types", undefined, true), "complete");
     assert.equal(evaluateCard4StepStatus("required-fields", undefined, true), "not_started");
     assert.equal(evaluateCard4StepStatus("required-fields", undefined, true, true), "complete");
+    assert.equal(
+      evaluateCard4StepStatus("identity-documents", undefined, true, true, true),
+      "complete",
+    );
     assert.equal(nextCard4Step("required-fields"), "identity-documents");
+    assert.equal(nextCard4Step("identity-documents"), "preferences");
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -84,6 +89,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(settings, /isCard4WorkspaceHash/);
     assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
     assert.match(section, /PmsCard4RequiredFields/);
+    assert.match(section, /PmsCard4IdentityDocuments/);
     assert.match(section, /identity-documents/);
     assert.match(lib, /later phase/);
     assert.match(section, /cardStatusLabel=\{propertySetupStatusLabel\(cardStatus\)\}/);
@@ -98,6 +104,42 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.doesNotMatch(wave1, /\bIND\b/);
     assert.doesNotMatch(wave1, /pms_guest_profile_types/);
   });
+});
+
+describe("Card 4 dual-lane 0079", () => {
+  it("extends the shared document catalogue without storing guest identity data", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0079_pms_card4_identity_documents.sql");
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0079_pms_card4_identity_documents.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /ALTER TABLE public\.pms_guest_id_types/);
+    assert.match(sql, /valid_for_profile_type_ids uuid\[\]/);
+    assert.match(sql, /pms_guest_id_types_inactive_not_required/);
+    assert.doesNotMatch(sql, /passport_number|document_image|ocr|guest_profiles/);
+  });
+
+  it("keeps SET3 deactivation compatible through identical 0080 trigger SQL", () => {
+    const drizzle = join(
+      process.cwd(),
+      "drizzle/migrations/0080_pms_card4_identity_documents_active_compat.sql",
+    );
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0080_pms_card4_identity_documents_active_compat.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /normalize_pms_guest_id_type_flags/);
+    assert.match(sql, /NEW\.required_at_check_in := false/);
+  });
+
 });
 
 describe("Card 4 dual-lane 0078", () => {
