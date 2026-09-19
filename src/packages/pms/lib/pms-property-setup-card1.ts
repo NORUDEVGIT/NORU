@@ -14,6 +14,7 @@ import { SET1_HUB_HREF, displayedBusinessDate, normalizeClock } from "./pms-set1
 import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
 import { CARD2_STEPS, type Card2StepId } from "./pms-property-setup-card2.ts";
 import { CARD3_HASH, CARD3_PURPOSE, CARD3_TITLE } from "./pms-property-setup-card3.ts";
+import { CARD5_HASH, CARD5_PURPOSE, CARD5_TITLE } from "./pms-property-setup-card5.ts";
 import { CARD6_HASH, CARD6_PURPOSE, CARD6_TITLE } from "./pms-property-setup-card6.ts";
 import {
   countryNameFromInput,
@@ -125,10 +126,10 @@ export const PROPERTY_SETUP_CARDS = [
   {
     id: "departments-services",
     number: 5,
-    title: "Organization & Facilities",
-    purpose: "Departments, Outlets & Facilities, Sales & Events.",
-    specced: false,
-    hash: null,
+    title: CARD5_TITLE,
+    purpose: CARD5_PURPOSE,
+    specced: true,
+    hash: CARD5_HASH,
   },
   {
     id: "notifications-security",

@@ -326,11 +326,13 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(PROPERTY_SETUP_CARDS[1].specced, true);
     assert.equal(PROPERTY_SETUP_CARDS[2].title, "Financial & Commercial");
     assert.equal(PROPERTY_SETUP_CARDS[2].specced, true);
+    assert.equal(PROPERTY_SETUP_CARDS[4].title, "Organization & Facilities");
+    assert.equal(PROPERTY_SETUP_CARDS[4].specced, true);
     assert.equal(PROPERTY_SETUP_CARDS[5].title, "Connectivity & Distribution");
     assert.equal(PROPERTY_SETUP_CARDS[5].specced, true);
     assert.deepEqual(
       PROPERTY_SETUP_CARDS.filter((card) => !card.specced).map((card) => card.number),
-      [4, 5, 7, 8],
+      [4, 7, 8],
     );
     assert.ok(PROPERTY_SETUP_CARDS.every((card) => (card.specced ? card.hash !== null : card.hash === null)));
     assert.equal(CARD1_STEPS.length, 8);
