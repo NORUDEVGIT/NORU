@@ -94,7 +94,7 @@ export const CARD4_GST_STEPS = [
     id: "sla-rules",
     number: 5,
     title: "SLA Rules",
-    placeholder: "SLA Rules will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "service-availability",
@@ -122,6 +122,7 @@ export function evaluateGstStepStatus(
   serviceTypesConfigured = false,
   servicePricingConfigured = false,
   departmentAssignmentsConfigured = false,
+  serviceSlaRulesConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "service-categories") {
     return serviceCategoriesConfigured ? "complete" : "not_started";
@@ -134,6 +135,9 @@ export function evaluateGstStepStatus(
   }
   if (step === "department-assignment") {
     return departmentAssignmentsConfigured ? "complete" : "not_started";
+  }
+  if (step === "sla-rules") {
+    return serviceSlaRulesConfigured ? "complete" : "not_started";
   }
   return "not_started";
 }
