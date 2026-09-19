@@ -1,8 +1,8 @@
 /**
  * PMS Property Setup Card 4 — Guest & Services (Issue #195).
  *
- * Phases 1–5: Profile Types through Company & Business.
- * Operational Guest Profiles are not configured from this card.
+ * Guest Profile Rules (phases 1–5) plus Guest Service Types (service categories).
+ * Operational Guest Profiles and Guest Services requests are not configured here.
  */
 
 import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";
@@ -10,7 +10,11 @@ import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
 
 export const CARD4_TITLE = "Guest & Services";
 export const CARD4_WORKSPACE_TITLE = "Guest & Services";
-export const CARD4_SUBTITLE = "Guest Profile Rules for this property.";
+export const CARD4_SUBTITLE = "Guest profile rules, guest service types, and notifications.";
+export const CARD4_GPR_SUBTITLE = "Guest Profile Rules for this property.";
+export const CARD4_GST_SUBTITLE = "Organize guest services into categories for easier management.";
+export const CARD4_NOTIFY_SUBTITLE =
+  "Notifications & Communication configuration will be implemented in a later phase.";
 export const CARD4_PURPOSE =
   "Guest Profile Rules, Guest Service Types, Notifications & Communication.";
 export const CARD4_HASH = "guest-services";
@@ -52,6 +56,81 @@ export const CARD4_STEPS = [
 ] as const;
 
 export type Card4StepId = (typeof CARD4_STEPS)[number]["id"];
+
+export const CARD4_MAIN_SECTIONS = [
+  { id: "profile-rules", title: "Guest Profile Rules" },
+  { id: "guest-service-types", title: "Guest Service Types" },
+  { id: "notifications", title: "Notifications & Communication" },
+] as const;
+
+export type Card4MainSectionId = (typeof CARD4_MAIN_SECTIONS)[number]["id"];
+
+export const CARD4_GST_STEPS = [
+  {
+    id: "service-categories",
+    number: 1,
+    title: "Service Categories",
+    placeholder: null,
+  },
+  {
+    id: "service-types",
+    number: 2,
+    title: "Service Types",
+    placeholder: "Service Types will be implemented in a later phase.",
+  },
+  {
+    id: "service-pricing",
+    number: 3,
+    title: "Service Pricing",
+    placeholder: "Service Pricing will be implemented in a later phase.",
+  },
+  {
+    id: "department-assignment",
+    number: 4,
+    title: "Department Assignment",
+    placeholder: "Department Assignment will be implemented in a later phase.",
+  },
+  {
+    id: "sla-rules",
+    number: 5,
+    title: "SLA Rules",
+    placeholder: "SLA Rules will be implemented in a later phase.",
+  },
+  {
+    id: "service-availability",
+    number: 6,
+    title: "Service Availability",
+    placeholder: "Service Availability will be implemented in a later phase.",
+  },
+] as const;
+
+export type Card4GstStepId = (typeof CARD4_GST_STEPS)[number]["id"];
+
+export function card4GstStepById(step: Card4GstStepId) {
+  return CARD4_GST_STEPS.find((row) => row.id === step) ?? CARD4_GST_STEPS[0];
+}
+
+export function nextCard4GstStep(step: Card4GstStepId): Card4GstStepId | null {
+  const index = CARD4_GST_STEPS.findIndex((row) => row.id === step);
+  if (index < 0 || index >= CARD4_GST_STEPS.length - 1) return null;
+  return CARD4_GST_STEPS[index + 1]?.id ?? null;
+}
+
+export function evaluateGstStepStatus(
+  step: Card4GstStepId,
+  serviceCategoriesConfigured: boolean,
+): PropertySetupCardStatus {
+  if (step === "service-categories") {
+    return serviceCategoriesConfigured ? "complete" : "not_started";
+  }
+  return "not_started";
+}
+
+export function card4GstCompletedCount(
+  stepStatuses: Partial<Record<Card4GstStepId, PropertySetupCardStatus>>,
+): number {
+  return CARD4_GST_STEPS.filter((row) => stepStatuses[row.id] === "complete").length;
+}
 
 export function card4StepById(step: Card4StepId) {
   return CARD4_STEPS.find((row) => row.id === step) ?? CARD4_STEPS[0];

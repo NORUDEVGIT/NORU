@@ -10,12 +10,16 @@ import {
 } from "./pms-set1-foundation.ts";
 import { PROPERTY_SETUP_CARDS } from "./pms-property-setup-card1.ts";
 import {
+  CARD4_GST_STEPS,
   CARD4_HASH,
   CARD4_HREF,
+  CARD4_MAIN_SECTIONS,
   CARD4_STEPS,
   CARD4_TITLE,
   evaluateCard4StepStatus,
+  evaluateGstStepStatus,
   isCard4WorkspaceHash,
+  nextCard4GstStep,
   nextCard4Step,
   resolveCard4Hash,
 } from "./pms-property-setup-card4.ts";
@@ -83,6 +87,25 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
       evaluateCard4StepStatus("company-business", undefined, true, true, true, true, true),
       "complete",
     );
+    assert.deepEqual(
+      CARD4_MAIN_SECTIONS.map((row) => row.id),
+      ["profile-rules", "guest-service-types", "notifications"],
+    );
+    assert.deepEqual(
+      CARD4_GST_STEPS.map((row) => [row.number, row.id]),
+      [
+        [1, "service-categories"],
+        [2, "service-types"],
+        [3, "service-pricing"],
+        [4, "department-assignment"],
+        [5, "sla-rules"],
+        [6, "service-availability"],
+      ],
+    );
+    assert.equal(nextCard4GstStep("service-categories"), "service-types");
+    assert.equal(nextCard4GstStep("service-availability"), null);
+    assert.equal(evaluateGstStepStatus("service-categories", true), "complete");
+    assert.equal(evaluateGstStepStatus("service-types", true), "not_started");
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -102,11 +125,13 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(section, /PmsCard4IdentityDocuments/);
     assert.match(section, /PmsCard4Preferences/);
     assert.match(section, /PmsCard4CompanyBusiness/);
+    assert.match(section, /PmsCard4ServiceCategories/);
     assert.match(section, /identity-documents/);
     assert.match(section, /company-business/);
-    assert.doesNotMatch(lib, /later phase/);
+    assert.match(section, /guest-service-types/);
+    assert.match(lib, /CARD4_GST_STEPS/);
     assert.match(section, /cardStatusLabel=\{propertySetupStatusLabel\(cardStatus\)\}/);
-    assert.match(section, /allComplete/);
+    assert.match(section, /allGprComplete/);
   });
 
   it("does not rewrite operational Guest Profile types", () => {
@@ -213,6 +238,25 @@ describe("Card 4 dual-lane 0082", () => {
     assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_business_profile_types/);
     assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_business_profile_settings/);
     assert.match(sql, /ALTER TABLE public\.pms_business_profile_types ENABLE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(sql, /guest_profiles/);
+    assert.doesNotMatch(sql, /REFERENCES public\.guest_/);
+  });
+});
+
+describe("Card 4 dual-lane 0083", () => {
+  it("ships identical service category SQL without request-type or guest FKs", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0083_pms_card4_service_categories.sql");
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0083_pms_card4_service_categories.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_service_categories/);
+    assert.match(sql, /ALTER TABLE public\.pms_guest_service_categories ENABLE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(sql, /pms_guest_request_types/);
     assert.doesNotMatch(sql, /guest_profiles/);
     assert.doesNotMatch(sql, /REFERENCES public\.guest_/);
   });
