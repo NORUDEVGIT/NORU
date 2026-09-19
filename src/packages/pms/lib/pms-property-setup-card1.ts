@@ -15,6 +15,7 @@ import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
 import { CARD2_STEPS, type Card2StepId } from "./pms-property-setup-card2.ts";
 import { CARD3_HASH, CARD3_PURPOSE, CARD3_TITLE } from "./pms-property-setup-card3.ts";
 import { CARD5_HASH, CARD5_PURPOSE, CARD5_TITLE } from "./pms-property-setup-card5.ts";
+import { CARD4_HASH, CARD4_PURPOSE, CARD4_TITLE } from "./pms-property-setup-card4.ts";
 import { CARD6_HASH, CARD6_PURPOSE, CARD6_TITLE } from "./pms-property-setup-card6.ts";
 import {
   countryNameFromInput,
@@ -118,10 +119,10 @@ export const PROPERTY_SETUP_CARDS = [
   {
     id: "housekeeping-maintenance",
     number: 4,
-    title: "Guest & Services",
-    purpose: "Guest Profile Rules, Guest Service Types, Notifications & Communication.",
-    specced: false,
-    hash: null,
+    title: CARD4_TITLE,
+    purpose: CARD4_PURPOSE,
+    specced: true,
+    hash: CARD4_HASH,
   },
   {
     id: "departments-services",

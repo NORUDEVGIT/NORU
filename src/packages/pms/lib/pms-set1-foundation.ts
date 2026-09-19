@@ -320,6 +320,11 @@ export function propertySetupRedirectHref(hash = ""): string {
   }
   if (raw === "card-5" || raw === "card5" || raw === "organization-facilities") {
     return `${SET1_HUB_HREF}#organization-facilities`;
+  if (raw === "card-4" || raw === "card4" || raw === "guest-services") {
+    return `${SET1_HUB_HREF}#guest-services`;
+  }
+  if (raw === "card-6" || raw === "card6" || raw === "connectivity-distribution") {
+    return `${SET1_HUB_HREF}#connectivity-distribution`;
   }
   const resolved = resolveSet1SectionHash(raw);
   if (resolved) return `${SET1_HUB_HREF}#${resolved}`;
