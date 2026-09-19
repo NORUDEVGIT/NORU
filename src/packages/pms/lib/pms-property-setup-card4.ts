@@ -1,7 +1,7 @@
 /**
  * PMS Property Setup Card 4 — Guest & Services (Issue #195).
  *
- * Guest Profile Rules (phases 1–5) plus Guest Service Types (service categories).
+ * Guest Profile Rules (phases 1–5) plus Guest Service Types (categories and types).
  * Operational Guest Profiles and Guest Services requests are not configured here.
  */
 
@@ -76,7 +76,7 @@ export const CARD4_GST_STEPS = [
     id: "service-types",
     number: 2,
     title: "Service Types",
-    placeholder: "Service Types will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "service-pricing",
@@ -119,9 +119,13 @@ export function nextCard4GstStep(step: Card4GstStepId): Card4GstStepId | null {
 export function evaluateGstStepStatus(
   step: Card4GstStepId,
   serviceCategoriesConfigured: boolean,
+  serviceTypesConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "service-categories") {
     return serviceCategoriesConfigured ? "complete" : "not_started";
+  }
+  if (step === "service-types") {
+    return serviceTypesConfigured ? "complete" : "not_started";
   }
   return "not_started";
 }
