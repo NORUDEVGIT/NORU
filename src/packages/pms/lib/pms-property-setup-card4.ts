@@ -100,7 +100,7 @@ export const CARD4_GST_STEPS = [
     id: "service-availability",
     number: 6,
     title: "Service Availability",
-    placeholder: "Service Availability will be implemented in a later phase.",
+    placeholder: null,
   },
 ] as const;
 
@@ -123,6 +123,7 @@ export function evaluateGstStepStatus(
   servicePricingConfigured = false,
   departmentAssignmentsConfigured = false,
   serviceSlaRulesConfigured = false,
+  serviceAvailabilityConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "service-categories") {
     return serviceCategoriesConfigured ? "complete" : "not_started";
@@ -138,6 +139,9 @@ export function evaluateGstStepStatus(
   }
   if (step === "sla-rules") {
     return serviceSlaRulesConfigured ? "complete" : "not_started";
+  }
+  if (step === "service-availability") {
+    return serviceAvailabilityConfigured ? "complete" : "not_started";
   }
   return "not_started";
 }

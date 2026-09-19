@@ -340,6 +340,17 @@ export const deletePmsCard4ServiceType = createServerFn({ method: "POST" })
     if ((slaRules.count ?? 0) > 0) {
       throw new Error("This service type cannot be deleted because an SLA rule is configured.");
     }
+    const availability = await db
+      .from("pms_guest_service_availability")
+      .select("id", { count: "exact", head: true })
+      .eq("service_type_id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (availability.error && availability.error.code !== "42P01") {
+      unavailable(availability.error);
+    }
+    if ((availability.count ?? 0) > 0) {
+      throw new Error("This service type cannot be deleted because availability is configured.");
+    }
     const result = await db
       .from("pms_guest_service_types")
       .delete()
@@ -347,7 +358,7 @@ export const deletePmsCard4ServiceType = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     if (result.error?.code === "23503") {
       throw new Error(
-        "This service type cannot be deleted because pricing, a department assignment, or an SLA rule is configured.",
+        "This service type cannot be deleted because pricing, a department assignment, an SLA rule, or availability is configured.",
       );
     }
     if (result.error) unavailable(result.error);
