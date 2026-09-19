@@ -14,12 +14,15 @@ import {
   CARD4_HASH,
   CARD4_HREF,
   CARD4_MAIN_SECTIONS,
+  CARD4_NOTIFICATION_STEPS,
   CARD4_STEPS,
   CARD4_TITLE,
   evaluateCard4StepStatus,
   evaluateGstStepStatus,
+  evaluateNotificationStepStatus,
   isCard4WorkspaceHash,
   nextCard4GstStep,
+  nextCard4NotificationStep,
   nextCard4Step,
   resolveCard4Hash,
 } from "./pms-property-setup-card4.ts";
@@ -104,6 +107,21 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     );
     assert.equal(nextCard4GstStep("service-categories"), "service-types");
     assert.equal(nextCard4GstStep("service-availability"), null);
+    assert.deepEqual(
+      CARD4_NOTIFICATION_STEPS.map((row) => [row.number, row.id]),
+      [
+        [1, "channels"],
+        [2, "communication-templates"],
+        [3, "notification-events"],
+        [4, "automation-rules"],
+        [5, "sender-settings"],
+        [6, "communication-defaults"],
+      ],
+    );
+    assert.equal(nextCard4NotificationStep("channels"), "communication-templates");
+    assert.equal(nextCard4NotificationStep("communication-defaults"), null);
+    assert.equal(evaluateNotificationStepStatus("channels", true), "complete");
+    assert.equal(evaluateNotificationStepStatus("communication-templates", true), "not_started");
     assert.equal(evaluateGstStepStatus("service-categories", true), "complete");
     assert.equal(evaluateGstStepStatus("service-types", true), "not_started");
     assert.equal(evaluateGstStepStatus("service-types", true, true), "complete");
@@ -148,6 +166,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(section, /PmsCard4ServicePricing/);
     assert.match(section, /PmsCard4ServiceDepartmentAssignment/);
     assert.match(section, /PmsCard4ServiceSlaRules/);
+    assert.match(section, /PmsCard4CommunicationChannels/);
     assert.match(section, /identity-documents/);
     assert.match(section, /company-business/);
     assert.match(section, /guest-service-types/);

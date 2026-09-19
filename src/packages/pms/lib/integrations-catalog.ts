@@ -13,6 +13,7 @@ export const INTEGRATION_CATEGORIES = [
   "payments",
   "sms",
   "email",
+  "whatsapp",
   "accounting",
   "hospitality",
   "government",
@@ -410,6 +411,27 @@ const EMAIL_PROVIDERS: readonly IntegrationProviderDef[] = [
       credential("secretAccessKey", "Secret access key", { required: true }),
       text("fromName", "From name", { required: true, maxLength: 80 }),
       text("fromEmail", "From address", { required: true, format: "email" }),
+      ...HTTP_TECHNICAL,
+      ...WEBHOOK_SECURITY,
+    ],
+  },
+];
+
+const WHATSAPP_PROVIDERS: readonly IntegrationProviderDef[] = [
+  {
+    id: "dialog_360",
+    label: "360Dialog",
+    blurb: "WhatsApp Business messaging through 360Dialog.",
+    authMethods: ["api_key"],
+    supportsWebhook: true,
+    fields: [
+      text("endpointUrl", "API base URL", {
+        required: true,
+        format: "url",
+        placeholder: "https://waba-v2.360dialog.io",
+      }),
+      credential("apiKey", "API key", { required: true }),
+      text("phoneNumber", "WhatsApp number", { required: true, maxLength: 30 }),
       ...HTTP_TECHNICAL,
       ...WEBHOOK_SECURITY,
     ],
@@ -817,6 +839,17 @@ export const INTEGRATION_CATALOG: readonly IntegrationCategoryDef[] = [
       { value: "email.complained", label: "Spam complaint" },
     ],
     providers: EMAIL_PROVIDERS,
+  },
+  {
+    id: "whatsapp",
+    label: "Communication — WhatsApp",
+    description: "Guest messaging through WhatsApp Business.",
+    events: [
+      { value: "message.sent", label: "Message sent" },
+      { value: "message.delivered", label: "Message delivered" },
+      { value: "message.failed", label: "Message failed" },
+    ],
+    providers: WHATSAPP_PROVIDERS,
   },
   {
     id: "accounting",
