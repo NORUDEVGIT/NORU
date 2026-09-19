@@ -31,25 +31,42 @@ import {
   Card4CompanyBusinessGuide,
   PmsCard4CompanyBusiness,
 } from "@/packages/pms/components/settings/pms-card4-company-business";
+import {
+  Card4ServiceCategoriesGuide,
+  PmsCard4ServiceCategories,
+} from "@/packages/pms/components/settings/pms-card4-service-categories";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
+import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
+import { serviceCategoriesConfigured } from "@/packages/pms/lib/service-categories-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
   type PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
+  CARD4_GST_STEPS,
+  CARD4_GST_SUBTITLE,
+  CARD4_GPR_SUBTITLE,
+  CARD4_MAIN_SECTIONS,
+  CARD4_NOTIFY_SUBTITLE,
   CARD4_SIDEBAR_OUT,
   CARD4_STEPS,
-  CARD4_SUBTITLE,
   CARD4_WORKSPACE_TITLE,
   card4CompletedCount,
+  card4GstCompletedCount,
+  card4GstStepById,
   card4ProgressPct,
   card4StepById,
   evaluateCard4StepStatus,
+  evaluateGstStepStatus,
+  nextCard4GstStep,
   nextCard4Step,
+  type Card4GstStepId,
+  type Card4MainSectionId,
   type Card4StepId,
 } from "@/packages/pms/lib/pms-property-setup-card4";
+import { cn } from "@/shared/lib/utils";
 
 export function PmsPropertySetupCard4Section({
   restaurantId,
@@ -60,7 +77,9 @@ export function PmsPropertySetupCard4Section({
   canEdit: boolean;
   initialStep?: Card4StepId;
 }) {
+  const [mainSection, setMainSection] = useState<Card4MainSectionId>("profile-rules");
   const [step, setStep] = useState<Card4StepId>(initialStep);
+  const [gstStep, setGstStep] = useState<Card4GstStepId>("service-categories");
   const [saveRequest, setSaveRequest] = useState<{ token: number; thenNext: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
   const [canSave, setCanSave] = useState(false);
@@ -69,6 +88,7 @@ export function PmsPropertySetupCard4Section({
   const loadDocuments = useServerFn(getPmsCard4IdentityDocumentTypes);
   const loadPreferences = useServerFn(getPmsCard4Preferences);
   const loadCompanyBusiness = useServerFn(getPmsCard4CompanyBusiness);
+  const loadServiceCategories = useServerFn(getPmsCard4ServiceCategories);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -95,6 +115,11 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadCompanyBusiness({ data: { restaurantId } }),
     retry: false,
   });
+  const serviceCategoriesQuery = useQuery({
+    queryKey: ["pms-card4-service-categories", restaurantId],
+    queryFn: () => loadServiceCategories({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -113,6 +138,9 @@ export function PmsPropertySetupCard4Section({
       defaultInvalid: false,
     },
   );
+  const categoriesReady = serviceCategoriesConfigured(
+    serviceCategoriesQuery.data?.categories ?? [],
+  );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
     setSaving(nextSaving);
@@ -121,6 +149,8 @@ export function PmsPropertySetupCard4Section({
 
   const current = card4StepById(step);
   const next = nextCard4Step(step);
+  const gstCurrent = card4GstStepById(gstStep);
+  const gstNext = nextCard4GstStep(gstStep);
   const stepStatuses: Partial<Record<Card4StepId, PropertySetupCardStatus>> = {
     "profile-types": evaluateCard4StepStatus(
       "profile-types",
@@ -165,23 +195,39 @@ export function PmsPropertySetupCard4Section({
       companyReady,
     ),
   };
-  const completedCount = card4CompletedCount(stepStatuses);
-  const progressPct = card4ProgressPct(completedCount);
-  const allComplete =
+  const gstStatuses: Partial<Record<Card4GstStepId, PropertySetupCardStatus>> = {
+    "service-categories": evaluateGstStepStatus("service-categories", categoriesReady),
+    "service-types": evaluateGstStepStatus("service-types", categoriesReady),
+    "service-pricing": evaluateGstStepStatus("service-pricing", categoriesReady),
+    "department-assignment": evaluateGstStepStatus("department-assignment", categoriesReady),
+    "sla-rules": evaluateGstStepStatus("sla-rules", categoriesReady),
+    "service-availability": evaluateGstStepStatus("service-availability", categoriesReady),
+  };
+  const gprCompleted = card4CompletedCount(stepStatuses);
+  const gstCompleted = card4GstCompletedCount(gstStatuses);
+  const completedCount =
+    mainSection === "guest-service-types"
+      ? gstCompleted
+      : mainSection === "notifications"
+        ? 0
+        : gprCompleted;
+  const allGprComplete =
     profileTypesConfigured &&
     requiredFieldsConfigured &&
     identityDocumentsConfigured &&
     preferencesReady &&
     companyReady;
-  const cardStatus: PropertySetupCardStatus = allComplete
-    ? "complete"
-    : profileTypesConfigured ||
-        requiredFieldsConfigured ||
-        identityDocumentsConfigured ||
-        preferencesReady ||
-        companyReady
-      ? "in_progress"
-      : "not_started";
+  const cardStatus: PropertySetupCardStatus =
+    allGprComplete && categoriesReady
+      ? "complete"
+      : profileTypesConfigured ||
+          requiredFieldsConfigured ||
+          identityDocumentsConfigured ||
+          preferencesReady ||
+          companyReady ||
+          categoriesReady
+        ? "in_progress"
+        : "not_started";
 
   function goHub() {
     window.location.hash = "";
@@ -194,11 +240,32 @@ export function PmsPropertySetupCard4Section({
   }
 
   function onSaved(thenNext: boolean) {
-    if (thenNext && next) setStep(next);
-    if (thenNext && !next) goHub();
+    if (!thenNext) return;
+    if (mainSection === "profile-rules") {
+      if (next) setStep(next);
+      else {
+        setMainSection("guest-service-types");
+        setGstStep("service-categories");
+      }
+      return;
+    }
+    if (gstNext) setGstStep(gstNext);
+    else goHub();
   }
 
   function goContinue() {
+    if (mainSection === "notifications") {
+      goHub();
+      return;
+    }
+    if (mainSection === "guest-service-types") {
+      if (gstStep === "service-categories") {
+        requestSave(true);
+        return;
+      }
+      if (gstNext) setGstStep(gstNext);
+      return;
+    }
     if (
       step === "profile-types" ||
       step === "required-fields" ||
@@ -212,13 +279,64 @@ export function PmsPropertySetupCard4Section({
     if (next) setStep(next);
   }
 
-  const liveStep =
+  const gprLive =
     step === "profile-types" ||
     step === "required-fields" ||
     step === "identity-documents" ||
     step === "preferences" ||
     step === "company-business";
-  const placeholder = current.placeholder;
+  const gstLive = gstStep === "service-categories";
+  const liveStep =
+    mainSection === "profile-rules"
+      ? gprLive
+      : mainSection === "guest-service-types"
+        ? gstLive
+        : false;
+  const subtitle =
+    mainSection === "guest-service-types"
+      ? CARD4_GST_SUBTITLE
+      : mainSection === "notifications"
+        ? CARD4_NOTIFY_SUBTITLE
+        : CARD4_GPR_SUBTITLE;
+  const currentSectionTitle =
+    mainSection === "guest-service-types"
+      ? gstCurrent.title
+      : mainSection === "notifications"
+        ? "Notifications & Communication"
+        : current.title;
+  const nextStepTitle =
+    mainSection === "guest-service-types"
+      ? gstNext
+        ? card4GstStepById(gstNext).title
+        : null
+      : mainSection === "profile-rules"
+        ? next
+          ? card4StepById(next).title
+          : "Guest Service Types"
+        : null;
+  const workspaceSteps =
+    mainSection === "guest-service-types"
+      ? CARD4_GST_STEPS.map((row) => ({
+          id: row.id,
+          number: row.number,
+          title: row.title,
+          status: gstStatuses[row.id] ?? "not_started",
+        }))
+      : mainSection === "notifications"
+        ? [
+            {
+              id: "notifications",
+              number: 1,
+              title: "Notifications & Communication",
+              status: "not_started" as const,
+            },
+          ]
+        : CARD4_STEPS.map((row) => ({
+            id: row.id,
+            number: row.number,
+            title: row.title,
+            status: stepStatuses[row.id] ?? "not_started",
+          }));
 
   return (
     <PmsPropertySetupWorkspace
@@ -226,21 +344,57 @@ export function PmsPropertySetupCard4Section({
       sidebarOutCopy={CARD4_SIDEBAR_OUT}
       nav={CARD1_PMS_NAV}
       title={CARD4_WORKSPACE_TITLE}
-      subtitle={CARD4_SUBTITLE}
-      steps={CARD4_STEPS.map((row) => ({
-        id: row.id,
-        number: row.number,
-        title: row.title,
-        status: stepStatuses[row.id] ?? "not_started",
-      }))}
-      activeStepId={step}
-      onSelectStep={(id) => setStep(id as Card4StepId)}
-      progressPct={progressPct}
+      subtitle={subtitle}
+      sectionSwitcher={
+        <div className="mt-3 flex flex-wrap gap-2" data-testid="pms-card4-main-sections">
+          {CARD4_MAIN_SECTIONS.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => setMainSection(row.id)}
+              aria-current={mainSection === row.id ? "true" : undefined}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium",
+                mainSection === row.id
+                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
+                  : "border-[#CCCCCC] text-muted-foreground hover:border-[#C89933]/60",
+              )}
+            >
+              {row.title}
+            </button>
+          ))}
+        </div>
+      }
+      steps={workspaceSteps}
+      activeStepId={
+        mainSection === "guest-service-types"
+          ? gstStep
+          : mainSection === "notifications"
+            ? "notifications"
+            : step
+      }
+      onSelectStep={(id) => {
+        if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
+        else if (mainSection === "profile-rules") setStep(id as Card4StepId);
+      }}
+      progressPct={
+        mainSection === "guest-service-types"
+          ? Math.round((gstCompleted / CARD4_GST_STEPS.length) * 100)
+          : mainSection === "notifications"
+            ? 0
+            : card4ProgressPct(gprCompleted)
+      }
       completedCount={completedCount}
-      currentSection={current.title}
-      nextStepTitle={next ? card4StepById(next).title : null}
+      currentSection={currentSectionTitle}
+      nextStepTitle={nextStepTitle}
       cardStatusLabel={propertySetupStatusLabel(cardStatus)}
-      progressLabel="Guest Profile Rules"
+      progressLabel={
+        mainSection === "guest-service-types"
+          ? "Guest Service Types"
+          : mainSection === "notifications"
+            ? "Notifications & Communication"
+            : "Guest Profile Rules"
+      }
       onBack={goHub}
       backLabel="Cancel"
       saveDraftDisabled={!canEdit || !liveStep || !canSave || saving}
@@ -250,7 +404,11 @@ export function PmsPropertySetupCard4Section({
       onContinue={goContinue}
       continueLabel="Save & Next"
       railExtras={
-        step === "profile-types" ? (
+        mainSection === "guest-service-types" && gstStep === "service-categories" ? (
+          <Card4ServiceCategoriesGuide
+            count={serviceCategoriesQuery.data?.categories.length ?? 0}
+          />
+        ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
           <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
         ) : step === "required-fields" ? (
           <Card4RequiredFieldsGuide
@@ -278,7 +436,33 @@ export function PmsPropertySetupCard4Section({
         ) : null
       }
     >
-      {step === "profile-types" ? (
+      {mainSection === "notifications" ? (
+        <div
+          className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+          data-testid="card4-placeholder-notifications"
+        >
+          <h2 className="font-display text-2xl text-[#251605]">Notifications & Communication</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{CARD4_NOTIFY_SUBTITLE}</p>
+        </div>
+      ) : mainSection === "guest-service-types" ? (
+        gstStep === "service-categories" ? (
+          <PmsCard4ServiceCategories
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onSavingChange={onSavingChange}
+            saveRequest={saveRequest}
+            onSaved={onSaved}
+          />
+        ) : (
+          <div
+            className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+            data-testid={`card4-placeholder-${gstStep}`}
+          >
+            <h2 className="font-display text-2xl text-[#251605]">{gstCurrent.title}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{gstCurrent.placeholder}</p>
+          </div>
+        )
+      ) : step === "profile-types" ? (
         <PmsCard4ProfileTypes
           restaurantId={restaurantId}
           canEdit={canEdit}
@@ -326,7 +510,7 @@ export function PmsPropertySetupCard4Section({
           data-testid={`card4-placeholder-${step}`}
         >
           <h2 className="font-display text-2xl text-[#251605]">{current.title}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{placeholder}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{current.placeholder}</p>
         </div>
       )}
     </PmsPropertySetupWorkspace>

@@ -42,6 +42,7 @@ export function PmsPropertySetupWorkspace({
   continueLabel = "Save & Continue",
   backLabel = "Back",
   railExtras,
+  sectionSwitcher,
 }: {
   testIdPrefix: string;
   sidebarOutCopy: string;
@@ -67,6 +68,7 @@ export function PmsPropertySetupWorkspace({
   continueLabel?: string;
   backLabel?: string;
   railExtras?: ReactNode;
+  sectionSwitcher?: ReactNode;
 }) {
   return (
     <section
@@ -86,7 +88,9 @@ export function PmsPropertySetupWorkspace({
             href={item.href}
             className={cn(
               "rounded-lg px-2.5 py-1.5 text-xs",
-              item.id === "settings" ? "bg-[#C89933] text-[#251605]" : "text-white/80 hover:bg-white/10 hover:text-white",
+              item.id === "settings"
+                ? "bg-[#C89933] text-[#251605]"
+                : "text-white/80 hover:bg-white/10 hover:text-white",
             )}
           >
             {item.label}
@@ -98,6 +102,7 @@ export function PmsPropertySetupWorkspace({
         <div className="mb-4">
           <h1 className="font-display text-3xl text-[#251605]">{title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+          {sectionSwitcher}
         </div>
 
         <ol
@@ -121,7 +126,9 @@ export function PmsPropertySetupWorkspace({
                         : "border-[#CCCCCC] text-muted-foreground",
                   )}
                 >
-                  <span className="font-semibold">{row.status === "complete" && !active ? "✓" : row.number}</span>
+                  <span className="font-semibold">
+                    {row.status === "complete" && !active ? "✓" : row.number}
+                  </span>
                   <span className="leading-tight">{row.title}</span>
                 </button>
               </li>
@@ -140,7 +147,9 @@ export function PmsPropertySetupWorkspace({
               <div className="mt-3 flex items-center gap-3">
                 <div
                   className="relative h-14 w-14 shrink-0 rounded-full"
-                  style={{ background: `conic-gradient(#C89933 ${progressPct}%, #EDE6D8 ${progressPct}%)` }}
+                  style={{
+                    background: `conic-gradient(#C89933 ${progressPct}%, #EDE6D8 ${progressPct}%)`,
+                  }}
                   aria-hidden
                 >
                   <div className="absolute inset-1 flex items-center justify-center rounded-full bg-white text-[11px] font-semibold text-[#251605]">
@@ -181,7 +190,12 @@ export function PmsPropertySetupWorkspace({
           <Button type="button" variant="outline" onClick={onBack}>
             {backLabel}
           </Button>
-          <Button type="button" variant="outline" disabled={saveDraftDisabled} onClick={() => onSaveDraft?.()}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saveDraftDisabled}
+            onClick={() => onSaveDraft?.()}
+          >
             Save Draft
           </Button>
           <Button
