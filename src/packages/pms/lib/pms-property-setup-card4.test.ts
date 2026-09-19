@@ -116,6 +116,14 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     );
     assert.equal(evaluateGstStepStatus("sla-rules", true, true, true, true), "not_started");
     assert.equal(evaluateGstStepStatus("sla-rules", true, true, true, true, true), "complete");
+    assert.equal(
+      evaluateGstStepStatus("service-availability", true, true, true, true, true),
+      "not_started",
+    );
+    assert.equal(
+      evaluateGstStepStatus("service-availability", true, true, true, true, true, true),
+      "complete",
+    );
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -375,6 +383,38 @@ describe("Card 4 dual-lane 0087", () => {
     assert.doesNotMatch(
       sql,
       /CREATE TABLE IF NOT EXISTS public\.(pms_guest_service_availability|guest_service_requests|sla_tracking)/,
+    );
+  });
+});
+
+describe("Card 4 dual-lane 0088", () => {
+  it("ships tenant-safe structured weekly availability per service type", () => {
+    const drizzle = join(
+      process.cwd(),
+      "drizzle/migrations/0088_pms_card4_service_availability.sql",
+    );
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0088_pms_card4_service_availability.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_service_availability/);
+    assert.match(sql, /weekly_schedule jsonb NOT NULL/);
+    assert.match(sql, /UNIQUE \(service_type_id\)/);
+    assert.match(
+      sql,
+      /FOREIGN KEY \(service_type_id, restaurant_id\)[\s\S]*pms_guest_service_types/,
+    );
+    assert.match(
+      sql,
+      /ALTER TABLE public\.pms_guest_service_availability ENABLE ROW LEVEL SECURITY/,
+    );
+    assert.doesNotMatch(
+      sql,
+      /CREATE TABLE IF NOT EXISTS public\.(guest_service_requests|notification_templates|sla_tracking)/,
     );
   });
 });
