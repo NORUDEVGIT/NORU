@@ -39,6 +39,8 @@ export function PmsPropertySetupWorkspace({
   continuePending = false,
   onSaveDraft,
   onContinue,
+  continueLabel = "Save & Continue",
+  backLabel = "Back",
   railExtras,
 }: {
   testIdPrefix: string;
@@ -62,6 +64,8 @@ export function PmsPropertySetupWorkspace({
   continuePending?: boolean;
   onSaveDraft?: () => void;
   onContinue: () => void;
+  continueLabel?: string;
+  backLabel?: string;
   railExtras?: ReactNode;
 }) {
   return (
@@ -175,7 +179,7 @@ export function PmsPropertySetupWorkspace({
           data-testid={`${testIdPrefix}-chrome`}
         >
           <Button type="button" variant="outline" onClick={onBack}>
-            Back
+            {backLabel}
           </Button>
           <Button type="button" variant="outline" disabled={saveDraftDisabled} onClick={() => onSaveDraft?.()}>
             Save Draft
@@ -186,7 +190,7 @@ export function PmsPropertySetupWorkspace({
             onClick={onContinue}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
           >
-            {continuePending ? "Saving…" : "Save & Continue"}
+            {continuePending ? "Saving…" : continueLabel}
           </Button>
         </div>
       </div>
