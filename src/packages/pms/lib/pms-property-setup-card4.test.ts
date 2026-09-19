@@ -107,6 +107,8 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.equal(evaluateGstStepStatus("service-categories", true), "complete");
     assert.equal(evaluateGstStepStatus("service-types", true), "not_started");
     assert.equal(evaluateGstStepStatus("service-types", true, true), "complete");
+    assert.equal(evaluateGstStepStatus("service-pricing", true, true), "not_started");
+    assert.equal(evaluateGstStepStatus("service-pricing", true, true, true), "complete");
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -128,6 +130,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(section, /PmsCard4CompanyBusiness/);
     assert.match(section, /PmsCard4ServiceCategories/);
     assert.match(section, /PmsCard4ServiceTypes/);
+    assert.match(section, /PmsCard4ServicePricing/);
     assert.match(section, /identity-documents/);
     assert.match(section, /company-business/);
     assert.match(section, /guest-service-types/);
@@ -278,5 +281,29 @@ describe("Card 4 dual-lane 0084", () => {
     assert.doesNotMatch(sql, /pms_guest_request_types/);
     assert.doesNotMatch(sql, /guest_profiles/);
     assert.doesNotMatch(sql, /REFERENCES public\.guest_/);
+  });
+});
+
+describe("Card 4 dual-lane 0085", () => {
+  it("ships one tenant-safe numeric price per service type without operational charges", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0085_pms_card4_service_pricing.sql");
+    const supabase = join(process.cwd(), "supabase/migrations/0085_pms_card4_service_pricing.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_service_pricing/);
+    assert.match(sql, /amount numeric\(12,2\) NOT NULL/);
+    assert.match(sql, /UNIQUE \(service_type_id\)/);
+    assert.match(
+      sql,
+      /FOREIGN KEY \(service_type_id, restaurant_id\)[\s\S]*pms_guest_service_types/,
+    );
+    assert.match(sql, /ALTER TABLE public\.pms_guest_service_pricing ENABLE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(sql, /pms_guest_request_types/);
+    assert.doesNotMatch(
+      sql,
+      /CREATE TABLE IF NOT EXISTS public\.(guest_service_requests|invoices|folio_transactions)/,
+    );
   });
 });

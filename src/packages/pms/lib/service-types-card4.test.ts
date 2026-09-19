@@ -134,6 +134,8 @@ describe("Card 4 Guest Service Types types", () => {
   it("does not write SET5 request types or operational guest-services", () => {
     assert.match(functionsSrc, /pms_guest_service_types/);
     assert.match(functionsSrc, /category_id/);
+    assert.match(functionsSrc, /pms_guest_service_pricing/);
+    assert.match(functionsSrc, /pricing is configured/);
     assert.doesNotMatch(functionsSrc, /pms_guest_request_types/);
     assert.match(categoryFunctionsSrc, /contains service types/);
     assert.match(set5Src, /pms_guest_request_types/);

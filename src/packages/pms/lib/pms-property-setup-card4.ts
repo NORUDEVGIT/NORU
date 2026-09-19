@@ -82,7 +82,7 @@ export const CARD4_GST_STEPS = [
     id: "service-pricing",
     number: 3,
     title: "Service Pricing",
-    placeholder: "Service Pricing will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "department-assignment",
@@ -120,12 +120,16 @@ export function evaluateGstStepStatus(
   step: Card4GstStepId,
   serviceCategoriesConfigured: boolean,
   serviceTypesConfigured = false,
+  servicePricingConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "service-categories") {
     return serviceCategoriesConfigured ? "complete" : "not_started";
   }
   if (step === "service-types") {
     return serviceTypesConfigured ? "complete" : "not_started";
+  }
+  if (step === "service-pricing") {
+    return servicePricingConfigured ? "complete" : "not_started";
   }
   return "not_started";
 }
