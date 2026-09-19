@@ -6,14 +6,18 @@ import type { Json } from "@/integrations/supabase/types";
 import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_SERVICE_CATEGORIES,
-  normalizeServiceCategoryCode,
-  normalizeServiceCategoryName,
-  validateServiceCategoryDraft,
   type ServiceCategoryRecord,
-  type ServiceCategorySnapshot,
 } from "./service-categories-card4.server";
+import {
+  DEFAULT_SERVICE_TYPES,
+  normalizeServiceTypeCode,
+  normalizeServiceTypeName,
+  validateServiceTypeDraft,
+  type ServiceTypeRecord,
+  type ServiceTypeSnapshot,
+} from "./service-types-card4.server";
 
-// Generated schema predates 0083.
+// Generated schema predates 0084.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbClient = any;
 
@@ -23,6 +27,7 @@ const saveSchema = z
   .object({
     restaurantId: idSchema,
     id: idSchema.optional(),
+    categoryId: idSchema,
     name: z.string().max(80),
     code: z.string().max(20),
     description: z.string().max(400).optional().default(""),
@@ -33,14 +38,12 @@ const saveSchema = z
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST204" || error?.code === "PGRST205") {
-    throw new Error(
-      "Service categories are unavailable until their approved migration is applied.",
-    );
+    throw new Error("Service types are unavailable until their approved migration is applied.");
   }
-  throw new Error(error?.message ?? "Unable to load service categories.");
+  throw new Error(error?.message ?? "Unable to load service types.");
 }
 
-function mapRow(row: {
+function mapCategory(row: {
   id: string;
   name: string;
   code: string;
@@ -52,6 +55,30 @@ function mapRow(row: {
 }): ServiceCategoryRecord {
   return {
     id: row.id,
+    name: row.name,
+    code: row.code,
+    description: row.description,
+    active: row.active,
+    displayOrder: row.display_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapType(row: {
+  id: string;
+  category_id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  active: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}): ServiceTypeRecord {
+  return {
+    id: row.id,
+    categoryId: row.category_id,
     name: row.name,
     code: row.code,
     description: row.description,
@@ -74,12 +101,12 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-service-categories", ...metadata } as unknown as Json,
+    metadata: { section: "card4-service-types", ...metadata } as unknown as Json,
   });
-  if (result.error) console.error("[card4-service-categories] audit", result.error.message);
+  if (result.error) console.error("[card4-service-types] audit", result.error.message);
 }
 
-async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
+async function seedCategories(db: DbClient, restaurantId: string, userId: string) {
   const payload = DEFAULT_SERVICE_CATEGORIES.map((row, index) => ({
     restaurant_id: restaurantId,
     name: row.name,
@@ -93,33 +120,99 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
   if (result.error && result.error.code !== "23505") unavailable(result.error);
 }
 
-async function loadSnapshot(
+async function seedTypes(
   db: DbClient,
   restaurantId: string,
   userId: string,
-  seeded = false,
-): Promise<ServiceCategorySnapshot> {
-  const result = await db
+  categories: Array<{ id: string; code: string }>,
+) {
+  const byCode = new Map(categories.map((row) => [row.code, row.id]));
+  const orderByCategory = new Map<string, number>();
+  const payload = DEFAULT_SERVICE_TYPES.flatMap((row) => {
+    const categoryId = byCode.get(row.categoryCode);
+    if (!categoryId) return [];
+    const displayOrder = (orderByCategory.get(row.categoryCode) ?? 0) + 1;
+    orderByCategory.set(row.categoryCode, displayOrder);
+    return [
+      {
+        restaurant_id: restaurantId,
+        category_id: categoryId,
+        name: row.name,
+        code: row.code,
+        description: row.description,
+        active: true,
+        display_order: displayOrder,
+        updated_by: userId,
+      },
+    ];
+  });
+  if (payload.length === 0) return;
+  const result = await db.from("pms_guest_service_types").insert(payload);
+  if (result.error && result.error.code !== "23505") unavailable(result.error);
+}
+
+async function loadCategories(db: DbClient, restaurantId: string) {
+  return db
     .from("pms_guest_service_categories")
     .select("id, name, code, description, active, display_order, created_at, updated_at")
     .eq("restaurant_id", restaurantId)
     .order("display_order")
     .order("name");
-  if (result.error) unavailable(result.error);
-  if ((result.data ?? []).length === 0) {
-    if (seeded) throw new Error("Could not seed default service categories.");
-    await seedDefaults(db, restaurantId, userId);
-    return loadSnapshot(db, restaurantId, userId, true);
+}
+
+async function loadTypes(db: DbClient, restaurantId: string) {
+  return db
+    .from("pms_guest_service_types")
+    .select(
+      "id, category_id, name, code, description, active, display_order, created_at, updated_at",
+    )
+    .eq("restaurant_id", restaurantId)
+    .order("display_order")
+    .order("name");
+}
+
+async function loadSnapshot(
+  db: DbClient,
+  restaurantId: string,
+  userId: string,
+): Promise<ServiceTypeSnapshot> {
+  let categoriesRes = await loadCategories(db, restaurantId);
+  if (categoriesRes.error) unavailable(categoriesRes.error);
+  if ((categoriesRes.data ?? []).length === 0) {
+    await seedCategories(db, restaurantId, userId);
+    categoriesRes = await loadCategories(db, restaurantId);
+    if (categoriesRes.error) unavailable(categoriesRes.error);
+    if ((categoriesRes.data ?? []).length === 0) {
+      throw new Error("Could not seed default service categories.");
+    }
   }
-  const categories = (result.data ?? []).map(mapRow);
-  const lastUpdatedAt = categories.reduce<string | null>((latest, row) => {
+
+  let typesRes = await loadTypes(db, restaurantId);
+  if (typesRes.error) unavailable(typesRes.error);
+  if ((typesRes.data ?? []).length === 0) {
+    await seedTypes(
+      db,
+      restaurantId,
+      userId,
+      (categoriesRes.data ?? []).map((row: { id: string; code: string }) => ({
+        id: row.id,
+        code: row.code,
+      })),
+    );
+    typesRes = await loadTypes(db, restaurantId);
+    if (typesRes.error) unavailable(typesRes.error);
+  }
+
+  const categories = (categoriesRes.data ?? []).map(mapCategory);
+  const types = (typesRes.data ?? []).map(mapType);
+  const lastUpdatedAt = [...categories, ...types].reduce<string | null>((latest, row) => {
     if (!latest || row.updatedAt > latest) return row.updatedAt;
     return latest;
   }, null);
-  return { categories, lastUpdatedAt };
+  return { categories, types, lastUpdatedAt };
 }
 
-export const getPmsCard4ServiceCategories = createServerFn({ method: "POST" })
+export const getPmsCard4ServiceTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
@@ -128,7 +221,7 @@ export const getPmsCard4ServiceCategories = createServerFn({ method: "POST" })
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
 
-export const savePmsCard4ServiceCategory = createServerFn({ method: "POST" })
+export const savePmsCard4ServiceType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
@@ -136,22 +229,26 @@ export const savePmsCard4ServiceCategory = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
-    const name = normalizeServiceCategoryName(data.name);
-    const code = normalizeServiceCategoryCode(data.code);
-    const errors = validateServiceCategoryDraft(
+    const name = normalizeServiceTypeName(data.name);
+    const code = normalizeServiceTypeCode(data.code);
+    const errors = validateServiceTypeDraft(
       {
         id: data.id ?? null,
+        categoryId: data.categoryId,
         name,
         code,
         description: data.description,
         active: data.active,
         displayOrder: data.displayOrder,
       },
+      snapshot.types,
       snapshot.categories,
     );
-    if (errors.length > 0) throw new Error(errors[0]?.message ?? "Fix the category before saving.");
+    if (errors.length > 0)
+      throw new Error(errors[0]?.message ?? "Fix the service type before saving.");
     const payload = {
       restaurant_id: data.restaurantId,
+      category_id: data.categoryId,
       name,
       code,
       description: data.description.trim() || null,
@@ -161,27 +258,31 @@ export const savePmsCard4ServiceCategory = createServerFn({ method: "POST" })
     };
     const result = data.id
       ? await db
-          .from("pms_guest_service_categories")
+          .from("pms_guest_service_types")
           .update(payload)
           .eq("id", data.id)
           .eq("restaurant_id", data.restaurantId)
           .select("id")
           .maybeSingle()
-      : await db.from("pms_guest_service_categories").insert(payload).select("id").single();
+      : await db.from("pms_guest_service_types").insert(payload).select("id").single();
     if (result.error?.code === "23505") {
-      throw new Error("This category code is already in use.");
+      const message = `${result.error.message ?? ""} ${result.error.details ?? ""}`;
+      if (/name_per_category/i.test(message)) {
+        throw new Error("A service type with this name already exists in this category.");
+      }
+      throw new Error("This service type code is already in use.");
     }
     if (result.error) unavailable(result.error);
     const id = result.data?.id;
-    if (!id) throw new Error("Could not save the service category.");
-    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_category_saved", {
+    if (!id) throw new Error("Could not save the service type.");
+    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_type_saved", {
       id,
       code,
     });
     return { ok: true as const, id };
   });
 
-export const setPmsCard4ServiceCategoryActive = createServerFn({ method: "POST" })
+export const setPmsCard4ServiceTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
@@ -191,19 +292,19 @@ export const setPmsCard4ServiceCategoryActive = createServerFn({ method: "POST" 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
-      .from("pms_guest_service_categories")
+      .from("pms_guest_service_types")
       .update({ active: data.active, updated_by: context.userId })
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
-    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_category_toggled", {
+    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_type_toggled", {
       id: data.id,
       active: data.active,
     });
     return { ok: true as const };
   });
 
-export const deletePmsCard4ServiceCategory = createServerFn({ method: "POST" })
+export const deletePmsCard4ServiceType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
@@ -212,25 +313,13 @@ export const deletePmsCard4ServiceCategory = createServerFn({ method: "POST" })
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
-    const dependents = await db
-      .from("pms_guest_service_types")
-      .select("id", { count: "exact", head: true })
-      .eq("category_id", data.id)
-      .eq("restaurant_id", data.restaurantId);
-    if (dependents.error && dependents.error.code !== "42P01") unavailable(dependents.error);
-    if ((dependents.count ?? 0) > 0) {
-      throw new Error("This category cannot be deleted because it contains service types.");
-    }
     const result = await db
-      .from("pms_guest_service_categories")
+      .from("pms_guest_service_types")
       .delete()
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId);
-    if (result.error?.code === "23503") {
-      throw new Error("This category cannot be deleted because it contains service types.");
-    }
     if (result.error) unavailable(result.error);
-    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_category_deleted", {
+    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_type_deleted", {
       id: data.id,
     });
     return { ok: true as const };

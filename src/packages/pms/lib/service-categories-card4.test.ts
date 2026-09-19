@@ -72,6 +72,7 @@ describe("Card 4 Guest Service Types categories", () => {
     assert.doesNotMatch(functionsSrc, /pms_guest_request_types/);
     assert.match(set5Src, /pms_guest_request_types/);
     assert.doesNotMatch(set5Src, /pms_guest_service_categories/);
+    assert.doesNotMatch(set5Src, /pms_guest_service_types/);
     assert.doesNotMatch(opsSrc, /pms_guest_service_categories/);
     assert.match(opsSrc, /PmsPlaceholder/);
   });

@@ -10,6 +10,13 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -41,23 +48,25 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import {
-  deletePmsCard4ServiceCategory,
-  getPmsCard4ServiceCategories,
-  savePmsCard4ServiceCategory,
-  setPmsCard4ServiceCategoryActive,
-} from "@/packages/pms/lib/service-categories-card4.functions";
+  deletePmsCard4ServiceType,
+  getPmsCard4ServiceTypes,
+  savePmsCard4ServiceType,
+  setPmsCard4ServiceTypeActive,
+} from "@/packages/pms/lib/service-types-card4.functions";
 import {
-  emptyServiceCategoryDraft,
-  normalizeServiceCategoryCode,
-  validateServiceCategoryDraft,
-  type ServiceCategoryDraft,
-  type ServiceCategoryRecord,
-} from "@/packages/pms/lib/service-categories-card4.server";
+  emptyServiceTypeDraft,
+  normalizeServiceTypeCode,
+  selectableServiceCategories,
+  validateServiceTypeDraft,
+  type ServiceTypeDraft,
+  type ServiceTypeRecord,
+} from "@/packages/pms/lib/service-types-card4.server";
 import { cn } from "@/shared/lib/utils";
 
-function recordToDraft(row: ServiceCategoryRecord): ServiceCategoryDraft {
+function recordToDraft(row: ServiceTypeRecord): ServiceTypeDraft {
   return {
     id: row.id,
+    categoryId: row.categoryId,
     name: row.name,
     code: row.code,
     description: row.description ?? "",
@@ -66,7 +75,7 @@ function recordToDraft(row: ServiceCategoryRecord): ServiceCategoryDraft {
   };
 }
 
-export function PmsCard4ServiceCategories({
+export function PmsCard4ServiceTypes({
   restaurantId,
   canEdit,
   onSavingChange,
@@ -80,11 +89,11 @@ export function PmsCard4ServiceCategories({
   onSaved: (thenNext: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const load = useServerFn(getPmsCard4ServiceCategories);
-  const save = useServerFn(savePmsCard4ServiceCategory);
-  const setActive = useServerFn(setPmsCard4ServiceCategoryActive);
-  const remove = useServerFn(deletePmsCard4ServiceCategory);
-  const queryKey = ["pms-card4-service-categories", restaurantId];
+  const load = useServerFn(getPmsCard4ServiceTypes);
+  const save = useServerFn(savePmsCard4ServiceType);
+  const setActive = useServerFn(setPmsCard4ServiceTypeActive);
+  const remove = useServerFn(deletePmsCard4ServiceType);
+  const queryKey = ["pms-card4-service-types", restaurantId];
   const query = useQuery({
     queryKey,
     queryFn: () => load({ data: { restaurantId } }),
@@ -92,22 +101,31 @@ export function PmsCard4ServiceCategories({
   });
 
   const categories = query.data?.categories ?? [];
+  const types = query.data?.types ?? [];
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [editorOpen, setEditorOpen] = useState(false);
-  const [draft, setDraft] = useState<ServiceCategoryDraft>(emptyServiceCategoryDraft());
+  const [draft, setDraft] = useState<ServiceTypeDraft>(emptyServiceTypeDraft());
   const [dirty, setDirty] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<ServiceCategoryRecord | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ServiceTypeRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(0);
 
-  const errors = validateServiceCategoryDraft(draft, categories);
+  const errors = validateServiceTypeDraft(draft, types, categories);
   const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;
-  const visible = categories.filter((row) => {
+  const categoryName = (id: string) => categories.find((row) => row.id === id)?.name ?? "—";
+  const visible = types.filter((row) => {
+    if (categoryFilter !== "all" && row.categoryId !== categoryFilter) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    return row.name.toLowerCase().includes(q) || row.code.toLowerCase().includes(q);
+    return (
+      row.name.toLowerCase().includes(q) ||
+      row.code.toLowerCase().includes(q) ||
+      categoryName(row.categoryId).toLowerCase().includes(q)
+    );
   });
+  const editorCategories = selectableServiceCategories(categories, draft.categoryId);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -115,8 +133,9 @@ export function PmsCard4ServiceCategories({
         data: {
           restaurantId,
           ...(draft.id ? { id: draft.id } : {}),
+          categoryId: draft.categoryId,
           name: draft.name,
-          code: normalizeServiceCategoryCode(draft.code),
+          code: normalizeServiceTypeCode(draft.code),
           description: draft.description,
           active: draft.active,
           displayOrder: draft.displayOrder,
@@ -124,11 +143,14 @@ export function PmsCard4ServiceCategories({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({
+        queryKey: ["pms-card4-service-categories", restaurantId],
+      });
       setEditorOpen(false);
       setDirty(false);
-      toast.success("Service category saved successfully.");
+      toast.success("Service type saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save service category."),
+    onError: (error: Error) => toast.error(error.message || "Unable to save service type."),
   });
 
   const toggleMutation = useMutation({
@@ -136,7 +158,7 @@ export function PmsCard4ServiceCategories({
       setActive({ data: { restaurantId, ...input } }),
     onSuccess: async (_result, input) => {
       await queryClient.invalidateQueries({ queryKey });
-      toast.success(input.active ? "Service category enabled." : "Service category disabled.");
+      toast.success(input.active ? "Service type enabled." : "Service type disabled.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -146,7 +168,7 @@ export function PmsCard4ServiceCategories({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
       setPendingDelete(null);
-      toast.success("Service category deleted.");
+      toast.success("Service type deleted.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -163,11 +185,11 @@ export function PmsCard4ServiceCategories({
     handledSaveToken.current = saveRequest.token;
     thenNextRef.current = saveRequest.thenNext;
     if (!canEdit || !query.data) {
-      toast.error("Unable to save service categories.");
+      toast.error("Unable to save service types.");
       return;
     }
     if (editorOpen && errors.length > 0) {
-      toast.error(errors[0]?.message ?? "Fix the category before saving.");
+      toast.error(errors[0]?.message ?? "Fix the service type before saving.");
       return;
     }
     if (editorOpen && dirty) {
@@ -176,23 +198,33 @@ export function PmsCard4ServiceCategories({
       });
       return;
     }
-    toast.success("Service categories saved successfully.");
+    toast.success("Service types saved successfully.");
     onSaved(thenNextRef.current);
   }, [saveRequest, canEdit, query.data, editorOpen, errors, dirty, onSaved, saveMutation]);
 
+  function defaultCategoryId() {
+    return categories.find((row) => row.active)?.id ?? "";
+  }
+
   function openCreate() {
-    setDraft(emptyServiceCategoryDraft(categories.length + 1));
+    const categoryId = defaultCategoryId();
+    setDraft(
+      emptyServiceTypeDraft(
+        categoryId,
+        types.filter((row) => row.categoryId === categoryId).length + 1,
+      ),
+    );
     setDirty(true);
     setEditorOpen(true);
   }
 
-  function openEdit(row: ServiceCategoryRecord) {
+  function openEdit(row: ServiceTypeRecord) {
     setDraft(recordToDraft(row));
     setDirty(false);
     setEditorOpen(true);
   }
 
-  function mark<K extends keyof ServiceCategoryDraft>(key: K, value: ServiceCategoryDraft[K]) {
+  function mark<K extends keyof ServiceTypeDraft>(key: K, value: ServiceTypeDraft[K]) {
     setDraft((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
   }
@@ -210,12 +242,12 @@ export function PmsCard4ServiceCategories({
     : "Never";
 
   return (
-    <div className="space-y-5" data-testid="card4-service-categories">
+    <div className="space-y-5" data-testid="card4-service-types">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-2xl text-[#251605]">Service Categories</h2>
+          <h2 className="font-display text-2xl text-[#251605]">Service Types</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Organize guest services into categories for easier management.
+            Define individual guest services under each service category.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
         </div>
@@ -223,9 +255,10 @@ export function PmsCard4ServiceCategories({
           <Button
             type="button"
             onClick={openCreate}
+            disabled={categories.filter((row) => row.active).length === 0}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
           >
-            <Plus className="mr-1 size-4" /> Add Service Category
+            <Plus className="mr-1 size-4" /> Add Service Type
           </Button>
         ) : null}
       </div>
@@ -239,7 +272,7 @@ export function PmsCard4ServiceCategories({
           </div>
         ) : query.isError ? (
           <div className="p-6">
-            <p className="text-sm text-destructive">Unable to load service categories.</p>
+            <p className="text-sm text-destructive">Unable to load service types.</p>
             <Button
               type="button"
               variant="outline"
@@ -249,37 +282,53 @@ export function PmsCard4ServiceCategories({
               Retry
             </Button>
           </div>
-        ) : categories.length === 0 ? (
+        ) : types.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="font-medium text-[#251605]">No service categories configured</p>
+            <p className="font-medium text-[#251605]">No service types configured</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create a service category to organize your guest services.
+              Create a service type under a service category.
             </p>
             {canEdit ? (
               <Button
                 type="button"
                 className="mt-4 bg-[#C89933] text-[#251605]"
                 onClick={openCreate}
+                disabled={categories.filter((row) => row.active).length === 0}
               >
-                <Plus className="mr-1 size-4" /> Add Service Category
+                <Plus className="mr-1 size-4" /> Add Service Type
               </Button>
             ) : null}
           </div>
         ) : (
           <>
-            <div className="border-b border-[#CCCCCC] p-3">
+            <div className="flex flex-wrap gap-3 border-b border-[#CCCCCC] p-3">
               <Input
+                className="min-w-[12rem] flex-1"
                 value={search}
-                placeholder="Search category name or code"
+                placeholder="Search name or code"
                 onChange={(event) => setSearch(event.target.value)}
               />
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {categories.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category Name</TableHead>
+                    <TableHead>Service Type</TableHead>
                     <TableHead>Code</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Active</TableHead>
@@ -291,6 +340,7 @@ export function PmsCard4ServiceCategories({
                     <TableRow key={row.id}>
                       <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
                       <TableCell>{row.code}</TableCell>
+                      <TableCell>{categoryName(row.categoryId)}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {row.description ?? "—"}
                       </TableCell>
@@ -364,9 +414,9 @@ export function PmsCard4ServiceCategories({
       >
         <SheetContent className="overflow-y-auto sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{draft.id ? "Edit Service Category" : "Add Service Category"}</SheetTitle>
+            <SheetTitle>{draft.id ? "Edit Service Type" : "Add Service Type"}</SheetTitle>
             <SheetDescription>
-              Categories group guest services. Individual services are configured later.
+              Service types belong to a category. Pricing and SLA rules are configured later.
             </SheetDescription>
           </SheetHeader>
           <form
@@ -374,16 +424,39 @@ export function PmsCard4ServiceCategories({
             onSubmit={(event) => {
               event.preventDefault();
               if (!canEdit || errors.length > 0) {
-                toast.error(errors[0]?.message ?? "Fix the category before saving.");
+                toast.error(errors[0]?.message ?? "Fix the service type before saving.");
                 return;
               }
               saveMutation.mutate();
             }}
           >
             <div className="space-y-1">
-              <Label htmlFor="sc-name">Category Name *</Label>
+              <Label htmlFor="st-category">Category *</Label>
+              <Select
+                value={draft.categoryId || undefined}
+                disabled={!canEdit}
+                onValueChange={(value) => mark("categoryId", value)}
+              >
+                <SelectTrigger id="st-category">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {editorCategories.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                      {row.active ? "" : " (Inactive)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errorFor("categoryId") ? (
+                <p className="text-xs text-destructive">{errorFor("categoryId")}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="st-name">Service Type Name *</Label>
               <Input
-                id="sc-name"
+                id="st-name"
                 value={draft.name}
                 disabled={!canEdit}
                 onChange={(event) => mark("name", event.target.value)}
@@ -393,21 +466,21 @@ export function PmsCard4ServiceCategories({
               ) : null}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="sc-code">Code *</Label>
+              <Label htmlFor="st-code">Code *</Label>
               <Input
-                id="sc-code"
+                id="st-code"
                 value={draft.code}
                 disabled={!canEdit}
-                onChange={(event) => mark("code", normalizeServiceCategoryCode(event.target.value))}
+                onChange={(event) => mark("code", normalizeServiceTypeCode(event.target.value))}
               />
               {errorFor("code") ? (
                 <p className="text-xs text-destructive">{errorFor("code")}</p>
               ) : null}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="sc-description">Description</Label>
+              <Label htmlFor="st-description">Description</Label>
               <Textarea
-                id="sc-description"
+                id="st-description"
                 value={draft.description}
                 disabled={!canEdit}
                 maxLength={400}
@@ -415,9 +488,9 @@ export function PmsCard4ServiceCategories({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="sc-order">Display Order</Label>
+              <Label htmlFor="st-order">Display Order</Label>
               <Input
-                id="sc-order"
+                id="st-order"
                 type="number"
                 min={1}
                 value={draft.displayOrder}
@@ -429,9 +502,9 @@ export function PmsCard4ServiceCategories({
               ) : null}
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="sc-active">Active</Label>
+              <Label htmlFor="st-active">Active</Label>
               <Switch
-                id="sc-active"
+                id="st-active"
                 checked={draft.active}
                 disabled={!canEdit}
                 onCheckedChange={(active) => mark("active", active)}
@@ -454,9 +527,9 @@ export function PmsCard4ServiceCategories({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Service Category?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Service Type?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the category from Guest Service configuration.
+              This will remove the service type from Guest Service configuration.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -475,7 +548,7 @@ export function PmsCard4ServiceCategories({
           <AlertDialogHeader>
             <AlertDialogTitle>You have unsaved changes.</AlertDialogTitle>
             <AlertDialogDescription>
-              Discard them to close this category form?
+              Discard them to close this service type form?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -496,13 +569,13 @@ export function PmsCard4ServiceCategories({
   );
 }
 
-export function Card4ServiceCategoriesGuide({ count }: { count: number }) {
+export function Card4ServiceTypesGuide({ count }: { count: number }) {
   return (
     <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
       <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-        <li className={count > 0 ? "text-[#436436]" : undefined}>Configure Service Categories</li>
-        <li>Add Service Types</li>
+        <li className="text-[#436436]">Configure Service Categories</li>
+        <li className={count > 0 ? "text-[#436436]" : undefined}>Add Service Types</li>
         <li>Review and Save</li>
       </ol>
       <p className="mt-3 text-sm text-[#251605]">{count} configured</p>
