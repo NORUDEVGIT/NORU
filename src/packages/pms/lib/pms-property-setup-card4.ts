@@ -14,7 +14,7 @@ export const CARD4_SUBTITLE = "Guest profile rules, guest service types, and not
 export const CARD4_GPR_SUBTITLE = "Guest Profile Rules for this property.";
 export const CARD4_GST_SUBTITLE = "Organize guest services into categories for easier management.";
 export const CARD4_NOTIFY_SUBTITLE =
-  "Notifications & Communication configuration will be implemented in a later phase.";
+  "Configure property communication channels, templates, events, and delivery defaults.";
 export const CARD4_PURPOSE =
   "Guest Profile Rules, Guest Service Types, Notifications & Communication.";
 export const CARD4_HASH = "guest-services";
@@ -105,6 +105,62 @@ export const CARD4_GST_STEPS = [
 ] as const;
 
 export type Card4GstStepId = (typeof CARD4_GST_STEPS)[number]["id"];
+
+export const CARD4_NOTIFICATION_STEPS = [
+  { id: "channels", number: 1, title: "Channels", placeholder: null },
+  {
+    id: "communication-templates",
+    number: 2,
+    title: "Communication Templates",
+    placeholder: "Communication Templates will be implemented in Phase 2.",
+  },
+  {
+    id: "notification-events",
+    number: 3,
+    title: "Notification Events",
+    placeholder: "Notification Events will be implemented in a later phase.",
+  },
+  {
+    id: "automation-rules",
+    number: 4,
+    title: "Automation Rules",
+    placeholder: "Automation Rules will be implemented in a later phase.",
+  },
+  {
+    id: "sender-settings",
+    number: 5,
+    title: "Sender Settings",
+    placeholder: "Sender Settings will be implemented in a later phase.",
+  },
+  {
+    id: "communication-defaults",
+    number: 6,
+    title: "Communication Defaults",
+    placeholder: "Communication Defaults will be implemented in a later phase.",
+  },
+] as const;
+
+export type Card4NotificationStepId = (typeof CARD4_NOTIFICATION_STEPS)[number]["id"];
+
+export function card4NotificationStepById(step: Card4NotificationStepId) {
+  return CARD4_NOTIFICATION_STEPS.find((row) => row.id === step) ?? CARD4_NOTIFICATION_STEPS[0];
+}
+
+export function nextCard4NotificationStep(
+  step: Card4NotificationStepId,
+): Card4NotificationStepId | null {
+  const index = CARD4_NOTIFICATION_STEPS.findIndex((row) => row.id === step);
+  if (index < 0 || index >= CARD4_NOTIFICATION_STEPS.length - 1) return null;
+  return CARD4_NOTIFICATION_STEPS[index + 1]?.id ?? null;
+}
+
+export function evaluateNotificationStepStatus(
+  step: Card4NotificationStepId,
+  channelsConfigured: boolean,
+): PropertySetupCardStatus {
+  if (step === "channels") return channelsConfigured ? "complete" : "not_started";
+  return "not_started";
+}
 
 export function card4GstStepById(step: Card4GstStepId) {
   return CARD4_GST_STEPS.find((row) => row.id === step) ?? CARD4_GST_STEPS[0];
