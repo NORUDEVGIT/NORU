@@ -43,6 +43,10 @@ import {
   Card4ServicePricingGuide,
   PmsCard4ServicePricing,
 } from "@/packages/pms/components/settings/pms-card4-service-pricing";
+import {
+  Card4ServiceDepartmentAssignmentGuide,
+  PmsCard4ServiceDepartmentAssignment,
+} from "@/packages/pms/components/settings/pms-card4-service-department-assignment";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
@@ -51,6 +55,8 @@ import { getPmsCard4ServiceTypes } from "@/packages/pms/lib/service-types-card4.
 import { serviceTypesConfigured } from "@/packages/pms/lib/service-types-card4.server";
 import { getPmsCard4ServicePricing } from "@/packages/pms/lib/service-pricing-card4.functions";
 import { servicePricingConfigured } from "@/packages/pms/lib/service-pricing-card4.server";
+import { getPmsCard4ServiceDepartmentAssignments } from "@/packages/pms/lib/service-department-assignment-card4.functions";
+import { serviceDepartmentAssignmentsConfigured } from "@/packages/pms/lib/service-department-assignment-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -103,6 +109,7 @@ export function PmsPropertySetupCard4Section({
   const loadServiceCategories = useServerFn(getPmsCard4ServiceCategories);
   const loadServiceTypes = useServerFn(getPmsCard4ServiceTypes);
   const loadServicePricing = useServerFn(getPmsCard4ServicePricing);
+  const loadAssignments = useServerFn(getPmsCard4ServiceDepartmentAssignments);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -144,6 +151,11 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadServicePricing({ data: { restaurantId } }),
     retry: false,
   });
+  const assignmentsQuery = useQuery({
+    queryKey: ["pms-card4-department-assignment", restaurantId],
+    queryFn: () => loadAssignments({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -172,6 +184,11 @@ export function PmsPropertySetupCard4Section({
   const pricingReady = servicePricingConfigured(
     servicePricingQuery.data?.pricing ?? [],
     servicePricingQuery.data?.serviceTypes ?? [],
+  );
+  const assignmentsReady = serviceDepartmentAssignmentsConfigured(
+    assignmentsQuery.data?.assignments ?? [],
+    assignmentsQuery.data?.serviceTypes ?? [],
+    assignmentsQuery.data?.departments ?? [],
   );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
@@ -233,31 +250,42 @@ export function PmsPropertySetupCard4Section({
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
     ),
     "service-types": evaluateGstStepStatus(
       "service-types",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
     ),
     "service-pricing": evaluateGstStepStatus(
       "service-pricing",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
     ),
     "department-assignment": evaluateGstStepStatus(
       "department-assignment",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
     ),
-    "sla-rules": evaluateGstStepStatus("sla-rules", categoriesReady, typesReady, pricingReady),
+    "sla-rules": evaluateGstStepStatus(
+      "sla-rules",
+      categoriesReady,
+      typesReady,
+      pricingReady,
+      assignmentsReady,
+    ),
     "service-availability": evaluateGstStepStatus(
       "service-availability",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
     ),
   };
   const gprCompleted = card4CompletedCount(stepStatuses);
@@ -275,7 +303,7 @@ export function PmsPropertySetupCard4Section({
     preferencesReady &&
     companyReady;
   const cardStatus: PropertySetupCardStatus =
-    allGprComplete && categoriesReady && typesReady && pricingReady
+    allGprComplete && categoriesReady && typesReady && pricingReady && assignmentsReady
       ? "complete"
       : profileTypesConfigured ||
           requiredFieldsConfigured ||
@@ -284,7 +312,8 @@ export function PmsPropertySetupCard4Section({
           companyReady ||
           categoriesReady ||
           typesReady ||
-          pricingReady
+          pricingReady ||
+          assignmentsReady
         ? "in_progress"
         : "not_started";
 
@@ -321,7 +350,8 @@ export function PmsPropertySetupCard4Section({
       if (
         gstStep === "service-categories" ||
         gstStep === "service-types" ||
-        gstStep === "service-pricing"
+        gstStep === "service-pricing" ||
+        gstStep === "department-assignment"
       ) {
         requestSave(true);
         return;
@@ -351,7 +381,8 @@ export function PmsPropertySetupCard4Section({
   const gstLive =
     gstStep === "service-categories" ||
     gstStep === "service-types" ||
-    gstStep === "service-pricing";
+    gstStep === "service-pricing" ||
+    gstStep === "department-assignment";
   const liveStep =
     mainSection === "profile-rules"
       ? gprLive
@@ -483,6 +514,13 @@ export function PmsPropertySetupCard4Section({
               servicePricingQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
             }
           />
+        ) : mainSection === "guest-service-types" && gstStep === "department-assignment" ? (
+          <Card4ServiceDepartmentAssignmentGuide
+            assignmentCount={assignmentsQuery.data?.assignments.length ?? 0}
+            activeDepartmentCount={
+              assignmentsQuery.data?.departments.filter((row) => row.active).length ?? 0
+            }
+          />
         ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
           <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
         ) : step === "required-fields" ? (
@@ -538,6 +576,14 @@ export function PmsPropertySetupCard4Section({
           />
         ) : gstStep === "service-pricing" ? (
           <PmsCard4ServicePricing
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onSavingChange={onSavingChange}
+            saveRequest={saveRequest}
+            onSaved={onSaved}
+          />
+        ) : gstStep === "department-assignment" ? (
+          <PmsCard4ServiceDepartmentAssignment
             restaurantId={restaurantId}
             canEdit={canEdit}
             onSavingChange={onSavingChange}
