@@ -31,6 +31,7 @@ import { PmsPropertySetupCard3Meals } from "@/packages/pms/components/settings/p
 import { PmsPropertySetupCard3Payments } from "@/packages/pms/components/settings/pms-property-setup-card3-payments";
 import { PmsPropertySetupCard3Billing } from "@/packages/pms/components/settings/pms-property-setup-card3-billing";
 import { PmsPropertySetupCard3Corporate } from "@/packages/pms/components/settings/pms-property-setup-card3-corporate";
+import { PmsPropertySetupCard3Commercial } from "@/packages/pms/components/settings/pms-property-setup-card3-commercial";
 import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
 import { getTaxesCard3 } from "@/packages/pms/lib/taxes-card3.functions";
 import { getRatesCard3 } from "@/packages/pms/lib/rates-card3.functions";
@@ -38,6 +39,7 @@ import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import { getPaymentsCard3 } from "@/packages/pms/lib/payments-card3.functions";
 import { getBillingCard3 } from "@/packages/pms/lib/billing-card3.functions";
 import { getCorporateCard3 } from "@/packages/pms/lib/corporate-card3.functions";
+import { getCommercialCard3 } from "@/packages/pms/lib/commercial-card3.functions";
 
 export function PmsPropertySetupCard3Section({
   restaurantId,
@@ -55,6 +57,7 @@ export function PmsPropertySetupCard3Section({
   const loadPayments = useServerFn(getPaymentsCard3);
   const loadBilling = useServerFn(getBillingCard3);
   const loadCorporate = useServerFn(getCorporateCard3);
+  const loadCommercial = useServerFn(getCommercialCard3);
   const currencyQuery = useQuery({
     queryKey: ["pms-card3-currency", restaurantId],
     queryFn: () => loadCurrency({ data: { restaurantId } }),
@@ -83,6 +86,10 @@ export function PmsPropertySetupCard3Section({
     queryKey: ["pms-card3-corporate", restaurantId],
     queryFn: () => loadCorporate({ data: { restaurantId } }),
   });
+  const commercialQuery = useQuery({
+    queryKey: ["pms-card3-commercial", restaurantId],
+    queryFn: () => loadCommercial({ data: { restaurantId } }),
+  });
   const readinessLoading =
     currencyQuery.isLoading ||
     taxesQuery.isLoading ||
@@ -90,7 +97,8 @@ export function PmsPropertySetupCard3Section({
     mealsQuery.isLoading ||
     paymentsQuery.isLoading ||
     billingQuery.isLoading ||
-    corporateQuery.isLoading;
+    corporateQuery.isLoading ||
+    commercialQuery.isLoading;
   const currencyStatus: PropertySetupCardStatus =
     currencyQuery.data?.readiness.status ?? "not_started";
   const taxesStatus: PropertySetupCardStatus = taxesQuery.data?.readiness.status ?? "not_started";
@@ -102,6 +110,8 @@ export function PmsPropertySetupCard3Section({
     billingQuery.data?.readiness.status ?? "not_started";
   const corporateStatus: PropertySetupCardStatus =
     corporateQuery.data?.readiness.status ?? "not_started";
+  const commercialStatus: PropertySetupCardStatus =
+    commercialQuery.data?.readiness.status ?? "not_started";
   const completeCount = [
     currencyStatus,
     taxesStatus,
@@ -110,6 +120,7 @@ export function PmsPropertySetupCard3Section({
     paymentsStatus,
     billingStatus,
     corporateStatus,
+    commercialStatus,
   ].filter((status) => status === "complete").length;
   const progressPct = Math.round((completeCount / CARD3_DOMAINS.length) * 100);
   const progressLabel = readinessLoading
@@ -207,6 +218,13 @@ export function PmsPropertySetupCard3Section({
             domain={domain}
             onBack={() => setActiveDomain(null)}
           />
+        ) : domain?.id === "revenue-commercial-rules" ? (
+          <PmsPropertySetupCard3Commercial
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            domain={domain}
+            onBack={() => setActiveDomain(null)}
+          />
         ) : domain ? (
           <PmsPropertySetupCard3Workspace domain={domain} onBack={() => setActiveDomain(null)}>
             <div
@@ -292,7 +310,9 @@ export function PmsPropertySetupCard3Section({
                               ? billingStatus
                               : item.id === "corporate-contract-rates"
                                 ? corporateStatus
-                                : "not_started";
+                                : item.id === "revenue-commercial-rules"
+                                  ? commercialStatus
+                                  : "not_started";
                 return (
                   <article
                     key={item.id}
