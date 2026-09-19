@@ -78,6 +78,11 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.equal(nextCard4Step("required-fields"), "identity-documents");
     assert.equal(nextCard4Step("identity-documents"), "preferences");
     assert.equal(nextCard4Step("preferences"), "company-business");
+    assert.equal(nextCard4Step("company-business"), null);
+    assert.equal(
+      evaluateCard4StepStatus("company-business", undefined, true, true, true, true, true),
+      "complete",
+    );
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -96,10 +101,12 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(section, /PmsCard4RequiredFields/);
     assert.match(section, /PmsCard4IdentityDocuments/);
     assert.match(section, /PmsCard4Preferences/);
+    assert.match(section, /PmsCard4CompanyBusiness/);
     assert.match(section, /identity-documents/);
-    assert.match(lib, /later phase/);
+    assert.match(section, /company-business/);
+    assert.doesNotMatch(lib, /later phase/);
     assert.match(section, /cardStatusLabel=\{propertySetupStatusLabel\(cardStatus\)\}/);
-    assert.doesNotMatch(section, /cardStatus = "complete"/);
+    assert.match(section, /allComplete/);
   });
 
   it("does not rewrite operational Guest Profile types", () => {
@@ -192,5 +199,21 @@ describe("Card 4 dual-lane 0077", () => {
     assert.match(sql, /has_restaurant_role\(restaurant_id, 'owner'\)/);
     assert.doesNotMatch(sql, /REFERENCES public\.guest_profiles/);
     assert.doesNotMatch(sql, /ON DELETE CASCADE REFERENCES public\.guest_/);
+  });
+});
+
+describe("Card 4 dual-lane 0082", () => {
+  it("ships identical business type and settings SQL without operational company FKs", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0082_pms_card4_company_business.sql");
+    const supabase = join(process.cwd(), "supabase/migrations/0082_pms_card4_company_business.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_business_profile_types/);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_business_profile_settings/);
+    assert.match(sql, /ALTER TABLE public\.pms_business_profile_types ENABLE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(sql, /guest_profiles/);
+    assert.doesNotMatch(sql, /REFERENCES public\.guest_/);
   });
 });

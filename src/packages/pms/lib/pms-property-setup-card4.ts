@@ -1,7 +1,7 @@
 /**
  * PMS Property Setup Card 4 — Guest & Services (Issue #195).
  *
- * Phases 1–4: Profile Types, Required Fields, Identity Documents, and Preferences.
+ * Phases 1–5: Profile Types through Company & Business.
  * Operational Guest Profiles are not configured from this card.
  */
 
@@ -47,7 +47,7 @@ export const CARD4_STEPS = [
     id: "company-business",
     number: 5,
     title: "Company & Business",
-    placeholder: "Company & Business configuration will be implemented in a later phase.",
+    placeholder: null,
   },
 ] as const;
 
@@ -76,6 +76,7 @@ export function evaluateCard4StepStatus(
   requiredFieldsConfigured = false,
   identityDocumentsConfigured = false,
   preferencesConfigured = false,
+  companyBusinessConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "profile-types") {
     if (profileTypesConfigured) return "complete";
@@ -94,6 +95,11 @@ export function evaluateCard4StepStatus(
   }
   if (step === "preferences") {
     if (preferencesConfigured) return "complete";
+    if (stored === "in_progress" || stored === "complete") return stored;
+    return "not_started";
+  }
+  if (step === "company-business") {
+    if (companyBusinessConfigured) return "complete";
     if (stored === "in_progress" || stored === "complete") return stored;
     return "not_started";
   }
