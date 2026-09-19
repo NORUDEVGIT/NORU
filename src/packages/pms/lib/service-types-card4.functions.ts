@@ -313,11 +313,23 @@ export const deletePmsCard4ServiceType = createServerFn({ method: "POST" })
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
+    const pricing = await db
+      .from("pms_guest_service_pricing")
+      .select("id", { count: "exact", head: true })
+      .eq("service_type_id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (pricing.error && pricing.error.code !== "42P01") unavailable(pricing.error);
+    if ((pricing.count ?? 0) > 0) {
+      throw new Error("This service type cannot be deleted because pricing is configured.");
+    }
     const result = await db
       .from("pms_guest_service_types")
       .delete()
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId);
+    if (result.error?.code === "23503") {
+      throw new Error("This service type cannot be deleted because pricing is configured.");
+    }
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_type_deleted", {
       id: data.id,
