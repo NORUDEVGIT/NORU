@@ -67,6 +67,10 @@ import {
   Card4NotificationEventsGuide,
   PmsCard4NotificationEvents,
 } from "@/packages/pms/components/settings/pms-card4-notification-events";
+import {
+  Card4AutomationRulesGuide,
+  PmsCard4AutomationRules,
+} from "@/packages/pms/components/settings/pms-card4-automation-rules";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
@@ -91,6 +95,8 @@ import {
 } from "@/packages/pms/lib/communication-templates-card4.server";
 import { getPmsCard4NotificationEvents } from "@/packages/pms/lib/notification-events-card4.functions";
 import { notificationEventsConfigured } from "@/packages/pms/lib/notification-events-card4.server";
+import { getPmsCard4AutomationRules } from "@/packages/pms/lib/automation-rules-card4.functions";
+import { automationRulesConfigured } from "@/packages/pms/lib/automation-rules-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -155,6 +161,7 @@ export function PmsPropertySetupCard4Section({
   const loadCommunicationChannels = useServerFn(getPmsCard4CommunicationChannels);
   const loadCommunicationTemplates = useServerFn(getPmsCard4CommunicationTemplates);
   const loadNotificationEvents = useServerFn(getPmsCard4NotificationEvents);
+  const loadAutomationRules = useServerFn(getPmsCard4AutomationRules);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -226,6 +233,11 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadNotificationEvents({ data: { restaurantId } }),
     retry: false,
   });
+  const automationRulesQuery = useQuery({
+    queryKey: ["pms-card4-automation-rules", restaurantId],
+    queryFn: () => loadAutomationRules({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -275,6 +287,7 @@ export function PmsPropertySetupCard4Section({
     communicationTemplatesQuery.data?.templates ?? [],
   );
   const eventsReady = notificationEventsConfigured(notificationEventsQuery.data?.events ?? []);
+  const rulesReady = automationRulesConfigured(automationRulesQuery.data?.rules ?? []);
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
     setSaving(nextSaving);
@@ -391,7 +404,7 @@ export function PmsPropertySetupCard4Section({
     Object.fromEntries(
       CARD4_NOTIFICATION_STEPS.map((row) => [
         row.id,
-        evaluateNotificationStepStatus(row.id, channelsReady, templatesReady, eventsReady),
+        evaluateNotificationStepStatus(row.id, channelsReady, templatesReady, eventsReady, rulesReady),
       ]),
     );
   const gprCompleted = card4CompletedCount(stepStatuses);
@@ -421,7 +434,8 @@ export function PmsPropertySetupCard4Section({
     availabilityReady &&
     channelsReady &&
     templatesReady &&
-    eventsReady
+    eventsReady &&
+    rulesReady
       ? "complete"
       : profileTypesConfigured ||
           requiredFieldsConfigured ||
@@ -436,7 +450,8 @@ export function PmsPropertySetupCard4Section({
           availabilityReady ||
           channelsReady ||
           templatesReady ||
-          eventsReady
+          eventsReady ||
+          rulesReady
         ? "in_progress"
         : "not_started";
 
@@ -477,7 +492,8 @@ export function PmsPropertySetupCard4Section({
       if (
         notificationStep === "channels" ||
         notificationStep === "communication-templates" ||
-        notificationStep === "notification-events"
+        notificationStep === "notification-events" ||
+        notificationStep === "automation-rules"
       ) {
         requestSave(true);
         return;
@@ -534,7 +550,8 @@ export function PmsPropertySetupCard4Section({
         ? gstLive
         : notificationStep === "channels" ||
           notificationStep === "communication-templates" ||
-          notificationStep === "notification-events";
+          notificationStep === "notification-events" ||
+          notificationStep === "automation-rules";
   const subtitle =
     mainSection === "guest-service-types"
       ? CARD4_GST_SUBTITLE
@@ -665,6 +682,8 @@ export function PmsPropertySetupCard4Section({
           />
         ) : mainSection === "notifications" && notificationStep === "notification-events" ? (
           <Card4NotificationEventsGuide events={notificationEventsQuery.data?.events ?? []} />
+        ) : mainSection === "notifications" && notificationStep === "automation-rules" ? (
+          <Card4AutomationRulesGuide rules={automationRulesQuery.data?.rules ?? []} />
         ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
           <Card4ServiceCategoriesGuide
             count={serviceCategoriesQuery.data?.categories.length ?? 0}
@@ -746,6 +765,14 @@ export function PmsPropertySetupCard4Section({
           />
         ) : notificationStep === "notification-events" ? (
           <PmsCard4NotificationEvents
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onSavingChange={onSavingChange}
+            saveRequest={saveRequest}
+            onSaved={onSaved}
+          />
+        ) : notificationStep === "automation-rules" ? (
+          <PmsCard4AutomationRules
             restaurantId={restaurantId}
             canEdit={canEdit}
             onSavingChange={onSavingChange}
