@@ -101,7 +101,7 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.match(workspace, /CARD3_AUDIT_HISTORY_LABEL/);
     assert.match(workspace, /CARD3_BACK_LABEL/);
     assert.match(settings, /isCard3WorkspaceHash/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
   });
 

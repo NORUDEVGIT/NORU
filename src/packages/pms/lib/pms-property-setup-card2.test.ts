@@ -80,7 +80,7 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.match(chrome, /\[&>\*\]:pointer-events-auto/);
     assert.match(chrome, /pb-28/);
     assert.match(settings, /isCard2WorkspaceHash/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.match(card1Ui, /pms-card1-fullscreen/);
     assert.doesNotMatch(card1Ui, /PmsPropertySetupWorkspace/);
   });

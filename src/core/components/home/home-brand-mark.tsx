@@ -17,7 +17,7 @@ export function HomeBrandMark({ brand, size = "sm" }: { brand: BrandContent; siz
         className={`${imgSize} shrink-0 rounded-full object-cover`}
         draggable={false}
       />
-      <span className={`font-display font-semibold tracking-wide ${textSize}`}>{brand.siteName}</span>
+      <span className={`font-brand font-semibold tracking-wide ${textSize}`}>{brand.siteName}</span>
     </span>
   );
 }

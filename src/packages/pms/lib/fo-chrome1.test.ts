@@ -31,9 +31,16 @@ function readRel(rel: string): string {
   return readFileSync(new URL(rel, import.meta.url), "utf8");
 }
 
+function readChrome(): string {
+  return (
+    readRel("../components/frontoffice/front-office-chrome.tsx") +
+    readRel("../components/pms-command-chrome.tsx")
+  );
+}
+
 describe("FO large-screen chrome — command surface", () => {
   it("keeps a single dark top command strip and removes the bottom Coming soon bar", () => {
-    const chrome = readRel("../components/frontoffice/front-office-chrome.tsx");
+    const chrome = readChrome();
     assert.match(chrome, /fo-top-command/);
     assert.match(chrome, /#251605/);
     assert.match(chrome, /#C89933/);
@@ -53,7 +60,7 @@ describe("FO large-screen chrome — command surface", () => {
   });
 
   it("does not repeat hotel · date · Active · user · Log out identity chrome", () => {
-    const chrome = readRel("../components/frontoffice/front-office-chrome.tsx");
+    const chrome = readChrome();
     assert.doesNotMatch(chrome, /propertyName/);
     assert.doesNotMatch(chrome, /userLabel/);
     assert.doesNotMatch(chrome, /roleLabel/);
@@ -84,7 +91,7 @@ describe("FO large-screen chrome — command surface", () => {
   it("exposes nine desktop destinations as top tabs and keeps phone select honesty", () => {
     assert.equal(FO_NAV_ITEMS.length, 9);
     assert.equal(FO_PRIMARY_TITLE, "Room Rack + Calendar");
-    const chrome = readRel("../components/frontoffice/front-office-chrome.tsx");
+    const chrome = readChrome();
     assert.match(chrome, /hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex/);
     assert.match(chrome, /md:hidden/);
     assert.match(chrome, /fo-mobile-nav/);
@@ -205,7 +212,7 @@ describe("FO large-screen chrome — Guest Request sheet and no new backend", ()
     const sheet = readRel("../components/frontoffice/fo-amend-sheet.tsx");
     assert.match(sheet, /FoGuestRequestSheet/);
 
-    const chrome = readRel("../components/frontoffice/front-office-chrome.tsx");
+    const chrome = readChrome();
     assert.doesNotMatch(chrome, /Guest request queue/);
   });
 
@@ -224,7 +231,7 @@ describe("FO large-screen chrome — Guest Request sheet and no new backend", ()
         false,
       );
     }
-    const chrome = readRel("../components/frontoffice/front-office-chrome.tsx");
+    const chrome = readChrome();
     assert.doesNotMatch(chrome, /create table|apply_migration|useServerFn/i);
   });
 });

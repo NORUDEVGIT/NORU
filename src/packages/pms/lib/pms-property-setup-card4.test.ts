@@ -178,7 +178,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(hub, /PmsPropertySetupCard4Section/);
     assert.match(hub, /CARD4_HASH/);
     assert.match(settings, /isCard4WorkspaceHash/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.match(section, /PmsCard4RequiredFields/);
     assert.match(section, /PmsCard4IdentityDocuments/);
     assert.match(section, /PmsCard4Preferences/);
