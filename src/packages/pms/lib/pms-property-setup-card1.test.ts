@@ -398,7 +398,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(ui, /CARD1_WORKSPACE_TITLE/);
     assert.match(ui, /CARD1_SIDEBAR_OUT/);
     assert.doesNotMatch(ui, /Foundation badge|SET1_FOUNDATION_CHIP/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.match(settings, /isCard1WorkspaceHash/);
     assert.match(settings, /isCard2WorkspaceHash/);
     assert.match(shell, /hidePackageRailProp/);

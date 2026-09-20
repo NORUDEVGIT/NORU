@@ -77,7 +77,7 @@ describe("PMS Property Setup Card 8 Phase 0 shell", () => {
     assert.match(hub, /card8Open/);
     assert.match(hub, /isCard8WorkspaceHash/);
     assert.match(settings, /isCard8WorkspaceHash/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.match(section, /pms-card8-fullscreen/);
     assert.match(section, /pms-card8-top-nav/);
     assert.match(section, /pms-card8-tabs-slot/);

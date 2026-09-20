@@ -19,8 +19,9 @@
  */
 
 @theme inline {
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-brand: "Fraunces", ui-serif, Georgia, serif;
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-surface: var(--surface);
@@ -176,8 +177,20 @@
   h1,
   h2,
   h3 {
-    font-family: var(--font-display);
+    font-family: var(--font-sans);
     letter-spacing: -0.01em;
+  }
+
+  h1 {
+    font-weight: 800;
+  }
+
+  h2 {
+    font-weight: 700;
+  }
+
+  h3 {
+    font-weight: 600;
   }
 }
 
