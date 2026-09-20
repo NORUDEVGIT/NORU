@@ -206,7 +206,10 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(section, /company-business/);
     assert.match(section, /guest-service-types/);
     assert.match(lib, /CARD4_GST_STEPS/);
-    assert.match(section, /cardStatusLabel=\{propertySetupStatusLabel\(cardStatus\)\}/);
+    assert.match(section, /PropertySetupWorkspaceShell/);
+    assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
+    assert.doesNotMatch(section, /CARD1_PMS_NAV/);
+    assert.doesNotMatch(section, /card4ProgressPct/);
     assert.match(section, /allGprComplete/);
   });
 

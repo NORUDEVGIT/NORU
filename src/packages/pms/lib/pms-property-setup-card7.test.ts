@@ -75,10 +75,7 @@ describe("PMS Property Setup Card 7 Phase 0 shell", () => {
     assert.equal(isSet1SectionHash("#security-audit"), true);
     assert.equal(isSet1SectionHash("#reports"), true);
     assert.equal(isSet1SectionHash("#administration"), true);
-    assert.equal(
-      propertySetupRedirectHref("#card-7"),
-      `${SET1_HUB_HREF}#security-data-reports`,
-    );
+    assert.equal(propertySetupRedirectHref("#card-7"), `${SET1_HUB_HREF}#security-data-reports`);
   });
 
   it("wires full-screen navigation and every future workspace slot", () => {
@@ -88,7 +85,9 @@ describe("PMS Property Setup Card 7 Phase 0 shell", () => {
     assert.match(settings, /isCard7WorkspaceHash/);
     assert.match(settings, /hidePackageRail/);
     assert.match(section, /pms-card7-fullscreen/);
-    assert.match(section, /pms-card7-top-nav/);
+    assert.match(section, /PropertySetupWorkspaceShell/);
+    assert.doesNotMatch(section, /pms-card7-top-nav/);
+    assert.doesNotMatch(section, /CARD1_PMS_NAV/);
     assert.match(section, /pms-card7-tabs-slot/);
     assert.match(section, /CARD7_PHASE0_PLACEHOLDER/);
     assert.match(lib, /CARD7_PHASE0_PLACEHOLDER/);
@@ -157,10 +156,7 @@ describe("PMS Property Setup Card 7 Phase 0 shell", () => {
 describe("Card 7 dual-lane 0084", () => {
   it("ships identical Security & Roles SQL without a live authz resolver", () => {
     const drizzle = join(process.cwd(), "drizzle/migrations/0084_pms_card7_security_roles.sql");
-    const supabase = join(
-      process.cwd(),
-      "supabase/migrations/0084_pms_card7_security_roles.sql",
-    );
+    const supabase = join(process.cwd(), "supabase/migrations/0084_pms_card7_security_roles.sql");
     assert.equal(existsSync(drizzle), true);
     assert.equal(existsSync(supabase), true);
     const sql = readFileSync(drizzle, "utf8");
@@ -186,7 +182,10 @@ describe("Card 7 dual-lane 0084", () => {
 
 describe("Card 7 dual-lane 0085", () => {
   it("seeds 88 global permissions with edit not update and 23 sensitive flags", () => {
-    const drizzle = join(process.cwd(), "drizzle/migrations/0085_pms_card7_permission_catalogue.sql");
+    const drizzle = join(
+      process.cwd(),
+      "drizzle/migrations/0085_pms_card7_permission_catalogue.sql",
+    );
     const supabase = join(
       process.cwd(),
       "supabase/migrations/0085_pms_card7_permission_catalogue.sql",

@@ -8,17 +8,19 @@ import { cn } from "@/shared/lib/utils";
 import { Card5DepartmentsTab } from "@/packages/pms/components/settings/pms-card5-departments-tab";
 import { Card5OutletsTab } from "@/packages/pms/components/settings/pms-card5-outlets-tab";
 import { Card5SalesEventsTab } from "@/packages/pms/components/settings/pms-card5-sales-events-tab";
-import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
-  CARD1_PMS_NAV,
-  propertySetupStatusLabel,
-} from "@/packages/pms/lib/pms-property-setup-card1";
+  PropertySetupStatusRail,
+  PropertySetupStepNav,
+  PropertySetupWorkspaceShell,
+} from "@/packages/pms/components/settings/setup-kit";
+import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
+import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
 import { getCard5Validation } from "@/packages/pms/lib/pms-property-setup-card5.functions";
 import {
   CARD5_SIDEBAR_OUT,
   CARD5_SUBTITLE,
   CARD5_TABS,
-  CARD5_WORKSPACE_TITLE,
   type Card5TabId,
 } from "@/packages/pms/lib/pms-property-setup-card5";
 import type { Card5Verdict } from "@/packages/pms/lib/card5-readiness.server";
@@ -60,47 +62,46 @@ export function PmsPropertySetupCard5Section({
   }
 
   const overall = overallQuery.data?.overall;
+  const railSections = [
+    {
+      id: "departments",
+      title: "Departments",
+      status: overallQuery.data?.departments.status ?? "not_started",
+    },
+    {
+      id: "outlets-facilities",
+      title: "Outlets & Facilities",
+      status: overallQuery.data?.facilities.status ?? "not_started",
+    },
+    {
+      id: "sales-events",
+      title: "Sales & Events",
+      status: overallQuery.data?.sales.status ?? "not_started",
+    },
+  ] as const;
+  const counts = propertySetupRailCounts(railSections.map((row) => row.status));
 
   return (
     <section
-      className="min-h-[calc(100dvh-3.75rem)] bg-[#F7F4EE]"
+      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
       data-testid="pms-card5-workspace"
       data-card-fullscreen="true"
     >
       <div className="sr-only">{CARD5_SIDEBAR_OUT}</div>
-      <nav
-        className="flex flex-wrap items-center gap-1 bg-[#251605] px-4 py-2 text-white"
-        data-testid="pms-card5-top-nav"
-        aria-label="PMS"
-      >
-        {CARD1_PMS_NAV.map((item) => (
-          <a
-            key={item.id}
-            href={item.href}
-            className={cn(
-              "rounded-lg px-2.5 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
-              item.id === "settings"
-                ? "bg-[#C89933] text-[#251605]"
-                : "text-white/80 hover:bg-white/10 hover:text-white",
-            )}
-          >
-            {item.label}
-          </a>
-        ))}
-      </nav>
-
-      <div className="px-4 py-5 sm:px-6" data-testid="pms-card5-fullscreen">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl text-[#251605]">{CARD5_WORKSPACE_TITLE}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{CARD5_SUBTITLE}</p>
-            <p className="mt-2 text-sm" data-testid="pms-card5-overall-status">
-              {overallQuery.isLoading || !overall
-                ? "Checking overall status…"
-                : `Overall: ${propertySetupStatusLabel(overall.status)}`}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 flex-1" data-testid="pms-card5-fullscreen">
+        <PropertySetupWorkspaceShell
+          cardNumber={5}
+          status={overall?.status ?? "not_started"}
+          description={CARD5_SUBTITLE}
+          sections={[...railSections]}
+          complete={counts.complete}
+          inProgress={counts.inProgress}
+          notStarted={counts.notStarted}
+          blockers={overall?.blockers}
+          warnings={overall?.warnings}
+          onBack={goBack}
+          footerTestId="pms-card5-chrome"
+          headerActions={
             <Button
               type="button"
               variant="outline"
@@ -110,63 +111,83 @@ export function PmsPropertySetupCard5Section({
             >
               Validate
             </Button>
-            <Button type="button" variant="outline" onClick={goBack}>
-              Back to Property Setup
-            </Button>
-          </div>
-        </div>
+          }
+          rail={
+            <div data-testid="pms-card5-status-rail">
+              <PropertySetupStatusRail
+                sections={[...railSections]}
+                complete={counts.complete}
+                inProgress={counts.inProgress}
+                notStarted={counts.notStarted}
+                blockers={overall?.blockers}
+                warnings={overall?.warnings}
+              />
+            </div>
+          }
+          stepNav={
+            <div data-testid="pms-card5-tabs-slot">
+              <p className="sr-only" data-testid="pms-card5-overall-status">
+                {overallQuery.isLoading || !overall
+                  ? "Checking overall status…"
+                  : `Overall: ${propertySetupStatusLabel(overall.status)}`}
+              </p>
+              <PropertySetupStepNav
+                activeId={tab}
+                onSelect={(id) => setTab(id as Card5TabId)}
+                steps={CARD5_TABS.map((item, index) => ({
+                  id: item.id,
+                  number: index + 1,
+                  title: item.label,
+                  status: railSections.find((row) => row.id === item.id)?.status ?? "not_started",
+                }))}
+              />
+            </div>
+          }
+        >
+          {reportOpen && overallQuery.data ? (
+            <dl
+              className="mb-4 grid gap-2 rounded-2xl border bg-card p-4 text-sm sm:grid-cols-2 lg:grid-cols-5"
+              data-testid="pms-card5-validation-report"
+            >
+              {(
+                [
+                  ["Departments", overallQuery.data.departments.verdict],
+                  ["Outlets & Facilities", overallQuery.data.facilities.verdict],
+                  ["Sales & Events", overallQuery.data.sales.verdict],
+                  ["Integrity", overallQuery.data.integrity.verdict],
+                  ["Overall", overallQuery.data.overall.verdict],
+                ] as const
+              ).map(([label, verdict]) => (
+                <div key={label}>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+                  <dd className={cn("font-medium", verdictClass(verdict))}>{verdict}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
 
-        {reportOpen && overallQuery.data ? (
-          <dl
-            className="mb-4 grid gap-2 rounded-2xl border bg-card p-4 text-sm sm:grid-cols-2 lg:grid-cols-5"
-            data-testid="pms-card5-validation-report"
-          >
-            {(
-              [
-                ["Departments", overallQuery.data.departments.verdict],
-                ["Outlets & Facilities", overallQuery.data.facilities.verdict],
-                ["Sales & Events", overallQuery.data.sales.verdict],
-                ["Integrity", overallQuery.data.integrity.verdict],
-                ["Overall", overallQuery.data.overall.verdict],
-              ] as const
-            ).map(([label, verdict]) => (
-              <div key={label}>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-                <dd className={cn("font-medium", verdictClass(verdict))}>{verdict}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
+          <Tabs value={tab} onValueChange={(value) => setTab(value as Card5TabId)}>
+            <TabsList className="sr-only">
+              {CARD5_TABS.map((item) => (
+                <TabsTrigger key={item.id} value={item.id} data-testid={`card5-tab-${item.id}`}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-        <Tabs value={tab} onValueChange={(value) => setTab(value as Card5TabId)}>
-          <TabsList
-            className="mb-4 flex h-auto w-full flex-wrap justify-start"
-            data-testid="pms-card5-tabs-slot"
-          >
             {CARD5_TABS.map((item) => (
-              <TabsTrigger
-                key={item.id}
-                value={item.id}
-                data-testid={`card5-tab-${item.id}`}
-                className="focus-visible:ring-2 focus-visible:ring-[#C89933]"
-              >
-                {item.label}
-              </TabsTrigger>
+              <TabsContent key={item.id} value={item.id}>
+                {item.id === "departments" ? (
+                  <Card5DepartmentsTab restaurantId={restaurantId} canEdit={canEdit} />
+                ) : item.id === "outlets-facilities" ? (
+                  <Card5OutletsTab restaurantId={restaurantId} canEdit={canEdit} />
+                ) : (
+                  <Card5SalesEventsTab restaurantId={restaurantId} canEdit={canEdit} />
+                )}
+              </TabsContent>
             ))}
-          </TabsList>
-
-          {CARD5_TABS.map((item) => (
-            <TabsContent key={item.id} value={item.id}>
-              {item.id === "departments" ? (
-                <Card5DepartmentsTab restaurantId={restaurantId} canEdit={canEdit} />
-              ) : item.id === "outlets-facilities" ? (
-                <Card5OutletsTab restaurantId={restaurantId} canEdit={canEdit} />
-              ) : (
-                <Card5SalesEventsTab restaurantId={restaurantId} canEdit={canEdit} />
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
+          </Tabs>
+        </PropertySetupWorkspaceShell>
       </div>
     </section>
   );

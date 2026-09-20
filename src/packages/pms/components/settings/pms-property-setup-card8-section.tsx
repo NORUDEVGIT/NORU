@@ -9,18 +9,20 @@ import { Card8ActivationTab } from "@/packages/pms/components/settings/pms-card8
 import { Card8GoliveTab } from "@/packages/pms/components/settings/pms-card8-golive-tab";
 import { Card8OfflineTab } from "@/packages/pms/components/settings/pms-card8-offline-tab";
 import { Card8ValidationTab } from "@/packages/pms/components/settings/pms-card8-validation-tab";
-import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
-  CARD1_PMS_NAV,
-  propertySetupStatusLabel,
-} from "@/packages/pms/lib/pms-property-setup-card1";
+  PropertySetupStatusRail,
+  PropertySetupStepNav,
+  PropertySetupWorkspaceShell,
+} from "@/packages/pms/components/settings/setup-kit";
+import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
+import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
 import { getCard8Readiness } from "@/packages/pms/lib/pms-property-setup-card8.functions";
 import type { Card8DomainReport, Card8Verdict } from "@/packages/pms/lib/card8-readiness.server";
 import {
   CARD8_SIDEBAR_OUT,
   CARD8_SUBTITLE,
   CARD8_TABS,
-  CARD8_WORKSPACE_TITLE,
   type Card8TabId,
 } from "@/packages/pms/lib/pms-property-setup-card8";
 
@@ -84,6 +86,25 @@ export function PmsPropertySetupCard8Section({
     },
   });
   const overall = overallQuery.data?.overall;
+  const railSections = [
+    {
+      id: "offline-sync",
+      title: "Offline & Sync",
+      status: overallQuery.data?.offline.status ?? "not_started",
+    },
+    {
+      id: "system-validation",
+      title: "System Validation",
+      status: overallQuery.data?.validation.status ?? "not_started",
+    },
+    { id: "go-live", title: "Go-Live", status: overallQuery.data?.golive.status ?? "not_started" },
+    {
+      id: "property-activation",
+      title: "Property Activation",
+      status: overallQuery.data?.activation.status ?? "not_started",
+    },
+  ] as const;
+  const counts = propertySetupRailCounts(railSections.map((row) => row.status));
 
   function goBack() {
     window.location.hash = "";
@@ -93,44 +114,25 @@ export function PmsPropertySetupCard8Section({
 
   return (
     <section
-      className="min-h-[calc(100dvh-3.75rem)] bg-[#F7F4EE]"
+      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
       data-testid="pms-card8-workspace"
       data-card-fullscreen="true"
     >
       <div className="sr-only">{CARD8_SIDEBAR_OUT}</div>
-      <nav
-        className="flex flex-wrap items-center gap-1 bg-[#251605] px-4 py-2 text-white"
-        data-testid="pms-card8-top-nav"
-        aria-label="PMS"
-      >
-        {CARD1_PMS_NAV.map((item) => (
-          <a
-            key={item.id}
-            href={item.href}
-            className={cn(
-              "rounded-lg px-2.5 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
-              item.id === "settings"
-                ? "bg-[#C89933] text-[#251605]"
-                : "text-white/80 hover:bg-white/10 hover:text-white",
-            )}
-          >
-            {item.label}
-          </a>
-        ))}
-      </nav>
-
-      <div className="min-w-0 overflow-x-auto px-4 py-5 sm:px-6" data-testid="pms-card8-fullscreen">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl text-[#251605]">{CARD8_WORKSPACE_TITLE}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{CARD8_SUBTITLE}</p>
-            <p className="mt-2 text-sm" data-testid="pms-card8-overall-status">
-              {overallQuery.isLoading || !overall
-                ? "Checking overall status…"
-                : `Overall: ${propertySetupStatusLabel(overall.status)}`}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 overflow-x-auto flex-1" data-testid="pms-card8-fullscreen">
+        <PropertySetupWorkspaceShell
+          cardNumber={8}
+          status={overall?.status ?? "not_started"}
+          description={CARD8_SUBTITLE}
+          sections={[...railSections]}
+          complete={counts.complete}
+          inProgress={counts.inProgress}
+          notStarted={counts.notStarted}
+          blockers={overall?.blockers}
+          warnings={overall?.warnings}
+          onBack={goBack}
+          footerTestId="pms-card8-chrome"
+          headerActions={
             <Button
               type="button"
               variant="outline"
@@ -140,85 +142,115 @@ export function PmsPropertySetupCard8Section({
             >
               {validate.isPending ? "Validating…" : "Validate"}
             </Button>
-            <Button type="button" variant="outline" onClick={goBack}>
-              Back to Property Setup
-            </Button>
-          </div>
-        </div>
-
-        {overallQuery.isError || validate.isError ? (
-          <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            Overall readiness could not be loaded. No status or activation state was changed.
-          </p>
-        ) : null}
-
-        {reportOpen && overallQuery.data ? (
-          <section
-            className="mb-4 min-w-0 rounded-2xl border bg-card p-4"
-            data-testid="pms-card8-readiness-report"
-            aria-label="Card 8 readiness report"
-          >
-            <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {(
-                [
-                  ["Offline & Sync", overallQuery.data.offline.verdict],
-                  ["System Validation", overallQuery.data.validation.verdict],
-                  ["Go-Live", overallQuery.data.golive.verdict],
-                  ["Property Activation", overallQuery.data.activation.verdict],
-                  ["Integrity", overallQuery.data.integrity.verdict],
-                  ["Overall", overallQuery.data.overall.verdict],
-                ] as const
-              ).map(([label, verdict]) => (
-                <div key={label} className="min-w-0">
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-                  <dd className={cn("mt-1 font-medium", verdictClass(verdict))}>{verdict}</dd>
-                </div>
-              ))}
-            </dl>
-            <ul className="mt-4 grid min-w-0 gap-3 md:grid-cols-2">
-              <Card8ReportNotes label="Offline & Sync" slice={overallQuery.data.offline} />
-              <Card8ReportNotes label="System Validation" slice={overallQuery.data.validation} />
-              <Card8ReportNotes label="Go-Live" slice={overallQuery.data.golive} />
-              <Card8ReportNotes label="Property Activation" slice={overallQuery.data.activation} />
-              <Card8ReportNotes
-                label="Cross-domain Integrity"
-                slice={overallQuery.data.integrity}
+          }
+          rail={
+            <div data-testid="pms-card8-status-rail">
+              <PropertySetupStatusRail
+                sections={[...railSections]}
+                complete={counts.complete}
+                inProgress={counts.inProgress}
+                notStarted={counts.notStarted}
+                blockers={overall?.blockers}
+                warnings={overall?.warnings}
               />
-            </ul>
-          </section>
-        ) : null}
+            </div>
+          }
+          stepNav={
+            <div data-testid="pms-card8-tabs-slot">
+              <p className="sr-only" data-testid="pms-card8-overall-status">
+                {overallQuery.isLoading || !overall
+                  ? "Checking overall status…"
+                  : `Overall: ${propertySetupStatusLabel(overall.status)}`}
+              </p>
+              <PropertySetupStepNav
+                activeId={tab}
+                onSelect={(id) => setTab(id as Card8TabId)}
+                steps={CARD8_TABS.map((item, index) => ({
+                  id: item.id,
+                  number: index + 1,
+                  title: item.label,
+                  status: railSections.find((row) => row.id === item.id)?.status ?? "not_started",
+                }))}
+              />
+            </div>
+          }
+        >
+          {overallQuery.isError || validate.isError ? (
+            <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+              Overall readiness could not be loaded. No status or activation state was changed.
+            </p>
+          ) : null}
 
-        <Tabs value={tab} onValueChange={(value) => setTab(value as Card8TabId)}>
-          <TabsList
-            className="mb-4 flex h-auto w-full min-w-0 flex-wrap justify-start overflow-x-auto"
-            data-testid="pms-card8-tabs-slot"
-          >
+          {reportOpen && overallQuery.data ? (
+            <section
+              className="mb-4 min-w-0 rounded-2xl border bg-card p-4"
+              data-testid="pms-card8-readiness-report"
+              aria-label="Card 8 readiness report"
+            >
+              <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                {(
+                  [
+                    ["Offline & Sync", overallQuery.data.offline.verdict],
+                    ["System Validation", overallQuery.data.validation.verdict],
+                    ["Go-Live", overallQuery.data.golive.verdict],
+                    ["Property Activation", overallQuery.data.activation.verdict],
+                    ["Integrity", overallQuery.data.integrity.verdict],
+                    ["Overall", overallQuery.data.overall.verdict],
+                  ] as const
+                ).map(([label, verdict]) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd className={cn("mt-1 font-medium", verdictClass(verdict))}>{verdict}</dd>
+                  </div>
+                ))}
+              </dl>
+              <ul className="mt-4 grid min-w-0 gap-3 md:grid-cols-2">
+                <Card8ReportNotes label="Offline & Sync" slice={overallQuery.data.offline} />
+                <Card8ReportNotes label="System Validation" slice={overallQuery.data.validation} />
+                <Card8ReportNotes label="Go-Live" slice={overallQuery.data.golive} />
+                <Card8ReportNotes
+                  label="Property Activation"
+                  slice={overallQuery.data.activation}
+                />
+                <Card8ReportNotes
+                  label="Cross-domain Integrity"
+                  slice={overallQuery.data.integrity}
+                />
+              </ul>
+            </section>
+          ) : null}
+
+          <Tabs value={tab} onValueChange={(value) => setTab(value as Card8TabId)}>
+            <TabsList className="sr-only">
+              {CARD8_TABS.map((item) => (
+                <TabsTrigger
+                  key={item.id}
+                  value={item.id}
+                  data-testid={`card8-tab-${item.id}`}
+                  className="focus-visible:ring-[#C89933]"
+                >
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
             {CARD8_TABS.map((item) => (
-              <TabsTrigger
-                key={item.id}
-                value={item.id}
-                data-testid={`card8-tab-${item.id}`}
-                className="focus-visible:ring-2 focus-visible:ring-[#C89933]"
-              >
-                {item.label}
-              </TabsTrigger>
+              <TabsContent key={item.id} value={item.id}>
+                {item.id === "offline-sync" ? (
+                  <Card8OfflineTab restaurantId={restaurantId} canEdit={canEdit} />
+                ) : item.id === "system-validation" ? (
+                  <Card8ValidationTab restaurantId={restaurantId} />
+                ) : item.id === "go-live" ? (
+                  <Card8GoliveTab restaurantId={restaurantId} canEdit={canEdit} />
+                ) : (
+                  <Card8ActivationTab restaurantId={restaurantId} />
+                )}
+              </TabsContent>
             ))}
-          </TabsList>
-
-          {CARD8_TABS.map((item) => (
-            <TabsContent key={item.id} value={item.id}>
-              {item.id === "offline-sync" ? (
-                <Card8OfflineTab restaurantId={restaurantId} canEdit={canEdit} />
-              ) : item.id === "system-validation" ? (
-                <Card8ValidationTab restaurantId={restaurantId} />
-              ) : item.id === "go-live" ? (
-                <Card8GoliveTab restaurantId={restaurantId} canEdit={canEdit} />
-              ) : (
-                <Card8ActivationTab restaurantId={restaurantId} />
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
+          </Tabs>
+        </PropertySetupWorkspaceShell>
       </div>
     </section>
   );

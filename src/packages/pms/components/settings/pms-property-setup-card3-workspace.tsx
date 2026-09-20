@@ -1,18 +1,11 @@
 import type { ReactNode } from "react";
-import {
-  ArrowLeft,
-  Banknote,
-  Building2,
-  CreditCard,
-  FileText,
-  History,
-  Receipt,
-  Tag,
-  TrendingUp,
-  UtensilsCrossed,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowLeft, History } from "lucide-react";
 
+import { PropertySetupSectionHeader } from "@/packages/pms/components/settings/setup-kit";
+import {
+  propertySetupFieldIcon,
+  type PropertySetupFieldIconKey,
+} from "@/packages/pms/lib/pms-property-setup-field-icons";
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -21,15 +14,15 @@ import {
   type Card3Domain,
 } from "@/packages/pms/lib/pms-property-setup-card3";
 
-const DOMAIN_ICONS: Record<Card3Domain["icon"], LucideIcon> = {
-  banknote: Banknote,
-  receipt: Receipt,
-  tag: Tag,
-  utensils: UtensilsCrossed,
-  "credit-card": CreditCard,
-  "file-text": FileText,
-  building: Building2,
-  "trending-up": TrendingUp,
+const DOMAIN_ICON_KEYS: Record<Card3Domain["icon"], PropertySetupFieldIconKey> = {
+  banknote: "money",
+  receipt: "tax",
+  tag: "tag",
+  utensils: "meal",
+  "credit-card": "payment",
+  "file-text": "document",
+  building: "facility",
+  "trending-up": "revenue",
 };
 
 export function Card3DomainIcon({
@@ -39,7 +32,7 @@ export function Card3DomainIcon({
   icon: Card3Domain["icon"];
   className?: string;
 }) {
-  const Icon = DOMAIN_ICONS[icon];
+  const Icon = propertySetupFieldIcon(DOMAIN_ICON_KEYS[icon]);
   return <Icon aria-hidden="true" className={className} />;
 }
 
@@ -77,15 +70,11 @@ export function PmsPropertySetupCard3Workspace({
             <ArrowLeft aria-hidden="true" className="size-3" />
             {CARD3_BACK_LABEL}
           </button>
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#E6D7B8] bg-[#C89933]/10 text-[#251605]">
-              <Card3DomainIcon icon={domain.icon} className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <h1 className="font-display text-3xl text-[#251605]">{domain.title}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">{domain.description}</p>
-            </div>
-          </div>
+          <PropertySetupSectionHeader
+            icon={DOMAIN_ICON_KEYS[domain.icon]}
+            title={domain.title}
+            description={domain.description}
+          />
         </div>
         <Button
           type="button"

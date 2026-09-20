@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -32,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
+import { PropertySetupRemoveButton } from "@/packages/pms/components/settings/setup-kit";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -526,21 +527,16 @@ export function PmsCard4ServiceAvailability({
                             }
                           />
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
+                        <PropertySetupRemoveButton
                           disabled={!canEdit}
-                          aria-label={`Remove ${day.label} window ${index + 1}`}
+                          label={`Remove ${day.label} window ${index + 1}`}
                           onClick={() =>
                             setDayWindows(
                               day.id,
                               windows.filter((_, itemIndex) => itemIndex !== index),
                             )
                           }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                        />
                       </div>
                     ))}
                     {enabled ? (
