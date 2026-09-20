@@ -75,6 +75,10 @@ import {
   Card4SenderSettingsGuide,
   PmsCard4SenderSettings,
 } from "@/packages/pms/components/settings/pms-card4-sender-settings";
+import {
+  Card4CommunicationDefaultsGuide,
+  PmsCard4CommunicationDefaults,
+} from "@/packages/pms/components/settings/pms-card4-communication-defaults";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
@@ -103,6 +107,8 @@ import { getPmsCard4AutomationRules } from "@/packages/pms/lib/automation-rules-
 import { automationRulesConfigured } from "@/packages/pms/lib/automation-rules-card4.server";
 import { getPmsCard4SenderSettings } from "@/packages/pms/lib/sender-settings-card4.functions";
 import { senderSettingsConfigured } from "@/packages/pms/lib/sender-settings-card4.server";
+import { getPmsCard4CommunicationDefaults } from "@/packages/pms/lib/communication-defaults-card4.functions";
+import { communicationDefaultsConfigured } from "@/packages/pms/lib/communication-defaults-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -169,6 +175,7 @@ export function PmsPropertySetupCard4Section({
   const loadNotificationEvents = useServerFn(getPmsCard4NotificationEvents);
   const loadAutomationRules = useServerFn(getPmsCard4AutomationRules);
   const loadSenderSettings = useServerFn(getPmsCard4SenderSettings);
+  const loadCommunicationDefaults = useServerFn(getPmsCard4CommunicationDefaults);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -250,6 +257,11 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadSenderSettings({ data: { restaurantId } }),
     retry: false,
   });
+  const communicationDefaultsQuery = useQuery({
+    queryKey: ["pms-card4-communication-defaults", restaurantId],
+    queryFn: () => loadCommunicationDefaults({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -303,6 +315,11 @@ export function PmsPropertySetupCard4Section({
   const senderReady = senderSettingsConfigured(
     senderSettingsQuery.data?.settings ?? [],
     communicationChannelsQuery.data?.channels ?? [],
+  );
+  const defaultsReady = communicationDefaultsConfigured(
+    communicationDefaultsQuery.data?.defaults ?? null,
+    communicationDefaultsQuery.data?.channels ?? [],
+    communicationDefaultsQuery.data?.senders ?? [],
   );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
@@ -427,6 +444,7 @@ export function PmsPropertySetupCard4Section({
           eventsReady,
           rulesReady,
           senderReady,
+          defaultsReady,
         ),
       ]),
     );
@@ -459,7 +477,8 @@ export function PmsPropertySetupCard4Section({
     templatesReady &&
     eventsReady &&
     rulesReady &&
-    senderReady
+    senderReady &&
+    defaultsReady
       ? "complete"
       : profileTypesConfigured ||
           requiredFieldsConfigured ||
@@ -476,7 +495,8 @@ export function PmsPropertySetupCard4Section({
           templatesReady ||
           eventsReady ||
           rulesReady ||
-          senderReady
+          senderReady ||
+          defaultsReady
         ? "in_progress"
         : "not_started";
 
@@ -519,7 +539,8 @@ export function PmsPropertySetupCard4Section({
         notificationStep === "communication-templates" ||
         notificationStep === "notification-events" ||
         notificationStep === "automation-rules" ||
-        notificationStep === "sender-settings"
+        notificationStep === "sender-settings" ||
+        notificationStep === "communication-defaults"
       ) {
         requestSave(true);
         return;
@@ -578,7 +599,8 @@ export function PmsPropertySetupCard4Section({
           notificationStep === "communication-templates" ||
           notificationStep === "notification-events" ||
           notificationStep === "automation-rules" ||
-          notificationStep === "sender-settings";
+          notificationStep === "sender-settings" ||
+          notificationStep === "communication-defaults";
   const subtitle =
     mainSection === "guest-service-types"
       ? CARD4_GST_SUBTITLE
@@ -713,6 +735,10 @@ export function PmsPropertySetupCard4Section({
           <Card4AutomationRulesGuide rules={automationRulesQuery.data?.rules ?? []} />
         ) : mainSection === "notifications" && notificationStep === "sender-settings" ? (
           <Card4SenderSettingsGuide settings={senderSettingsQuery.data?.settings ?? []} />
+        ) : mainSection === "notifications" && notificationStep === "communication-defaults" ? (
+          <Card4CommunicationDefaultsGuide
+            draft={communicationDefaultsQuery.data?.defaults ?? null}
+          />
         ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
           <Card4ServiceCategoriesGuide
             count={serviceCategoriesQuery.data?.categories.length ?? 0}
@@ -810,6 +836,14 @@ export function PmsPropertySetupCard4Section({
           />
         ) : notificationStep === "sender-settings" ? (
           <PmsCard4SenderSettings
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onSavingChange={onSavingChange}
+            saveRequest={saveRequest}
+            onSaved={onSaved}
+          />
+        ) : notificationStep === "communication-defaults" ? (
+          <PmsCard4CommunicationDefaults
             restaurantId={restaurantId}
             canEdit={canEdit}
             onSavingChange={onSavingChange}

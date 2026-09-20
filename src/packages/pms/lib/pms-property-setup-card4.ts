@@ -136,7 +136,7 @@ export const CARD4_NOTIFICATION_STEPS = [
     id: "communication-defaults",
     number: 6,
     title: "Communication Defaults",
-    placeholder: "Communication Defaults will be implemented in a later phase.",
+    placeholder: null,
   },
 ] as const;
 
@@ -161,12 +161,14 @@ export function evaluateNotificationStepStatus(
   eventsConfigured = false,
   rulesConfigured = false,
   senderConfigured = false,
+  defaultsConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "channels") return channelsConfigured ? "complete" : "not_started";
   if (step === "communication-templates") return templatesConfigured ? "complete" : "not_started";
   if (step === "notification-events") return eventsConfigured ? "complete" : "not_started";
   if (step === "automation-rules") return rulesConfigured ? "complete" : "not_started";
   if (step === "sender-settings") return senderConfigured ? "complete" : "not_started";
+  if (step === "communication-defaults") return defaultsConfigured ? "complete" : "not_started";
   return "not_started";
 }
 
