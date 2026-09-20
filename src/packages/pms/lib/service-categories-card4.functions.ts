@@ -98,6 +98,7 @@ async function loadSnapshot(
   restaurantId: string,
   userId: string,
   seeded = false,
+  seedMissing = true,
 ): Promise<ServiceCategorySnapshot> {
   const result = await db
     .from("pms_guest_service_categories")
@@ -107,9 +108,10 @@ async function loadSnapshot(
     .order("name");
   if (result.error) unavailable(result.error);
   if ((result.data ?? []).length === 0) {
+    if (!seedMissing) return { categories: [], lastUpdatedAt: null };
     if (seeded) throw new Error("Could not seed default service categories.");
     await seedDefaults(db, restaurantId, userId);
-    return loadSnapshot(db, restaurantId, userId, true);
+    return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
   const categories = (result.data ?? []).map(mapRow);
   const lastUpdatedAt = categories.reduce<string | null>((latest, row) => {
@@ -118,6 +120,8 @@ async function loadSnapshot(
   }, null);
   return { categories, lastUpdatedAt };
 }
+
+export { loadSnapshot as loadServiceCategoriesCard4Snapshot };
 
 export const getPmsCard4ServiceCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

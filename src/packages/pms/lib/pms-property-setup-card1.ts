@@ -18,6 +18,7 @@ import { CARD5_HASH, CARD5_PURPOSE, CARD5_TITLE } from "./pms-property-setup-car
 import { CARD4_HASH, CARD4_PURPOSE, CARD4_TITLE } from "./pms-property-setup-card4.ts";
 import { CARD6_HASH, CARD6_PURPOSE, CARD6_TITLE } from "./pms-property-setup-card6.ts";
 import { CARD7_HASH, CARD7_PURPOSE, CARD7_TITLE } from "./pms-property-setup-card7.ts";
+import { CARD8_HASH, CARD8_PURPOSE, CARD8_TITLE } from "./pms-property-setup-card8.ts";
 import {
   countryNameFromInput,
   isRegionValidForCountry,
@@ -152,10 +153,10 @@ export const PROPERTY_SETUP_CARDS = [
   {
     id: "payments-administration",
     number: 8,
-    title: "System & Go-Live",
-    purpose: "Offline & Sync, System Validation, Go-Live, Property Activation.",
-    specced: false,
-    hash: null,
+    title: CARD8_TITLE,
+    purpose: CARD8_PURPOSE,
+    specced: true,
+    hash: CARD8_HASH,
   },
 ] as const;
 

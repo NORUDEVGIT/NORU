@@ -4,53 +4,17 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/shared/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/components/ui/alert-dialog";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES, formatMoney } from "@/shared/lib/property-time";
 import { FoFeeDefaultsEditor } from "@/packages/pms/components/settings/fo-fee-defaults-editor";
 import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
 import { activatePmsSet1, savePmsSet1Foundation } from "@/packages/pms/lib/pms-set1-foundation.functions";
-import {
-  DEPOSIT_TYPE_LABELS,
-  DEPOSIT_TYPES,
-  FEE_BASIS_LABELS,
-  FEE_BASES,
-  PROPERTY_TYPE_LABELS,
-  PROPERTY_TYPES,
-  SET1_ACTIVATE_LABEL,
-  SET1_BUSINESS_DATE_COPY,
-  SET1_CI_CO_EQUAL_WARNING,
-  SET1_COLUMNS_UNAVAILABLE,
-  SET1_HUB_HREF,
-  SET1_OPS_HELPER,
-  SET1_TAX_HONESTY,
-  SET1_TAX_RM_SHARE,
-  canActivateSet1,
-  ciCoEqual,
-  formatClockLabel,
-  overallLabel,
-  readinessLabel,
-  type Set1Checklist,
-  type Set1Foundation,
-  type Set1IdentityDraft,
-  type Set1OpsDraft,
-  type Set1PoliciesDraft,
-  type Set1Readiness,
-  type Set1SectionId,
-  type Set1TaxesDraft,
-} from "@/packages/pms/lib/pms-set1-foundation";
+import { DEPOSIT_TYPE_LABELS, DEPOSIT_TYPES, FEE_BASIS_LABELS, FEE_BASES, PROPERTY_TYPE_LABELS, PROPERTY_TYPES, SET1_ACTIVATE_LABEL, SET1_BUSINESS_DATE_COPY, SET1_CI_CO_EQUAL_WARNING, SET1_COLUMNS_UNAVAILABLE, SET1_HUB_HREF, SET1_OPS_HELPER, SET1_TAX_HONESTY, SET1_TAX_RM_SHARE, canActivateSet1, ciCoEqual, formatClockLabel, overallLabel, readinessLabel, type Set1Checklist, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1Readiness, type Set1SectionId, type Set1TaxesDraft } from "@/packages/pms/lib/pms-set1-foundation";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { cn } from "@/shared/lib/utils";
 
@@ -61,41 +25,16 @@ export function ReadinessChip({ readiness }: { readiness: Set1Readiness }) {
     incomplete: "border-[#CCCCCC] bg-muted/60 text-muted-foreground",
     blocked: "border-destructive/40 bg-destructive/10 text-destructive",
   };
-  return (
-    <span className={cn("inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium", styles[readiness])}>
-      {readinessLabel(readiness)}
-    </span>
-  );
+  return <span className={cn("inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium", styles[readiness])}>{readinessLabel(readiness)}</span>;
 }
 
-function StickyBar({
-  dirty,
-  busy,
-  disabledReason,
-  onDiscard,
-  onSave,
-  gold = true,
-  saveLabel = "Save",
-}: {
-  dirty: boolean;
-  busy: boolean;
-  disabledReason?: string | null;
-  onDiscard: () => void;
-  onSave: () => void;
-  gold?: boolean;
-  saveLabel?: string;
-}) {
+function StickyBar({ dirty, busy, disabledReason, onDiscard, onSave, gold = true, saveLabel = "Save" }: { dirty: boolean; busy: boolean; disabledReason?: string | null; onDiscard: () => void; onSave: () => void; gold?: boolean; saveLabel?: string }) {
   return (
     <div className="sticky bottom-0 z-10 -mx-1 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-background/95 px-1 py-3 backdrop-blur">
       <Button type="button" variant="outline" disabled={!dirty || busy} onClick={onDiscard}>
         Discard
       </Button>
-      <Button
-        type="button"
-        disabled={!dirty || busy || Boolean(disabledReason)}
-        onClick={onSave}
-        className={gold ? "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" : undefined}
-      >
+      <Button type="button" disabled={!dirty || busy || Boolean(disabledReason)} onClick={onSave} className={gold ? "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" : undefined}>
         {busy ? "Saving…" : saveLabel}
       </Button>
     </div>
@@ -114,15 +53,7 @@ function useDirtyGuard(dirty: boolean) {
   }, [dirty]);
 }
 
-export function Set1IdentitySection({
-  restaurantId,
-  snapshot,
-  canEdit,
-}: {
-  restaurantId: string;
-  snapshot: Set1Foundation;
-  canEdit: boolean;
-}) {
+export function Set1IdentitySection({ restaurantId, snapshot, canEdit }: { restaurantId: string; snapshot: Set1Foundation; canEdit: boolean }) {
   const queryClient = useQueryClient();
   const save = useServerFn(savePmsSet1Foundation);
   const [draft, setDraft] = useState<Set1IdentityDraft>(snapshot.identity);
@@ -190,7 +121,10 @@ export function Set1IdentitySection({
             <Select
               value={draft.propertyType || "unset"}
               onValueChange={(value) =>
-                setDraft((p) => ({ ...p, propertyType: value === "unset" ? "" : (value as Set1IdentityDraft["propertyType"]) }))
+                setDraft((p) => ({
+                  ...p,
+                  propertyType: value === "unset" ? "" : (value as Set1IdentityDraft["propertyType"]),
+                }))
               }
               disabled={!canEdit}
             >
@@ -239,7 +173,12 @@ export function Set1IdentitySection({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setDraft((prev) => ({ ...prev, taxIdentities: prev.taxIdentities.filter((_, i) => i !== index) }))}
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        taxIdentities: prev.taxIdentities.filter((_, i) => i !== index),
+                      }))
+                    }
                   >
                     Remove
                   </Button>
@@ -247,7 +186,16 @@ export function Set1IdentitySection({
               </div>
             ))}
             {canEdit ? (
-              <Button type="button" variant="outline" onClick={() => setDraft((prev) => ({ ...prev, taxIdentities: [...prev.taxIdentities, { label: "", value: "" }] }))}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    taxIdentities: [...prev.taxIdentities, { label: "", value: "" }],
+                  }))
+                }
+              >
                 Add tax identity
               </Button>
             ) : null}
@@ -288,27 +236,12 @@ export function Set1IdentitySection({
           </Select>
         </div>
       </div>
-      {canEdit ? (
-        <StickyBar
-          dirty={dirty}
-          busy={mutation.isPending}
-          onDiscard={() => setDraft(snapshot.identity)}
-          onSave={() => mutation.mutate()}
-        />
-      ) : null}
+      {canEdit ? <StickyBar dirty={dirty} busy={mutation.isPending} onDiscard={() => setDraft(snapshot.identity)} onSave={() => mutation.mutate()} /> : null}
     </section>
   );
 }
 
-export function Set1OpsSection({
-  restaurantId,
-  snapshot,
-  canEdit,
-}: {
-  restaurantId: string;
-  snapshot: Set1Foundation;
-  canEdit: boolean;
-}) {
+export function Set1OpsSection({ restaurantId, snapshot, canEdit }: { restaurantId: string; snapshot: Set1Foundation; canEdit: boolean }) {
   const queryClient = useQueryClient();
   const save = useServerFn(savePmsSet1Foundation);
   const [draft, setDraft] = useState<Set1OpsDraft>(snapshot.ops);
@@ -346,26 +279,12 @@ export function Set1OpsSection({
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="set1-ci">Check-in time</Label>
-            <Input
-              id="set1-ci"
-              type="time"
-              value={draft.checkInTime}
-              disabled={!canEdit}
-              onChange={(event) => setDraft((p) => ({ ...p, checkInTime: event.target.value }))}
-              className="h-12 rounded-xl"
-            />
+            <Input id="set1-ci" type="time" value={draft.checkInTime} disabled={!canEdit} onChange={(event) => setDraft((p) => ({ ...p, checkInTime: event.target.value }))} className="h-12 rounded-xl" />
             <p className="text-xs text-muted-foreground">{formatClockLabel(draft.checkInTime, snapshot.timezone)}</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="set1-co">Check-out time</Label>
-            <Input
-              id="set1-co"
-              type="time"
-              value={draft.checkOutTime}
-              disabled={!canEdit}
-              onChange={(event) => setDraft((p) => ({ ...p, checkOutTime: event.target.value }))}
-              className="h-12 rounded-xl"
-            />
+            <Input id="set1-co" type="time" value={draft.checkOutTime} disabled={!canEdit} onChange={(event) => setDraft((p) => ({ ...p, checkOutTime: event.target.value }))} className="h-12 rounded-xl" />
             <p className="text-xs text-muted-foreground">{formatClockLabel(draft.checkOutTime, snapshot.timezone)}</p>
           </div>
         </div>
@@ -376,12 +295,7 @@ export function Set1OpsSection({
       {snapshot.foundationColumnsAvailable ? (
         <div className="flex items-center justify-between rounded-xl border border-border px-3 py-3">
           <Label htmlFor="set1-hotel-day">Hotel day open</Label>
-          <Switch
-            id="set1-hotel-day"
-            checked={draft.hotelDayOpen}
-            disabled={!canEdit}
-            onCheckedChange={(hotelDayOpen) => setDraft((p) => ({ ...p, hotelDayOpen }))}
-          />
+          <Switch id="set1-hotel-day" checked={draft.hotelDayOpen} disabled={!canEdit} onCheckedChange={(hotelDayOpen) => setDraft((p) => ({ ...p, hotelDayOpen }))} />
         </div>
       ) : null}
       <div className="rounded-xl border border-[#CCCCCC] bg-muted/30 p-4" data-testid="set1-business-date-readonly">
@@ -389,22 +303,12 @@ export function Set1OpsSection({
         <p className="mt-1 font-medium text-[#251605]">{businessDate}</p>
         <p className="mt-1 text-sm text-muted-foreground">{SET1_BUSINESS_DATE_COPY}</p>
       </div>
-      {canEdit && snapshot.foundationColumnsAvailable ? (
-        <StickyBar dirty={dirty} busy={mutation.isPending} onDiscard={() => setDraft(snapshot.ops)} onSave={() => mutation.mutate()} />
-      ) : null}
+      {canEdit && snapshot.foundationColumnsAvailable ? <StickyBar dirty={dirty} busy={mutation.isPending} onDiscard={() => setDraft(snapshot.ops)} onSave={() => mutation.mutate()} /> : null}
     </section>
   );
 }
 
-export function Set1TaxesSection({
-  restaurantId,
-  snapshot,
-  canEdit,
-}: {
-  restaurantId: string;
-  snapshot: Set1Foundation;
-  canEdit: boolean;
-}) {
+export function Set1TaxesSection({ restaurantId, snapshot, canEdit }: { restaurantId: string; snapshot: Set1Foundation; canEdit: boolean }) {
   const queryClient = useQueryClient();
   const save = useServerFn(savePmsSet1Foundation);
   const [draft, setDraft] = useState<Set1TaxesDraft>(snapshot.taxes);
@@ -453,28 +357,13 @@ export function Set1TaxesSection({
               { value: true, label: "Inclusive" },
             ] as const
           ).map((option) => (
-            <button
-              key={String(option.value)}
-              type="button"
-              disabled={!canEdit}
-              onClick={() => setDraft((p) => ({ ...p, taxInclusive: option.value }))}
-              className={cn(
-                "h-12 rounded-2xl border text-sm font-semibold",
-                draft.taxInclusive === option.value
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background",
-              )}
-            >
+            <button key={String(option.value)} type="button" disabled={!canEdit} onClick={() => setDraft((p) => ({ ...p, taxInclusive: option.value }))} className={cn("h-12 rounded-2xl border text-sm font-semibold", draft.taxInclusive === option.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background")}>
               {option.label}
             </button>
           ))}
         </div>
       </div>
-      {snapshot.foundationColumnsAvailable ? (
-        <Field id="set1-tax-name" label="Tax name" value={draft.taxName} disabled={!canEdit} onChange={(taxName) => setDraft((p) => ({ ...p, taxName }))} />
-      ) : (
-        <p className="text-sm text-muted-foreground">{SET1_COLUMNS_UNAVAILABLE}</p>
-      )}
+      {snapshot.foundationColumnsAvailable ? <Field id="set1-tax-name" label="Tax name" value={draft.taxName} disabled={!canEdit} onChange={(taxName) => setDraft((p) => ({ ...p, taxName }))} /> : <p className="text-sm text-muted-foreground">{SET1_COLUMNS_UNAVAILABLE}</p>}
       <div className="space-y-2">
         <Label htmlFor="set1-tax-rate">Room stay rate</Label>
         <div className="relative">
@@ -497,23 +386,11 @@ export function Set1TaxesSection({
       <div className="space-y-3 rounded-xl border border-border p-4">
         <div className="flex items-center justify-between">
           <Label htmlFor="set1-service">Service charge</Label>
-          <Switch
-            id="set1-service"
-            checked={draft.serviceEnabled}
-            disabled={!canEdit}
-            onCheckedChange={(serviceEnabled) => setDraft((p) => ({ ...p, serviceEnabled }))}
-          />
+          <Switch id="set1-service" checked={draft.serviceEnabled} disabled={!canEdit} onCheckedChange={(serviceEnabled) => setDraft((p) => ({ ...p, serviceEnabled }))} />
         </div>
         {draft.serviceEnabled ? (
           <div className="relative">
-            <Input
-              id="set1-service-rate"
-              inputMode="decimal"
-              disabled={!canEdit}
-              value={String(draft.serviceRate)}
-              onChange={(event) => setDraft((p) => ({ ...p, serviceRate: Number(event.target.value) || 0 }))}
-              className="h-12 pr-10"
-            />
+            <Input id="set1-service-rate" inputMode="decimal" disabled={!canEdit} value={String(draft.serviceRate)} onChange={(event) => setDraft((p) => ({ ...p, serviceRate: Number(event.target.value) || 0 }))} className="h-12 pr-10" />
             <span className="pointer-events-none absolute inset-y-0 right-3 grid place-items-center text-sm text-muted-foreground">%</span>
           </div>
         ) : null}
@@ -528,8 +405,12 @@ export function Set1TaxesSection({
                 <AlertDialogDescription>{SET1_TAX_HONESTY}</AlertDialogDescription>
               </AlertDialogHeader>
               <div className="rounded-xl border border-[#CCCCCC] p-3 text-sm">
-                <p>Before: {snapshot.taxes.taxInclusive ? "Inclusive" : "Exclusive"} · {snapshot.taxes.taxName || "Unnamed"} {snapshot.taxes.taxRate}%</p>
-                <p className="text-[#436436]">After: {draft.taxInclusive ? "Inclusive" : "Exclusive"} · {draft.taxName || "Unnamed"} {draft.taxRate}%</p>
+                <p>
+                  Before: {snapshot.taxes.taxInclusive ? "Inclusive" : "Exclusive"} · {snapshot.taxes.taxName || "Unnamed"} {snapshot.taxes.taxRate}%
+                </p>
+                <p className="text-[#436436]">
+                  After: {draft.taxInclusive ? "Inclusive" : "Exclusive"} · {draft.taxName || "Unnamed"} {draft.taxRate}%
+                </p>
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -551,17 +432,7 @@ export function Set1TaxesSection({
   );
 }
 
-export function Set1PoliciesSection({
-  restaurantId,
-  role,
-  snapshot,
-  canEdit,
-}: {
-  restaurantId: string;
-  role: string;
-  snapshot: Set1Foundation;
-  canEdit: boolean;
-}) {
+export function Set1PoliciesSection({ restaurantId, role, snapshot, canEdit }: { restaurantId: string; role: string; snapshot: Set1Foundation; canEdit: boolean }) {
   const queryClient = useQueryClient();
   const save = useServerFn(savePmsSet1Foundation);
   const [draft, setDraft] = useState<Set1PoliciesDraft>(snapshot.policies);
@@ -616,37 +487,13 @@ export function Set1PoliciesSection({
       {snapshot.foundationColumnsAvailable ? (
         <div className="space-y-4 border-t border-border pt-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field
-              id="set1-cancel-window"
-              label="Cancel window (hours)"
-              type="number"
-              value={draft.cancelWindowHours}
-              disabled={!canEdit}
-              onChange={(cancelWindowHours) => setDraft((p) => ({ ...p, cancelWindowHours }))}
-            />
-            <BasisSelect
-              id="set1-cancel-basis"
-              label="Cancel fee basis"
-              value={draft.cancelFeeBasis}
-              disabled={!canEdit}
-              onChange={(cancelFeeBasis) => setDraft((p) => ({ ...p, cancelFeeBasis }))}
-            />
-            <BasisSelect
-              id="set1-noshow-basis"
-              label="No-show fee basis"
-              value={draft.noshowFeeBasis}
-              disabled={!canEdit}
-              onChange={(noshowFeeBasis) => setDraft((p) => ({ ...p, noshowFeeBasis }))}
-            />
+            <Field id="set1-cancel-window" label="Cancel window (hours)" type="number" value={draft.cancelWindowHours} disabled={!canEdit} onChange={(cancelWindowHours) => setDraft((p) => ({ ...p, cancelWindowHours }))} />
+            <BasisSelect id="set1-cancel-basis" label="Cancel fee basis" value={draft.cancelFeeBasis} disabled={!canEdit} onChange={(cancelFeeBasis) => setDraft((p) => ({ ...p, cancelFeeBasis }))} />
+            <BasisSelect id="set1-noshow-basis" label="No-show fee basis" value={draft.noshowFeeBasis} disabled={!canEdit} onChange={(noshowFeeBasis) => setDraft((p) => ({ ...p, noshowFeeBasis }))} />
           </div>
           <div className="flex items-center justify-between rounded-xl border border-border px-3 py-3">
             <Label htmlFor="set1-deposit">Deposit required</Label>
-            <Switch
-              id="set1-deposit"
-              checked={draft.depositRequired}
-              disabled={!canEdit}
-              onCheckedChange={(depositRequired) => setDraft((p) => ({ ...p, depositRequired }))}
-            />
+            <Switch id="set1-deposit" checked={draft.depositRequired} disabled={!canEdit} onCheckedChange={(depositRequired) => setDraft((p) => ({ ...p, depositRequired }))} />
           </div>
           {draft.depositRequired ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -655,7 +502,12 @@ export function Set1PoliciesSection({
                 <Select
                   value={draft.depositType || "unset"}
                   disabled={!canEdit}
-                  onValueChange={(value) => setDraft((p) => ({ ...p, depositType: value === "unset" ? "" : (value as Set1PoliciesDraft["depositType"]) }))}
+                  onValueChange={(value) =>
+                    setDraft((p) => ({
+                      ...p,
+                      depositType: value === "unset" ? "" : (value as Set1PoliciesDraft["depositType"]),
+                    }))
+                  }
                 >
                   <SelectTrigger id="set1-deposit-type" className="h-12 rounded-xl">
                     <SelectValue placeholder="Choose a type" />
@@ -756,25 +608,19 @@ export function Set1PoliciesSection({
   );
 }
 
-export function Set1GoLiveSection({
-  restaurantId,
-  role,
-  snapshot,
-  checklist,
-  canEdit,
-}: {
-  restaurantId: string;
-  role: string;
-  snapshot: Set1Foundation;
-  checklist: Set1Checklist;
-  canEdit: boolean;
-}) {
+export function Set1GoLiveSection({ restaurantId, role, snapshot, checklist, canEdit }: { restaurantId: string; role: string; snapshot: Set1Foundation; checklist: Set1Checklist; canEdit: boolean }) {
   const queryClient = useQueryClient();
   const activate = useServerFn(activatePmsSet1);
   const owner = canActivateSet1(role);
+  const [explicitConfirmation, setExplicitConfirmation] = useState(false);
   const mutation = useMutation({
-    mutationFn: () => activate({ data: { restaurantId } }),
-    onSuccess: () => {
+    mutationFn: () => activate({ data: { restaurantId, explicitConfirmation } }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.blockers.join(" "));
+        return;
+      }
+      setExplicitConfirmation(false);
       toast.success("Foundation settings are live.");
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
     },
@@ -786,9 +632,7 @@ export function Set1GoLiveSection({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-display text-lg text-[#251605]">Go-live</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, SET5 catalogues, SET6 posture, payment methods and Administration. One owner Activate. SET5–SET6 and Wave 1 warnings do not block. Never a fake Complete.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Foundation plus structure, rooms, outlets, rates, guest rules, housekeeping, room inventory, maintenance, SET5 catalogues, SET6 posture, payment methods and Administration. One owner Activate. SET5–SET6 and Wave 1 warnings do not block. Never a fake Complete.</p>
         </div>
         <ReadinessChip readiness={checklist.overall === "ready" ? "complete" : checklist.overall === "warning" ? "warning" : "blocked"} />
       </div>
@@ -796,48 +640,15 @@ export function Set1GoLiveSection({
       <ul className="space-y-3">
         {(["identity", "ops", "taxes", "policies", "structure", "rooms", "outlets", "rates", "guest-profile", "housekeeping-rules", "room-inventory-rules", "maintenance-rules", "departments", "guest-services-types", "notifications", "payment-methods", "administration", "integrations", "security-audit", "sales-events", "distribution", "reports", "offline-sync"] as Set1SectionId[]).map((id) => {
           const domain = checklist.domains[id];
-          const title =
-            id === "ops"
-              ? "Check-in & business date"
-              : id === "policies"
-                ? "Policies & fees"
-                : id === "rooms"
-                  ? "Rooms & amenities"
-                  : id === "rates"
-                    ? "Rates & meal plans"
-                    : id === "guest-profile"
-                      ? "Guest profile rules"
-                      : id === "housekeeping-rules"
-                        ? "Housekeeping rules"
-                        : id === "room-inventory-rules"
-                          ? "Room inventory rules"
-                          : id === "maintenance-rules"
-                            ? "Maintenance rules"
-                            : id === "guest-services-types"
-                              ? "Guest services types"
-                              : id === "payment-methods"
-                                ? "Payment methods"
-                                : id === "administration"
-                                  ? "Administration"
-                                  : id === "security-audit"
-                                    ? "Security & audit"
-                                    : id === "sales-events"
-                                      ? "Sales & events"
-                                      : id === "offline-sync"
-                                        ? "Offline & sync"
-                                        : id;
+          const title = id === "ops" ? "Check-in & business date" : id === "policies" ? "Policies & fees" : id === "rooms" ? "Rooms & amenities" : id === "rates" ? "Rates & meal plans" : id === "guest-profile" ? "Guest profile rules" : id === "housekeeping-rules" ? "Housekeeping rules" : id === "room-inventory-rules" ? "Room inventory rules" : id === "maintenance-rules" ? "Maintenance rules" : id === "guest-services-types" ? "Guest services types" : id === "payment-methods" ? "Payment methods" : id === "administration" ? "Administration" : id === "security-audit" ? "Security & audit" : id === "sales-events" ? "Sales & events" : id === "offline-sync" ? "Offline & sync" : id;
           return (
             <li key={id} className="rounded-xl border border-border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-medium capitalize">{title}</p>
                 <ReadinessChip readiness={domain.readiness} />
               </div>
-              {domain.missing.length ? (
-                <p className="mt-1 text-sm text-muted-foreground">Missing: {domain.missing.join(", ")}</p>
-              ) : null}
-              {domain.warnings.length ? (
-                <p className="mt-1 text-sm text-muted-foreground">{domain.warnings[0]}</p>
-              ) : null}
+              {domain.missing.length ? <p className="mt-1 text-sm text-muted-foreground">Missing: {domain.missing.join(", ")}</p> : null}
+              {domain.warnings.length ? <p className="mt-1 text-sm text-muted-foreground">{domain.warnings[0]}</p> : null}
               <a href={`${SET1_HUB_HREF}#${id}`} className="mt-2 inline-flex text-sm font-medium text-[#C89933]">
                 Configure
               </a>
@@ -846,20 +657,19 @@ export function Set1GoLiveSection({
         })}
       </ul>
       {owner ? (
-        <div className="space-y-2">
-          <Button
-            type="button"
-            disabled={!checklist.canActivate || mutation.isPending || snapshot.pmsSet1Live}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 disabled:opacity-50"
-            onClick={() => mutation.mutate()}
-          >
+        <div className="space-y-3">
+          {!snapshot.pmsSet1Live ? (
+            <div className="flex items-start gap-2">
+              <Checkbox id="set1-activation-confirm" checked={explicitConfirmation} onCheckedChange={(checked) => setExplicitConfirmation(checked === true)} />
+              <Label htmlFor="set1-activation-confirm" className="leading-5">
+                I explicitly confirm activation. Card 8 Validation and Go-Live gates will be checked again on the server.
+              </Label>
+            </div>
+          ) : null}
+          <Button type="button" disabled={!checklist.canActivate || !explicitConfirmation || mutation.isPending || snapshot.pmsSet1Live} className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 disabled:opacity-50" onClick={() => mutation.mutate()}>
             {snapshot.pmsSet1Live ? "Property is live" : mutation.isPending ? "Activating…" : SET1_ACTIVATE_LABEL}
           </Button>
-          {!checklist.canActivate && !snapshot.pmsSet1Live ? (
-            <p className="text-sm text-muted-foreground">
-              Activate stays off while mandatory items are incomplete: {checklist.mandatoryMissing.join(", ") || "see the list above"}.
-            </p>
-          ) : null}
+          {!checklist.canActivate && !snapshot.pmsSet1Live ? <p className="text-sm text-muted-foreground">Activate stays off while mandatory items are incomplete: {checklist.mandatoryMissing.join(", ") || "see the list above"}.</p> : null}
         </div>
       ) : canEdit ? (
         <p className="text-sm text-muted-foreground">Managers can complete the checklist. Only the owner can activate.</p>
@@ -868,49 +678,16 @@ export function Set1GoLiveSection({
   );
 }
 
-function Field({
-  id,
-  label,
-  value,
-  onChange,
-  type = "text",
-  disabled,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  disabled?: boolean;
-}) {
+function Field({ id, label, value, onChange, type = "text", disabled }: { id: string; label: string; value: string; onChange: (value: string) => void; type?: string; disabled?: boolean }) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type={type}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-12 rounded-xl text-base"
-      />
+      <Input id={id} type={type} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="h-12 rounded-xl text-base" />
     </div>
   );
 }
 
-function BasisSelect({
-  id,
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  disabled?: boolean;
-  onChange: (value: Set1PoliciesDraft["cancelFeeBasis"]) => void;
-}) {
+function BasisSelect({ id, label, value, disabled, onChange }: { id: string; label: string; value: string; disabled?: boolean; onChange: (value: Set1PoliciesDraft["cancelFeeBasis"]) => void }) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -931,21 +708,7 @@ function BasisSelect({
   );
 }
 
-export function Set1SectionView({
-  section,
-  restaurantId,
-  role,
-  snapshot,
-  checklist,
-  canEdit,
-}: {
-  section: Set1SectionId;
-  restaurantId: string;
-  role: string;
-  snapshot: Set1Foundation;
-  checklist: Set1Checklist;
-  canEdit: boolean;
-}) {
+export function Set1SectionView({ section, restaurantId, role, snapshot, checklist, canEdit }: { section: Set1SectionId; restaurantId: string; role: string; snapshot: Set1Foundation; checklist: Set1Checklist; canEdit: boolean }) {
   const body = useMemo(() => {
     if (section === "identity") return <Set1IdentitySection restaurantId={restaurantId} snapshot={snapshot} canEdit={canEdit} />;
     if (section === "ops") return <Set1OpsSection restaurantId={restaurantId} snapshot={snapshot} canEdit={canEdit} />;

@@ -170,6 +170,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Currenc
   };
 }
 
+export { loadSnapshot as loadCurrencyCard3Snapshot };
+
 async function loadAudit(db: DbClient, restaurantId: string): Promise<CurrencyCard3AuditRow[]> {
   const result = await db
     .from("restaurant_staff_audit_log")

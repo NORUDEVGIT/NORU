@@ -212,6 +212,8 @@ async function loadSnapshot(
   return { categories, types, lastUpdatedAt };
 }
 
+export { loadSnapshot as loadServiceTypesCard4Snapshot };
+
 export const getPmsCard4ServiceTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))

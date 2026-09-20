@@ -445,6 +445,29 @@ async function loadRestaurantRow(
   };
 }
 
+/** Read-only Card 1 source loader for Card 8 System Validation. */
+export async function loadCard1ValidationSnapshot(
+  supabaseAdmin: Admin,
+  restaurantId: string,
+): Promise<{ snapshot: Card1Snapshot; set2: Set2Snapshot }> {
+  const [loaded, set2, lastSuccessfulNightAudit] = await Promise.all([
+    loadRestaurantRow(supabaseAdmin, restaurantId),
+    loadSet2Snapshot(supabaseAdmin, restaurantId),
+    loadLastNightAudit(supabaseAdmin, restaurantId),
+  ]);
+  const snapshot = await withBrandPreviews(
+    snapshotFromRow(
+      loaded.row,
+      loaded.card1ColumnsAvailable,
+      loaded.fidelityColumnsAvailable,
+      loaded.foundationColumnsAvailable,
+      set2,
+      lastSuccessfulNightAudit,
+    ),
+  );
+  return { snapshot, set2 };
+}
+
 async function writeAudit(
   supabaseAdmin: Admin,
   params: {

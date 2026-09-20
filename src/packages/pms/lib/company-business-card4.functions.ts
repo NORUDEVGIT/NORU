@@ -218,8 +218,9 @@ async function loadSnapshot(
   restaurantId: string,
   userId: string,
   seeded = false,
+  seedMissing = true,
 ): Promise<BusinessProfileSnapshot> {
-  const fields = await ensureBusinessFields(db, restaurantId, userId);
+  const fields = seedMissing ? await ensureBusinessFields(db, restaurantId, userId) : await loadFields(db, restaurantId);
   const typesRes = await db
     .from("pms_business_profile_types")
     .select(
@@ -230,12 +231,27 @@ async function loadSnapshot(
   if (typesRes.error) unavailable(typesRes.error);
 
   if ((typesRes.data ?? []).length === 0) {
+    if (!seedMissing) {
+      return {
+        types: [],
+        settings: {
+          enabled: true,
+          defaultBusinessTypeId: null,
+          autoApproval: false,
+          defaultInvalid: true,
+        },
+        fields,
+        lastUpdatedAt: null,
+      };
+    }
     if (seeded) throw new Error("Could not seed default business types.");
     await seedTypes(db, restaurantId, userId, fields);
-    return loadSnapshot(db, restaurantId, userId, true);
+    return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
-  const types = (typesRes.data ?? []).map((row) => mapType(row, fields));
+  const types: BusinessProfileTypeRecord[] = (typesRes.data ?? []).map(
+    (row: Parameters<typeof mapType>[0]) => mapType(row, fields),
+  );
   const settingsRes = await db
     .from("pms_business_profile_settings")
     .select("enabled, default_business_type_id, auto_approval, updated_at")
@@ -248,18 +264,27 @@ async function loadSnapshot(
   if (!settingsRes.data) {
     const defaultType =
       types.find((row) => row.active && row.code === "CORP") ?? types.find((row) => row.active);
-    await upsertSettings(db, restaurantId, userId, {
-      enabled: true,
-      defaultBusinessTypeId: defaultType?.id ?? null,
-      autoApproval: false,
-    });
-    if (!seeded) return loadSnapshot(db, restaurantId, userId, true);
-    settings = {
-      enabled: true,
-      defaultBusinessTypeId: defaultType?.id ?? null,
-      autoApproval: false,
-      defaultInvalid: settingsDefaultInvalid(defaultType?.id ?? null, types, true),
-    };
+    if (!seedMissing) {
+      settings = {
+        enabled: true,
+        defaultBusinessTypeId: null,
+        autoApproval: false,
+        defaultInvalid: true,
+      };
+    } else {
+      await upsertSettings(db, restaurantId, userId, {
+        enabled: true,
+        defaultBusinessTypeId: defaultType?.id ?? null,
+        autoApproval: false,
+      });
+      if (!seeded) return loadSnapshot(db, restaurantId, userId, true, seedMissing);
+      settings = {
+        enabled: true,
+        defaultBusinessTypeId: defaultType?.id ?? null,
+        autoApproval: false,
+        defaultInvalid: settingsDefaultInvalid(defaultType?.id ?? null, types, true),
+      };
+    }
   } else {
     settingsUpdatedAt = settingsRes.data.updated_at as string;
     const defaultBusinessTypeId = settingsRes.data.default_business_type_id as string | null;
@@ -283,6 +308,8 @@ async function loadSnapshot(
 
   return { types, settings, fields, lastUpdatedAt };
 }
+
+export { loadSnapshot as loadCompanyBusinessCard4Snapshot };
 
 export const getPmsCard4CompanyBusiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

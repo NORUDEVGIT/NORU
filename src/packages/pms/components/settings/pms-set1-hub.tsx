@@ -64,12 +64,14 @@ import { CARD3_HASH, isCard3WorkspaceHash } from "@/packages/pms/lib/pms-propert
 import { CARD5_HASH, isCard5WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card5";
 import { CARD6_HASH, isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
 import { CARD7_HASH, isCard7WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card7";
+import { CARD8_HASH, isCard8WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card8";
 import { PmsPropertySetupCard3Section } from "@/packages/pms/components/settings/pms-property-setup-card3-section";
 import { PmsPropertySetupCard5Section } from "@/packages/pms/components/settings/pms-property-setup-card5-section";
 import { CARD4_HASH, isCard4WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card4";
 import { PmsPropertySetupCard4Section } from "@/packages/pms/components/settings/pms-property-setup-card4-section";
 import { PmsPropertySetupCard6Section } from "@/packages/pms/components/settings/pms-property-setup-card6-section";
 import { PmsPropertySetupCard7Section } from "@/packages/pms/components/settings/pms-property-setup-card7-section";
+import { PmsPropertySetupCard8Section } from "@/packages/pms/components/settings/pms-property-setup-card8-section";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
 
@@ -113,6 +115,11 @@ function currentCard7Open(): boolean {
   return isCard7WorkspaceHash(window.location.hash);
 }
 
+function currentCard8Open(): boolean {
+  if (typeof window === "undefined") return false;
+  return isCard8WorkspaceHash(window.location.hash);
+}
+
 export function PmsSet1Hub({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const load = useServerFn(getPmsSet1Foundation);
@@ -126,6 +133,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   const [card4Open, setCard4Open] = useState(currentCard4Open);
   const [card6Open, setCard6Open] = useState(currentCard6Open);
   const [card7Open, setCard7Open] = useState(currentCard7Open);
+  const [card8Open, setCard8Open] = useState(currentCard8Open);
   const [showAllChanges, setShowAllChanges] = useState(false);
 
   useEffect(() => {
@@ -152,6 +160,9 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       if (raw === "card-7" || raw === "card7") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD7_HASH}`);
       }
+      if (raw === "card-8" || raw === "card8") {
+        window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD8_HASH}`);
+      }
       const resolved = resolveSet1SectionHash(raw);
       if (resolved && resolved !== raw) {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${resolved}`);
@@ -164,6 +175,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       setCard4Open(currentCard4Open());
       setCard6Open(currentCard6Open());
       setCard7Open(currentCard7Open());
+      setCard8Open(currentCard8Open());
     };
     apply();
     window.addEventListener("hashchange", apply);
@@ -201,7 +213,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
 
   return (
     <div className="space-y-6" data-testid="pms-set1-hub">
-      {card1Open || card2Open || card3Open || card4Open || card5Open || card6Open || card7Open ? null : (
+      {card1Open || card2Open || card3Open || card4Open || card5Open || card6Open || card7Open || card8Open ? null : (
       <div>
         <Link
           to={SET1_PMS_BACK_HREF as "/restaurant/pms"}
@@ -214,7 +226,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           <span className="sr-only">{SET1_FOUNDATION_CHIP}</span>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Property Setup for {membership.restaurant.name}. Eight cards. Property & Business, Rooms & Operations, Financial & Commercial, Guest & Services, Organization & Facilities, Connectivity & Distribution and Security, Data & Reports are Spec’d in this wave.
+          Property Setup for {membership.restaurant.name}. Eight cards. All Property Setup workspaces are Spec’d through System & Go-Live.
         </p>
       </div>
       )}
@@ -258,6 +270,8 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
         <PmsPropertySetupCard6Section restaurantId={restaurantId} canEdit={canEdit} />
       ) : card7Open ? (
         <PmsPropertySetupCard7Section restaurantId={restaurantId} canEdit={canEdit} />
+      ) : card8Open ? (
+        <PmsPropertySetupCard8Section restaurantId={restaurantId} canEdit={canEdit} />
       ) : section ? (
         <div className="space-y-4">
           <Button variant="outline" size="sm" asChild>
