@@ -59,6 +59,10 @@ import {
   Card4CommunicationChannelsGuide,
   PmsCard4CommunicationChannels,
 } from "@/packages/pms/components/settings/pms-card4-communication-channels";
+import {
+  Card4CommunicationTemplatesGuide,
+  PmsCard4CommunicationTemplates,
+} from "@/packages/pms/components/settings/pms-card4-communication-templates";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
@@ -75,6 +79,12 @@ import { getPmsCard4ServiceAvailability } from "@/packages/pms/lib/service-avail
 import { serviceAvailabilityConfigured } from "@/packages/pms/lib/service-availability-card4.server";
 import { getPmsCard4CommunicationChannels } from "@/packages/pms/lib/communication-channels-card4.functions";
 import { communicationChannelsConfigured } from "@/packages/pms/lib/communication-channels-card4.server";
+import { getPmsCard4CommunicationTemplates } from "@/packages/pms/lib/communication-templates-card4.functions";
+import {
+  communicationTemplatesConfigured,
+  renderTemplateText,
+  stripTemplateHtml,
+} from "@/packages/pms/lib/communication-templates-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -137,6 +147,7 @@ export function PmsPropertySetupCard4Section({
   const loadSlaRules = useServerFn(getPmsCard4ServiceSlaRules);
   const loadAvailability = useServerFn(getPmsCard4ServiceAvailability);
   const loadCommunicationChannels = useServerFn(getPmsCard4CommunicationChannels);
+  const loadCommunicationTemplates = useServerFn(getPmsCard4CommunicationTemplates);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -198,6 +209,11 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadCommunicationChannels({ data: { restaurantId } }),
     retry: false,
   });
+  const communicationTemplatesQuery = useQuery({
+    queryKey: ["pms-card4-communication-templates", restaurantId],
+    queryFn: () => loadCommunicationTemplates({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -242,6 +258,9 @@ export function PmsPropertySetupCard4Section({
   );
   const channelsReady = communicationChannelsConfigured(
     communicationChannelsQuery.data?.channels ?? [],
+  );
+  const templatesReady = communicationTemplatesConfigured(
+    communicationTemplatesQuery.data?.templates ?? [],
   );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
@@ -359,7 +378,7 @@ export function PmsPropertySetupCard4Section({
     Object.fromEntries(
       CARD4_NOTIFICATION_STEPS.map((row) => [
         row.id,
-        evaluateNotificationStepStatus(row.id, channelsReady),
+        evaluateNotificationStepStatus(row.id, channelsReady, templatesReady),
       ]),
     );
   const gprCompleted = card4CompletedCount(stepStatuses);
@@ -387,7 +406,8 @@ export function PmsPropertySetupCard4Section({
     assignmentsReady &&
     slaRulesReady &&
     availabilityReady &&
-    channelsReady
+    channelsReady &&
+    templatesReady
       ? "complete"
       : profileTypesConfigured ||
           requiredFieldsConfigured ||
@@ -400,7 +420,8 @@ export function PmsPropertySetupCard4Section({
           assignmentsReady ||
           slaRulesReady ||
           availabilityReady ||
-          channelsReady
+          channelsReady ||
+          templatesReady
         ? "in_progress"
         : "not_started";
 
@@ -438,7 +459,7 @@ export function PmsPropertySetupCard4Section({
 
   function goContinue() {
     if (mainSection === "notifications") {
-      if (notificationStep === "channels") {
+      if (notificationStep === "channels" || notificationStep === "communication-templates") {
         requestSave(true);
         return;
       }
@@ -492,7 +513,7 @@ export function PmsPropertySetupCard4Section({
       ? gprLive
       : mainSection === "guest-service-types"
         ? gstLive
-        : notificationStep === "channels";
+        : notificationStep === "channels" || notificationStep === "communication-templates";
   const subtitle =
     mainSection === "guest-service-types"
       ? CARD4_GST_SUBTITLE
@@ -611,6 +632,16 @@ export function PmsPropertySetupCard4Section({
           <Card4CommunicationChannelsGuide
             channels={communicationChannelsQuery.data?.channels ?? []}
           />
+        ) : mainSection === "notifications" && notificationStep === "communication-templates" ? (
+          <Card4CommunicationTemplatesGuide
+            templates={communicationTemplatesQuery.data?.templates ?? []}
+            previewSubject={renderTemplateText(
+              communicationTemplatesQuery.data?.templates[0]?.subject ?? "",
+            )}
+            previewBody={renderTemplateText(
+              stripTemplateHtml(communicationTemplatesQuery.data?.templates[0]?.message ?? ""),
+            )}
+          />
         ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
           <Card4ServiceCategoriesGuide
             count={serviceCategoriesQuery.data?.categories.length ?? 0}
@@ -676,6 +707,14 @@ export function PmsPropertySetupCard4Section({
       {mainSection === "notifications" ? (
         notificationStep === "channels" ? (
           <PmsCard4CommunicationChannels
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onSavingChange={onSavingChange}
+            saveRequest={saveRequest}
+            onSaved={onSaved}
+          />
+        ) : notificationStep === "communication-templates" ? (
+          <PmsCard4CommunicationTemplates
             restaurantId={restaurantId}
             canEdit={canEdit}
             onSavingChange={onSavingChange}
