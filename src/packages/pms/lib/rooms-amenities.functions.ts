@@ -72,7 +72,7 @@ function mapAmenity(row: {
   };
 }
 
-async function loadAmenitiesReadinessInput(supabase: DbClient, restaurantId: string) {
+export async function loadAmenitiesReadinessInput(supabase: DbClient, restaurantId: string) {
   const [{ data: catalog }, { data: mappings }, { data: overrides }, { data: roomTypes }, { data: rooms }] =
     await Promise.all([
       supabase

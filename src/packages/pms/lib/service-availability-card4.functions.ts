@@ -168,6 +168,8 @@ async function loadSnapshot(
   };
 }
 
+export { loadSnapshot as loadServiceAvailabilityCard4Snapshot };
+
 export const getPmsCard4ServiceAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))

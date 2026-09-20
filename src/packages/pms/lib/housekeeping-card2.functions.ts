@@ -219,8 +219,9 @@ async function ensureCard2HousekeepingDefaults(db: DbClient, restaurantId: strin
 export async function loadCard2HousekeepingSnapshot(
   db: DbClient,
   restaurantId: string,
+  ensureDefaults = true,
 ): Promise<HousekeepingCard2Snapshot> {
-  await ensureCard2HousekeepingDefaults(db, restaurantId);
+  if (ensureDefaults) await ensureCard2HousekeepingDefaults(db, restaurantId);
   const [settings, statuses, transitions, priorities] = await Promise.all([
     db.from("pms_housekeeping_settings").select("*").eq("restaurant_id", restaurantId).maybeSingle(),
     db

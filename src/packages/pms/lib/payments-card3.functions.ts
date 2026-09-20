@@ -176,6 +176,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Payment
   };
 }
 
+export { loadSnapshot as loadPaymentsCard3Snapshot };
+
 async function loadAudit(db: DbClient, restaurantId: string) {
   const result = await db
     .from("restaurant_staff_audit_log")

@@ -366,6 +366,14 @@ export const getInventorySummary = createServerFn({ method: "POST" })
     };
   });
 
+/** Read-only Card 2 Inventory Rules evaluator for Card 8. */
+export async function loadCard2InventoryValidation(db: DbClient, restaurantId: string) {
+  const loaded = await loadRules(db, restaurantId);
+  const persisted = Boolean(loaded.parent);
+  const rules = loaded.parent ? mapParent(loaded.parent, loaded.blockTypes) : defaultInventoryRules();
+  return evaluateInventoryRulesReadiness({ persisted, rules });
+}
+
 export const evaluateCard2InventoryReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))

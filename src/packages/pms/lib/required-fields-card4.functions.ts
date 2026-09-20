@@ -172,6 +172,7 @@ async function loadSnapshot(
   restaurantId: string,
   userId: string,
   seeded = false,
+  seedMissing = true,
 ): Promise<GuestFieldSnapshot> {
   const fieldsRes = await db
     .from("pms_guest_fields")
@@ -184,9 +185,10 @@ async function loadSnapshot(
   if (fieldsRes.error) unavailable(fieldsRes.error);
 
   if ((fieldsRes.data ?? []).length === 0) {
+    if (!seedMissing) return { fields: [], documentTypes: [], lastUpdatedAt: null };
     if (seeded) throw new Error("Could not seed default guest fields.");
     await seedDefaults(db, restaurantId, userId);
-    return loadSnapshot(db, restaurantId, userId, true);
+    return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
   const docsRes = await db
@@ -205,6 +207,8 @@ async function loadSnapshot(
 
   return { fields, documentTypes, lastUpdatedAt };
 }
+
+export { loadSnapshot as loadRequiredFieldsCard4Snapshot };
 
 export const getPmsCard4RequiredFields = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

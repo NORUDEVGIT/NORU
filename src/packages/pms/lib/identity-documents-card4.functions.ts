@@ -155,6 +155,7 @@ async function loadSnapshot(
   restaurantId: string,
   userId: string,
   seeded = false,
+  seedMissing = true,
 ): Promise<IdentityDocumentTypeSnapshot> {
   const profileTypes = await loadProfileTypes(db, restaurantId);
   const result = await db
@@ -168,9 +169,10 @@ async function loadSnapshot(
   if (result.error) unavailable(result.error);
 
   if ((result.data ?? []).length === 0) {
+    if (!seedMissing) return { documentTypes: [], profileTypes, lastUpdatedAt: null };
     if (seeded) throw new Error("Could not seed default identity document types.");
     await seedDefaults(db, restaurantId, userId, profileTypes);
-    return loadSnapshot(db, restaurantId, userId, true);
+    return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
   const documentTypes = (result.data ?? []).map(mapRow);
@@ -180,6 +182,8 @@ async function loadSnapshot(
   }, null);
   return { documentTypes, profileTypes, lastUpdatedAt };
 }
+
+export { loadSnapshot as loadIdentityDocumentsCard4Snapshot };
 
 export const getPmsCard4IdentityDocumentTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

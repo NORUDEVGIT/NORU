@@ -158,6 +158,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Service
   return { categories, serviceTypes, rules, lastUpdatedAt };
 }
 
+export { loadSnapshot as loadServiceSlaRulesCard4Snapshot };
+
 export const getPmsCard4ServiceSlaRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))

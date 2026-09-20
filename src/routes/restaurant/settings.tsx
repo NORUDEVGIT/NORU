@@ -13,6 +13,7 @@ import { isCard5WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card
 import { isCard4WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card4";
 import { isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
 import { isCard7WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card7";
+import { isCard8WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card8";
 
 export const Route = createFileRoute("/restaurant/settings")({
   ssr: false,
@@ -46,7 +47,8 @@ function RestaurantSettings() {
         isCard5WorkspaceHash(window.location.hash) ||
         isCard4WorkspaceHash(window.location.hash) ||
         isCard6WorkspaceHash(window.location.hash) ||
-        isCard7WorkspaceHash(window.location.hash)
+        isCard7WorkspaceHash(window.location.hash) ||
+        isCard8WorkspaceHash(window.location.hash)
       : false,
   );
   useEffect(() => {
@@ -58,7 +60,8 @@ function RestaurantSettings() {
           isCard5WorkspaceHash(window.location.hash) ||
           isCard4WorkspaceHash(window.location.hash) ||
           isCard6WorkspaceHash(window.location.hash) ||
-          isCard7WorkspaceHash(window.location.hash),
+          isCard7WorkspaceHash(window.location.hash) ||
+          isCard8WorkspaceHash(window.location.hash),
       );
     apply();
     window.addEventListener("hashchange", apply);
