@@ -124,7 +124,7 @@ export const CARD4_NOTIFICATION_STEPS = [
     id: "automation-rules",
     number: 4,
     title: "Automation Rules",
-    placeholder: "Automation Rules will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "sender-settings",
@@ -159,10 +159,12 @@ export function evaluateNotificationStepStatus(
   channelsConfigured: boolean,
   templatesConfigured = false,
   eventsConfigured = false,
+  rulesConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "channels") return channelsConfigured ? "complete" : "not_started";
   if (step === "communication-templates") return templatesConfigured ? "complete" : "not_started";
   if (step === "notification-events") return eventsConfigured ? "complete" : "not_started";
+  if (step === "automation-rules") return rulesConfigured ? "complete" : "not_started";
   return "not_started";
 }
 
