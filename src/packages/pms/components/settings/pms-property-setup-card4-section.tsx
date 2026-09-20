@@ -63,6 +63,10 @@ import {
   Card4CommunicationTemplatesGuide,
   PmsCard4CommunicationTemplates,
 } from "@/packages/pms/components/settings/pms-card4-communication-templates";
+import {
+  Card4NotificationEventsGuide,
+  PmsCard4NotificationEvents,
+} from "@/packages/pms/components/settings/pms-card4-notification-events";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
@@ -85,6 +89,8 @@ import {
   renderTemplateText,
   stripTemplateHtml,
 } from "@/packages/pms/lib/communication-templates-card4.server";
+import { getPmsCard4NotificationEvents } from "@/packages/pms/lib/notification-events-card4.functions";
+import { notificationEventsConfigured } from "@/packages/pms/lib/notification-events-card4.server";
 import {
   CARD1_PMS_NAV,
   propertySetupStatusLabel,
@@ -148,6 +154,7 @@ export function PmsPropertySetupCard4Section({
   const loadAvailability = useServerFn(getPmsCard4ServiceAvailability);
   const loadCommunicationChannels = useServerFn(getPmsCard4CommunicationChannels);
   const loadCommunicationTemplates = useServerFn(getPmsCard4CommunicationTemplates);
+  const loadNotificationEvents = useServerFn(getPmsCard4NotificationEvents);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -214,6 +221,11 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadCommunicationTemplates({ data: { restaurantId } }),
     retry: false,
   });
+  const notificationEventsQuery = useQuery({
+    queryKey: ["pms-card4-notification-events", restaurantId],
+    queryFn: () => loadNotificationEvents({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -262,6 +274,7 @@ export function PmsPropertySetupCard4Section({
   const templatesReady = communicationTemplatesConfigured(
     communicationTemplatesQuery.data?.templates ?? [],
   );
+  const eventsReady = notificationEventsConfigured(notificationEventsQuery.data?.events ?? []);
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
     setSaving(nextSaving);
@@ -378,7 +391,7 @@ export function PmsPropertySetupCard4Section({
     Object.fromEntries(
       CARD4_NOTIFICATION_STEPS.map((row) => [
         row.id,
-        evaluateNotificationStepStatus(row.id, channelsReady, templatesReady),
+        evaluateNotificationStepStatus(row.id, channelsReady, templatesReady, eventsReady),
       ]),
     );
   const gprCompleted = card4CompletedCount(stepStatuses);
@@ -407,7 +420,8 @@ export function PmsPropertySetupCard4Section({
     slaRulesReady &&
     availabilityReady &&
     channelsReady &&
-    templatesReady
+    templatesReady &&
+    eventsReady
       ? "complete"
       : profileTypesConfigured ||
           requiredFieldsConfigured ||
@@ -421,7 +435,8 @@ export function PmsPropertySetupCard4Section({
           slaRulesReady ||
           availabilityReady ||
           channelsReady ||
-          templatesReady
+          templatesReady ||
+          eventsReady
         ? "in_progress"
         : "not_started";
 
@@ -459,7 +474,11 @@ export function PmsPropertySetupCard4Section({
 
   function goContinue() {
     if (mainSection === "notifications") {
-      if (notificationStep === "channels" || notificationStep === "communication-templates") {
+      if (
+        notificationStep === "channels" ||
+        notificationStep === "communication-templates" ||
+        notificationStep === "notification-events"
+      ) {
         requestSave(true);
         return;
       }
@@ -513,7 +532,9 @@ export function PmsPropertySetupCard4Section({
       ? gprLive
       : mainSection === "guest-service-types"
         ? gstLive
-        : notificationStep === "channels" || notificationStep === "communication-templates";
+        : notificationStep === "channels" ||
+          notificationStep === "communication-templates" ||
+          notificationStep === "notification-events";
   const subtitle =
     mainSection === "guest-service-types"
       ? CARD4_GST_SUBTITLE
@@ -642,6 +663,8 @@ export function PmsPropertySetupCard4Section({
               stripTemplateHtml(communicationTemplatesQuery.data?.templates[0]?.message ?? ""),
             )}
           />
+        ) : mainSection === "notifications" && notificationStep === "notification-events" ? (
+          <Card4NotificationEventsGuide events={notificationEventsQuery.data?.events ?? []} />
         ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
           <Card4ServiceCategoriesGuide
             count={serviceCategoriesQuery.data?.categories.length ?? 0}
@@ -715,6 +738,14 @@ export function PmsPropertySetupCard4Section({
           />
         ) : notificationStep === "communication-templates" ? (
           <PmsCard4CommunicationTemplates
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onSavingChange={onSavingChange}
+            saveRequest={saveRequest}
+            onSaved={onSaved}
+          />
+        ) : notificationStep === "notification-events" ? (
+          <PmsCard4NotificationEvents
             restaurantId={restaurantId}
             canEdit={canEdit}
             onSavingChange={onSavingChange}

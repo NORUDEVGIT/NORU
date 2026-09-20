@@ -123,6 +123,11 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.equal(evaluateNotificationStepStatus("channels", true), "complete");
     assert.equal(evaluateNotificationStepStatus("communication-templates", true), "not_started");
     assert.equal(evaluateNotificationStepStatus("communication-templates", true, true), "complete");
+    assert.equal(evaluateNotificationStepStatus("notification-events", true, true), "not_started");
+    assert.equal(
+      evaluateNotificationStepStatus("notification-events", true, true, true),
+      "complete",
+    );
     assert.equal(evaluateGstStepStatus("service-categories", true), "complete");
     assert.equal(evaluateGstStepStatus("service-types", true), "not_started");
     assert.equal(evaluateGstStepStatus("service-types", true, true), "complete");
@@ -169,6 +174,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(section, /PmsCard4ServiceSlaRules/);
     assert.match(section, /PmsCard4CommunicationChannels/);
     assert.match(section, /PmsCard4CommunicationTemplates/);
+    assert.match(section, /PmsCard4NotificationEvents/);
     assert.match(section, /identity-documents/);
     assert.match(section, /company-business/);
     assert.match(section, /guest-service-types/);

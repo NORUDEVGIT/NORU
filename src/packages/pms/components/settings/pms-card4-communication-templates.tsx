@@ -24,6 +24,7 @@ import {
   setPmsCard4CommunicationTemplateActive,
   testPmsCard4CommunicationTemplate,
 } from "@/packages/pms/lib/communication-templates-card4.functions";
+import { getPmsCard4NotificationEvents } from "@/packages/pms/lib/notification-events-card4.functions";
 import {
   COMMUNICATION_TEMPLATE_CATEGORIES,
   COMMUNICATION_TEMPLATE_CATEGORY_LABELS,
@@ -121,6 +122,7 @@ export function PmsCard4CommunicationTemplates({
   const remove = useServerFn(deletePmsCard4CommunicationTemplate);
   const preview = useServerFn(previewPmsCard4CommunicationTemplate);
   const sendTest = useServerFn(testPmsCard4CommunicationTemplate);
+  const loadEvents = useServerFn(getPmsCard4NotificationEvents);
   const queryKey = ["pms-card4-communication-templates", restaurantId];
   const query = useQuery({
     queryKey,
@@ -128,6 +130,11 @@ export function PmsCard4CommunicationTemplates({
     retry: false,
   });
   const templates = useMemo(() => query.data?.templates ?? [], [query.data?.templates]);
+  const eventsQuery = useQuery({
+    queryKey: ["pms-card4-notification-events", restaurantId],
+    queryFn: () => loadEvents({ data: { restaurantId } }),
+    retry: false,
+  });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryTab, setCategoryTab] = useState<"all" | CommunicationTemplateCategory>("all");
@@ -367,7 +374,16 @@ export function PmsCard4CommunicationTemplates({
   }
 
   const languages = templateLanguageOptions(draft.language);
-  const events = eventsForCategory(draft.category);
+  const events = useMemo(() => {
+    const base = eventsForCategory(draft.category);
+    const extras = (eventsQuery.data?.events ?? [])
+      .filter(
+        (row) =>
+          row.category === draft.category && !base.some((item) => item.id === row.code),
+      )
+      .map((row) => ({ id: row.code, category: row.category, label: row.name }));
+    return [...base, ...extras];
+  }, [draft.category, eventsQuery.data?.events]);
   const variables = variablesForCategory(draft.category);
   const lastUpdated = query.data?.lastUpdatedAt
     ? new Date(query.data.lastUpdatedAt).toLocaleString()

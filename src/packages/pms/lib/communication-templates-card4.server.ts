@@ -11,7 +11,6 @@ import {
   COMMUNICATION_CHANNEL_TYPES,
   type CommunicationChannelType,
 } from "./communication-channels-card4.server.ts";
-import { NOTIFICATION_EVENT_LABELS } from "./pms-set5-depts-guestsvc.ts";
 
 export const COMMUNICATION_TEMPLATE_CATEGORIES = [
   "reservation",
@@ -37,33 +36,71 @@ export type CommunicationTemplateEvent = {
   label: string;
 };
 
-/** Selector values only. Phase 3 owns event management. SET5 keys are reused. */
+/** Stable system event selector values shared with Phase 3 event management. */
 export const COMMUNICATION_TEMPLATE_EVENTS: readonly CommunicationTemplateEvent[] = [
   {
     id: "reservation_confirmed",
     category: "reservation",
-    label: NOTIFICATION_EVENT_LABELS.reservation_confirmed,
+    label: "Reservation Confirmed",
+  },
+  {
+    id: "reservation_modified",
+    category: "reservation",
+    label: "Reservation Modified",
+  },
+  {
+    id: "reservation_cancelled",
+    category: "reservation",
+    label: "Reservation Cancelled",
   },
   {
     id: "pre_arrival",
     category: "pre_arrival",
-    label: NOTIFICATION_EVENT_LABELS.pre_arrival,
+    label: "Pre-Arrival Reminder",
+  },
+  {
+    id: "vip_arrival",
+    category: "stay",
+    label: "VIP Arrival",
+  },
+  {
+    id: "room_ready",
+    category: "stay",
+    label: "Room Ready",
+  },
+  {
+    id: "room_not_ready",
+    category: "stay",
+    label: "Room Not Ready",
   },
   {
     id: "guest_request_created",
     category: "stay",
-    label: NOTIFICATION_EVENT_LABELS.guest_request_created,
+    label: "Guest Request Created",
   },
   {
-    id: "departure",
+    id: "service_overdue",
+    category: "stay",
+    label: "Service Overdue",
+  },
+  {
+    id: "payment_received",
+    category: "stay",
+    label: "Payment Received",
+  },
+  {
+    id: "checkout_completed",
     category: "departure",
-    label: "Departure",
+    label: "Checkout Completed",
   },
   {
-    id: "night_audit_exception",
-    category: "internal",
-    label: NOTIFICATION_EVENT_LABELS.night_audit_exception,
+    id: "guest_feedback_received",
+    category: "departure",
+    label: "Guest Feedback Received",
   },
+  // Legacy selector values remain available so existing Phase 2 templates stay editable.
+  { id: "departure", category: "departure", label: "Departure" },
+  { id: "night_audit_exception", category: "internal", label: "Night Audit Exception" },
 ];
 
 export const COMMUNICATION_TEMPLATE_VARIABLES = [
@@ -276,13 +313,16 @@ export function validateCommunicationTemplateDraft(
   if (!isCommunicationTemplateCategory(draft.category)) {
     errors.push({ field: "category", message: "Choose a template category." });
   }
-  const event = COMMUNICATION_TEMPLATE_EVENTS.find((row) => row.id === draft.eventTrigger);
-  if (!event) errors.push({ field: "eventTrigger", message: "Choose an event trigger." });
-  else if (event.category !== draft.category) {
-    errors.push({
-      field: "eventTrigger",
-      message: "Choose an event trigger that matches this category.",
-    });
+  if (!/^[a-z][a-z0-9_]{0,39}$/.test(draft.eventTrigger)) {
+    errors.push({ field: "eventTrigger", message: "Choose an event trigger." });
+  } else {
+    const event = COMMUNICATION_TEMPLATE_EVENTS.find((row) => row.id === draft.eventTrigger);
+    if (event && event.category !== draft.category) {
+      errors.push({
+        field: "eventTrigger",
+        message: "Choose an event trigger that matches this category.",
+      });
+    }
   }
   if (!isCommunicationChannelType(draft.channelType)) {
     errors.push({ field: "channelType", message: "Choose a communication channel." });
