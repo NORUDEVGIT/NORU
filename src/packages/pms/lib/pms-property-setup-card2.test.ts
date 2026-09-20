@@ -4,7 +4,11 @@ import { describe, it } from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { SET1_HUB_HREF, isSet1SectionHash, propertySetupRedirectHref } from "./pms-set1-foundation.ts";
+import {
+  SET1_HUB_HREF,
+  isSet1SectionHash,
+  propertySetupRedirectHref,
+} from "./pms-set1-foundation.ts";
 import { PROPERTY_SETUP_CARDS } from "./pms-property-setup-card1.ts";
 import {
   CARD2_HASH,
@@ -22,11 +26,22 @@ import {
 } from "./pms-property-setup-card2.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
-const section = readFileSync(new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url), "utf8");
-const chrome = readFileSync(new URL("../components/settings/pms-property-setup-workspace.tsx", import.meta.url), "utf8");
-const settings = readFileSync(new URL("../../../routes/restaurant/settings.tsx", import.meta.url), "utf8");
-const card1Ui = readFileSync(new URL("../components/settings/pms-property-setup-card1-section.tsx", import.meta.url), "utf8");
+const hub = readFileSync(
+  new URL("../components/settings/pms-set1-hub.tsx", import.meta.url),
+  "utf8",
+);
+const section = readFileSync(
+  new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url),
+  "utf8",
+);
+const settings = readFileSync(
+  new URL("../../../routes/restaurant/settings.tsx", import.meta.url),
+  "utf8",
+);
+const card1Ui = readFileSync(
+  new URL("../components/settings/pms-property-setup-card1-section.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("PMS Property Setup Card 2 Phase 0 shell", () => {
   it("keeps Rooms & Operations title, five steps, and rooms-inventory hash", () => {
@@ -65,20 +80,18 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.equal(propertySetupRedirectHref("#rooms"), `${SET1_HUB_HREF}#rooms`);
   });
 
-  it("opens from the hub with Card 1 chrome, a status rail, and a draft save", () => {
+  it("opens from the hub with setup-kit chrome, a status rail, and a draft save", () => {
     assert.match(hub, /PmsPropertySetupCard2Section/);
     assert.match(hub, /restaurantId=\{restaurantId\}/);
     assert.match(hub, /card2Steps=/);
-    assert.match(section, /testIdPrefix="pms-card2"/);
+    assert.match(section, /PropertySetupWorkspaceShell/);
     assert.match(section, /PmsPropertySetupCard2RoomTypes/);
     assert.match(section, /onSaveDraft/);
-    assert.match(chrome, /Setup Progress/);
-    assert.match(chrome, /Save Draft/);
-    assert.match(chrome, /Save & Continue/);
-    assert.match(chrome, /onSaveDraft/);
-    assert.match(chrome, /pointer-events-none/);
-    assert.match(chrome, /\[&>\*\]:pointer-events-auto/);
-    assert.match(chrome, /pb-28/);
+    assert.match(section, /pms-card2-status-rail/);
+    assert.doesNotMatch(section, /CARD1_PMS_NAV/);
+    assert.doesNotMatch(section, /pms-card2-top-nav/);
+    assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
+    assert.doesNotMatch(section, /card2ProgressPct/);
     assert.match(settings, /isCard2WorkspaceHash/);
     assert.match(settings, /hidePackageRail/);
     assert.match(card1Ui, /pms-card1-fullscreen/);
@@ -86,8 +99,14 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
   });
 
   it("ships dual-lane 0064 without live apply, operational rewrite, or sample seed", () => {
-    const drizzle064 = join(here, "../../../../drizzle/migrations/0064_pms_card2_room_types_rooms.sql");
-    const supabase064 = join(here, "../../../../supabase/migrations/0064_pms_card2_room_types_rooms.sql");
+    const drizzle064 = join(
+      here,
+      "../../../../drizzle/migrations/0064_pms_card2_room_types_rooms.sql",
+    );
+    const supabase064 = join(
+      here,
+      "../../../../supabase/migrations/0064_pms_card2_room_types_rooms.sql",
+    );
     assert.equal(existsSync(drizzle064), true);
     assert.equal(existsSync(supabase064), true);
     const drizzle = readFileSync(drizzle064, "utf8");
@@ -113,8 +132,14 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
 
 describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
   it("calls live room APIs and keeps later steps as placeholders", () => {
-    const ui = readFileSync(new URL("../components/settings/pms-property-setup-card2-room-types.tsx", import.meta.url), "utf8");
-    const sectionSrc = readFileSync(new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url), "utf8");
+    const ui = readFileSync(
+      new URL("../components/settings/pms-property-setup-card2-room-types.tsx", import.meta.url),
+      "utf8",
+    );
+    const sectionSrc = readFileSync(
+      new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url),
+      "utf8",
+    );
     assert.match(ui, /saveRoomType/);
     assert.match(ui, /saveRoom/);
     assert.match(ui, /bulkCreateRooms/);
@@ -135,6 +160,8 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(ui, /Connecting \/ adjacent/);
     assert.match(ui, /maintenanceStatus/);
     assert.match(ui, /housekeepingStatus/);
+    assert.match(ui, /PropertySetupFormGrid/);
+    assert.match(ui, /PropertySetupRemoveButton/);
     assert.match(sectionSrc, /step === "room-types"/);
     assert.match(sectionSrc, /step === "amenities"/);
     assert.match(sectionSrc, /PmsPropertySetupCard2Amenities/);
@@ -142,15 +169,20 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(sectionSrc, /PmsPropertySetupCard2Inventory/);
     assert.match(sectionSrc, /step === "maintenance"/);
     assert.match(sectionSrc, /PmsPropertySetupCard2Maintenance/);
-    assert.match(
-      sectionSrc.replace(/\s+/g, " "),
-      /saveDraftDisabled=\{ ?!canEdit \|\| \( ?step !== "room-types" && step !== "amenities" && step !== "housekeeping" && step !== "inventory-rules" && step !== "maintenance" ?\)/,
-    );
+    assert.match(sectionSrc, /saveDraftDisabled=\{!canEdit\}/);
+    assert.match(sectionSrc, /onSaveDraft=/);
+    assert.match(sectionSrc, /registerActions/);
+    assert.match(sectionSrc, /onContinue=/);
     assert.match(sectionSrc, /current.placeholder/);
-    assert.match(sectionSrc, /Card 2 Review/);
     assert.doesNotMatch(sectionSrc, /Amenities configuration will be implemented in a later phase/);
-    assert.doesNotMatch(sectionSrc, /Inventory Rules configuration will be implemented in a later phase/);
-    assert.doesNotMatch(sectionSrc, /Maintenance configuration will be implemented in a later phase/);
+    assert.doesNotMatch(
+      sectionSrc,
+      /Inventory Rules configuration will be implemented in a later phase/,
+    );
+    assert.doesNotMatch(
+      sectionSrc,
+      /Maintenance configuration will be implemented in a later phase/,
+    );
     const inventoryUi = readFileSync(
       new URL("../components/settings/pms-property-setup-card2-inventory.tsx", import.meta.url),
       "utf8",
@@ -181,7 +213,10 @@ describe("PMS Property Setup Card 2 Phase 5 Maintenance UI", () => {
     assert.match(ui, /evaluateCard2MaintenanceReadiness/);
     assert.match(ui, /listMaintenanceDepartments/);
     assert.match(ui, /Maintenance Status Rules control restrictions/);
-    assert.match(ui, /Out of Service \/ Out of Order policies below govern operational room restrictions/);
+    assert.match(
+      ui,
+      /Out of Service \/ Out of Order policies below govern operational room restrictions/,
+    );
     assert.match(ui, /maintenance-status-\$\{status\}-\$\{field\.key\}/);
     assert.match(ui, /maintenance-oos-enabled/);
     assert.match(ui, /maintenance-ooo-ticket-required/);

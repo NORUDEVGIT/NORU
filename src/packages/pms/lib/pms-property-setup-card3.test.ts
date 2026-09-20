@@ -4,7 +4,11 @@ import { describe, it } from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { SET1_HUB_HREF, isSet1SectionHash, propertySetupRedirectHref } from "./pms-set1-foundation.ts";
+import {
+  SET1_HUB_HREF,
+  isSet1SectionHash,
+  propertySetupRedirectHref,
+} from "./pms-set1-foundation.ts";
 import { PROPERTY_SETUP_CARDS } from "./pms-property-setup-card1.ts";
 import {
   CARD3_BACK_LABEL,
@@ -23,7 +27,10 @@ import {
 } from "./pms-property-setup-card3.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
+const hub = readFileSync(
+  new URL("../components/settings/pms-set1-hub.tsx", import.meta.url),
+  "utf8",
+);
 const section = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-section.tsx", import.meta.url),
   "utf8",
@@ -32,7 +39,10 @@ const workspace = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-workspace.tsx", import.meta.url),
   "utf8",
 );
-const settings = readFileSync(new URL("../../../routes/restaurant/settings.tsx", import.meta.url), "utf8");
+const settings = readFileSync(
+  new URL("../../../routes/restaurant/settings.tsx", import.meta.url),
+  "utf8",
+);
 const lib = readFileSync(new URL("./pms-property-setup-card3.ts", import.meta.url), "utf8");
 
 describe("PMS Property Setup Card 3 Phase 0 shell", () => {
@@ -77,7 +87,10 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.equal(isSet1SectionHash("#rates"), true);
     assert.equal(isSet1SectionHash("#financial-commercial"), false);
     assert.equal(propertySetupRedirectHref("#card-3"), `${SET1_HUB_HREF}#financial-commercial`);
-    assert.equal(propertySetupRedirectHref("#financial-commercial"), `${SET1_HUB_HREF}#financial-commercial`);
+    assert.equal(
+      propertySetupRedirectHref("#financial-commercial"),
+      `${SET1_HUB_HREF}#financial-commercial`,
+    );
     assert.equal(propertySetupRedirectHref("#rates"), `${SET1_HUB_HREF}#rates`);
   });
 
@@ -86,10 +99,11 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.match(hub, /card3Open/);
     assert.match(hub, /isCard3WorkspaceHash/);
     assert.match(section, /pms-card3-fullscreen/);
-    assert.match(section, /pms-card3-top-nav/);
-    assert.match(section, /CARD3_WORKSPACE_TITLE/);
+    assert.match(section, /PropertySetupWorkspaceShell/);
+    assert.doesNotMatch(section, /pms-card3-top-nav/);
+    assert.doesNotMatch(section, /CARD1_PMS_NAV/);
     assert.match(section, /CARD3_SUBTITLE/);
-    assert.match(section, /Configuration Progress/);
+    assert.doesNotMatch(section, /Configuration Progress/);
     assert.match(section, /pms-card3-domain-grid/);
     assert.match(section, />\s*Open\s*</);
     assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
@@ -100,14 +114,21 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.match(workspace, /pms-card3-content-slot/);
     assert.match(workspace, /CARD3_AUDIT_HISTORY_LABEL/);
     assert.match(workspace, /CARD3_BACK_LABEL/);
+    assert.match(workspace, /PropertySetupSectionHeader/);
     assert.match(settings, /isCard3WorkspaceHash/);
     assert.match(settings, /hidePackageRail/);
     assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
   });
 
   it("authors dual-lane 0070 without applying APIs, Card 1 ownership, or a currency activity table", () => {
-    const drizzle = join(here, "../../../../drizzle/migrations/0070_pms_card3_currency_financial.sql");
-    const supabase = join(here, "../../../../supabase/migrations/0070_pms_card3_currency_financial.sql");
+    const drizzle = join(
+      here,
+      "../../../../drizzle/migrations/0070_pms_card3_currency_financial.sql",
+    );
+    const supabase = join(
+      here,
+      "../../../../supabase/migrations/0070_pms_card3_currency_financial.sql",
+    );
     assert.equal(existsSync(drizzle), true);
     assert.equal(existsSync(supabase), true);
     const sql = readFileSync(drizzle, "utf8");
@@ -155,8 +176,14 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.doesNotMatch(sql, /UPDATE public\.restaurants/);
     assert.doesNotMatch(sql, /\breservation_id\b/);
     assert.doesNotMatch(sql, /\bfolio_id\b/);
-    assert.match(sql, /pms_taxes_charge_type_check CHECK \(charge_type IN \('percentage', 'fixed'\)\)/);
-    assert.match(sql, /pms_taxes_calculation_check CHECK \(calculation IN \('inclusive', 'exclusive'\)\)/);
+    assert.match(
+      sql,
+      /pms_taxes_charge_type_check CHECK \(charge_type IN \('percentage', 'fixed'\)\)/,
+    );
+    assert.match(
+      sql,
+      /pms_taxes_calculation_check CHECK \(calculation IN \('inclusive', 'exclusive'\)\)/,
+    );
     assert.match(sql, /pms_tax_group_taxes_mapping_unique UNIQUE \(tax_group_id, tax_id\)/);
     assert.match(sql, /REFERENCES public\.pms_tax_groups \(id, restaurant_id\)/);
     assert.match(sql, /REFERENCES public\.pms_taxes \(id, restaurant_id\)/);

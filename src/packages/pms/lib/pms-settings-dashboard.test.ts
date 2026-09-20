@@ -60,14 +60,7 @@ describe("Settings dashboard presentation", () => {
   it("renders a donut, eight lucide symbols, Manage CTAs and no recent changes", () => {
     assert.match(dashboard, /conic-gradient/);
     assert.match(dashboard, /settings-setup-donut/);
-    assert.match(dashboard, /Building2/);
-    assert.match(dashboard, /BedDouble/);
-    assert.match(dashboard, /ChartColumn/);
-    assert.match(dashboard, /Users/);
-    assert.match(dashboard, /Network/);
-    assert.match(dashboard, /Share2/);
-    assert.match(dashboard, /Shield/);
-    assert.match(dashboard, /Rocket/);
+    assert.match(dashboard, /propertySetupCardIcon/);
     assert.match(dashboard, /Manage/);
     assert.match(hub, /SettingsDashboardChrome/);
     assert.match(hub, /SET1_FOUNDATION_CHIP/);

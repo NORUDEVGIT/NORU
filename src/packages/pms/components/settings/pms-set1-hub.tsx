@@ -558,9 +558,13 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     </div>
   );
 
-  if (workspaceOpen || section) return hubBody;
+  if (section && !workspaceOpen) return hubBody;
   return (
-    <SettingsDashboardChrome helpOpen={helpOpen} onHelpOpenChange={setHelpOpen}>
+    <SettingsDashboardChrome
+      helpOpen={helpOpen}
+      onHelpOpenChange={setHelpOpen}
+      contentClassName={workspaceOpen ? "p-0" : undefined}
+    >
       {hubBody}
     </SettingsDashboardChrome>
   );

@@ -81,15 +81,33 @@ function countBy(ids: Array<string | null | undefined>): Record<string, number> 
   return counts;
 }
 
-export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: string): Promise<Set2Snapshot> {
+export async function loadSet2Snapshot(
+  supabaseAdmin: Admin,
+  restaurantId: string,
+): Promise<Set2Snapshot> {
   const snapshot = emptySet2Snapshot();
 
-  const [{ count: typeCount }, { count: roomCount }, amenitiesRes, restaurantRes] = await Promise.all([
-    supabaseAdmin.from("room_types").select("id", { count: "exact", head: true }).eq("restaurant_id", restaurantId),
-    supabaseAdmin.from("hotel_rooms").select("id", { count: "exact", head: true }).eq("restaurant_id", restaurantId),
-    supabaseAdmin.from("room_amenities").select("id, name, active, code, category").eq("restaurant_id", restaurantId).order("name"),
-    supabaseAdmin.from("restaurants").select("single_building_mode").eq("id", restaurantId).maybeSingle(),
-  ]);
+  const [{ count: typeCount }, { count: roomCount }, amenitiesRes, restaurantRes] =
+    await Promise.all([
+      supabaseAdmin
+        .from("room_types")
+        .select("id", { count: "exact", head: true })
+        .eq("restaurant_id", restaurantId),
+      supabaseAdmin
+        .from("hotel_rooms")
+        .select("id", { count: "exact", head: true })
+        .eq("restaurant_id", restaurantId),
+      supabaseAdmin
+        .from("room_amenities")
+        .select("id, name, active, code, category")
+        .eq("restaurant_id", restaurantId)
+        .order("name"),
+      supabaseAdmin
+        .from("restaurants")
+        .select("single_building_mode")
+        .eq("id", restaurantId)
+        .maybeSingle(),
+    ]);
 
   snapshot.roomTypeCount = typeCount ?? 0;
   snapshot.roomCount = roomCount ?? 0;
@@ -100,7 +118,9 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
       .select("id, name, active")
       .eq("restaurant_id", restaurantId)
       .order("name");
-    snapshot.amenities = ((fallback.data ?? []) as Array<{ id: string; name: string; active: boolean }>).map((row) => ({
+    snapshot.amenities = (
+      (fallback.data ?? []) as Array<{ id: string; name: string; active: boolean }>
+    ).map((row) => ({
       id: row.id,
       name: row.name,
       code: "",
@@ -108,15 +128,17 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
       active: row.active,
     }));
   } else if (!amenitiesRes.error) {
-    snapshot.amenities = ((amenitiesRes.data ?? []) as Array<Set2Amenity & { code?: string | null; category?: string | null }>).map(
-      (row) => ({
-        id: row.id,
-        name: row.name,
-        code: String(row.code ?? ""),
-        category: String(row.category ?? ""),
-        active: row.active,
-      }),
-    );
+    snapshot.amenities = (
+      (amenitiesRes.data ?? []) as Array<
+        Set2Amenity & { code?: string | null; category?: string | null }
+      >
+    ).map((row) => ({
+      id: row.id,
+      name: row.name,
+      code: String(row.code ?? ""),
+      category: String(row.category ?? ""),
+      active: row.active,
+    }));
   }
 
   if (!restaurantRes.error && restaurantRes.data && "single_building_mode" in restaurantRes.data) {
@@ -130,7 +152,11 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
     .order("name");
   const buildingsCore =
     buildingsRes.error && isMissingSchemaError(buildingsRes.error)
-      ? await supabaseAdmin.from("hotel_buildings").select("id, code, name, active").eq("restaurant_id", restaurantId).order("name")
+      ? await supabaseAdmin
+          .from("hotel_buildings")
+          .select("id, code, name, active")
+          .eq("restaurant_id", restaurantId)
+          .order("name")
       : buildingsRes;
   if (buildingsCore.error && isMissingSchemaError(buildingsCore.error)) {
     snapshot.structureColumnsAvailable = false;
@@ -138,17 +164,19 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
     throw new Error(buildingsCore.error.message);
   } else {
     snapshot.structureColumnsAvailable = true;
-    snapshot.buildings = ((buildingsCore.data ?? []) as Array<{
-      id: string;
-      code: string;
-      name: string;
-      active: boolean;
-      floor_count?: number | null;
-      building_type?: string | null;
-      description?: string | null;
-      location?: string | null;
-      status?: string | null;
-    }>).map((row) => ({
+    snapshot.buildings = (
+      (buildingsCore.data ?? []) as Array<{
+        id: string;
+        code: string;
+        name: string;
+        active: boolean;
+        floor_count?: number | null;
+        building_type?: string | null;
+        description?: string | null;
+        location?: string | null;
+        status?: string | null;
+      }>
+    ).map((row) => ({
       id: row.id,
       code: row.code,
       name: row.name,
@@ -191,19 +219,23 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
             .eq("restaurant_id", restaurantId)
             .order("name")
         : wingsRes;
-    if (floorsCore.error && !isMissingSchemaError(floorsCore.error)) throw new Error(floorsCore.error.message);
-    if (wingsCore.error && !isMissingSchemaError(wingsCore.error)) throw new Error(wingsCore.error.message);
-    snapshot.floors = ((floorsCore.data ?? []) as Array<{
-      id: string;
-      building_id: string;
-      code: string;
-      name: string;
-      active: boolean;
-      floor_number?: number | null;
-      description?: string | null;
-      status?: string | null;
-      wing_id?: string | null;
-    }>).map((row) => ({
+    if (floorsCore.error && !isMissingSchemaError(floorsCore.error))
+      throw new Error(floorsCore.error.message);
+    if (wingsCore.error && !isMissingSchemaError(wingsCore.error))
+      throw new Error(wingsCore.error.message);
+    snapshot.floors = (
+      (floorsCore.data ?? []) as Array<{
+        id: string;
+        building_id: string;
+        code: string;
+        name: string;
+        active: boolean;
+        floor_number?: number | null;
+        description?: string | null;
+        status?: string | null;
+        wing_id?: string | null;
+      }>
+    ).map((row) => ({
       id: row.id,
       buildingId: row.building_id,
       code: row.code,
@@ -214,16 +246,18 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
       status: String(row.status ?? (row.active ? "active" : "inactive")),
       wingId: row.wing_id ?? null,
     }));
-    snapshot.wings = ((wingsCore.data ?? []) as Array<{
-      id: string;
-      name: string;
-      active: boolean;
-      parent_building_id: string | null;
-      parent_floor_id: string | null;
-      code?: string | null;
-      description?: string | null;
-      status?: string | null;
-    }>).map((row) => ({
+    snapshot.wings = (
+      (wingsCore.data ?? []) as Array<{
+        id: string;
+        name: string;
+        active: boolean;
+        parent_building_id: string | null;
+        parent_floor_id: string | null;
+        code?: string | null;
+        description?: string | null;
+        status?: string | null;
+      }>
+    ).map((row) => ({
       id: row.id,
       name: row.name,
       active: row.active,
@@ -239,7 +273,9 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
         .select("id, active, building")
         .eq("restaurant_id", restaurantId);
       const rows = textOnly.data ?? [];
-      snapshot.unassignedActiveRoomCount = rows.filter((row) => row.active && !String(row.building ?? "").trim()).length;
+      snapshot.unassignedActiveRoomCount = rows.filter(
+        (row) => row.active && !String(row.building ?? "").trim(),
+      ).length;
     } else if (!roomsRes.error) {
       const rows = (roomsRes.data ?? []) as Array<{
         active: boolean;
@@ -251,13 +287,17 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
       snapshot.assignedByBuilding = countBy(rows.map((row) => row.building_id));
       snapshot.assignedByFloor = countBy(rows.map((row) => row.floor_id));
       snapshot.assignedByWing = countBy(rows.map((row) => row.wing_id));
-      snapshot.unassignedActiveRoomCount = rows.filter((row) => row.active && roomNeedsStructureAssign(row.building_id)).length;
+      snapshot.unassignedActiveRoomCount = rows.filter(
+        (row) => row.active && roomNeedsStructureAssign(row.building_id),
+      ).length;
     }
   }
 
   const outletsRes = await supabaseAdmin
     .from("pms_outlets")
-    .select("id, code, name, type, active, department_text, default_posting_label, is_default_rooms")
+    .select(
+      "id, code, name, type, active, department_text, default_posting_label, is_default_rooms",
+    )
     .eq("restaurant_id", restaurantId)
     .order("name");
   if (outletsRes.error && isMissingSchemaError(outletsRes.error)) {
@@ -266,16 +306,18 @@ export async function loadSet2Snapshot(supabaseAdmin: Admin, restaurantId: strin
     throw new Error(outletsRes.error.message);
   } else {
     snapshot.outletsColumnsAvailable = true;
-    snapshot.outlets = ((outletsRes.data ?? []) as Array<{
-      id: string;
-      code: string;
-      name: string;
-      type: string;
-      active: boolean;
-      department_text: string | null;
-      default_posting_label: string | null;
-      is_default_rooms: boolean;
-    }>).map((row) => ({
+    snapshot.outlets = (
+      (outletsRes.data ?? []) as Array<{
+        id: string;
+        code: string;
+        name: string;
+        type: string;
+        active: boolean;
+        department_text: string | null;
+        default_posting_label: string | null;
+        is_default_rooms: boolean;
+      }>
+    ).map((row) => ({
       id: row.id,
       code: row.code,
       name: row.name,
@@ -294,7 +336,10 @@ export const getPmsSet2Snapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const snapshot = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     return {
@@ -347,7 +392,10 @@ export const saveHotelBuilding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => buildingSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
@@ -364,12 +412,25 @@ export const saveHotelBuilding = createServerFn({ method: "POST" })
       status: data.status?.trim() || (data.active ? "active" : "inactive"),
     };
     let result = data.id
-      ? await supabaseAdmin.from("hotel_buildings").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      ? await supabaseAdmin
+          .from("hotel_buildings")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("hotel_buildings").insert(payload);
     if (result.error && isMissingSchemaError(result.error)) {
-      const core = { restaurant_id: data.restaurantId, code: data.code.toUpperCase(), name: data.name, active: data.active };
+      const core = {
+        restaurant_id: data.restaurantId,
+        code: data.code.toUpperCase(),
+        name: data.name,
+        active: data.active,
+      };
       result = data.id
-        ? await supabaseAdmin.from("hotel_buildings").update(core).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        ? await supabaseAdmin
+            .from("hotel_buildings")
+            .update(core)
+            .eq("id", data.id)
+            .eq("restaurant_id", data.restaurantId)
         : await supabaseAdmin.from("hotel_buildings").insert(core);
     }
     if (result.error) {
@@ -400,7 +461,10 @@ export const saveHotelFloor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => floorSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
@@ -417,7 +481,11 @@ export const saveHotelFloor = createServerFn({ method: "POST" })
       wing_id: data.wingId || null,
     };
     let result = data.id
-      ? await supabaseAdmin.from("hotel_floors").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      ? await supabaseAdmin
+          .from("hotel_floors")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("hotel_floors").insert(payload);
     if (result.error && isMissingSchemaError(result.error)) {
       const core = {
@@ -428,11 +496,16 @@ export const saveHotelFloor = createServerFn({ method: "POST" })
         active: data.active,
       };
       result = data.id
-        ? await supabaseAdmin.from("hotel_floors").update(core).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        ? await supabaseAdmin
+            .from("hotel_floors")
+            .update(core)
+            .eq("id", data.id)
+            .eq("restaurant_id", data.restaurantId)
         : await supabaseAdmin.from("hotel_floors").insert(core);
     }
     if (result.error) {
-      if (result.error.code === "23505") throw new Error("That floor code is already used in this building.");
+      if (result.error.code === "23505")
+        throw new Error("That floor code is already used in this building.");
       if (isMissingSchemaError(result.error)) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
       throw new Error(result.error.message);
     }
@@ -459,7 +532,10 @@ export const saveHotelWing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => wingSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const parentBuildingId = data.parentBuildingId || null;
     const parentFloorId = data.parentFloorId || null;
@@ -480,7 +556,11 @@ export const saveHotelWing = createServerFn({ method: "POST" })
       status: data.status?.trim() || (data.active ? "active" : "inactive"),
     };
     let result = data.id
-      ? await supabaseAdmin.from("hotel_wings").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      ? await supabaseAdmin
+          .from("hotel_wings")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("hotel_wings").insert(payload);
     if (result.error && isMissingSchemaError(result.error)) {
       const core = {
@@ -491,7 +571,11 @@ export const saveHotelWing = createServerFn({ method: "POST" })
         parent_floor_id: parentFloorId,
       };
       result = data.id
-        ? await supabaseAdmin.from("hotel_wings").update(core).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        ? await supabaseAdmin
+            .from("hotel_wings")
+            .update(core)
+            .eq("id", data.id)
+            .eq("restaurant_id", data.restaurantId)
         : await supabaseAdmin.from("hotel_wings").insert(core);
     }
     if (result.error) {
@@ -550,16 +634,35 @@ export const deleteStructureNode = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.structureColumnsAvailable) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
 
-    const column = data.kind === "building" ? "building_id" : data.kind === "floor" ? "floor_id" : "wing_id";
+    const column =
+      data.kind === "building" ? "building_id" : data.kind === "floor" ? "floor_id" : "wing_id";
     const assigned = await assignedCount(supabaseAdmin, data.restaurantId, data.kind, data.id);
     if (structureDeleteBlocked(assigned) && !data.reassignToId) {
-      throw new Error(structureDeleteMessage(data.kind, assigned) ?? "Reassign rooms before deleting.");
+      throw new Error(
+        structureDeleteMessage(data.kind, assigned) ?? "Reassign rooms before deleting.",
+      );
+    }
+    if (data.kind === "wing") {
+      const { count: childFloorCount, error: childFloorError } = await supabaseAdmin
+        .from("hotel_floors")
+        .select("id", { count: "exact", head: true })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("wing_id", data.id);
+      if (childFloorError) {
+        if (!isMissingSchemaError(childFloorError)) throw new Error(childFloorError.message);
+      } else if ((childFloorCount ?? 0) > 0) {
+        const noun = childFloorCount === 1 ? "floor" : "floors";
+        throw new Error(`Move or delete ${childFloorCount} ${noun} on this wing first.`);
+      }
     }
 
     if (data.reassignToId) {
@@ -615,8 +718,17 @@ export const deleteStructureNode = createServerFn({ method: "POST" })
       if (childWings.length) throw new Error("Move or delete wings on this floor first.");
     }
 
-    const table = data.kind === "building" ? "hotel_buildings" : data.kind === "floor" ? "hotel_floors" : "hotel_wings";
-    const { error } = await supabaseAdmin.from(table).delete().eq("id", data.id).eq("restaurant_id", data.restaurantId);
+    const table =
+      data.kind === "building"
+        ? "hotel_buildings"
+        : data.kind === "floor"
+          ? "hotel_floors"
+          : "hotel_wings";
+    const { error } = await supabaseAdmin
+      .from(table)
+      .delete()
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
     if (error) {
       if (isMissingSchemaError(error)) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
       throw new Error(error.message);
@@ -635,9 +747,14 @@ export const deleteStructureNode = createServerFn({ method: "POST" })
 
 export const ensureSingleBuildingAssist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, enabled: z.boolean() }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, enabled: z.boolean() }).parse(input),
+  )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
@@ -726,7 +843,10 @@ export const bulkAssignUnassignedRooms = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
@@ -777,18 +897,33 @@ export const saveRoomAmenityCatalogue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => amenitySchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     const core = { restaurant_id: data.restaurantId, name: data.name, active: data.active };
-    const withExtras = { ...core, code: data.code?.trim() || null, category: data.category?.trim() || null };
+    const withExtras = {
+      ...core,
+      code: data.code?.trim() || null,
+      category: data.category?.trim() || null,
+    };
     let result = data.id
-      ? await supabaseAdmin.from("room_amenities").update(withExtras).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      ? await supabaseAdmin
+          .from("room_amenities")
+          .update(withExtras)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("room_amenities").insert(withExtras);
     if (result.error && isMissingSchemaError(result.error)) {
       result = data.id
-        ? await supabaseAdmin.from("room_amenities").update(core).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        ? await supabaseAdmin
+            .from("room_amenities")
+            .update(core)
+            .eq("id", data.id)
+            .eq("restaurant_id", data.restaurantId)
         : await supabaseAdmin.from("room_amenities").insert(core);
     }
     if (result.error) {
@@ -823,7 +958,10 @@ export const savePmsOutlet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => outletSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     if (data.isDefaultRooms && data.type !== "rooms") {
       throw new Error("Only a Rooms outlet can be the default Rooms outlet.");
@@ -832,7 +970,10 @@ export const savePmsOutlet = createServerFn({ method: "POST" })
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.outletsColumnsAvailable) throw new Error(SET2_UNAVAILABLE_OUTLETS);
     if (data.isDefaultRooms) {
-      await supabaseAdmin.from("pms_outlets").update({ is_default_rooms: false }).eq("restaurant_id", data.restaurantId);
+      await supabaseAdmin
+        .from("pms_outlets")
+        .update({ is_default_rooms: false })
+        .eq("restaurant_id", data.restaurantId);
     }
     const payload = {
       restaurant_id: data.restaurantId,
@@ -845,7 +986,11 @@ export const savePmsOutlet = createServerFn({ method: "POST" })
       is_default_rooms: data.isDefaultRooms,
     };
     const result = data.id
-      ? await supabaseAdmin.from("pms_outlets").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      ? await supabaseAdmin
+          .from("pms_outlets")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from("pms_outlets").insert(payload);
     if (result.error) {
       if (result.error.code === "23505") throw new Error("That outlet code is already used.");

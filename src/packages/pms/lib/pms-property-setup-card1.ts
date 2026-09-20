@@ -43,14 +43,18 @@ export const CARD1_FINISH_COPY =
   "Completing Card 1 saves Property & Business. It does not Activate the property. Activate stays a single owner action on pms_set1_live.";
 export const CARD1_BUSINESS_DATE_CURRENT_COPY =
   "Staff always see what the house thinks today is before editing rules. CURRENT STATE is the Night Audit business date. Settings cannot roll it.";
-export const CARD1_FULL_ADDRESS_COPY = "Full Address is composed from the parts below. It is not editable.";
+export const CARD1_FULL_ADDRESS_COPY =
+  "Full Address is composed from the parts below. It is not editable.";
 export const CARD1_ADDRESS_ADAPT_COPY = "Address fields adapt to the selected country.";
-export const CARD1_ADDRESS_SUBTITLE = "Configure the property's physical address and geographic location.";
+export const CARD1_ADDRESS_SUBTITLE =
+  "Configure the property's physical address and geographic location.";
 export const CARD1_VAT_GATE_COPY = "VAT certificate is required only when VAT Registered is On.";
 export const CARD1_OPENING_DATE_IN = "Opening Date is required on Property Identity.";
 export const CARD1_AGREEMENT_OUT = "Agreement signing is out of Card 1.";
-export const CARD1_CAPACITY_COPY = "Capacity is derived from Room Inventory. Rooms are not edited here.";
-export const CARD1_SIDEBAR_OUT = "Card 1 uses full-screen PMS top-nav chrome. The old Settings left sidebar is out.";
+export const CARD1_CAPACITY_COPY =
+  "Capacity is derived from Room Inventory. Rooms are not edited here.";
+export const CARD1_SIDEBAR_OUT =
+  "Card 1 uses full-screen PMS top-nav chrome. The old Settings left sidebar is out.";
 export const CARD1_STRUCTURE_CRUD_COPY = "Full hierarchy CRUD — not a Coming soon stub.";
 export const CARD1_PROPERTY_CODE_TOOLTIP = "Assigned by NORU platform";
 export const CARD1_IDENTITY_HELPER =
@@ -58,7 +62,8 @@ export const CARD1_IDENTITY_HELPER =
 export const CARD1_BRANDING_HELPER =
   "Add your brand assets and visual identity. These will be used across NORU and guest-facing channels.";
 export const CARD1_INDEPENDENT_HELPER = "This is an independently owned and operated property.";
-export const CARD1_PUBLIC_HELPER = "Show this property on public channels (e.g. booking engine, directory).";
+export const CARD1_PUBLIC_HELPER =
+  "Show this property on public channels (e.g. booking engine, directory).";
 export const CARD1_BRAND_IMAGE_HELPER = "PNG, JPG or WEBP. Maximum 1 MB.";
 export const CARD1_BRAND_IMAGE_TYPE_ERROR = "Only PNG, JPG, JPEG and WEBP images are allowed.";
 export const CARD1_BRAND_IMAGE_SIZE_ERROR = "Image must be smaller than 1 MB.";
@@ -69,7 +74,11 @@ export const CARD1_BRAND_IMAGE_MAX_BYTES = 1024 * 1024;
 export const CARD1_AUDIT_DRAFT = "pms_card1_draft_saved";
 export const CARD1_AUDIT_STEP = "pms_card1_step_saved";
 export const CARD1_AUDIT_COMPLETED = "pms_card1_completed";
-export const CARD1_AUDIT_ACTIONS = [CARD1_AUDIT_DRAFT, CARD1_AUDIT_STEP, CARD1_AUDIT_COMPLETED] as const;
+export const CARD1_AUDIT_ACTIONS = [
+  CARD1_AUDIT_DRAFT,
+  CARD1_AUDIT_STEP,
+  CARD1_AUDIT_COMPLETED,
+] as const;
 
 export const CARD1_STEPS = [
   { id: "identity", number: 1, title: "Property Identity" },
@@ -106,7 +115,8 @@ export const PROPERTY_SETUP_CARDS = [
     id: "rooms-inventory",
     number: 2,
     title: "Rooms & Operations",
-    purpose: "Rooms & Room Types, Amenities, Housekeeping Rules, Room Inventory Rules, Maintenance Rules.",
+    purpose:
+      "Rooms & Room Types, Amenities, Housekeeping Rules, Room Inventory Rules, Maintenance Rules.",
     specced: true,
     hash: "rooms-inventory",
   },
@@ -199,7 +209,12 @@ export const CARD1_PROPERTY_TYPE_LABELS: Record<Card1PropertyType, string> = {
   other: "Other",
 };
 
-export const CARD1_BUSINESS_TYPES = ["independent", "boutique", "chain_corporate", "franchise"] as const;
+export const CARD1_BUSINESS_TYPES = [
+  "independent",
+  "boutique",
+  "chain_corporate",
+  "franchise",
+] as const;
 export type Card1BusinessType = (typeof CARD1_BUSINESS_TYPES)[number];
 export const CARD1_BUSINESS_TYPE_LABELS: Record<Card1BusinessType, string> = {
   independent: "Independent",
@@ -208,7 +223,14 @@ export const CARD1_BUSINESS_TYPE_LABELS: Record<Card1BusinessType, string> = {
   franchise: "Franchise",
 };
 
-export const CARD1_BRAND_AFFILIATIONS = ["marriott", "hilton", "sheraton", "ihg", "none", "other"] as const;
+export const CARD1_BRAND_AFFILIATIONS = [
+  "marriott",
+  "hilton",
+  "sheraton",
+  "ihg",
+  "none",
+  "other",
+] as const;
 export type Card1BrandAffiliation = (typeof CARD1_BRAND_AFFILIATIONS)[number];
 export const CARD1_BRAND_AFFILIATION_LABELS: Record<Card1BrandAffiliation, string> = {
   marriott: "Marriott",
@@ -264,7 +286,8 @@ export function isPlausibleHttpUrl(value: string): boolean {
 }
 
 export function validateBrandImageFile(file: { type: string; size: number }): string | null {
-  if (!(CARD1_BRAND_IMAGE_TYPES as readonly string[]).includes(file.type)) return CARD1_BRAND_IMAGE_TYPE_ERROR;
+  if (!(CARD1_BRAND_IMAGE_TYPES as readonly string[]).includes(file.type))
+    return CARD1_BRAND_IMAGE_TYPE_ERROR;
   if (file.size > CARD1_BRAND_IMAGE_MAX_BYTES) return CARD1_BRAND_IMAGE_SIZE_ERROR;
   return null;
 }
@@ -305,7 +328,13 @@ export function validateIdentityFields(draft: Card1Draft): Card1IdentityFieldErr
   return errors;
 }
 
-export const LEGAL_ENTITY_TYPES = ["plc", "private_limited", "sole_proprietor", "partnership", "other"] as const;
+export const LEGAL_ENTITY_TYPES = [
+  "plc",
+  "private_limited",
+  "sole_proprietor",
+  "partnership",
+  "other",
+] as const;
 export type LegalEntityType = (typeof LEGAL_ENTITY_TYPES)[number];
 
 export const LEGAL_ENTITY_TYPE_LABELS: Record<LegalEntityType, string> = {
@@ -394,13 +423,38 @@ export const D8_STRUCTURE_DEFAULTS = {
 
 export const PROPERTY_CODE_PREFIX = "NRC";
 
-export type Card1UploadRef = { name: string; kind: string };
+export type Card1UploadRef = {
+  name: string;
+  kind: string;
+  storagePath?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  viewUrl?: string;
+};
 
 export type Card1DepartmentContact = {
+  id?: string;
+  departmentId?: string;
   department: string;
   name: string;
   phone: string;
   email: string;
+  active?: boolean;
+  sortOrder?: number;
+};
+
+export type Card1DepartmentOption = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
+export type Card1PropertyArea = {
+  id: string;
+  name: string;
+  description: string;
+  active: boolean;
+  sortOrder: number;
 };
 
 export type Card1SocialLink = {
@@ -437,15 +491,37 @@ export type Card1LocationExtras = {
 
 export type Card1CheckinOps = {
   minLeadTime: string;
+  minLeadTimeHours: Card1NumericInput;
   earlyCheckinPolicy: string;
+  earlyCheckin: Card1StayPolicy;
   lateCheckoutPolicy: string;
+  lateCheckout: Card1StayPolicy;
   dayUseAllowed: boolean;
   frontDesk24h: boolean;
   sameDayCutoff: string;
   overstayGrace: string;
+  overstayGraceMinutes: Card1NumericInput;
   childPolicy: string;
+  childPolicyConfig: Card1ChildPolicy;
   extraBedAvailable: boolean;
   idRequiredAtCheckin: boolean;
+};
+
+export type Card1FeeBasis = "percent_stay" | "fixed" | "first_night";
+export type Card1NumericInput = number | string | null;
+
+export type Card1StayPolicy = {
+  allowed: boolean;
+  feeBasis: Card1FeeBasis;
+  feeValue: Card1NumericInput;
+};
+
+export type Card1ChildPolicy = {
+  summary: string;
+  minAge: Card1NumericInput;
+  maxAge: Card1NumericInput;
+  freeUntilAge: Card1NumericInput;
+  chargeFromAge: Card1NumericInput;
 };
 
 export type Card1LegalExtras = {
@@ -585,9 +661,14 @@ export type Card1Snapshot = {
   currentState: Card1CurrentState;
   logoPreviewUrl: string;
   coverPreviewUrl: string;
+  departmentOptions: Card1DepartmentOption[];
+  propertyAreaEntities: Card1PropertyArea[];
+  functionalHardeningAvailable: boolean;
 };
 
-export function emptyIdentityToggles(partial?: Partial<Card1IdentityToggles>): Card1IdentityToggles {
+export function emptyIdentityToggles(
+  partial?: Partial<Card1IdentityToggles>,
+): Card1IdentityToggles {
   return {
     showTradingNameOnDocuments: false,
     chainProperty: false,
@@ -598,10 +679,19 @@ export function emptyIdentityToggles(partial?: Partial<Card1IdentityToggles>): C
 }
 
 export function emptySocialContacts(partial?: Partial<Card1SocialContacts>): Card1SocialContacts {
-  return { website: "", facebook: "", instagram: "", tripadvisor: "", ...partial, links: partial?.links ?? [] };
+  return {
+    website: "",
+    facebook: "",
+    instagram: "",
+    tripadvisor: "",
+    ...partial,
+    links: partial?.links ?? [],
+  };
 }
 
-export function emptyEmergencyContact(partial?: Partial<Card1EmergencyContact>): Card1EmergencyContact {
+export function emptyEmergencyContact(
+  partial?: Partial<Card1EmergencyContact>,
+): Card1EmergencyContact {
   return { name: "", phone: "", notes: "", ...partial };
 }
 
@@ -612,13 +702,24 @@ export function emptyLocationExtras(partial?: Partial<Card1LocationExtras>): Car
 export function emptyCheckinOps(partial?: Partial<Card1CheckinOps>): Card1CheckinOps {
   return {
     minLeadTime: "0 hours",
+    minLeadTimeHours: null,
     earlyCheckinPolicy: "Subject to availability",
+    earlyCheckin: { allowed: false, feeBasis: "fixed", feeValue: null },
     lateCheckoutPolicy: "Subject to availability",
+    lateCheckout: { allowed: false, feeBasis: "fixed", feeValue: null },
     dayUseAllowed: false,
     frontDesk24h: false,
     sameDayCutoff: "22:00",
     overstayGrace: "1 hour",
+    overstayGraceMinutes: null,
     childPolicy: "",
+    childPolicyConfig: {
+      summary: "",
+      minAge: null,
+      maxAge: null,
+      freeUntilAge: null,
+      chargeFromAge: null,
+    },
     extraBedAvailable: false,
     idRequiredAtCheckin: false,
     ...partial,
@@ -629,7 +730,9 @@ export function emptyLegalExtras(partial?: Partial<Card1LegalExtras>): Card1Lega
   return { ownershipType: "", incorporationDate: "", ...partial };
 }
 
-export function emptyBusinessDateConfig(partial?: Partial<Card1BusinessDateConfig>): Card1BusinessDateConfig {
+export function emptyBusinessDateConfig(
+  partial?: Partial<Card1BusinessDateConfig>,
+): Card1BusinessDateConfig {
   return {
     notes: "",
     closeBlockersEnabled: true,
@@ -652,11 +755,15 @@ export function emptyStructureRules(partial?: Partial<Card1StructureRules>): Car
   return { ...D8_STRUCTURE_DEFAULTS, ...partial };
 }
 
-export function emptyPropertySetupStatus(partial?: Partial<PropertySetupStatus>): PropertySetupStatus {
+export function emptyPropertySetupStatus(
+  partial?: Partial<PropertySetupStatus>,
+): PropertySetupStatus {
   return { cards: {}, card1Steps: {}, card2Steps: {}, ...partial };
 }
 
-export function emptyDerivedCapacity(partial?: Partial<Card1DerivedCapacity>): Card1DerivedCapacity {
+export function emptyDerivedCapacity(
+  partial?: Partial<Card1DerivedCapacity>,
+): Card1DerivedCapacity {
   return {
     buildings: 0,
     floors: 0,
@@ -765,6 +872,9 @@ export function emptyCard1Snapshot(partial?: Partial<Card1Snapshot>): Card1Snaps
     currentState: emptyCurrentState(),
     logoPreviewUrl: "",
     coverPreviewUrl: "",
+    departmentOptions: [],
+    propertyAreaEntities: [],
+    functionalHardeningAvailable: false,
     ...partial,
   };
 }
@@ -794,7 +904,10 @@ export function composeFullAddress(input: {
   postcode?: string;
   country?: string;
 }): string {
-  const street = [input.addressHouseNo, input.address].map((part) => String(part ?? "").trim()).filter(Boolean).join(" ");
+  const street = [input.addressHouseNo, input.address]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
   const countryName = countryNameFromInput(String(input.country ?? ""));
   const ethiopia = countryName.toLowerCase() === "ethiopia";
   const parts = ethiopia
@@ -809,7 +922,14 @@ export function composeFullAddress(input: {
         street,
         input.postcode,
       ]
-    : [street, input.city, input.addressSubcity, input.addressRegion, input.postcode, countryName || input.country];
+    : [
+        street,
+        input.city,
+        input.addressSubcity,
+        input.addressRegion,
+        input.postcode,
+        countryName || input.country,
+      ];
   return parts
     .map((part) => String(part ?? "").trim())
     .filter(Boolean)
@@ -833,8 +953,10 @@ export function validateAddressFields(draft: Card1Draft): Card1AddressFieldError
   }
   if (!draft.city.trim()) errors.city = "City / Town is required.";
   if (!isValidLatitude(draft.latitude)) errors.latitude = "Latitude must be between -90 and 90.";
-  if (!isValidLongitude(draft.longitude)) errors.longitude = "Longitude must be between -180 and 180.";
-  if (!isValidHttpUrl(draft.locationExtras.googleMapsLink)) errors.googleMapsLink = "Enter a valid URL.";
+  if (!isValidLongitude(draft.longitude))
+    errors.longitude = "Longitude must be between -180 and 180.";
+  if (!isValidHttpUrl(draft.locationExtras.googleMapsLink))
+    errors.googleMapsLink = "Enter a valid URL.";
   return errors;
 }
 
@@ -852,7 +974,9 @@ export function parseStarRating(value: unknown): StarRating | "" {
 }
 
 export function parseLegalEntityType(value: unknown): LegalEntityType | "" {
-  return (LEGAL_ENTITY_TYPES as readonly string[]).includes(String(value)) ? (value as LegalEntityType) : "";
+  return (LEGAL_ENTITY_TYPES as readonly string[]).includes(String(value))
+    ? (value as LegalEntityType)
+    : "";
 }
 
 export function parseUploadRefs(value: unknown): Card1UploadRef[] {
@@ -860,11 +984,18 @@ export function parseUploadRefs(value: unknown): Card1UploadRef[] {
   return value
     .map((row) => {
       if (!row || typeof row !== "object") return null;
-      const rec = row as { name?: unknown; kind?: unknown };
+      const rec = row as Record<string, unknown>;
       const name = String(rec.name ?? "").trim();
       const kind = String(rec.kind ?? "").trim();
       if (!name && !kind) return null;
-      return { name, kind };
+      const size = Number(rec.size_bytes);
+      return {
+        name,
+        kind,
+        storagePath: String(rec.storage_path ?? "").trim() || undefined,
+        mimeType: String(rec.mime_type ?? "").trim() || undefined,
+        sizeBytes: Number.isInteger(size) && size > 0 ? size : undefined,
+      };
     })
     .filter((row): row is Card1UploadRef => row !== null);
 }
@@ -874,13 +1005,24 @@ export function parseDepartmentContacts(value: unknown): Card1DepartmentContact[
   return value
     .map((row) => {
       if (!row || typeof row !== "object") return null;
-      const rec = row as { department?: unknown; name?: unknown; phone?: unknown; email?: unknown };
+      const rec = row as Record<string, unknown>;
       const department = String(rec.department ?? "").trim();
       const name = String(rec.name ?? "").trim();
       const phone = String(rec.phone ?? "").trim();
       const email = String(rec.email ?? "").trim();
       if (!department && !name && !phone && !email) return null;
-      return { department, name, phone, email };
+      return {
+        id: String(rec.id ?? "").trim() || undefined,
+        departmentId: String(rec.departmentId ?? rec.department_id ?? "").trim() || undefined,
+        department,
+        name,
+        phone,
+        email,
+        active: rec.active !== false,
+        sortOrder: Number.isInteger(Number(rec.sortOrder ?? rec.sort_order))
+          ? Number(rec.sortOrder ?? rec.sort_order)
+          : undefined,
+      };
     })
     .filter((row): row is Card1DepartmentContact => row !== null);
 }
@@ -954,18 +1096,139 @@ export function parseLocationExtras(value: unknown): Card1LocationExtras {
 export function parseCheckinOps(value: unknown): Card1CheckinOps {
   if (!value || typeof value !== "object") return emptyCheckinOps();
   const rec = value as Record<string, unknown>;
+  const early = rec["earlyCheckin"];
+  const late = rec["lateCheckout"];
+  const child = rec["childPolicyConfig"];
+  const earlyRec = early && typeof early === "object" ? (early as Record<string, unknown>) : {};
+  const lateRec = late && typeof late === "object" ? (late as Record<string, unknown>) : {};
+  const childRec = child && typeof child === "object" ? (child as Record<string, unknown>) : {};
+  const feeBasis = (input: unknown): Card1FeeBasis =>
+    input === "percent_stay" || input === "first_night" ? input : "fixed";
+  const integer = (input: unknown, min: number, max: number): number | null => {
+    if (input == null || input === "") return null;
+    const parsed = Number(input);
+    return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+  };
+  const feeValue = (input: unknown): number | null => {
+    const parsed = normalizedNumber(input);
+    return parsed != null && parsed >= 0 ? parsed : null;
+  };
   return emptyCheckinOps({
     minLeadTime: String(rec["minLeadTime"] ?? "0 hours").trim() || "0 hours",
+    minLeadTimeHours: integer(rec["minLeadTimeHours"], 1, 24),
     earlyCheckinPolicy: String(rec["earlyCheckinPolicy"] ?? "").trim(),
+    earlyCheckin: {
+      allowed: earlyRec["allowed"] === true,
+      feeBasis: feeBasis(earlyRec["feeBasis"]),
+      feeValue: feeValue(earlyRec["feeValue"]),
+    },
     lateCheckoutPolicy: String(rec["lateCheckoutPolicy"] ?? "").trim(),
+    lateCheckout: {
+      allowed: lateRec["allowed"] === true,
+      feeBasis: feeBasis(lateRec["feeBasis"]),
+      feeValue: feeValue(lateRec["feeValue"]),
+    },
     dayUseAllowed: rec["dayUseAllowed"] === true,
     frontDesk24h: rec["frontDesk24h"] === true,
     sameDayCutoff: String(rec["sameDayCutoff"] ?? "").trim(),
     overstayGrace: String(rec["overstayGrace"] ?? "").trim(),
+    overstayGraceMinutes: integer(rec["overstayGraceMinutes"], 0, 1440),
     childPolicy: String(rec["childPolicy"] ?? "").trim(),
+    childPolicyConfig: {
+      summary: String(childRec["summary"] ?? rec["childPolicy"] ?? "")
+        .trim()
+        .slice(0, 200),
+      minAge: integer(childRec["minAge"], 0, 21),
+      maxAge: integer(childRec["maxAge"], 0, 21),
+      freeUntilAge: integer(childRec["freeUntilAge"], 0, 21),
+      chargeFromAge: integer(childRec["chargeFromAge"], 0, 21),
+    },
     extraBedAvailable: rec["extraBedAvailable"] === true,
     idRequiredAtCheckin: rec["idRequiredAtCheckin"] === true,
   });
+}
+
+const CARD1_FEE_BASES = new Set<Card1FeeBasis>(["percent_stay", "fixed", "first_night"]);
+
+function normalizedNumber(value: unknown): number | undefined {
+  if (value == null || value === "") return undefined;
+  if (typeof value !== "number" && typeof value !== "string") return undefined;
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizedInteger(value: unknown, minimum: number, maximum: number): number | undefined {
+  const parsed = normalizedNumber(value);
+  return parsed != null && Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum
+    ? parsed
+    : undefined;
+}
+
+function normalizedStayPolicy(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+  if (typeof source["allowed"] === "boolean") normalized["allowed"] = source["allowed"];
+  if (CARD1_FEE_BASES.has(source["feeBasis"] as Card1FeeBasis)) {
+    normalized["feeBasis"] = source["feeBasis"];
+  }
+  const feeValue = normalizedNumber(source["feeValue"]);
+  if (feeValue != null && feeValue >= 0) normalized["feeValue"] = feeValue;
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+/**
+ * Produces the JSON contract accepted by restaurants_checkin_ops_typed_check.
+ * Legacy and unrelated keys are preserved; invalid or blank additive typed keys
+ * are omitted instead of being persisted as JSON null or numeric strings.
+ */
+export function normalizeCard1CheckinOpsForPersistence(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const normalized = { ...source };
+  delete normalized["minLeadTimeHours"];
+  delete normalized["overstayGraceMinutes"];
+  delete normalized["earlyCheckin"];
+  delete normalized["lateCheckout"];
+  delete normalized["childPolicyConfig"];
+
+  const minLeadTimeHours = normalizedInteger(source["minLeadTimeHours"], 1, 24);
+  if (minLeadTimeHours != null) normalized["minLeadTimeHours"] = minLeadTimeHours;
+
+  const overstayGraceMinutes = normalizedInteger(source["overstayGraceMinutes"], 0, 1440);
+  if (overstayGraceMinutes != null) {
+    normalized["overstayGraceMinutes"] = overstayGraceMinutes;
+  }
+
+  const earlyCheckin = normalizedStayPolicy(source["earlyCheckin"]);
+  if (earlyCheckin) normalized["earlyCheckin"] = earlyCheckin;
+  const lateCheckout = normalizedStayPolicy(source["lateCheckout"]);
+  if (lateCheckout) normalized["lateCheckout"] = lateCheckout;
+
+  const childSource = source["childPolicyConfig"];
+  if (childSource && typeof childSource === "object" && !Array.isArray(childSource)) {
+    const child = childSource as Record<string, unknown>;
+    const childPolicyConfig: Record<string, unknown> = {};
+    if (typeof child["summary"] === "string") {
+      childPolicyConfig["summary"] = child["summary"].trim().slice(0, 200);
+    }
+    const minAge = normalizedInteger(child["minAge"], 0, 21);
+    const maxAge = normalizedInteger(child["maxAge"], 0, 21);
+    const freeUntilAge = normalizedInteger(child["freeUntilAge"], 0, 21);
+    const chargeFromAge = normalizedInteger(child["chargeFromAge"], 0, 21);
+    if (minAge != null) childPolicyConfig["minAge"] = minAge;
+    if (maxAge != null && (minAge == null || minAge <= maxAge)) {
+      childPolicyConfig["maxAge"] = maxAge;
+    }
+    if (freeUntilAge != null) childPolicyConfig["freeUntilAge"] = freeUntilAge;
+    if (chargeFromAge != null) childPolicyConfig["chargeFromAge"] = chargeFromAge;
+    if (Object.keys(childPolicyConfig).length > 0) {
+      normalized["childPolicyConfig"] = childPolicyConfig;
+    }
+  }
+
+  return normalized;
 }
 
 export function parseLegalExtras(value: unknown): Card1LegalExtras {
@@ -1000,9 +1263,13 @@ export function parseBusinessDateConfig(value: unknown): Card1BusinessDateConfig
     automaticRollover: rec["automaticRollover"] !== false,
     manualRolloverRoles: roles && roles.length > 0 ? roles : ["owner", "front_office_manager"],
     lockDuringAudit: rec["lockDuringAudit"] !== false,
-    reservationSellDateRule: String(rec["reservationSellDateRule"] ?? "use_business_date").trim() || "use_business_date",
-    housekeepingBoardDate: String(rec["housekeepingBoardDate"] ?? "follow_business_date").trim() || "follow_business_date",
-    frontOfficeDeskDate: String(rec["frontOfficeDeskDate"] ?? "follow_business_date").trim() || "follow_business_date",
+    reservationSellDateRule:
+      String(rec["reservationSellDateRule"] ?? "use_business_date").trim() || "use_business_date",
+    housekeepingBoardDate:
+      String(rec["housekeepingBoardDate"] ?? "follow_business_date").trim() ||
+      "follow_business_date",
+    frontOfficeDeskDate:
+      String(rec["frontOfficeDeskDate"] ?? "follow_business_date").trim() || "follow_business_date",
   });
 }
 
@@ -1018,7 +1285,9 @@ export function parseStructureRules(value: unknown): Card1StructureRules {
     buildingRequired: rec["buildingRequired"] !== false,
     wingOptional: rec["wingOptional"] !== false,
     floorRequired: rec["floorRequired"] !== false,
-    roomCodeFormat: String(rec["roomCodeFormat"] ?? D8_STRUCTURE_DEFAULTS.roomCodeFormat).trim() || D8_STRUCTURE_DEFAULTS.roomCodeFormat,
+    roomCodeFormat:
+      String(rec["roomCodeFormat"] ?? D8_STRUCTURE_DEFAULTS.roomCodeFormat).trim() ||
+      D8_STRUCTURE_DEFAULTS.roomCodeFormat,
     autoNumbering: rec["autoNumbering"] !== false,
     duplicateCodePrevention: rec["duplicateCodePrevention"] !== false,
   });
@@ -1079,7 +1348,11 @@ function departmentRowPresent(row: Card1DepartmentContact): boolean {
   return Boolean(row.department.trim() || row.email.trim() || row.phone.trim() || row.name.trim());
 }
 
-export function card1StepComplete(step: Card1StepId, draft: Card1Draft, set2?: Pick<Set2Snapshot, "buildings" | "floors">): boolean {
+export function card1StepComplete(
+  step: Card1StepId,
+  draft: Card1Draft,
+  set2?: Pick<Set2Snapshot, "buildings" | "floors">,
+): boolean {
   if (step === "identity") {
     return (
       draft.name.trim().length >= 2 &&
@@ -1095,24 +1368,30 @@ export function card1StepComplete(step: Card1StepId, draft: Card1Draft, set2?: P
     return Object.keys(validateAddressFields(draft)).length === 0;
   }
   if (step === "contacts") {
-    const departmentsOk = draft.departmentContacts.every((row) => !departmentRowPresent(row) || departmentRowComplete(row));
+    const departmentsOk = draft.departmentContacts.every(
+      (row) => !departmentRowPresent(row) || departmentRowComplete(row),
+    );
     return Boolean(
       plausiblePhone(draft.phone) &&
-        plausibleEmail(draft.email) &&
-        draft.emergency.name.trim() &&
-        plausiblePhone(draft.emergency.phone) &&
-        departmentsOk,
+      plausibleEmail(draft.email) &&
+      draft.emergency.name.trim() &&
+      plausiblePhone(draft.emergency.phone) &&
+      departmentsOk,
     );
   }
   if (step === "checkin") {
-    return Boolean(normalizeClock(draft.checkInTime) && normalizeClock(draft.checkOutTime) && draft.checkinOps.minLeadTime.trim());
+    return Boolean(
+      normalizeClock(draft.checkInTime) &&
+      normalizeClock(draft.checkOutTime) &&
+      draft.checkinOps.minLeadTime.trim(),
+    );
   }
   if (step === "business-date") {
     return Boolean(
       draft.businessDateConfig.dayBoundary.trim() &&
-        draft.businessDateConfig.nightAuditWindowStart.trim() &&
-        draft.businessDateConfig.nightAuditWindowEnd.trim() &&
-        draft.businessDateConfig.manualRolloverRoles.length > 0,
+      draft.businessDateConfig.nightAuditWindowStart.trim() &&
+      draft.businessDateConfig.nightAuditWindowEnd.trim() &&
+      draft.businessDateConfig.manualRolloverRoles.length > 0,
     );
   }
   if (step === "legal") {
@@ -1146,7 +1425,10 @@ export function evaluateCard1Status(
   set2?: Pick<Set2Snapshot, "buildings" | "floors">,
 ): PropertySetupCardStatus {
   if (CARD1_STEPS.every((step) => card1StepComplete(step.id, draft, set2))) return "complete";
-  if (stored.cards["property-business"] === "in_progress" || Object.keys(stored.card1Steps).length > 0) {
+  if (
+    stored.cards["property-business"] === "in_progress" ||
+    Object.keys(stored.card1Steps).length > 0
+  ) {
     return "in_progress";
   }
   return "not_started";
@@ -1195,7 +1477,9 @@ export function isCard1WorkspaceHash(hash: string): boolean {
   return resolveCard1Hash(hash) !== null;
 }
 
-export function derivedCapacityFromSet2(set2: Pick<Set2Snapshot, "roomCount" | "roomTypeCount" | "buildings" | "floors">): Card1DerivedCapacity {
+export function derivedCapacityFromSet2(
+  set2: Pick<Set2Snapshot, "roomCount" | "roomTypeCount" | "buildings" | "floors">,
+): Card1DerivedCapacity {
   const buildings = set2.buildings.length;
   const floors = set2.floors.length;
   const activeBuildings = set2.buildings.filter((row) => row.active).length;
@@ -1212,19 +1496,28 @@ export function derivedCapacityFromSet2(set2: Pick<Set2Snapshot, "roomCount" | "
   });
 }
 
-export function displayedCard1BusinessDate(businessDate: string | null | undefined, timezone: string): string {
+export function displayedCard1BusinessDate(
+  businessDate: string | null | undefined,
+  timezone: string,
+): string {
   return displayedBusinessDate(businessDate, timezone);
 }
 
 export function structureRoomCodeExample(format: string): string {
-  return format.replace("BLD", "MAIN").replace("WNG", "EAST").replace("FLR", "02").replace("RM", "101");
+  return format
+    .replace("BLD", "MAIN")
+    .replace("WNG", "EAST")
+    .replace("FLR", "02")
+    .replace("RM", "101");
 }
 
 export function liveBlockPreview(
   blockers: string[],
   facts?: Partial<Record<(typeof CARD1_DEFAULT_BLOCKERS)[number], boolean>>,
 ): string {
-  const active = CARD1_DEFAULT_BLOCKERS.filter((id) => blockers.includes(id) && facts?.[id] === true);
+  const active = CARD1_DEFAULT_BLOCKERS.filter(
+    (id) => blockers.includes(id) && facts?.[id] === true,
+  );
   if (active.length === 0) {
     return "No live blockers detected from current house facts. Runtime blockers affect date advance, not whether this step can be Complete.";
   }
@@ -1251,30 +1544,52 @@ export function card1StructureWarnings(
   }
   const buildings = set2.buildings.filter((row) => row.active);
   const floors = set2.floors.filter((row) => row.active).length;
-  if (draft.structureRules.buildingRequired && buildings.length < 1) warnings.push("At least one building is required.");
-  if (draft.structureRules.floorRequired && floors < 1) warnings.push("At least one floor is required.");
+  if (draft.structureRules.buildingRequired && buildings.length < 1)
+    warnings.push("At least one building is required.");
+  if (draft.structureRules.floorRequired && floors < 1)
+    warnings.push("At least one floor is required.");
   for (const building of buildings) {
     const declared = building.floorCount;
     if (declared == null) continue;
     const actual = set2.floors.filter((row) => row.active && row.buildingId === building.id).length;
     if (declared !== actual) {
-      warnings.push(`${building.name}: Number of Floors (${declared}) differs from floor nodes (${actual}). Soft warning — does not block.`);
+      warnings.push(
+        `${building.name}: Number of Floors (${declared}) differs from floor nodes (${actual}). Soft warning — does not block.`,
+      );
     }
   }
   return warnings;
 }
 
-export function markStepInProgress(status: PropertySetupStatus, step: Card1StepId): PropertySetupStatus {
+export function markStepInProgress(
+  status: PropertySetupStatus,
+  step: Card1StepId,
+): PropertySetupStatus {
   return {
     cards: { ...status.cards, "property-business": "in_progress" },
-    card1Steps: { ...status.card1Steps, [step]: status.card1Steps[step] === "complete" ? "complete" : "in_progress" },
+    card1Steps: {
+      ...status.card1Steps,
+      [step]: status.card1Steps[step] === "complete" ? "complete" : "in_progress",
+    },
     card2Steps: { ...(status.card2Steps ?? {}) },
   };
 }
 
-export function markStepComplete(status: PropertySetupStatus, step: Card1StepId, draft: Card1Draft, set2?: Pick<Set2Snapshot, "buildings" | "floors">): PropertySetupStatus {
-  const nextSteps = { ...status.card1Steps, [step]: card1StepComplete(step, draft, set2) ? "complete" : "in_progress" };
-  const next: PropertySetupStatus = { cards: { ...status.cards }, card1Steps: nextSteps, card2Steps: { ...(status.card2Steps ?? {}) } };
+export function markStepComplete(
+  status: PropertySetupStatus,
+  step: Card1StepId,
+  draft: Card1Draft,
+  set2?: Pick<Set2Snapshot, "buildings" | "floors">,
+): PropertySetupStatus {
+  const nextSteps = {
+    ...status.card1Steps,
+    [step]: card1StepComplete(step, draft, set2) ? "complete" : "in_progress",
+  };
+  const next: PropertySetupStatus = {
+    cards: { ...status.cards },
+    card1Steps: nextSteps,
+    card2Steps: { ...(status.card2Steps ?? {}) },
+  };
   next.cards["property-business"] = evaluateCard1Status(draft, next, set2);
   return next;
 }

@@ -1,19 +1,10 @@
 import type { ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  BedDouble,
-  Building2,
-  ChartColumn,
-  Network,
-  Rocket,
-  Share2,
-  Shield,
-  Users,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { FoHelpSheet } from "@/packages/pms/components/frontoffice/fo-help-sheet";
 import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
+import { propertySetupCardIcon } from "@/packages/pms/lib/pms-property-setup-card-identity";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   SETTINGS_DASHBOARD_NAV,
@@ -27,25 +18,16 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import { cn } from "@/shared/lib/utils";
 
-const CARD_ICONS = {
-  1: Building2,
-  2: BedDouble,
-  3: ChartColumn,
-  4: Users,
-  5: Network,
-  6: Share2,
-  7: Shield,
-  8: Rocket,
-} as const;
-
 export function SettingsDashboardChrome({
   helpOpen,
   onHelpOpenChange,
   children,
+  contentClassName = "px-4 py-5 sm:px-6",
 }: {
   helpOpen: boolean;
   onHelpOpenChange: (open: boolean) => void;
   children: ReactNode;
+  contentClassName?: string;
 }) {
   const navigate = useNavigate();
 
@@ -56,7 +38,7 @@ export function SettingsDashboardChrome({
   return (
     <PmsCommandChrome
       shellTestId="settings-command-shell"
-      contentClassName="px-4 py-5 sm:px-6"
+      contentClassName={contentClassName}
       onGuestSearch={() => {
         void navigate({ to: "/restaurant/pms/guests" });
       }}
@@ -197,7 +179,7 @@ export function SettingsPropertySetupCards({
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="property-setup-cards">
       {PROPERTY_SETUP_CARDS.map((card, index) => {
         const status = statuses[index] ?? "not_started";
-        const Icon = CARD_ICONS[card.number as keyof typeof CARD_ICONS];
+        const Icon = propertySetupCardIcon(card.number);
         const rows = summaries[index] ?? [];
         return (
           <article

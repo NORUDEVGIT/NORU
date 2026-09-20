@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Filter, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
+import { Filter, MoreHorizontal, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { FieldShell } from "@/packages/pms/components/settings/pms-card6-integration-bits";
+import { PropertySetupRemoveButton } from "@/packages/pms/components/settings/setup-kit";
 import {
   deletePmsCard4AutomationRule,
   getPmsCard4AutomationRules,
@@ -512,7 +513,12 @@ export function PmsCard4AutomationRules({
           ) : query.isError ? (
             <div className="p-6">
               <p className="text-sm text-destructive">Unable to load automation rules.</p>
-              <Button type="button" variant="outline" className="mt-3" onClick={() => void query.refetch()}>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3"
+                onClick={() => void query.refetch()}
+              >
                 Retry
               </Button>
             </div>
@@ -540,7 +546,9 @@ export function PmsCard4AutomationRules({
                           onCheckedChange={(checked) =>
                             setSelectedRows(
                               checked
-                                ? Array.from(new Set([...selectedRows, ...paged.map((row) => row.id)]))
+                                ? Array.from(
+                                    new Set([...selectedRows, ...paged.map((row) => row.id)]),
+                                  )
                                 : selectedRows.filter((id) => !paged.some((row) => row.id === id)),
                             )
                           }
@@ -577,7 +585,8 @@ export function PmsCard4AutomationRules({
                         </TableCell>
                         <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
                         <TableCell>
-                          {events.find((item) => item.id === row.eventId)?.name ?? "Unavailable event"}
+                          {events.find((item) => item.id === row.eventId)?.name ??
+                            "Unavailable event"}
                         </TableCell>
                         <TableCell>
                           {row.conditions.length === 0
@@ -611,7 +620,12 @@ export function PmsCard4AutomationRules({
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            <Button type="button" variant="ghost" size="sm" onClick={() => selectRule(row)}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => selectRule(row)}
+                            >
                               Edit
                             </Button>
                             <DropdownMenu>
@@ -626,7 +640,9 @@ export function PmsCard4AutomationRules({
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onSelect={() => selectRule(row)}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => selectRule(row)}>
+                                  Edit
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   disabled={!canEdit || testMutation.isPending}
                                   onSelect={() => testMutation.mutate(row.id)}
@@ -699,7 +715,12 @@ export function PmsCard4AutomationRules({
         </div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <FieldShell id="automation-rule-name" label="Rule Name" required error={errorFor("name") ?? undefined}>
+          <FieldShell
+            id="automation-rule-name"
+            label="Rule Name"
+            required
+            error={errorFor("name") ?? undefined}
+          >
             <Input
               id="automation-rule-name"
               value={draft.name}
@@ -707,7 +728,12 @@ export function PmsCard4AutomationRules({
               onChange={(event) => mark("name", event.target.value)}
             />
           </FieldShell>
-          <FieldShell id="automation-rule-event" label="Event" required error={errorFor("eventId") ?? undefined}>
+          <FieldShell
+            id="automation-rule-event"
+            label="Event"
+            required
+            error={errorFor("eventId") ?? undefined}
+          >
             <Select
               value={draft.eventId}
               disabled={!canEdit}
@@ -742,10 +768,15 @@ export function PmsCard4AutomationRules({
             </Button>
           </div>
           {draft.conditions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No conditions. The rule applies to all matching events.</p>
+            <p className="text-sm text-muted-foreground">
+              No conditions. The rule applies to all matching events.
+            </p>
           ) : (
             draft.conditions.map((condition, index) => (
-              <div key={`${condition.field}-${index}`} className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+              <div
+                key={`${condition.field}-${index}`}
+                className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]"
+              >
                 <Select
                   value={condition.field}
                   disabled={!canEdit}
@@ -800,21 +831,16 @@ export function PmsCard4AutomationRules({
                     ))}
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
+                <PropertySetupRemoveButton
                   disabled={!canEdit}
-                  aria-label="Remove condition"
+                  label="Remove condition"
                   onClick={() =>
                     mark(
                       "conditions",
                       draft.conditions.filter((_, current) => current !== index),
                     )
                   }
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                />
               </div>
             ))
           )}
@@ -842,7 +868,10 @@ export function PmsCard4AutomationRules({
             </p>
           ) : (
             draft.recipients.map((recipient, index) => (
-              <div key={`${recipient.kind}-${index}`} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+              <div
+                key={`${recipient.kind}-${index}`}
+                className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
+              >
                 <Select
                   value={recipient.kind}
                   disabled={!canEdit}
@@ -850,7 +879,10 @@ export function PmsCard4AutomationRules({
                     const kind = value as AutomationRecipientKind;
                     updateRecipient(index, {
                       kind,
-                      id: kind === "role" ? "manager" : departments.find((row) => row.active)?.id ?? "",
+                      id:
+                        kind === "role"
+                          ? "manager"
+                          : (departments.find((row) => row.active)?.id ?? ""),
                     });
                   }}
                 >
@@ -888,21 +920,16 @@ export function PmsCard4AutomationRules({
                         ))}
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
+                <PropertySetupRemoveButton
                   disabled={!canEdit}
-                  aria-label="Remove recipient"
+                  label="Remove recipient"
                   onClick={() =>
                     mark(
                       "recipients",
                       draft.recipients.filter((_, current) => current !== index),
                     )
                   }
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                />
               </div>
             ))
           )}
@@ -1076,7 +1103,10 @@ export function PmsCard4AutomationRules({
         </div>
       </section>
 
-      <AlertDialog open={Boolean(pendingAction)} onOpenChange={(open) => !open && setPendingAction(null)}>
+      <AlertDialog
+        open={Boolean(pendingAction)}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>You have unsaved changes.</AlertDialogTitle>
@@ -1091,7 +1121,10 @@ export function PmsCard4AutomationRules({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this rule?</AlertDialogTitle>
@@ -1103,7 +1136,9 @@ export function PmsCard4AutomationRules({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
+            <AlertDialogAction
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -2,7 +2,12 @@ import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { PmsPropertySetupWorkspace } from "@/packages/pms/components/settings/pms-property-setup-workspace";
+import {
+  PropertySetupStatusRail,
+  PropertySetupStepNav,
+  PropertySetupWorkspaceShell,
+} from "@/packages/pms/components/settings/setup-kit";
+import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
 import {
   Card4ProfileTypesGuide,
   PmsCard4ProfileTypes,
@@ -103,11 +108,7 @@ import { getPmsCard4AutomationRules } from "@/packages/pms/lib/automation-rules-
 import { automationRulesConfigured } from "@/packages/pms/lib/automation-rules-card4.server";
 import { getPmsCard4SenderSettings } from "@/packages/pms/lib/sender-settings-card4.functions";
 import { senderSettingsConfigured } from "@/packages/pms/lib/sender-settings-card4.server";
-import {
-  CARD1_PMS_NAV,
-  propertySetupStatusLabel,
-  type PropertySetupCardStatus,
-} from "@/packages/pms/lib/pms-property-setup-card1";
+import { type PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   CARD4_GST_STEPS,
   CARD4_GST_SUBTITLE,
@@ -117,12 +118,8 @@ import {
   CARD4_NOTIFY_SUBTITLE,
   CARD4_SIDEBAR_OUT,
   CARD4_STEPS,
-  CARD4_WORKSPACE_TITLE,
-  card4CompletedCount,
-  card4GstCompletedCount,
   card4GstStepById,
   card4NotificationStepById,
-  card4ProgressPct,
   card4StepById,
   evaluateCard4StepStatus,
   evaluateGstStepStatus,
@@ -430,17 +427,6 @@ export function PmsPropertySetupCard4Section({
         ),
       ]),
     );
-  const gprCompleted = card4CompletedCount(stepStatuses);
-  const gstCompleted = card4GstCompletedCount(gstStatuses);
-  const notificationCompleted = CARD4_NOTIFICATION_STEPS.filter(
-    (row) => notificationStatuses[row.id] === "complete",
-  ).length;
-  const completedCount =
-    mainSection === "guest-service-types"
-      ? gstCompleted
-      : mainSection === "notifications"
-        ? notificationCompleted
-        : gprCompleted;
   const allGprComplete =
     profileTypesConfigured &&
     requiredFieldsConfigured &&
@@ -585,24 +571,6 @@ export function PmsPropertySetupCard4Section({
       : mainSection === "notifications"
         ? CARD4_NOTIFY_SUBTITLE
         : CARD4_GPR_SUBTITLE;
-  const currentSectionTitle =
-    mainSection === "guest-service-types"
-      ? gstCurrent.title
-      : mainSection === "notifications"
-        ? notificationCurrent.title
-        : current.title;
-  const nextStepTitle =
-    mainSection === "guest-service-types"
-      ? gstNext
-        ? card4GstStepById(gstNext).title
-        : null
-      : mainSection === "profile-rules"
-        ? next
-          ? card4StepById(next).title
-          : "Guest Service Types"
-        : notificationNext
-          ? card4NotificationStepById(notificationNext).title
-          : null;
   const workspaceSteps =
     mainSection === "guest-service-types"
       ? CARD4_GST_STEPS.map((row) => ({
@@ -625,315 +593,335 @@ export function PmsPropertySetupCard4Section({
             status: stepStatuses[row.id] ?? "not_started",
           }));
 
+  const railCounts = propertySetupRailCounts(workspaceSteps.map((row) => row.status));
+  const activeStepId =
+    mainSection === "guest-service-types"
+      ? gstStep
+      : mainSection === "notifications"
+        ? notificationStep
+        : step;
+
   return (
-    <PmsPropertySetupWorkspace
-      testIdPrefix="pms-card4"
-      sidebarOutCopy={CARD4_SIDEBAR_OUT}
-      nav={CARD1_PMS_NAV}
-      title={CARD4_WORKSPACE_TITLE}
-      subtitle={subtitle}
-      sectionSwitcher={
-        <div className="mt-3 flex flex-wrap gap-2" data-testid="pms-card4-main-sections">
-          {CARD4_MAIN_SECTIONS.map((row) => (
-            <button
-              key={row.id}
-              type="button"
-              onClick={() => setMainSection(row.id)}
-              aria-current={mainSection === row.id ? "true" : undefined}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium",
-                mainSection === row.id
-                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                  : "border-[#CCCCCC] text-muted-foreground hover:border-[#C89933]/60",
-              )}
-            >
-              {row.title}
-            </button>
-          ))}
-        </div>
-      }
-      steps={workspaceSteps}
-      activeStepId={
-        mainSection === "guest-service-types"
-          ? gstStep
-          : mainSection === "notifications"
-            ? notificationStep
-            : step
-      }
-      onSelectStep={(id) => {
-        if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
-        else if (mainSection === "notifications")
-          setNotificationStep(id as Card4NotificationStepId);
-        else if (mainSection === "profile-rules") setStep(id as Card4StepId);
-      }}
-      progressPct={
-        mainSection === "guest-service-types"
-          ? Math.round((gstCompleted / CARD4_GST_STEPS.length) * 100)
-          : mainSection === "notifications"
-            ? Math.round((notificationCompleted / CARD4_NOTIFICATION_STEPS.length) * 100)
-            : card4ProgressPct(gprCompleted)
-      }
-      completedCount={completedCount}
-      currentSection={currentSectionTitle}
-      nextStepTitle={nextStepTitle}
-      cardStatusLabel={propertySetupStatusLabel(cardStatus)}
-      progressLabel={
-        mainSection === "guest-service-types"
-          ? "Guest Service Types"
-          : mainSection === "notifications"
-            ? "Notifications & Communication"
-            : "Guest Profile Rules"
-      }
-      onBack={goHub}
-      backLabel="Cancel"
-      saveDraftDisabled={!canEdit || !liveStep || !canSave || saving}
-      continueDisabled={!canEdit || (liveStep && (!canSave || saving))}
-      continuePending={saving}
-      onSaveDraft={() => requestSave(false)}
-      onContinue={goContinue}
-      continueLabel="Save & Next"
-      railExtras={
-        mainSection === "notifications" && notificationStep === "channels" ? (
-          <Card4CommunicationChannelsGuide
-            channels={communicationChannelsQuery.data?.channels ?? []}
-          />
-        ) : mainSection === "notifications" && notificationStep === "communication-templates" ? (
-          <Card4CommunicationTemplatesGuide
-            templates={communicationTemplatesQuery.data?.templates ?? []}
-            previewSubject={renderTemplateText(
-              communicationTemplatesQuery.data?.templates[0]?.subject ?? "",
-            )}
-            previewBody={renderTemplateText(
-              stripTemplateHtml(communicationTemplatesQuery.data?.templates[0]?.message ?? ""),
-            )}
-          />
-        ) : mainSection === "notifications" && notificationStep === "notification-events" ? (
-          <Card4NotificationEventsGuide events={notificationEventsQuery.data?.events ?? []} />
-        ) : mainSection === "notifications" && notificationStep === "automation-rules" ? (
-          <Card4AutomationRulesGuide rules={automationRulesQuery.data?.rules ?? []} />
-        ) : mainSection === "notifications" && notificationStep === "sender-settings" ? (
-          <Card4SenderSettingsGuide settings={senderSettingsQuery.data?.settings ?? []} />
-        ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
-          <Card4ServiceCategoriesGuide
-            count={serviceCategoriesQuery.data?.categories.length ?? 0}
-          />
-        ) : mainSection === "guest-service-types" && gstStep === "service-types" ? (
-          <Card4ServiceTypesGuide count={serviceTypesQuery.data?.types.length ?? 0} />
-        ) : mainSection === "guest-service-types" && gstStep === "service-pricing" ? (
-          <Card4ServicePricingGuide
-            pricedCount={servicePricingQuery.data?.pricing.length ?? 0}
-            activeServiceTypeCount={
-              servicePricingQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
-            }
-          />
-        ) : mainSection === "guest-service-types" && gstStep === "department-assignment" ? (
-          <Card4ServiceDepartmentAssignmentGuide
-            assignmentCount={assignmentsQuery.data?.assignments.length ?? 0}
-            activeDepartmentCount={
-              assignmentsQuery.data?.departments.filter((row) => row.active).length ?? 0
-            }
-          />
-        ) : mainSection === "guest-service-types" && gstStep === "sla-rules" ? (
-          <Card4ServiceSlaRulesGuide
-            ruleCount={slaRulesQuery.data?.rules.length ?? 0}
-            activeServiceTypeCount={
-              slaRulesQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
-            }
-          />
-        ) : mainSection === "guest-service-types" && gstStep === "service-availability" ? (
-          <Card4ServiceAvailabilityGuide
-            configuredCount={availabilityQuery.data?.availability.length ?? 0}
-            activeServiceTypeCount={
-              availabilityQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
-            }
-          />
-        ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
-          <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
-        ) : step === "required-fields" ? (
-          <Card4RequiredFieldsGuide
-            count={fieldsQuery.data?.fields.length ?? 0}
-            onGoIdentityDocuments={() => setStep("identity-documents")}
-          />
-        ) : step === "identity-documents" ? (
-          <Card4IdentityDocumentsGuide
-            activeCount={documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0}
-          />
-        ) : step === "preferences" ? (
-          <Card4PreferencesGuide
-            categoryCount={preferencesQuery.data?.categories.length ?? 0}
-            typeCount={preferencesQuery.data?.types.length ?? 0}
-          />
-        ) : step === "company-business" ? (
-          <Card4CompanyBusinessGuide
-            typeCount={companyQuery.data?.types.length ?? 0}
-            typesWithFields={
-              companyQuery.data?.types.filter((row) => row.requiredFieldIds.length > 0).length ?? 0
-            }
-            settingsReady={companyReady}
-            saved={Boolean(companyQuery.data?.lastUpdatedAt)}
-          />
-        ) : null
-      }
+    <section
+      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
+      data-testid="pms-card4-workspace"
+      data-card-fullscreen="true"
     >
-      {mainSection === "notifications" ? (
-        notificationStep === "channels" ? (
-          <PmsCard4CommunicationChannels
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : notificationStep === "communication-templates" ? (
-          <PmsCard4CommunicationTemplates
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : notificationStep === "notification-events" ? (
-          <PmsCard4NotificationEvents
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : notificationStep === "automation-rules" ? (
-          <PmsCard4AutomationRules
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : notificationStep === "sender-settings" ? (
-          <PmsCard4SenderSettings
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : (
-          <div
-            className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
-            data-testid={`card4-placeholder-${notificationStep}`}
-          >
-            <h2 className="font-display text-2xl text-[#251605]">{notificationCurrent.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{notificationCurrent.placeholder}</p>
-          </div>
-        )
-      ) : mainSection === "guest-service-types" ? (
-        gstStep === "service-categories" ? (
-          <PmsCard4ServiceCategories
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : gstStep === "service-types" ? (
-          <PmsCard4ServiceTypes
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : gstStep === "service-pricing" ? (
-          <PmsCard4ServicePricing
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : gstStep === "department-assignment" ? (
-          <PmsCard4ServiceDepartmentAssignment
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : gstStep === "sla-rules" ? (
-          <PmsCard4ServiceSlaRules
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : gstStep === "service-availability" ? (
-          <PmsCard4ServiceAvailability
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : (
-          <div
-            className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
-            data-testid={`card4-placeholder-${gstStep}`}
-          >
-            <h2 className="font-display text-2xl text-[#251605]">{gstCurrent.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{gstCurrent.placeholder}</p>
-          </div>
-        )
-      ) : step === "profile-types" ? (
-        <PmsCard4ProfileTypes
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-        />
-      ) : step === "required-fields" ? (
-        <PmsCard4RequiredFields
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-          onGoIdentityDocuments={() => setStep("identity-documents")}
-        />
-      ) : step === "identity-documents" ? (
-        <PmsCard4IdentityDocuments
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-        />
-      ) : step === "preferences" ? (
-        <PmsCard4Preferences
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-        />
-      ) : step === "company-business" ? (
-        <PmsCard4CompanyBusiness
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-          onGoRequiredFields={() => setStep("required-fields")}
-        />
-      ) : (
-        <div
-          className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
-          data-testid={`card4-placeholder-${step}`}
+      <div className="sr-only">{CARD4_SIDEBAR_OUT}</div>
+      <div className="min-w-0 flex-1" data-testid="pms-card4-fullscreen">
+        <PropertySetupWorkspaceShell
+          cardNumber={4}
+          status={cardStatus}
+          description={subtitle}
+          sections={workspaceSteps}
+          complete={railCounts.complete}
+          inProgress={railCounts.inProgress}
+          notStarted={railCounts.notStarted}
+          onBack={goHub}
+          onSaveDraft={() => requestSave(false)}
+          onContinue={goContinue}
+          saveDraftDisabled={!canEdit || !liveStep || !canSave || saving}
+          continueDisabled={!canEdit || (liveStep && (!canSave || saving))}
+          continuePending={saving}
+          continueLabel="Save & Next"
+          footerTestId="pms-card4-chrome"
+          rail={
+            <div data-testid="pms-card4-status-rail">
+              <PropertySetupStatusRail
+                sections={workspaceSteps}
+                complete={railCounts.complete}
+                inProgress={railCounts.inProgress}
+                notStarted={railCounts.notStarted}
+              />
+            </div>
+          }
+          stepNav={
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2" data-testid="pms-card4-main-sections">
+                {CARD4_MAIN_SECTIONS.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setMainSection(row.id)}
+                    aria-current={mainSection === row.id ? "true" : undefined}
+                    className={cn(
+                      "rounded-[6px] border px-3 py-1 text-xs font-medium",
+                      mainSection === row.id
+                        ? "border-[#C89933] bg-[#C89933] text-[#251605]"
+                        : "border-[#CCCCCC] bg-white text-muted-foreground hover:border-[#C89933]/60",
+                    )}
+                  >
+                    {row.title}
+                  </button>
+                ))}
+              </div>
+              <div data-testid="pms-card4-steps">
+                <PropertySetupStepNav
+                  activeId={activeStepId}
+                  onSelect={(id) => {
+                    if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
+                    else if (mainSection === "notifications")
+                      setNotificationStep(id as Card4NotificationStepId);
+                    else if (mainSection === "profile-rules") setStep(id as Card4StepId);
+                  }}
+                  steps={workspaceSteps}
+                />
+              </div>
+            </div>
+          }
         >
-          <h2 className="font-display text-2xl text-[#251605]">{current.title}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{current.placeholder}</p>
-        </div>
-      )}
-    </PmsPropertySetupWorkspace>
+          <div className="space-y-4">
+            {mainSection === "notifications" && notificationStep === "channels" ? (
+              <Card4CommunicationChannelsGuide
+                channels={communicationChannelsQuery.data?.channels ?? []}
+              />
+            ) : mainSection === "notifications" &&
+              notificationStep === "communication-templates" ? (
+              <Card4CommunicationTemplatesGuide
+                templates={communicationTemplatesQuery.data?.templates ?? []}
+                previewSubject={renderTemplateText(
+                  communicationTemplatesQuery.data?.templates[0]?.subject ?? "",
+                )}
+                previewBody={renderTemplateText(
+                  stripTemplateHtml(communicationTemplatesQuery.data?.templates[0]?.message ?? ""),
+                )}
+              />
+            ) : mainSection === "notifications" && notificationStep === "notification-events" ? (
+              <Card4NotificationEventsGuide events={notificationEventsQuery.data?.events ?? []} />
+            ) : mainSection === "notifications" && notificationStep === "automation-rules" ? (
+              <Card4AutomationRulesGuide rules={automationRulesQuery.data?.rules ?? []} />
+            ) : mainSection === "notifications" && notificationStep === "sender-settings" ? (
+              <Card4SenderSettingsGuide settings={senderSettingsQuery.data?.settings ?? []} />
+            ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
+              <Card4ServiceCategoriesGuide
+                count={serviceCategoriesQuery.data?.categories.length ?? 0}
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "service-types" ? (
+              <Card4ServiceTypesGuide count={serviceTypesQuery.data?.types.length ?? 0} />
+            ) : mainSection === "guest-service-types" && gstStep === "service-pricing" ? (
+              <Card4ServicePricingGuide
+                pricedCount={servicePricingQuery.data?.pricing.length ?? 0}
+                activeServiceTypeCount={
+                  servicePricingQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "department-assignment" ? (
+              <Card4ServiceDepartmentAssignmentGuide
+                assignmentCount={assignmentsQuery.data?.assignments.length ?? 0}
+                activeDepartmentCount={
+                  assignmentsQuery.data?.departments.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "sla-rules" ? (
+              <Card4ServiceSlaRulesGuide
+                ruleCount={slaRulesQuery.data?.rules.length ?? 0}
+                activeServiceTypeCount={
+                  slaRulesQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "service-availability" ? (
+              <Card4ServiceAvailabilityGuide
+                configuredCount={availabilityQuery.data?.availability.length ?? 0}
+                activeServiceTypeCount={
+                  availabilityQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
+              <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
+            ) : step === "required-fields" ? (
+              <Card4RequiredFieldsGuide
+                count={fieldsQuery.data?.fields.length ?? 0}
+                onGoIdentityDocuments={() => setStep("identity-documents")}
+              />
+            ) : step === "identity-documents" ? (
+              <Card4IdentityDocumentsGuide
+                activeCount={
+                  documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : step === "preferences" ? (
+              <Card4PreferencesGuide
+                categoryCount={preferencesQuery.data?.categories.length ?? 0}
+                typeCount={preferencesQuery.data?.types.length ?? 0}
+              />
+            ) : step === "company-business" ? (
+              <Card4CompanyBusinessGuide
+                typeCount={companyQuery.data?.types.length ?? 0}
+                typesWithFields={
+                  companyQuery.data?.types.filter((row) => row.requiredFieldIds.length > 0)
+                    .length ?? 0
+                }
+                settingsReady={companyReady}
+                saved={Boolean(companyQuery.data?.lastUpdatedAt)}
+              />
+            ) : null}
+
+            {mainSection === "notifications" ? (
+              notificationStep === "channels" ? (
+                <PmsCard4CommunicationChannels
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "communication-templates" ? (
+                <PmsCard4CommunicationTemplates
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "notification-events" ? (
+                <PmsCard4NotificationEvents
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "automation-rules" ? (
+                <PmsCard4AutomationRules
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "sender-settings" ? (
+                <PmsCard4SenderSettings
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : (
+                <div
+                  className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+                  data-testid={`card4-placeholder-${notificationStep}`}
+                >
+                  <h2 className="font-display text-2xl text-[#251605]">
+                    {notificationCurrent.title}
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {notificationCurrent.placeholder}
+                  </p>
+                </div>
+              )
+            ) : mainSection === "guest-service-types" ? (
+              gstStep === "service-categories" ? (
+                <PmsCard4ServiceCategories
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "service-types" ? (
+                <PmsCard4ServiceTypes
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "service-pricing" ? (
+                <PmsCard4ServicePricing
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "department-assignment" ? (
+                <PmsCard4ServiceDepartmentAssignment
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "sla-rules" ? (
+                <PmsCard4ServiceSlaRules
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "service-availability" ? (
+                <PmsCard4ServiceAvailability
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : (
+                <div
+                  className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+                  data-testid={`card4-placeholder-${gstStep}`}
+                >
+                  <h2 className="font-display text-2xl text-[#251605]">{gstCurrent.title}</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">{gstCurrent.placeholder}</p>
+                </div>
+              )
+            ) : step === "profile-types" ? (
+              <PmsCard4ProfileTypes
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "required-fields" ? (
+              <PmsCard4RequiredFields
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+                onGoIdentityDocuments={() => setStep("identity-documents")}
+              />
+            ) : step === "identity-documents" ? (
+              <PmsCard4IdentityDocuments
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "preferences" ? (
+              <PmsCard4Preferences
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "company-business" ? (
+              <PmsCard4CompanyBusiness
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+                onGoRequiredFields={() => setStep("required-fields")}
+              />
+            ) : (
+              <div
+                className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+                data-testid={`card4-placeholder-${step}`}
+              >
+                <h2 className="font-display text-2xl text-[#251605]">{current.title}</h2>
+                <p className="mt-2 text-sm text-muted-foreground">{current.placeholder}</p>
+              </div>
+            )}
+          </div>
+        </PropertySetupWorkspaceShell>
+      </div>
+    </section>
   );
 }
