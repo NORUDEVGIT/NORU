@@ -118,7 +118,7 @@ export const CARD4_NOTIFICATION_STEPS = [
     id: "notification-events",
     number: 3,
     title: "Notification Events",
-    placeholder: "Notification Events will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "automation-rules",
@@ -158,9 +158,11 @@ export function evaluateNotificationStepStatus(
   step: Card4NotificationStepId,
   channelsConfigured: boolean,
   templatesConfigured = false,
+  eventsConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "channels") return channelsConfigured ? "complete" : "not_started";
   if (step === "communication-templates") return templatesConfigured ? "complete" : "not_started";
+  if (step === "notification-events") return eventsConfigured ? "complete" : "not_started";
   return "not_started";
 }
 
