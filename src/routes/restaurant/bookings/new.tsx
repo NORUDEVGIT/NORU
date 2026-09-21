@@ -32,7 +32,7 @@ import {
 import { CreateReservationStay } from "@/packages/pms/components/bookings/create-reservation-stay";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import { getGuestsAccess, getGuest } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getBookingsAccess,
@@ -119,6 +119,13 @@ import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => {
+    const guestId = typeof search.guestId === "string" ? search.guestId.trim() : "";
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guestId)) {
+      return { guestId };
+    }
+    return {};
+  },
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -161,9 +168,11 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
+  const { guestId: prefillGuestId } = Route.useSearch();
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
+  const fetchPrefillGuest = useServerFn(getGuest);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
   const fetchSet3 = useServerFn(getPmsSet3Snapshot);
   const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
@@ -199,6 +208,21 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [ratePlanId, setRatePlanId] = useState("");
   const [guaranteeMethod, setGuaranteeMethod] = useState("");
   const [createdView, setCreatedView] = useState<CreatedReservationConfirmation | null>(null);
+
+  useEffect(() => {
+    if (!prefillGuestId || guest) return;
+    void fetchPrefillGuest({ data: { restaurantId, guestId: prefillGuestId } })
+      .then((result) => {
+        const picked = result.guest;
+        setGuest({
+          ...picked,
+          restrictionReason: picked.restrictionReason,
+        });
+      })
+      .catch(() => {
+        /* Prefill is best-effort; staff can still search. */
+      });
+  }, [prefillGuestId, restaurantId, guest, fetchPrefillGuest]);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],

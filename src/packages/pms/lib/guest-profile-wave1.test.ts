@@ -77,7 +77,7 @@ describe("Guest Profile Wave 1 catalogue", () => {
       assert.equal(comingInWaveLabel(card.wave), `Coming in Wave ${card.wave}`);
     }
     assert.equal(defaultGuestProfileCard(false), "directory");
-    assert.equal(defaultGuestProfileCard(true), "information");
+    assert.equal(defaultGuestProfileCard(true), "dashboard");
   });
 
   it("keeps Company, Group and TA LIVE with Guest-owned master CRUD", () => {
@@ -222,7 +222,7 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     assert.deepEqual(guestProfileCardSearch("dashboard"), { card: "dashboard" });
     assert.deepEqual(guestProfileCardSearch("directory"), {});
     assert.equal(initialGuestProfileCard(true, "identity"), "identity");
-    assert.equal(initialGuestProfileCard(true), "information");
+    assert.equal(initialGuestProfileCard(true), "dashboard");
     assert.equal(initialGuestProfileCard(false, "dashboard"), "directory");
 
     const header = readRel("../components/guests/guest-profile-header.tsx");

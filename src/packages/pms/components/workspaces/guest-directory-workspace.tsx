@@ -329,7 +329,9 @@ export function GuestDirectoryWorkspace({
                       aria-label={`Select ${g.fullName}`}
                     />
                   </td>
-                  <td className="px-3 py-3 font-mono text-xs">{displayProfileNumber(g.id)}</td>
+                  <td className="px-3 py-3 font-mono text-xs">
+                    {displayProfileNumber(g.id, g.profileNumber)}
+                  </td>
                   <td className="px-3 py-3 font-medium">
                     <button type="button" className="text-left hover:underline" onClick={() => openGuest(g.id)}>
                       <span className="flex flex-wrap items-center gap-2">

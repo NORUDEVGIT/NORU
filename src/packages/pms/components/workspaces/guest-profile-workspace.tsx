@@ -9,7 +9,9 @@ import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-act
 import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
 import { GuestDirectoryOpenButton } from "@/packages/pms/components/guests/guest-directory-open-button";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
+import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
 import { GuestLoyaltyCard } from "@/packages/pms/components/guests/guest-loyalty-card";
+import { GuestOverviewCard } from "@/packages/pms/components/guests/guest-overview-card";
 import { GuestProfileHeader } from "@/packages/pms/components/guests/guest-profile-header";
 import { GuestPrivacyCard } from "@/packages/pms/components/guests/guest-privacy-card";
 import { GuestRelationshipsCard } from "@/packages/pms/components/guests/guest-relationships-card";
@@ -183,6 +185,7 @@ export function GuestProfileWorkspace({
             guest={guestQuery.data.guest}
             returnCard={card}
             profileType={operationalType}
+            membershipRole={membership.role}
           />
           <GuestDashboardCard
             restaurantId={restaurantId}
@@ -190,7 +193,7 @@ export function GuestProfileWorkspace({
             guestName={guestQuery.data.guest.fullName}
             timezone={membership.restaurant.timezone}
             vipStatus={guestQuery.data.guest.vipStatus}
-            showQuickActions={card === "dashboard"}
+            showQuickActions={false}
           />
         </>
       ) : (
@@ -312,7 +315,14 @@ export function GuestProfileWorkspace({
               copy="Dashboard and Stay History are for individual guests. Linked members appear on Relationships and Loyalty & Value."
             />
           ) : (card === "dashboard" || card === "stay-history") && guestId && guestQuery.data ? (
-            card === "dashboard" ? null : (
+            card === "dashboard" ? (
+              <GuestOverviewCard
+                restaurantId={restaurantId}
+                guest={guestQuery.data.guest}
+                timezone={membership.restaurant.timezone}
+                history={guestQuery.data.history}
+              />
+            ) : (
               <GuestStayHistoryCard
                 restaurantId={restaurantId}
                 guestId={guestId}

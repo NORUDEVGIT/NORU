@@ -722,6 +722,11 @@ export const anonymiseGuest = createServerFn({ method: "POST" })
         department: null,
         source_of_business: null,
         restriction_reason: null,
+        photo_storage_path: null,
+        preferred_contact_method: null,
+        preferred_contact_time: null,
+        geo_latitude: null,
+        geo_longitude: null,
       } as never)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId);
@@ -737,6 +742,12 @@ export const anonymiseGuest = createServerFn({ method: "POST" })
 
     await db(supabaseAdmin)
       .from("guest_emergency_contacts")
+      .delete()
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId);
+
+    await supabaseAdmin
+      .from("guest_preference_values")
       .delete()
       .eq("restaurant_id", data.restaurantId)
       .eq("guest_id", data.guestId);
