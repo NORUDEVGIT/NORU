@@ -96,6 +96,8 @@ describe("Guest Profile Wave 2 lock", () => {
     assert.match(functions, /registerGuestDocument/);
     assert.match(functions, /listGuestDocuments/);
     assert.match(functions, /reviewGuestDocument/);
+    assert.match(functions, /saveGuestDocument/);
+    assert.match(functions, /getGuestDocument/);
     assert.match(functions, /\/guests\/\$\{data\.guestId\}\//);
     assert.match(identity, /Staff verify/);
     assert.match(identity, /STAFF_VERIFY_COPY/);
