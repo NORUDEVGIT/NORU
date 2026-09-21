@@ -13,7 +13,9 @@ import {
   guestListingSection,
   isLiveListingSection,
   lastStayWindowStart,
+  listingCreateAllowed,
   listingSectionFromCard4Code,
+  listingTypeInactive,
   operationalProfileType,
   sectionToAccountType,
   uuidFirstSegment,
@@ -116,5 +118,54 @@ describe("Guest listing honesty", () => {
     assert.match(listing, /GuestListingNewGuestMenu/);
     assert.match(listing, /import-guests/);
     assert.doesNotMatch(listing, /Organization/);
+  });
+});
+
+describe("Card 4 Active/Inactive workspace wiring", () => {
+  it("blocks create when a mapped type is inactive and never hides existing data", () => {
+    const inactiveCompany = {
+      available: true,
+      types: [
+        { section: "individual" as const, active: true },
+        { section: "company" as const, active: false },
+        { section: "travel-agent" as const, active: true },
+        { section: "tour-operator" as const, active: true },
+        { section: "contact" as const, active: false },
+      ],
+    };
+    assert.equal(listingCreateAllowed("individual", inactiveCompany), true);
+    assert.equal(listingCreateAllowed("company", inactiveCompany), false);
+    assert.equal(listingCreateAllowed("travel-agent", inactiveCompany), true);
+    assert.equal(listingCreateAllowed("group", inactiveCompany), true);
+    assert.equal(listingCreateAllowed("tour-operator", inactiveCompany), false);
+    assert.equal(listingCreateAllowed("contact", inactiveCompany), false);
+    assert.equal(listingTypeInactive("company", inactiveCompany), true);
+    assert.equal(listingTypeInactive("individual", inactiveCompany), false);
+  });
+
+  it("degrades to operational create when Card 4 catalogue is missing", () => {
+    assert.equal(listingCreateAllowed("company", { available: false, types: [] }), true);
+    assert.equal(listingCreateAllowed("individual", undefined), true);
+    assert.equal(listingCreateAllowed("tour-operator", { available: false, types: [] }), false);
+    assert.equal(listingCreateAllowed("company", { available: true, types: [] }), true);
+  });
+
+  it("reads Card 4 from FO requireGuestManager and blocks create APIs when inactive", () => {
+    const config = readRel("./guest-workspace-config.functions.ts");
+    const guests = readRel("./guests.functions.ts");
+    const accounts = readRel("./guest-accounts.functions.ts");
+    const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
+    const settings = readRel("../components/settings/pms-card4-profile-types.tsx");
+    assert.match(config, /requireGuestManager/);
+    assert.doesNotMatch(config, /requireRoomManager/);
+    assert.match(config, /pms_guest_profile_types/);
+    assert.match(config, /assertListingCreateAllowed/);
+    assert.match(guests, /assertListingCreateAllowed/);
+    assert.match(accounts, /assertListingCreateAllowed/);
+    assert.doesNotMatch(accounts, /assertListingCreateAllowed\(data\.restaurantId, "group"\)/);
+    assert.match(listing, /listingCreateAllowed\("company"/);
+    assert.match(listing, /PROFILE_TYPE_INACTIVE_SECTION_COPY/);
+    assert.match(listing, /guest-listing-inactive-copy/);
+    assert.match(settings, /guest-workspace-config/);
   });
 });

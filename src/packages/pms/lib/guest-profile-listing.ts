@@ -94,6 +94,22 @@ export const PREFERENCE_CANONICAL_NOTE =
 export const COMPANY_BUSINESS_CANONICAL_NOTE =
   "Company masters stay on guest_account_masters. Card 4 business profile types are setup-only this phase.";
 
+export const PROFILE_TYPE_CREATE_BLOCKED =
+  "This profile type is inactive in Guest Profile Rules. Existing records stay available. New records cannot be created.";
+
+export const PROFILE_TYPE_INACTIVE_SECTION_COPY =
+  "This profile type is inactive in Guest Profile Rules. Existing records remain accessible. New records cannot be created.";
+
+export type ListingTypeConfigRow = {
+  section: GuestListingSectionId | null;
+  active: boolean;
+};
+
+export type ListingTypeConfigSnapshot = {
+  available: boolean;
+  types: ListingTypeConfigRow[];
+};
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_FIRST_SEGMENT = /^[0-9a-f]{8}$/i;
@@ -139,6 +155,38 @@ export function sectionToAccountType(section: GuestListingSectionId): GuestAccou
   if (section === "group") return "group";
   if (section === "travel-agent") return "travel_agent";
   return null;
+}
+
+export function accountTypeToListingSection(accountType: GuestAccountType): GuestListingSectionId {
+  if (accountType === "company") return "company";
+  if (accountType === "group") return "group";
+  return "travel-agent";
+}
+
+/**
+ * Card 4 Active controls new-record create. Missing catalogue/rows degrade to
+ * operational defaults so hotels are not stranded. Placeholders never create.
+ * Inactive never hides existing records.
+ */
+export function listingCreateAllowed(
+  section: GuestListingSectionId,
+  config: ListingTypeConfigSnapshot | null | undefined,
+): boolean {
+  if (section === "tour-operator" || section === "contact") return false;
+  if (section === "group") return true;
+  if (!config?.available) return true;
+  const rows = config.types.filter((row) => row.section === section);
+  if (rows.length === 0) return true;
+  return rows.some((row) => row.active);
+}
+
+export function listingTypeInactive(
+  section: GuestListingSectionId,
+  config: ListingTypeConfigSnapshot | null | undefined,
+): boolean {
+  if (!config?.available) return false;
+  const rows = config.types.filter((row) => row.section === section);
+  return rows.length > 0 && rows.every((row) => !row.active);
 }
 
 export function displayProfileNumber(id: string, code?: string | null): string {

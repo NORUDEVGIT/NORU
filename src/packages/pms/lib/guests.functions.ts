@@ -1412,6 +1412,8 @@ export const createGuest = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
+    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+    await assertListingCreateAllowed(data.restaurantId, "individual");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rules = await loadGuestProfileRules(supabaseAdmin, data.restaurantId);
     const blocked = guestCreateBlocked(rules, data.guest);

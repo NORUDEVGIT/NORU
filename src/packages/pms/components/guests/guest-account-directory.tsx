@@ -24,10 +24,15 @@ import {
 import {
   LISTING_DEFAULT_PAGE_SIZE,
   LISTING_PAGE_SIZES,
+  PROFILE_TYPE_CREATE_BLOCKED,
+  PROFILE_TYPE_INACTIVE_SECTION_COPY,
+  accountTypeToListingSection,
   displayProfileNumber,
+  listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
 import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
+import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -63,6 +68,7 @@ export function GuestAccountDirectory({
 
   const fetchAccess = useServerFn(getGuestsAccess);
   const fetchAccounts = useServerFn(listGuestAccounts);
+  const fetchConfig = useServerFn(getGuestWorkspaceConfig);
 
   const [localSearch, setLocalSearch] = useState("");
   const searchValue = search ?? localSearch;
@@ -85,6 +91,12 @@ export function GuestAccountDirectory({
   });
   const canManage = accessQuery.data?.canManage ?? false;
   const offset = page * pageSize;
+  const configQuery = useQuery({
+    queryKey: ["guest-workspace-config", restaurantId],
+    queryFn: () => fetchConfig({ data: { restaurantId } }),
+    enabled: canManage,
+    retry: false,
+  });
 
   const accountsQuery = useQuery({
     queryKey: ["guest-accounts", restaurantId, accountType, searchValue, status, offset, pageSize],
@@ -131,6 +143,7 @@ export function GuestAccountDirectory({
     accountsQuery.isError &&
     accountsQuery.error instanceof Error &&
     accountsQuery.error.message === WAVE4_MIGRATION_UNAVAILABLE;
+  const canCreate = listingCreateAllowed(accountTypeToListingSection(accountType), configQuery.data);
 
   return (
     <div className="space-y-6" data-testid="guest-account-directory">
@@ -140,9 +153,15 @@ export function GuestAccountDirectory({
           <p className="text-sm text-muted-foreground">
             Search and open {title.toLowerCase()} masters for {membership.restaurant.name}.
             {accountType === "group" ? ` ${WAVE4_GROUP_ACCOUNT_COPY}` : ""}
+            {!canCreate ? ` ${PROFILE_TYPE_INACTIVE_SECTION_COPY}` : ""}
           </p>
         </div>
-        <Button data-testid="guest-account-new" onClick={() => setFormOpen(true)}>
+        <Button
+          data-testid="guest-account-new"
+          disabled={!canCreate}
+          title={!canCreate ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
+          onClick={() => setFormOpen(true)}
+        >
           <Plus className="size-4 sm:mr-2" />
           <span className="hidden sm:inline">New {title}</span>
         </Button>

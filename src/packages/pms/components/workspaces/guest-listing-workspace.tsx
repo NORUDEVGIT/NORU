@@ -25,9 +25,13 @@ import {
   CONTACT_PROFILE_UNAVAILABLE,
   GUEST_IMPORT_UNAVAILABLE,
   GUEST_LISTING_CHIPS,
+  PROFILE_TYPE_CREATE_BLOCKED,
+  PROFILE_TYPE_INACTIVE_SECTION_COPY,
   TOUR_OPERATOR_UNAVAILABLE,
   guestListingSection,
+  listingCreateAllowed,
   listingNavSections,
+  listingTypeInactive,
   sectionToAccountType,
   type GuestListingSectionId,
 } from "@/packages/pms/lib/guest-profile-listing";
@@ -85,7 +89,7 @@ export function GuestListingWorkspace({
     enabled: canManage,
     retry: false,
   });
-  useQuery({
+  const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
     enabled: canManage,
@@ -120,7 +124,12 @@ export function GuestListingWorkspace({
   }
 
   const stats = statsQuery.data;
+  const config = configQuery.data;
   const allSelected = section === "individual" && !listingType;
+  const canCreateIndividual = listingCreateAllowed("individual", config);
+  const canCreateCompany = listingCreateAllowed("company", config);
+  const canCreateAgency = listingCreateAllowed("travel-agent", config);
+  const sectionInactive = listingTypeInactive(section, config);
 
   return (
     <div className="space-y-6" data-testid="guest-profile-shell">
@@ -150,6 +159,9 @@ export function GuestListingWorkspace({
             onIndividual={() => setIndividualOpen(true)}
             onCompany={() => setCompanyOpen(true)}
             onAgency={() => setAgencyOpen(true)}
+            canCreateIndividual={canCreateIndividual}
+            canCreateCompany={canCreateCompany}
+            canCreateAgency={canCreateAgency}
           />
         </div>
       </div>
@@ -162,6 +174,7 @@ export function GuestListingWorkspace({
       >
         {listingNavSections().map((item) => {
           const active = item.id === section;
+          const inactive = listingTypeInactive(item.id, config);
           return (
             <button
               key={item.id}
@@ -169,12 +182,15 @@ export function GuestListingWorkspace({
               role="tab"
               aria-selected={active}
               data-testid={`guest-listing-nav-${item.id}`}
+              title={inactive ? PROFILE_TYPE_INACTIVE_SECTION_COPY : undefined}
               onClick={() => selectSection(item.id)}
               className={cn(
                 "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium",
                 active
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-foreground hover:border-primary/50",
+                  : inactive
+                    ? "border-dashed border-border text-muted-foreground"
+                    : "border-border bg-card text-foreground hover:border-primary/50",
               )}
             >
               {item.title}
@@ -194,17 +210,21 @@ export function GuestListingWorkspace({
             chip.id === "all"
               ? allSelected
               : chip.section === section && (chip.id !== "individual" || !allSelected);
+          const inactive = listingTypeInactive(chip.section, config);
           return (
             <button
               key={chip.id}
               type="button"
               data-testid={`guest-listing-chip-${chip.id}`}
+              title={inactive ? PROFILE_TYPE_INACTIVE_SECTION_COPY : undefined}
               onClick={() => selectSection(chip.section)}
               className={cn(
                 "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
                 selected
                   ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border text-muted-foreground hover:text-foreground",
+                  : inactive
+                    ? "border-dashed border-border text-muted-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground",
               )}
             >
               {chip.title}
@@ -215,6 +235,11 @@ export function GuestListingWorkspace({
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
+          {sectionInactive ? (
+            <p className="mb-4 text-sm text-muted-foreground" data-testid="guest-listing-inactive-copy">
+              {PROFILE_TYPE_INACTIVE_SECTION_COPY}
+            </p>
+          ) : null}
           {accountType ? (
             <GuestAccountDirectory
               membership={membership}
@@ -242,13 +267,28 @@ export function GuestListingWorkspace({
           <section className="rounded-2xl border border-border bg-card p-4" data-testid="guest-quick-actions">
             <h2 className="font-display text-lg">Quick Actions</h2>
             <div className="mt-3 grid gap-2">
-              <Button variant="outline" onClick={() => setIndividualOpen(true)}>
+              <Button
+                variant="outline"
+                disabled={!canCreateIndividual}
+                title={!canCreateIndividual ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
+                onClick={() => setIndividualOpen(true)}
+              >
                 New Individual
               </Button>
-              <Button variant="outline" onClick={() => setCompanyOpen(true)}>
+              <Button
+                variant="outline"
+                disabled={!canCreateCompany}
+                title={!canCreateCompany ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
+                onClick={() => setCompanyOpen(true)}
+              >
                 New Company
               </Button>
-              <Button variant="outline" onClick={() => setAgencyOpen(true)}>
+              <Button
+                variant="outline"
+                disabled={!canCreateAgency}
+                title={!canCreateAgency ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
+                onClick={() => setAgencyOpen(true)}
+              >
                 New Agency
               </Button>
               <Button variant="outline" disabled title={CONTACT_PROFILE_UNAVAILABLE}>

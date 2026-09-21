@@ -499,10 +499,16 @@ export function GuestListingNewGuestMenu({
   onIndividual,
   onCompany,
   onAgency,
+  canCreateIndividual = true,
+  canCreateCompany = true,
+  canCreateAgency = true,
 }: {
   onIndividual: () => void;
   onCompany: () => void;
   onAgency: () => void;
+  canCreateIndividual?: boolean;
+  canCreateCompany?: boolean;
+  canCreateAgency?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -513,9 +519,15 @@ export function GuestListingNewGuestMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onIndividual}>New Individual</DropdownMenuItem>
-        <DropdownMenuItem onSelect={onCompany}>New Company</DropdownMenuItem>
-        <DropdownMenuItem onSelect={onAgency}>New Agency</DropdownMenuItem>
+        <DropdownMenuItem disabled={!canCreateIndividual} onSelect={onIndividual}>
+          New Individual
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!canCreateCompany} onSelect={onCompany}>
+          New Company
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!canCreateAgency} onSelect={onAgency}>
+          New Agency
+        </DropdownMenuItem>
         <DropdownMenuItem disabled>New Contact</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

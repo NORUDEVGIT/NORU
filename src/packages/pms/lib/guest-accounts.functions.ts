@@ -550,6 +550,10 @@ export const createGuestAccount = createServerFn({ method: "POST" })
     const me = await requireGuestManager(context as never, data.restaurantId);
     const isCompany = data.accountType === "company";
     const isTravelAgent = data.accountType === "travel_agent";
+    if (isCompany || isTravelAgent) {
+      const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+      await assertListingCreateAllowed(data.restaurantId, isCompany ? "company" : "travel-agent");
+    }
     if (isCompany) {
       const typeError = validateCompanyType(data.account.companyType, data.account.companyTypeOther);
       if (typeError) throw new Error(typeError);
