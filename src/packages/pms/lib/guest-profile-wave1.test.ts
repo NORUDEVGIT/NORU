@@ -24,6 +24,7 @@ import {
   isGuestProfileNavCard,
   isGuestRequiredProfileCard,
   parseGuestProfileCardSearch,
+  parseGuestProfileWorkspaceNav,
   showEmptyDirectoryCta,
 } from "./guest-profile-wave1.ts";
 
@@ -152,8 +153,7 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
         "identity",
         "preferences",
         "business",
-        "stays",
-        "reservations",
+        "bookings",
         "services",
         "financial",
         "notes",
@@ -164,6 +164,17 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.equal(isGuestProfileNavCard("notes-comms"), false);
     assert.equal(isGuestProfileNavCard("admin-privacy"), false);
     assert.equal(isGuestProfileNavCard("directory"), false);
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "stays" }), "bookings");
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "reservations" }), "bookings");
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "bookings" }), "bookings");
+    assert.equal(
+      GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === "bookings")?.title,
+      "Stays & Reservations",
+    );
+    assert.equal(
+      GUEST_PROFILE_WORKSPACE_NAV.filter((item) => item.card === "stay-history").length,
+      1,
+    );
     assert.equal(isGuestRequiredProfileCard("loyalty"), true);
     assert.equal(isGuestRequiredProfileCard("notes-comms"), true);
     assert.equal(isGuestRequiredProfileCard("admin-privacy"), true);

@@ -377,8 +377,9 @@ export function GuestProfileWorkspace({
                 restaurantId={restaurantId}
                 guestId={guestId}
                 guestName={guestQuery.data.guest.fullName}
+                guestProfileNumber={guestQuery.data.guest.profileNumber}
                 timezone={membership.restaurant.timezone}
-                scope={navId === "reservations" ? "all" : "occupied"}
+                onOpenFinancial={() => selectNav("financial")}
               />
             )
           ) : card === "dashboard" ||
@@ -482,8 +483,8 @@ export function GuestProfileWorkspace({
         membershipRole={membership.role}
         onOpenLoyalty={() => selectCard("loyalty")}
         onOpenNotesPage={() => selectNav("notes")}
-        onOpenStaysPage={() => selectNav("stays")}
-        onOpenReservationsPage={() => selectNav("reservations")}
+        onOpenStaysPage={() => selectNav("bookings")}
+        onOpenReservationsPage={() => selectNav("bookings")}
         onOpenIdentityPage={() => selectNav("identity")}
         onMerged={() => {
           void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });

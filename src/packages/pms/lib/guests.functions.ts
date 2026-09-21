@@ -49,6 +49,10 @@ import {
   type GuestStayOverview,
 } from "./guest-profile-wave3";
 import {
+  bookingTimelineLabel,
+  type GuestBookingHistoryEvent,
+} from "./guest-bookings-workspace";
+import {
   PREFERRED_CONTACT_METHODS,
   PREFERRED_CONTACT_TIMES,
   WAVE2_TO_CARD4_PREF_CODE,
@@ -3950,12 +3954,16 @@ export const mergeGuests = createServerFn({ method: "POST" })
 
 const GUEST_STAY_SELECT = `
   id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
-  status, currency, room_subtotal,
+  status, currency, room_subtotal, adults, children, source, commercial_booking_source,
+  rate_plan_id, created_at,
   room_types!hotel_reservations_type_same_property ( name ),
   hotel_rooms!hotel_reservations_room_same_type ( room_number )
 `;
 
 const GUEST_STAY_SELECT_BARE =
+  "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, status, currency, room_subtotal, adults, children, source, commercial_booking_source, rate_plan_id, created_at";
+
+const GUEST_STAY_SELECT_LEGACY =
   "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, status, currency, room_subtotal";
 
 type GuestStayRow = {
@@ -3969,6 +3977,12 @@ type GuestStayRow = {
   status: string;
   currency: string | null;
   room_subtotal: number | string | null;
+  adults?: number | null;
+  children?: number | null;
+  source?: string | null;
+  commercial_booking_source?: string | null;
+  rate_plan_id?: string | null;
+  created_at?: string | null;
   room_types?: { name: string } | null;
   hotel_rooms?: { room_number: string } | null;
 };
@@ -3991,6 +4005,63 @@ function folioTotals(rows: { amount: number }[]): number {
     else credits += -row.amount;
   }
   return Math.round((charges - credits) * 100) / 100;
+}
+
+async function decorateGuestStayCatalogues(
+  restaurantId: string,
+  stays: GuestStay[],
+  rows: GuestStayRow[],
+): Promise<GuestStay[]> {
+  if (stays.length === 0) return stays;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const rateIds = [
+    ...new Set(rows.map((row) => row.rate_plan_id).filter((id): id is string => Boolean(id))),
+  ];
+  const sourceKeys = [
+    ...new Set(
+      rows
+        .map((row) => row.commercial_booking_source)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+
+  const rateById = new Map<string, string>();
+  if (rateIds.length > 0) {
+    const { data: plans } = await supabaseAdmin
+      .from("hotel_rate_plans")
+      .select("id, name")
+      .eq("restaurant_id", restaurantId)
+      .in("id", rateIds);
+    for (const plan of (plans ?? []) as Array<{ id: string; name: string }>) {
+      rateById.set(plan.id, plan.name);
+    }
+  }
+
+  const sourceByKey = new Map<string, string>();
+  if (sourceKeys.length > 0) {
+    const { data: sources } = await supabaseAdmin
+      .from("pms_source_codes")
+      .select("id, code, name")
+      .eq("restaurant_id", restaurantId);
+    for (const source of (sources ?? []) as Array<{ id: string; code: string; name: string }>) {
+      sourceByKey.set(source.id, source.name);
+      sourceByKey.set(source.code, source.name);
+    }
+  }
+
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  return stays.map((stay) => {
+    const row = rowById.get(stay.id);
+    const commercial = row?.commercial_booking_source?.trim() || "";
+    const operational = row?.source?.trim() || "";
+    const sourceLabel =
+      (commercial && sourceByKey.get(commercial)) ||
+      commercial ||
+      operational ||
+      stay.sourceLabel;
+    const ratePlanName = (row?.rate_plan_id && rateById.get(row.rate_plan_id)) || stay.ratePlanName;
+    return { ...stay, ratePlanName, sourceLabel };
+  });
 }
 
 export async function loadGuestStaysForProfile(
@@ -4020,10 +4091,21 @@ export async function loadGuestStaysForProfile(
   if (result.error && isReservationRlsBlocked(result.error)) {
     throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
   }
+  if (result.error) {
+    result = await context.supabase
+      .from("hotel_reservations")
+      .select(GUEST_STAY_SELECT_LEGACY)
+      .eq("restaurant_id", restaurantId)
+      .eq("guest_id", guestId)
+      .order("arrival_date", { ascending: false });
+  }
+  if (result.error && isReservationRlsBlocked(result.error)) {
+    throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
+  }
   if (result.error) throw new Error(result.error.message);
 
   const rows = (result.data ?? []) as GuestStayRow[];
-  const stays = rows.map((row) =>
+  let stays = rows.map((row) =>
     mapReservationToStay({
       id: row.id,
       confirmationNumber: row.confirmation_number,
@@ -4038,8 +4120,14 @@ export async function loadGuestStaysForProfile(
           ? null
           : Number(row.room_subtotal),
       currency: row.currency,
+      adults: row.adults ?? 0,
+      children: row.children ?? 0,
+      createdAt: row.created_at ?? null,
+      sourceLabel: row.commercial_booking_source || row.source || null,
     }),
   );
+
+  stays = await decorateGuestStayCatalogues(restaurantId, stays, rows);
 
   if (!access.folio || stays.length === 0) return stays;
 
@@ -4118,6 +4206,71 @@ export const listGuestStays = createServerFn({ method: "POST" })
     );
     return { stays, access };
   });
+
+export const getGuestBookingDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({ restaurantId: idSchema, guestId: idSchema, reservationId: idSchema })
+      .parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ timeline: GuestBookingHistoryEvent[] }> => {
+      await requireGuestManager(context as never, data.restaurantId);
+
+      const { data: reservation, error } = await context.supabase
+        .from("hotel_reservations")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", data.guestId)
+        .eq("id", data.reservationId)
+        .maybeSingle();
+      if (error && isReservationRlsBlocked(error)) {
+        throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
+      }
+      if (error) throw new Error(error.message);
+      if (!reservation) throw new Error("Reservation not found for this guest.");
+
+      let eventsResult = await context.supabase
+        .from("hotel_reservation_history")
+        .select("id, event_type, notes, created_at")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("reservation_id", data.reservationId)
+        .order("created_at", { ascending: true })
+        .limit(100);
+      if (eventsResult.error && isReservationRlsBlocked(eventsResult.error)) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        eventsResult = await supabaseAdmin
+          .from("hotel_reservation_history")
+          .select("id, event_type, notes, created_at")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("reservation_id", data.reservationId)
+          .order("created_at", { ascending: true })
+          .limit(100);
+      }
+      if (eventsResult.error) throw new Error(eventsResult.error.message);
+
+      const timeline: GuestBookingHistoryEvent[] = (
+        (eventsResult.data ?? []) as Array<{
+          id: string;
+          event_type: string;
+          notes: string | null;
+          created_at: string;
+        }>
+      ).map((event) => ({
+        id: event.id,
+        eventKind: event.event_type,
+        label: bookingTimelineLabel(event.event_type),
+        createdAt: event.created_at,
+        notes: event.notes,
+      }));
+
+      return { timeline };
+    },
+  );
 
 export const getGuestStayOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
