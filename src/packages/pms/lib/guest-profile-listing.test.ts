@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parseGuestProfileSearch } from "./guest-profile-wave1.ts";
 import {
   CARD4_CODE_TO_SECTION,
+  GUEST_LISTING_CHIPS,
   GUEST_LISTING_SECTIONS,
   chipForSection,
   displayProfileNumber,
@@ -51,6 +52,10 @@ describe("Guest listing mapping", () => {
     assert.equal(sectionToAccountType("company"), "company");
     assert.equal(sectionToAccountType("tour-operator"), null);
     assert.equal(guestListingSection("tour-operator"), "tour-operator");
+    assert.deepEqual(
+      GUEST_LISTING_CHIPS.map((chip) => chip.id),
+      ["all", "individual"],
+    );
     assert.equal(chipForSection("group"), "all");
   });
 
@@ -113,6 +118,7 @@ describe("Guest listing honesty", () => {
     assert.match(shell, /GuestListingWorkspace/);
     assert.match(listing, /guest-listing-nav/);
     assert.match(listing, /guest-listing-chips/);
+    assert.match(listing, /section === "individual"/);
     assert.match(listing, /guest-quick-actions/);
     assert.match(listing, /guest-workspace-activity/);
     assert.match(listing, /GuestListingNewGuestMenu/);

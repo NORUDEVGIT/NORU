@@ -227,7 +227,7 @@ export function GuestDirectoryWorkspace({
             <SelectValue placeholder="Guest Type" />
           </SelectTrigger>
           <SelectContent>
-            {GUEST_LISTING_SECTIONS.filter((item) => item.id !== "group").map((item) => (
+            {GUEST_LISTING_SECTIONS.filter((item) => item.id === "individual").map((item) => (
               <SelectItem key={item.id} value={item.id}>
                 {item.chip}
               </SelectItem>
