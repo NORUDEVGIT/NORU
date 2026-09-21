@@ -2,12 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { GuestStayActions } from "@/packages/pms/components/guests/guest-stay-actions";
-import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import {
+  ReservationStatusBadge,
+  formatStayDate,
+} from "@/packages/pms/components/bookings/reservation-bits";
 import {
   WAVE3_STAY_HISTORY_CONTEXT,
   stayRoomNumberLabel,
   wave3StayHistoryEmpty,
 } from "@/packages/pms/lib/guest-profile-wave3";
+import { occupiedStayHistory } from "@/packages/pms/lib/guest-profile-overview";
 import { listGuestStays } from "@/packages/pms/lib/guests.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 
@@ -16,11 +20,13 @@ export function GuestStayHistoryCard({
   guestId,
   guestName,
   timezone,
+  scope = "occupied",
 }: {
   restaurantId: string;
   guestId: string;
   guestName: string;
   timezone: string;
+  scope?: "occupied" | "all";
 }) {
   const fetchStays = useServerFn(listGuestStays);
   const today = propertyToday(timezone);
@@ -35,20 +41,32 @@ export function GuestStayHistoryCard({
   }
   if (staysQuery.isError) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card p-6" data-testid="guest-stay-history">
+      <div
+        className="rounded-2xl border border-dashed border-border bg-card p-6"
+        data-testid="guest-stay-history"
+      >
         <h2 className="font-display text-xl" data-testid="guest-stay-history-guest-name">
           {guestName}
         </h2>
         <p className="mt-1 text-sm font-medium">Stay History</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          {staysQuery.error instanceof Error ? staysQuery.error.message : "Stay history could not be loaded."}
+          {staysQuery.error instanceof Error
+            ? staysQuery.error.message
+            : "Stay history could not be loaded."}
         </p>
       </div>
     );
   }
 
-  const stays = staysQuery.data?.stays ?? [];
-  const access = staysQuery.data?.access ?? { reservation: false, frontOffice: false, folio: false };
+  const stays = (() => {
+    const all = staysQuery.data?.stays ?? [];
+    return scope === "all" ? all : occupiedStayHistory(all);
+  })();
+  const access = staysQuery.data?.access ?? {
+    reservation: false,
+    frontOffice: false,
+    folio: false,
+  };
 
   return (
     <div className="space-y-4" data-testid="guest-stay-history">
@@ -56,7 +74,9 @@ export function GuestStayHistoryCard({
         <h2 className="font-display text-xl" data-testid="guest-stay-history-guest-name">
           {guestName}
         </h2>
-        <p className="mt-1 text-sm font-medium">Stay History</p>
+        <p className="mt-1 text-sm font-medium">
+          {scope === "all" ? "Reservations" : "Stay History"}
+        </p>
         <p className="mt-1 text-sm text-muted-foreground" data-testid="guest-stay-history-context">
           {WAVE3_STAY_HISTORY_CONTEXT}. Real reservations for {guestName}. Confirmation numbers and
           dates match Reservations.
@@ -119,7 +139,8 @@ export function GuestStayHistoryCard({
                   <ReservationStatusBadge status={stay.status} />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {formatStayDate(stay.arrivalDate)} → {formatStayDate(stay.departureDate)} · {stay.nights} night
+                  {formatStayDate(stay.arrivalDate)} → {formatStayDate(stay.departureDate)} ·{" "}
+                  {stay.nights} night
                   {stay.nights === 1 ? "" : "s"}
                 </p>
                 <p className="text-xs text-muted-foreground">

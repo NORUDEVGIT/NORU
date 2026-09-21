@@ -5,6 +5,7 @@
  */
 
 import { decodePreferenceValue } from "./guest-profile-wave2.ts";
+import { OCCUPIED_STAY_STATUSES, type GuestStay } from "./guest-profile-wave3.ts";
 
 export type OverviewPreferenceSource = {
   roomPreference: string | null;
@@ -19,20 +20,23 @@ export type OverviewPreferenceSource = {
 
 export const OVERVIEW_MIGRATION_FILE = "0086_pms_guest_overview.sql";
 
-export const OVERVIEW_REVENUE_PLACEHOLDER =
-  "Placeholder until Revenue is implemented.";
+export const OVERVIEW_REVENUE_PLACEHOLDER = "Placeholder until Revenue is implemented.";
 export const OVERVIEW_BALANCE_PLACEHOLDER =
   "Placeholder until Financial functionality is implemented.";
 export const OVERVIEW_SERVICE_EMPTY =
   "No guest service records yet. Service history is stored only when a real service is recorded.";
 export const OVERVIEW_SERVICE_UNAVAILABLE =
   "Service history is not recorded yet for this property.";
-export const OVERVIEW_UPCOMING_EMPTY =
-  "No upcoming reservation for this guest.";
+export const OVERVIEW_UPCOMING_EMPTY = "No upcoming reservation for this guest.";
 export const OVERVIEW_NOTES_EMPTY = "No notes recorded yet for this guest.";
 export const OVERVIEW_PREFERENCES_EMPTY = "No preferences recorded yet for this guest.";
 export const OVERVIEW_LOYALTY_COPY =
   "Stay counts, nights and stored folio amounts only. There is no points balance.";
+export const OVERVIEW_FINANCIAL_COPY =
+  "Financial summary is a placeholder until Revenue and outstanding balance are implemented.";
+export const OVERVIEW_RATE_PLAN_UNAVAILABLE = "Not stored on this stay.";
+export const OVERVIEW_TAGS_DEFERRED =
+  "Guest tags are not part of this Overview. No tag catalogue is shown here.";
 
 export function canStartReservationForRole(role: string): boolean {
   return role === "owner" || role === "manager" || role === "receptionist";
@@ -164,4 +168,10 @@ export function wave2PreferenceChips(
     });
   }
   return chips;
+}
+
+export function occupiedStayHistory(stays: GuestStay[]): GuestStay[] {
+  return stays.filter((stay) =>
+    (OCCUPIED_STAY_STATUSES as readonly string[]).includes(stay.status),
+  );
 }

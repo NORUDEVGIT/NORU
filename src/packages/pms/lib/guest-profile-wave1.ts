@@ -94,9 +94,52 @@ export const GUEST_PROFILE_CARDS = [
     wave: 5,
     copy: "Export, anonymise and unmerge (or a recorded exception). Wave 2 consent stays on Information. VIP and status remain there too.",
   },
+  {
+    id: "services",
+    title: "Services",
+    live: true,
+    wave: 3,
+    copy: "Recorded guest service history only. This card does not invent requests.",
+  },
+  {
+    id: "financial",
+    title: "Financial",
+    live: true,
+    wave: 3,
+    copy: "Placeholder until Financial functionality is implemented.",
+  },
 ] as const;
 
 export type GuestProfileCardId = (typeof GUEST_PROFILE_CARDS)[number]["id"];
+
+/** Individual workspace chrome. Personal and Contact share Information content. */
+export const GUEST_PROFILE_WORKSPACE_NAV = [
+  { id: "overview", card: "dashboard", title: "Overview" },
+  { id: "personal", card: "information", title: "Personal" },
+  { id: "contact", card: "information", title: "Contact" },
+  { id: "identity", card: "identity", title: "Identity Documents" },
+  { id: "preferences", card: "preferences", title: "Preferences" },
+  { id: "business", card: "relationships", title: "Business" },
+  { id: "stays", card: "stay-history", title: "Stays" },
+  { id: "reservations", card: "stay-history", title: "Reservations" },
+  { id: "services", card: "services", title: "Services" },
+  { id: "financial", card: "financial", title: "Financial" },
+  { id: "notes", card: "notes-comms", title: "Notes" },
+  { id: "history", card: "notes-comms", title: "History" },
+] as const;
+
+export type GuestProfileWorkspaceNavId = (typeof GUEST_PROFILE_WORKSPACE_NAV)[number]["id"];
+
+export function guestProfileWorkspaceNav(id: GuestProfileWorkspaceNavId) {
+  return (
+    GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === id) ?? GUEST_PROFILE_WORKSPACE_NAV[0]
+  );
+}
+
+export function workspaceNavForCard(card: GuestProfileCardId): GuestProfileWorkspaceNavId {
+  const match = GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.card === card);
+  return match?.id ?? "overview";
+}
 
 export function guestProfileCard(id: GuestProfileCardId) {
   return GUEST_PROFILE_CARDS.find((card) => card.id === id) ?? GUEST_PROFILE_CARDS[1];
@@ -127,6 +170,7 @@ export function showEmptyDirectoryCta(hasGuest: boolean, card: GuestProfileCardI
 /** Optional `?card=` so Directory-back can reopen the same guest-required card. */
 export type GuestProfileCardSearch = {
   card?: GuestProfileCardId;
+  nav?: GuestProfileWorkspaceNavId;
 };
 
 /** Listing-only placeholders — not operational GUEST_PROFILE_TYPES. */
@@ -138,14 +182,31 @@ export type GuestProfileSearch = GuestProfileCardSearch & {
   type?: GuestProfileTypeId | GuestListingPlaceholderType;
 };
 
+export function parseGuestProfileWorkspaceNav(
+  search: Record<string, unknown>,
+): GuestProfileWorkspaceNavId | undefined {
+  const raw = typeof search["nav"] === "string" ? search["nav"] : undefined;
+  if (!raw) return undefined;
+  return GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === raw)?.id;
+}
+
 export function parseGuestProfileCardSearch(
   search: Record<string, unknown>,
 ): GuestProfileCardSearch {
+  const nav = parseGuestProfileWorkspaceNav(search);
   const raw = typeof search["card"] === "string" ? search["card"] : undefined;
-  if (!raw) return {};
-  const match = GUEST_PROFILE_CARDS.find((item) => item.id === raw);
-  if (!match || !isGuestRequiredProfileCard(match.id)) return {};
-  return { card: match.id };
+  const match = raw ? GUEST_PROFILE_CARDS.find((item) => item.id === raw) : undefined;
+  const card =
+    match && isGuestRequiredProfileCard(match.id)
+      ? match.id
+      : nav
+        ? guestProfileWorkspaceNav(nav).card
+        : undefined;
+  if (!card && !nav) return {};
+  return {
+    ...(card ? { card } : {}),
+    ...(nav ? { nav } : {}),
+  };
 }
 
 export function parseGuestProfileTypeSearch(search: Record<string, unknown>): GuestProfileTypeId {
@@ -172,16 +233,20 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
 
 export function guestProfileCardSearch(
   card: GuestProfileCardId | undefined,
+  nav?: GuestProfileWorkspaceNavId | undefined,
 ): GuestProfileCardSearch {
-  if (card && isGuestRequiredProfileCard(card)) return { card };
-  return {};
+  if (card && isGuestRequiredProfileCard(card)) {
+    return nav ? { card, nav } : { card };
+  }
+  return nav ? { nav } : {};
 }
 
 export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
+  nav?: GuestProfileWorkspaceNavId | undefined;
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
 }): GuestProfileSearch {
-  const card = guestProfileCardSearch(opts.card);
+  const card = guestProfileCardSearch(opts.card, opts.nav);
   const type = opts.type && opts.type !== "individual" ? opts.type : undefined;
   return type ? { ...card, type } : card;
 }
