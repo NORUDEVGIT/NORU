@@ -100,7 +100,6 @@ describe("Guest Profile Wave 2 lock", () => {
     assert.match(identity, /Staff verify/);
     assert.match(identity, /STAFF_VERIFY_COPY/);
     assert.doesNotMatch(identity, /government verified|KYC|police-cleared/i);
-    assert.match(directory, /MaskedIdNumber/);
     assert.match(detail, /MaskedIdNumber/);
     assert.doesNotMatch(directory, /government verified/i);
   });

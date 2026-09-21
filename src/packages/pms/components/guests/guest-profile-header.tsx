@@ -23,6 +23,7 @@ import {
   setGuestStatus,
   type GuestProfile,
 } from "@/packages/pms/lib/guests.functions";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -55,9 +56,8 @@ export function GuestProfileHeader({
   const [mergeRetiredId, setMergeRetiredId] = useState<string | undefined>();
 
   function refresh() {
+    invalidateGuestWorkspaceQueries(queryClient, restaurantId);
     void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId, guest.id] });
-    void queryClient.invalidateQueries({ queryKey: ["guests", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["guest-directory-stats", restaurantId] });
   }
 
   const statusMutation = useMutation({

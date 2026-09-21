@@ -15,7 +15,7 @@ import { GuestPrivacyCard } from "@/packages/pms/components/guests/guest-privacy
 import { GuestRelationshipsCard } from "@/packages/pms/components/guests/guest-relationships-card";
 import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
-import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
+import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/guest-listing-workspace";
 import {
   GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DETAIL_PATH,
@@ -28,9 +28,11 @@ import {
   isGuestProfileNavCard,
   isGuestRequiredProfileCard,
   showEmptyDirectoryCta,
+  type GuestListingPlaceholderType,
   type GuestProfileCardId,
   type GuestProfileTypeId,
 } from "@/packages/pms/lib/guest-profile-wave1";
+import { guestListingSection, operationalProfileType } from "@/packages/pms/lib/guest-profile-listing";
 import { profileTypeToAccountType } from "@/packages/pms/lib/guest-profile-wave4";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
 import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
@@ -47,7 +49,7 @@ export function GuestProfileWorkspace({
   guestId?: string | undefined;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
   returnCard?: GuestProfileCardId | undefined;
-  profileType?: GuestProfileTypeId | undefined;
+  profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
 }) {
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(
@@ -56,7 +58,8 @@ export function GuestProfileWorkspace({
   const [emptyReturnCard, setEmptyReturnCard] = useState<GuestProfileCardId | undefined>();
   const selected = guestProfileCard(card);
   const restaurantId = membership.restaurant.id;
-  const accountType = profileTypeToAccountType(profileType);
+  const operationalType = operationalProfileType(guestListingSection(profileType));
+  const accountType = profileTypeToAccountType(operationalType);
   const isAccount = accountType !== null;
   const fetchGuest = useServerFn(getGuest);
   const fetchAccount = useServerFn(getGuestAccount);
@@ -159,14 +162,13 @@ export function GuestProfileWorkspace({
     </div>
   );
 
-  if (!guestId && card === "directory" && !isAccount) {
+  if (!guestId && card === "directory") {
     return (
       <div className="space-y-6" data-testid="guest-profile-shell">
-        <GuestDirectoryWorkspace
+        <GuestListingWorkspace
           membership={membership}
-          compact
+          listingType={profileType}
           returnCard={returnCard ?? emptyReturnCard}
-          typeSwitcher={typeSwitcher}
         />
       </div>
     );
@@ -180,7 +182,7 @@ export function GuestProfileWorkspace({
             restaurantId={restaurantId}
             guest={guestQuery.data.guest}
             returnCard={card}
-            profileType={profileType}
+            profileType={operationalType}
           />
           <GuestDashboardCard
             restaurantId={restaurantId}

@@ -129,9 +129,13 @@ export type GuestProfileCardSearch = {
   card?: GuestProfileCardId;
 };
 
-/** Optional `?type=` for the LIVE Individual | Company | Group | TA switcher. */
+/** Listing-only placeholders — not operational GUEST_PROFILE_TYPES. */
+export const GUEST_LISTING_PLACEHOLDER_TYPES = ["tour-operator", "contact"] as const;
+export type GuestListingPlaceholderType = (typeof GUEST_LISTING_PLACEHOLDER_TYPES)[number];
+
+/** Optional `?type=` for operational types plus listing placeholders. */
 export type GuestProfileSearch = GuestProfileCardSearch & {
-  type?: GuestProfileTypeId;
+  type?: GuestProfileTypeId | GuestListingPlaceholderType;
 };
 
 export function parseGuestProfileCardSearch(
@@ -150,9 +154,19 @@ export function parseGuestProfileTypeSearch(search: Record<string, unknown>): Gu
   return match?.id ?? "individual";
 }
 
+export function parseGuestListingTypeSearch(
+  search: Record<string, unknown>,
+): GuestProfileTypeId | GuestListingPlaceholderType {
+  const raw = typeof search["type"] === "string" ? search["type"] : undefined;
+  if (raw && (GUEST_LISTING_PLACEHOLDER_TYPES as readonly string[]).includes(raw)) {
+    return raw as GuestListingPlaceholderType;
+  }
+  return parseGuestProfileTypeSearch(search);
+}
+
 export function parseGuestProfileSearch(search: Record<string, unknown>): GuestProfileSearch {
   const card = parseGuestProfileCardSearch(search);
-  const type = parseGuestProfileTypeSearch(search);
+  const type = parseGuestListingTypeSearch(search);
   return type === "individual" ? card : { ...card, type };
 }
 
@@ -165,7 +179,7 @@ export function guestProfileCardSearch(
 
 export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
-  type?: GuestProfileTypeId | undefined;
+  type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
 }): GuestProfileSearch {
   const card = guestProfileCardSearch(opts.card);
   const type = opts.type && opts.type !== "individual" ? opts.type : undefined;

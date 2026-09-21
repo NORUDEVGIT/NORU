@@ -56,6 +56,16 @@ import {
   type GuestTitle,
   type RestrictionSeverity,
 } from "./guest-profile-individual";
+import {
+  LISTING_ACTIVITY_LIMIT,
+  isGuestListSort,
+  isLastStayPreset,
+  isUuid,
+  lastStayWindowStart,
+  uuidFirstSegment,
+  type GuestListSort,
+  type LastStayPreset,
+} from "./guest-profile-listing";
 
 const idSchema = z.string().uuid();
 
@@ -101,6 +111,23 @@ export interface GuestSummary {
   anonymisedAt: string | null;
   restricted: boolean;
   blacklisted: boolean;
+  lastStayAt: string | null;
+}
+
+export interface GuestListPage {
+  items: GuestSummary[];
+  total: number;
+  offset: number;
+  limit: number;
+  lastStayAvailable: boolean;
+}
+
+export function guestListItems(
+  data: GuestListPage | GuestSummary[] | null | undefined,
+): GuestSummary[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  return data.items;
 }
 
 export interface GuestDirectoryStats {
@@ -263,6 +290,7 @@ function toSummary(row: GuestRow): GuestSummary {
     anonymisedAt,
     restricted: row.restricted ?? false,
     blacklisted: row.blacklisted ?? false,
+    lastStayAt: null,
   };
 }
 
@@ -661,6 +689,78 @@ export const getGuestsAccess = createServerFn({ method: "POST" })
 
 /* ----------------------------------------------------------------- list */
 
+function guestSearchOrFilter(term: string, includeIdDocument: boolean): string | null {
+  const trimmed = term.trim();
+  if (!trimmed) return null;
+  const like = `%${trimmed.replace(/[%,]/g, "")}%`;
+  const digits = normalizePhone(trimmed);
+  const parts = [
+    `first_name.ilike.${like}`,
+    `last_name.ilike.${like}`,
+    `email.ilike.${like}`,
+    `phone.ilike.${like}`,
+  ];
+  if (includeIdDocument) parts.push(`id_document_number.ilike.${like}`);
+  if (digits) parts.push(`phone_normalized.ilike.%${digits}%`);
+  if (isUuid(trimmed)) parts.push(`id.eq.${trimmed}`);
+  const segment = uuidFirstSegment(trimmed);
+  if (segment && !isUuid(trimmed)) {
+    parts.push(
+      `and(id.gte.${segment}-0000-0000-0000-000000000000,id.lte.${segment}-ffff-ffff-ffff-ffffffffffff)`,
+    );
+  }
+  return parts.join(",");
+}
+
+async function loadLastStayMap(
+  supabase: { from: (table: string) => any },
+  restaurantId: string,
+  guestIds?: string[],
+): Promise<{ map: Map<string, string>; available: boolean }> {
+  const map = new Map<string, string>();
+  if (guestIds && guestIds.length === 0) return { map, available: true };
+  const pageSize = 1_000;
+  const chunks: Array<string[] | null> =
+    guestIds && guestIds.length > 100
+      ? guestIds.reduce<string[][]>((acc, id, index) => {
+          const bucket = Math.floor(index / 100);
+          acc[bucket] = acc[bucket] ?? [];
+          acc[bucket]!.push(id);
+          return acc;
+        }, [])
+      : [guestIds ?? null];
+
+  for (const chunk of chunks) {
+    for (let from = 0; ; from += pageSize) {
+      let query = supabase
+        .from("hotel_reservations")
+        .select("guest_id, departure_date, arrival_date")
+        .eq("restaurant_id", restaurantId)
+        .range(from, from + pageSize - 1);
+      if (chunk) query = query.in("guest_id", chunk);
+      const result = await query;
+      if (result.error && isReservationRlsBlocked(result.error)) {
+        return { map: new Map(), available: false };
+      }
+      if (result.error) throw new Error(result.error.message);
+      const page = (result.data ?? []) as Array<{
+        guest_id: string | null;
+        departure_date: string | null;
+        arrival_date: string | null;
+      }>;
+      for (const stay of page) {
+        if (!stay.guest_id) continue;
+        const date = stay.departure_date || stay.arrival_date;
+        if (!date) continue;
+        const previous = map.get(stay.guest_id);
+        if (!previous || date > previous) map.set(stay.guest_id, date);
+      }
+      if (page.length < pageSize) break;
+    }
+  }
+  return { map, available: true };
+}
+
 export const listGuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -670,51 +770,125 @@ export const listGuests = createServerFn({ method: "POST" })
         search: z.string().max(120).optional(),
         status: z.enum(GUEST_STATUSES).optional(),
         vipOnly: z.boolean().optional(),
+        nationality: z.string().max(120).optional(),
+        lastStay: z.string().max(12).optional(),
+        sort: z.string().max(24).optional(),
+        offset: z.number().int().min(0).max(20_000).optional(),
         limit: z.number().int().min(1).max(200).optional(),
+        asOf: z.string().max(20).optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<GuestSummary[]> => {
+  .handler(async ({ data, context }): Promise<GuestListPage> => {
     await requireGuestManager(context as never, data.restaurantId);
+    const offset = data.offset ?? 0;
+    const limit = data.limit ?? 100;
+    const sort: GuestListSort = data.sort && isGuestListSort(data.sort) ? data.sort : "updated_at";
+    const lastStay: LastStayPreset =
+      data.lastStay && isLastStayPreset(data.lastStay) ? data.lastStay : "all";
+    const today = (data.asOf ?? new Date().toISOString()).slice(0, 10);
+    const windowStart = lastStayWindowStart(lastStay, today);
 
-    const applyFilters = (columns: string, excludeMerged: boolean) => {
+    const needsStayMap = lastStay !== "all" || sort === "last_stay";
+    let stayMap = new Map<string, string>();
+    let lastStayAvailable = true;
+    if (needsStayMap) {
+      const loaded = await loadLastStayMap(context.supabase, data.restaurantId);
+      stayMap = loaded.map;
+      lastStayAvailable = loaded.available;
+    }
+
+    const applyFilters = (columns: string, excludeMerged: boolean, includeIdDocument: boolean) => {
       let query = context.supabase
         .from("guest_profiles")
-        .select(columns)
-        .eq("restaurant_id", data.restaurantId)
-        .order("updated_at", { ascending: false })
-        .limit(data.limit ?? 100);
+        .select(columns, { count: "exact" })
+        .eq("restaurant_id", data.restaurantId);
       if (excludeMerged) query = query.is("merged_into_guest_id", null);
       if (data.status) query = query.eq("guest_status", data.status);
       if (data.vipOnly) query = query.eq("vip_status", true);
-      const term = (data.search ?? "").trim();
-      if (term) {
-        const like = `%${term.replace(/[%,]/g, "")}%`;
-        const digits = normalizePhone(term);
-        const parts = [
-          `first_name.ilike.${like}`,
-          `last_name.ilike.${like}`,
-          `email.ilike.${like}`,
-          `phone.ilike.${like}`,
-        ];
-        if (digits) parts.push(`phone_normalized.ilike.%${digits}%`);
-        query = query.or(parts.join(","));
+      const nationality = (data.nationality ?? "").trim();
+      if (nationality && nationality !== "all") {
+        query = query.ilike("nationality", nationality);
       }
+      const searchOr = guestSearchOrFilter((data.search ?? "").trim(), includeIdDocument);
+      if (searchOr) query = query.or(searchOr);
+      if (lastStayAvailable && lastStay !== "all") {
+        const stayedIds = [...stayMap.entries()]
+          .filter(([, date]) => (windowStart ? date >= windowStart : true))
+          .map(([id]) => id);
+        if (lastStay === "never") {
+          if (stayedIds.length > 0) query = query.not("id", "in", `(${stayedIds.join(",")})`);
+        } else if (!windowStart || stayedIds.length === 0) {
+          query = query.eq("id", "00000000-0000-0000-0000-000000000000");
+        } else {
+          query = query.in("id", stayedIds.slice(0, 200));
+        }
+      }
+      if (sort === "name") {
+        query = query
+          .order("first_name", { ascending: true })
+          .order("last_name", { ascending: true });
+      } else if (sort === "status") {
+        query = query
+          .order("guest_status", { ascending: true })
+          .order("updated_at", { ascending: false });
+      } else {
+        query = query.order("updated_at", { ascending: false });
+      }
+      if (sort !== "last_stay") query = query.range(offset, offset + limit - 1);
+      else query = query.limit(2000);
       return query;
     };
 
-    let result = await applyFilters(GUEST_COLUMNS_GE2, true);
+    let result = await applyFilters(GUEST_COLUMNS_GE2, true, true);
     if (result.error && isMissingSchemaError(result.error)) {
-      result = await applyFilters(GUEST_COLUMNS_W5, true);
+      result = await applyFilters(GUEST_COLUMNS_W5, true, true);
     }
     if (result.error && isMissingSchemaError(result.error)) {
-      result = await applyFilters(GUEST_COLUMNS_W2, true);
+      result = await applyFilters(GUEST_COLUMNS_W5, true, false);
     }
     if (result.error && isMissingSchemaError(result.error)) {
-      result = await applyFilters(GUEST_COLUMNS_BASE, false);
+      result = await applyFilters(GUEST_COLUMNS_W2, true, false);
+    }
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await applyFilters(GUEST_COLUMNS_BASE, false, false);
     }
     if (result.error) throw new Error(result.error.message);
-    return ((result.data ?? []) as unknown as GuestRow[]).map(toSummary);
+
+    let rows = ((result.data ?? []) as unknown as GuestRow[]).map(toSummary);
+    const total = result.count ?? rows.length;
+
+    if (sort === "last_stay" && lastStayAvailable) {
+      rows = [...rows]
+        .sort((a, b) => {
+          const left = stayMap.get(a.id) ?? "";
+          const right = stayMap.get(b.id) ?? "";
+          if (left === right) return 0;
+          return left < right ? 1 : -1;
+        })
+        .slice(offset, offset + limit);
+    }
+
+    if (!needsStayMap) {
+      const loaded = await loadLastStayMap(
+        context.supabase,
+        data.restaurantId,
+        rows.map((row) => row.id),
+      );
+      stayMap = loaded.map;
+      lastStayAvailable = loaded.available;
+    }
+
+    return {
+      items: rows.map((row) => ({
+        ...row,
+        lastStayAt: lastStayAvailable ? (stayMap.get(row.id) ?? null) : null,
+      })),
+      total,
+      offset,
+      limit,
+      lastStayAvailable,
+    };
   });
 
 export const getGuestDirectoryStats = createServerFn({ method: "POST" })
@@ -789,6 +963,255 @@ export const getGuestDirectoryStats = createServerFn({ method: "POST" })
       returningGuests: [...completedByGuest.values()].filter((count) => count > 1).length,
       inHouseGuests: inHouseIds.size,
     };
+  });
+
+export interface GuestWorkspaceStats {
+  totalProfiles: number;
+  individuals: number;
+  companies: number;
+  travelAgents: number;
+  groups: number;
+  contacts: number | null;
+  tourOperators: number | null;
+}
+
+async function countRows(
+  supabase: { from: (table: string) => any },
+  table: string,
+  restaurantId: string,
+  extra?: (query: any) => any,
+): Promise<number> {
+  let query = supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId);
+  if (extra) query = extra(query);
+  const result = await query;
+  if (result.error && isMissingSchemaError(result.error)) return 0;
+  if (result.error) throw new Error(result.error.message);
+  return result.count ?? 0;
+}
+
+export const getGuestWorkspaceStats = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<GuestWorkspaceStats> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const individuals = await countRows(context.supabase, "guest_profiles", data.restaurantId, (query) =>
+      query.is("merged_into_guest_id", null),
+    );
+    const companies = await countRows(
+      context.supabase,
+      "guest_account_masters",
+      data.restaurantId,
+      (query) => query.eq("account_type", "company"),
+    );
+    const travelAgents = await countRows(
+      context.supabase,
+      "guest_account_masters",
+      data.restaurantId,
+      (query) => query.eq("account_type", "travel_agent"),
+    );
+    const groups = await countRows(
+      context.supabase,
+      "guest_account_masters",
+      data.restaurantId,
+      (query) => query.eq("account_type", "group"),
+    );
+    return {
+      individuals,
+      companies,
+      travelAgents,
+      groups,
+      totalProfiles: individuals + companies + travelAgents + groups,
+      contacts: null,
+      tourOperators: null,
+    };
+  });
+
+export type GuestWorkspaceActivityKind =
+  | GuestEventType
+  | "account_created"
+  | "account_updated"
+  | "reservation_created";
+
+export type GuestWorkspaceActivityItem = {
+  id: string;
+  kind: GuestWorkspaceActivityKind;
+  label: string;
+  partyName: string;
+  createdAt: string;
+};
+
+const WORKSPACE_ACTIVITY_LABELS: Record<string, string> = {
+  created: "Profile created",
+  profile_updated: "Profile updated",
+  vip_changed: "VIP changed",
+  status_changed: "Status changed",
+  preference_updated: "Preferences updated",
+  note_added: "Note added",
+  document_uploaded: "Document uploaded",
+  document_verified: "Document staff-verified",
+  document_rejected: "Document rejected",
+  merged_from: "Merged from",
+  merged_into: "Merged into",
+  consent_updated: "Consent updated",
+  relationship_linked: "Relationship linked",
+  relationship_unlinked: "Relationship unlinked",
+  comms_logged: "Communication recorded",
+  comms_sent: "Email sent",
+  exported: "Exported",
+  anonymised: "Anonymised",
+  unmerged: "Unmerged",
+  unmerge_blocked: "Unmerge not available",
+  restriction_set: "Restriction set",
+  restriction_cleared: "Restriction cleared",
+  restriction_lifted: "Restriction lifted",
+  account_created: "Profile created",
+  account_updated: "Profile updated",
+  reservation_created: "Reservation created",
+};
+
+export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, limit: z.number().int().min(1).max(30).optional() }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<GuestWorkspaceActivityItem[]> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const limit = data.limit ?? LISTING_ACTIVITY_LIMIT;
+    const items: GuestWorkspaceActivityItem[] = [];
+
+    const history = await context.supabase
+      .from("guest_profile_history")
+      .select("id, guest_id, event_type, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (history.error && !isMissingSchemaError(history.error)) throw new Error(history.error.message);
+    const guestIds = [...new Set((history.data ?? []).map((row) => row.guest_id).filter(Boolean))];
+    const guestNames = new Map<string, string>();
+    if (guestIds.length > 0) {
+      const guests = await context.supabase
+        .from("guest_profiles")
+        .select("id, first_name, last_name, anonymised_at")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", guestIds);
+      for (const row of (guests.data ?? []) as Array<{
+        id: string;
+        first_name: string;
+        last_name: string | null;
+        anonymised_at?: string | null;
+      }>) {
+        guestNames.set(
+          row.id,
+          row.anonymised_at ? WAVE5_ANONYMISED_GUEST_LABEL : fullName(row.first_name, row.last_name),
+        );
+      }
+    }
+    for (const row of history.data ?? []) {
+      items.push({
+        id: `guest:${row.id}`,
+        kind: row.event_type as GuestEventType,
+        label: WORKSPACE_ACTIVITY_LABELS[row.event_type] ?? row.event_type,
+        partyName: guestNames.get(row.guest_id) ?? "Guest",
+        createdAt: row.created_at,
+      });
+    }
+
+    const accountHistory = await context.supabase
+      .from("guest_account_history")
+      .select("id, master_id, event_type, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (
+      accountHistory.error &&
+      !isMissingSchemaError(accountHistory.error) &&
+      !accountHistory.error.message.includes("does not exist")
+    ) {
+      if (!isMissingSchemaError(accountHistory.error)) {
+        /* Wave 4 table may be missing until 0053. */
+      }
+    }
+    if (!accountHistory.error) {
+      const masterIds = [
+        ...new Set((accountHistory.data ?? []).map((row) => row.master_id).filter(Boolean)),
+      ];
+      const masterNames = new Map<string, string>();
+      if (masterIds.length > 0) {
+        const masters = await context.supabase
+          .from("guest_account_masters")
+          .select("id, name")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", masterIds);
+        for (const row of (masters.data ?? []) as Array<{ id: string; name: string }>) {
+          masterNames.set(row.id, row.name);
+        }
+      }
+      for (const row of accountHistory.data ?? []) {
+        const kind =
+          row.event_type === "created"
+            ? "account_created"
+            : row.event_type === "profile_updated"
+              ? "account_updated"
+              : (row.event_type as GuestWorkspaceActivityKind);
+        items.push({
+          id: `account:${row.id}`,
+          kind,
+          label: WORKSPACE_ACTIVITY_LABELS[kind] ?? row.event_type,
+          partyName: masterNames.get(row.master_id) ?? "Account",
+          createdAt: row.created_at,
+        });
+      }
+    }
+
+    const reservations = await context.supabase
+      .from("hotel_reservations")
+      .select("id, guest_id, confirmation_number, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (reservations.error && isReservationRlsBlocked(reservations.error)) {
+      /* Stay-created activity is omitted when reservations cannot be read. */
+    } else if (reservations.error && !isMissingSchemaError(reservations.error)) {
+      throw new Error(reservations.error.message);
+    } else if (!reservations.error) {
+      const resGuestIds = [
+        ...new Set((reservations.data ?? []).map((row) => row.guest_id).filter(Boolean) as string[]),
+      ].filter((id) => !guestNames.has(id));
+      if (resGuestIds.length > 0) {
+        const guests = await context.supabase
+          .from("guest_profiles")
+          .select("id, first_name, last_name, anonymised_at")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", resGuestIds);
+        for (const row of (guests.data ?? []) as Array<{
+          id: string;
+          first_name: string;
+          last_name: string | null;
+          anonymised_at?: string | null;
+        }>) {
+          guestNames.set(
+            row.id,
+            row.anonymised_at ? WAVE5_ANONYMISED_GUEST_LABEL : fullName(row.first_name, row.last_name),
+          );
+        }
+      }
+      for (const row of reservations.data ?? []) {
+        items.push({
+          id: `reservation:${row.id}`,
+          kind: "reservation_created",
+          label: WORKSPACE_ACTIVITY_LABELS.reservation_created,
+          partyName: (row.guest_id && guestNames.get(row.guest_id)) || row.confirmation_number || "Reservation",
+          createdAt: row.created_at,
+        });
+      }
+    }
+
+    return items
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+      .slice(0, limit);
   });
 
 /* ------------------------------------------------------------ duplicates */
@@ -989,6 +1412,8 @@ export const createGuest = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
+    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+    await assertListingCreateAllowed(data.restaurantId, "individual");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rules = await loadGuestProfileRules(supabaseAdmin, data.restaurantId);
     const blocked = guestCreateBlocked(rules, data.guest);

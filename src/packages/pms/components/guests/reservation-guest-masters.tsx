@@ -19,6 +19,7 @@ import {
   WAVE4_MIGRATION_UNAVAILABLE,
   WAVE4_RESERVATION_MASTER_COPY,
   WAVE4_TYPED_LABEL_COPY,
+  accountListItems,
   type GuestAccountType,
 } from "@/packages/pms/lib/guest-profile-wave4";
 
@@ -94,21 +95,21 @@ export function ReservationGuestMastersCard({
         <MasterSelect
           label="Company master"
           value={current.companyMasterId}
-          options={companies.data ?? []}
+          options={accountListItems(companies.data)}
           disabled={mutation.isPending}
           onChange={(id) => mutation.mutate({ companyMasterId: id })}
         />
         <MasterSelect
           label="Group account master"
           value={current.groupAccountMasterId}
-          options={groups.data ?? []}
+          options={accountListItems(groups.data)}
           disabled={mutation.isPending}
           onChange={(id) => mutation.mutate({ groupAccountMasterId: id })}
         />
         <MasterSelect
           label="Travel Agent master"
           value={current.travelAgentMasterId}
-          options={agents.data ?? []}
+          options={accountListItems(agents.data)}
           disabled={mutation.isPending}
           onChange={(id) => mutation.mutate({ travelAgentMasterId: id })}
         />

@@ -177,6 +177,7 @@ export function PmsCard4ProfileTypes({
       }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({ queryKey: ["guest-workspace-config", restaurantId] });
       if (result.type) applyRecord(result.type);
       toast.success("Profile type saved successfully.");
       onSaved(thenNextRef.current);
@@ -189,6 +190,7 @@ export function PmsCard4ProfileTypes({
       setActive({ data: { restaurantId, ...input } }),
     onSuccess: async (_result, input) => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({ queryKey: ["guest-workspace-config", restaurantId] });
       if (draft.id === input.id) mark("active", input.active);
       toast.success(input.active ? "Profile type activated." : "Profile type deactivated.");
     },
@@ -199,6 +201,7 @@ export function PmsCard4ProfileTypes({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({ queryKey: ["guest-workspace-config", restaurantId] });
       setPendingDelete(null);
       applyRecord(null);
       toast.success("Profile type deleted.");

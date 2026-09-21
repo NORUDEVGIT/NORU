@@ -26,6 +26,7 @@ import {
   WAVE4_MIGRATION_UNAVAILABLE,
   WAVE4_UNLINK_COPY,
   accountTypeToProfileType,
+  accountListItems,
   rolesForAccountType,
   type GuestAccountType,
   type GuestRelationshipRole,
@@ -36,7 +37,7 @@ import {
   listGuestAccounts,
   unlinkGuestAccount,
 } from "@/packages/pms/lib/guest-accounts.functions";
-import { listGuests } from "@/packages/pms/lib/guests.functions";
+import { guestListItems, listGuests } from "@/packages/pms/lib/guests.functions";
 
 export function GuestRelationshipsCard({
   restaurantId,
@@ -243,12 +244,12 @@ export function GuestRelationshipsCard({
           <SelectContent>
             <SelectItem value="__none">Choose…</SelectItem>
             {guestId
-              ? (accountsQuery.data ?? []).map((row) => (
+              ? accountListItems(accountsQuery.data).map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.name}
                   </SelectItem>
                 ))
-              : (guestsQuery.data ?? []).map((row) => (
+              : guestListItems(guestsQuery.data).map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.fullName}
                   </SelectItem>

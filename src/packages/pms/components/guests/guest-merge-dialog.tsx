@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -30,7 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { listGuests, mergeGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
+import { guestListItems, listGuests, mergeGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 
 export function GuestMergeDialog({
   restaurantId,
@@ -49,6 +50,7 @@ export function GuestMergeDialog({
 }) {
   const fetchGuests = useServerFn(listGuests);
   const merge = useServerFn(mergeGuests);
+  const queryClient = useQueryClient();
   const [survivorId, setSurvivorId] = useState(initialSurvivorId ?? "");
   const [retiredId, setRetiredId] = useState(initialRetiredId ?? "");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -66,7 +68,7 @@ export function GuestMergeDialog({
     enabled: open,
   });
 
-  const guests = guestsQuery.data ?? [];
+  const guests = guestListItems(guestsQuery.data);
   const survivor = guests.find((guest) => guest.id === survivorId);
   const retired = guests.find((guest) => guest.id === retiredId);
 
@@ -77,6 +79,7 @@ export function GuestMergeDialog({
       }),
     onSuccess: (result) => {
       toast.success("Guests merged. The retired profile is no longer a live Directory row.");
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       setConfirmOpen(false);
       onOpenChange(false);
       onMerged?.(result.survivorId);

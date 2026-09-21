@@ -14,6 +14,7 @@ import {
   type PickedReservationMaster,
 } from "@/packages/pms/lib/create-reservation-phase1";
 import { getGuestAccount, listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
+import { accountListItems } from "@/packages/pms/lib/guest-profile-wave4";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -113,7 +114,7 @@ export function CreateReservationMasterPicker({
       const profile = await fetchAccount({ data: { restaurantId, accountId } });
       onMasterChange(toPickedReservationMaster(profile));
     } catch {
-      const match = (accountsQuery.data ?? []).find((row) => row.id === accountId) ?? null;
+      const match = accountListItems(accountsQuery.data).find((row) => row.id === accountId) ?? null;
       onMasterChange(match ? toPickedReservationMaster(match) : null);
     }
   }
@@ -176,7 +177,7 @@ export function CreateReservationMasterPicker({
             ) : null}
           </div>
           <ul className="space-y-2" data-testid={copy.resultsTestId}>
-            {(accountsQuery.data ?? []).map((row) => (
+            {accountListItems(accountsQuery.data).map((row) => (
               <li key={row.id}>
                 <button
                   type="button"
@@ -188,7 +189,7 @@ export function CreateReservationMasterPicker({
                 </button>
               </li>
             ))}
-            {accountsQuery.data?.length === 0 ? (
+            {accountListItems(accountsQuery.data).length === 0 ? (
               <li className="text-sm text-muted-foreground">{copy.empty}</li>
             ) : null}
           </ul>

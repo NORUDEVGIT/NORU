@@ -24,7 +24,7 @@ import {
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
-import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
+import { guestListItems, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
@@ -483,10 +483,10 @@ export function FoAmendGuestsSheet({
   });
   const nextGuest = guest?.fullName ?? stay.guestName;
   const attachedIds = new Set([stay.guestId, ...companions.map((c) => c.guestId)]);
-  const companionResults = (companionGuestsQuery.data ?? []).filter((g) => !attachedIds.has(g.id));
+  const companionResults = guestListItems(companionGuestsQuery.data).filter((g) => !attachedIds.has(g.id));
   const primaryEmpty = guestSearchEmpty({
     search: guestSearch,
-    results: guestsQuery.data ?? [],
+    results: guestListItems(guestsQuery.data),
     loading: guestsQuery.isFetching,
   });
   const companionEmpty = guestSearchEmpty({
@@ -615,7 +615,7 @@ export function FoAmendGuestsSheet({
             <p className="text-sm text-muted-foreground">{NO_GUESTS_FOUND}</p>
           ) : (
             <ul className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
-              {(guestsQuery.data ?? []).map((g) => (
+              {guestListItems(guestsQuery.data).map((g) => (
                 <li key={g.id}>
                   <button
                     type="button"

@@ -32,6 +32,7 @@ import {
   type GuestAccountStatus,
   type GuestAccountType,
 } from "@/packages/pms/lib/guest-profile-wave4";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 
 type FormValues = {
   name: string;
@@ -119,7 +120,7 @@ export function GuestAccountFormDialog({
     },
     onSuccess: (id) => {
       toast.success(account ? `${title} updated.` : `${title} created.`);
-      void queryClient.invalidateQueries({ queryKey: ["guest-accounts", restaurantId] });
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest-account", restaurantId] });
       onOpenChange(false);
       onSaved?.(id);

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { GuestFormStagedGuestLinks } from "@/packages/pms/components/guests/guest-form-staged-guest-links";
 import { createGuestAccount, linkGuestAccount, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import {
   AGENCY_TYPE_LABELS,
   AGENCY_TYPES,
@@ -315,7 +316,7 @@ export function GuestTravelAgentFormDialog({
       return { id: accountId, complete };
     },
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["guest-accounts", restaurantId] });
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest-account", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId] });
       if (!result.complete) {
