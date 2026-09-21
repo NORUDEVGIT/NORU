@@ -162,6 +162,21 @@ export type GuestAccountSummary = {
   agencyType: string | null;
 };
 
+export type GuestAccountListPage = {
+  items: GuestAccountSummary[];
+  total: number;
+  offset: number;
+  limit: number;
+};
+
+export function accountListItems(
+  data: GuestAccountListPage | GuestAccountSummary[] | null | undefined,
+): GuestAccountSummary[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  return data.items;
+}
+
 export type GuestAccountProfile = GuestAccountSummary & {
   addressLine1: string | null;
   city: string | null;

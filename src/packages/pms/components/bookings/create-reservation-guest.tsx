@@ -15,7 +15,13 @@ import {
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { GuestRestrictionBadges, GuestRestrictionWarn, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS } from "@/packages/pms/lib/create-reservation-phase1";
-import { getGuest, listGuests, type GuestProfile, type GuestSummary } from "@/packages/pms/lib/guests.functions";
+import {
+  getGuest,
+  guestListItems,
+  listGuests,
+  type GuestProfile,
+  type GuestSummary,
+} from "@/packages/pms/lib/guests.functions";
 
 export type PickedReservationGuest = GuestSummary & { restrictionReason?: string | null };
 
@@ -77,7 +83,7 @@ export function CreateReservationGuest({
       const result = await fetchGuest({ data: { restaurantId, guestId } });
       onGuestChange(toPickedGuest(result.guest));
     } catch {
-      const match = (guestsQuery.data ?? []).find((row) => row.id === guestId) ?? null;
+      const match = guestListItems(guestsQuery.data).find((row) => row.id === guestId) ?? null;
       onGuestChange(match);
     }
   }
@@ -144,7 +150,7 @@ export function CreateReservationGuest({
             ) : null}
           </div>
           <ul className="space-y-2" data-testid="guest-search-results">
-            {(guestsQuery.data ?? []).map((row) => (
+            {guestListItems(guestsQuery.data).map((row) => (
               <li key={row.id}>
                 <button
                   type="button"
@@ -162,7 +168,7 @@ export function CreateReservationGuest({
                 </button>
               </li>
             ))}
-            {guestsQuery.data?.length === 0 ? (
+            {guestListItems(guestsQuery.data).length === 0 ? (
               <li className="text-sm text-muted-foreground">No matching guests — create one without leaving this page.</li>
             ) : null}
           </ul>

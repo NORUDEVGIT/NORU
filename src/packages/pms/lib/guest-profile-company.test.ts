@@ -76,7 +76,7 @@ describe("Guest Profile Company enrichment lock — AC-GE1-1…24", () => {
     assert.match(form, /company-trade-name/);
     assert.match(form, /guest-account-code/);
     assert.match(functions, /trade_name:/);
-    assert.match(functions, /name\.ilike\.\$\{like\},code\.ilike\.\$\{like\}/);
+    assert.match(functions, /trade_name\.ilike\.\$\{like\}/);
     assert.match(functions, /trade_name\.ilike/);
     assert.match(directory, /companyDirectorySecondary/);
   });

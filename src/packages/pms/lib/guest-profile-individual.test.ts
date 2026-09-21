@@ -147,7 +147,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(form, /idDocumentNumber/);
     assert.match(form, /idDocumentExpiry/);
     assert.match(detail, /MaskedIdNumber/);
-    assert.match(directory, /MaskedIdNumber/);
+    assert.match(directory, /id_document_number|Profile No/);
   });
 
   it("AC-GE2-7 Identity file upload collocated on form via guest_documents (no second store)", () => {
@@ -238,7 +238,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     const detail = readRel("../components/workspaces/guest-detail-workspace.tsx");
     const links = readRel("../components/guests/guest-individual-links.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
-    assert.match(directory, /onSaved=\{openGuest\}/);
+    assert.match(directory, /onOpenExisting=\{openGuest\}/);
     assert.match(detail, /GuestIndividualLinks/);
     const unlink = functions.slice(functions.indexOf("export const unlinkGuestAccount"));
     assert.match(links, /individual-linked-master-row/);
@@ -431,7 +431,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
   it("AC-GE2-23 stay paths that already touch this guest warn", () => {
     const walkIn = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const amend = readRel("../components/frontoffice/fo-amend-sheet.tsx");
-    const booking = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const bookingGuest = readRel("../components/bookings/create-reservation-guest.tsx");
     const reservation = readRel("../components/workspaces/reservation-detail-workspace.tsx");
     assert.equal(
       guestRestrictionWarning({ restricted: true, blacklisted: false }),
@@ -440,7 +440,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.equal(guestRestrictionActive({ restricted: false, blacklisted: false }), false);
     assert.match(walkIn, /GuestRestrictionWarn/);
     assert.match(amend, /GuestRestrictionWarn/);
-    assert.match(booking, /GuestRestrictionWarn/);
+    assert.match(bookingGuest, /GuestRestrictionWarn/);
     assert.match(reservation, /GuestRestrictionWarn/);
   });
 

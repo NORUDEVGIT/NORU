@@ -72,6 +72,7 @@ import {
   GuestFormStagedLinks,
   type StagedMasterLink,
 } from "@/packages/pms/components/guests/guest-form-staged-links";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 
 type EmergencyDraft = {
   name: string;
@@ -395,7 +396,7 @@ export function GuestFormDialog({
       return { id: guestId, complete };
     },
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["guests", restaurantId] });
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-documents", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId] });

@@ -5,6 +5,8 @@ import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import { createGuestAccount, listGuestAccounts, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import { accountListItems } from "@/packages/pms/lib/guest-profile-wave4";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import {
   COMPANY_DEFAULT_TA_COPY,
   COMPANY_RATE_REFERENCE_COPY,
@@ -246,7 +248,7 @@ export function GuestCompanyFormDialog({
     },
     onSuccess: (id) => {
       toast.success(account ? "Company updated." : "Company created.");
-      void queryClient.invalidateQueries({ queryKey: ["guest-accounts", restaurantId] });
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest-account", restaurantId] });
       onOpenChange(false);
       onSaved?.(id);
@@ -523,7 +525,7 @@ export function GuestCompanyFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">None</SelectItem>
-                  {(agentsQuery.data ?? []).map((row) => (
+                  {accountListItems(agentsQuery.data).map((row) => (
                     <SelectItem key={row.id} value={row.id}>
                       {row.name}
                     </SelectItem>

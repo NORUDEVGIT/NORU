@@ -25,7 +25,7 @@ import {
 } from "@/shared/components/ui/select";
 import { addDays } from "@/packages/pms/components/bookings/reservation-bits";
 import { GuestRestrictionBadges, GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
-import { listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
+import { guestListItems, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getRoomTypeAvailability,
@@ -496,7 +496,7 @@ export function WalkInDialog({
           />
           {!guest ? (
             <ul className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
-              {(guestsQuery.data ?? []).map((g) => (
+              {guestListItems(guestsQuery.data).map((g) => (
                 <li key={g.id}>
                   <button
                     type="button"
@@ -511,7 +511,7 @@ export function WalkInDialog({
                   </button>
                 </li>
               ))}
-              {(guestsQuery.data ?? []).length === 0 ? (
+              {guestListItems(guestsQuery.data).length === 0 ? (
                 <li className="px-3 py-2 text-xs text-muted-foreground">
                   No matching guest. Create the guest in Guests first.
                 </li>

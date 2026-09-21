@@ -31,6 +31,7 @@ import {
   assertRoleMatchesType,
   loyaltyFromStayOverview,
   type GuestAccountLink,
+  type GuestAccountListPage,
   type GuestAccountProfile,
   type GuestAccountStatus,
   type GuestAccountSummary,
@@ -38,6 +39,7 @@ import {
   type GuestLoyaltyValue,
   type GuestRelationshipRole,
 } from "./guest-profile-wave4";
+import { isUuid, uuidFirstSegment } from "./guest-profile-listing";
 
 const idSchema = z.string().uuid();
 
@@ -392,32 +394,38 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
         search: z.string().max(120).optional(),
         status: z.enum(GUEST_ACCOUNT_STATUSES).optional(),
         limit: z.number().int().min(1).max(200).optional(),
+        offset: z.number().int().min(0).max(20_000).optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<GuestAccountSummary[]> => {
+  .handler(async ({ data, context }): Promise<GuestAccountListPage> => {
     await requireGuestManager(context as never, data.restaurantId);
     const term = (data.search ?? "").trim();
     const like = term ? `%${term.replace(/[%,]/g, "")}%` : "";
+    const offset = data.offset ?? 0;
+    const limit = data.limit ?? 100;
     function applyFilters(query: any, includeTrade: boolean) {
-      let next = query
-        .eq("account_type", data.accountType)
-        .order("updated_at", { ascending: false })
-        .limit(data.limit ?? 100);
+      let next = query.eq("account_type", data.accountType).order("updated_at", { ascending: false });
       if (data.status) next = next.eq("account_status", data.status);
       if (term) {
-        next = next.or(
-          includeTrade
-            ? `name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like},trade_name.ilike.${like}`
-            : `name.ilike.${like},code.ilike.${like},email.ilike.${like},phone.ilike.${like}`,
-        );
+        const parts = includeTrade
+          ? [`name.ilike.${like}`, `code.ilike.${like}`, `email.ilike.${like}`, `phone.ilike.${like}`, `trade_name.ilike.${like}`]
+          : [`name.ilike.${like}`, `code.ilike.${like}`, `email.ilike.${like}`, `phone.ilike.${like}`];
+        if (isUuid(term)) parts.push(`id.eq.${term}`);
+        const segment = uuidFirstSegment(term);
+        if (segment && !isUuid(term)) {
+          parts.push(
+            `and(id.gte.${segment}-0000-0000-0000-000000000000,id.lte.${segment}-ffff-ffff-ffff-ffffffffffff)`,
+          );
+        }
+        next = next.or(parts.join(","));
       }
-      return next;
+      return next.range(offset, offset + limit - 1);
     }
     let result = await applyFilters(
       db(context)
         .from("guest_account_masters")
-        .select(MASTER_COLUMNS_TA)
+        .select(MASTER_COLUMNS_TA, { count: "exact" })
         .eq("restaurant_id", data.restaurantId),
       true,
     );
@@ -425,7 +433,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
       result = await applyFilters(
         db(context)
           .from("guest_account_masters")
-          .select(MASTER_COLUMNS_COMPANY)
+          .select(MASTER_COLUMNS_COMPANY, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
         true,
       );
@@ -434,7 +442,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
       result = await applyFilters(
         db(context)
           .from("guest_account_masters")
-          .select(MASTER_COLUMNS)
+          .select(MASTER_COLUMNS, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
         false,
       );
@@ -443,14 +451,15 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
       result = await applyFilters(
         db(context)
           .from("guest_account_masters")
-          .select(MASTER_COLUMNS_BASE)
+          .select(MASTER_COLUMNS_BASE, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
         false,
       );
     }
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
-    return ((result.data ?? []) as MasterRow[]).map(toSummary);
+    const items = ((result.data ?? []) as MasterRow[]).map(toSummary);
+    return { items, total: result.count ?? items.length, offset, limit };
   });
 
 export const getGuestAccount = createServerFn({ method: "POST" })

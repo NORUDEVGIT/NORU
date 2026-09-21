@@ -21,6 +21,7 @@ import {
   GUEST_ACCOUNT_TYPE_LABELS,
   GUEST_RELATIONSHIP_ROLE_LABELS,
   ROLE_ACCOUNT_TYPE,
+  accountListItems,
 } from "@/packages/pms/lib/guest-profile-wave4";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 
@@ -60,7 +61,7 @@ export function GuestFormStagedLinks({
     retry: false,
   });
 
-  const chosen = accountsQuery.data?.find((row) => row.id === targetId);
+  const chosen = accountListItems(accountsQuery.data).find((row) => row.id === targetId);
 
   function add() {
     if (!targetId || !chosen) return;
@@ -106,7 +107,7 @@ export function GuestFormStagedLinks({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__none">Choose…</SelectItem>
-          {(accountsQuery.data ?? []).map((row) => {
+          {accountListItems(accountsQuery.data).map((row) => {
             const already = links.some((link) => link.key === `${row.id}:${role}`);
             return (
               <SelectItem key={row.id} value={row.id} disabled={already}>
