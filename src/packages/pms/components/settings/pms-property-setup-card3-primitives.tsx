@@ -13,12 +13,12 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { COMMON_CURRENCIES } from "@/shared/lib/property-time";
 import { cn } from "@/shared/lib/utils";
 
@@ -290,6 +290,24 @@ export function Card3RowActions({
   editDisabled?: boolean;
   deleteDisabled?: boolean;
 }) {
+  // When Edit is the only available action, the three-dot button opens
+  // the editor directly instead of showing a one-item dropdown menu.
+  if (onEdit && !onDelete) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-8 rounded-[6px] text-[#251605] hover:bg-[#F4EDE0]"
+        aria-label={label}
+        disabled={editDisabled}
+        onClick={onEdit}
+      >
+        <Ellipsis className="size-4" />
+      </Button>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -345,35 +363,35 @@ export function Card3OverlapSheet({
   children: ReactNode;
 }) {
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
     >
-      <SheetContent
-        side="right"
-        className="w-[min(100vw-1.25rem,28rem)] overflow-y-auto rounded-l-[8px] border border-[#CCCCCC] bg-white p-5 sm:max-w-md"
-      >
-        <SheetHeader className="space-y-1 text-left">
-          <SheetTitle className="font-sans text-lg font-semibold text-[#251605]">
+      <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] max-w-lg overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-5 shadow-xl sm:w-full">
+        <DialogHeader className="space-y-1 text-left">
+          <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
             {title}
-          </SheetTitle>
+          </DialogTitle>
           {description ? (
-            <SheetDescription className="text-sm text-muted-foreground">
+            <DialogDescription className="text-sm text-muted-foreground">
               {description}
-            </SheetDescription>
+            </DialogDescription>
           ) : (
-            <SheetDescription className="sr-only">{title}</SheetDescription>
+            <DialogDescription className="sr-only">{title}</DialogDescription>
           )}
-        </SheetHeader>
-        <div className="mt-4 space-y-4">
+        </DialogHeader>
+
+        <div className="mt-2 space-y-4">
           {children}
-          <div className="flex flex-wrap justify-end gap-2 pt-1">
+
+          <div className="sticky bottom-0 -mx-1 flex flex-wrap justify-end gap-2 border-t border-[#E6E1D8] bg-white px-1 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               <X className="size-4" />
               Cancel
             </Button>
+
             {canEdit && onSubmit ? (
               <Button
                 type="button"
@@ -393,8 +411,8 @@ export function Card3OverlapSheet({
             ) : null}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 

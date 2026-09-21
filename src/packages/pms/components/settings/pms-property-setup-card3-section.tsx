@@ -131,6 +131,9 @@ export function PmsPropertySetupCard3Section({
   }));
   const counts = propertySetupRailCounts(railSections.map((row) => row.status));
   const completeCount = counts.complete;
+  const progressPercent = Math.round(
+    (completeCount / Math.max(1, CARD3_DOMAINS.length)) * 100,
+  );
   const cardStatus: PropertySetupCardStatus =
     completeCount === CARD3_DOMAINS.length
       ? "complete"
@@ -218,6 +221,7 @@ export function PmsPropertySetupCard3Section({
             rail={
               <div data-testid="pms-card3-status-rail">
                 <PropertySetupStatusRail
+                  percent={progressPercent}
                   sections={railSections}
                   complete={counts.complete}
                   inProgress={counts.inProgress}

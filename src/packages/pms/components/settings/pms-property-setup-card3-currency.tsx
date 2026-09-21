@@ -29,7 +29,6 @@ import {
   PropertySetupField,
   PropertySetupFormGrid,
 } from "@/packages/pms/components/settings/setup-kit";
-import { CARD1_HREF } from "@/packages/pms/lib/pms-property-setup-card1";
 import { PROPERTY_SETUP_CONTROL_CLASS } from "@/packages/pms/lib/pms-property-setup-ui";
 import {
   getCurrencyCard3,
@@ -217,33 +216,47 @@ export function PmsPropertySetupCard3Currency({
         </p>
       ) : (
         <div className="space-y-5" data-testid="pms-card3-currency">
-          <Card3InheritedStrip testId="card3-base-currency-strip">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-2xl" aria-hidden>
-                {card3CurrencyFlag(inherited.baseCurrency)}
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-medium uppercase tracking-wide text-[#6B6458]">
-                  Primary Currency · Card 1
-                </p>
-                <p className="font-semibold text-[#251605]">
-                  {inherited.baseCurrency} ·{" "}
-                  {baseRow?.name || baseMeta?.name || inherited.baseCurrency} ·{" "}
-                  {baseRow?.symbol || baseMeta?.symbol || inherited.baseCurrency}
-                </p>
-              </div>
-              <Card3StatusDot active />
-              <span className="rounded-full border border-[#436436] bg-[#436436]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#436436]">
-                Base Currency
-              </span>
+          <Card3Section icon="money" title="Primary Currency" testId="card3-base-currency-strip">
+            <div className="overflow-x-auto rounded-[8px] border border-[#E6E1D8]">
+              <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
+                <thead className="bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wide text-[#6B6458]">
+                  <tr>
+                    <th className="px-3 py-2.5">Flag</th>
+                    <th className="px-3 py-2.5">Code</th>
+                    <th className="px-3 py-2.5">Name</th>
+                    <th className="px-3 py-2.5">Symbol</th>
+                    <th className="px-3 py-2.5">Decimals</th>
+                    <th className="px-3 py-2.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-[#E6E1D8] bg-white">
+                    <td className="px-3 py-3 text-xl">
+                      {card3CurrencyFlag(inherited.baseCurrency)}
+                    </td>
+                    <td className="px-3 py-3 font-medium text-[#251605]">
+                      {inherited.baseCurrency}
+                      <span className="ml-2 rounded-full border border-[#CCCCCC] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Base
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-[#251605]">
+                      {baseRow?.name || baseMeta?.name || inherited.baseCurrency}
+                    </td>
+                    <td className="px-3 py-3 text-[#251605]">
+                      {baseRow?.symbol || baseMeta?.symbol || inherited.baseCurrency}
+                    </td>
+                    <td className="px-3 py-3 text-[#251605]">
+                      {String(baseRow?.decimalPlaces ?? baseMeta?.decimalPlaces ?? 2)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <Card3StatusDot active />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Inherited from Card 1. Card 3 cannot create, delete, deactivate, or replace this row.{" "}
-              <a href={CARD1_HREF} className="font-medium text-[#C89933]">
-                Open Property & Business
-              </a>
-            </p>
-          </Card3InheritedStrip>
+          </Card3Section>
 
           <Card3ListSection
             icon="money"
@@ -300,94 +313,98 @@ export function PmsPropertySetupCard3Currency({
             }))}
           />
 
-          <Card3Section icon="date" title="Financial Calendar">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Card3InheritedStrip>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Business date (Card 1)
-                </p>
-                <p className="mt-1 font-medium">{inherited.businessDate || "—"}</p>
-              </Card3InheritedStrip>
-              <Card3InheritedStrip>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Timezone (Card 1)
-                </p>
-                <p className="mt-1 font-medium">{inherited.timezone || "—"}</p>
-              </Card3InheritedStrip>
-            </div>
-            <PropertySetupFormGrid>
-              <PropertySetupField id="fy-month" label="Fiscal year start month" icon="date">
-                <Select
-                  value={String(settings.fiscalYearStartMonth)}
-                  onValueChange={(value) => patchSettings({ fiscalYearStartMonth: Number(value) })}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger id="fy-month" className={PROPERTY_SETUP_CONTROL_CLASS}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MONTHS.map((name, index) => (
-                      <SelectItem key={name} value={String(index + 1)}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropertySetupField>
-              <PropertySetupField id="fy-day" label="Fiscal year start day" icon="date">
-                <Input
-                  id="fy-day"
-                  type="number"
-                  min={1}
-                  max={31}
-                  className={PROPERTY_SETUP_CONTROL_CLASS}
-                  value={settings.fiscalYearStartDay}
-                  disabled={!canEdit}
-                  onChange={(event) =>
-                    patchSettings({ fiscalYearStartDay: Number(event.target.value) })
-                  }
-                />
-              </PropertySetupField>
-            </PropertySetupFormGrid>
-          </Card3Section>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card3Section icon="date" title="Financial Calendar">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <Card3InheritedStrip>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Business date (Card 1)
+                  </p>
+                  <p className="mt-1 font-medium">{inherited.businessDate || "—"}</p>
+                </Card3InheritedStrip>
+                <Card3InheritedStrip>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Timezone (Card 1)
+                  </p>
+                  <p className="mt-1 font-medium">{inherited.timezone || "—"}</p>
+                </Card3InheritedStrip>
+              </div>
+              <PropertySetupFormGrid>
+                <PropertySetupField id="fy-month" label="Fiscal year start month" icon="date">
+                  <Select
+                    value={String(settings.fiscalYearStartMonth)}
+                    onValueChange={(value) =>
+                      patchSettings({ fiscalYearStartMonth: Number(value) })
+                    }
+                    disabled={!canEdit}
+                  >
+                    <SelectTrigger id="fy-month" className={PROPERTY_SETUP_CONTROL_CLASS}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((name, index) => (
+                        <SelectItem key={name} value={String(index + 1)}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </PropertySetupField>
+                <PropertySetupField id="fy-day" label="Fiscal year start day" icon="date">
+                  <Input
+                    id="fy-day"
+                    type="number"
+                    min={1}
+                    max={31}
+                    className={PROPERTY_SETUP_CONTROL_CLASS}
+                    value={settings.fiscalYearStartDay}
+                    disabled={!canEdit}
+                    onChange={(event) =>
+                      patchSettings({ fiscalYearStartDay: Number(event.target.value) })
+                    }
+                  />
+                </PropertySetupField>
+              </PropertySetupFormGrid>
+            </Card3Section>
 
-          <Card3Section icon="service" title="Settings">
-            <PropertySetupFormGrid>
-              <PropertySetupField
-                label="Default FX source"
-                icon="money"
-                helper="Bank and System are labels only. Rates are entered manually."
-              >
-                <Select
-                  value={settings.defaultFxSource}
-                  disabled={!canEdit}
-                  onValueChange={(value) =>
-                    patchSettings({ defaultFxSource: value as CurrencyFxSource })
-                  }
+            <Card3Section icon="service" title="Financial Settings">
+              <PropertySetupFormGrid>
+                <PropertySetupField
+                  label="Default FX source"
+                  icon="money"
+                  helper="Bank and System are labels only. Rates are entered manually."
                 >
-                  <SelectTrigger className={PROPERTY_SETUP_CONTROL_CLASS}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_FX_SOURCES.map((source) => (
-                      <SelectItem key={source} value={source}>
-                        {FX_LABELS[source]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropertySetupField>
-            </PropertySetupFormGrid>
-            <div className="flex items-center justify-between rounded-[8px] border border-[#E6D7B8] px-3 py-2">
-              <Label htmlFor="multi-currency">Allow multi-currency</Label>
-              <Switch
-                id="multi-currency"
-                checked={settings.allowMultiCurrency}
-                disabled={!canEdit}
-                onCheckedChange={(allowMultiCurrency) => patchSettings({ allowMultiCurrency })}
-              />
-            </div>
-          </Card3Section>
+                  <Select
+                    value={settings.defaultFxSource}
+                    disabled={!canEdit}
+                    onValueChange={(value) =>
+                      patchSettings({ defaultFxSource: value as CurrencyFxSource })
+                    }
+                  >
+                    <SelectTrigger className={PROPERTY_SETUP_CONTROL_CLASS}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCY_FX_SOURCES.map((source) => (
+                        <SelectItem key={source} value={source}>
+                          {FX_LABELS[source]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </PropertySetupField>
+              </PropertySetupFormGrid>
+              <div className="flex items-center justify-between rounded-[8px] border border-[#E6D7B8] px-3 py-2">
+                <Label htmlFor="multi-currency">Allow multi-currency</Label>
+                <Switch
+                  id="multi-currency"
+                  checked={settings.allowMultiCurrency}
+                  disabled={!canEdit}
+                  onCheckedChange={(allowMultiCurrency) => patchSettings({ allowMultiCurrency })}
+                />
+              </div>
+            </Card3Section>
+          </div>
 
           <CurrencyDrawer
             key={
