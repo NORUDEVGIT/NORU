@@ -21,28 +21,21 @@ export function PropertySetupStepNav({
 }) {
   return (
     <ol
-      className={cn(
-        "flex gap-2 overflow-x-auto pb-1 sm:grid sm:overflow-visible",
-        steps.length <= 3
-          ? "sm:grid-cols-3"
-          : steps.length <= 5
-            ? "sm:grid-cols-3 xl:grid-cols-5"
-            : steps.length <= 6
-              ? "sm:grid-cols-3 xl:grid-cols-6"
-              : "sm:grid-cols-4 xl:grid-cols-8",
-      )}
+      className="flex w-full gap-2 overflow-x-auto pb-1"
       data-testid="property-setup-step-nav"
     >
       {steps.map((row) => {
         const active = activeId === row.id;
         const complete = row.status === "complete";
+
         return (
-          <li key={row.id} className="min-w-[9.5rem] sm:min-w-0">
+          <li key={row.id} className="shrink-0">
             <button
               type="button"
               onClick={() => onSelect(row.id)}
+              aria-current={active ? "step" : undefined}
               className={cn(
-                "flex w-full items-center gap-2 rounded-[6px] border px-2.5 py-2 text-left text-xs",
+                "flex h-12 min-w-[9.5rem] items-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
                 active && "border-[#C89933] bg-[#C89933] text-[#251605]",
                 !active && complete && "border-[#E6E1D8] bg-[#F4EDE0] text-[#251605]",
                 !active && !complete && "border-[#CCCCCC] bg-white text-[#6B6458]",
@@ -60,7 +53,8 @@ export function PropertySetupStepNav({
                   row.number
                 )}
               </span>
-              <span className="leading-tight">{row.title}</span>
+
+              <span className="leading-none">{row.title}</span>
             </button>
           </li>
         );

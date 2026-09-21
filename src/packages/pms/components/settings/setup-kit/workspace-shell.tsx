@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CardWorkspaceHeader } from "./card-workspace-header";
 import { PropertySetupActionFooter } from "./action-footer";
 import { PropertySetupStatusRail } from "./status-rail";
+
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import type { PropertySetupCardNumber } from "@/packages/pms/lib/pms-property-setup-card-identity";
 import type { PropertySetupRailSection } from "./status-rail";
@@ -68,11 +69,11 @@ export function PropertySetupWorkspaceShell({
 }) {
   return (
     <div
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-[#F7F4EE]"
+      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col overflow-hidden bg-[#F7F4EE]"
       data-testid="property-setup-workspace-shell"
     >
-      <div className="@container min-w-0 w-full flex-1">
-        <div className="flex min-h-0 flex-col gap-4 overflow-x-hidden px-4 pb-24 pt-5 sm:px-6 @min-[56rem]:flex-row">
+      <div className="@container min-h-0 min-w-0 w-full flex-1 overflow-y-auto">
+        <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-5 sm:px-6 @min-[56rem]:flex-row">
           <div className="min-w-0 flex-1 space-y-5">
             <CardWorkspaceHeader
               cardNumber={cardNumber}
@@ -82,9 +83,12 @@ export function PropertySetupWorkspaceShell({
               context={context}
               actions={headerActions}
             />
+
             {stepNav}
+
             <div className="min-w-0">{children}</div>
           </div>
+
           {rail ?? (
             <PropertySetupStatusRail
               percent={percent}
@@ -98,6 +102,7 @@ export function PropertySetupWorkspaceShell({
           )}
         </div>
       </div>
+
       {footer === null
         ? null
         : (footer ?? (
