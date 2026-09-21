@@ -3060,6 +3060,8 @@ type GuestStayRow = {
   hotel_rooms?: { room_number: string } | null;
 };
 
+const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
+
 export function guestStayAccessForRole(role: string): GuestStayAccess {
   return {
     reservation: canManageReservations(role),

@@ -38,13 +38,14 @@ export const Route = createFileRoute("/restaurant/pms/guests/")({
 });
 
 function GuestProfileDirectoryRoute() {
-  const { card, type } = Route.useSearch();
+  const { card, type, nav } = Route.useSearch();
   return (
     <RestaurantShell active="Guests" module="rooms" pms pmsModule="guest-profile">
       {(m) => (
         <GuestProfileWorkspace
           membership={m}
           returnCard={card}
+          returnNav={nav}
           profileType={type ?? "individual"}
         />
       )}

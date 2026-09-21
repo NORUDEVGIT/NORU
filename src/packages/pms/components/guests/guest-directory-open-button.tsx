@@ -6,6 +6,7 @@ import {
   guestProfileSearch,
   type GuestProfileCardId,
   type GuestProfileTypeId,
+  type GuestListingPlaceholderType,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { Button } from "@/shared/components/ui/button";
 
@@ -20,7 +21,7 @@ export function GuestDirectoryOpenButton({
   onOpen,
 }: {
   fromCard: GuestProfileCardId;
-  profileType?: GuestProfileTypeId | undefined;
+  profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   /** Switch the shell to Directory when already on the directory path. */
   onOpen?: (() => void) | undefined;
 }) {

@@ -62,6 +62,8 @@ describe("Guest Overview helpers", () => {
 describe("Guest Overview honesty", () => {
   it("keeps revenue and outstanding as placeholders and does not fake points", () => {
     const overview = readRel("../components/guests/guest-overview-card.tsx");
+    const history = readRel("../components/guests/guest-overview-history-tabs.tsx");
+    const header = readRel("../components/guests/guest-profile-header.tsx");
     const dashboard = readRel("../components/guests/guest-dashboard-card.tsx");
     const functions = readRel("./guests.functions.ts");
     const migration = readRel("../../../../supabase/migrations/0086_pms_guest_overview.sql");
@@ -69,10 +71,16 @@ describe("Guest Overview honesty", () => {
 
     assert.equal(OVERVIEW_MIGRATION_FILE, "0086_pms_guest_overview.sql");
     assert.match(overview, /guest-overview/);
-    assert.match(overview, /OVERVIEW_REVENUE_PLACEHOLDER/);
-    assert.match(overview, /OVERVIEW_BALANCE_PLACEHOLDER/);
-    assert.match(overview, /OVERVIEW_SERVICE_EMPTY|listGuestServiceHistory/);
-    assert.match(overview, /OVERVIEW_LOYALTY_COPY/);
+    assert.match(history, /OVERVIEW_REVENUE_PLACEHOLDER/);
+    assert.match(history, /OVERVIEW_BALANCE_PLACEHOLDER/);
+    assert.match(
+      overview,
+      /OVERVIEW_SERVICE_EMPTY|listGuestServiceHistory|GuestOverviewHistoryTabs/,
+    );
+    assert.match(header, /OVERVIEW_LOYALTY_COPY/);
+    assert.match(overview, /guest-overview-quick-actions|GuestOverviewQuickActions/);
+    assert.doesNotMatch(overview, /Recent Activity/);
+    assert.doesNotMatch(overview, /guest-overview-tags/);
     assert.doesNotMatch(overview, /room_subtotal|lifetime spend/i);
     assert.match(dashboard, /OVERVIEW_REVENUE_PLACEHOLDER/);
     assert.match(dashboard, /guest-dashboard-kpi-upcoming/);
@@ -100,6 +108,8 @@ describe("Guest Overview honesty", () => {
     const booking = readRel("../../../routes/restaurant/bookings/new.tsx");
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
 
+    assert.match(shell, /GUEST_PROFILE_WORKSPACE_NAV/);
+    assert.match(shell, /GuestProfileActionsProvider/);
     assert.match(shell, /GuestOverviewCard/);
     assert.match(shell, /defaultGuestProfileCard|dashboard/);
     assert.match(header, /New Reservation/);

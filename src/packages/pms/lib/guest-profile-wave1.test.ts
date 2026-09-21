@@ -16,6 +16,7 @@ import {
   GUEST_PROFILE_OPEN_DIRECTORY_LABEL,
   GUEST_PROFILE_TITLE,
   GUEST_PROFILE_TYPES,
+  GUEST_PROFILE_WORKSPACE_NAV,
   comingInWaveLabel,
   defaultGuestProfileCard,
   guestProfileCardSearch,
@@ -55,7 +56,7 @@ describe("Guest Profile Wave 1 catalogue", () => {
   });
 
   it("exposes ten individual cards with Directory, Information, Identity, Preferences, Stay History and Dashboard LIVE", () => {
-    assert.equal(GUEST_PROFILE_CARDS.length, 10);
+    assert.equal(GUEST_PROFILE_CARDS.length, 12);
     const live = GUEST_PROFILE_CARDS.filter((card) => card.live).map((card) => card.id);
     assert.deepEqual(live, [
       "dashboard",
@@ -68,6 +69,8 @@ describe("Guest Profile Wave 1 catalogue", () => {
       "relationships",
       "notes-comms",
       "admin-privacy",
+      "services",
+      "financial",
     ]);
     for (const card of GUEST_PROFILE_CARDS) {
       if (card.live) continue;
@@ -136,13 +139,26 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.match(functions, /count > 1/);
     assert.match(shell, /GuestListingWorkspace/);
     assert.match(shell, /guest-profile-section-nav/);
-    assert.match(shell, /isGuestProfileNavCard/);
+    assert.match(shell, /GUEST_PROFILE_WORKSPACE_NAV/);
     assert.match(shell, /overflow-x-auto/);
     assert.doesNotMatch(shell, /sm:grid-cols-2 xl:grid-cols-5/);
     assert.match(directory, /guest-listing-table/);
     assert.deepEqual(
-      GUEST_PROFILE_CARDS.filter((card) => isGuestProfileNavCard(card.id)).map((card) => card.id),
-      ["dashboard", "information", "identity", "stay-history", "preferences", "relationships"],
+      GUEST_PROFILE_WORKSPACE_NAV.map((item) => item.id),
+      [
+        "overview",
+        "personal",
+        "contact",
+        "identity",
+        "preferences",
+        "business",
+        "stays",
+        "reservations",
+        "services",
+        "financial",
+        "notes",
+        "history",
+      ],
     );
     assert.equal(isGuestProfileNavCard("loyalty"), false);
     assert.equal(isGuestProfileNavCard("notes-comms"), false);
