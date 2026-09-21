@@ -126,8 +126,8 @@ export function GuestProfileHeader({
         <ArrowLeft className="size-4" /> Guest Profiles
       </button>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-wrap items-start gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 flex-1 flex-wrap items-start gap-4">
           <div className="relative">
             {guest.photoUrl ? (
               <img
@@ -186,8 +186,8 @@ export function GuestProfileHeader({
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex w-full shrink-0 flex-col items-end gap-3 lg:ml-auto lg:w-auto">
+          <div className="flex flex-wrap justify-end gap-2">
             {actions.canCreateReservation ? (
               <Button asChild>
                 <Link to="/restaurant/bookings/new" search={{ guestId: guest.id }}>
@@ -226,7 +226,7 @@ export function GuestProfileHeader({
             </DropdownMenu>
           </div>
           <div
-            className="min-w-[12rem] rounded-2xl border border-border bg-card px-4 py-3"
+            className="w-full max-w-xs rounded-2xl border border-border bg-card px-4 py-3 sm:w-72"
             data-testid="guest-overview-loyalty"
           >
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
