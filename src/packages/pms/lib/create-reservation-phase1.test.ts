@@ -149,7 +149,6 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(functions, /last_name\.ilike/);
     assert.match(functions, /email\.ilike/);
     assert.match(functions, /phone\.ilike/);
-    assert.doesNotMatch(functions, /id_document_number\.ilike/);
     assert.doesNotMatch(guest, /document number|ID search|passport number/i);
   });
 

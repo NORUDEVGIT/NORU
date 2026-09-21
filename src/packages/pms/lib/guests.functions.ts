@@ -8,6 +8,7 @@ import {
   canManageGuests,
   diffFields,
   guestDocumentPath,
+  guestPhotoPath,
   normalizeEmail,
   normalizePhone,
   recordGuestEvent,
@@ -41,7 +42,13 @@ import {
   type GuestStayAccess,
   type GuestStayOverview,
 } from "./guest-profile-wave3";
-import { CASHIER_ACCESS_ROLES } from "./cashiering.server";
+import {
+  PREFERRED_CONTACT_METHODS,
+  PREFERRED_CONTACT_TIMES,
+  WAVE2_TO_CARD4_PREF_CODE,
+  formatPreferenceStoredValue,
+  type OverviewPreferenceChip,
+} from "./guest-profile-overview";
 import { canManageReservations, propertyToday } from "./reservations.server";
 import type { ReservationStatus } from "./reservation-dates";
 import {
@@ -112,6 +119,7 @@ export interface GuestSummary {
   restricted: boolean;
   blacklisted: boolean;
   lastStayAt: string | null;
+  profileNumber: string | null;
 }
 
 export interface GuestListPage {
@@ -169,7 +177,21 @@ export interface GuestProfile extends GuestSummary {
   restrictionUntil: string | null;
   emergencyContacts: GuestEmergencyContact[];
   emergencyContactsAvailable: boolean;
+  profileType: GuestProfileTypeRef | null;
+  photoUrl: string | null;
+  photoStoragePath: string | null;
+  preferredContactMethod: string | null;
+  preferredContactTime: string | null;
+  geoLatitude: number | null;
+  geoLongitude: number | null;
 }
+
+export type GuestProfileTypeRef = {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+};
 
 export interface GuestPreferences {
   roomPreference: string | null;
@@ -205,11 +227,95 @@ const EMPTY_PREFERENCES: GuestPreferences = {
   specialRequests: null,
 };
 
+async function allocateGuestIdentity(restaurantId: string): Promise<{
+  profileNumber: string | null;
+  profileTypeId: string | null;
+}> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  let profileNumber: string | null = null;
+  let profileTypeId: string | null = null;
+  const numbered = await supabaseAdmin.rpc("next_guest_profile_number", {
+    _restaurant_id: restaurantId,
+  });
+  if (!numbered.error && typeof numbered.data === "string") profileNumber = numbered.data;
+  const typeRow = await supabaseAdmin
+    .from("pms_guest_profile_types")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("code", "IND")
+    .maybeSingle();
+  if (!typeRow.error) profileTypeId = (typeRow.data as { id?: string } | null)?.id ?? null;
+  return { profileNumber, profileTypeId };
+}
+
+async function loadGuestProfileTypeRef(
+  restaurantId: string,
+  typeId: string | null | undefined,
+): Promise<GuestProfileTypeRef | null> {
+  if (!typeId) return null;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const result = await supabaseAdmin
+    .from("pms_guest_profile_types")
+    .select("id, code, name, active")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", typeId)
+    .maybeSingle();
+  if (result.error || !result.data) return null;
+  const row = result.data as { id: string; code: string; name: string; active: boolean };
+  return { id: row.id, code: row.code, name: row.name, active: row.active };
+}
+
+async function syncWave2PreferencesToCard4(
+  restaurantId: string,
+  guestId: string,
+  preferences: GuestPreferences,
+): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const types = await supabaseAdmin
+    .from("pms_guest_preference_types")
+    .select("id, code, options")
+    .eq("restaurant_id", restaurantId);
+  if (types.error) return;
+  const byCode = new Map(
+    ((types.data ?? []) as Array<{ id: string; code: string; options: unknown }>).map((row) => [
+      row.code,
+      row,
+    ]),
+  );
+  for (const [key, code] of Object.entries(WAVE2_TO_CARD4_PREF_CODE) as Array<
+    [keyof GuestPreferences, string | null]
+  >) {
+    if (!code) continue;
+    const type = byCode.get(code);
+    if (!type) continue;
+    const stored = preferences[key];
+    const text = formatPreferenceStoredValue(
+      stored,
+      Array.isArray(type.options)
+        ? (type.options as Array<{ id?: string; label?: string; value?: string }>).map((option) => ({
+            id: String(option.id ?? option.value ?? ""),
+            label: String(option.label ?? option.value ?? ""),
+          }))
+        : [],
+    );
+    const payload = {
+      restaurant_id: restaurantId,
+      guest_id: guestId,
+      preference_type_id: type.id,
+      value_json: text ? [text] : [],
+    };
+    await supabaseAdmin.from("guest_preference_values").upsert(payload as never, {
+      onConflict: "guest_id,preference_type_id",
+    });
+  }
+}
+
 const GUEST_COLUMNS_BASE =
   "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, id_document_type, id_document_number, id_document_expiry, guest_status, vip_status, notes, linked_customer_user_id, created_at, updated_at";
 const GUEST_COLUMNS_W2 = `${GUEST_COLUMNS_BASE}, merged_into_guest_id, data_processing_consent, data_processing_consent_recorded_at, data_processing_consent_recorded_by, marketing_consent, marketing_consent_recorded_at, marketing_consent_recorded_by`;
 const GUEST_COLUMNS_W5 = `${GUEST_COLUMNS_W2}, anonymised_at, anonymised_by_membership_id`;
 const GUEST_COLUMNS_GE2 = `${GUEST_COLUMNS_W5}, title, middle_name, preferred_name, gender, phone_alt, email_alt, employment_position, department, source_of_business, restricted, blacklisted, restriction_severity, restriction_reason, restriction_set_by_membership_id, restriction_set_at, restriction_until`;
+const GUEST_COLUMNS_OVERVIEW = `${GUEST_COLUMNS_GE2}, profile_number, profile_type_id, photo_storage_path, preferred_contact_method, preferred_contact_time, geo_latitude, geo_longitude`;
 
 type GuestRow = {
   id: string;
@@ -260,6 +366,13 @@ type GuestRow = {
   restriction_set_by_membership_id?: string | null;
   restriction_set_at?: string | null;
   restriction_until?: string | null;
+  profile_number?: string | null;
+  profile_type_id?: string | null;
+  photo_storage_path?: string | null;
+  preferred_contact_method?: string | null;
+  preferred_contact_time?: string | null;
+  geo_latitude?: number | string | null;
+  geo_longitude?: number | string | null;
 };
 
 function toConsentState(value: string | null | undefined): GuestConsentState {
@@ -291,6 +404,7 @@ function toSummary(row: GuestRow): GuestSummary {
     restricted: row.restricted ?? false,
     blacklisted: row.blacklisted ?? false,
     lastStayAt: null,
+    profileNumber: anonymisedAt ? null : (row.profile_number ?? null),
   };
 }
 
@@ -310,6 +424,8 @@ function toProfile(
     restrictionSetByName?: string | null;
     emergencyContacts?: GuestEmergencyContact[];
     emergencyContactsAvailable?: boolean;
+    profileType?: GuestProfileTypeRef | null;
+    photoUrl?: string | null;
   },
 ): GuestProfile {
   const anonymised = Boolean(row.anonymised_at);
@@ -347,6 +463,13 @@ function toProfile(
     restrictionUntil: row.restriction_until ?? null,
     emergencyContacts: extras?.emergencyContacts ?? [],
     emergencyContactsAvailable: extras?.emergencyContactsAvailable ?? false,
+    profileType: extras?.profileType ?? null,
+    photoUrl: extras?.photoUrl ?? null,
+    photoStoragePath: anonymised ? null : (row.photo_storage_path ?? null),
+    preferredContactMethod: anonymised ? null : (row.preferred_contact_method ?? null),
+    preferredContactTime: anonymised ? null : (row.preferred_contact_time ?? null),
+    geoLatitude: anonymised || row.geo_latitude == null ? null : Number(row.geo_latitude),
+    geoLongitude: anonymised || row.geo_longitude == null ? null : Number(row.geo_longitude),
   };
 }
 
@@ -447,6 +570,8 @@ const guestInputSchema = z.object({
   gender: z.enum(GUEST_GENDERS).optional().nullable(),
   phoneAlt: z.string().max(60).optional().nullable(),
   emailAlt: z.string().max(200).optional().nullable(),
+  preferredContactMethod: z.enum(PREFERRED_CONTACT_METHODS).optional().nullable(),
+  preferredContactTime: z.enum(PREFERRED_CONTACT_TIMES).optional().nullable(),
   position: z.string().max(160).optional().nullable(),
   department: z.string().max(160).optional().nullable(),
   sourceOfBusiness: z.string().max(200).optional().nullable(),
@@ -506,6 +631,8 @@ function toColumns(input: GuestInput) {
     gender: blankToNull(input.gender),
     phone_alt: blankToNull(input.phoneAlt),
     email_alt: emailAlt,
+    preferred_contact_method: blankToNull(input.preferredContactMethod),
+    preferred_contact_time: blankToNull(input.preferredContactTime),
     employment_position: blankToNull(input.position),
     department: blankToNull(input.department),
     source_of_business: blankToNull(input.sourceOfBusiness),
@@ -542,6 +669,8 @@ const TRACKED_FIELDS = [
   "gender",
   "phone_alt",
   "email_alt",
+  "preferred_contact_method",
+  "preferred_contact_time",
   "employment_position",
   "department",
   "source_of_business",
@@ -689,7 +818,11 @@ export const getGuestsAccess = createServerFn({ method: "POST" })
 
 /* ----------------------------------------------------------------- list */
 
-function guestSearchOrFilter(term: string, includeIdDocument: boolean): string | null {
+function guestSearchOrFilter(
+  term: string,
+  includeIdDocument: boolean,
+  includeProfileNumber = false,
+): string | null {
   const trimmed = term.trim();
   if (!trimmed) return null;
   const like = `%${trimmed.replace(/[%,]/g, "")}%`;
@@ -701,6 +834,7 @@ function guestSearchOrFilter(term: string, includeIdDocument: boolean): string |
     `phone.ilike.${like}`,
   ];
   if (includeIdDocument) parts.push(`id_document_number.ilike.${like}`);
+  if (includeProfileNumber) parts.push(`profile_number.ilike.${like}`);
   if (digits) parts.push(`phone_normalized.ilike.%${digits}%`);
   if (isUuid(trimmed)) parts.push(`id.eq.${trimmed}`);
   const segment = uuidFirstSegment(trimmed);
@@ -798,7 +932,12 @@ export const listGuests = createServerFn({ method: "POST" })
       lastStayAvailable = loaded.available;
     }
 
-    const applyFilters = (columns: string, excludeMerged: boolean, includeIdDocument: boolean) => {
+    const applyFilters = (
+      columns: string,
+      excludeMerged: boolean,
+      includeIdDocument: boolean,
+      includeProfileNumber = false,
+    ) => {
       let query = context.supabase
         .from("guest_profiles")
         .select(columns, { count: "exact" })
@@ -810,7 +949,11 @@ export const listGuests = createServerFn({ method: "POST" })
       if (nationality && nationality !== "all") {
         query = query.ilike("nationality", nationality);
       }
-      const searchOr = guestSearchOrFilter((data.search ?? "").trim(), includeIdDocument);
+      const searchOr = guestSearchOrFilter(
+        (data.search ?? "").trim(),
+        includeIdDocument,
+        includeProfileNumber,
+      );
       if (searchOr) query = query.or(searchOr);
       if (lastStayAvailable && lastStay !== "all") {
         const stayedIds = [...stayMap.entries()]
@@ -840,7 +983,10 @@ export const listGuests = createServerFn({ method: "POST" })
       return query;
     };
 
-    let result = await applyFilters(GUEST_COLUMNS_GE2, true, true);
+    let result = await applyFilters(GUEST_COLUMNS_OVERVIEW, true, true, true);
+    if (result.error && isMissingSchemaError(result.error)) {
+      result = await applyFilters(GUEST_COLUMNS_GE2, true, true);
+    }
     if (result.error && isMissingSchemaError(result.error)) {
       result = await applyFilters(GUEST_COLUMNS_W5, true, true);
     }
@@ -1285,10 +1431,17 @@ export const getGuest = createServerFn({ method: "POST" })
 
       let wave2 = true;
       let rowResult = await fromTable(context.supabase, "guest_profiles")
-        .select(GUEST_COLUMNS_GE2)
+        .select(GUEST_COLUMNS_OVERVIEW)
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.guestId)
         .maybeSingle();
+      if (rowResult.error && isMissingSchemaError(rowResult.error)) {
+        rowResult = await fromTable(context.supabase, "guest_profiles")
+          .select(GUEST_COLUMNS_GE2)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.guestId)
+          .maybeSingle();
+      }
       if (rowResult.error && isMissingSchemaError(rowResult.error)) {
         rowResult = await context.supabase
           .from("guest_profiles")
@@ -1387,6 +1540,10 @@ export const getGuest = createServerFn({ method: "POST" })
               : null,
             emergencyContacts: emergency.contacts,
             emergencyContactsAvailable: emergency.available,
+            profileType: await loadGuestProfileTypeRef(data.restaurantId, row.profile_type_id),
+            photoUrl: row.photo_storage_path
+              ? ((await signRoomImages([row.photo_storage_path])).get(row.photo_storage_path) ?? null)
+              : null,
           },
         ),
         preferences,
@@ -1420,10 +1577,13 @@ export const createGuest = createServerFn({ method: "POST" })
     if (blocked) throw new Error(blocked);
     const columns = toColumns(data.guest);
     const restrictionOn = columns.restricted || columns.blacklisted;
+    const identity = await allocateGuestIdentity(data.restaurantId);
     const insertRow = {
       ...columns,
       restaurant_id: data.restaurantId,
       created_by_staff_membership_id: me.id,
+      ...(identity.profileNumber ? { profile_number: identity.profileNumber } : {}),
+      ...(identity.profileTypeId ? { profile_type_id: identity.profileTypeId } : {}),
       ...(restrictionOn
         ? {
             restriction_set_by_membership_id: me.id,
@@ -1451,6 +1611,10 @@ export const createGuest = createServerFn({ method: "POST" })
         "gender",
         "phone_alt",
         "email_alt",
+        "preferred_contact_method",
+        "preferred_contact_time",
+        "profile_number",
+        "profile_type_id",
         "employment_position",
         "department",
         "source_of_business",
@@ -1530,10 +1694,17 @@ export const updateGuest = createServerFn({ method: "POST" })
     const me = await requireGuestManager(context as never, data.restaurantId);
 
     let beforeResult = await fromTable(context.supabase, "guest_profiles")
-      .select(`${GUEST_COLUMNS_GE2}`)
+      .select(GUEST_COLUMNS_OVERVIEW)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId)
       .maybeSingle();
+    if (beforeResult.error && isMissingSchemaError(beforeResult.error)) {
+      beforeResult = await fromTable(context.supabase, "guest_profiles")
+        .select(`${GUEST_COLUMNS_GE2}`)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.guestId)
+        .maybeSingle();
+    }
     if (beforeResult.error && isMissingSchemaError(beforeResult.error)) {
       beforeResult = await fromTable(context.supabase, "guest_profiles")
         .select(`${GUEST_COLUMNS_BASE}, anonymised_at`)
@@ -1903,6 +2074,7 @@ export const saveGuestPreferences = createServerFn({ method: "POST" })
         actorMembershipId: me.id,
       });
     }
+    await syncWave2PreferencesToCard4(data.restaurantId, data.guestId, p);
     return { ok: true };
   });
 
@@ -1938,6 +2110,255 @@ export const addGuestNote = createServerFn({ method: "POST" })
       actorMembershipId: me.id,
     });
     return { ok: true };
+  });
+
+export type GuestPreferenceSummary = {
+  available: boolean;
+  chips: OverviewPreferenceChip[];
+};
+
+export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<GuestPreferenceSummary> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const values = await supabaseAdmin
+      .from("guest_preference_values")
+      .select("preference_type_id, value_json")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId);
+    if (!values.error) {
+      const types = await supabaseAdmin
+        .from("pms_guest_preference_types")
+        .select("id, name, code, active")
+        .eq("restaurant_id", data.restaurantId);
+      if (!types.error) {
+        const typeById = new Map(
+          ((types.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>).map(
+            (row) => [row.id, row],
+          ),
+        );
+        const chips: OverviewPreferenceChip[] = [];
+        for (const row of (values.data ?? []) as Array<{
+          preference_type_id: string;
+          value_json: unknown;
+        }>) {
+          const type = typeById.get(row.preference_type_id);
+          const raw = Array.isArray(row.value_json) ? row.value_json.map(String).filter(Boolean) : [];
+          if (!type || raw.length === 0) continue;
+          chips.push({
+            code: type.code,
+            label: type.name,
+            value: raw.join(", "),
+            active: type.active,
+          });
+        }
+        if (chips.length > 0) return { available: true, chips };
+      }
+    }
+
+    const prefs = await context.supabase
+      .from("guest_preferences")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .maybeSingle();
+    if (!prefs.data) return { available: true, chips: [] };
+    const catalogues = await getGuestPreferenceCatalogues({ data: { restaurantId: data.restaurantId } });
+    const optionsFor = (key: keyof GuestPreferences) => {
+      if (key === "roomPreference") return catalogues.roomTypes;
+      if (key === "floorPreference") return catalogues.floors;
+      if (key === "bedPreference") return catalogues.options.bed;
+      if (key === "viewPreference") return catalogues.options.view;
+      if (key === "foodPreference") return catalogues.options.food;
+      if (key === "communicationPreference") return catalogues.options.communication;
+      return [];
+    };
+    const mapped: GuestPreferences = {
+      roomPreference: prefs.data.room_preference,
+      bedPreference: prefs.data.bed_preference,
+      floorPreference: prefs.data.floor_preference,
+      viewPreference: prefs.data.view_preference,
+      foodPreference: prefs.data.food_preference,
+      communicationPreference: prefs.data.communication_preference,
+      accessibilityRequirements: prefs.data.accessibility_requirements,
+      specialRequests: prefs.data.special_requests,
+    };
+    const { wave2PreferenceChips } = await import("./guest-profile-overview");
+    return {
+      available: catalogues.available,
+      chips: wave2PreferenceChips(
+        mapped,
+        {
+          roomPreference: "Room type",
+          bedPreference: "Bed",
+          floorPreference: "Floor",
+          viewPreference: "View",
+          foodPreference: "Dietary",
+          communicationPreference: "Communication",
+        },
+        (key, stored) => formatPreferenceStoredValue(stored, optionsFor(key)),
+      ),
+    };
+  });
+
+export type GuestServiceHistoryItem = {
+  id: string;
+  serviceName: string;
+  status: string;
+  requestedAt: string;
+  reservationId: string | null;
+  amount: number | null;
+  currency: string | null;
+};
+
+export const listGuestServiceHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        limit: z.number().int().min(1).max(50).optional(),
+      })
+      .parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ available: boolean; items: GuestServiceHistoryItem[] }> => {
+      await requireGuestManager(context as never, data.restaurantId);
+      const result = await context.supabase
+        .from("guest_service_history")
+        .select("id, service_type_id, status, requested_at, reservation_id, amount, currency")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", data.guestId)
+        .order("requested_at", { ascending: false })
+        .limit(data.limit ?? 5);
+      if (result.error && isMissingSchemaError(result.error)) {
+        return { available: false, items: [] };
+      }
+      if (result.error) throw new Error(result.error.message);
+      const rows = (result.data ?? []) as Array<{
+        id: string;
+        service_type_id: string;
+        status: string;
+        requested_at: string;
+        reservation_id: string | null;
+        amount: number | string | null;
+        currency: string | null;
+      }>;
+      const typeIds = [...new Set(rows.map((row) => row.service_type_id))];
+      const names = new Map<string, string>();
+      if (typeIds.length > 0) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const types = await supabaseAdmin
+          .from("pms_guest_service_types")
+          .select("id, name")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", typeIds);
+        for (const type of (types.data ?? []) as Array<{ id: string; name: string }>) {
+          names.set(type.id, type.name);
+        }
+      }
+      return {
+        available: true,
+        items: rows.map((row) => ({
+          id: row.id,
+          serviceName: names.get(row.service_type_id) ?? "Guest service",
+          status: row.status,
+          requestedAt: row.requested_at,
+          reservationId: row.reservation_id,
+          amount: row.amount == null ? null : Number(row.amount),
+          currency: row.currency,
+        })),
+      };
+    },
+  );
+
+export const createGuestPhotoUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+        size: z
+          .number()
+          .int()
+          .positive()
+          .max(8 * 1024 * 1024),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { data: guest, error } = await context.supabase
+      .from("guest_profiles")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+    if (error && isMissingSchemaError(error)) {
+      return {
+        ok: false as const,
+        message: "Guest photo is not available until Overview migration 0086 is applied.",
+      };
+    }
+    if (!guest) return { ok: false as const, message: "That guest could not be found." };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const path = guestPhotoPath(
+      data.restaurantId,
+      data.guestId,
+      GUEST_IMAGE_EXT_BY_TYPE[data.contentType] ?? "jpg",
+    );
+    const { data: signed, error: signedError } = await supabaseAdmin.storage
+      .from(ROOM_BUCKET)
+      .createSignedUploadUrl(path);
+    if (signedError || !signed) return { ok: false as const, message: "Could not start the upload." };
+    return { ok: true as const, path, token: signed.token };
+  });
+
+export const saveGuestPhoto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema, path: z.string().min(1) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const prefix = `${data.restaurantId}/guests/${data.guestId}/`;
+    if (!data.path.startsWith(prefix)) throw new Error("That photo path is not valid for this guest.");
+    const { data: before } = await context.supabase
+      .from("guest_profiles")
+      .select("photo_storage_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+    const { error } = await context.supabase
+      .from("guest_profiles")
+      .update({ photo_storage_path: data.path } as never)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId);
+    if (error) throw new Error(error.message);
+    const previous = (before as { photo_storage_path?: string | null } | null)?.photo_storage_path;
+    if (previous && previous !== data.path) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.storage.from(ROOM_BUCKET).remove([previous]);
+    }
+    await recordGuestEvent({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      eventType: "photo_updated",
+      previousValues: previous ? { photo_storage_path: previous } : null,
+      newValues: { photo_storage_path: data.path },
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
   });
 
 /* ----------------------------------------------------------- catalogues */

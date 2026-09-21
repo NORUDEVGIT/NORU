@@ -95,7 +95,8 @@ describe("Guest listing honesty", () => {
     assert.match(functions, /lastStayAvailable/);
     assert.match(functions, /contacts: null/);
     assert.match(functions, /tourOperators: null/);
-    assert.doesNotMatch(functions, /guest_profiles_wave|guest_profile_v2|profile_number/);
+    assert.doesNotMatch(functions, /guest_profiles_wave|guest_profile_v2/);
+    assert.match(functions, /profile_number/);
     assert.match(accounts, /from\("guest_account_masters"\)/);
     assert.doesNotMatch(accounts, /tour_operator|contact_person/);
     assert.match(listing, /disabled title=\{GUEST_IMPORT_UNAVAILABLE\}/);

@@ -73,6 +73,14 @@ import {
   type StagedMasterLink,
 } from "@/packages/pms/components/guests/guest-form-staged-links";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
+import {
+  PREFERRED_CONTACT_METHOD_LABELS,
+  PREFERRED_CONTACT_METHODS,
+  PREFERRED_CONTACT_TIME_LABELS,
+  PREFERRED_CONTACT_TIMES,
+  type PreferredContactMethod,
+  type PreferredContactTime,
+} from "@/packages/pms/lib/guest-profile-overview";
 
 type EmergencyDraft = {
   name: string;
@@ -97,6 +105,8 @@ export interface GuestFormValues {
   phoneAlt: string;
   email: string;
   emailAlt: string;
+  preferredContactMethod: PreferredContactMethod | "";
+  preferredContactTime: PreferredContactTime | "";
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -136,6 +146,8 @@ const EMPTY: GuestFormValues = {
   phoneAlt: "",
   email: "",
   emailAlt: "",
+  preferredContactMethod: "",
+  preferredContactTime: "",
   addressLine1: "",
   addressLine2: "",
   city: "",
@@ -183,6 +195,8 @@ function fromProfile(guest: GuestProfile): GuestFormValues {
     phoneAlt: guest.phoneAlt ?? "",
     email: guest.email ?? "",
     emailAlt: guest.emailAlt ?? "",
+    preferredContactMethod: (guest.preferredContactMethod as PreferredContactMethod | null) ?? "",
+    preferredContactTime: (guest.preferredContactTime as PreferredContactTime | null) ?? "",
     addressLine1: guest.addressLine1 ?? "",
     addressLine2: guest.addressLine2 ?? "",
     city: guest.city ?? "",
@@ -333,6 +347,8 @@ export function GuestFormDialog({
     gender: form.gender || null,
     phoneAlt: form.phoneAlt,
     emailAlt: form.emailAlt,
+    preferredContactMethod: form.preferredContactMethod || null,
+    preferredContactTime: form.preferredContactTime || null,
     position: form.position,
     department: form.department,
     sourceOfBusiness: form.sourceOfBusiness,
@@ -667,6 +683,54 @@ export function GuestFormDialog({
                   onChange={(e) => set("emailAlt", e.target.value)}
                 />
               </Field>
+              <div>
+                <Label>Preferred contact</Label>
+                <Select
+                  value={form.preferredContactMethod || "__none"}
+                  onValueChange={(value) =>
+                    set(
+                      "preferredContactMethod",
+                      value === "__none" ? "" : (value as PreferredContactMethod),
+                    )
+                  }
+                >
+                  <SelectTrigger data-testid="individual-preferred-contact">
+                    <SelectValue placeholder="Not recorded" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Not recorded</SelectItem>
+                    {PREFERRED_CONTACT_METHODS.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {PREFERRED_CONTACT_METHOD_LABELS[item]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Preferred time</Label>
+                <Select
+                  value={form.preferredContactTime || "__none"}
+                  onValueChange={(value) =>
+                    set(
+                      "preferredContactTime",
+                      value === "__none" ? "" : (value as PreferredContactTime),
+                    )
+                  }
+                >
+                  <SelectTrigger data-testid="individual-preferred-time">
+                    <SelectValue placeholder="Not recorded" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Not recorded</SelectItem>
+                    {PREFERRED_CONTACT_TIMES.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {PREFERRED_CONTACT_TIME_LABELS[item]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </Section>
 

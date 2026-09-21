@@ -103,7 +103,7 @@ export function guestProfileCard(id: GuestProfileCardId) {
 }
 
 export function defaultGuestProfileCard(hasGuest: boolean): GuestProfileCardId {
-  return hasGuest ? "information" : "directory";
+  return hasGuest ? "dashboard" : "directory";
 }
 
 /**

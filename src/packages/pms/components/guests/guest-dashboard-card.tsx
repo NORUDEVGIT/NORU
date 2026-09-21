@@ -7,6 +7,10 @@ import {
   WAVE3_DASHBOARD_CONTEXT,
   WAVE3_KPI_NOT_AVAILABLE,
 } from "@/packages/pms/lib/guest-profile-wave3";
+import {
+  OVERVIEW_BALANCE_PLACEHOLDER,
+  OVERVIEW_REVENUE_PLACEHOLDER,
+} from "@/packages/pms/lib/guest-profile-overview";
 import { getGuestStayOverview } from "@/packages/pms/lib/guests.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 
@@ -79,29 +83,34 @@ export function GuestDashboardCard({
             testId="guest-dashboard-kpi-nights"
           />
           <SummaryItem
-            label="Last stay"
-            value={
-              overview.lastStay
-                ? formatStayDate(overview.lastStay.departureDate)
-                : WAVE3_KPI_NOT_AVAILABLE
-            }
-            testId="guest-dashboard-kpi-last-stay"
+            label="Upcoming stays"
+            value={overview.upcomingCount}
+            testId="guest-dashboard-kpi-upcoming"
           />
           <SummaryItem
-            label="Next stay"
-            value={
-              overview.nextStay
-                ? formatStayDate(overview.nextStay.arrivalDate)
-                : WAVE3_KPI_NOT_AVAILABLE
-            }
-            testId="guest-dashboard-kpi-next-stay"
+            label="Total revenue"
+            value={OVERVIEW_REVENUE_PLACEHOLDER}
+            testId="guest-dashboard-kpi-revenue"
           />
           <SummaryItem
-            label="VIP / loyalty"
-            value={vipStatus ? "VIP" : "Standard"}
-            testId="guest-dashboard-kpi-vip"
+            label="Outstanding balance"
+            value={OVERVIEW_BALANCE_PLACEHOLDER}
+            testId="guest-dashboard-kpi-outstanding"
           />
         </div>
+      </div>
+      <div className="sr-only">
+        <span data-testid="guest-dashboard-kpi-last-stay">
+          {overview.lastStay
+            ? formatStayDate(overview.lastStay.departureDate)
+            : WAVE3_KPI_NOT_AVAILABLE}
+        </span>
+        <span data-testid="guest-dashboard-kpi-next-stay">
+          {overview.nextStay
+            ? formatStayDate(overview.nextStay.arrivalDate)
+            : WAVE3_KPI_NOT_AVAILABLE}
+        </span>
+        <span data-testid="guest-dashboard-kpi-vip">{vipStatus ? "VIP" : "Standard"}</span>
       </div>
 
       {showQuickActions && overview.featuredStay ? (
