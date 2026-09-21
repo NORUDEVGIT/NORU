@@ -26,6 +26,8 @@ export const GUEST_EVENT_TYPES = [
   "document_uploaded",
   "document_verified",
   "document_rejected",
+  "document_updated",
+  "document_deleted",
   "merged_from",
   "merged_into",
   "consent_updated",

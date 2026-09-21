@@ -22,9 +22,15 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import {
+  kindFromTypeCode,
+  maskedDocumentNumber,
+  typeAllowedForNewDocument,
+} from "./guest-identity-documents";
 import { ROOM_BUCKET, signRoomImages } from "./rooms.server";
 import {
   GUEST_CONSENT_STATES,
+  GUEST_DOCUMENT_KIND_LABELS,
   GUEST_DOCUMENT_KINDS,
   WAVE2_MIGRATION_UNAVAILABLE,
   emptyConsent,
@@ -2447,19 +2453,161 @@ export const getGuestPreferenceCatalogues = createServerFn({ method: "POST" })
 export interface GuestDocument {
   id: string;
   kind: GuestDocumentKind;
-  storagePath: string;
+  idTypeId: string | null;
+  typeName: string;
+  typeCode: string | null;
+  typeActive: boolean;
+  documentNumberMasked: string | null;
+  issuingCountry: string | null;
+  issueDate: string | null;
+  expiryDate: string | null;
+  issuingAuthority: string | null;
+  notes: string | null;
+  storagePath: string | null;
+  backStoragePath: string | null;
   url: string | null;
-  mimeType: string;
-  sizeBytes: number;
+  backUrl: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
   verificationStatus: GuestDocumentStatus;
   verifiedByName: string | null;
   verifiedAt: string | null;
   rejectionReason: string | null;
   createdAt: string;
+  updatedAt: string | null;
 }
+
+export interface GuestDocumentDetail extends GuestDocument {
+  documentNumber: string | null;
+}
+
+export type GuestIdentityDocumentTypeOption = {
+  id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  issuingCountryRequired: boolean;
+  expiryDateRequired: boolean;
+  documentNumberRequired: boolean;
+  scanImageAllowed: boolean;
+  validForProfileTypeIds: string[];
+};
 
 const documentKindSchema = z.enum(GUEST_DOCUMENT_KINDS);
 const documentContentType = z.enum(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+const GUEST_DOCUMENT_SELECT =
+  "id, kind, storage_path, back_storage_path, mime_type, size_bytes, verification_status, verified_by_membership_id, verified_at, rejection_reason, created_at, updated_at, id_type_id, document_number, issuing_country, issue_date, expiry_date, issuing_authority, notes";
+const GUEST_DOCUMENT_SELECT_LEGACY =
+  "id, kind, storage_path, mime_type, size_bytes, verification_status, verified_by_membership_id, verified_at, rejection_reason, created_at";
+
+type GuestDocumentRow = {
+  id: string;
+  kind: string;
+  storage_path: string | null;
+  back_storage_path?: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  verification_status: string;
+  verified_by_membership_id: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  id_type_id?: string | null;
+  document_number?: string | null;
+  issuing_country?: string | null;
+  issue_date?: string | null;
+  expiry_date?: string | null;
+  issuing_authority?: string | null;
+  notes?: string | null;
+};
+
+async function loadIdentityDocumentTypes(
+  restaurantId: string,
+): Promise<GuestIdentityDocumentTypeOption[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const result = await supabaseAdmin
+    .from("pms_guest_id_types")
+    .select(
+      "id, name, code, active, issuing_country_required, expiry_date_required, document_number_required, scan_image_allowed, valid_for_profile_type_ids",
+    )
+    .eq("restaurant_id", restaurantId)
+    .order("display_order");
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return [];
+    throw new Error(result.error.message);
+  }
+  return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    code: String(row.code),
+    active: Boolean(row.active),
+    issuingCountryRequired: Boolean(row.issuing_country_required),
+    expiryDateRequired: Boolean(row.expiry_date_required),
+    documentNumberRequired: Boolean(row.document_number_required),
+    scanImageAllowed: Boolean(row.scan_image_allowed),
+    validForProfileTypeIds: Array.isArray(row.valid_for_profile_type_ids)
+      ? (row.valid_for_profile_type_ids as string[])
+      : [],
+  }));
+}
+
+function mapGuestDocumentRow(
+  row: GuestDocumentRow,
+  types: GuestIdentityDocumentTypeOption[],
+  actorNames: Map<string, string>,
+  signed: Map<string, string>,
+  includeNumber: boolean,
+): GuestDocumentDetail {
+  const type = row.id_type_id ? types.find((item) => item.id === row.id_type_id) : undefined;
+  const kind = (GUEST_DOCUMENT_KINDS as readonly string[]).includes(row.kind)
+    ? (row.kind as GuestDocumentKind)
+    : "other";
+  const number = row.document_number ?? null;
+  return {
+    id: row.id,
+    kind,
+    idTypeId: row.id_type_id ?? null,
+    typeName: type?.name ?? GUEST_DOCUMENT_KIND_LABELS[kind],
+    typeCode: type?.code ?? null,
+    typeActive: type?.active ?? true,
+    documentNumberMasked: maskedDocumentNumber(number),
+    documentNumber: includeNumber ? number : null,
+    issuingCountry: row.issuing_country ?? null,
+    issueDate: row.issue_date ?? null,
+    expiryDate: row.expiry_date ?? null,
+    issuingAuthority: row.issuing_authority ?? null,
+    notes: row.notes ?? null,
+    storagePath: row.storage_path,
+    backStoragePath: row.back_storage_path ?? null,
+    url: row.storage_path ? (signed.get(row.storage_path) ?? null) : null,
+    backUrl: row.back_storage_path ? (signed.get(row.back_storage_path) ?? null) : null,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    verificationStatus: row.verification_status as GuestDocumentStatus,
+    verifiedByName: row.verified_by_membership_id
+      ? (actorNames.get(row.verified_by_membership_id) ?? "Staff member")
+      : null,
+    verifiedAt: row.verified_at,
+    rejectionReason: row.rejection_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
+function validateDocumentFields(
+  type: GuestIdentityDocumentTypeOption,
+  input: {
+    documentNumber: string | null;
+    issuingCountry: string | null;
+    expiryDate: string | null;
+  },
+): string | null {
+  if (type.documentNumberRequired && !input.documentNumber) return "Document number is required.";
+  if (type.issuingCountryRequired && !input.issuingCountry) return "Issuing country is required.";
+  if (type.expiryDateRequired && !input.expiryDate) return "Expiry date is required.";
+  return null;
+}
 
 export const createGuestDocumentUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -2561,41 +2709,49 @@ export const listGuestDocuments = createServerFn({ method: "POST" })
   .handler(
     async ({ data, context }): Promise<{ available: boolean; documents: GuestDocument[] }> => {
       await requireGuestManager(context as never, data.restaurantId);
-      const { data: rows, error } = await context.supabase
+      let query = context.supabase
         .from("guest_documents")
-        .select(
-          "id, kind, storage_path, mime_type, size_bytes, verification_status, verified_by_membership_id, verified_at, rejection_reason, created_at",
-        )
+        .select(GUEST_DOCUMENT_SELECT)
         .eq("restaurant_id", data.restaurantId)
         .eq("guest_id", data.guestId)
         .order("created_at", { ascending: false });
-      if (error) {
-        if (isMissingSchemaError(error)) return { available: false, documents: [] };
-        throw new Error(error.message);
+      let { data: rows, error } = await query;
+      if (error && isMissingSchemaError(error)) {
+        const legacy = await context.supabase
+          .from("guest_documents")
+          .select(GUEST_DOCUMENT_SELECT_LEGACY)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("guest_id", data.guestId)
+          .order("created_at", { ascending: false });
+        rows = legacy.data;
+        error = legacy.error;
+        if (error && isMissingSchemaError(error)) return { available: false, documents: [] };
       }
+      if (error) throw new Error(error.message);
 
+      const types = await loadIdentityDocumentTypes(data.restaurantId);
       const actorNames = await resolveActorNames(
         data.restaurantId,
-        (rows ?? []).map((row) => row.verified_by_membership_id),
+        (rows ?? []).map((row) => (row as GuestDocumentRow).verified_by_membership_id),
       );
-      const signed = await signRoomImages((rows ?? []).map((row) => row.storage_path));
+      const paths = (rows ?? []).flatMap((row) => {
+        const item = row as GuestDocumentRow;
+        return [item.storage_path, item.back_storage_path].filter(Boolean) as string[];
+      });
+      const signed = await signRoomImages(paths);
       return {
         available: true,
-        documents: (rows ?? []).map((row) => ({
-          id: row.id,
-          kind: row.kind as GuestDocumentKind,
-          storagePath: row.storage_path,
-          url: signed.get(row.storage_path) ?? null,
-          mimeType: row.mime_type,
-          sizeBytes: row.size_bytes,
-          verificationStatus: row.verification_status as GuestDocumentStatus,
-          verifiedByName: row.verified_by_membership_id
-            ? (actorNames.get(row.verified_by_membership_id) ?? "Staff member")
-            : null,
-          verifiedAt: row.verified_at,
-          rejectionReason: row.rejection_reason,
-          createdAt: row.created_at,
-        })),
+        documents: (rows ?? []).map((row) => {
+          const mapped = mapGuestDocumentRow(
+            row as GuestDocumentRow,
+            types,
+            actorNames,
+            signed,
+            false,
+          );
+          const { documentNumber: _hidden, ...listRow } = mapped;
+          return listRow;
+        }),
       };
     },
   );
@@ -2645,6 +2801,358 @@ export const reviewGuestDocument = createServerFn({ method: "POST" })
         verification_status: data.status,
         reason: blankToNull(data.reason),
       },
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
+  });
+
+export const listGuestIdentityDocumentTypes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<{ types: GuestIdentityDocumentTypeOption[] }> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    return { types: await loadIdentityDocumentTypes(data.restaurantId) };
+  });
+
+export const getGuestDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema, documentId: idSchema }).parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; document: GuestDocumentDetail } | { ok: false; message: string }> => {
+      await requireGuestManager(context as never, data.restaurantId);
+      const { data: row, error } = await context.supabase
+        .from("guest_documents")
+        .select(GUEST_DOCUMENT_SELECT)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", data.guestId)
+        .eq("id", data.documentId)
+        .maybeSingle();
+      if (error) {
+        if (isMissingSchemaError(error))
+          return { ok: false as const, message: WAVE2_MIGRATION_UNAVAILABLE };
+        return { ok: false as const, message: error.message };
+      }
+      if (!row) return { ok: false as const, message: "That document could not be found." };
+      const types = await loadIdentityDocumentTypes(data.restaurantId);
+      const actorNames = await resolveActorNames(data.restaurantId, [
+        (row as GuestDocumentRow).verified_by_membership_id,
+      ]);
+      const item = row as GuestDocumentRow;
+      const signed = await signRoomImages(
+        [item.storage_path, item.back_storage_path].filter(Boolean) as string[],
+      );
+      return {
+        ok: true as const,
+        document: mapGuestDocumentRow(item, types, actorNames, signed, true),
+      };
+    },
+  );
+
+export const saveGuestDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        documentId: idSchema.optional(),
+        idTypeId: idSchema,
+        documentNumber: z.string().max(120).optional().nullable(),
+        issuingCountry: z.string().max(8).optional().nullable(),
+        issueDate: z.string().max(20).optional().nullable(),
+        expiryDate: z.string().max(20).optional().nullable(),
+        issuingAuthority: z.string().max(200).optional().nullable(),
+        notes: z.string().max(2000).optional().nullable(),
+      })
+      .parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; documentId: string } | { ok: false; message: string }> => {
+      const me = await requireGuestManager(context as never, data.restaurantId);
+      const types = await loadIdentityDocumentTypes(data.restaurantId);
+      const type = types.find((item) => item.id === data.idTypeId);
+      if (!type) return { ok: false as const, message: "That document type could not be found." };
+
+      const { data: guest, error: guestError } = await context.supabase
+        .from("guest_profiles")
+        .select("id, profile_type_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.guestId)
+        .maybeSingle();
+      if (guestError && isMissingSchemaError(guestError))
+        return { ok: false as const, message: WAVE2_MIGRATION_UNAVAILABLE };
+      if (!guest) return { ok: false as const, message: "That guest could not be found." };
+      const profileTypeId = (guest as { profile_type_id?: string | null }).profile_type_id ?? null;
+
+      let existingTypeId: string | null = null;
+      if (data.documentId) {
+        const existing = await context.supabase
+          .from("guest_documents")
+          .select("id, id_type_id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("guest_id", data.guestId)
+          .eq("id", data.documentId)
+          .maybeSingle();
+        if (existing.error)
+          return { ok: false as const, message: existing.error.message };
+        if (!existing.data) return { ok: false as const, message: "That document could not be found." };
+        existingTypeId = (existing.data as { id_type_id?: string | null }).id_type_id ?? null;
+      }
+
+      if (!data.documentId || existingTypeId !== data.idTypeId) {
+        if (!typeAllowedForNewDocument(type, profileTypeId)) {
+          return {
+            ok: false as const,
+            message: type.active
+              ? "That document type is not available for this guest type."
+              : "Inactive document types cannot be used for new documents.",
+          };
+        }
+      }
+
+      const documentNumber = blankToNull(data.documentNumber);
+      const issuingCountry = blankToNull(data.issuingCountry);
+      const expiryDate = blankToNull(data.expiryDate);
+      const requiredError = validateDocumentFields(type, {
+        documentNumber,
+        issuingCountry,
+        expiryDate,
+      });
+      if (requiredError) return { ok: false as const, message: requiredError };
+
+      const payload = {
+        id_type_id: data.idTypeId,
+        kind: kindFromTypeCode(type.code),
+        document_number: documentNumber,
+        issuing_country: issuingCountry,
+        issue_date: blankToNull(data.issueDate),
+        expiry_date: expiryDate,
+        issuing_authority: blankToNull(data.issuingAuthority),
+        notes: blankToNull(data.notes),
+      };
+
+      if (data.documentId) {
+        const { error } = await context.supabase
+          .from("guest_documents")
+          .update(payload)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("guest_id", data.guestId)
+          .eq("id", data.documentId);
+        if (error) {
+          if (isMissingSchemaError(error))
+            return { ok: false as const, message: WAVE2_MIGRATION_UNAVAILABLE };
+          return { ok: false as const, message: error.message };
+        }
+        await recordGuestEvent({
+          restaurantId: data.restaurantId,
+          guestId: data.guestId,
+          eventType: "document_updated",
+          newValues: { document_id: data.documentId, id_type_id: data.idTypeId },
+          actorMembershipId: me.id,
+        });
+        return { ok: true as const, documentId: data.documentId };
+      }
+
+      const { data: inserted, error } = await context.supabase
+        .from("guest_documents")
+        .insert({
+          restaurant_id: data.restaurantId,
+          guest_id: data.guestId,
+          uploaded_by_membership_id: me.id,
+          ...payload,
+        })
+        .select("id")
+        .single();
+      if (error || !inserted) {
+        if (error && isMissingSchemaError(error))
+          return { ok: false as const, message: WAVE2_MIGRATION_UNAVAILABLE };
+        return { ok: false as const, message: error?.message ?? "Could not save the document." };
+      }
+      await recordGuestEvent({
+        restaurantId: data.restaurantId,
+        guestId: data.guestId,
+        eventType: "document_uploaded",
+        newValues: { document_id: inserted.id, id_type_id: data.idTypeId },
+        actorMembershipId: me.id,
+      });
+      return { ok: true as const, documentId: inserted.id as string };
+    },
+  );
+
+export const saveGuestDocumentImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        documentId: idSchema,
+        side: z.enum(["front", "back"]),
+        storagePath: z.string().trim().min(1).max(500),
+        mimeType: documentContentType,
+        size: z
+          .number()
+          .int()
+          .positive()
+          .max(8 * 1024 * 1024),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const prefix = `${data.restaurantId}/guests/${data.guestId}/`;
+    if (!data.storagePath.startsWith(prefix)) {
+      return { ok: false as const, message: "Invalid document reference." };
+    }
+    const types = await loadIdentityDocumentTypes(data.restaurantId);
+    const { data: row, error: loadError } = await context.supabase
+      .from("guest_documents")
+      .select("id, id_type_id, storage_path, back_storage_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.documentId)
+      .maybeSingle();
+    if (loadError) return { ok: false as const, message: loadError.message };
+    if (!row) return { ok: false as const, message: "That document could not be found." };
+    const type = types.find((item) => item.id === (row as { id_type_id?: string | null }).id_type_id);
+    if (type && !type.scanImageAllowed) {
+      return { ok: false as const, message: "Images are not allowed for this document type." };
+    }
+    const patch =
+      data.side === "front"
+        ? { storage_path: data.storagePath, mime_type: data.mimeType, size_bytes: data.size }
+        : { back_storage_path: data.storagePath };
+    const previous =
+      data.side === "front"
+        ? (row as { storage_path?: string | null }).storage_path
+        : (row as { back_storage_path?: string | null }).back_storage_path;
+    const { error } = await context.supabase
+      .from("guest_documents")
+      .update(patch)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.documentId);
+    if (error) {
+      if (isMissingSchemaError(error))
+        return { ok: false as const, message: WAVE2_MIGRATION_UNAVAILABLE };
+      return { ok: false as const, message: error.message };
+    }
+    if (previous && previous !== data.storagePath) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.storage.from(ROOM_BUCKET).remove([previous]);
+    }
+    await recordGuestEvent({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      eventType: "document_updated",
+      newValues: { document_id: data.documentId, side: data.side },
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
+  });
+
+export const clearGuestDocumentImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        documentId: idSchema,
+        side: z.enum(["front", "back"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { data: row, error: loadError } = await context.supabase
+      .from("guest_documents")
+      .select("id, storage_path, back_storage_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.documentId)
+      .maybeSingle();
+    if (loadError) return { ok: false as const, message: loadError.message };
+    if (!row) return { ok: false as const, message: "That document could not be found." };
+    const path =
+      data.side === "front"
+        ? (row as { storage_path?: string | null }).storage_path
+        : (row as { back_storage_path?: string | null }).back_storage_path;
+    const patch =
+      data.side === "front" ? { storage_path: null } : { back_storage_path: null };
+    const { error } = await context.supabase
+      .from("guest_documents")
+      .update(patch)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.documentId);
+    if (error) {
+      if (isMissingSchemaError(error))
+        return { ok: false as const, message: WAVE2_MIGRATION_UNAVAILABLE };
+      return { ok: false as const, message: error.message };
+    }
+    if (path) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.storage.from(ROOM_BUCKET).remove([path]);
+    }
+    await recordGuestEvent({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      eventType: "document_updated",
+      newValues: { document_id: data.documentId, cleared: data.side },
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
+  });
+
+export const deleteGuestDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema, documentId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { data: row, error: loadError } = await context.supabase
+      .from("guest_documents")
+      .select("id, storage_path, back_storage_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.documentId)
+      .maybeSingle();
+    if (loadError) return { ok: false as const, message: loadError.message };
+    if (!row) return { ok: false as const, message: "That document could not be found." };
+    const { error } = await context.supabase
+      .from("guest_documents")
+      .delete()
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.documentId);
+    if (error) {
+      if (isMissingSchemaError(error))
+        return { ok: false as const, message: WAVE2_MIGRATION_UNAVAILABLE };
+      return { ok: false as const, message: error.message };
+    }
+    const paths = [
+      (row as { storage_path?: string | null }).storage_path,
+      (row as { back_storage_path?: string | null }).back_storage_path,
+    ].filter(Boolean) as string[];
+    if (paths.length > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.storage.from(ROOM_BUCKET).remove(paths);
+    }
+    await recordGuestEvent({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      eventType: "document_deleted",
+      newValues: { document_id: data.documentId },
       actorMembershipId: me.id,
     });
     return { ok: true as const };

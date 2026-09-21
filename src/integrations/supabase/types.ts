@@ -867,15 +867,23 @@ export type Database = {
       }
       guest_documents: {
         Row: {
+          back_storage_path: string | null
           created_at: string
+          document_number: string | null
+          expiry_date: string | null
           guest_id: string
           id: string
+          id_type_id: string | null
+          issue_date: string | null
+          issuing_authority: string | null
+          issuing_country: string | null
           kind: string
-          mime_type: string
+          mime_type: string | null
+          notes: string | null
           rejection_reason: string | null
           restaurant_id: string
-          size_bytes: number
-          storage_path: string
+          size_bytes: number | null
+          storage_path: string | null
           updated_at: string
           uploaded_by_membership_id: string | null
           verification_status: string
@@ -883,15 +891,23 @@ export type Database = {
           verified_by_membership_id: string | null
         }
         Insert: {
+          back_storage_path?: string | null
           created_at?: string
+          document_number?: string | null
+          expiry_date?: string | null
           guest_id: string
           id?: string
-          kind: string
-          mime_type: string
+          id_type_id?: string | null
+          issue_date?: string | null
+          issuing_authority?: string | null
+          issuing_country?: string | null
+          kind?: string
+          mime_type?: string | null
+          notes?: string | null
           rejection_reason?: string | null
           restaurant_id: string
-          size_bytes: number
-          storage_path: string
+          size_bytes?: number | null
+          storage_path?: string | null
           updated_at?: string
           uploaded_by_membership_id?: string | null
           verification_status?: string
@@ -899,15 +915,23 @@ export type Database = {
           verified_by_membership_id?: string | null
         }
         Update: {
+          back_storage_path?: string | null
           created_at?: string
+          document_number?: string | null
+          expiry_date?: string | null
           guest_id?: string
           id?: string
+          id_type_id?: string | null
+          issue_date?: string | null
+          issuing_authority?: string | null
+          issuing_country?: string | null
           kind?: string
-          mime_type?: string
+          mime_type?: string | null
+          notes?: string | null
           rejection_reason?: string | null
           restaurant_id?: string
-          size_bytes?: number
-          storage_path?: string
+          size_bytes?: number | null
+          storage_path?: string | null
           updated_at?: string
           uploaded_by_membership_id?: string | null
           verification_status?: string
