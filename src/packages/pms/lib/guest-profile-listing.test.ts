@@ -115,15 +115,17 @@ describe("Guest listing honesty", () => {
   it("wires listing chrome from the guest profile workspace directory path", () => {
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     assert.match(shell, /GuestListingWorkspace/);
     assert.match(listing, /guest-listing-nav/);
-    assert.match(listing, /guest-listing-chips/);
-    assert.match(listing, /section === "individual"/);
     assert.match(listing, /guest-quick-actions/);
-    assert.match(listing, /guest-workspace-activity/);
     assert.match(listing, /GuestListingNewGuestMenu/);
     assert.match(listing, /import-guests/);
+    assert.doesNotMatch(listing, /guest-listing-chips/);
+    assert.doesNotMatch(listing, /guest-workspace-activity/);
     assert.doesNotMatch(listing, /Organization/);
+    assert.match(directory, /guest-listing-search/);
+    assert.doesNotMatch(directory, /guest-type-filter/);
   });
 });
 

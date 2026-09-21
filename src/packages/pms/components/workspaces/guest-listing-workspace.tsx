@@ -24,7 +24,6 @@ import {
   CONTACTS_STAT_COPY,
   CONTACT_PROFILE_UNAVAILABLE,
   GUEST_IMPORT_UNAVAILABLE,
-  GUEST_LISTING_CHIPS,
   PROFILE_TYPE_CREATE_BLOCKED,
   PROFILE_TYPE_INACTIVE_SECTION_COPY,
   TOUR_OPERATOR_UNAVAILABLE,
@@ -38,14 +37,12 @@ import {
 import {
   getGuestWorkspaceStats,
   getGuestsAccess,
-  listGuestWorkspaceActivity,
 } from "@/packages/pms/lib/guests.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 export function GuestListingWorkspace({
   membership,
@@ -58,16 +55,13 @@ export function GuestListingWorkspace({
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
-  const { dateTime } = useRestaurantTime();
   const section = guestListingSection(listingType);
   const accountType = sectionToAccountType(section);
   const fetchAccess = useServerFn(getGuestsAccess);
   const fetchStats = useServerFn(getGuestWorkspaceStats);
-  const fetchActivity = useServerFn(listGuestWorkspaceActivity);
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
 
   const [search, setSearch] = useState("");
-  const [guestChip, setGuestChip] = useState<"all" | "individual">("all");
   const [individualOpen, setIndividualOpen] = useState(false);
   const [companyOpen, setCompanyOpen] = useState(false);
   const [agencyOpen, setAgencyOpen] = useState(false);
@@ -84,12 +78,6 @@ export function GuestListingWorkspace({
     enabled: canManage,
     retry: false,
   });
-  const activityQuery = useQuery({
-    queryKey: ["guest-workspace-activity", restaurantId],
-    queryFn: () => fetchActivity({ data: { restaurantId } }),
-    enabled: canManage,
-    retry: false,
-  });
   const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
@@ -98,7 +86,6 @@ export function GuestListingWorkspace({
   });
 
   function selectSection(next: GuestListingSectionId) {
-    if (next === "individual") setGuestChip("all");
     void navigate({
       to: GUEST_PROFILE_DIRECTORY_PATH,
       search: guestProfileSearch({ type: next }),
@@ -142,16 +129,18 @@ export function GuestListingWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-56 flex-1 sm:flex-none sm:w-72">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Search guest, company, phone, email, passport or profile number"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="guest-listing-search"
-            />
-          </div>
+          {accountType ? (
+            <div className="relative min-w-56 flex-1 sm:flex-none sm:w-72">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search name, code, phone, email or profile number"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="guest-listing-search"
+              />
+            </div>
+          ) : null}
           <Button variant="outline" disabled title={GUEST_IMPORT_UNAVAILABLE} data-testid="import-guests">
             <Upload className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">Import Guests</span>
@@ -200,35 +189,6 @@ export function GuestListingWorkspace({
         })}
       </nav>
 
-      {section === "individual" ? (
-        <div
-          className="flex w-full gap-2 overflow-x-auto"
-          data-testid="guest-listing-chips"
-          role="tablist"
-          aria-label="Guest category"
-        >
-          {GUEST_LISTING_CHIPS.map((chip) => {
-            const selected = chip.id === guestChip;
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                data-testid={`guest-listing-chip-${chip.id}`}
-                onClick={() => setGuestChip(chip.id)}
-                className={cn(
-                  "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
-                  selected
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {chip.title}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           {sectionInactive ? (
@@ -253,8 +213,6 @@ export function GuestListingWorkspace({
               membership={membership}
               compact
               returnCard={returnCard}
-              search={search}
-              onSearchChange={setSearch}
             />
           )}
         </div>
@@ -309,26 +267,6 @@ export function GuestListingWorkspace({
                 <p className="text-[11px] text-muted-foreground">{CONTACTS_STAT_COPY}</p>
               </div>
             </dl>
-          </section>
-
-          <section className="rounded-2xl border border-border bg-card p-4" data-testid="guest-workspace-activity">
-            <h2 className="font-display text-lg">Recent Guest Activity</h2>
-            {activityQuery.isLoading ? (
-              <p className="mt-2 text-sm text-muted-foreground">Loading activity…</p>
-            ) : (activityQuery.data ?? []).length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No recent profile activity for this property.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {(activityQuery.data ?? []).map((item) => (
-                  <li key={item.id} className="text-sm">
-                    <p className="font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.partyName} · {dateTime(item.createdAt)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
           </section>
         </aside>
       </div>

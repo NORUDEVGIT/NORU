@@ -17,7 +17,6 @@ import {
 } from "@/packages/pms/lib/guest-profile-wave1";
 import {
   DUPLICATE_PREVENTION_TIP,
-  GUEST_LISTING_SECTIONS,
   LAST_STAY_PRESET_LABELS,
   LAST_STAY_PRESETS,
   LISTING_DEFAULT_PAGE_SIZE,
@@ -198,42 +197,19 @@ export function GuestDirectoryWorkspace({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        {onSearchChange ? null : (
-          <div className="relative min-w-56 flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Search name, phone, email, passport or profile number"
-              value={searchValue}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-            />
-          </div>
-        )}
-        <Select
-          value="individual"
-          onValueChange={(value) => {
-            const section = GUEST_LISTING_SECTIONS.find((item) => item.id === value);
-            if (!section || section.id === "individual") return;
-            void navigate({
-              to: "/restaurant/pms/guests",
-              search: guestProfileSearch({ type: section.id }),
-            });
-          }}
-        >
-          <SelectTrigger className="w-44" data-testid="guest-type-filter">
-            <SelectValue placeholder="Guest Type" />
-          </SelectTrigger>
-          <SelectContent>
-            {GUEST_LISTING_SECTIONS.filter((item) => item.id === "individual").map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.chip}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="relative min-w-56 flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search name, phone, email, passport or profile number"
+            value={searchValue}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            data-testid="guest-listing-search"
+          />
+        </div>
         <Input
           className="w-40"
           placeholder="Nationality"
