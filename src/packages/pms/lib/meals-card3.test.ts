@@ -145,13 +145,15 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_MEALS_TABS/);
-    assert.match(ui, /onAuditHistory/);
+    assert.doesNotMatch(ui, /onAuditHistory/);
+    assert.match(ui, /Card3ListSection/);
+    assert.match(ui, /Card3OverlapSheet/);
     assert.match(ui, /Search meal plans/);
     assert.match(ui, /Search packages/);
     assert.match(ui, /Search package components/);
     assert.match(ui, /Room types are inherited from Card 2/);
     assert.match(ui, /Rate plans are inherited from Phase 3/);
-    assert.match(ui, /no reservation or folio operational changes/);
+    assert.match(ui, /no reservation or\s+folio operational changes/);
     assert.match(ui, /saveMealPlanCard3/);
     assert.match(ui, /savePackageCard3/);
     assert.match(ui, /savePackageComponentCard3/);

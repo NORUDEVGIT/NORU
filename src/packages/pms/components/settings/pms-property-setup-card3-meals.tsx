@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -14,18 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
 import { Switch } from "@/shared/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
-import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  Card3InheritedStrip,
+  Card3ListSection,
+  Card3OverlapSheet,
+  Card3StatusDot,
+} from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   deletePackageComponentCard3,
@@ -41,9 +37,7 @@ import {
   PACKAGE_COMPONENT_KINDS,
   PACKAGE_TYPE_LABELS,
   TAX_POSTURE_LABELS,
-  type Card3MealsTabId,
   type MealPlanCard3Row,
-  type MealsCard3AuditRow,
   type MealsCard3Snapshot,
   type PackageCard3Row,
   type PackageComponentCard3Row,
@@ -126,7 +120,6 @@ export function PmsPropertySetupCard3Meals({
   restaurantId,
   canEdit,
   domain,
-  onBack,
 }: {
   restaurantId: string;
   canEdit: boolean;
@@ -139,9 +132,9 @@ export function PmsPropertySetupCard3Meals({
   const savePackage = useServerFn(savePackageCard3);
   const saveComponent = useServerFn(savePackageComponentCard3);
   const deleteComponent = useServerFn(deletePackageComponentCard3);
-  const [tab, setTab] = useState<Card3MealsTabId>("overview");
-  const [search, setSearch] = useState("");
-  const [showAudit, setShowAudit] = useState(false);
+  const [mealSearch, setMealSearch] = useState("");
+  const [packageSearch, setPackageSearch] = useState("");
+  const [componentSearch, setComponentSearch] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("all");
   const [mealDraft, setMealDraft] = useState<MealPlanCard3Row | "new" | null>(null);
   const [packageDraft, setPackageDraft] = useState<PackageCard3Row | "new" | null>(null);
@@ -154,8 +147,6 @@ export function PmsPropertySetupCard3Meals({
     queryFn: () => load({ data: { restaurantId } }),
   });
   const snapshot: MealsCard3Snapshot | undefined = query.data?.snapshot;
-  const audit = (query.data?.audit ?? []) as MealsCard3AuditRow[];
-  const readiness = query.data?.readiness;
   const mealPlans = useMemo(() => snapshot?.mealPlans ?? [], [snapshot?.mealPlans]);
   const packages = useMemo(() => snapshot?.packages ?? [], [snapshot?.packages]);
   const components = useMemo(() => snapshot?.components ?? [], [snapshot?.components]);
@@ -173,7 +164,7 @@ export function PmsPropertySetupCard3Meals({
     () =>
       mealPlans.filter((row) =>
         matchesQuery(
-          search,
+          mealSearch,
           row.code,
           row.name,
           row.typeLabel,
@@ -181,13 +172,13 @@ export function PmsPropertySetupCard3Meals({
           row.taxPostureLabel,
         ),
       ),
-    [mealPlans, search],
+    [mealPlans, mealSearch],
   );
   const filteredPackages = useMemo(
     () =>
       packages.filter((row) =>
         matchesQuery(
-          search,
+          packageSearch,
           row.code,
           row.name,
           row.typeLabel,
@@ -196,7 +187,7 @@ export function PmsPropertySetupCard3Meals({
           ...row.ratePlanIds.map((id) => ratePlanById.get(id) ?? ""),
         ),
       ),
-    [packages, ratePlanById, roomTypeById, search],
+    [packages, ratePlanById, roomTypeById, packageSearch],
   );
   const filteredComponents = useMemo(
     () =>
@@ -204,7 +195,7 @@ export function PmsPropertySetupCard3Meals({
         (row) =>
           (selectedPackageId === "all" || row.packageId === selectedPackageId) &&
           matchesQuery(
-            search,
+            componentSearch,
             packageById.get(row.packageId)?.code ?? "",
             packageById.get(row.packageId)?.name ?? "",
             row.kindLabel,
@@ -212,7 +203,7 @@ export function PmsPropertySetupCard3Meals({
             String(row.quantity),
           ),
       ),
-    [components, packageById, search, selectedPackageId],
+    [components, packageById, componentSearch, selectedPackageId],
   );
 
   function invalidate() {
@@ -255,346 +246,175 @@ export function PmsPropertySetupCard3Meals({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const searchLabel =
-    tab === "meal-plans"
-      ? "Search meal plans"
-      : tab === "packages"
-        ? "Search packages"
-        : "Search package components";
+  void CARD3_MEALS_TABS;
 
   return (
-    <Tabs value={tab} onValueChange={(value) => setTab(value as Card3MealsTabId)}>
-      <PmsPropertySetupCard3Workspace
-        domain={domain}
-        onBack={onBack}
-        onAuditHistory={() => setShowAudit((open) => !open)}
-        tabs={
-          <TabsList className="mb-1 flex h-auto flex-wrap">
-            {CARD3_MEALS_TABS.map((item) => (
-              <TabsTrigger
-                key={item.id}
-                value={item.id}
-                className={goldFocus}
-                data-testid={`card3-meals-tab-${item.id}`}
-              >
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        }
-        search={
-          tab === "overview" ? null : (
-            <div className="flex flex-wrap gap-2">
-              {tab === "package-components" ? (
-                <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
-                  <SelectTrigger
-                    className={`w-64 ${goldFocus}`}
-                    aria-label="Filter components by package"
-                  >
-                    <SelectValue placeholder="All packages" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All packages</SelectItem>
-                    {packages.map((row) => (
-                      <SelectItem key={row.id} value={row.id}>
-                        {row.code} — {row.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={searchLabel}
-                aria-label={searchLabel}
-                className={`max-w-sm ${goldFocus}`}
-              />
-            </div>
-          )
-        }
-        drawer={
-          showAudit ? (
-            <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-              <h2 className="font-display text-lg text-[#251605]">Audit History</h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                {audit.length === 0 ? (
-                  <li className="text-muted-foreground">
-                    No meal or package changes recorded yet.
-                  </li>
-                ) : (
-                  audit.map((row) => (
-                    <li key={row.id}>
-                      <p className="font-medium text-[#251605]">{row.action}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.detail ? `${row.detail} · ` : ""}
-                        {row.createdAt}
-                      </p>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          ) : null
-        }
-      >
-        {query.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading meal plans and packages…</p>
-        ) : query.isError || !snapshot ? (
-          <p className="text-sm text-destructive">
-            {(query.error as Error | undefined)?.message ??
-              "Meal Plans & Packages are unavailable."}
-          </p>
-        ) : (
-          <div className="space-y-4" data-testid="pms-card3-meals">
-            {tab === "overview" ? (
-              <div className="space-y-4">
-                <p className="rounded-xl border border-[#E6D7B8] bg-[#f7f4ef] p-4 text-sm text-[#251605]">
-                  Room types are inherited from Card 2. Rate plans are inherited from Phase 3. Room
-                  amenities and front-office services are reused from their owning modules; this
-                  workspace does not create or edit those catalogues.
-                </p>
-                <p className="rounded-xl border border-[#E6D7B8] bg-white p-4 text-sm text-muted-foreground">
-                  This configuration makes no reservation or folio operational changes.
-                </p>
-                <p className="text-sm font-medium text-[#251605]">
-                  Domain status: {propertySetupStatusLabel(readiness?.status ?? "not_started")}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {mealPlans.length} meal plans · {packages.length} packages · {components.length}{" "}
-                  package components
-                </p>
-                {(readiness?.blockers ?? []).length > 0 ? (
-                  <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                    {readiness?.blockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
+    <PmsPropertySetupCard3Workspace domain={domain}>
+      {query.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading meal plans and packages…</p>
+      ) : query.isError || !snapshot ? (
+        <p className="text-sm text-destructive">
+          {(query.error as Error | undefined)?.message ?? "Meal Plans & Packages are unavailable."}
+        </p>
+      ) : (
+        <div className="space-y-4" data-testid="pms-card3-meals">
+          <Card3InheritedStrip>
+            Room types are inherited from Card 2. Rate plans are inherited from Phase 3. Room
+            amenities and front-office services are reused from their owning modules; this workspace
+            does not create or edit those catalogues. This configuration makes no reservation or
+            folio operational changes.
+          </Card3InheritedStrip>
 
-            {tab === "meal-plans" ? (
-              <MealsTable
-                canEdit={canEdit}
-                addLabel="Add meal plan"
-                onAdd={() => setMealDraft("new")}
-                columns={["Code", "Name", "Type", "Description", "Meals", "Tax posture", "Status"]}
-                empty="No meal plans saved yet."
-                rows={filteredMeals.map((row) => ({
-                  id: row.id,
-                  cells: [
-                    row.code,
-                    row.name,
-                    row.typeLabel,
-                    row.description || "—",
-                    [
-                      row.includesBreakfast ? "Breakfast" : "",
-                      row.includesLunch ? "Lunch" : "",
-                      row.includesDinner ? "Dinner" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || "None",
-                    row.taxPostureLabel,
-                    row.active ? "Active" : "Inactive",
-                  ],
-                  onEdit: () => setMealDraft(row),
-                }))}
-              />
-            ) : null}
+          <Card3ListSection
+            title="Meal plans"
+            icon="meal"
+            search={mealSearch}
+            onSearch={setMealSearch}
+            placeholder="Search meal plans"
+            canEdit={canEdit}
+            addLabel="Add meal plan"
+            onAdd={() => setMealDraft("new")}
+            columns={["Code", "Name", "Type", "Description", "Meals", "Tax posture", "Status"]}
+            empty="No meal plans saved yet."
+            rows={filteredMeals.map((row) => ({
+              id: row.id,
+              cells: [
+                row.code,
+                row.name,
+                row.typeLabel,
+                row.description || "—",
+                [
+                  row.includesBreakfast ? "Breakfast" : "",
+                  row.includesLunch ? "Lunch" : "",
+                  row.includesDinner ? "Dinner" : "",
+                ]
+                  .filter(Boolean)
+                  .join(", ") || "None",
+                row.taxPostureLabel,
+                <Card3StatusDot active={row.active} />,
+              ],
+              onEdit: () => setMealDraft(row),
+            }))}
+          />
 
-            {tab === "packages" ? (
-              <MealsTable
-                canEdit={canEdit}
-                addLabel="Add package"
-                onAdd={() => setPackageDraft("new")}
-                columns={[
-                  "Code",
-                  "Name",
-                  "Type",
-                  "Description",
-                  `Price (${snapshot.currencyCode || "currency"})`,
-                  "Room types (Card 2)",
-                  "Rate plans (Phase 3)",
-                  "Status",
-                ]}
-                empty="No packages saved yet."
-                rows={filteredPackages.map((row) => ({
-                  id: row.id,
-                  cells: [
-                    row.code,
-                    row.name,
-                    row.typeLabel,
-                    row.description || "—",
-                    `${snapshot.currencyCode} ${row.packagePrice}`.trim(),
-                    row.roomTypeIds.map((id) => roomTypeById.get(id) ?? id).join(", ") ||
-                      "All / none assigned",
-                    row.ratePlanIds.map((id) => ratePlanById.get(id) ?? id).join(", ") ||
-                      "All / none assigned",
-                    row.active ? "Active" : "Inactive",
-                  ],
-                  onEdit: () => setPackageDraft(row),
-                }))}
-              />
-            ) : null}
+          <Card3ListSection
+            title="Packages"
+            icon="tag"
+            search={packageSearch}
+            onSearch={setPackageSearch}
+            placeholder="Search packages"
+            canEdit={canEdit}
+            addLabel="Add package"
+            onAdd={() => setPackageDraft("new")}
+            columns={[
+              "Code",
+              "Name",
+              "Type",
+              "Description",
+              `Price (${snapshot.currencyCode || "currency"})`,
+              "Room types (Card 2)",
+              "Rate plans (Phase 3)",
+              "Status",
+            ]}
+            empty="No packages saved yet."
+            rows={filteredPackages.map((row) => ({
+              id: row.id,
+              cells: [
+                row.code,
+                row.name,
+                row.typeLabel,
+                row.description || "—",
+                `${snapshot.currencyCode} ${row.packagePrice}`.trim(),
+                row.roomTypeIds.map((id) => roomTypeById.get(id) ?? id).join(", ") ||
+                  "All / none assigned",
+                row.ratePlanIds.map((id) => ratePlanById.get(id) ?? id).join(", ") ||
+                  "All / none assigned",
+                <Card3StatusDot active={row.active} />,
+              ],
+              onEdit: () => setPackageDraft(row),
+            }))}
+          />
 
-            {tab === "package-components" ? (
-              <MealsTable
-                canEdit={canEdit}
-                addLabel="Add package component"
-                onAdd={() => setComponentDraft("new")}
-                columns={["Package", "Kind", "Existing source", "Quantity", "Sort order"]}
-                empty="No matching package components."
-                addDisabled={packages.length === 0}
-                rows={filteredComponents.map((row) => ({
-                  id: row.id,
-                  cells: [
-                    `${packageById.get(row.packageId)?.code ?? ""} — ${packageById.get(row.packageId)?.name ?? ""}`,
-                    row.kindLabel,
-                    row.sourceLabel,
-                    String(row.quantity),
-                    String(row.sortOrder),
-                  ],
-                  onEdit: () => setComponentDraft(row),
-                  onDelete: () => deleteMutation.mutate(row.id),
-                }))}
-              />
-            ) : null}
-
-            <MealPlanSheet
-              key={mealDraft === "new" ? "meal-new" : (mealDraft?.id ?? "meal-closed")}
-              open={mealDraft !== null}
-              canEdit={canEdit}
-              value={mealDraft === "new" || mealDraft === null ? null : mealDraft}
-              pending={mealMutation.isPending}
-              onClose={() => setMealDraft(null)}
-              onSave={(payload) => mealMutation.mutate({ restaurantId, ...payload })}
-            />
-            <PackageSheet
-              key={packageDraft === "new" ? "package-new" : (packageDraft?.id ?? "package-closed")}
-              open={packageDraft !== null}
-              canEdit={canEdit}
-              currencyCode={snapshot.currencyCode}
-              roomTypes={snapshot.roomTypes}
-              ratePlans={snapshot.ratePlans}
-              value={packageDraft === "new" || packageDraft === null ? null : packageDraft}
-              pending={packageMutation.isPending}
-              onClose={() => setPackageDraft(null)}
-              onSave={(payload) => packageMutation.mutate({ restaurantId, ...payload })}
-            />
-            <ComponentSheet
-              key={
-                componentDraft === "new"
-                  ? "component-new"
-                  : (componentDraft?.id ?? "component-closed")
-              }
-              open={componentDraft !== null}
-              canEdit={canEdit}
-              snapshot={snapshot}
-              {...(selectedPackageId === "all" ? {} : { initialPackageId: selectedPackageId })}
-              value={componentDraft === "new" || componentDraft === null ? null : componentDraft}
-              pending={componentMutation.isPending}
-              onClose={() => setComponentDraft(null)}
-              onSave={(payload) => componentMutation.mutate({ restaurantId, ...payload })}
-            />
+          <div className="space-y-2">
+            <Label htmlFor="filter-components-package">Filter components by package</Label>
+            <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
+              <SelectTrigger id="filter-components-package" className={goldFocus}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All packages</SelectItem>
+                {packages.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </PmsPropertySetupCard3Workspace>
-    </Tabs>
-  );
-}
+          <Card3ListSection
+            title="Package components"
+            icon="service"
+            search={componentSearch}
+            onSearch={setComponentSearch}
+            placeholder="Search package components"
+            canEdit={canEdit}
+            addLabel="Add package component"
+            onAdd={() => setComponentDraft("new")}
+            columns={["Package", "Kind", "Existing source", "Quantity", "Sort order"]}
+            empty="No matching package components."
+            rows={filteredComponents.map((row) => ({
+              id: row.id,
+              cells: [
+                `${packageById.get(row.packageId)?.code ?? ""} — ${packageById.get(row.packageId)?.name ?? ""}`,
+                row.kindLabel,
+                row.sourceLabel,
+                String(row.quantity),
+                String(row.sortOrder),
+              ],
+              onEdit: () => setComponentDraft(row),
+              onDelete: () => deleteMutation.mutate(row.id),
+            }))}
+          />
 
-function MealsTable({
-  canEdit,
-  addLabel,
-  addDisabled,
-  empty,
-  columns,
-  rows,
-  onAdd,
-}: {
-  canEdit: boolean;
-  addLabel: string;
-  addDisabled?: boolean;
-  empty: string;
-  columns: string[];
-  rows: { id: string; cells: string[]; onEdit: () => void; onDelete?: () => void }[];
-  onAdd: () => void;
-}) {
-  return (
-    <div className="space-y-3">
-      {canEdit ? (
-        <Button
-          type="button"
-          disabled={addDisabled}
-          onClick={onAdd}
-          className={`bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 ${goldFocus}`}
-        >
-          {addLabel}
-        </Button>
-      ) : null}
-      <div className="overflow-x-auto rounded-2xl border border-border bg-white">
-        <table className="w-full min-w-[48rem] text-left text-sm">
-          <thead className="border-b bg-[#f7f4ef] text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              {columns.map((column) => (
-                <th key={column} scope="col" className="px-3 py-2">
-                  {column}
-                </th>
-              ))}
-              <th scope="col" className="px-3 py-2">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length + 1} className="px-3 py-6 text-muted-foreground">
-                  {empty}
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.id} className="border-t">
-                  {row.cells.map((cell, index) => (
-                    <td key={`${row.id}-${index}`} className="px-3 py-2 align-top">
-                      {cell}
-                    </td>
-                  ))}
-                  <td className="px-3 py-2">
-                    {canEdit ? (
-                      <div className="flex gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className={goldFocus}
-                          onClick={row.onEdit}
-                        >
-                          Edit
-                        </Button>
-                        {row.onDelete ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className={goldFocus}
-                            onClick={row.onDelete}
-                          >
-                            Delete
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          <MealPlanSheet
+            key={mealDraft === "new" ? "meal-new" : (mealDraft?.id ?? "meal-closed")}
+            open={mealDraft !== null}
+            canEdit={canEdit}
+            value={mealDraft === "new" || mealDraft === null ? null : mealDraft}
+            pending={mealMutation.isPending}
+            onClose={() => setMealDraft(null)}
+            onSave={(payload) => mealMutation.mutate({ restaurantId, ...payload })}
+          />
+          <PackageSheet
+            key={packageDraft === "new" ? "package-new" : (packageDraft?.id ?? "package-closed")}
+            open={packageDraft !== null}
+            canEdit={canEdit}
+            currencyCode={snapshot.currencyCode}
+            roomTypes={snapshot.roomTypes}
+            ratePlans={snapshot.ratePlans}
+            value={packageDraft === "new" || packageDraft === null ? null : packageDraft}
+            pending={packageMutation.isPending}
+            onClose={() => setPackageDraft(null)}
+            onSave={(payload) => packageMutation.mutate({ restaurantId, ...payload })}
+          />
+          <ComponentSheet
+            key={
+              componentDraft === "new"
+                ? "component-new"
+                : (componentDraft?.id ?? "component-closed")
+            }
+            open={componentDraft !== null}
+            canEdit={canEdit}
+            snapshot={snapshot}
+            {...(selectedPackageId === "all" ? {} : { initialPackageId: selectedPackageId })}
+            value={componentDraft === "new" || componentDraft === null ? null : componentDraft}
+            pending={componentMutation.isPending}
+            onClose={() => setComponentDraft(null)}
+            onSave={(payload) => componentMutation.mutate({ restaurantId, ...payload })}
+          />
+        </div>
+      )}
+    </PmsPropertySetupCard3Workspace>
   );
 }
 
@@ -660,132 +480,121 @@ function MealPlanSheet({
   const [active, setActive] = useState(value?.active ?? true);
 
   return (
-    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{value ? "Edit meal plan" : "Add meal plan"}</SheetTitle>
-          <SheetDescription>Configure a typed meal plan for this property.</SheetDescription>
-        </SheetHeader>
-        <form
-          className="mt-4 space-y-3 px-1"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canEdit) return;
-            onSave({
-              ...(value ? { id: value.id } : {}),
-              code,
-              name,
-              type,
-              description,
-              includesBreakfast: breakfast,
-              includesLunch: lunch,
-              includesDinner: dinner,
-              taxPosture,
-              active,
-            });
-          }}
-        >
-          <div className="space-y-1">
-            <Label htmlFor="meal-code">Code</Label>
-            <Input
-              id="meal-code"
-              value={code}
-              maxLength={20}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="meal-name">Name</Label>
-            <Input
-              id="meal-name"
-              value={name}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="meal-type">Type</Label>
-            <Select
-              value={type}
-              disabled={!canEdit}
-              onValueChange={(next) => setType(next as MealPlanType)}
-            >
-              <SelectTrigger id="meal-type" className={goldFocus}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MEAL_PLAN_TYPES.map((row) => (
-                  <SelectItem key={row} value={row}>
-                    {MEAL_PLAN_TYPE_LABELS[row]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="meal-description">Description</Label>
-            <Textarea
-              id="meal-description"
-              value={description}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </div>
-          <fieldset className="space-y-2 rounded-xl border px-3 py-2">
-            <legend className="px-1 text-sm font-medium text-[#251605]">Included meals</legend>
-            {[
-              ["meal-breakfast", "Breakfast", breakfast, setBreakfast],
-              ["meal-lunch", "Lunch", lunch, setLunch],
-              ["meal-dinner", "Dinner", dinner, setDinner],
-            ].map(([id, label, checked, setter]) => (
-              <div key={String(id)} className="flex items-center gap-2">
-                <Checkbox
-                  id={String(id)}
-                  checked={Boolean(checked)}
-                  disabled={!canEdit}
-                  className={goldFocus}
-                  onCheckedChange={(next) => (setter as (value: boolean) => void)(next === true)}
-                />
-                <Label htmlFor={String(id)}>{String(label)}</Label>
-              </div>
-            ))}
-          </fieldset>
-          <div className="space-y-1">
-            <Label htmlFor="meal-tax">Tax posture</Label>
-            <Select
-              value={taxPosture}
-              disabled={!canEdit}
-              onValueChange={(next) => setTaxPosture(next as TaxPosture)}
-            >
-              <SelectTrigger id="meal-tax" className={goldFocus}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TAX_POSTURES.map((row) => (
-                  <SelectItem key={row} value={row}>
-                    {TAX_POSTURE_LABELS[row]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <ActiveField id="meal-active" active={active} canEdit={canEdit} onChange={setActive} />
-          {canEdit ? (
-            <Button
-              type="submit"
-              disabled={pending}
-              className={`w-full bg-[#C89933] text-[#251605] ${goldFocus}`}
-            >
-              Save meal plan
-            </Button>
-          ) : null}
-        </form>
-      </SheetContent>
-    </Sheet>
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit meal plan" : "Add meal plan"}
+      description="Configure a typed meal plan for this property."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save meal plan"
+      onSubmit={() =>
+        onSave({
+          ...(value ? { id: value.id } : {}),
+          code,
+          name,
+          type,
+          description,
+          includesBreakfast: breakfast,
+          includesLunch: lunch,
+          includesDinner: dinner,
+          taxPosture,
+          active,
+        })
+      }
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="meal-code">Code</Label>
+          <Input
+            id="meal-code"
+            value={code}
+            maxLength={20}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="meal-name">Name</Label>
+          <Input
+            id="meal-name"
+            value={name}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="meal-type">Type</Label>
+          <Select
+            value={type}
+            disabled={!canEdit}
+            onValueChange={(next) => setType(next as MealPlanType)}
+          >
+            <SelectTrigger id="meal-type" className={goldFocus}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MEAL_PLAN_TYPES.map((row) => (
+                <SelectItem key={row} value={row}>
+                  {MEAL_PLAN_TYPE_LABELS[row]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="meal-description">Description</Label>
+          <Textarea
+            id="meal-description"
+            value={description}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+        <fieldset className="space-y-2 rounded-xl border px-3 py-2">
+          <legend className="px-1 text-sm font-medium text-[#251605]">Included meals</legend>
+          {[
+            ["meal-breakfast", "Breakfast", breakfast, setBreakfast],
+            ["meal-lunch", "Lunch", lunch, setLunch],
+            ["meal-dinner", "Dinner", dinner, setDinner],
+          ].map(([id, label, checked, setter]) => (
+            <div key={String(id)} className="flex items-center gap-2">
+              <Checkbox
+                id={String(id)}
+                checked={Boolean(checked)}
+                disabled={!canEdit}
+                className={goldFocus}
+                onCheckedChange={(next) => (setter as (value: boolean) => void)(next === true)}
+              />
+              <Label htmlFor={String(id)}>{String(label)}</Label>
+            </div>
+          ))}
+        </fieldset>
+        <div className="space-y-1">
+          <Label htmlFor="meal-tax">Tax posture</Label>
+          <Select
+            value={taxPosture}
+            disabled={!canEdit}
+            onValueChange={(next) => setTaxPosture(next as TaxPosture)}
+          >
+            <SelectTrigger id="meal-tax" className={goldFocus}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TAX_POSTURES.map((row) => (
+                <SelectItem key={row} value={row}>
+                  {TAX_POSTURE_LABELS[row]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <ActiveField id="meal-active" active={active} canEdit={canEdit} onChange={setActive} />
+      </div>
+    </Card3OverlapSheet>
   );
 }
 
@@ -839,126 +648,114 @@ function PackageSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>{value ? "Edit package" : "Add package"}</SheetTitle>
-          <SheetDescription>
-            Applicability reuses Card 2 room types and Phase 3 rate plans.
-          </SheetDescription>
-        </SheetHeader>
-        <form
-          className="mt-4 space-y-3 px-1"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canEdit)
-              onSave({
-                ...(value ? { id: value.id } : {}),
-                code,
-                name,
-                type,
-                description,
-                packagePrice: price,
-                active,
-                roomTypeIds,
-                ratePlanIds,
-              });
-          }}
-        >
-          <div className="space-y-1">
-            <Label htmlFor="package-code">Code</Label>
-            <Input
-              id="package-code"
-              value={code}
-              maxLength={20}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="package-name">Name</Label>
-            <Input
-              id="package-name"
-              value={name}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="package-type">Type</Label>
-            <Select
-              value={type}
-              disabled={!canEdit}
-              onValueChange={(next) => setType(next as PackageType)}
-            >
-              <SelectTrigger id="package-type" className={goldFocus}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PACKAGE_TYPES.map((row) => (
-                  <SelectItem key={row} value={row}>
-                    {PACKAGE_TYPE_LABELS[row]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="package-description">Description</Label>
-            <Textarea
-              id="package-description"
-              value={description}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="package-price">
-              Package price ({currencyCode || "property currency"})
-            </Label>
-            <Input
-              id="package-price"
-              type="number"
-              min={0}
-              step="any"
-              value={price}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setPrice(Number(event.target.value))}
-            />
-          </div>
-          <ApplicabilityList
-            title="Room types (Card 2)"
-            prefix="package-room"
-            rows={roomTypes}
-            selected={roomTypeIds}
-            canEdit={canEdit}
-            onToggle={(id, checked) => toggle(roomTypeIds, id, checked, setRoomTypeIds)}
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit package" : "Add package"}
+      description="Applicability reuses Card 2 room types and Phase 3 rate plans."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save package"
+      onSubmit={() => {
+        if (canEdit)
+          onSave({
+            ...(value ? { id: value.id } : {}),
+            code,
+            name,
+            type,
+            description,
+            packagePrice: price,
+            active,
+            roomTypeIds,
+            ratePlanIds,
+          });
+      }}
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="package-code">Code</Label>
+          <Input
+            id="package-code"
+            value={code}
+            maxLength={20}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
           />
-          <ApplicabilityList
-            title="Rate plans (Phase 3)"
-            prefix="package-rate"
-            rows={ratePlans}
-            selected={ratePlanIds}
-            canEdit={canEdit}
-            onToggle={(id, checked) => toggle(ratePlanIds, id, checked, setRatePlanIds)}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="package-name">Name</Label>
+          <Input
+            id="package-name"
+            value={name}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setName(event.target.value)}
           />
-          <ActiveField id="package-active" active={active} canEdit={canEdit} onChange={setActive} />
-          {canEdit ? (
-            <Button
-              type="submit"
-              disabled={pending}
-              className={`w-full bg-[#C89933] text-[#251605] ${goldFocus}`}
-            >
-              Save package
-            </Button>
-          ) : null}
-        </form>
-      </SheetContent>
-    </Sheet>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="package-type">Type</Label>
+          <Select
+            value={type}
+            disabled={!canEdit}
+            onValueChange={(next) => setType(next as PackageType)}
+          >
+            <SelectTrigger id="package-type" className={goldFocus}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PACKAGE_TYPES.map((row) => (
+                <SelectItem key={row} value={row}>
+                  {PACKAGE_TYPE_LABELS[row]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="package-description">Description</Label>
+          <Textarea
+            id="package-description"
+            value={description}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="package-price">
+            Package price ({currencyCode || "property currency"})
+          </Label>
+          <Input
+            id="package-price"
+            type="number"
+            min={0}
+            step="any"
+            value={price}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setPrice(Number(event.target.value))}
+          />
+        </div>
+        <ApplicabilityList
+          title="Room types (Card 2)"
+          prefix="package-room"
+          rows={roomTypes}
+          selected={roomTypeIds}
+          canEdit={canEdit}
+          onToggle={(id, checked) => toggle(roomTypeIds, id, checked, setRoomTypeIds)}
+        />
+        <ApplicabilityList
+          title="Rate plans (Phase 3)"
+          prefix="package-rate"
+          rows={ratePlans}
+          selected={ratePlanIds}
+          canEdit={canEdit}
+          onToggle={(id, checked) => toggle(ratePlanIds, id, checked, setRatePlanIds)}
+        />
+        <ActiveField id="package-active" active={active} canEdit={canEdit} onChange={setActive} />
+      </div>
+    </Card3OverlapSheet>
   );
 }
 
@@ -1083,121 +880,109 @@ function ComponentSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{value ? "Edit package component" : "Add package component"}</SheetTitle>
-          <SheetDescription>
-            Select an existing source. Source catalogues remain owned by their modules.
-          </SheetDescription>
-        </SheetHeader>
-        <form
-          className="mt-4 space-y-3 px-1"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canEdit || !sourceId) return;
-            const base = {
-              ...(value ? { id: value.id } : {}),
-              packageId,
-              quantity,
-              sortOrder,
-            };
-            if (kind === "meal_plan") onSave({ ...base, kind, mealPlanId: sourceId });
-            else if (kind === "room_amenity") onSave({ ...base, kind, roomAmenityId: sourceId });
-            else onSave({ ...base, kind, foServiceId: sourceId });
-          }}
-        >
-          <div className="space-y-1">
-            <Label htmlFor="component-package">Package</Label>
-            <Select value={packageId} disabled={!canEdit} onValueChange={setPackageId}>
-              <SelectTrigger id="component-package" className={goldFocus}>
-                <SelectValue placeholder="Select a package" />
-              </SelectTrigger>
-              <SelectContent>
-                {snapshot.packages.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.code} — {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="component-kind">Kind</Label>
-            <Select
-              value={kind}
-              disabled={!canEdit}
-              onValueChange={(next) => changeKind(next as PackageComponentKind)}
-            >
-              <SelectTrigger id="component-kind" className={goldFocus}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PACKAGE_COMPONENT_KINDS.map((row) => (
-                  <SelectItem key={row} value={row}>
-                    {PACKAGE_COMPONENT_KIND_LABELS[row]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="component-source">Existing source</Label>
-            <Select
-              value={sourceId}
-              disabled={!canEdit || sources.length === 0}
-              onValueChange={setSourceId}
-            >
-              <SelectTrigger id="component-source" className={goldFocus}>
-                <SelectValue placeholder="Select an existing source" />
-              </SelectTrigger>
-              <SelectContent>
-                {sources.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {"code" in row && row.code ? `${row.code} — ` : ""}
-                    {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="component-quantity">Quantity</Label>
-            <Input
-              id="component-quantity"
-              type="number"
-              min={0.01}
-              step="any"
-              value={quantity}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setQuantity(Number(event.target.value))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="component-sort">Sort order</Label>
-            <Input
-              id="component-sort"
-              type="number"
-              min={0}
-              step={1}
-              value={sortOrder}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setSortOrder(Number(event.target.value))}
-            />
-          </div>
-          {canEdit ? (
-            <Button
-              type="submit"
-              disabled={pending || !packageId || !sourceId}
-              className={`w-full bg-[#C89933] text-[#251605] ${goldFocus}`}
-            >
-              Save component
-            </Button>
-          ) : null}
-        </form>
-      </SheetContent>
-    </Sheet>
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit package component" : "Add package component"}
+      description="Select an existing source. Source catalogues remain owned by their modules."
+      canEdit={canEdit && Boolean(packageId) && Boolean(sourceId)}
+      pending={pending}
+      submitLabel="Save component"
+      onSubmit={() => {
+        if (!canEdit || !sourceId) return;
+        const base = {
+          ...(value ? { id: value.id } : {}),
+          packageId,
+          quantity,
+          sortOrder,
+        };
+        if (kind === "meal_plan") onSave({ ...base, kind, mealPlanId: sourceId });
+        else if (kind === "room_amenity") onSave({ ...base, kind, roomAmenityId: sourceId });
+        else onSave({ ...base, kind, foServiceId: sourceId });
+      }}
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="component-package">Package</Label>
+          <Select value={packageId} disabled={!canEdit} onValueChange={setPackageId}>
+            <SelectTrigger id="component-package" className={goldFocus}>
+              <SelectValue placeholder="Select a package" />
+            </SelectTrigger>
+            <SelectContent>
+              {snapshot.packages.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.code} — {row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="component-kind">Kind</Label>
+          <Select
+            value={kind}
+            disabled={!canEdit}
+            onValueChange={(next) => changeKind(next as PackageComponentKind)}
+          >
+            <SelectTrigger id="component-kind" className={goldFocus}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PACKAGE_COMPONENT_KINDS.map((row) => (
+                <SelectItem key={row} value={row}>
+                  {PACKAGE_COMPONENT_KIND_LABELS[row]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="component-source">Existing source</Label>
+          <Select
+            value={sourceId}
+            disabled={!canEdit || sources.length === 0}
+            onValueChange={setSourceId}
+          >
+            <SelectTrigger id="component-source" className={goldFocus}>
+              <SelectValue placeholder="Select an existing source" />
+            </SelectTrigger>
+            <SelectContent>
+              {sources.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {"code" in row && row.code ? `${row.code} — ` : ""}
+                  {row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="component-quantity">Quantity</Label>
+          <Input
+            id="component-quantity"
+            type="number"
+            min={0.01}
+            step="any"
+            value={quantity}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setQuantity(Number(event.target.value))}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="component-sort">Sort order</Label>
+          <Input
+            id="component-sort"
+            type="number"
+            min={0}
+            step={1}
+            value={sortOrder}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setSortOrder(Number(event.target.value))}
+          />
+        </div>
+      </div>
+    </Card3OverlapSheet>
   );
 }

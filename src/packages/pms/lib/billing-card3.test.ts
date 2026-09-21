@@ -116,7 +116,10 @@ describe("Card 3 Phase 6 billing and invoicing", () => {
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_BILLING_TABS/);
-    assert.match(ui, /onAuditHistory/);
+    assert.doesNotMatch(ui, /onAuditHistory/);
+    assert.match(ui, /Card3ListSection/);
+    assert.match(ui, /Card3OverlapSheet/);
+    assert.match(ui, /useCard3DraftSave/);
     assert.match(ui, /Search billing rules/);
     assert.match(ui, /Inherited from Card 1/);
     assert.match(ui, /City ledger is out of this workspace/);
