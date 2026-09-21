@@ -56,7 +56,7 @@ const typeSaveSchema = z
     categoryId: idSchema,
     name: z.string().max(80),
     code: z.string().max(32),
-    valueType: z.enum(["single", "multi"]),
+    valueType: z.enum(["single", "multi", "yes_no", "text", "number"]),
     options: z.array(optionSchema).max(80),
     required: z.boolean(),
     active: z.boolean(),

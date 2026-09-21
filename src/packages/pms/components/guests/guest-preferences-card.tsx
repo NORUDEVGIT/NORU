@@ -1,12 +1,40 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import {
+  CONTACT_DEFAULTS_COPY,
+  CONTACT_DEFAULTS_TITLE,
+  PREFERENCES_APPLY_COPY,
+  PREFERENCES_COPY,
+  PREFERENCES_EMPTY_TYPES,
+  PREFERENCES_IMPORTANT_NOTE,
+  PREFERENCE_TEXT_MAX,
+  contactDefaultChips,
+  labelForPreferenceValues,
+  type ContactDefaultsDraft,
+  type PreferenceSummaryChip,
+} from "@/packages/pms/lib/guest-preferences-workspace";
+import {
+  PREFERRED_CONTACT_METHODS,
+  PREFERRED_CONTACT_METHOD_LABELS,
+  PREFERRED_CONTACT_TIMES,
+  PREFERRED_CONTACT_TIME_LABELS,
+} from "@/packages/pms/lib/guest-profile-overview";
+import { PREFERENCE_SETUP_HREF } from "@/packages/pms/lib/guest-profile-wave2";
+import {
+  listGuestPreferenceWorkspace,
+  saveGuestPreferenceWorkspace,
+  type GuestPreferenceWorkspaceCategory,
+  type GuestPreferenceWorkspaceType,
+  type GuestPreferences,
+  type GuestProfile,
+} from "@/packages/pms/lib/guests.functions";
 import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -14,262 +42,522 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { Switch } from "@/shared/components/ui/switch";
+import { Textarea } from "@/shared/components/ui/textarea";
 import {
-  PREFERENCE_FLOORS_HREF,
-  PREFERENCE_OPTION_CATEGORY_LABELS,
-  PREFERENCE_ROOMS_HREF,
-  PREFERENCE_SETUP_HREF,
-  encodePreferenceValue,
-  resolvePreferenceSelection,
-  type PreferenceOptionCategory,
-  type PreferenceSelection,
-} from "@/packages/pms/lib/guest-profile-wave2";
-import {
-  getGuestPreferenceCatalogues,
-  saveGuestPreferences,
-  type GuestPreferenceCatalogues,
-  type GuestPreferences,
-  type PreferenceCatalogueOption,
-} from "@/packages/pms/lib/guests.functions";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 
 const NONE = "__none__";
-const OTHER = "__other__";
 
-type CatalogueField = {
-  key: keyof GuestPreferences;
-  label: string;
-  source: "roomTypes" | "floors" | PreferenceOptionCategory;
-  setupHref: string;
-  emptyCopy: string;
+type Draft = {
+  applyToFutureReservations: boolean;
+  answers: Record<string, string[]>;
+  contactDefaults: ContactDefaultsDraft;
 };
 
-const CATALOGUE_FIELDS: CatalogueField[] = [
-  {
-    key: "roomPreference",
-    label: "Room preference",
-    source: "roomTypes",
-    setupHref: PREFERENCE_ROOMS_HREF,
-    emptyCopy:
-      "No room types in Property Setup yet. This field is gated until the hotel adds room types.",
-  },
-  {
-    key: "floorPreference",
-    label: "Floor preference",
-    source: "floors",
-    setupHref: PREFERENCE_FLOORS_HREF,
-    emptyCopy: "No floors in Property Setup yet. This field is gated until the hotel adds floors.",
-  },
-  {
-    key: "bedPreference",
-    label: "Bed preference",
-    source: "bed",
-    setupHref: PREFERENCE_SETUP_HREF,
-    emptyCopy: "No bed options yet. Add them in Property Setup — this is not a global list.",
-  },
-  {
-    key: "viewPreference",
-    label: "View preference",
-    source: "view",
-    setupHref: PREFERENCE_SETUP_HREF,
-    emptyCopy: "No view options yet. Add them in Property Setup — this is not a global list.",
-  },
-  {
-    key: "foodPreference",
-    label: "Food preference",
-    source: "food",
-    setupHref: PREFERENCE_SETUP_HREF,
-    emptyCopy: "No food preference options yet. Meal plans are not used as food preferences.",
-  },
-  {
-    key: "communicationPreference",
-    label: "Communication preference",
-    source: "communication",
-    setupHref: PREFERENCE_SETUP_HREF,
-    emptyCopy:
-      "No communication options yet. Add them in Property Setup — this is not a global list.",
-  },
-];
+function answersFromCategories(categories: GuestPreferenceWorkspaceCategory[]) {
+  const answers: Record<string, string[]> = {};
+  for (const category of categories) {
+    for (const type of category.types) answers[type.id] = [...type.values];
+  }
+  return answers;
+}
 
-function optionsFor(
-  catalogues: GuestPreferenceCatalogues | undefined,
-  source: CatalogueField["source"],
-): PreferenceCatalogueOption[] {
-  if (!catalogues) return [];
-  if (source === "roomTypes") return catalogues.roomTypes;
-  if (source === "floors") return catalogues.floors;
-  return catalogues.options[source].filter((option) => option.active !== false);
+function catalogueChips(categories: GuestPreferenceWorkspaceCategory[]): PreferenceSummaryChip[] {
+  const chips: PreferenceSummaryChip[] = [];
+  for (const category of categories) {
+    for (const type of category.types) {
+      const value = labelForPreferenceValues(type.options, type.values, type.valueType);
+      if (!value) continue;
+      chips.push({
+        source: "catalogue",
+        code: type.code,
+        label: type.name,
+        value,
+      });
+    }
+  }
+  return chips;
+}
+
+function TypeControl({
+  type,
+  values,
+  onChange,
+}: {
+  type: GuestPreferenceWorkspaceType;
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const selectable = type.options.filter(
+    (option) => option.active || values.includes(option.value),
+  );
+  if (!type.active) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {labelForPreferenceValues(type.options, values, type.valueType) ?? "No value saved"}
+        <span className="ml-2 text-xs">(inactive type)</span>
+      </p>
+    );
+  }
+  if (type.valueType === "multi") {
+    return (
+      <div className="flex flex-col gap-2">
+        {selectable.map((option) => {
+          const checked = values.includes(option.value);
+          return (
+            <label key={option.id} className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={checked}
+                disabled={!option.active && !checked}
+                onCheckedChange={(value) => {
+                  if (!option.active) return;
+                  onChange(
+                    value === true
+                      ? [...values, option.value]
+                      : values.filter((item) => item !== option.value),
+                  );
+                }}
+              />
+              {option.label}
+              {!option.active ? <span className="text-xs text-muted-foreground">(inactive)</span> : null}
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
+  if (type.valueType === "yes_no") {
+    return (
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={values[0] === "yes"}
+          onCheckedChange={(checked) => onChange(checked ? ["yes"] : ["no"])}
+        />
+        <span className="text-sm">{values[0] === "yes" ? "Yes" : "No"}</span>
+      </div>
+    );
+  }
+  if (type.valueType === "text") {
+    return (
+      <Textarea
+        value={values[0] ?? ""}
+        maxLength={PREFERENCE_TEXT_MAX}
+        onChange={(event) => onChange(event.target.value ? [event.target.value] : [])}
+      />
+    );
+  }
+  if (type.valueType === "number") {
+    return (
+      <Input
+        type="number"
+        value={values[0] ?? ""}
+        onChange={(event) => onChange(event.target.value ? [event.target.value] : [])}
+      />
+    );
+  }
+  return (
+    <Select
+      value={values[0] || NONE}
+      onValueChange={(value) => onChange(value === NONE ? [] : [value])}
+    >
+      <SelectTrigger>
+        <SelectValue placeholder="Not set" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NONE}>Not set</SelectItem>
+        {selectable.map((option) => (
+          <SelectItem key={option.id} value={option.value} disabled={!option.active}>
+            {option.label}
+            {!option.active ? " (inactive)" : ""}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 export function GuestPreferencesCard({
   restaurantId,
   guestId,
-  preferences,
+  guest,
   onSaved,
 }: {
   restaurantId: string;
   guestId: string;
-  preferences: GuestPreferences;
+  guest?: GuestProfile;
+  preferences?: GuestPreferences;
   onSaved: () => void;
 }) {
-  const savePrefs = useServerFn(saveGuestPreferences);
-  const loadCatalogues = useServerFn(getGuestPreferenceCatalogues);
-  const [draft, setDraft] = useState<GuestPreferences>(preferences);
+  const queryClient = useQueryClient();
+  const formRef = useRef<HTMLDivElement>(null);
+  const fetchWorkspace = useServerFn(listGuestPreferenceWorkspace);
+  const saveWorkspace = useServerFn(saveGuestPreferenceWorkspace);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
 
-  useEffect(() => {
-    setDraft(preferences);
-  }, [preferences]);
-
-  const cataloguesQuery = useQuery({
-    queryKey: ["guest-preference-catalogues", restaurantId],
-    queryFn: () => loadCatalogues({ data: { restaurantId } }),
+  const workspaceQuery = useQuery({
+    queryKey: ["guest-preference-workspace", restaurantId, guestId],
+    queryFn: () => fetchWorkspace({ data: { restaurantId, guestId } }),
     retry: false,
   });
 
-  const mutation = useMutation({
-    mutationFn: () => savePrefs({ data: { restaurantId, guestId, preferences: draft } }),
-    onSuccess: () => {
+  useEffect(() => {
+    const data = workspaceQuery.data;
+    if (!data) return;
+    setDraft({
+      applyToFutureReservations: data.applyToFutureReservations,
+      answers: answersFromCategories(data.categories),
+      contactDefaults: data.contactDefaults,
+    });
+  }, [workspaceQuery.data]);
+
+  const saved = workspaceQuery.data;
+  const baseline = useMemo(() => {
+    if (!saved) return null;
+    return JSON.stringify({
+      applyToFutureReservations: saved.applyToFutureReservations,
+      answers: answersFromCategories(saved.categories),
+      contactDefaults: saved.contactDefaults,
+    });
+  }, [saved]);
+  const dirty = Boolean(draft && baseline && JSON.stringify(draft) !== baseline);
+
+  function restore() {
+    if (!saved) return;
+    setDraft({
+      applyToFutureReservations: saved.applyToFutureReservations,
+      answers: answersFromCategories(saved.categories),
+      contactDefaults: saved.contactDefaults,
+    });
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!draft) throw new Error("Nothing to save.");
+      return saveWorkspace({
+        data: {
+          restaurantId,
+          guestId,
+          applyToFutureReservations: draft.applyToFutureReservations,
+          answers: Object.entries(draft.answers).map(([typeId, values]) => ({ typeId, values })),
+          contactDefaults: draft.contactDefaults,
+        },
+      });
+    },
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
       toast.success("Preferences saved.");
+      void queryClient.invalidateQueries({
+        queryKey: ["guest-preference-workspace", restaurantId, guestId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["guest-preference-summary", restaurantId, guestId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId, guestId] });
       onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  return (
-    <div className="space-y-6" data-testid="guest-preferences-card">
-      <div>
-        <h2 className="font-display text-xl">Preferences</h2>
-        <p className="text-sm text-muted-foreground">
-          Setup-owned options for this property. Accessibility and special requests stay free-text.
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {CATALOGUE_FIELDS.map((field) => (
-            <CataloguePreferenceField
-              key={field.key}
-              field={field}
-              stored={draft[field.key]}
-              options={optionsFor(cataloguesQuery.data, field.source)}
-              loading={cataloguesQuery.isLoading}
-              onChange={(value) => setDraft((prev) => ({ ...prev, [field.key]: value }))}
-            />
-          ))}
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label htmlFor="guest-wave2-accessibility">Accessibility requirements</Label>
-            <Textarea
-              id="guest-wave2-accessibility"
-              rows={2}
-              value={draft.accessibilityRequirements ?? ""}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, accessibilityRequirements: event.target.value }))
-              }
-            />
-          </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label htmlFor="guest-wave2-special">Special requests</Label>
-            <Textarea
-              id="guest-wave2-special"
-              rows={3}
-              value={draft.specialRequests ?? ""}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, specialRequests: event.target.value }))
-              }
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving…" : "Save preferences"}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CataloguePreferenceField({
-  field,
-  stored,
-  options,
-  loading,
-  onChange,
-}: {
-  field: CatalogueField;
-  stored: string | null;
-  options: PreferenceCatalogueOption[];
-  loading: boolean;
-  onChange: (value: string | null) => void;
-}) {
-  const mapped = options.map((option) => ({ id: option.id, label: option.label }));
-  const selection = resolvePreferenceSelection(stored, mapped);
-  const selectValue =
-    selection.kind === "id" ? selection.id : selection.kind === "other" ? OTHER : NONE;
-  const otherText = selection.kind === "other" ? selection.otherText : "";
-
-  if (loading) {
+  if (workspaceQuery.isLoading || !draft) {
     return (
-      <div className="space-y-1.5">
-        <Label>{field.label}</Label>
-        <p className="text-sm text-muted-foreground">Loading options…</p>
-      </div>
+      <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-preferences">
+        <p className="text-sm text-muted-foreground">Loading preferences…</p>
+      </section>
+    );
+  }
+  if (workspaceQuery.isError) {
+    return (
+      <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-preferences">
+        <p className="text-sm text-destructive">Could not load guest preferences.</p>
+      </section>
     );
   }
 
-  if (options.length === 0) {
-    return (
-      <div className="space-y-1.5" data-testid={`guest-pref-gated-${field.key}`}>
-        <Label>{field.label}</Label>
-        <p className="text-sm text-muted-foreground">{field.emptyCopy}</p>
-        <a
-          href={field.setupHref}
-          className="text-sm font-medium text-primary underline-offset-2 hover:underline"
-        >
-          Open Property Setup
-        </a>
-      </div>
+  const categories = saved?.categories ?? [];
+  const hasTypes = categories.some((category) => category.types.length > 0);
+  const summary = [
+    ...catalogueChips(categories),
+    ...contactDefaultChips(saved?.contactDefaults ?? draft.contactDefaults),
+  ];
+  const commCategory = categories.find((category) => category.code === "COMM");
+  const otherCategories = categories.filter((category) => category.code !== "COMM");
+
+  function setAnswer(typeId: string, values: string[]) {
+    setDraft((current) =>
+      current ? { ...current, answers: { ...current.answers, [typeId]: values } } : current,
     );
   }
 
-  function apply(next: PreferenceSelection) {
-    onChange(encodePreferenceValue(next));
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <Label>{field.label}</Label>
-      <Select
-        value={selectValue}
-        onValueChange={(value) => {
-          if (value === NONE) apply({ kind: "empty" });
-          else if (value === OTHER) apply({ kind: "other", otherText: otherText || "" });
-          else apply({ kind: "id", id: value });
-        }}
+  function renderCategory(category: GuestPreferenceWorkspaceCategory, extra?: ReactNode) {
+    return (
+      <section
+        key={category.id}
+        className="rounded-2xl border border-border bg-card p-5"
+        data-testid={`guest-pref-category-${category.code}`}
       >
-        <SelectTrigger>
-          <SelectValue placeholder="Not set" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE}>Not set</SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
+        <h4 className="font-medium">{category.name}</h4>
+        {category.description ? (
+          <p className="mt-1 text-sm text-muted-foreground">{category.description}</p>
+        ) : null}
+        <div className="mt-4 space-y-4">
+          {category.types.map((type) => (
+            <div key={type.id}>
+              <Label>
+                {type.name}
+                {type.required && type.active ? " *" : ""}
+              </Label>
+              <div className="mt-1">
+                <TypeControl
+                  type={type}
+                  values={draft.answers[type.id] ?? []}
+                  onChange={(next) => setAnswer(type.id, next)}
+                />
+              </div>
+            </div>
           ))}
-          <SelectItem value={OTHER}>Other</SelectItem>
-        </SelectContent>
-      </Select>
-      {selection.kind === "other" ? (
-        <Input
-          value={otherText}
-          placeholder={`Other ${field.label.toLowerCase()}`}
-          onChange={(event) => apply({ kind: "other", otherText: event.target.value })}
-        />
-      ) : null}
+          {extra}
+        </div>
+      </section>
+    );
+  }
+
+  const contactBlock = (
+    <div className="rounded-xl border border-border p-4" data-testid="guest-pref-contact-defaults">
+      <h5 className="font-medium">{CONTACT_DEFAULTS_TITLE}</h5>
+      <p className="mt-1 text-xs text-muted-foreground">{CONTACT_DEFAULTS_COPY}</p>
+      <div className="mt-3 space-y-3">
+        <div>
+          <Label htmlFor="pref-language">Preferred Language</Label>
+          <Input
+            id="pref-language"
+            className="mt-1"
+            value={draft.contactDefaults.language}
+            onChange={(event) =>
+              setDraft((current) =>
+                current
+                  ? {
+                      ...current,
+                      contactDefaults: { ...current.contactDefaults, language: event.target.value },
+                    }
+                  : current,
+              )
+            }
+          />
+        </div>
+        <div>
+          <Label>Preferred Contact Method</Label>
+          <Select
+            value={draft.contactDefaults.preferredContactMethod || NONE}
+            onValueChange={(value) =>
+              setDraft((current) =>
+                current
+                  ? {
+                      ...current,
+                      contactDefaults: {
+                        ...current.contactDefaults,
+                        preferredContactMethod:
+                          value === NONE ? "" : (value as ContactDefaultsDraft["preferredContactMethod"]),
+                      },
+                    }
+                  : current,
+              )
+            }
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Not set" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Not set</SelectItem>
+              {PREFERRED_CONTACT_METHODS.map((method) => (
+                <SelectItem key={method} value={method}>
+                  {PREFERRED_CONTACT_METHOD_LABELS[method]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Preferred Contact Time</Label>
+          <Select
+            value={draft.contactDefaults.preferredContactTime || NONE}
+            onValueChange={(value) =>
+              setDraft((current) =>
+                current
+                  ? {
+                      ...current,
+                      contactDefaults: {
+                        ...current.contactDefaults,
+                        preferredContactTime:
+                          value === NONE ? "" : (value as ContactDefaultsDraft["preferredContactTime"]),
+                      },
+                    }
+                  : current,
+              )
+            }
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Not set" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Not set</SelectItem>
+              {PREFERRED_CONTACT_TIMES.map((time) => (
+                <SelectItem key={time} value={time}>
+                  {PREFERRED_CONTACT_TIME_LABELS[time]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
     </div>
   );
-}
 
-export function preferenceCategoryLabel(category: PreferenceOptionCategory) {
-  return PREFERENCE_OPTION_CATEGORY_LABELS[category];
+  return (
+    <div className="space-y-4" data-testid="guest-preferences" ref={formRef}>
+      <section className="rounded-2xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg">Guest Preferences</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{PREFERENCES_COPY}</p>
+            {guest ? (
+              <p className="mt-1 text-xs text-muted-foreground">{guest.fullName}</p>
+            ) : null}
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Switch
+              checked={draft.applyToFutureReservations}
+              onCheckedChange={(checked) =>
+                setDraft((current) =>
+                  current ? { ...current, applyToFutureReservations: checked } : current,
+                )
+              }
+            />
+            Apply to Future Reservations
+          </label>
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-4">
+          {!hasTypes ? (
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <p className="text-sm text-muted-foreground">
+                {PREFERENCES_EMPTY_TYPES}{" "}
+                <a className="underline" href={PREFERENCE_SETUP_HREF}>
+                  Open Property Setup
+                </a>
+              </p>
+            </section>
+          ) : null}
+          {otherCategories.map((category) => renderCategory(category))}
+          {commCategory
+            ? renderCategory(commCategory, contactBlock)
+            : (
+                <section className="rounded-2xl border border-border bg-card p-5">
+                  <h4 className="font-medium">Communication Preferences</h4>
+                  <div className="mt-4">{contactBlock}</div>
+                </section>
+              )}
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-pref-summary">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="font-medium">Preference Summary</h4>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              >
+                Edit
+              </Button>
+            </div>
+            {summary.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">No preferences recorded yet.</p>
+            ) : (
+              <ul className="mt-3 flex flex-col gap-1 text-sm">
+                {summary.map((chip) => (
+                  <li key={`${chip.source}-${chip.code}`}>
+                    <span className="text-muted-foreground">{chip.label}: </span>
+                    {chip.value}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="rounded-2xl border border-border bg-card p-5">
+            <h4 className="font-medium">Apply Preferences</h4>
+            <p className="mt-2 text-sm text-muted-foreground">{PREFERENCES_APPLY_COPY}</p>
+            <div className="mt-3 flex items-center gap-2">
+              <Switch
+                checked={draft.applyToFutureReservations}
+                onCheckedChange={(checked) =>
+                  setDraft((current) =>
+                    current ? { ...current, applyToFutureReservations: checked } : current,
+                  )
+                }
+              />
+              <span className="text-sm">Apply to future reservations</span>
+            </div>
+          </section>
+          <section className="rounded-2xl border border-border bg-card p-5">
+            <h4 className="font-medium">Important Note</h4>
+            <p className="mt-2 text-sm text-muted-foreground">{PREFERENCES_IMPORTANT_NOTE}</p>
+          </section>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            if (dirty) setDiscardOpen(true);
+            else restore();
+          }}
+        >
+          Cancel
+        </Button>
+        <Button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? "Saving…" : "Save Preferences"}
+        </Button>
+      </div>
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cancel restores the last saved guest preferences. Nothing is written until you save.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                restore();
+                setDiscardOpen(false);
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }

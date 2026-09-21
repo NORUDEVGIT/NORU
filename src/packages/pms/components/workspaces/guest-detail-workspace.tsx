@@ -424,6 +424,7 @@ export function GuestDetailWorkspace({
           <GuestPreferencesCard
             restaurantId={restaurantId}
             guestId={guestId}
+            guest={guestQuery.data.guest}
             preferences={guestQuery.data.preferences}
             onSaved={refresh}
           />

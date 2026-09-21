@@ -805,6 +805,7 @@ export type Database = {
       guest_preferences: {
         Row: {
           accessibility_requirements: string | null
+          apply_to_future_reservations: boolean
           bed_preference: string | null
           communication_preference: string | null
           created_at: string
@@ -820,6 +821,7 @@ export type Database = {
         }
         Insert: {
           accessibility_requirements?: string | null
+          apply_to_future_reservations?: boolean
           bed_preference?: string | null
           communication_preference?: string | null
           created_at?: string
@@ -835,6 +837,7 @@ export type Database = {
         }
         Update: {
           accessibility_requirements?: string | null
+          apply_to_future_reservations?: boolean
           bed_preference?: string | null
           communication_preference?: string | null
           created_at?: string

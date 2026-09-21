@@ -32,7 +32,7 @@ import {
 import { CreateReservationStay } from "@/packages/pms/components/bookings/create-reservation-stay";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { getGuestsAccess, getGuest } from "@/packages/pms/lib/guests.functions";
+import { getGuestsAccess, getGuest, getGuestReservationPreferenceDefaults } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getBookingsAccess,
@@ -173,6 +173,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
   const fetchPrefillGuest = useServerFn(getGuest);
+  const fetchPreferenceDefaults = useServerFn(getGuestReservationPreferenceDefaults);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
   const fetchSet3 = useServerFn(getPmsSet3Snapshot);
   const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
@@ -209,6 +210,21 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const [guaranteeMethod, setGuaranteeMethod] = useState("");
   const [createdView, setCreatedView] = useState<CreatedReservationConfirmation | null>(null);
 
+  async function applyPreferenceDefaults(guestId: string) {
+    try {
+      const defaults = await fetchPreferenceDefaults({ data: { restaurantId, guestId } });
+      if (!defaults.applyToFutureReservations) return;
+      setSpecialRequests((current) =>
+        current.trim() ? current : (defaults.specialRequests ?? ""),
+      );
+      if (defaults.roomTypeId) {
+        setRoomTypeId((current) => current || defaults.roomTypeId || "");
+      }
+    } catch {
+      /* Prefs are optional defaults; staff can still book. */
+    }
+  }
+
   useEffect(() => {
     if (!prefillGuestId || guest) return;
     void fetchPrefillGuest({ data: { restaurantId, guestId: prefillGuestId } })
@@ -218,6 +234,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           ...picked,
           restrictionReason: picked.restrictionReason,
         });
+        void applyPreferenceDefaults(picked.id);
       })
       .catch(() => {
         /* Prefill is best-effort; staff can still search. */
@@ -716,7 +733,10 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
             restaurantId={restaurantId}
             canCreateGuest={guestAccessQuery.data?.canManage ?? false}
             guest={guest}
-            onGuestChange={setGuest}
+            onGuestChange={(next) => {
+              setGuest(next);
+              if (next) void applyPreferenceDefaults(next.id);
+            }}
           />
           {reservationType === "individual" ? (
             <CreateReservationAssociations

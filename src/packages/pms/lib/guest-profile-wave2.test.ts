@@ -74,9 +74,9 @@ describe("Guest Profile Wave 2 lock", () => {
     assert.match(functions, /export const saveGuestPreferences/);
     assert.match(functions, /from\("guest_preferences"\)/);
     assert.doesNotMatch(functions, /guest_preferences_wave|guest_pref_v2/);
-    assert.match(prefsCard, /saveGuestPreferences/);
-    assert.match(prefsCard, /guest-wave2-accessibility/);
-    assert.match(prefsCard, /guest-wave2-special/);
+    assert.match(functions, /saveGuestPreferenceWorkspace/);
+    assert.match(prefsCard, /saveGuestPreferenceWorkspace/);
+    assert.match(prefsCard, /CONTACT_DEFAULTS_TITLE/);
     assert.match(prefsCard, /Open Property Setup/);
     assert.match(detail, /GuestPreferencesCard/);
     assert.match(detail, /guest-detail-preferences-panel/);
