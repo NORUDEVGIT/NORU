@@ -707,6 +707,7 @@ export function PmsCard4Preferences({
                 </SelectContent>
               </Select>
             </div>
+            {typeDraft.valueType === "single" || typeDraft.valueType === "multi" ? (
             <div className="space-y-2">
               <Label>Options / Values *</Label>
               <div className="flex flex-wrap gap-2">
@@ -765,6 +766,11 @@ export function PmsCard4Preferences({
                 <p className="text-xs text-destructive">{errorFor(typeErrors, "options")}</p>
               ) : null}
             </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                This value type does not use a list of options.
+              </p>
+            )}
             {(
               [
                 ["required", "Required"],

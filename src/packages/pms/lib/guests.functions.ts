@@ -53,8 +53,24 @@ import {
   PREFERRED_CONTACT_TIMES,
   WAVE2_TO_CARD4_PREF_CODE,
   formatPreferenceStoredValue,
+  isPreferredContactMethod,
+  isPreferredContactTime,
   type OverviewPreferenceChip,
 } from "./guest-profile-overview";
+import {
+  PREFERENCE_TEXT_MAX,
+  normalizePreferenceAnswers,
+  reservationDefaultsFromWorkspace,
+  validatePreferenceAnswer,
+  type ContactDefaultsDraft,
+} from "./guest-preferences-workspace";
+import {
+  isPreferenceValueType,
+  normalizePreferenceOptions,
+  type PreferenceCategoryRecord,
+  type PreferenceTypeRecord,
+  type PreferenceValueType,
+} from "./preferences-card4.server";
 import { canManageReservations, propertyToday } from "./reservations.server";
 import type { ReservationStatus } from "./reservation-dates";
 import {
@@ -2083,6 +2099,395 @@ export const saveGuestPreferences = createServerFn({ method: "POST" })
     await syncWave2PreferencesToCard4(data.restaurantId, data.guestId, p);
     return { ok: true };
   });
+
+const WAVE2_FIELD_BY_CARD4_CODE = Object.fromEntries(
+  Object.entries(WAVE2_TO_CARD4_PREF_CODE)
+    .filter((entry): entry is [keyof GuestPreferences, string] => Boolean(entry[1]))
+    .map(([field, code]) => [code, field]),
+) as Record<string, keyof GuestPreferences>;
+
+export type GuestPreferenceWorkspaceType = PreferenceTypeRecord & {
+  values: string[];
+};
+
+export type GuestPreferenceWorkspaceCategory = PreferenceCategoryRecord & {
+  types: GuestPreferenceWorkspaceType[];
+};
+
+export type GuestPreferenceWorkspace = {
+  available: boolean;
+  categories: GuestPreferenceWorkspaceCategory[];
+  applyToFutureReservations: boolean;
+  contactDefaults: ContactDefaultsDraft;
+  wave2: GuestPreferences;
+};
+
+async function loadPreferenceWorkspaceCatalogue(
+  restaurantId: string,
+): Promise<{ categories: PreferenceCategoryRecord[]; types: PreferenceTypeRecord[] }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const [categories, types] = await Promise.all([
+    supabaseAdmin
+      .from("pms_guest_preference_categories")
+      .select("id, name, code, description, active, display_order, created_at, updated_at")
+      .eq("restaurant_id", restaurantId)
+      .order("display_order"),
+    supabaseAdmin
+      .from("pms_guest_preference_types")
+      .select(
+        "id, category_id, name, code, value_type, options, required, active, display_order, created_at, updated_at",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("display_order"),
+  ]);
+  if (categories.error) {
+    if (isMissingSchemaError(categories.error)) return { categories: [], types: [] };
+    throw new Error(categories.error.message);
+  }
+  if (types.error) {
+    if (isMissingSchemaError(types.error)) return { categories: [], types: [] };
+    throw new Error(types.error.message);
+  }
+  return {
+    categories: ((categories.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      code: String(row.code),
+      description: (row.description as string | null) ?? null,
+      active: Boolean(row.active),
+      displayOrder: Number(row.display_order ?? 1),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+    })),
+    types: ((types.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      id: String(row.id),
+      categoryId: String(row.category_id),
+      name: String(row.name),
+      code: String(row.code),
+      valueType: isPreferenceValueType(String(row.value_type))
+        ? (row.value_type as PreferenceValueType)
+        : "single",
+      options: normalizePreferenceOptions(row.options),
+      required: Boolean(row.required),
+      active: Boolean(row.active),
+      displayOrder: Number(row.display_order ?? 1),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+    })),
+  };
+}
+
+function hydrateFromWave2(
+  type: PreferenceTypeRecord,
+  wave2: GuestPreferences,
+): string[] {
+  const field = WAVE2_FIELD_BY_CARD4_CODE[type.code];
+  if (!field) return [];
+  const stored = wave2[field];
+  const label = formatPreferenceStoredValue(
+    stored,
+    type.options.map((option) => ({ id: option.id, label: option.label })),
+  );
+  if (!label) return [];
+  const match = type.options.find(
+    (option) =>
+      option.value.toLowerCase() === label.toLowerCase() ||
+      option.label.toLowerCase() === label.toLowerCase() ||
+      option.id === stored?.replace(/^id:/, ""),
+  );
+  if (type.valueType === "multi") {
+    return match ? [match.value] : [label];
+  }
+  if (type.valueType === "yes_no") {
+    const lower = label.toLowerCase();
+    if (lower.startsWith("y")) return ["yes"];
+    if (lower.startsWith("n")) return ["no"];
+  }
+  return match ? [match.value] : type.valueType === "text" || type.valueType === "number" ? [label] : [];
+}
+
+export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<GuestPreferenceWorkspace> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
+    const guest = await context.supabase
+      .from("guest_profiles")
+      .select("id, language, preferred_contact_method, preferred_contact_time")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+    if (!guest.data) throw new Error("That guest could not be found.");
+
+    const prefs = await context.supabase
+      .from("guest_preferences")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .maybeSingle();
+    const wave2: GuestPreferences = {
+      roomPreference: prefs.data?.room_preference ?? null,
+      bedPreference: prefs.data?.bed_preference ?? null,
+      floorPreference: prefs.data?.floor_preference ?? null,
+      viewPreference: prefs.data?.view_preference ?? null,
+      foodPreference: prefs.data?.food_preference ?? null,
+      communicationPreference: prefs.data?.communication_preference ?? null,
+      accessibilityRequirements: prefs.data?.accessibility_requirements ?? null,
+      specialRequests: prefs.data?.special_requests ?? null,
+    };
+    const values = await supabaseAdmin
+      .from("guest_preference_values")
+      .select("preference_type_id, value_json")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId);
+    const byType = new Map<string, string[]>();
+    if (!values.error) {
+      for (const row of (values.data ?? []) as Array<{ preference_type_id: string; value_json: unknown }>) {
+        const raw = Array.isArray(row.value_json) ? row.value_json.map(String) : [];
+        byType.set(row.preference_type_id, raw);
+      }
+    }
+
+    const categories = catalogue.categories
+      .map((category) => {
+        const types = catalogue.types
+          .filter((type) => type.categoryId === category.id)
+          .map((type) => {
+            const stored = byType.get(type.id);
+            const valuesForType =
+              stored && stored.length > 0
+                ? normalizePreferenceAnswers(type.valueType, stored)
+                : hydrateFromWave2(type, wave2);
+            return { ...type, values: valuesForType };
+          })
+          .filter((type) => type.active || type.values.length > 0);
+        return { ...category, types };
+      })
+      .filter((category) => category.active || category.types.length > 0);
+
+    const method = (guest.data as { preferred_contact_method?: string | null }).preferred_contact_method;
+    const time = (guest.data as { preferred_contact_time?: string | null }).preferred_contact_time;
+    return {
+      available: catalogue.categories.length > 0 || catalogue.types.length > 0,
+      categories,
+      applyToFutureReservations: Boolean(
+        (prefs.data as { apply_to_future_reservations?: boolean } | null)?.apply_to_future_reservations,
+      ),
+      contactDefaults: {
+        language: ((guest.data as { language?: string | null }).language ?? "") as string,
+        preferredContactMethod: isPreferredContactMethod(method ?? "")
+          ? method
+          : "",
+        preferredContactTime: isPreferredContactTime(time ?? "") ? time : "",
+      },
+      wave2,
+    };
+  });
+
+export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        applyToFutureReservations: z.boolean(),
+        answers: z.array(
+          z.object({
+            typeId: idSchema,
+            values: z.array(z.string().max(PREFERENCE_TEXT_MAX)).max(40),
+          }),
+        ),
+        contactDefaults: z.object({
+          language: z.string().max(120),
+          preferredContactMethod: z.union([z.enum(PREFERRED_CONTACT_METHODS), z.literal("")]),
+          preferredContactTime: z.union([z.enum(PREFERRED_CONTACT_TIMES), z.literal("")]),
+        }),
+      })
+      .parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true } | { ok: false; message: string }> => {
+      const me = await requireGuestManager(context as never, data.restaurantId);
+      const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
+      const typeById = new Map(catalogue.types.map((type) => [type.id, type]));
+      const normalized: Array<{ type: PreferenceTypeRecord; values: string[] }> = [];
+      for (const answer of data.answers) {
+        const type = typeById.get(answer.typeId);
+        if (!type) return { ok: false, message: "A preference type is no longer available." };
+        const values = normalizePreferenceAnswers(type.valueType, answer.values);
+        const error = validatePreferenceAnswer(type, values);
+        if (error) return { ok: false, message: error };
+        if (!type.active && values.length === 0) continue;
+        if (!type.active && values.length > 0) {
+          normalized.push({ type, values });
+          continue;
+        }
+        normalized.push({ type, values });
+      }
+
+      const { data: guest, error: guestError } = await context.supabase
+        .from("guest_profiles")
+        .select("id, anonymised_at")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.guestId)
+        .maybeSingle();
+      if (guestError && isMissingSchemaError(guestError))
+        return { ok: false, message: "Guest preferences are unavailable until their migration is applied." };
+      if (!guest) return { ok: false, message: "That guest could not be found." };
+      if ((guest as { anonymised_at?: string | null }).anonymised_at) {
+        return { ok: false, message: "This profile has been anonymised and cannot be changed." };
+      }
+
+      const { error: contactError } = await context.supabase
+        .from("guest_profiles")
+        .update({
+          language: blankToNull(data.contactDefaults.language),
+          preferred_contact_method: data.contactDefaults.preferredContactMethod || null,
+          preferred_contact_time: data.contactDefaults.preferredContactTime || null,
+        })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.guestId);
+      if (contactError) return { ok: false, message: contactError.message };
+
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      for (const item of normalized) {
+        const { error } = await supabaseAdmin.from("guest_preference_values").upsert(
+          {
+            restaurant_id: data.restaurantId,
+            guest_id: data.guestId,
+            preference_type_id: item.type.id,
+            value_json: item.values,
+          } as never,
+          { onConflict: "guest_id,preference_type_id" },
+        );
+        if (error) return { ok: false, message: error.message };
+      }
+
+      const wave2Patch: Record<string, string | null> = {};
+      for (const item of normalized) {
+        const field = WAVE2_FIELD_BY_CARD4_CODE[item.type.code];
+        if (!field) continue;
+        const label =
+          item.values.length === 0
+            ? null
+            : item.type.options.find((option) => option.value === item.values[0])?.label ??
+              item.values.join(", ");
+        wave2Patch[
+          field === "roomPreference"
+            ? "room_preference"
+            : field === "bedPreference"
+              ? "bed_preference"
+              : field === "floorPreference"
+                ? "floor_preference"
+                : field === "viewPreference"
+                  ? "view_preference"
+                  : field === "foodPreference"
+                    ? "food_preference"
+                    : field === "communicationPreference"
+                      ? "communication_preference"
+                      : field === "accessibilityRequirements"
+                        ? "accessibility_requirements"
+                        : "special_requests"
+        ] = label ? `other:${label}` : null;
+      }
+      const textNotes = normalized
+        .filter((item) => item.type.valueType === "text")
+        .flatMap((item) => item.values);
+      if (textNotes.length > 0) wave2Patch.special_requests = textNotes.join("\n");
+
+      const existing = await context.supabase
+        .from("guest_preferences")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", data.guestId)
+        .maybeSingle();
+      const prefRow = {
+        ...wave2Patch,
+        apply_to_future_reservations: data.applyToFutureReservations,
+      };
+      if (existing.data) {
+        const { error } = await context.supabase
+          .from("guest_preferences")
+          .update(prefRow)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("guest_id", data.guestId);
+        if (error) return { ok: false, message: error.message };
+      } else {
+        const { error } = await context.supabase.from("guest_preferences").insert({
+          restaurant_id: data.restaurantId,
+          guest_id: data.guestId,
+          ...prefRow,
+        });
+        if (error) return { ok: false, message: error.message };
+      }
+
+      await recordGuestEvent({
+        restaurantId: data.restaurantId,
+        guestId: data.guestId,
+        eventType: "preference_updated",
+        newValues: {
+          apply_to_future_reservations: data.applyToFutureReservations,
+          types: normalized.map((item) => item.type.code),
+        },
+        actorMembershipId: me.id,
+      });
+      return { ok: true };
+    },
+  );
+
+export const getGuestReservationPreferenceDefaults = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      applyToFutureReservations: boolean;
+      specialRequests: string | null;
+      roomTypeId: string | null;
+    }> => {
+      await requireGuestManager(context as never, data.restaurantId);
+      const workspace = await listGuestPreferenceWorkspace({
+        data: { restaurantId: data.restaurantId, guestId: data.guestId },
+      });
+      const rooms = await getGuestPreferenceCatalogues({
+        data: { restaurantId: data.restaurantId },
+      });
+      const answers = workspace.categories.flatMap((category) =>
+        category.types.map((type) => ({
+          code: type.code,
+          valueType: type.valueType,
+          values: type.values,
+        })),
+      );
+      const mapped = reservationDefaultsFromWorkspace({
+        applyToFutureReservations: workspace.applyToFutureReservations,
+        answers,
+        specialRequests: workspace.wave2.specialRequests,
+        roomTypes: rooms.roomTypes.map((row) => ({
+          id: row.id,
+          code: row.code ?? null,
+          label: row.label,
+        })),
+      });
+      return {
+        applyToFutureReservations: workspace.applyToFutureReservations,
+        specialRequests: mapped.specialRequests,
+        roomTypeId: mapped.roomTypeId,
+      };
+    },
+  );
 
 /* ------------------------------------------------------------------ note */
 
