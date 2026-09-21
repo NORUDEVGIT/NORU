@@ -30,10 +30,6 @@ export const GUEST_LISTING_SECTIONS = [
 export const GUEST_LISTING_CHIPS = [
   { id: "all", title: "All", section: "individual" as GuestListingSectionId },
   { id: "individual", title: "Individuals", section: "individual" as GuestListingSectionId },
-  { id: "company", title: "Companies", section: "company" as GuestListingSectionId },
-  { id: "travel-agent", title: "Travel Agencies", section: "travel-agent" as GuestListingSectionId },
-  { id: "tour-operator", title: "Tour Operators", section: "tour-operator" as GuestListingSectionId },
-  { id: "contact", title: "Contacts", section: "contact" as GuestListingSectionId },
 ] as const;
 
 export type GuestListingChipId = (typeof GUEST_LISTING_CHIPS)[number]["id"];
@@ -226,12 +222,8 @@ export function lastStayWindowStart(preset: LastStayPreset, todayIso: string): s
 }
 
 export function chipForSection(section: GuestListingSectionId): GuestListingChipId {
-  if (section === "group") return "all";
   if (section === "individual") return "individual";
-  if (section === "company") return "company";
-  if (section === "travel-agent") return "travel-agent";
-  if (section === "tour-operator") return "tour-operator";
-  return "contact";
+  return "all";
 }
 
 export function invalidateGuestWorkspaceQueries(

@@ -67,6 +67,7 @@ export function GuestListingWorkspace({
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
 
   const [search, setSearch] = useState("");
+  const [guestChip, setGuestChip] = useState<"all" | "individual">("all");
   const [individualOpen, setIndividualOpen] = useState(false);
   const [companyOpen, setCompanyOpen] = useState(false);
   const [agencyOpen, setAgencyOpen] = useState(false);
@@ -97,6 +98,7 @@ export function GuestListingWorkspace({
   });
 
   function selectSection(next: GuestListingSectionId) {
+    if (next === "individual") setGuestChip("all");
     void navigate({
       to: GUEST_PROFILE_DIRECTORY_PATH,
       search: guestProfileSearch({ type: next }),
@@ -125,7 +127,6 @@ export function GuestListingWorkspace({
 
   const stats = statsQuery.data;
   const config = configQuery.data;
-  const allSelected = section === "individual" && !listingType;
   const canCreateIndividual = listingCreateAllowed("individual", config);
   const canCreateCompany = listingCreateAllowed("company", config);
   const canCreateAgency = listingCreateAllowed("travel-agent", config);
@@ -199,39 +200,34 @@ export function GuestListingWorkspace({
         })}
       </nav>
 
-      <div
-        className="flex w-full gap-2 overflow-x-auto"
-        data-testid="guest-listing-chips"
-        role="tablist"
-        aria-label="Profile category"
-      >
-        {GUEST_LISTING_CHIPS.map((chip) => {
-          const selected =
-            chip.id === "all"
-              ? allSelected
-              : chip.section === section && (chip.id !== "individual" || !allSelected);
-          const inactive = listingTypeInactive(chip.section, config);
-          return (
-            <button
-              key={chip.id}
-              type="button"
-              data-testid={`guest-listing-chip-${chip.id}`}
-              title={inactive ? PROFILE_TYPE_INACTIVE_SECTION_COPY : undefined}
-              onClick={() => selectSection(chip.section)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
-                selected
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : inactive
-                    ? "border-dashed border-border text-muted-foreground"
+      {section === "individual" ? (
+        <div
+          className="flex w-full gap-2 overflow-x-auto"
+          data-testid="guest-listing-chips"
+          role="tablist"
+          aria-label="Guest category"
+        >
+          {GUEST_LISTING_CHIPS.map((chip) => {
+            const selected = chip.id === guestChip;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                data-testid={`guest-listing-chip-${chip.id}`}
+                onClick={() => setGuestChip(chip.id)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
+                  selected
+                    ? "border-primary bg-primary/10 text-foreground"
                     : "border-border text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {chip.title}
-            </button>
-          );
-        })}
-      </div>
+                )}
+              >
+                {chip.title}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
