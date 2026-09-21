@@ -94,26 +94,30 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.equal(propertySetupRedirectHref("#rates"), `${SET1_HUB_HREF}#rates`);
   });
 
-  it("opens from the hub with Card 3 chrome, landing grid, and placeholder workspaces", () => {
+  it("opens from the hub with Card 3 chrome, persistent eight-step navigation, and no landing grid", () => {
     assert.match(hub, /PmsPropertySetupCard3Section/);
     assert.match(hub, /card3Open/);
     assert.match(hub, /isCard3WorkspaceHash/);
     assert.match(section, /pms-card3-fullscreen/);
     assert.match(section, /PropertySetupWorkspaceShell/);
+    assert.match(section, /PropertySetupStepNav/);
+    assert.match(section, /pms-card3-steps/);
+    assert.match(section, /currency-financial-settings/);
     assert.doesNotMatch(section, /pms-card3-top-nav/);
     assert.doesNotMatch(section, /CARD1_PMS_NAV/);
     assert.match(section, /CARD3_SUBTITLE/);
     assert.doesNotMatch(section, /Configuration Progress/);
-    assert.match(section, /pms-card3-domain-grid/);
-    assert.match(section, />\s*Open\s*</);
-    assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
+    assert.doesNotMatch(section, /pms-card3-domain-grid/);
+    assert.doesNotMatch(section, />\s*Open\s*</);
+    assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
+    assert.doesNotMatch(section, /percent=\{/);
     assert.equal(CARD3_DOMAIN_PLACEHOLDER, "This workspace will be implemented in Phase 1.");
     assert.equal(CARD3_BACK_LABEL, "Financial & Commercial");
-    assert.match(workspace, /pms-card3-tabs-slot/);
-    assert.match(workspace, /pms-card3-drawer-slot/);
+    assert.doesNotMatch(workspace, /pms-card3-tabs-slot/);
+    assert.doesNotMatch(workspace, /pms-card3-drawer-slot/);
     assert.match(workspace, /pms-card3-content-slot/);
-    assert.match(workspace, /CARD3_AUDIT_HISTORY_LABEL/);
-    assert.match(workspace, /CARD3_BACK_LABEL/);
+    assert.doesNotMatch(workspace, /CARD3_AUDIT_HISTORY_LABEL/);
+    assert.doesNotMatch(workspace, /onAuditHistory/);
     assert.match(workspace, /PropertySetupSectionHeader/);
     assert.match(settings, /isCard3WorkspaceHash/);
     assert.match(settings, /hidePackageRail/);
