@@ -130,6 +130,11 @@ export const GUEST_ACCOUNT_EVENT_TYPES = [
   "document_replaced",
   "agreement_created",
   "agreement_updated",
+  "commission_configured",
+  "commission_calculated",
+  "commission_updated",
+  "allotment_changed",
+  "settings_changed",
 ] as const;
 export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 

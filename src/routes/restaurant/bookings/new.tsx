@@ -123,9 +123,12 @@ export const Route = createFileRoute("/restaurant/bookings/new")({
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const guestId = typeof search.guestId === "string" ? search.guestId.trim() : "";
     const companyMasterId = typeof search.companyMasterId === "string" ? search.companyMasterId.trim() : "";
-    const next: { guestId?: string; companyMasterId?: string } = {};
+    const travelAgentMasterId =
+      typeof search.travelAgentMasterId === "string" ? search.travelAgentMasterId.trim() : "";
+    const next: { guestId?: string; companyMasterId?: string; travelAgentMasterId?: string } = {};
     if (uuid.test(guestId)) next.guestId = guestId;
     if (uuid.test(companyMasterId)) next.companyMasterId = companyMasterId;
+    if (uuid.test(travelAgentMasterId)) next.travelAgentMasterId = travelAgentMasterId;
     return next;
   },
   beforeLoad: async () => {
@@ -170,7 +173,11 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
-  const { guestId: prefillGuestId, companyMasterId: prefillCompanyMasterId } = Route.useSearch();
+  const {
+    guestId: prefillGuestId,
+    companyMasterId: prefillCompanyMasterId,
+    travelAgentMasterId: prefillTravelAgentMasterId,
+  } = Route.useSearch();
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
@@ -255,6 +262,19 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
         /* Prefill is best-effort; staff can still search. */
       });
   }, [prefillCompanyMasterId, restaurantId, companyMaster, fetchGuestAccount]);
+
+  useEffect(() => {
+    if (!prefillTravelAgentMasterId || travelAgentMaster) return;
+    void fetchGuestAccount({ data: { restaurantId, accountId: prefillTravelAgentMasterId } })
+      .then((account) => {
+        if (account.accountType !== "travel_agent") return;
+        setReservationType("travel_agency");
+        setTravelAgentMaster(toPickedReservationMaster(account));
+      })
+      .catch(() => {
+        /* Prefill is best-effort; staff can still search. */
+      });
+  }, [prefillTravelAgentMasterId, restaurantId, travelAgentMaster, fetchGuestAccount]);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],

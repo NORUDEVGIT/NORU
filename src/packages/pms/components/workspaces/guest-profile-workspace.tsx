@@ -21,6 +21,7 @@ import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest
 import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/guest-listing-workspace";
 import { GuestCreateWorkspace } from "@/packages/pms/components/workspaces/guest-create-workspace";
 import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
+import { GuestTravelAgentDetailWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-detail-workspace";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -39,6 +40,7 @@ import {
   type GuestProfileTypeId,
   type CompanyDetailNavId,
   type GuestProfileWorkspaceNavId,
+  type TravelAgentDetailNavId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
 import {
@@ -63,7 +65,7 @@ export function GuestProfileWorkspace({
   guestId?: string | undefined;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
   returnCard?: GuestProfileCardId | undefined;
-  returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined;
+  returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | undefined;
   profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   create?: "individual" | undefined;
 }) {
@@ -73,7 +75,9 @@ export function GuestProfileWorkspace({
   );
   const [navId, setNavId] = useState<GuestProfileWorkspaceNavId | null>(() => {
     if (!guestId) return null;
-    if (returnNav) return returnNav;
+    if (returnNav && GUEST_PROFILE_WORKSPACE_NAV.some((item) => item.id === returnNav)) {
+      return returnNav as GuestProfileWorkspaceNavId;
+    }
     const start = initialGuestProfileCard(true, returnCard);
     return GUEST_PROFILE_WORKSPACE_NAV.some((item) => item.card === start)
       ? workspaceNavForCard(start)
@@ -210,6 +214,16 @@ export function GuestProfileWorkspace({
       <GuestCompanyDetailWorkspace
         membership={membership}
         companyId={guestId}
+        nav={returnNav}
+      />
+    );
+  }
+
+  if (guestId && operationalType === "travel-agent") {
+    return (
+      <GuestTravelAgentDetailWorkspace
+        membership={membership}
+        agencyId={guestId}
         nav={returnNav}
       />
     );

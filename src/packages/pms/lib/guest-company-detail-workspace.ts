@@ -41,7 +41,8 @@ export const COMPANY_TRAVELERS_COPY = "Manage people who travel under this compa
 export const COMPANY_DOCUMENTS_COPY = "Company files use the company document store. Identity documents stay on guest profiles.";
 export const COMPANY_BILLING_COPY =
   "Billing reads reservation folios for this company. There is no separate accounts-receivable ledger.";
-export const COMPANY_TA_SETTINGS_COMING = "Travel Agent Settings for this business type are not available on Company Detail yet.";
+export const COMPANY_TA_SETTINGS_COMING =
+  "Travel Agency operations live on standalone Travel Agency profiles (Guests → Travel Agencies). This company business type (TRA) is a classification only.";
 export const COMPANY_NOTE_CATEGORIES = ["general", "billing", "operations", "sales"] as const;
 export type CompanyNoteCategory = (typeof COMPANY_NOTE_CATEGORIES)[number];
 export const COMPANY_NOTE_VISIBILITIES = ["internal", "restricted"] as const;

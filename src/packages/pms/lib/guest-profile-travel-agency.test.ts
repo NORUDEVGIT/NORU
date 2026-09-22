@@ -56,10 +56,11 @@ describe("Guest Profile Travel Agency enrichment lock — AC-GE3-1…18", () => 
     assert.match(form, /<Section id="contacts" title="Contacts">/);
     assert.match(form, /<Section id="address" title="Address">/);
     assert.match(form, /<Section id="license" title="License \/ Registration">/);
-    assert.match(form, /<Section id="commission" title="Commission">/);
-    assert.match(form, /<Section id="contract" title="Contract">/);
-    assert.match(form, /<Section id="rates" title="Rates">/);
-    assert.match(form, /<Section id="payment-terms" title="Payment Terms">/);
+    assert.match(form, /<Section id="operations" title="Operational settings">/);
+    assert.doesNotMatch(form, /<Section id="commission" title="Commission">/);
+    assert.doesNotMatch(form, /<Section id="contract" title="Contract">/);
+    assert.doesNotMatch(form, /<Section id="rates" title="Rates">/);
+    assert.doesNotMatch(form, /<Section id="payment-terms" title="Payment Terms">/);
     assert.match(form, /<Section id="notes" title="Notes">/);
     assert.match(form, /defaultOpen = false/);
     assert.doesNotMatch(wrapper, /ta-section-\$\{id\}/);
@@ -133,63 +134,69 @@ describe("Guest Profile Travel Agency enrichment lock — AC-GE3-1…18", () => 
     assert.match(detail, /TA_LICENSE_COPY/);
   });
 
-  it("AC-GE3-5 Commission fields persist as reference only; no settlement UI/claims", () => {
+  it("AC-GE3-5 Commission master columns persist; form no longer live-edits them", () => {
     const form = readRel("../components/guests/guest-travel-agent-form-dialog.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
+    const settings = readRel("../components/guests/guest-travel-agent-settings.tsx");
     assert.deepEqual([...COMMISSION_TYPES], ["percent", "fixed_note"]);
     assert.match(TA_COMMISSION_REFERENCE_COPY, /does not post, settle, or pay commission/i);
-    assert.match(form, /TA_COMMISSION_REFERENCE_COPY/);
-    assert.match(form, /ta-commission-label/);
-    assert.match(form, /ta-commission-type/);
-    assert.match(form, /ta-commission-currency/);
+    assert.match(form, /TA_FORM_OPERATIONAL_COPY/);
+    assert.doesNotMatch(form, /ta-commission-label/);
+    assert.doesNotMatch(form, /ta-commission-type/);
+    assert.doesNotMatch(form, /ta-commission-currency/);
     assert.match(functions, /commission_label:/);
     assert.match(functions, /commission_type:/);
     assert.match(functions, /commission_currency_note:/);
+    assert.match(settings, /Commission/);
     assert.doesNotMatch(form, /commission due|gateway settlement|post commission|settle commission/i);
     assert.doesNotMatch(functions, /from\("commission_settlements"|from\("commission_postings"/);
   });
 
-  it("AC-GE3-6 Contract fields persist; no e-sign product", () => {
+  it("AC-GE3-6 Contract fields persist; no e-sign product; form no longer live-edits them", () => {
     const form = readRel("../components/guests/guest-travel-agent-form-dialog.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
+    const agreements = readRel("../components/guests/guest-travel-agent-agreements.tsx");
     assert.deepEqual([...CONTRACT_STATUSES], ["draft", "active", "expired"]);
     assert.match(TA_CONTRACT_COPY, /no e-sign product/i);
-    assert.match(form, /TA_CONTRACT_COPY/);
-    assert.match(form, /ta-contract-ref/);
-    assert.match(form, /ta-contract-start/);
-    assert.match(form, /ta-contract-end/);
-    assert.match(form, /ta-contract-status/);
-    assert.match(form, /ta-contract-signed-with/);
+    assert.match(form, /TA_FORM_OPERATIONAL_COPY/);
+    assert.doesNotMatch(form, /ta-contract-ref/);
+    assert.doesNotMatch(form, /ta-contract-start/);
+    assert.doesNotMatch(form, /ta-contract-end/);
+    assert.doesNotMatch(form, /ta-contract-status/);
+    assert.doesNotMatch(form, /ta-contract-signed-with/);
     assert.match(functions, /contract_reference:/);
     assert.match(functions, /contract_start_date:/);
     assert.match(functions, /contract_end_date:/);
     assert.match(functions, /contract_status:/);
     assert.match(functions, /contract_signed_with:/);
+    assert.match(agreements, /saveTravelAgentAgreement|listTravelAgentAgreements/);
     assert.doesNotMatch(form, /e-sign|docusign|sign now/i);
   });
 
-  it("AC-GE3-7 Rates field is reference name/code only; no rate engine", () => {
+  it("AC-GE3-7 Rates field remains stored; form no longer live-edits it", () => {
     const form = readRel("../components/guests/guest-travel-agent-form-dialog.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
     assert.match(TA_RATE_REFERENCE_COPY, /not a rate engine/i);
-    assert.match(form, /TA_RATE_REFERENCE_COPY/);
-    assert.match(form, /ta-rate-ref/);
+    assert.match(form, /TA_FORM_OPERATIONAL_COPY/);
+    assert.doesNotMatch(form, /ta-rate-ref/);
     assert.match(functions, /negotiated_rate_reference:/);
     assert.doesNotMatch(form, /rate-plan picker|rate applied|live price/i);
     assert.doesNotMatch(functions, /from\("rate_engine"|from\("negotiated_rates"/);
   });
 
-  it("AC-GE3-8 TA Payment Terms persist (terms / credit note / billing instruction)", () => {
+  it("AC-GE3-8 TA Payment Terms persist; Settings is the live editor", () => {
     const form = readRel("../components/guests/guest-travel-agent-form-dialog.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
+    const settings = readRel("../components/guests/guest-travel-agent-settings.tsx");
     assert.match(PAYMENT_TERMS_REFERENCE_COPY, /not accounts payable/i);
-    assert.match(form, /PAYMENT_TERMS_REFERENCE_COPY/);
-    assert.match(form, /ta-payment-terms/);
-    assert.match(form, /ta-credit-limit/);
-    assert.match(form, /ta-billing-instruction/);
+    assert.match(form, /TA_FORM_OPERATIONAL_COPY/);
+    assert.doesNotMatch(form, /ta-payment-terms/);
+    assert.doesNotMatch(form, /ta-credit-limit/);
+    assert.doesNotMatch(form, /ta-billing-instruction/);
     assert.match(functions, /payment_terms:/);
     assert.match(functions, /credit_limit_note:/);
     assert.match(functions, /billing_instruction:/);
+    assert.match(settings, /paymentTerms|creditLimit|billingInstruction/);
   });
 
   it("AC-GE3-9 Notes persist", () => {
@@ -263,7 +270,7 @@ describe("Guest Profile Travel Agency enrichment lock — AC-GE3-1…18", () => 
     const company = readRel("../components/guests/guest-company-form-dialog.tsx");
     const detail = readRel("../components/guests/guest-account-detail.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
-    assert.match(company, /<Section id="payment-terms" title="Payment Terms">/);
+    assert.match(company, /<Section id="payment-terms"/);
     assert.match(company, /company-payment-terms/);
     assert.match(company, /company-credit-limit/);
     assert.match(company, /company-billing-instruction/);

@@ -129,7 +129,7 @@ export const GUEST_PROFILE_WORKSPACE_NAV = [
 
 export type GuestProfileWorkspaceNavId = (typeof GUEST_PROFILE_WORKSPACE_NAV)[number]["id"];
 
-export function guestProfileWorkspaceNav(id: GuestProfileWorkspaceNavId | CompanyDetailNavId) {
+export function guestProfileWorkspaceNav(id: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId) {
   return (
     GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === id) ?? GUEST_PROFILE_WORKSPACE_NAV[0]
   );
@@ -182,9 +182,23 @@ export const COMPANY_DETAIL_NAV_IDS = [
 ] as const;
 export type CompanyDetailNavId = (typeof COMPANY_DETAIL_NAV_IDS)[number];
 
+export const TRAVEL_AGENT_DETAIL_NAV_IDS = [
+  "overview",
+  "contacts",
+  "bookings",
+  "commission",
+  "agreements",
+  "payment",
+  "documents",
+  "notes",
+  "history",
+  "settings",
+] as const;
+export type TravelAgentDetailNavId = (typeof TRAVEL_AGENT_DETAIL_NAV_IDS)[number];
+
 export type GuestProfileCardSearch = {
   card?: GuestProfileCardId;
-  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId;
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId;
 };
 
 /** Listing-only placeholders — not operational GUEST_PROFILE_TYPES. */
@@ -204,10 +218,13 @@ const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
 
 export function parseGuestProfileWorkspaceNav(
   search: Record<string, unknown>,
-): GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined {
+): GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | undefined {
   const raw = typeof search["nav"] === "string" ? search["nav"] : undefined;
   if (!raw) return undefined;
   const type = typeof search["type"] === "string" ? search["type"] : undefined;
+  if (type === "travel-agent" && (TRAVEL_AGENT_DETAIL_NAV_IDS as readonly string[]).includes(raw)) {
+    return raw as TravelAgentDetailNavId;
+  }
   if (type === "company" && (COMPANY_DETAIL_NAV_IDS as readonly string[]).includes(raw)) {
     return raw as CompanyDetailNavId;
   }
@@ -263,7 +280,7 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
 
 export function guestProfileCardSearch(
   card: GuestProfileCardId | undefined,
-  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined,
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | undefined,
 ): GuestProfileCardSearch {
   if (card && isGuestRequiredProfileCard(card)) {
     return nav ? { card, nav } : { card };
@@ -273,7 +290,7 @@ export function guestProfileCardSearch(
 
 export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
-  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined;
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | undefined;
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   create?: "individual" | undefined;
 }): GuestProfileSearch {

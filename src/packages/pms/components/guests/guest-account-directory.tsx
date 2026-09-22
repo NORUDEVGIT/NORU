@@ -13,7 +13,11 @@ import {
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { companyDirectorySecondary } from "@/packages/pms/lib/guest-profile-company";
-import { taDirectorySecondary } from "@/packages/pms/lib/guest-profile-travel-agency";
+import {
+  AGENCY_TYPE_LABELS,
+  AGENCY_TYPES,
+  taDirectorySecondary,
+} from "@/packages/pms/lib/guest-profile-travel-agency";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
   WAVE4_GROUP_ACCOUNT_COPY,
@@ -78,6 +82,8 @@ export function GuestAccountDirectory({
   const searchValue = search ?? localSearch;
   const setSearch = onSearchChange ?? setLocalSearch;
   const [status, setStatus] = useState<string>(ALL);
+  const [agencyType, setAgencyType] = useState<string>(ALL);
+  const [country, setCountry] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<(typeof LISTING_PAGE_SIZES)[number]>(
@@ -86,7 +92,7 @@ export function GuestAccountDirectory({
 
   useEffect(() => {
     setPage(0);
-  }, [searchValue]);
+  }, [searchValue, status, agencyType, country]);
 
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
@@ -103,7 +109,17 @@ export function GuestAccountDirectory({
   });
 
   const accountsQuery = useQuery({
-    queryKey: ["guest-accounts", restaurantId, accountType, searchValue, status, offset, pageSize],
+    queryKey: [
+      "guest-accounts",
+      restaurantId,
+      accountType,
+      searchValue,
+      status,
+      agencyType,
+      country,
+      offset,
+      pageSize,
+    ],
     queryFn: () =>
       fetchAccounts({
         data: {
@@ -113,6 +129,12 @@ export function GuestAccountDirectory({
           limit: pageSize,
           ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
           ...(status !== ALL ? { status: status as "active" | "inactive" } : {}),
+          ...(accountType === "travel_agent" && agencyType !== ALL
+            ? { agencyType: agencyType as (typeof AGENCY_TYPES)[number] }
+            : {}),
+          ...(accountType === "travel_agent" && country.trim()
+            ? { country: country.trim() }
+            : {}),
         },
       }),
     enabled: canManage,
@@ -200,6 +222,39 @@ export function GuestAccountDirectory({
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        {accountType === "travel_agent" ? (
+          <>
+            <Select
+              value={agencyType}
+              onValueChange={(value) => {
+                setAgencyType(value);
+                setPage(0);
+              }}
+            >
+              <SelectTrigger className="w-44" data-testid="guest-account-agency-type">
+                <SelectValue placeholder="Agency type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All agency types</SelectItem>
+                {AGENCY_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {AGENCY_TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              className="w-40"
+              data-testid="guest-account-country"
+              placeholder="Country"
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value);
+                setPage(0);
+              }}
+            />
+          </>
+        ) : null}
       </div>
 
       {unavailable ? (
