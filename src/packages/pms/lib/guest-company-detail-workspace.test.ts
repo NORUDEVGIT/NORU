@@ -228,7 +228,8 @@ describe("Company detail workspace honesty", () => {
     assert.doesNotMatch(supabase, /accounts_receivable|company_folios|company_ledger/i);
     assert.doesNotMatch(supabase, /SECURITY DEFINER/i);
     assert.equal(COMPANY_BILLING_COPY.includes("accounts-receivable"), true);
-    assert.match(COMPANY_TA_SETTINGS_COMING, /not available on Company Detail yet/);
+    assert.match(COMPANY_TA_SETTINGS_COMING, /Guests → Travel Agencies/);
+    assert.match(COMPANY_TA_SETTINGS_COMING, /classification only/);
   });
 });
 

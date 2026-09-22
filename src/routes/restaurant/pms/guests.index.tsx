@@ -47,7 +47,7 @@ function GuestProfileDirectoryRoute() {
       pms
       pmsModule="guest-profile"
       sidebarDefaultCollapsed={GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED}
-      hidePackageRail={create === "individual"}
+      hidePackageRail={create === "individual" || create === "group"}
     >
       {(m) => (
         <GuestProfileWorkspace

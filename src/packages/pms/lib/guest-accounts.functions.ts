@@ -19,6 +19,7 @@ import {
   validateCompanyType,
 } from "./guest-profile-company";
 import {
+  AGENCY_TYPES,
   TA_ENRICHMENT_UNAVAILABLE,
   hasPaymentTermsInput,
   validateAgencyType,
@@ -480,6 +481,8 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
         accountType: z.enum(GUEST_ACCOUNT_TYPES),
         search: z.string().max(120).optional(),
         status: z.enum(GUEST_ACCOUNT_STATUSES).optional(),
+        agencyType: z.enum(AGENCY_TYPES).optional(),
+        country: z.string().max(80).optional(),
         limit: z.number().int().min(1).max(200).optional(),
         offset: z.number().int().min(0).max(20_000).optional(),
       })
@@ -491,9 +494,14 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
     const like = term ? `%${term.replace(/[%,]/g, "")}%` : "";
     const offset = data.offset ?? 0;
     const limit = data.limit ?? 100;
-    function applyFilters(query: any, includeTrade: boolean) {
+    function applyFilters(query: any, includeTrade: boolean, includeTaFilters: boolean) {
       let next = query.eq("account_type", data.accountType).order("updated_at", { ascending: false });
       if (data.status) next = next.eq("account_status", data.status);
+      if (includeTaFilters && data.accountType === "travel_agent") {
+        if (data.agencyType) next = next.eq("agency_type", data.agencyType);
+        const country = (data.country ?? "").trim().replace(/[%,]/g, "");
+        if (country) next = next.ilike("country", `%${country}%`);
+      }
       if (term) {
         const parts = includeTrade
           ? [`name.ilike.${like}`, `code.ilike.${like}`, `email.ilike.${like}`, `phone.ilike.${like}`, `trade_name.ilike.${like}`]
@@ -515,6 +523,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
         .select(MASTER_COLUMNS_TA, { count: "exact" })
         .eq("restaurant_id", data.restaurantId),
       true,
+      true,
     );
     if (result.error && isMissingSchemaError(result.error)) {
       result = await applyFilters(
@@ -523,6 +532,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
           .select(MASTER_COLUMNS_COMPANY, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
         true,
+        false,
       );
     }
     if (result.error && isMissingSchemaError(result.error)) {
@@ -532,6 +542,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
           .select(MASTER_COLUMNS, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
         false,
+        false,
       );
     }
     if (result.error && isMissingSchemaError(result.error)) {
@@ -540,6 +551,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
           .from("guest_account_masters")
           .select(MASTER_COLUMNS_BASE, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
+        false,
         false,
       );
     }
@@ -720,6 +732,11 @@ export const createGuestAccount = createServerFn({ method: "POST" })
     }
     if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (error || !inserted) throw new Error(error?.message ?? "Could not create this account master.");
+    if (data.accountType === "group" && !columns.code) {
+      const { generateGroupCode } = await import("./guest-group-detail-workspace");
+      const code = generateGroupCode(inserted.id);
+      await db(context).from("guest_account_masters").update({ code }).eq("id", inserted.id);
+    }
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
       masterId: inserted.id,
@@ -983,8 +1000,12 @@ export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
     if (wave4Unavailable(masterError)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (masterError) throw new Error(masterError.message);
     if (!master) throw new Error("That account master could not be found.");
-    if (master.account_type !== "company" && master.account_type !== "travel_agent") {
-      throw new Error("Multi-guest link is available on Company and Travel Agent masters.");
+    if (
+      master.account_type !== "company" &&
+      master.account_type !== "travel_agent" &&
+      master.account_type !== "group"
+    ) {
+      throw new Error("Multi-guest link is available on Company, Travel Agent, and Group masters.");
     }
     const typeMismatch = assertRoleMatchesType(data.role, master.account_type as GuestAccountType);
     if (typeMismatch) throw new Error(typeMismatch);

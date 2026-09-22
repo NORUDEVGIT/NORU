@@ -477,16 +477,20 @@ export function GuestListingNewGuestMenu({
   onIndividual,
   onCompany,
   onAgency,
+  onGroup,
   canCreateIndividual = true,
   canCreateCompany = true,
   canCreateAgency = true,
+  canCreateGroup = true,
 }: {
   onIndividual: () => void;
   onCompany: () => void;
   onAgency: () => void;
+  onGroup?: () => void;
   canCreateIndividual?: boolean;
   canCreateCompany?: boolean;
   canCreateAgency?: boolean;
+  canCreateGroup?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -505,6 +509,9 @@ export function GuestListingNewGuestMenu({
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!canCreateAgency} onSelect={onAgency}>
           New Agency
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!canCreateGroup} onSelect={onGroup}>
+          New Group
         </DropdownMenuItem>
         <DropdownMenuItem disabled>New Contact</DropdownMenuItem>
       </DropdownMenuContent>

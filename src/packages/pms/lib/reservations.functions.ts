@@ -450,6 +450,7 @@ export const createReservation = createServerFn({ method: "POST" })
         status: z.enum(["pending", "confirmed"]).optional(),
         companyMasterId: idSchema.nullable().optional(),
         travelAgentMasterId: idSchema.nullable().optional(),
+        groupAccountMasterId: idSchema.nullable().optional(),
         commercialBookingSource: z.string().max(120).nullable().optional(),
         marketSegment: z.string().max(120).nullable().optional(),
         externalReference: z.string().max(120).nullable().optional(),
@@ -482,6 +483,17 @@ export const createReservation = createServerFn({ method: "POST" })
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (data.travelAgentMasterId) {
+      const { enforceTravelAgentBooking } = await import("./guest-travel-agent-booking");
+      await enforceTravelAgentBooking({
+        db: supabaseAdmin as never,
+        restaurantId: data.restaurantId,
+        agencyId: data.travelAgentMasterId,
+        arrival,
+        departure,
+        roomTypeId: data.roomTypeId,
+      });
+    }
     const { data: created, error } = await supabaseAdmin.rpc("create_hotel_reservation_priced", {
       _restaurant_id: data.restaurantId,
       _guest_id: data.guestId,
@@ -510,6 +522,30 @@ export const createReservation = createServerFn({ method: "POST" })
     if (error) throw rateError(reservationError(error.message).message);
 
     const row = created as unknown as { id: string; confirmation_number: string };
+    if (data.groupAccountMasterId) {
+      const { error: groupError } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update({ group_account_master_id: data.groupAccountMasterId })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.id);
+      if (groupError) throw new Error(groupError.message);
+    }
+    if (data.travelAgentMasterId) {
+      const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
+      const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");
+      await syncTravelAgentCommission({
+        db: supabaseAdmin as never,
+        restaurantId: data.restaurantId,
+        reservationId: row.id,
+        actorMembershipId: me.id,
+      });
+      await notifyTravelAgentBookingEvent({
+        restaurantId: data.restaurantId,
+        agencyId: data.travelAgentMasterId,
+        eventKey: "booking_confirmation",
+        body: `Reservation ${row.confirmation_number} was created for this travel agency.`,
+      });
+    }
     return { id: row.id, confirmationNumber: row.confirmation_number };
   });
 
@@ -525,6 +561,26 @@ export const amendReservation = createServerFn({ method: "POST" })
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const existing = await supabaseAdmin
+      .from("hotel_reservations")
+      .select("travel_agent_master_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    const travelAgentMasterId = (existing.data as { travel_agent_master_id?: string | null } | null)
+      ?.travel_agent_master_id;
+    if (travelAgentMasterId) {
+      const { enforceTravelAgentBooking } = await import("./guest-travel-agent-booking");
+      await enforceTravelAgentBooking({
+        db: supabaseAdmin as never,
+        restaurantId: data.restaurantId,
+        agencyId: travelAgentMasterId,
+        arrival,
+        departure,
+        roomTypeId: data.roomTypeId,
+        excludeReservationId: data.reservationId,
+      });
+    }
     const { data: updated, error } = await supabaseAdmin.rpc("amend_hotel_reservation_priced", {
       _restaurant_id: data.restaurantId,
       _reservation_id: data.reservationId,
@@ -541,7 +597,24 @@ export const amendReservation = createServerFn({ method: "POST" })
     });
     if (error) throw rateError(reservationError(error.message).message);
 
-    return { id: (updated as unknown as { id: string }).id };
+    const amendedId = (updated as unknown as { id: string }).id;
+    if (travelAgentMasterId) {
+      const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
+      const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");
+      await syncTravelAgentCommission({
+        db: supabaseAdmin as never,
+        restaurantId: data.restaurantId,
+        reservationId: amendedId,
+        actorMembershipId: me.id,
+      });
+      await notifyTravelAgentBookingEvent({
+        restaurantId: data.restaurantId,
+        agencyId: travelAgentMasterId,
+        eventKey: "booking_modification",
+        body: `Reservation ${amendedId} was modified for this travel agency.`,
+      });
+    }
+    return { id: amendedId };
   });
 
 
@@ -654,6 +727,33 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       notes: data.status === "cancelled" ? blankToNull(data.reason) : null,
       actorMembershipId: me.id,
     });
+
+    const bound = await supabaseAdmin
+      .from("hotel_reservations")
+      .select("travel_agent_master_id, confirmation_number")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    const agencyId = (bound.data as { travel_agent_master_id?: string | null } | null)?.travel_agent_master_id;
+    if (agencyId) {
+      const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
+      const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");
+      await syncTravelAgentCommission({
+        db: supabaseAdmin as never,
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        actorMembershipId: me.id,
+        voidEntry: data.status === "cancelled" || data.status === "no_show",
+      });
+      if (data.status === "cancelled") {
+        await notifyTravelAgentBookingEvent({
+          restaurantId: data.restaurantId,
+          agencyId,
+          eventKey: "booking_cancellation",
+          body: `Reservation ${(bound.data as { confirmation_number?: string } | null)?.confirmation_number ?? data.reservationId} was cancelled.`,
+        });
+      }
+    }
 
     return { id: data.reservationId, status: data.status };
   });

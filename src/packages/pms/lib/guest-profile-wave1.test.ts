@@ -173,6 +173,18 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "contacts" }), "contacts");
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "bookings" }), "bookings");
     assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "commission", type: "travel-agent" }),
+      "commission",
+    );
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "settings", type: "travel-agent" }),
+      "settings",
+    );
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "agreements", type: "travel-agent" }),
+      "agreements",
+    );
+    assert.equal(
       GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === "bookings")?.title,
       "Stays & Reservations",
     );

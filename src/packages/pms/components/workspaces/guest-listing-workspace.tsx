@@ -115,6 +115,7 @@ export function GuestListingWorkspace({
   const canCreateIndividual = listingCreateAllowed("individual", config);
   const canCreateCompany = listingCreateAllowed("company", config);
   const canCreateAgency = listingCreateAllowed("travel-agent", config);
+  const canCreateGroup = listingCreateAllowed("group", config);
   const sectionInactive = listingTypeInactive(section, config);
 
   return (
@@ -152,9 +153,16 @@ export function GuestListingWorkspace({
             }
             onCompany={() => setCompanyOpen(true)}
             onAgency={() => setAgencyOpen(true)}
+            onGroup={() =>
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "group", create: "group" }),
+              })
+            }
             canCreateIndividual={canCreateIndividual}
             canCreateCompany={canCreateCompany}
             canCreateAgency={canCreateAgency}
+            canCreateGroup={canCreateGroup}
           />
         </div>
       </div>
@@ -225,6 +233,19 @@ export function GuestListingWorkspace({
                 onClick={() => setAgencyOpen(true)}
               >
                 New Agency
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!canCreateGroup}
+                title={!canCreateGroup ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
+                onClick={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({ type: "group", create: "group" }),
+                  })
+                }
+              >
+                New Group
               </Button>
               <Button variant="outline" disabled title={CONTACT_PROFILE_UNAVAILABLE}>
                 New Contact
