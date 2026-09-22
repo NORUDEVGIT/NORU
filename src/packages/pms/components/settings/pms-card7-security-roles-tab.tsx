@@ -358,6 +358,10 @@ export function Card7SecurityRolesTab({
                     onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })}
                     disabled={!editor}
                   />
+                  <p className="text-xs text-muted-foreground">
+  Use 2–20 uppercase letters, numbers, or underscores, starting with a letter.
+  Example: FRONT_OFFICE_MANAGER.
+</p>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="card7-role-description">Description</Label>

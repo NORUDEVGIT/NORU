@@ -336,6 +336,9 @@ function PaymentMethodSheet({
             className={goldFocus}
             onChange={(event) => setCode(event.target.value.toUpperCase())}
           />
+          <p className="text-xs text-muted-foreground">
+  Use 1–20 uppercase letters, numbers, or underscores. Example: CASH.
+</p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="method-name">Name</Label>
@@ -462,6 +465,9 @@ function DepositPolicySheet({
             className={goldFocus}
             onChange={(event) => setCode(event.target.value.toUpperCase())}
           />
+          <p className="text-xs text-muted-foreground">
+  Use 1–20 uppercase letters, numbers, or underscores. Example: FIRST_NIGHT.
+</p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="policy-name">Name</Label>

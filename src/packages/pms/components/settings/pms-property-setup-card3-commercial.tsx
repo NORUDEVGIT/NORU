@@ -521,8 +521,11 @@ function RestrictionSheet({
             value={code}
             disabled={!canEdit}
             className={goldFocus}
-            onChange={(event) => setCode(event.target.value)}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
           />
+          <p className="text-xs text-muted-foreground">
+  Use 1–20 uppercase letters, numbers, or underscores. Example: MIN_STAY_2.
+</p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="restriction-name">Name</Label>
@@ -531,7 +534,7 @@ function RestrictionSheet({
             value={name}
             disabled={!canEdit}
             className={goldFocus}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => setName(event.target.value.toUpperCase())}
           />
         </div>
         <div className="space-y-1">
@@ -682,6 +685,9 @@ function PromotionSheet({
             className={goldFocus}
             onChange={(event) => setCode(event.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+  Use 1–20 uppercase letters, numbers, or underscores. Example: EARLY_BIRD.
+</p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="promo-name">Name</Label>
@@ -844,6 +850,9 @@ function SeasonSheet({
             className={goldFocus}
             onChange={(event) => setCode(event.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+  Use 1–20 uppercase letters, numbers, or underscores. Example: HIGH_SEASON.
+</p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="season-name">Name</Label>
@@ -852,7 +861,7 @@ function SeasonSheet({
             value={name}
             disabled={!canEdit}
             className={goldFocus}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => setName(event.target.value.toUpperCase())}
           />
         </div>
         <div className="space-y-1">
