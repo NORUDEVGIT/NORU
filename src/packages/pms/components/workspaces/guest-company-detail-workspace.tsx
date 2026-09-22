@@ -5,10 +5,15 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { GuestCompanyHeader } from "@/packages/pms/components/guests/guest-company-header";
 import { GuestCompanyOverview } from "@/packages/pms/components/guests/guest-company-overview";
+import { GuestCompanyCorporate } from "@/packages/pms/components/guests/guest-company-corporate";
 import { GuestCompanyContacts } from "@/packages/pms/components/guests/guest-company-contacts";
 import { GuestCompanyTravelers } from "@/packages/pms/components/guests/guest-company-travelers";
+import { GuestCompanyContracts } from "@/packages/pms/components/guests/guest-company-contracts";
+import { GuestCompanyReservations } from "@/packages/pms/components/guests/guest-company-reservations";
+import { GuestCompanyNotes } from "@/packages/pms/components/guests/guest-company-notes";
+import { GuestCompanyDocuments } from "@/packages/pms/components/guests/guest-company-documents";
+import { GuestCompanyBilling } from "@/packages/pms/components/guests/guest-company-billing";
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
-import { GuestAccountDetail } from "@/packages/pms/components/guests/guest-account-detail";
 import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
 import {
   GUEST_PROFILE_DETAIL_PATH,
@@ -16,8 +21,6 @@ import {
   type CompanyDetailNavId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import {
-  COMPANY_CREDIT_COMING,
-  COMPANY_DOCUMENTS_COMING,
   COMPANY_TA_SETTINGS_COMING,
   companyDetailNav,
   visibleCompanyNav,
@@ -81,6 +84,9 @@ export function GuestCompanyDetailWorkspace({
     creditAccountAllowed: Boolean(data.businessType?.creditAccountAllowed),
     travelAgency: data.travelAgency,
   });
+  const canWriteContracts = membership.role === "owner" || membership.role === "manager";
+  const canManageRes =
+    membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist";
 
   return (
     <div className="space-y-6" data-testid="company-detail-workspace">
@@ -128,6 +134,12 @@ export function GuestCompanyDetailWorkspace({
           onNavigate={selectNav}
           onEdit={() => setEditOpen(true)}
         />
+      ) : navId === "corporate" ? (
+        <GuestCompanyCorporate
+          restaurantId={restaurantId}
+          companyId={companyId}
+          onOpenEditDialog={() => setEditOpen(true)}
+        />
       ) : navId === "contacts" ? (
         <GuestCompanyContacts
           restaurantId={restaurantId}
@@ -139,46 +151,32 @@ export function GuestCompanyDetailWorkspace({
       ) : navId === "travelers" ? (
         <GuestCompanyTravelers restaurantId={restaurantId} companyId={companyId} />
       ) : navId === "contracts" ? (
-        <GuestCompanyOverview
-          restaurantId={restaurantId}
-          companyId={companyId}
-          data={data}
-          onNavigate={selectNav}
-          onEdit={() => setEditOpen(true)}
-          focus="contracts"
-        />
+        <GuestCompanyContracts restaurantId={restaurantId} companyId={companyId} canWrite={canWriteContracts} />
       ) : navId === "reservations" ? (
-        <GuestCompanyOverview
-          restaurantId={restaurantId}
-          companyId={companyId}
-          data={data}
-          onNavigate={selectNav}
-          onEdit={() => setEditOpen(true)}
-          focus="reservations"
-        />
+        <GuestCompanyReservations restaurantId={restaurantId} companyId={companyId} canManage={canManageRes} />
       ) : navId === "notes" ? (
-        <GuestCompanyOverview
-          restaurantId={restaurantId}
-          companyId={companyId}
-          data={data}
-          onNavigate={selectNav}
-          onEdit={() => setEditOpen(true)}
-          focus="notes"
-        />
+        <GuestCompanyNotes restaurantId={restaurantId} companyId={companyId} />
       ) : navId === "history" ? (
         <GuestActivityHubCard
           restaurantId={restaurantId}
           accountId={companyId}
           partyName={data.company.name}
+          showFilters
         />
       ) : navId === "documents" ? (
-        <ComingBlock title="Documents" copy={COMPANY_DOCUMENTS_COMING} />
+        <GuestCompanyDocuments restaurantId={restaurantId} companyId={companyId} />
       ) : navId === "credit" ? (
-        <ComingBlock title="Credit & Billing" copy={COMPANY_CREDIT_COMING} />
+        <GuestCompanyBilling restaurantId={restaurantId} companyId={companyId} />
       ) : navId === "travel-agent-settings" ? (
         <ComingBlock title="Travel Agent Settings" copy={COMPANY_TA_SETTINGS_COMING} />
       ) : (
-        <GuestAccountDetail restaurantId={restaurantId} accountId={companyId} expectedType="company" />
+        <GuestCompanyOverview
+          restaurantId={restaurantId}
+          companyId={companyId}
+          data={data}
+          onNavigate={selectNav}
+          onEdit={() => setEditOpen(true)}
+        />
       )}
 
       <GuestCompanyFormDialog

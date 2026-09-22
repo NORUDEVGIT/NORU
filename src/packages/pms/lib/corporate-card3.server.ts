@@ -64,6 +64,11 @@ export type CorporateAgreementRow = {
   currencyCode: string;
   description: string;
   active: boolean;
+  autoRenew?: boolean;
+  noticePeriodDays?: number | null;
+  signedAt?: string | null;
+  signedBy?: string | null;
+  fileStoragePath?: string | null;
 };
 
 export type ContractRateRow = {

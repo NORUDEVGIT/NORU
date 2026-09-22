@@ -120,11 +120,13 @@ import { cn } from "@/shared/lib/utils";
 export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) => {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const guestId = typeof search.guestId === "string" ? search.guestId.trim() : "";
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guestId)) {
-      return { guestId };
-    }
-    return {};
+    const companyMasterId = typeof search.companyMasterId === "string" ? search.companyMasterId.trim() : "";
+    const next: { guestId?: string; companyMasterId?: string } = {};
+    if (uuid.test(guestId)) next.guestId = guestId;
+    if (uuid.test(companyMasterId)) next.companyMasterId = companyMasterId;
+    return next;
   },
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -168,7 +170,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
-  const { guestId: prefillGuestId } = Route.useSearch();
+  const { guestId: prefillGuestId, companyMasterId: prefillCompanyMasterId } = Route.useSearch();
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
@@ -240,6 +242,19 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
         /* Prefill is best-effort; staff can still search. */
       });
   }, [prefillGuestId, restaurantId, guest, fetchPrefillGuest]);
+
+  useEffect(() => {
+    if (!prefillCompanyMasterId || companyMaster) return;
+    void fetchGuestAccount({ data: { restaurantId, accountId: prefillCompanyMasterId } })
+      .then((account) => {
+        if (account.accountType !== "company") return;
+        setReservationType("corporate");
+        setCompanyMaster(toPickedReservationMaster(account));
+      })
+      .catch(() => {
+        /* Prefill is best-effort; staff can still search. */
+      });
+  }, [prefillCompanyMasterId, restaurantId, companyMaster, fetchGuestAccount]);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],

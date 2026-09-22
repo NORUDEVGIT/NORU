@@ -5,17 +5,25 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  COMPANY_BILLING_COPY,
   COMPANY_CONTACT_REQUIRED,
   COMPANY_CONTACT_WHATSAPP_MIGRATION_FILE,
   COMPANY_DETAIL_MIGRATION_FILE,
+  COMPANY_PHASE1_MIGRATION_FILE,
+  COMPANY_TA_SETTINGS_COMING,
   blockLastPrimaryRemoval,
+  companyBillingTotals,
+  companyDocumentKpis,
+  companyDocumentStatus,
   companyHasCompanyRate,
   companyOverviewKpis,
+  companyReservationKpis,
   contactActivityLabel,
   contactMethodKpis,
   distinctDepartmentCount,
   distinctDepartmentNames,
   isTravelAgencyBusinessType,
+  latestNoteById,
   roleAssignableForNew,
   visibleCompanyNav,
 } from "./guest-company-detail-workspace.ts";
@@ -27,9 +35,9 @@ function readRel(rel: string) {
 }
 
 describe("Company detail workspace helpers", () => {
-  it("shows credit and TA tabs only from Card 4 type rules", () => {
+  it("shows Billing for every company and TA Settings only for travel-agency types", () => {
     const corp = visibleCompanyNav({ creditAccountAllowed: false, travelAgency: false });
-    assert.equal(corp.some((item) => item.id === "credit"), false);
+    assert.equal(corp.some((item) => item.id === "credit"), true);
     assert.equal(corp.some((item) => item.id === "travel-agent-settings"), false);
     const ta = visibleCompanyNav({ creditAccountAllowed: true, travelAgency: true });
     assert.equal(ta.some((item) => item.id === "credit"), true);
@@ -132,6 +140,13 @@ describe("Company detail workspace honesty", () => {
     const travelers = readRel("../components/guests/guest-company-travelers.tsx");
     const settings = readRel("../components/settings/pms-card4-company-business.tsx");
     const form = readRel("../components/guests/guest-company-form-dialog.tsx");
+    const corporate = readRel("../components/guests/guest-company-corporate.tsx");
+    const reservations = readRel("../components/guests/guest-company-reservations.tsx");
+    const billing = readRel("../components/guests/guest-company-billing.tsx");
+    const notes = readRel("../components/guests/guest-company-notes.tsx");
+    const documents = readRel("../components/guests/guest-company-documents.tsx");
+    const contracts = readRel("../components/guests/guest-company-contracts.tsx");
+    const bookings = readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(workspace, /GuestCompanyDetailWorkspace/);
     assert.match(workspace, /operationalType === "company"/);
     assert.doesNotMatch(detail, /GUEST_PROFILE_WORKSPACE_NAV/);
@@ -146,7 +161,10 @@ describe("Company detail workspace honesty", () => {
     assert.match(functions, /requireGuestManager/);
     assert.match(overview, /sendGuestAccountMessage/);
     assert.match(overview, /exportGuestAccount/);
-    assert.match(overview, /CARD3_HREF/);
+    assert.match(overview, /companyMasterId: companyId/);
+    assert.match(overview, /Add Contact/);
+    assert.match(overview, /Add Contract/);
+    assert.match(overview, /Add Note/);
     assert.match(overview, /\/restaurant\/bookings\/new/);
     assert.match(contacts, /pms_departments|getCompanyContactCatalogues/);
     assert.match(travelers, /GuestFormDialog/);
@@ -161,6 +179,30 @@ describe("Company detail workspace honesty", () => {
     assert.match(contacts, /Actions for/);
     assert.match(contacts, /dateTime\(row.createdAt\)/);
     assert.doesNotMatch(overview, /Corporate Rate Agreement|Commission Agreement/);
+    assert.match(corporate, /updateGuestAccount/);
+    assert.match(corporate, /validateCompanyAgainstType/);
+    assert.match(reservations, /listCompanyReservations/);
+    assert.match(reservations, /companyMasterId: companyId/);
+    assert.match(billing, /listCompanyBilling/);
+    assert.match(billing, /COMPANY_BILLING_COPY/);
+    assert.doesNotMatch(billing, /availableCredit|credit_limit[^_]/);
+    assert.match(notes, /listCompanyNotes/);
+    assert.match(documents, /property-images/);
+    assert.match(documents, /createCompanyDocumentUpload/);
+    assert.match(contracts, /saveCorporateAgreementCard3/);
+    assert.match(contracts, /saveContractRateCard3/);
+    assert.match(detail, /GuestCompanyCorporate/);
+    assert.match(detail, /GuestCompanyBilling/);
+    assert.match(detail, /GuestCompanyDocuments/);
+    assert.match(detail, /COMPANY_TA_SETTINGS_COMING/);
+    assert.match(detail, /travel-agent-settings/);
+    assert.match(bookings, /companyMasterId/);
+    assert.match(bookings, /setReservationType\("corporate"\)/);
+    assert.match(functions, /listCompanyBilling/);
+    assert.match(functions, /guestStayAccessForRole/);
+    assert.match(functions, /from\("guest_company_documents"\)/);
+    assert.match(functions, /from\("folio_transactions"\)/);
+    assert.doesNotMatch(functions, /CREATE TABLE.*accounts_receivable/i);
   });
 
   it("keeps dual-lane 0092 WhatsApp columns on the existing contact table", () => {
@@ -171,5 +213,76 @@ describe("Company detail workspace honesty", () => {
     assert.match(supabase, /ALTER TABLE public.guest_company_contacts/);
     assert.match(supabase, /whatsapp_normalized/);
     assert.doesNotMatch(supabase, /CREATE TABLE/);
+  });
+
+  it("keeps dual-lane 0094 company documents and agreement metadata without an AR ledger", () => {
+    const supabase = readRel("../../../../supabase/migrations/0094_pms_company_profile_phase1.sql");
+    const drizzle = readRel("../../../../drizzle/migrations/0094_pms_company_profile_phase1.sql");
+    assert.equal(COMPANY_PHASE1_MIGRATION_FILE, "0094_pms_company_profile_phase1.sql");
+    assert.equal(supabase, drizzle);
+    assert.match(supabase, /pms_company_document_types/);
+    assert.match(supabase, /guest_company_documents/);
+    assert.match(supabase, /auto_renew/);
+    assert.match(supabase, /note_updated/);
+    assert.match(supabase, /document_uploaded/);
+    assert.doesNotMatch(supabase, /accounts_receivable|company_folios|company_ledger/i);
+    assert.doesNotMatch(supabase, /SECURITY DEFINER/i);
+    assert.equal(COMPANY_BILLING_COPY.includes("accounts-receivable"), true);
+    assert.match(COMPANY_TA_SETTINGS_COMING, /not available on Company Detail yet/);
+  });
+});
+
+describe("Company phase 1 helpers", () => {
+  it("computes reservation KPIs from real stay statuses", () => {
+    const kpis = companyReservationKpis(
+      [
+        { status: "confirmed", arrivalDate: "2026-09-24", departureDate: "2026-09-26", nights: 2 },
+        { status: "checked_in", arrivalDate: "2026-09-20", departureDate: "2026-09-23", nights: 3 },
+        { status: "checked_out", arrivalDate: "2026-09-01", departureDate: "2026-09-03", nights: 2 },
+        { status: "cancelled", arrivalDate: "2026-09-10", departureDate: "2026-09-12", nights: 2 },
+      ],
+      "2026-09-22",
+    );
+    assert.equal(kpis.total, 4);
+    assert.equal(kpis.upcoming, 1);
+    assert.equal(kpis.inHouse, 1);
+    assert.equal(kpis.completed, 1);
+    assert.equal(kpis.cancelled, 1);
+    assert.equal(kpis.roomNights, 9);
+  });
+
+  it("does not invent a credit-limit ledger from folio signs", () => {
+    const totals = companyBillingTotals([
+      { amount: 100, folioStatus: "open" },
+      { amount: -40, folioStatus: "open" },
+      { amount: 20, folioStatus: "closed" },
+    ]);
+    assert.equal(totals.charges, 120);
+    assert.equal(totals.credits, 40);
+    assert.equal(totals.outstanding, 80);
+    assert.equal("availableCredit" in totals, false);
+  });
+
+  it("keeps the latest structured note and document expiry status honest", () => {
+    const latest = latestNoteById([
+      { noteId: "n1", createdAt: "2026-09-01T00:00:00.000Z", content: "old" },
+      { noteId: "n1", createdAt: "2026-09-02T00:00:00.000Z", content: "new" },
+    ]);
+    assert.equal(latest[0]?.content, "new");
+    assert.equal(companyDocumentStatus({ reviewStatus: "verified", expiryDate: "2026-09-01", today: "2026-09-22" }), "expired");
+    assert.equal(companyDocumentStatus({ reviewStatus: "rejected", expiryDate: "2026-10-01", today: "2026-09-22" }), "rejected");
+    const kpis = companyDocumentKpis(
+      [
+        { status: "verified", expiryDate: "2026-10-01" },
+        { status: "pending", expiryDate: null },
+        { status: "expired", expiryDate: "2026-09-01" },
+      ],
+      "2026-09-22",
+    );
+    assert.equal(kpis.total, 3);
+    assert.equal(kpis.verified, 1);
+    assert.equal(kpis.pending, 1);
+    assert.equal(kpis.expired, 1);
+    assert.equal(kpis.expiring, 1);
   });
 });
