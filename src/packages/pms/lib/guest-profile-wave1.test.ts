@@ -166,6 +166,11 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.equal(isGuestProfileNavCard("directory"), false);
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "stays" }), "bookings");
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "reservations" }), "bookings");
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "reservations", type: "company" }),
+      "reservations",
+    );
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "contacts" }), "contacts");
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "bookings" }), "bookings");
     assert.equal(
       GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === "bookings")?.title,
