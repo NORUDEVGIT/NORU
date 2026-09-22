@@ -369,7 +369,14 @@ export function GuestProfileWorkspace({
                 history={guestQuery.data.history}
               />
             ) : card === "services" ? (
-              <GuestServiceHistoryCard restaurantId={restaurantId} guestId={guestId} />
+              <GuestServiceHistoryCard
+                restaurantId={restaurantId}
+                guestId={guestId}
+                guestName={guestQuery.data.guest.fullName}
+                guestProfileNumber={guestQuery.data.guest.profileNumber}
+                timezone={membership.restaurant.timezone}
+                onOpenBookings={() => selectNav("bookings")}
+              />
             ) : card === "financial" ? (
               <ComingCard title="Financial" copy={OVERVIEW_FINANCIAL_COPY} />
             ) : (

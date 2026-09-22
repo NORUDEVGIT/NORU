@@ -69,6 +69,15 @@ import {
   type ContactDefaultsDraft,
 } from "./guest-preferences-workspace";
 import {
+  GUEST_SERVICE_DESCRIPTION_MAX,
+  GUEST_SERVICE_PRIORITIES,
+  GUEST_SERVICE_STATUSES,
+  canTransitionGuestService,
+  isGuestServiceStatus,
+  type GuestServicePriority,
+  type GuestServiceStatus,
+} from "./guest-services-workspace";
+import {
   isPreferenceValueType,
   normalizePreferenceOptions,
   type PreferenceCategoryRecord,
@@ -1221,6 +1230,8 @@ const WORKSPACE_ACTIVITY_LABELS: Record<string, string> = {
   vip_changed: "VIP changed",
   status_changed: "Status changed",
   preference_updated: "Preferences updated",
+  service_request_created: "Service request created",
+  service_request_updated: "Service request updated",
   note_added: "Note added",
   document_uploaded: "Document uploaded",
   document_verified: "Document staff-verified",
@@ -2622,12 +2633,47 @@ export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
 
 export type GuestServiceHistoryItem = {
   id: string;
+  requestNumber: string | null;
+  serviceTypeId: string;
   serviceName: string;
-  status: string;
+  serviceActive: boolean;
+  status: GuestServiceStatus;
   requestedAt: string;
+  preferredAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
   reservationId: string | null;
+  confirmationNumber: string | null;
+  roomNumber: string | null;
+  notes: string | null;
+  priority: GuestServicePriority;
   amount: number | null;
   currency: string | null;
+  requestedByName: string | null;
+  assignedMembershipId: string | null;
+  assignedName: string | null;
+};
+
+export type GuestServiceTypeOption = {
+  id: string;
+  name: string;
+  code: string;
+  categoryName: string;
+  active: boolean;
+  amount: number | null;
+  currency: string | null;
+};
+
+export type GuestServiceStaffOption = {
+  id: string;
+  name: string;
+};
+
+export type GuestServiceNote = {
+  id: string;
+  text: string;
+  authorName: string | null;
+  createdAt: string;
 };
 
 export const listGuestServiceHistory = createServerFn({ method: "POST" })
@@ -2637,7 +2683,7 @@ export const listGuestServiceHistory = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         guestId: idSchema,
-        limit: z.number().int().min(1).max(50).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
       })
       .parse(input),
   )
@@ -2646,54 +2692,441 @@ export const listGuestServiceHistory = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ available: boolean; items: GuestServiceHistoryItem[] }> => {
-      await requireGuestManager(context as never, data.restaurantId);
-      const result = await context.supabase
-        .from("guest_service_history")
-        .select("id, service_type_id, status, requested_at, reservation_id, amount, currency")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("guest_id", data.guestId)
-        .order("requested_at", { ascending: false })
-        .limit(data.limit ?? 5);
-      if (result.error && isMissingSchemaError(result.error)) {
-        return { available: false, items: [] };
-      }
-      if (result.error) throw new Error(result.error.message);
-      const rows = (result.data ?? []) as Array<{
-        id: string;
-        service_type_id: string;
-        status: string;
-        requested_at: string;
-        reservation_id: string | null;
-        amount: number | string | null;
-        currency: string | null;
-      }>;
-      const typeIds = [...new Set(rows.map((row) => row.service_type_id))];
-      const names = new Map<string, string>();
-      if (typeIds.length > 0) {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const types = await supabaseAdmin
-          .from("pms_guest_service_types")
-          .select("id, name")
-          .eq("restaurant_id", data.restaurantId)
-          .in("id", typeIds);
-        for (const type of (types.data ?? []) as Array<{ id: string; name: string }>) {
-          names.set(type.id, type.name);
-        }
-      }
-      return {
-        available: true,
-        items: rows.map((row) => ({
-          id: row.id,
-          serviceName: names.get(row.service_type_id) ?? "Guest service",
-          status: row.status,
-          requestedAt: row.requested_at,
-          reservationId: row.reservation_id,
-          amount: row.amount == null ? null : Number(row.amount),
-          currency: row.currency,
-        })),
-      };
+      const workspace = await loadGuestServiceWorkspace(
+        context as never,
+        data.restaurantId,
+        data.guestId,
+        data.limit ?? 5,
+      );
+      return { available: workspace.available, items: workspace.items };
     },
   );
+
+export const listGuestServiceWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    return loadGuestServiceWorkspace(context as never, data.restaurantId, data.guestId, 100);
+  });
+
+type GuestServiceLoadCtx = { supabase: { from: (table: string) => any } };
+
+async function loadGuestServiceWorkspace(
+  context: GuestServiceLoadCtx,
+  restaurantId: string,
+  guestId: string,
+  limit: number,
+): Promise<{
+  available: boolean;
+  items: GuestServiceHistoryItem[];
+  types: GuestServiceTypeOption[];
+  staff: GuestServiceStaffOption[];
+  notes: GuestServiceNote[];
+}> {
+  await requireGuestManager(context as never, restaurantId);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  let result = await context.supabase
+    .from("guest_service_history")
+    .select(
+      "id, service_type_id, status, requested_at, reservation_id, amount, currency, notes, completed_at, created_by_membership_id, request_number, priority, preferred_at, assigned_membership_id, cancelled_at",
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("guest_id", guestId)
+    .order("requested_at", { ascending: false })
+    .limit(limit);
+  if (result.error && isMissingSchemaError(result.error)) {
+    result = await context.supabase
+      .from("guest_service_history")
+      .select(
+        "id, service_type_id, status, requested_at, reservation_id, amount, currency, notes, completed_at, created_by_membership_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .eq("guest_id", guestId)
+      .order("requested_at", { ascending: false })
+      .limit(limit);
+  }
+  if (result.error && isMissingSchemaError(result.error)) {
+    return { available: false, items: [], types: [], staff: [], notes: [] };
+  }
+  if (result.error) throw new Error(result.error.message);
+
+  type HistoryRow = {
+    id: string;
+    service_type_id: string;
+    status: string;
+    requested_at: string;
+    reservation_id: string | null;
+    amount: number | string | null;
+    currency: string | null;
+    notes?: string | null;
+    completed_at?: string | null;
+    created_by_membership_id?: string | null;
+    request_number?: string | null;
+    priority?: string | null;
+    preferred_at?: string | null;
+    assigned_membership_id?: string | null;
+    cancelled_at?: string | null;
+  };
+  const rows = (result.data ?? []) as HistoryRow[];
+
+  const typesRes = await supabaseAdmin
+    .from("pms_guest_service_types")
+    .select("id, name, code, active, category_id")
+    .eq("restaurant_id", restaurantId)
+    .order("display_order");
+  const categoriesRes = await supabaseAdmin
+    .from("pms_guest_service_categories")
+    .select("id, name")
+    .eq("restaurant_id", restaurantId);
+  const pricingRes = await supabaseAdmin
+    .from("pms_guest_service_pricing")
+    .select("service_type_id, amount, currency_code, active")
+    .eq("restaurant_id", restaurantId);
+  const categoryName = new Map(
+    ((categoriesRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => [row.id, row.name]),
+  );
+  const priceByType = new Map(
+    ((pricingRes.data ?? []) as Array<{
+      service_type_id: string;
+      amount: number | string;
+      currency_code: string;
+      active: boolean;
+    }>)
+      .filter((row) => row.active)
+      .map((row) => [
+        row.service_type_id,
+        { amount: Number(row.amount), currency: row.currency_code },
+      ]),
+  );
+  const types: GuestServiceTypeOption[] = (
+    (typesRes.data ?? []) as Array<{
+      id: string;
+      name: string;
+      code: string;
+      active: boolean;
+      category_id: string;
+    }>
+  ).map((row) => ({
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    categoryName: categoryName.get(row.category_id) ?? "Service",
+    active: row.active,
+    amount: priceByType.get(row.id)?.amount ?? null,
+    currency: priceByType.get(row.id)?.currency ?? null,
+  }));
+  const typeById = new Map(types.map((type) => [type.id, type]));
+
+  const reservationIds = [...new Set(rows.map((row) => row.reservation_id).filter(Boolean) as string[])];
+  const stayById = new Map<string, { confirmationNumber: string; roomNumber: string | null }>();
+  if (reservationIds.length > 0) {
+    const stays = await supabaseAdmin
+      .from("hotel_reservations")
+      .select("id, confirmation_number, room_id, hotel_rooms!hotel_reservations_room_same_type ( room_number )")
+      .eq("restaurant_id", restaurantId)
+      .in("id", reservationIds);
+    for (const stay of (stays.data ?? []) as Array<{
+      id: string;
+      confirmation_number: string;
+      hotel_rooms?: { room_number: string } | null;
+    }>) {
+      stayById.set(stay.id, {
+        confirmationNumber: stay.confirmation_number,
+        roomNumber: stay.hotel_rooms?.room_number ?? null,
+      });
+    }
+  }
+
+  const staffIds = [
+    ...rows.map((row) => row.created_by_membership_id),
+    ...rows.map((row) => row.assigned_membership_id),
+  ];
+  const actorNames = await resolveActorNames(restaurantId, staffIds);
+  const members = await supabaseAdmin
+    .from("restaurant_users")
+    .select("id")
+    .eq("restaurant_id", restaurantId);
+  const staffNames = await resolveActorNames(
+    restaurantId,
+    ((members.data ?? []) as Array<{ id: string }>).map((row) => row.id),
+  );
+  const staff: GuestServiceStaffOption[] = [...staffNames.entries()].map(([id, name]) => ({ id, name }));
+
+  const notesRes = await context.supabase
+    .from("guest_profile_history")
+    .select("id, notes, created_at, actor_membership_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("guest_id", guestId)
+    .eq("event_type", "note_added")
+    .order("created_at", { ascending: false })
+    .limit(8);
+  const noteRows = (
+    notesRes.error
+      ? []
+      : ((notesRes.data ?? []) as Array<{
+          id: string;
+          notes: string | null;
+          created_at: string;
+          actor_membership_id: string | null;
+        }>)
+  ).filter((row) => Boolean(row.notes?.trim()));
+  const noteActors = await resolveActorNames(
+    restaurantId,
+    noteRows.map((row) => row.actor_membership_id),
+  );
+  const notes: GuestServiceNote[] = noteRows.map((row) => ({
+    id: row.id,
+    text: row.notes!.trim(),
+    authorName: row.actor_membership_id ? (noteActors.get(row.actor_membership_id) ?? null) : null,
+    createdAt: row.created_at,
+  }));
+
+  return {
+    available: true,
+    notes,
+    items: rows.map((row) => {
+      const type = typeById.get(row.service_type_id);
+      const stay = row.reservation_id ? stayById.get(row.reservation_id) : null;
+      const status = isGuestServiceStatus(row.status) ? row.status : "requested";
+      const priority =
+        row.priority === "high" || row.priority === "urgent" ? row.priority : "normal";
+      return {
+        id: row.id,
+        requestNumber: row.request_number ?? null,
+        serviceTypeId: row.service_type_id,
+        serviceName: type?.name ?? "Guest service",
+        serviceActive: type?.active ?? false,
+        status,
+        requestedAt: row.requested_at,
+        preferredAt: row.preferred_at ?? null,
+        completedAt: row.completed_at ?? null,
+        cancelledAt: row.cancelled_at ?? null,
+        reservationId: row.reservation_id,
+        confirmationNumber: stay?.confirmationNumber ?? null,
+        roomNumber: stay?.roomNumber ?? null,
+        notes: row.notes ?? null,
+        priority,
+        amount: row.amount == null ? null : Number(row.amount),
+        currency: row.currency,
+        requestedByName: row.created_by_membership_id
+          ? (actorNames.get(row.created_by_membership_id) ?? null)
+          : null,
+        assignedMembershipId: row.assigned_membership_id ?? null,
+        assignedName: row.assigned_membership_id
+          ? (actorNames.get(row.assigned_membership_id) ?? null)
+          : null,
+      };
+    }),
+    types,
+    staff,
+  };
+}
+
+export const createGuestServiceRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        serviceTypeId: idSchema,
+        priority: z.enum(GUEST_SERVICE_PRIORITIES),
+        description: z.string().trim().min(1).max(GUEST_SERVICE_DESCRIPTION_MAX),
+        reservationId: idSchema.nullable(),
+        preferredAt: z.string().nullable().optional(),
+        specialInstructions: z.string().trim().max(GUEST_SERVICE_DESCRIPTION_MAX).optional(),
+        assignedMembershipId: idSchema.nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true; id: string } | { ok: false; message: string }> => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const type = await supabaseAdmin
+      .from("pms_guest_service_types")
+      .select("id, active")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.serviceTypeId)
+      .maybeSingle();
+    if (type.error && isMissingSchemaError(type.error)) {
+      return { ok: false, message: "Guest service types are unavailable until their migration is applied." };
+    }
+    if (!type.data) return { ok: false, message: "That service type is not configured for this property." };
+    if (!(type.data as { active: boolean }).active) {
+      return { ok: false, message: "That service type is inactive and cannot be requested." };
+    }
+    if (data.reservationId) {
+      const stay = await context.supabase
+        .from("hotel_reservations")
+        .select("id, guest_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.reservationId)
+        .maybeSingle();
+      if (!stay.data || (stay.data as { guest_id: string }).guest_id !== data.guestId) {
+        return { ok: false, message: "That reservation does not belong to this guest." };
+      }
+    }
+    if (data.assignedMembershipId) {
+      const assigned = await supabaseAdmin
+        .from("restaurant_users")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.assignedMembershipId)
+        .maybeSingle();
+      if (!assigned.data) return { ok: false, message: "That staff member is not on this property." };
+    }
+    const pricing = await supabaseAdmin
+      .from("pms_guest_service_pricing")
+      .select("amount, currency_code, active")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("service_type_id", data.serviceTypeId)
+      .maybeSingle();
+    const priced = pricing.data as { amount: number | string; currency_code: string; active: boolean } | null;
+    const numbered = await supabaseAdmin.rpc("next_guest_service_number", {
+      _restaurant_id: data.restaurantId,
+    });
+    const requestNumber = !numbered.error && typeof numbered.data === "string" ? numbered.data : null;
+    const notes = [data.description.trim(), data.specialInstructions?.trim()]
+      .filter(Boolean)
+      .join("\n\n");
+    const payload = {
+      restaurant_id: data.restaurantId,
+      guest_id: data.guestId,
+      reservation_id: data.reservationId,
+      service_type_id: data.serviceTypeId,
+      status: "requested",
+      notes,
+      request_number: requestNumber,
+      priority: data.priority,
+      preferred_at: data.preferredAt ?? null,
+      assigned_membership_id: data.assignedMembershipId ?? null,
+      amount: priced?.active ? Number(priced.amount) : null,
+      currency: priced?.active ? priced.currency_code : null,
+      created_by_membership_id: me.id,
+    };
+    let inserted = await supabaseAdmin.from("guest_service_history").insert(payload).select("id").maybeSingle();
+    if (inserted.error && isMissingSchemaError(inserted.error)) {
+      inserted = await supabaseAdmin
+        .from("guest_service_history")
+        .insert({
+          restaurant_id: data.restaurantId,
+          guest_id: data.guestId,
+          reservation_id: data.reservationId,
+          service_type_id: data.serviceTypeId,
+          status: "requested",
+          notes,
+          amount: priced?.active ? Number(priced.amount) : null,
+          currency: priced?.active ? priced.currency_code : null,
+          created_by_membership_id: me.id,
+        })
+        .select("id")
+        .maybeSingle();
+    }
+    if (inserted.error) return { ok: false, message: inserted.error.message };
+    const id = (inserted.data as { id: string }).id;
+    try {
+      await recordGuestEvent({
+        restaurantId: data.restaurantId,
+        guestId: data.guestId,
+        eventType: "service_request_created",
+        newValues: {
+          id,
+          request_number: requestNumber,
+          service_type_id: data.serviceTypeId,
+          status: "requested",
+          reservation_id: data.reservationId,
+        },
+        notes: data.description.trim(),
+        actorMembershipId: me.id,
+      });
+    } catch {
+      /* History event types land with 0089; the request row is the source of truth. */
+    }
+    return { ok: true, id };
+  });
+
+export const updateGuestServiceRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        requestId: idSchema,
+        status: z.enum(GUEST_SERVICE_STATUSES).optional(),
+        assignedMembershipId: idSchema.nullable().optional(),
+        notes: z.string().trim().max(GUEST_SERVICE_DESCRIPTION_MAX).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const existing = await supabaseAdmin
+      .from("guest_service_history")
+      .select("id, status, assigned_membership_id, notes")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.requestId)
+      .maybeSingle();
+    if (!existing.data) return { ok: false, message: "That service request could not be found." };
+    const current = existing.data as {
+      status: string;
+      assigned_membership_id: string | null;
+      notes: string | null;
+    };
+    const currentStatus = isGuestServiceStatus(current.status)
+      ? (current.status as GuestServiceStatus)
+      : "requested";
+    const patch: Record<string, unknown> = {};
+    if (data.status && data.status !== currentStatus) {
+      if (!canTransitionGuestService(currentStatus, data.status)) {
+        return { ok: false, message: "That status change is not allowed." };
+      }
+      patch.status = data.status;
+      if (data.status === "completed") patch.completed_at = new Date().toISOString();
+      if (data.status === "cancelled") patch.cancelled_at = new Date().toISOString();
+    }
+    if (data.assignedMembershipId !== undefined) {
+      if (data.assignedMembershipId) {
+        const assigned = await supabaseAdmin
+          .from("restaurant_users")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.assignedMembershipId)
+          .maybeSingle();
+        if (!assigned.data) return { ok: false, message: "That staff member is not on this property." };
+      }
+      patch.assigned_membership_id = data.assignedMembershipId;
+    }
+    if (data.notes !== undefined) patch.notes = data.notes;
+    if (Object.keys(patch).length === 0) return { ok: true };
+    const updated = await supabaseAdmin
+      .from("guest_service_history")
+      .update(patch)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.requestId);
+    if (updated.error) return { ok: false, message: updated.error.message };
+    try {
+      await recordGuestEvent({
+        restaurantId: data.restaurantId,
+        guestId: data.guestId,
+        eventType: "service_request_updated",
+        previousValues: {
+          status: current.status,
+          assigned_membership_id: current.assigned_membership_id,
+        },
+        newValues: patch,
+        actorMembershipId: me.id,
+      });
+    } catch {
+      /* History event types land with 0089; the request row is the source of truth. */
+    }
+    return { ok: true };
+  });
 
 export const createGuestPhotoUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

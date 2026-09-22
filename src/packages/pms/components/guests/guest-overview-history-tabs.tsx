@@ -20,6 +20,7 @@ import {
   type GuestStay,
   type GuestStayAccess,
 } from "@/packages/pms/lib/guest-profile-wave3";
+import { GUEST_SERVICE_STATUS_LABELS } from "@/packages/pms/lib/guest-services-workspace";
 import {
   listGuestServiceHistory,
   listGuestStays,
@@ -173,7 +174,7 @@ function ServiceMiniTable({ items }: { items: GuestServiceHistoryItem[] }) {
         <li key={item.id}>
           <p className="font-medium">{item.serviceName}</p>
           <p className="text-xs text-muted-foreground">
-            {item.status} · {formatStayDate(item.requestedAt.slice(0, 10))}
+            {GUEST_SERVICE_STATUS_LABELS[item.status]} · {formatStayDate(item.requestedAt.slice(0, 10))}
             {item.amount == null ? "" : ` · ${item.amount}`}
           </p>
         </li>
