@@ -188,6 +188,8 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(form, /GuestFormStagedLinks/);
     assert.match(form, /<Section id="linking" title="Linking">/);
     assert.match(staged, /individual-link-master-search/);
+    assert.match(staged, /CommandInput/);
+    assert.match(staged, /shouldFilter=\{false\}/);
     assert.match(staged, /listGuestAccounts/);
     assert.doesNotMatch(staged, /linkGuestAccount/);
     assert.match(form, /linkGuestAccount/);

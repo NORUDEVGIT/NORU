@@ -193,6 +193,7 @@ export type GuestListingPlaceholderType = (typeof GUEST_LISTING_PLACEHOLDER_TYPE
 /** Optional `?type=` for operational types plus listing placeholders. */
 export type GuestProfileSearch = GuestProfileCardSearch & {
   type?: GuestProfileTypeId | GuestListingPlaceholderType;
+  create?: "individual";
 };
 
 const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
@@ -254,7 +255,9 @@ export function parseGuestListingTypeSearch(
 export function parseGuestProfileSearch(search: Record<string, unknown>): GuestProfileSearch {
   const card = parseGuestProfileCardSearch(search);
   const type = parseGuestListingTypeSearch(search);
-  return type === "individual" ? card : { ...card, type };
+  const create = search["create"] === "individual" ? "individual" : undefined;
+  const next = type === "individual" ? { ...card } : { ...card, type };
+  return create ? { ...next, create } : next;
 }
 
 export function guestProfileCardSearch(
@@ -271,10 +274,12 @@ export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
   nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined;
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
+  create?: "individual" | undefined;
 }): GuestProfileSearch {
   const card = guestProfileCardSearch(opts.card, opts.nav);
   const type = opts.type && opts.type !== "individual" ? opts.type : undefined;
-  return type ? { ...card, type } : card;
+  const next = type ? { ...card, type } : card;
+  return opts.create ? { ...next, create: opts.create } : next;
 }
 
 export function initialGuestProfileCard(
