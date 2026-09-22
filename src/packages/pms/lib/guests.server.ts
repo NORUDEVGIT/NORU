@@ -43,6 +43,8 @@ export const GUEST_EVENT_TYPES = [
   "restriction_cleared",
   "restriction_lifted",
   "photo_updated",
+  "service_request_created",
+  "service_request_updated",
 ] as const;
 export type GuestEventType = (typeof GUEST_EVENT_TYPES)[number];
 

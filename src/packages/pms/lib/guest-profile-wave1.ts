@@ -99,7 +99,7 @@ export const GUEST_PROFILE_CARDS = [
     title: "Services",
     live: true,
     wave: 3,
-    copy: "Recorded guest service history only. This card does not invent requests.",
+    copy: "Operational guest service requests for this stay. Types come from Guest & Services Settings.",
   },
   {
     id: "financial",
