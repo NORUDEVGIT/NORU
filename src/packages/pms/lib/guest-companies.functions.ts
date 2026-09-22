@@ -162,7 +162,7 @@ export async function loadBusinessSnapshot(restaurantId: string): Promise<Busine
       }
     : emptyBusinessSettings();
 
-  return { types, settings, fields, lastUpdatedAt: null };
+  return { types, settings, fields, roles: [], lastUpdatedAt: null };
 }
 
 export const getCompanyBusinessWorkspace = createServerFn({ method: "POST" })
@@ -178,6 +178,7 @@ export const getCompanyBusinessWorkspace = createServerFn({ method: "POST" })
         types: [] as BusinessProfileTypeRecord[],
         settings: emptyBusinessSettings(),
         fields: [] as BusinessFieldOption[],
+        roles: [],
         lastUpdatedAt: null as string | null,
         listingCreateAllowed: listingOk,
       };

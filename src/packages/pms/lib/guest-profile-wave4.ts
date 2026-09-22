@@ -117,7 +117,11 @@ export const GUEST_ACCOUNT_EVENT_TYPES = [
   "status_changed",
   "logo_updated",
   "credit_account_changed",
-  "imported",
+    "imported",
+  "note_added",
+  "contact_created",
+  "contact_updated",
+  "primary_contact_changed",
 ] as const;
 export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 

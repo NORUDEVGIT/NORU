@@ -54,14 +54,19 @@ import {
   getPmsCard4CompanyBusiness,
   savePmsCard4BusinessSettings,
   savePmsCard4BusinessType,
+  savePmsCard4ContactRole,
   setPmsCard4BusinessTypeActive,
+  setPmsCard4ContactRoleActive,
 } from "@/packages/pms/lib/company-business-card4.functions";
 import {
   emptyBusinessSettings,
   emptyBusinessTypeDraft,
+  emptyContactRoleDraft,
   normalizeBusinessTypeCode,
   validateBusinessSettings,
   validateBusinessTypeDraft,
+  validateContactRoleDraft,
+  type BusinessContactRoleDraft,
   type BusinessProfileSettings,
   type BusinessProfileTypeDraft,
   type BusinessProfileTypeRecord,
@@ -149,6 +154,8 @@ export function PmsCard4CompanyBusiness({
   const saveSettings = useServerFn(savePmsCard4BusinessSettings);
   const setActive = useServerFn(setPmsCard4BusinessTypeActive);
   const remove = useServerFn(deletePmsCard4BusinessType);
+  const saveRole = useServerFn(savePmsCard4ContactRole);
+  const setRoleActive = useServerFn(setPmsCard4ContactRoleActive);
   const queryKey = ["pms-card4-company-business", restaurantId];
   const query = useQuery({
     queryKey,
@@ -167,6 +174,7 @@ export function PmsCard4CompanyBusiness({
   const [draftDirty, setDraftDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BusinessProfileTypeRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
+  const [roleDraft, setRoleDraft] = useState<BusinessContactRoleDraft>(emptyContactRoleDraft());
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(0);
 
@@ -241,6 +249,35 @@ export function PmsCard4CompanyBusiness({
       onSaved(thenNextRef.current);
     },
     onError: (error: Error) => toast.error(error.message || "Unable to save business settings."),
+  });
+
+  const roleMutation = useMutation({
+    mutationFn: () =>
+      saveRole({
+        data: {
+          restaurantId,
+          ...(roleDraft.id ? { id: roleDraft.id } : {}),
+          name: roleDraft.name,
+          code: normalizeBusinessTypeCode(roleDraft.code),
+          active: roleDraft.active,
+        },
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey });
+      setRoleDraft(emptyContactRoleDraft());
+      toast.success("Contact role saved.");
+    },
+    onError: (error: Error) => toast.error(error.message || "Unable to save contact role."),
+  });
+
+  const roleActiveMutation = useMutation({
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setRoleActive({ data: { restaurantId, ...input } }),
+    onSuccess: async (_result, input) => {
+      await queryClient.invalidateQueries({ queryKey });
+      toast.success(input.active ? "Contact role enabled." : "Contact role disabled.");
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const toggleMutation = useMutation({
@@ -620,6 +657,83 @@ export function PmsCard4CompanyBusiness({
             onCheckedChange={(autoApproval) => markSettings("autoApproval", autoApproval)}
           />
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-4" data-testid="card4-contact-roles">
+        <div>
+          <h2 className="font-display text-xl text-[#251605]">Contact Roles</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Roles assigned to company contact persons. Inactive roles stay readable on existing contacts.
+          </p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-1">
+            <Label>Role name</Label>
+            <Input
+              value={roleDraft.name}
+              disabled={!canEdit}
+              onChange={(event) => setRoleDraft((current) => ({ ...current, name: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Code</Label>
+            <Input
+              value={roleDraft.code}
+              disabled={!canEdit}
+              onChange={(event) => setRoleDraft((current) => ({ ...current, code: event.target.value }))}
+            />
+          </div>
+          <div className="flex items-end">
+            <Button
+              type="button"
+              disabled={!canEdit || roleMutation.isPending}
+              onClick={() => roleMutation.mutate()}
+            >
+              {roleDraft.id ? "Save role" : "Add role"}
+            </Button>
+          </div>
+        </div>
+        {validateContactRoleDraft(roleDraft, query.data?.roles ?? []).map((error) => (
+          <p key={error.field} className="text-xs text-destructive">{error.message}</p>
+        ))}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Code</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(query.data?.roles ?? []).map((row) => (
+              <TableRow key={row.id}>
+                <TableCell>{row.name}</TableCell>
+                <TableCell>{row.code}</TableCell>
+                <TableCell>{row.active ? "Active" : "Inactive"}</TableCell>
+                <TableCell className="text-right">
+                  <Button type="button" variant="ghost" size="sm" disabled={!canEdit} onClick={() => setRoleDraft({
+                    id: row.id,
+                    name: row.name,
+                    code: row.code,
+                    active: row.active,
+                  })}>
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canEdit}
+                    onClick={() => roleActiveMutation.mutate({ id: row.id, active: !row.active })}
+                  >
+                    {row.active ? "Deactivate" : "Activate"}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </section>
 
       <Sheet

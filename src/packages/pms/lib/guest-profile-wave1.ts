@@ -129,7 +129,7 @@ export const GUEST_PROFILE_WORKSPACE_NAV = [
 
 export type GuestProfileWorkspaceNavId = (typeof GUEST_PROFILE_WORKSPACE_NAV)[number]["id"];
 
-export function guestProfileWorkspaceNav(id: GuestProfileWorkspaceNavId) {
+export function guestProfileWorkspaceNav(id: GuestProfileWorkspaceNavId | CompanyDetailNavId) {
   return (
     GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === id) ?? GUEST_PROFILE_WORKSPACE_NAV[0]
   );
@@ -167,9 +167,23 @@ export function showEmptyDirectoryCta(hasGuest: boolean, card: GuestProfileCardI
 }
 
 /** Optional `?card=` so Directory-back can reopen the same guest-required card. */
+export const COMPANY_DETAIL_NAV_IDS = [
+  "overview",
+  "contacts",
+  "travelers",
+  "contracts",
+  "reservations",
+  "notes",
+  "history",
+  "documents",
+  "credit",
+  "travel-agent-settings",
+] as const;
+export type CompanyDetailNavId = (typeof COMPANY_DETAIL_NAV_IDS)[number];
+
 export type GuestProfileCardSearch = {
   card?: GuestProfileCardId;
-  nav?: GuestProfileWorkspaceNavId;
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId;
 };
 
 /** Listing-only placeholders — not operational GUEST_PROFILE_TYPES. */
@@ -188,10 +202,17 @@ const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
 
 export function parseGuestProfileWorkspaceNav(
   search: Record<string, unknown>,
-): GuestProfileWorkspaceNavId | undefined {
+): GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined {
   const raw = typeof search["nav"] === "string" ? search["nav"] : undefined;
   if (!raw) return undefined;
+  const type = typeof search["type"] === "string" ? search["type"] : undefined;
+  if (type === "company" && (COMPANY_DETAIL_NAV_IDS as readonly string[]).includes(raw)) {
+    return raw as CompanyDetailNavId;
+  }
   if (raw in LEGACY_GUEST_PROFILE_NAV) return LEGACY_GUEST_PROFILE_NAV[raw];
+  if ((COMPANY_DETAIL_NAV_IDS as readonly string[]).includes(raw) && raw !== "reservations") {
+    return raw as CompanyDetailNavId;
+  }
   return GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === raw)?.id;
 }
 
@@ -238,7 +259,7 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
 
 export function guestProfileCardSearch(
   card: GuestProfileCardId | undefined,
-  nav?: GuestProfileWorkspaceNavId | undefined,
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined,
 ): GuestProfileCardSearch {
   if (card && isGuestRequiredProfileCard(card)) {
     return nav ? { card, nav } : { card };
@@ -248,7 +269,7 @@ export function guestProfileCardSearch(
 
 export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
-  nav?: GuestProfileWorkspaceNavId | undefined;
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined;
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
 }): GuestProfileSearch {
   const card = guestProfileCardSearch(opts.card, opts.nav);

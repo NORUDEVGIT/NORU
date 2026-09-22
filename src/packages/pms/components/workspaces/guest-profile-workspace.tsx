@@ -19,6 +19,7 @@ import { GuestServiceHistoryCard } from "@/packages/pms/components/guests/guest-
 import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/guest-listing-workspace";
+import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -35,6 +36,7 @@ import {
   type GuestListingPlaceholderType,
   type GuestProfileCardId,
   type GuestProfileTypeId,
+  type CompanyDetailNavId,
   type GuestProfileWorkspaceNavId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
@@ -59,7 +61,7 @@ export function GuestProfileWorkspace({
   guestId?: string | undefined;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
   returnCard?: GuestProfileCardId | undefined;
-  returnNav?: GuestProfileWorkspaceNavId | undefined;
+  returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined;
   profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
 }) {
   const navigate = useNavigate();
@@ -195,6 +197,16 @@ export function GuestProfileWorkspace({
       })}
     </div>
   );
+
+  if (guestId && operationalType === "company") {
+    return (
+      <GuestCompanyDetailWorkspace
+        membership={membership}
+        companyId={guestId}
+        nav={returnNav}
+      />
+    );
+  }
 
   if (!guestId && card === "directory") {
     return (
