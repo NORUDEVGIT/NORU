@@ -1407,6 +1407,10 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         email: z.string().max(200).optional().nullable(),
         phone: z.string().max(60).optional().nullable(),
+        firstName: z.string().max(120).optional().nullable(),
+        lastName: z.string().max(120).optional().nullable(),
+        dateOfBirth: z.string().max(20).optional().nullable(),
+        documentNumber: z.string().max(80).optional().nullable(),
         excludeGuestId: idSchema.optional(),
       })
       .parse(input),
@@ -1416,11 +1420,19 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
 
     const email = normalizeEmail(data.email);
     const phone = normalizePhone(data.phone);
-    if (!email && !phone) return [];
+    const firstName = data.firstName?.trim();
+    const lastName = data.lastName?.trim();
+    const dateOfBirth = data.dateOfBirth?.trim();
+    const documentNumber = data.documentNumber?.trim();
+    if (!email && !phone && !(firstName && lastName && dateOfBirth) && !documentNumber) return [];
 
     const filters: string[] = [];
     if (email) filters.push(`email_normalized.eq.${email}`);
     if (phone) filters.push(`phone_normalized.eq.${phone}`);
+    if (documentNumber) filters.push(`id_document_number.eq.${documentNumber}`);
+    if (firstName && lastName && dateOfBirth) {
+      filters.push(`and(first_name.ilike.${firstName},last_name.ilike.${lastName},date_of_birth.eq.${dateOfBirth})`);
+    }
 
     const run = async (columns: string, excludeMerged: boolean) => {
       let query = context.supabase

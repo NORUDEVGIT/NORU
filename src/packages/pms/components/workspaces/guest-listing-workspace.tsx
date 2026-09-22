@@ -6,7 +6,6 @@ import { Search, Upload } from "lucide-react";
 
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
 import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
-import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import {
   GuestDirectoryWorkspace,
   GuestListingNewGuestMenu,
@@ -62,7 +61,6 @@ export function GuestListingWorkspace({
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
 
   const [search, setSearch] = useState("");
-  const [individualOpen, setIndividualOpen] = useState(false);
   const [companyOpen, setCompanyOpen] = useState(false);
   const [agencyOpen, setAgencyOpen] = useState(false);
 
@@ -146,7 +144,12 @@ export function GuestListingWorkspace({
             <span className="hidden sm:inline">Import Guests</span>
           </Button>
           <GuestListingNewGuestMenu
-            onIndividual={() => setIndividualOpen(true)}
+            onIndividual={() =>
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "individual", create: "individual" }),
+              })
+            }
             onCompany={() => setCompanyOpen(true)}
             onAgency={() => setAgencyOpen(true)}
             canCreateIndividual={canCreateIndividual}
@@ -198,7 +201,12 @@ export function GuestListingWorkspace({
                 variant="outline"
                 disabled={!canCreateIndividual}
                 title={!canCreateIndividual ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-                onClick={() => setIndividualOpen(true)}
+                onClick={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({ type: "individual", create: "individual" }),
+                  })
+                }
               >
                 New Individual
               </Button>
@@ -271,13 +279,6 @@ export function GuestListingWorkspace({
         )}
       </div>
 
-      <GuestFormDialog
-        restaurantId={restaurantId}
-        open={individualOpen}
-        onOpenChange={setIndividualOpen}
-        onSaved={(id) => openCreated(id, "individual")}
-        onOpenExisting={(id) => openCreated(id, "individual")}
-      />
       <GuestAccountFormDialog
         restaurantId={restaurantId}
         accountType="company"

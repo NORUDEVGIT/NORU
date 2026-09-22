@@ -19,6 +19,7 @@ import { GuestServiceHistoryCard } from "@/packages/pms/components/guests/guest-
 import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/guest-listing-workspace";
+import { GuestCreateWorkspace } from "@/packages/pms/components/workspaces/guest-create-workspace";
 import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
 import {
   GUEST_PROFILE_DETAIL_PATH,
@@ -56,6 +57,7 @@ export function GuestProfileWorkspace({
   returnCard,
   returnNav,
   profileType = "individual",
+  create,
 }: {
   membership: RestaurantMembership;
   guestId?: string | undefined;
@@ -63,6 +65,7 @@ export function GuestProfileWorkspace({
   returnCard?: GuestProfileCardId | undefined;
   returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | undefined;
   profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
+  create?: "individual" | undefined;
 }) {
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(
@@ -197,6 +200,10 @@ export function GuestProfileWorkspace({
       })}
     </div>
   );
+
+  if (!guestId && create === "individual") {
+    return <GuestCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
 
   if (guestId && operationalType === "company") {
     return (
