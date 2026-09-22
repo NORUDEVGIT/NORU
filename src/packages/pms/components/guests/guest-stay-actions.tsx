@@ -1,12 +1,11 @@
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/shared/components/ui/button";
+import { bookingRowActions } from "@/packages/pms/lib/guest-bookings-workspace";
 import {
   folioHref,
   frontOfficeHref,
-  frontOfficeTabForStay,
   reservationHref,
-  stayQuickActions,
   type GuestStay,
   type GuestStayAccess,
 } from "@/packages/pms/lib/guest-profile-wave3";
@@ -14,7 +13,7 @@ import {
 export function GuestStayActions({
   stay,
   access,
-  today,
+  today: _today,
   size = "default",
 }: {
   stay: GuestStay;
@@ -22,12 +21,12 @@ export function GuestStayActions({
   today: string;
   size?: "default" | "sm";
 }) {
-  const actions = stayQuickActions(stay, access, today);
+  const actions = bookingRowActions(stay, access);
   const buttonSize = size === "sm" ? "sm" : "default";
 
   return (
     <div className="flex flex-wrap gap-2" data-testid={`guest-stay-actions-${stay.id}`}>
-      {actions.reservation === "hidden" ? null : (
+      {actions.view === "hidden" ? null : (
         <Button asChild size={buttonSize} variant="outline">
           <Link
             to="/restaurant/pms/reservations/$reservationId"
@@ -35,24 +34,56 @@ export function GuestStayActions({
             data-testid="guest-stay-action-reservation"
             title={reservationHref(stay.id)}
           >
-            Reservation
+            View
           </Link>
         </Button>
       )}
-      {actions.frontOffice === "hidden" ? null : actions.frontOffice === "enabled" ? (
+      {actions.modify === "hidden" ? null : (
+        <Button asChild size={buttonSize} variant="outline">
+          <Link
+            to="/restaurant/pms/reservations/$reservationId"
+            params={{ reservationId: stay.id }}
+            data-testid="guest-stay-action-modify"
+            title={reservationHref(stay.id)}
+          >
+            Modify
+          </Link>
+        </Button>
+      )}
+      {actions.checkIn === "hidden" ? null : (
         <Button asChild size={buttonSize} variant="outline">
           <Link
             to="/restaurant/pms/front-office"
-            search={{ tab: frontOfficeTabForStay(stay) }}
+            search={{ tab: "arrivals" }}
             data-testid="guest-stay-action-front-office"
-            title={frontOfficeHref(frontOfficeTabForStay(stay))}
+            title={frontOfficeHref("arrivals")}
           >
-            Front Office
+            Check-in
           </Link>
         </Button>
-      ) : (
-        <Button size={buttonSize} variant="outline" disabled data-testid="guest-stay-action-front-office">
-          Front Office
+      )}
+      {actions.checkOut === "hidden" ? null : (
+        <Button asChild size={buttonSize} variant="outline">
+          <Link
+            to="/restaurant/pms/front-office"
+            search={{ tab: "departures" }}
+            data-testid="guest-stay-action-check-out"
+            title={frontOfficeHref("departures")}
+          >
+            Check-out
+          </Link>
+        </Button>
+      )}
+      {actions.cancel === "hidden" ? null : (
+        <Button asChild size={buttonSize} variant="outline">
+          <Link
+            to="/restaurant/pms/front-office"
+            search={{ tab: "cancellations" }}
+            data-testid="guest-stay-action-cancel"
+            title={frontOfficeHref("cancellations")}
+          >
+            Cancel
+          </Link>
         </Button>
       )}
       {actions.folio === "hidden" ? null : actions.folio === "enabled" && stay.folioNumber ? (

@@ -75,6 +75,11 @@ export type GuestStay = {
   folioId: string | null;
   folioNumber: string | null;
   folioBalance: number | null;
+  ratePlanName: string | null;
+  sourceLabel: string | null;
+  adults: number;
+  children: number;
+  createdAt: string | null;
 };
 
 export type GuestStayAccess = {
@@ -116,7 +121,9 @@ export function reservationHref(reservationId: string): string {
   return `${GUEST_RESERVATIONS_HREF}/${reservationId}`;
 }
 
-export function frontOfficeHref(tab?: "arrivals" | "inhouse"): string {
+export function frontOfficeHref(
+  tab?: "arrivals" | "inhouse" | "departures" | "cancellations",
+): string {
   return tab ? `${GUEST_FRONT_OFFICE_HREF}?tab=${tab}` : GUEST_FRONT_OFFICE_HREF;
 }
 
@@ -170,6 +177,11 @@ export function mapReservationToStay(row: {
   folioId?: string | null;
   folioNumber?: string | null;
   folioBalance?: number | null;
+  ratePlanName?: string | null;
+  sourceLabel?: string | null;
+  adults?: number | null;
+  children?: number | null;
+  createdAt?: string | null;
 }): GuestStay {
   return {
     id: row.id,
@@ -188,6 +200,11 @@ export function mapReservationToStay(row: {
     folioNumber: row.folioNumber ?? null,
     folioBalance:
       row.folioBalance === null || row.folioBalance === undefined ? null : Number(row.folioBalance),
+    ratePlanName: row.ratePlanName?.trim() || null,
+    sourceLabel: row.sourceLabel?.trim() || null,
+    adults: row.adults ?? 0,
+    children: row.children ?? 0,
+    createdAt: row.createdAt ?? null,
   };
 }
 
@@ -283,4 +300,8 @@ export function stayQuickActions(
 
 export function frontOfficeTabForStay(stay: GuestStay): "arrivals" | "inhouse" {
   return isInHouseStay(stay.status) ? "inhouse" : "arrivals";
+}
+
+export function pickActiveBooking(stays: GuestStay[], today: string): GuestStay | null {
+  return pickFeaturedStay(stays, today);
 }

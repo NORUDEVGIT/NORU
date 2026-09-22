@@ -54,7 +54,7 @@ export const GUEST_PROFILE_CARDS = [
   },
   {
     id: "stay-history",
-    title: "Stay History",
+    title: "Stays & Reservations",
     live: true,
     wave: 3,
     copy: "Real reservations for this guest. This card does not invent stays and is not profile-event history.",
@@ -120,8 +120,7 @@ export const GUEST_PROFILE_WORKSPACE_NAV = [
   { id: "identity", card: "identity", title: "Identity Documents" },
   { id: "preferences", card: "preferences", title: "Preferences" },
   { id: "business", card: "relationships", title: "Business" },
-  { id: "stays", card: "stay-history", title: "Stays" },
-  { id: "reservations", card: "stay-history", title: "Reservations" },
+  { id: "bookings", card: "stay-history", title: "Stays & Reservations" },
   { id: "services", card: "services", title: "Services" },
   { id: "financial", card: "financial", title: "Financial" },
   { id: "notes", card: "notes-comms", title: "Notes" },
@@ -182,11 +181,17 @@ export type GuestProfileSearch = GuestProfileCardSearch & {
   type?: GuestProfileTypeId | GuestListingPlaceholderType;
 };
 
+const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
+  stays: "bookings",
+  reservations: "bookings",
+};
+
 export function parseGuestProfileWorkspaceNav(
   search: Record<string, unknown>,
 ): GuestProfileWorkspaceNavId | undefined {
   const raw = typeof search["nav"] === "string" ? search["nav"] : undefined;
   if (!raw) return undefined;
+  if (raw in LEGACY_GUEST_PROFILE_NAV) return LEGACY_GUEST_PROFILE_NAV[raw];
   return GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === raw)?.id;
 }
 

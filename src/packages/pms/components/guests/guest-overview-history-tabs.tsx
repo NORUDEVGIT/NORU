@@ -10,11 +10,9 @@ import { GuestStayActions } from "@/packages/pms/components/guests/guest-stay-ac
 import {
   OVERVIEW_BALANCE_PLACEHOLDER,
   OVERVIEW_FINANCIAL_COPY,
-  OVERVIEW_RATE_PLAN_UNAVAILABLE,
   OVERVIEW_REVENUE_PLACEHOLDER,
   OVERVIEW_SERVICE_EMPTY,
   OVERVIEW_SERVICE_UNAVAILABLE,
-  occupiedStayHistory,
 } from "@/packages/pms/lib/guest-profile-overview";
 import {
   stayRoomNumberLabel,
@@ -41,7 +39,7 @@ export function GuestOverviewHistoryTabs({
   guestName: string;
   timezone: string;
 }) {
-  const [tab, setTab] = useState("stays");
+  const [tab, setTab] = useState("bookings");
   const today = propertyToday(timezone);
   const fetchStays = useServerFn(listGuestStays);
   const fetchServices = useServerFn(listGuestServiceHistory);
@@ -62,7 +60,6 @@ export function GuestOverviewHistoryTabs({
     frontOffice: false,
     folio: false,
   };
-  const occupied = occupiedStayHistory(stays);
 
   return (
     <section
@@ -72,29 +69,17 @@ export function GuestOverviewHistoryTabs({
       <h3 className="font-display text-lg">History summary</h3>
       <Tabs value={tab} onValueChange={setTab} className="mt-3">
         <TabsList className="flex h-auto w-full flex-wrap justify-start">
-          <TabsTrigger value="stays">Stay History</TabsTrigger>
-          <TabsTrigger value="reservations">Reservation History</TabsTrigger>
+          <TabsTrigger value="bookings">Stays & Reservations</TabsTrigger>
           <TabsTrigger value="services">Service History</TabsTrigger>
           <TabsTrigger value="financial">Financial Summary</TabsTrigger>
         </TabsList>
-        <TabsContent value="stays">
+        <TabsContent value="bookings">
           {staysQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading stays…</p>
           ) : staysQuery.isError ? (
             <p className="text-sm text-muted-foreground">Stay history could not be loaded.</p>
-          ) : occupied.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{wave3StayHistoryEmpty(guestName)}</p>
-          ) : (
-            <StayMiniTable stays={occupied} access={access} today={today} />
-          )}
-        </TabsContent>
-        <TabsContent value="reservations">
-          {staysQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading reservations…</p>
           ) : stays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No reservations recorded for this guest.
-            </p>
+            <p className="text-sm text-muted-foreground">{wave3StayHistoryEmpty(guestName)}</p>
           ) : (
             <StayMiniTable stays={stays} access={access} today={today} />
           )}
@@ -138,7 +123,7 @@ function StayMiniTable({
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th className="py-2 pr-3">Stay no.</th>
+            <th className="py-2 pr-3">Confirmation</th>
             <th className="py-2 pr-3">Arrival</th>
             <th className="py-2 pr-3">Departure</th>
             <th className="py-2 pr-3">Nights</th>
@@ -163,7 +148,7 @@ function StayMiniTable({
               <td className="py-2 pr-3 text-muted-foreground">
                 {stay.roomTypeName} · {stayRoomNumberLabel(stay)}
               </td>
-              <td className="py-2 pr-3 text-muted-foreground">{OVERVIEW_RATE_PLAN_UNAVAILABLE}</td>
+              <td className="py-2 pr-3 text-muted-foreground">{stay.ratePlanName ?? "—"}</td>
               <td className="py-2 pr-3 text-muted-foreground">
                 {stay.roomSubtotal == null ? "—" : stay.roomSubtotal}
               </td>
