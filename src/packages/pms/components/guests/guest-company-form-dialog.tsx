@@ -528,6 +528,11 @@ export function GuestCompanyFormDialog({
                 }
               >
                 <SelectTrigger data-testid="company-legal-form">
+                  <SelectValue placeholder="Choose type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Choose type</SelectItem>
+                  {COMPANY_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
                       {COMPANY_TYPE_LABELS[type]}
                     </SelectItem>

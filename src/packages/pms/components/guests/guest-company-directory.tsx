@@ -65,7 +65,7 @@ export function GuestCompanyDirectory({
   const exportCsv = useServerFn(exportCompaniesCsv);
   const previewImport = useServerFn(previewCompanyImport);
   const confirmImport = useServerFn(confirmCompanyImport);
-  const setStatus = useServerFn(setCompanyStatus);
+  const changeCompanyStatus = useServerFn(setCompanyStatus);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | (typeof GUEST_ACCOUNT_STATUSES)[number]>("all");
@@ -155,7 +155,7 @@ export function GuestCompanyDirectory({
 
   const statusMutation = useMutation({
     mutationFn: (input: { ids: string[]; status: "active" | "inactive" }) =>
-      setStatus({ data: { restaurantId, ...input } }),
+      changeCompanyStatus({ data: { restaurantId, ...input } }),
     onSuccess: () => {
       toast.success("Company status updated.");
       setSelected([]);
