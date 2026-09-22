@@ -13,6 +13,9 @@
 import type { GuestProfileTypeId } from "./guest-profile-wave1.ts";
 import type { GuestAccountType } from "./guest-profile-wave4.ts";
 
+/** Collapse the PMS package rail as soon as Guest Profile is open so listing and profile cards can use the width. */
+export const GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED = true;
+
 export const GUEST_LISTING_PLACEHOLDERS = ["tour-operator", "contact"] as const;
 export type GuestListingPlaceholderId = (typeof GUEST_LISTING_PLACEHOLDERS)[number];
 

@@ -226,7 +226,7 @@ export function GuestProfileWorkspace({
         </div>
       )}
 
-      {typeSwitcher}
+      {guestId ? null : typeSwitcher}
 
       {guestId ? (
         <nav

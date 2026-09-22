@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -525,7 +525,7 @@ export function RestaurantShell({
    */
   posModule?: string;
   /**
-   * Create Reservation (AC-CR1-21): start with the existing package rail collapsed.
+   * Create Reservation and Guest Profile start with the existing package rail collapsed.
    * One-click expand stays on this same rail. Other routes omit this prop so their
    * default remains expanded. Leaving the page remounts the shell expanded.
    */
@@ -541,6 +541,9 @@ export function RestaurantShell({
   const fetchModules = useServerFn(getMyModuleAccess);
   const [navOpen, setNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(Boolean(sidebarDefaultCollapsed));
+  useEffect(() => {
+    if (sidebarDefaultCollapsed) setSidebarCollapsed(true);
+  }, [sidebarDefaultCollapsed]);
   const search = useSearch({ strict: false }) as { tab?: string };
 
   const { data, isLoading, isError } = useQuery({

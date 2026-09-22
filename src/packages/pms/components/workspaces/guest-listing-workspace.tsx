@@ -189,35 +189,8 @@ export function GuestListingWorkspace({
         })}
       </nav>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="min-w-0">
-          {sectionInactive ? (
-            <p className="mb-4 text-sm text-muted-foreground" data-testid="guest-listing-inactive-copy">
-              {PROFILE_TYPE_INACTIVE_SECTION_COPY}
-            </p>
-          ) : null}
-          {accountType ? (
-            <GuestAccountDirectory
-              membership={membership}
-              accountType={accountType}
-              returnCard={returnCard}
-              search={search}
-              onSearchChange={setSearch}
-            />
-          ) : section === "tour-operator" ? (
-            <PlaceholderCard title="Tour Operators" copy={TOUR_OPERATOR_UNAVAILABLE} />
-          ) : section === "contact" ? (
-            <PlaceholderCard title="Contacts" copy={CONTACT_PROFILE_UNAVAILABLE} />
-          ) : (
-            <GuestDirectoryWorkspace
-              membership={membership}
-              compact
-              returnCard={returnCard}
-            />
-          )}
-        </div>
-
-        <aside className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <aside className="contents">
           <section className="rounded-2xl border border-border bg-card p-4" data-testid="guest-quick-actions">
             <h2 className="font-display text-lg">Quick Actions</h2>
             <div className="mt-3 grid gap-2">
@@ -269,6 +242,33 @@ export function GuestListingWorkspace({
             </dl>
           </section>
         </aside>
+      </div>
+
+      <div className="min-w-0">
+        {sectionInactive ? (
+          <p className="mb-4 text-sm text-muted-foreground" data-testid="guest-listing-inactive-copy">
+            {PROFILE_TYPE_INACTIVE_SECTION_COPY}
+          </p>
+        ) : null}
+        {accountType ? (
+          <GuestAccountDirectory
+            membership={membership}
+            accountType={accountType}
+            returnCard={returnCard}
+            search={search}
+            onSearchChange={setSearch}
+          />
+        ) : section === "tour-operator" ? (
+          <PlaceholderCard title="Tour Operators" copy={TOUR_OPERATOR_UNAVAILABLE} />
+        ) : section === "contact" ? (
+          <PlaceholderCard title="Contacts" copy={CONTACT_PROFILE_UNAVAILABLE} />
+        ) : (
+          <GuestDirectoryWorkspace
+            membership={membership}
+            compact
+            returnCard={returnCard}
+          />
+        )}
       </div>
 
       <GuestFormDialog

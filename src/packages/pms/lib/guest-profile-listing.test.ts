@@ -9,6 +9,7 @@ import {
   CARD4_CODE_TO_SECTION,
   GUEST_LISTING_CHIPS,
   GUEST_LISTING_SECTIONS,
+  GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED,
   chipForSection,
   displayProfileNumber,
   guestListingSection,
@@ -120,6 +121,15 @@ describe("Guest listing honesty", () => {
     assert.match(shell, /GuestListingWorkspace/);
     assert.match(listing, /guest-listing-nav/);
     assert.match(listing, /guest-quick-actions/);
+    assert.equal(GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED, true);
+    assert.match(
+      readRel("../../../routes/restaurant/pms/guests.index.tsx"),
+      /sidebarDefaultCollapsed=\{GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED\}/,
+    );
+    assert.match(
+      readRel("../../../routes/restaurant/pms/guests.$guestId.tsx"),
+      /sidebarDefaultCollapsed=\{GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED\}/,
+    );
     assert.match(listing, /GuestListingNewGuestMenu/);
     assert.match(listing, /import-guests/);
     assert.doesNotMatch(listing, /guest-listing-chips/);
