@@ -129,6 +129,22 @@ export function PmsPropertySetupCard3Taxes({
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-card3-taxes", restaurantId] });
   }
+  function friendlyValidationError(error: Error): string {
+    try {
+      const issues = JSON.parse(error.message);
+  
+      if (Array.isArray(issues) && issues.length > 0) {
+        return issues
+          .map((issue) => issue?.message)
+          .filter(Boolean)
+          .join(" ");
+      }
+    } catch {
+      // Not a serialized validation error.
+    }
+  
+    return error.message || "Please check the form and try again.";
+  }
 
   const taxMut = useMutation({
     mutationFn: (input: Parameters<typeof saveTax>[0]["data"]) => saveTax({ data: input }),
@@ -137,7 +153,7 @@ export function PmsPropertySetupCard3Taxes({
       setTaxDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
   const groupMut = useMutation({
     mutationFn: (input: Parameters<typeof saveGroup>[0]["data"]) => saveGroup({ data: input }),
@@ -146,7 +162,7 @@ export function PmsPropertySetupCard3Taxes({
       setGroupDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
   const serviceMut = useMutation({
     mutationFn: (input: Parameters<typeof saveService>[0]["data"]) => saveService({ data: input }),
@@ -155,7 +171,7 @@ export function PmsPropertySetupCard3Taxes({
       setServiceDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
   const feeMut = useMutation({
     mutationFn: (input: Parameters<typeof saveFee>[0]["data"]) => saveFee({ data: input }),
@@ -164,7 +180,7 @@ export function PmsPropertySetupCard3Taxes({
       setFeeDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
   const ruleMut = useMutation({
     mutationFn: (input: Parameters<typeof saveRule>[0]["data"]) => saveRule({ data: input }),
@@ -173,7 +189,7 @@ export function PmsPropertySetupCard3Taxes({
       setRuleDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
 
   void CARD3_TAXES_TABS;
@@ -391,6 +407,9 @@ function CodeFields({
           disabled={!canEdit || locked}
           onChange={(event) => onCode(event.target.value.toUpperCase())}
         />
+        <p className="text-xs text-muted-foreground">
+  Use 1–20 uppercase letters, numbers, or underscores. Example: VAT_15.
+</p>
       </div>
       <div className="space-y-1">
         <Label htmlFor="setup-name">Name</Label>

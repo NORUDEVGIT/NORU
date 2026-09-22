@@ -236,11 +236,13 @@ const roleSchema = z.object({
   restaurantId: idSchema,
   id: idSchema.optional(),
   code: z
-    .string()
-    .trim()
-    .min(1)
-    .max(20)
-    .transform((value) => value.toUpperCase()),
+  .string()
+  .trim()
+  .transform((value) => value.toUpperCase())
+  .refine(
+    (value) => /^[A-Z][A-Z0-9_]{1,19}$/.test(value),
+    "Use 2–20 uppercase letters, numbers, or underscores, starting with a letter. Example: FRONT_OFFICE_MANAGER.",
+  ),
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).optional(),
   departmentId: idSchema.nullable().optional(),
@@ -322,10 +324,22 @@ export const saveCard7HotelRole = createServerFn({ method: "POST" })
           .eq("id", data.id)
           .eq("restaurant_id", data.restaurantId)
       : await db.from("pms_hotel_roles").insert(payload);
-    if (result.error) {
-      if (result.error.code === "23505") throw new Error("That hotel role code is already used.");
-      unavailable(result.error);
-    }
+      if (result.error) {
+        if (result.error.code === "23505") {
+          throw new Error("That hotel role code is already used.");
+        }
+      
+        if (
+          result.error.code === "23514" &&
+          result.error.message?.includes("pms_hotel_roles_code_format")
+        ) {
+          throw new Error(
+            "Use 2–20 uppercase letters, numbers, or underscores, starting with a letter. Example: FRONT_OFFICE_MANAGER.",
+          );
+        }
+      
+        unavailable(result.error);
+      }
     const after = await loadCard7SecuritySnapshot(db, data.restaurantId);
     await persistCard7Overall(db, data.restaurantId);
     await writeAudit(db, data.restaurantId, context.userId, CARD7_SECURITY_AUDIT, {
