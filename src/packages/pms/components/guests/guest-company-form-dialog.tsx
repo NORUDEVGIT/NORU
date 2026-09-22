@@ -4,7 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
-import { createGuestAccount, listGuestAccounts, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import { createGuestAccount, getGuestAccount, listGuestAccounts, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import {
+  createCompanyLogoUpload,
+  findCompanyDuplicates,
+  getCompanyBusinessWorkspace,
+  saveCompanyLogo,
+} from "@/packages/pms/lib/guest-companies.functions";
+import { defaultBusinessTypeId, validateCompanyAgainstType } from "@/packages/pms/lib/guest-companies-workspace";
+import { supabase } from "@/integrations/supabase/client";
+import { ISO_COUNTRIES, countryCodeFromInput } from "@/packages/pms/lib/pms-geography";
 import { accountListItems } from "@/packages/pms/lib/guest-profile-wave4";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import {
@@ -60,6 +69,11 @@ type CompanyFormValues = {
   email: string;
   emailAlt: string;
   primaryContactName: string;
+  primaryContactTitle: string;
+  website: string;
+  businessProfileTypeId: string;
+  creditAccountEnabled: boolean;
+  acknowledgeNameDuplicate: boolean;
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -90,6 +104,11 @@ const EMPTY: CompanyFormValues = {
   email: "",
   emailAlt: "",
   primaryContactName: "",
+  primaryContactTitle: "",
+  website: "",
+  businessProfileTypeId: "",
+  creditAccountEnabled: false,
+  acknowledgeNameDuplicate: false,
   addressLine1: "",
   addressLine2: "",
   city: "",
@@ -121,11 +140,16 @@ function fromProfile(account: GuestAccountProfile): CompanyFormValues {
     email: account.email ?? "",
     emailAlt: account.emailAlt ?? "",
     primaryContactName: account.primaryContactName ?? "",
+    primaryContactTitle: account.primaryContactTitle ?? "",
+    website: account.website ?? "",
+    businessProfileTypeId: account.businessProfileTypeId ?? "",
+    creditAccountEnabled: Boolean(account.creditAccountEnabled),
+    acknowledgeNameDuplicate: false,
     addressLine1: account.addressLine1 ?? "",
     addressLine2: account.addressLine2 ?? "",
     city: account.city ?? "",
     region: account.region ?? "",
-    country: account.country ?? "",
+    country: account.country ? countryCodeFromInput(account.country) : "",
     postalCode: account.postalCode ?? "",
     corporateAccountReference: account.corporateAccountReference ?? "",
     negotiatedRateReference: account.negotiatedRateReference ?? "",
@@ -177,23 +201,69 @@ export function GuestCompanyFormDialog({
   open,
   onOpenChange,
   account,
+  accountId,
+  defaultBusinessTypeId: defaultTypeProp,
+  focusCredit = false,
   onSaved,
 }: {
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   account?: GuestAccountProfile | null | undefined;
+  accountId?: string | undefined;
+  defaultBusinessTypeId?: string | null;
+  focusCredit?: boolean;
   onSaved?: ((accountId: string) => void) | undefined;
 }) {
   const queryClient = useQueryClient();
   const create = useServerFn(createGuestAccount);
   const update = useServerFn(updateGuestAccount);
   const fetchAgents = useServerFn(listGuestAccounts);
+  const fetchAccount = useServerFn(getGuestAccount);
+  const fetchConfig = useServerFn(getCompanyBusinessWorkspace);
+  const fetchDuplicates = useServerFn(findCompanyDuplicates);
+  const startLogoUpload = useServerFn(createCompanyLogoUpload);
+  const persistLogo = useServerFn(saveCompanyLogo);
   const [form, setForm] = useState<CompanyFormValues>(EMPTY);
+  const [nameWarning, setNameWarning] = useState<{ id: string; name: string } | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+
+  const loadedAccountQuery = useQuery({
+    queryKey: ["guest-account", restaurantId, accountId],
+    queryFn: () => fetchAccount({ data: { restaurantId, accountId: accountId! } }),
+    enabled: open && Boolean(accountId) && !account,
+    retry: false,
+  });
+  const editing = account ?? loadedAccountQuery.data ?? null;
+
+  const configQuery = useQuery({
+    queryKey: ["company-business-workspace", restaurantId],
+    queryFn: () => fetchConfig({ data: { restaurantId } }),
+    enabled: open,
+    retry: false,
+  });
+  const types = configQuery.data?.types ?? [];
+  const activeTypes = types.filter((type) => type.active);
+  const selectedType =
+    types.find((type) => type.id === form.businessProfileTypeId) ??
+    activeTypes.find((type) => type.id === form.businessProfileTypeId);
+  const creditAllowed = selectedType?.creditAccountAllowed ?? false;
 
   useEffect(() => {
-    if (open) setForm(account ? fromProfile(account) : EMPTY);
-  }, [open, account]);
+    if (!open) return;
+    if (editing) {
+      setForm(fromProfile(editing));
+      setNameWarning(null);
+      setLogoFile(null);
+      return;
+    }
+    const preset =
+      defaultTypeProp ??
+      defaultBusinessTypeId(configQuery.data?.settings ?? { defaultBusinessTypeId: null }, types);
+    setForm({ ...EMPTY, businessProfileTypeId: preset ?? "" });
+    setNameWarning(null);
+    setLogoFile(null);
+  }, [open, editing, defaultTypeProp, configQuery.data?.settings, types]);
 
   const agentsQuery = useQuery({
     queryKey: ["guest-accounts", restaurantId, "travel_agent", "company-default-ta"],
@@ -208,8 +278,48 @@ export function GuestCompanyFormDialog({
   const save = useMutation({
     mutationFn: async () => {
       if (form.name.trim() === "") throw new Error("Legal / company name is required.");
+      if (!form.businessProfileTypeId) throw new Error("Select a company type.");
       const typeError = validateCompanyType(form.companyType || null, form.companyTypeOther);
       if (typeError) throw new Error(typeError);
+      if (selectedType) {
+        const settingsError = validateCompanyAgainstType(
+          {
+            name: form.name,
+            taxId: form.taxId || null,
+            primaryContactName: form.primaryContactName || null,
+            phone: form.phone || null,
+            email: form.email || null,
+            addressLine1: form.addressLine1 || null,
+            city: form.city || null,
+            country: form.country || null,
+            businessRegistrationNumber: form.businessRegistrationNumber || null,
+            creditAccountEnabled: form.creditAccountEnabled,
+            paymentTerms: form.paymentTerms || null,
+            creditLimitNote: form.creditLimitNote || null,
+          },
+          selectedType,
+          configQuery.data?.fields ?? [],
+          editing ? "update" : "create",
+        );
+        if (settingsError) throw new Error(settingsError);
+      }
+      if (!editing && !form.acknowledgeNameDuplicate) {
+        const duplicates = await fetchDuplicates({
+          data: {
+            restaurantId,
+            name: form.name,
+            taxId: form.taxId,
+            businessRegistrationNumber: form.businessRegistrationNumber,
+            email: form.email,
+            phone: form.phone,
+          },
+        });
+        const nameHit = duplicates.find((row) => !row.blocking);
+        if (nameHit) {
+          setNameWarning({ id: nameHit.id, name: nameHit.name });
+          throw new Error("A company with a similar name already exists. Open it or confirm to continue.");
+        }
+      }
       const payload = {
         name: form.name,
         code: form.code,
@@ -221,13 +331,18 @@ export function GuestCompanyFormDialog({
         notes: form.notes,
         accountStatus: form.accountStatus,
         tradeName: form.tradeName,
-        companyType: form.companyType,
+        companyType: form.companyType || null,
         companyTypeOther: form.companyTypeOther,
         taxId: form.taxId,
         businessRegistrationNumber: form.businessRegistrationNumber,
         phoneAlt: form.phoneAlt,
         emailAlt: form.emailAlt,
         primaryContactName: form.primaryContactName,
+        primaryContactTitle: form.primaryContactTitle,
+        website: form.website,
+        businessProfileTypeId: form.businessProfileTypeId,
+        creditAccountEnabled: form.creditAccountEnabled,
+        acknowledgeNameDuplicate: form.acknowledgeNameDuplicate,
         addressLine2: form.addressLine2,
         region: form.region,
         postalCode: form.postalCode,
@@ -235,21 +350,44 @@ export function GuestCompanyFormDialog({
         negotiatedRateReference: form.negotiatedRateReference,
         defaultTravelAgentMasterId: form.defaultTravelAgentMasterId || null,
         sourceOfBusiness: form.sourceOfBusiness,
-        paymentTerms: form.paymentTerms,
-        creditLimitNote: form.creditLimitNote,
+        paymentTerms: creditAllowed ? form.paymentTerms : "",
+        creditLimitNote: creditAllowed ? form.creditLimitNote : "",
         billingInstruction: form.billingInstruction,
       };
-      if (account) {
-        await update({ data: { restaurantId, accountId: account.id, account: payload } });
-        return account.id;
+      let id: string;
+      if (editing) {
+        await update({ data: { restaurantId, accountId: editing.id, account: payload } });
+        id = editing.id;
+      } else {
+        const res = await create({ data: { restaurantId, accountType: "company", account: payload } });
+        id = res.id;
       }
-      const res = await create({ data: { restaurantId, accountType: "company", account: payload } });
-      return res.id;
+      if (logoFile) {
+        const allowed = ["image/jpeg", "image/png", "image/webp"] as const;
+        if (!(allowed as readonly string[]).includes(logoFile.type)) {
+          throw new Error("Logo must be JPG, PNG, or WebP.");
+        }
+        const ticket = await startLogoUpload({
+          data: {
+            restaurantId,
+            companyId: id,
+            contentType: logoFile.type as (typeof allowed)[number],
+            size: logoFile.size,
+          },
+        });
+        const uploaded = await supabase.storage
+          .from("property-images")
+          .uploadToSignedUrl(ticket.path, ticket.token, logoFile);
+        if (uploaded.error) throw new Error("Logo upload failed.");
+        await persistLogo({ data: { restaurantId, companyId: id, path: ticket.path } });
+      }
+      return id;
     },
     onSuccess: (id) => {
-      toast.success(account ? "Company updated." : "Company created.");
+      toast.success(editing ? "Company updated." : "Company created.");
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest-account", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["company-workspace"] });
       onOpenChange(false);
       onSaved?.(id);
     },
@@ -260,7 +398,7 @@ export function GuestCompanyFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" data-testid="guest-account-form">
         <DialogHeader>
-          <DialogTitle>{account ? "Edit Company" : "New Company"}</DialogTitle>
+          <DialogTitle>{editing ? "Edit Company" : "Register New Company"}</DialogTitle>
           <DialogDescription>
             Sectioned Company registration. Create once in Guest. Reservations and Front Office
             consume this Company master.
@@ -274,8 +412,40 @@ export function GuestCompanyFormDialog({
                 id="guest-account-name"
                 data-testid="guest-account-name"
                 value={form.name}
-                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => {
+                  setNameWarning(null);
+                  setForm((prev) => ({ ...prev, name: e.target.value, acknowledgeNameDuplicate: false }));
+                }}
               />
+              {nameWarning ? (
+                <div className="mt-2 rounded-lg border border-border bg-muted/40 p-3 text-sm" data-testid="company-name-duplicate">
+                  <p>A similar company already exists: {nameWarning.name}.</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        onSaved?.(nameWarning.id);
+                        onOpenChange(false);
+                      }}
+                    >
+                      Open Existing
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setForm((prev) => ({ ...prev, acknowledgeNameDuplicate: true }));
+                        setNameWarning(null);
+                        save.mutate();
+                      }}
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div>
               <Label htmlFor="company-trade-name">Trade / display name</Label>
@@ -309,12 +479,44 @@ export function GuestCompanyFormDialog({
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div>
               <Label>Company type</Label>
+              <Select
+                value={form.businessProfileTypeId || "__none"}
+                onValueChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    businessProfileTypeId: value === "__none" ? "" : value,
+                    creditAccountEnabled:
+                      types.find((type) => type.id === value)?.creditAccountAllowed
+                        ? prev.creditAccountEnabled
+                        : false,
+                  }))
+                }
+              >
+                <SelectTrigger data-testid="company-type">
+                  <SelectValue placeholder="Choose type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Choose type</SelectItem>
+                  {(editing ? types.filter((type) => type.active || type.id === form.businessProfileTypeId) : activeTypes).map(
+                    (type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                        {type.active ? "" : " (inactive)"}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Legal form</Label>
               <Select
                 value={form.companyType || "__none"}
                 onValueChange={(value) =>
@@ -325,12 +527,7 @@ export function GuestCompanyFormDialog({
                   }))
                 }
               >
-                <SelectTrigger data-testid="company-type">
-                  <SelectValue placeholder="Choose type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Choose type</SelectItem>
-                  {COMPANY_TYPES.map((type) => (
+                <SelectTrigger data-testid="company-legal-form">
                     <SelectItem key={type} value={type}>
                       {COMPANY_TYPE_LABELS[type]}
                     </SelectItem>
@@ -338,9 +535,19 @@ export function GuestCompanyFormDialog({
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label htmlFor="company-logo">Logo</Label>
+              <Input
+                id="company-logo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                data-testid="company-logo"
+                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
             {form.companyType === "other" ? (
               <div>
-                <Label htmlFor="company-type-other">Other type</Label>
+                <Label htmlFor="company-type-other">Other legal form</Label>
                 <Input
                   id="company-type-other"
                   data-testid="company-type-other"
@@ -415,13 +622,33 @@ export function GuestCompanyFormDialog({
                 />
               </div>
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="company-contact-name">Primary contact person</Label>
+                <Input
+                  id="company-contact-name"
+                  data-testid="company-contact-name"
+                  value={form.primaryContactName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, primaryContactName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="company-job-title">Job title</Label>
+                <Input
+                  id="company-job-title"
+                  data-testid="company-job-title"
+                  value={form.primaryContactTitle}
+                  onChange={(e) => setForm((prev) => ({ ...prev, primaryContactTitle: e.target.value }))}
+                />
+              </div>
+            </div>
             <div>
-              <Label htmlFor="company-contact-name">Primary contact person</Label>
+              <Label htmlFor="company-website">Website</Label>
               <Input
-                id="company-contact-name"
-                data-testid="company-contact-name"
-                value={form.primaryContactName}
-                onChange={(e) => setForm((prev) => ({ ...prev, primaryContactName: e.target.value }))}
+                id="company-website"
+                data-testid="company-website"
+                value={form.website}
+                onChange={(e) => setForm((prev) => ({ ...prev, website: e.target.value }))}
               />
             </div>
           </Section>
@@ -467,11 +694,24 @@ export function GuestCompanyFormDialog({
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="guest-account-country">Country</Label>
-                <Input
-                  id="guest-account-country"
-                  value={form.country}
-                  onChange={(e) => setForm((prev) => ({ ...prev, country: e.target.value }))}
-                />
+                <Select
+                  value={form.country || "__none"}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({ ...prev, country: value === "__none" ? "" : value }))
+                  }
+                >
+                  <SelectTrigger id="guest-account-country" data-testid="company-country">
+                    <SelectValue placeholder="Choose country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Choose country</SelectItem>
+                    {ISO_COUNTRIES.map((item) => (
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="company-postal">Postal code</Label>
@@ -545,7 +785,17 @@ export function GuestCompanyFormDialog({
             </div>
           </Section>
 
-          <Section id="payment-terms" title="Payment Terms">
+          {creditAllowed ? (
+          <Section id="payment-terms" title="Credit account" defaultOpen={focusCredit}>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                data-testid="company-credit-enabled"
+                checked={form.creditAccountEnabled}
+                onChange={(e) => setForm((prev) => ({ ...prev, creditAccountEnabled: e.target.checked }))}
+              />
+              Enable credit account
+            </label>
             <p className="text-xs text-muted-foreground">{PAYMENT_TERMS_REFERENCE_COPY}</p>
             <div>
               <Label htmlFor="company-payment-terms">Terms code / label</Label>
@@ -554,6 +804,7 @@ export function GuestCompanyFormDialog({
                 data-testid="company-payment-terms"
                 value={form.paymentTerms}
                 onChange={(e) => setForm((prev) => ({ ...prev, paymentTerms: e.target.value }))}
+                disabled={!form.creditAccountEnabled}
               />
             </div>
             <div>
@@ -563,6 +814,7 @@ export function GuestCompanyFormDialog({
                 data-testid="company-credit-limit"
                 value={form.creditLimitNote}
                 onChange={(e) => setForm((prev) => ({ ...prev, creditLimitNote: e.target.value }))}
+                disabled={!form.creditAccountEnabled}
               />
             </div>
             <div>
@@ -575,6 +827,7 @@ export function GuestCompanyFormDialog({
               />
             </div>
           </Section>
+          ) : null}
 
           <Section id="notes" title="Notes">
             <div>
@@ -593,7 +846,7 @@ export function GuestCompanyFormDialog({
             Cancel
           </Button>
           <Button data-testid="guest-account-save" disabled={save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? "Saving…" : account ? "Save" : "Create"}
+            {save.isPending ? "Saving…" : editing ? "Save" : "Create"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search } from "lucide-react";
 
+import { GuestCompanyDirectory } from "@/packages/pms/components/guests/guest-company-directory";
 import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
@@ -63,6 +64,9 @@ export function GuestAccountDirectory({
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const { date } = useRestaurantTime();
+  if (accountType === "company") {
+    return <GuestCompanyDirectory membership={membership} returnCard={returnCard} />;
+  }
   const title = GUEST_ACCOUNT_TYPE_LABELS[accountType];
   const profileType = accountTypeToProfileType(accountType);
 

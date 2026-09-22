@@ -114,11 +114,12 @@ export function validateCompanyType(
   companyType: string | null | undefined,
   companyTypeOther: string | null | undefined,
 ): string | null {
-  if (!companyType || !isCompanyType(companyType)) {
-    return "Company type is required.";
+  if (!companyType) return null;
+  if (!isCompanyType(companyType)) {
+    return "That legal form is not recognised.";
   }
   if (companyType === "other" && !(companyTypeOther ?? "").trim()) {
-    return "Describe the company type when Other is selected.";
+    return "Describe the legal form when Other is selected.";
   }
   return null;
 }
