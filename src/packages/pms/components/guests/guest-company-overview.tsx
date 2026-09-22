@@ -27,7 +27,6 @@ import { addCompanyNote, listCompanyContacts } from "@/packages/pms/lib/guest-co
 import { listGuestAccountHistory, listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import { sendGuestAccountMessage, exportGuestAccount } from "@/packages/pms/lib/guest-privacy.functions";
 import { formatMoneyLabel } from "@/packages/pms/lib/guest-company-detail-workspace";
-import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
 import { GUEST_PROFILE_DETAIL_PATH, guestProfileSearch, type CompanyDetailNavId } from "@/packages/pms/lib/guest-profile-wave1";
 import { COMPANY_RATE_NO, COMPANY_RATE_YES } from "@/packages/pms/lib/guest-company-detail-workspace";
 
@@ -39,14 +38,12 @@ export function GuestCompanyOverview({
   data,
   onNavigate,
   onEdit,
-  focus,
 }: {
   restaurantId: string;
   companyId: string;
   data: OverviewData;
   onNavigate: (nav: CompanyDetailNavId) => void;
   onEdit: () => void;
-  focus?: "contracts" | "reservations" | "notes";
 }) {
   const queryClient = useQueryClient();
   const loadContacts = useServerFn(listCompanyContacts);
@@ -111,8 +108,7 @@ export function GuestCompanyOverview({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]" data-testid="company-overview">
       <div className="space-y-4">
-        {(focus === undefined || focus === "contracts") && (
-          <Card title="Contact Persons" action={<Button type="button" variant="outline" size="sm" onClick={() => onNavigate("contacts")}>View All</Button>}>
+        <Card title="Contact Persons" action={<Button type="button" variant="outline" size="sm" onClick={() => onNavigate("contacts")}>View All</Button>}>
             {contacts.data?.items.length ? (
               <Table>
                 <TableHeader>
@@ -138,14 +134,12 @@ export function GuestCompanyOverview({
               <Empty text="No contact persons yet." />
             )}
           </Card>
-        )}
-
         <Card
           title="Contracts & Agreements"
           action={
-            <a href={CARD3_HREF} className="text-sm font-medium underline">
-              Open Contract Settings
-            </a>
+            <Button type="button" variant="outline" size="sm" onClick={() => onNavigate("contracts")}>
+              View All
+            </Button>
           }
         >
           {data.agreements.length ? (
@@ -265,24 +259,22 @@ export function GuestCompanyOverview({
           )}
         </Card>
 
-        {(focus === undefined || focus === "notes") && (
-          <Card title="Notes">
+        <Card title="Notes" action={<Button type="button" variant="outline" size="sm" onClick={() => onNavigate("notes")}>View All</Button>}>
             <p className="whitespace-pre-wrap text-sm">{data.company.notes || "No company notes yet."}</p>
             <Textarea className="mt-3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a note" />
             <Button className="mt-2" type="button" disabled={!note.trim() || noteMutation.isPending} onClick={() => noteMutation.mutate()}>
               Add Note
             </Button>
           </Card>
-        )}
 
         <Card title="Quick Actions">
           <div className="grid gap-2">
             <Button asChild>
-              <Link to="/restaurant/bookings/new">Create Reservation</Link>
+              <Link to="/restaurant/bookings/new" search={{ companyMasterId: companyId }}>Create Reservation</Link>
             </Button>
-            <Button asChild variant="outline">
-              <a href={CARD3_HREF}>Create Contract</a>
-            </Button>
+            <Button type="button" variant="outline" onClick={() => onNavigate("contacts")}>Add Contact</Button>
+            <Button type="button" variant="outline" onClick={() => onNavigate("contracts")}>Add Contract</Button>
+            <Button type="button" variant="outline" onClick={() => onNavigate("notes")}>Add Note</Button>
             <Button type="button" variant="outline" disabled={!emailReady} onClick={() => setEmailOpen(true)}>
               Send Email
             </Button>

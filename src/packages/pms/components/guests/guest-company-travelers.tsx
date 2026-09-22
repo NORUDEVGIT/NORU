@@ -197,6 +197,17 @@ export function GuestCompanyTravelers({
                     <p className="text-muted-foreground">Identity documents stay on the Guest Profile.</p>
                   )}
                 </ul>
+              ) : selected.stays.length ? (
+                <ul className="space-y-1 text-sm">
+                  {selected.stays
+                    .filter((stay) => tab === "reservations" || tab === "history")
+                    .slice(0, 8)
+                    .map((stay, index) => (
+                      <li key={`${stay.arrival}-${stay.departure}-${index}`}>
+                        {stay.arrival} – {stay.departure} · {stay.status}
+                      </li>
+                    ))}
+                </ul>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   {selected.lastStay ? `Last stay ${selected.lastStay}.` : "No stays yet."} {selected.upcomingTrips} upcoming trip(s).

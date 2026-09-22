@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
@@ -62,11 +63,13 @@ export function GuestActivityHubCard({
   guestId,
   accountId,
   partyName,
+  showFilters = false,
 }: {
   restaurantId: string;
   guestId?: string | undefined;
   accountId?: string | undefined;
   partyName: string;
+  showFilters?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { dateTime } = useRestaurantTime();
@@ -82,6 +85,10 @@ export function GuestActivityHubCard({
   const [recordChannel, setRecordChannel] = useState<GuestCommsChannel>("phone");
   const [recordNotes, setRecordNotes] = useState("");
   const [sendBody, setSendBody] = useState("");
+  const [eventType, setEventType] = useState("all");
+  const [actor, setActor] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const hubQuery = useQuery({
     queryKey: ["guest-activity-hub", restaurantId, guestId, accountId],
@@ -157,6 +164,14 @@ export function GuestActivityHubCard({
   if (!hub) return null;
   const sendChannel = hub.sendChannel;
   const frozen = hub.anonymised;
+  const entries = hub.entries.filter((entry) => {
+    if (eventType !== "all" && entry.eventType !== eventType) return false;
+    if (actor.trim() && !(entry.actorName ?? "").toLowerCase().includes(actor.trim().toLowerCase())) return false;
+    if (from && entry.createdAt.slice(0, 10) < from) return false;
+    if (to && entry.createdAt.slice(0, 10) > to) return false;
+    return true;
+  });
+  const eventTypes = [...new Set(hub.entries.map((entry) => entry.eventType))];
 
   return (
     <div className="space-y-4" data-testid="guest-activity-hub">
@@ -265,13 +280,29 @@ export function GuestActivityHubCard({
 
       <div>
         <p className="font-display text-lg">Activity</p>
-        {hub.entries.length === 0 ? (
+        {showFilters ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-4" data-testid="company-history-filters">
+            <Select value={eventType} onValueChange={setEventType}>
+              <SelectTrigger><SelectValue placeholder="Event type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All events</SelectItem>
+                {eventTypes.map((type) => (
+                  <SelectItem key={type} value={type}>{EVENT_LABEL[type] ?? type.replaceAll("_", " ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input value={actor} onChange={(event) => setActor(event.target.value)} placeholder="Actor" />
+            <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+            <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          </div>
+        ) : null}
+        {entries.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground" data-testid="guest-activity-empty">
             {WAVE5_HUB_EMPTY}
           </p>
         ) : (
           <ol className="mt-3 space-y-3" data-testid="guest-activity-list">
-            {hub.entries.map((entry) => (
+            {entries.map((entry) => (
               <li key={entry.id} className="rounded-2xl border border-border bg-card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-medium">{EVENT_LABEL[entry.eventType] ?? entry.eventType}</p>

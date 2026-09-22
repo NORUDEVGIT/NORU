@@ -8,17 +8,19 @@ import type { KnownMoney } from "./guest-profile-wave3.ts";
 
 export const COMPANY_DETAIL_MIGRATION_FILE = "0091_pms_guest_company_detail.sql";
 export const COMPANY_CONTACT_WHATSAPP_MIGRATION_FILE = "0092_pms_guest_company_contact_whatsapp.sql";
+export const COMPANY_PHASE1_MIGRATION_FILE = "0094_pms_company_profile_phase1.sql";
 
 export const COMPANY_DETAIL_NAV = [
   { id: "overview", title: "Overview", live: true },
+  { id: "corporate", title: "Corporate Details", live: true },
   { id: "contacts", title: "Contact Persons", live: true },
   { id: "travelers", title: "Travelers", live: true },
   { id: "contracts", title: "Contracts & Agreements", live: true },
   { id: "reservations", title: "Reservations", live: true },
   { id: "notes", title: "Notes", live: true },
   { id: "history", title: "History", live: true },
-  { id: "documents", title: "Documents", live: false },
-  { id: "credit", title: "Credit & Billing", live: false, requiresCredit: true },
+  { id: "documents", title: "Documents", live: true },
+  { id: "credit", title: "Billing", live: true },
   { id: "travel-agent-settings", title: "Travel Agent Settings", live: false, requiresTravelAgent: true },
 ] as const;
 
@@ -36,9 +38,16 @@ export const COMPANY_CONTACTS_TITLE = "Contact Persons";
 export const COMPANY_CONTACTS_COPY = "Manage people who represent this company.";
 export const COMPANY_TRAVELERS_TITLE = "Company Travelers / Guests";
 export const COMPANY_TRAVELERS_COPY = "Manage people who travel under this company.";
-export const COMPANY_DOCUMENTS_COMING = "Company document library is not available yet. The company logo is stored on the company profile.";
-export const COMPANY_CREDIT_COMING = "Credit & Billing is configuration on the company profile. There is no accounts-receivable ledger on this page.";
+export const COMPANY_DOCUMENTS_COPY = "Company files use the company document store. Identity documents stay on guest profiles.";
+export const COMPANY_BILLING_COPY =
+  "Billing reads reservation folios for this company. There is no separate accounts-receivable ledger.";
 export const COMPANY_TA_SETTINGS_COMING = "Travel Agent Settings for this business type are not available on Company Detail yet.";
+export const COMPANY_NOTE_CATEGORIES = ["general", "billing", "operations", "sales"] as const;
+export type CompanyNoteCategory = (typeof COMPANY_NOTE_CATEGORIES)[number];
+export const COMPANY_NOTE_VISIBILITIES = ["internal", "restricted"] as const;
+export type CompanyNoteVisibility = (typeof COMPANY_NOTE_VISIBILITIES)[number];
+export const COMPANY_DOCUMENT_STATUSES = ["pending", "verified", "rejected", "expired"] as const;
+export type CompanyDocumentStatus = (typeof COMPANY_DOCUMENT_STATUSES)[number];
 export const COMPANY_CONTACT_REQUIRED =
   "This business type requires a primary contact. Set another primary contact first.";
 export const COMPANY_RATE_YES = "Yes";
@@ -69,7 +78,6 @@ export function visibleCompanyNav(options: {
   travelAgency: boolean;
 }): Array<(typeof COMPANY_DETAIL_NAV)[number]> {
   return COMPANY_DETAIL_NAV.filter((item) => {
-    if ("requiresCredit" in item && item.requiresCredit && !options.creditAccountAllowed) return false;
     if ("requiresTravelAgent" in item && item.requiresTravelAgent && !options.travelAgency) return false;
     return true;
   });
@@ -195,6 +203,90 @@ export function contactActivityLabel(eventType: string): string {
   if (eventType === "relationship_linked") return "Contact linked to company";
   if (eventType === "status_changed") return "Contact status changed";
   return eventType.replaceAll("_", " ");
+}
+
+export function companyReservationKpis(
+  rows: Array<{ status: string; arrivalDate: string; departureDate: string; nights: number }>,
+  today: string,
+): {
+  total: number;
+  upcoming: number;
+  inHouse: number;
+  completed: number;
+  cancelled: number;
+  roomNights: number;
+} {
+  return {
+    total: rows.length,
+    upcoming: rows.filter((row) => (row.status === "pending" || row.status === "confirmed") && row.arrivalDate >= today).length,
+    inHouse: rows.filter((row) => row.status === "checked_in").length,
+    completed: rows.filter((row) => row.status === "checked_out").length,
+    cancelled: rows.filter((row) => row.status === "cancelled" || row.status === "no_show").length,
+    roomNights: rows.reduce((sum, row) => sum + row.nights, 0),
+  };
+}
+
+export function companyBillingTotals(rows: Array<{ amount: number; folioStatus: string }>): {
+  charges: number;
+  credits: number;
+  outstanding: number;
+} {
+  let charges = 0;
+  let credits = 0;
+  let outstanding = 0;
+  const bySign = new Map<string, number>();
+  for (const row of rows) {
+    if (row.amount >= 0) charges += row.amount;
+    else credits += -row.amount;
+  }
+  for (const row of rows) {
+    const current = bySign.get(row.folioStatus) ?? 0;
+    bySign.set(row.folioStatus, current + row.amount);
+  }
+  outstanding = Math.max(0, charges - credits);
+  return {
+    charges: Math.round(charges * 100) / 100,
+    credits: Math.round(credits * 100) / 100,
+    outstanding: Math.round(outstanding * 100) / 100,
+  };
+}
+
+export function latestNoteById<T extends { noteId: string; createdAt: string }>(rows: T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const row of rows) {
+    const current = latest.get(row.noteId);
+    if (!current || row.createdAt > current.createdAt) latest.set(row.noteId, row);
+  }
+  return [...latest.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export function companyDocumentStatus(options: {
+  reviewStatus: "pending" | "verified" | "rejected";
+  expiryDate: string | null;
+  today: string;
+}): CompanyDocumentStatus {
+  if (options.reviewStatus === "rejected") return "rejected";
+  if (options.expiryDate && options.expiryDate < options.today) return "expired";
+  return options.reviewStatus;
+}
+
+export function companyDocumentKpis(rows: Array<{ status: CompanyDocumentStatus; expiryDate: string | null }>, today: string): {
+  total: number;
+  verified: number;
+  pending: number;
+  expiring: number;
+  expired: number;
+} {
+  const soon = new Date(`${today}T00:00:00.000Z`);
+  soon.setUTCDate(soon.getUTCDate() + 30);
+  const until = soon.toISOString().slice(0, 10);
+  return {
+    total: rows.length,
+    verified: rows.filter((row) => row.status === "verified").length,
+    pending: rows.filter((row) => row.status === "pending").length,
+    expiring: rows.filter((row) => row.status !== "expired" && row.expiryDate && row.expiryDate >= today && row.expiryDate <= until).length,
+    expired: rows.filter((row) => row.status === "expired").length,
+  };
 }
 
 export function formatMoneyLabel(value: KnownMoney | null): string {

@@ -25,14 +25,21 @@ import {
   COMPANY_CONTACT_STATUSES,
   agreementStatus,
   blockLastPrimaryRemoval,
+  companyBillingTotals,
+  companyDocumentKpis,
+  companyDocumentStatus,
   companyHasCompanyRate,
   companyOverviewKpis,
+  companyReservationKpis,
   contactMethodKpis,
   distinctDepartmentCount,
   distinctDepartmentNames,
   isTravelAgencyBusinessType,
+  latestNoteById,
   travelerKpis,
   travelerTypeLabel,
+  COMPANY_NOTE_CATEGORIES,
+  COMPANY_NOTE_VISIBILITIES,
 } from "./guest-company-detail-workspace";
 import { guestStayAccessForRole } from "./guests.functions";
 import { isUpcomingStay, knownMoneyTotal, mapReservationToStay } from "./guest-profile-wave3";
@@ -95,11 +102,19 @@ export type CompanyAgreementRow = {
 export type CompanyReservationRow = {
   id: string;
   confirmationNumber: string;
+  guestId: string | null;
+  guestName: string;
   arrivalDate: string;
   departureDate: string;
   status: string;
   roomLabel: string;
+  roomTypeId: string | null;
+  ratePlanId: string | null;
+  ratePlanName: string | null;
+  source: string | null;
   nights: number;
+  total: number | null;
+  currency: string | null;
 };
 
 function mapContact(
@@ -339,43 +354,53 @@ async function loadCompanyReservations(
   const result = await db
     .from("hotel_reservations")
     .select(
-      "id, confirmation_number, arrival_date, departure_date, status, currency, room_subtotal, folio_balance, room_type_id, room_types!hotel_reservations_type_same_property ( name )",
+      "id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, folio_balance, room_type_id, rate_plan_id, source, room_types!hotel_reservations_type_same_property ( name ), guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
     )
     .eq("restaurant_id", restaurantId)
     .eq("company_master_id", companyId)
     .order("arrival_date", { ascending: false })
-    .limit(200);
+    .limit(400);
   if (result.error) {
     const bare = await db
       .from("hotel_reservations")
-      .select("id, confirmation_number, arrival_date, departure_date, status, currency, room_subtotal")
+      .select("id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, room_type_id, rate_plan_id, source")
       .eq("restaurant_id", restaurantId)
       .eq("company_master_id", companyId)
       .order("arrival_date", { ascending: false })
-      .limit(200);
+      .limit(400);
     if (bare.error) throw new Error(bare.error.message);
     return (bare.data ?? []) as Array<{
       id: string;
       confirmation_number: string;
+      guest_id?: string | null;
       arrival_date: string;
       departure_date: string;
       status: string;
       currency?: string | null;
       room_subtotal?: number | null;
       folio_balance?: number | null;
+      room_type_id?: string | null;
+      rate_plan_id?: string | null;
+      source?: string | null;
       room_types?: { name: string } | null;
+      guest_profiles?: { first_name: string | null; last_name: string | null } | null;
     }>;
   }
   return (result.data ?? []) as Array<{
     id: string;
     confirmation_number: string;
+    guest_id?: string | null;
     arrival_date: string;
     departure_date: string;
     status: string;
     currency?: string | null;
     room_subtotal?: number | null;
     folio_balance?: number | null;
+    room_type_id?: string | null;
+    rate_plan_id?: string | null;
+    source?: string | null;
     room_types?: { name: string } | null;
+    guest_profiles?: { first_name: string | null; last_name: string | null } | null;
   }>;
 }
 
@@ -981,7 +1006,17 @@ export const createCompanyContactPhotoUpload = createServerFn({ method: "POST" }
 export const addCompanyNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, companyId: idSchema, note: z.string().trim().min(1).max(2000) }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        note: z.string().trim().min(1).max(2000),
+        category: z.enum(COMPANY_NOTE_CATEGORIES).optional(),
+        visibility: z.enum(COMPANY_NOTE_VISIBILITIES).optional(),
+        relatedGuestId: idSchema.optional().nullable(),
+        relatedReservationId: idSchema.optional().nullable(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
@@ -995,34 +1030,92 @@ export const addCompanyNote = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.companyId);
     if (updated.error) throw new Error(updated.error.message);
+    const noteId = crypto.randomUUID();
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
       masterId: data.companyId,
       eventType: "note_added",
       notes: data.note.trim(),
+      newValues: {
+        noteId,
+        category: data.category ?? "general",
+        visibility: data.visibility ?? "internal",
+        relatedGuestId: data.relatedGuestId ?? null,
+        relatedReservationId: data.relatedReservationId ?? null,
+        archived: false,
+      },
       actorMembershipId: me.id,
     });
-    return { ok: true as const };
+    return { ok: true as const, noteId };
   });
 
 export const listCompanyReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, companyId: idSchema }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        q: z.string().max(120).optional(),
+        status: z.string().max(40).optional(),
+        from: z.string().max(20).optional(),
+        to: z.string().max(20).optional(),
+        source: z.string().max(80).optional(),
+        roomTypeId: idSchema.optional(),
+        ratePlanId: idSchema.optional(),
+      })
+      .parse(input),
   )
-  .handler(async ({ data, context }): Promise<CompanyReservationRow[]> => {
+  .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const rows = await loadCompanyReservations(admin(supabaseAdmin), data.restaurantId, data.companyId);
-    return rows.map((row) => ({
+    const db = admin(supabaseAdmin);
+    const rows = await loadCompanyReservations(db, data.restaurantId, data.companyId);
+    const rateIds = [...new Set(rows.map((row) => row.rate_plan_id).filter(Boolean))] as string[];
+    const rateNames = new Map<string, string>();
+    if (rateIds.length > 0) {
+      const rates = await db.from("hotel_rate_plans").select("id, name").eq("restaurant_id", data.restaurantId).in("id", rateIds);
+      for (const row of (rates.data ?? []) as Array<{ id: string; name: string }>) rateNames.set(row.id, row.name);
+    }
+    const mapped: CompanyReservationRow[] = rows.map((row) => ({
       id: row.id,
       confirmationNumber: row.confirmation_number,
+      guestId: row.guest_id ?? null,
+      guestName: [row.guest_profiles?.first_name, row.guest_profiles?.last_name].filter(Boolean).join(" ").trim() || "Guest",
       arrivalDate: row.arrival_date,
       departureDate: row.departure_date,
       status: row.status,
       roomLabel: row.room_types?.name?.trim() || "Reservation",
+      roomTypeId: row.room_type_id ?? null,
+      ratePlanId: row.rate_plan_id ?? null,
+      ratePlanName: row.rate_plan_id ? rateNames.get(row.rate_plan_id) ?? null : null,
+      source: row.source ?? null,
       nights: nightsBetween(row.arrival_date, row.departure_date),
+      total: row.room_subtotal == null ? null : Number(row.room_subtotal),
+      currency: row.currency ?? null,
     }));
+    const q = data.q?.trim().toLowerCase();
+    const items = mapped.filter((row) => {
+      if (q && ![row.confirmationNumber, row.guestName, row.roomLabel, row.ratePlanName].join(" ").toLowerCase().includes(q)) {
+        return false;
+      }
+      if (data.status && data.status !== "all" && row.status !== data.status) return false;
+      if (data.from && row.arrivalDate < data.from) return false;
+      if (data.to && row.departureDate > data.to) return false;
+      if (data.source && data.source !== "all" && (row.source ?? "") !== data.source) return false;
+      if (data.roomTypeId && row.roomTypeId !== data.roomTypeId) return false;
+      if (data.ratePlanId && row.ratePlanId !== data.ratePlanId) return false;
+      return true;
+    });
+    return {
+      items,
+      kpis: companyReservationKpis(mapped, propertyToday("UTC")),
+      filters: {
+        sources: [...new Set(mapped.map((row) => row.source).filter(Boolean))] as string[],
+        roomTypes: [...new Map(mapped.filter((row) => row.roomTypeId).map((row) => [row.roomTypeId, row.roomLabel])).entries()].map(([id, name]) => ({ id: id!, name })),
+        ratePlans: [...new Map(mapped.filter((row) => row.ratePlanId).map((row) => [row.ratePlanId, row.ratePlanName ?? "Rate"])).entries()].map(([id, name]) => ({ id: id!, name })),
+      },
+    };
   });
 
 export const listCompanyTravelers = createServerFn({ method: "POST" })
@@ -1141,6 +1234,11 @@ export const listCompanyTravelers = createServerFn({ method: "POST" })
           groupLeader: groupLeaders.has(guest.id),
           travelerType: travelerTypeLabel({ vip: guest.vip_status, groupLeader: groupLeaders.has(guest.id) }),
           lastStay: lastStay ? `${lastStay.arrival} – ${lastStay.departure}` : null,
+          stays: stays.map((stay) => ({
+            arrival: stay.arrival,
+            departure: stay.departure,
+            status: stay.status,
+          })),
           upcomingTrips,
           photoUrl: guest.photo_storage_path ? signed.get(guest.photo_storage_path) ?? null : null,
           passportMasked: maskIdNumber(guest.id_document_number),
@@ -1177,3 +1275,654 @@ export const listCompanyTravelers = createServerFn({ method: "POST" })
   });
 
 export const COMPANY_CONTACT_PAGE_SIZE_OPTIONS = COMPANY_CONTACT_PAGE_SIZES;
+
+export const listCompanyNotes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        q: z.string().max(120).optional(),
+        category: z.string().max(40).optional(),
+        visibility: z.string().max(40).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    await loadCompanyMaster(db, data.restaurantId, data.companyId);
+    const history = await db
+      .from("guest_account_history")
+      .select("id, event_type, notes, new_values, actor_membership_id, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("master_id", data.companyId)
+      .in("event_type", ["note_added", "note_updated", "note_archived"])
+      .order("created_at", { ascending: false })
+      .limit(300);
+    if (history.error) throw new Error(history.error.message);
+    const actorIds = [
+      ...new Set(
+        ((history.data ?? []) as Array<{ actor_membership_id: string | null }>)
+          .map((row) => row.actor_membership_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const actors = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const members = await db.from("restaurant_memberships").select("id, display_name, email").in("id", actorIds);
+      for (const row of (members.data ?? []) as Array<{ id: string; display_name: string | null; email: string | null }>) {
+        actors.set(row.id, row.display_name || row.email || "Staff");
+      }
+    }
+    const events = ((history.data ?? []) as Array<{
+      id: string;
+      event_type: string;
+      notes: string | null;
+      new_values: Record<string, unknown> | null;
+      actor_membership_id: string | null;
+      created_at: string;
+    }>).map((row) => ({
+      id: row.id,
+      noteId: String(row.new_values?.noteId ?? row.id),
+      content: row.notes ?? "",
+      category: String(row.new_values?.category ?? "general"),
+      visibility: String(row.new_values?.visibility ?? "internal"),
+      relatedGuestId: (row.new_values?.relatedGuestId as string | null) ?? null,
+      relatedReservationId: (row.new_values?.relatedReservationId as string | null) ?? null,
+      archived: row.event_type === "note_archived" || row.new_values?.archived === true,
+      authorId: row.actor_membership_id,
+      authorName: row.actor_membership_id ? actors.get(row.actor_membership_id) ?? "Staff" : "Staff",
+      createdAt: row.created_at,
+    }));
+    const latest = latestNoteById(events).filter((row) => !row.archived);
+    const q = data.q?.trim().toLowerCase();
+    return {
+      items: latest.filter((row) => {
+        if (q && !`${row.content} ${row.authorName}`.toLowerCase().includes(q)) return false;
+        if (data.category && data.category !== "all" && row.category !== data.category) return false;
+        if (data.visibility && data.visibility !== "all" && row.visibility !== data.visibility) return false;
+        return true;
+      }),
+    };
+  });
+
+export const updateCompanyNote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        noteId: z.string().uuid(),
+        note: z.string().trim().min(1).max(2000),
+        category: z.enum(COMPANY_NOTE_CATEGORIES).optional(),
+        visibility: z.enum(COMPANY_NOTE_VISIBILITIES).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    await loadCompanyMaster(admin((await import("@/integrations/supabase/client.server")).supabaseAdmin), data.restaurantId, data.companyId);
+    await recordGuestAccountEvent({
+      restaurantId: data.restaurantId,
+      masterId: data.companyId,
+      eventType: "note_updated",
+      notes: data.note.trim(),
+      newValues: {
+        noteId: data.noteId,
+        category: data.category ?? "general",
+        visibility: data.visibility ?? "internal",
+        archived: false,
+      },
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
+  });
+
+export const archiveCompanyNote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, companyId: idSchema, noteId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    await recordGuestAccountEvent({
+      restaurantId: data.restaurantId,
+      masterId: data.companyId,
+      eventType: "note_archived",
+      newValues: { noteId: data.noteId, archived: true },
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
+  });
+
+export const listCompanyHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        eventType: z.string().max(60).optional(),
+        from: z.string().max(40).optional(),
+        to: z.string().max(40).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    await loadCompanyMaster(db, data.restaurantId, data.companyId);
+    let query = db
+      .from("guest_account_history")
+      .select("id, event_type, notes, new_values, actor_membership_id, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("master_id", data.companyId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (data.eventType && data.eventType !== "all") query = query.eq("event_type", data.eventType);
+    if (data.from) query = query.gte("created_at", data.from);
+    if (data.to) query = query.lte("created_at", `${data.to}T23:59:59.999Z`);
+    const result = await query;
+    if (result.error) throw new Error(result.error.message);
+    const actorIds = [
+      ...new Set(
+        ((result.data ?? []) as Array<{ actor_membership_id: string | null }>)
+          .map((row) => row.actor_membership_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const actors = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const members = await db.from("restaurant_memberships").select("id, display_name, email").in("id", actorIds);
+      for (const row of (members.data ?? []) as Array<{ id: string; display_name: string | null; email: string | null }>) {
+        actors.set(row.id, row.display_name || row.email || "Staff");
+      }
+    }
+    return {
+      items: ((result.data ?? []) as Array<{
+        id: string;
+        event_type: string;
+        notes: string | null;
+        new_values: Record<string, unknown> | null;
+        actor_membership_id: string | null;
+        created_at: string;
+      }>).map((row) => ({
+        id: row.id,
+        eventType: row.event_type,
+        notes: row.notes,
+        related: row.new_values?.relatedReservationId || row.new_values?.noteId || row.new_values?.documentId || null,
+        actorName: row.actor_membership_id ? actors.get(row.actor_membership_id) ?? "Staff" : "Staff",
+        createdAt: row.created_at,
+      })),
+    };
+  });
+
+export const listCompanyBilling = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        status: z.string().max(40).optional(),
+        q: z.string().max(120).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    const company = await db
+      .from("guest_account_masters")
+      .select("id, name, account_status, payment_terms, credit_limit_note, credit_account_enabled, primary_contact_name, billing_contact_name")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.companyId)
+      .eq("account_type", "company")
+      .maybeSingle();
+    if (company.error) throw new Error(company.error.message);
+    if (!company.data) throw new Error("That company could not be found.");
+    const access = guestStayAccessForRole(me.role);
+    const moneyAvailable = access.folio;
+    const reservations = await loadCompanyReservations(db, data.restaurantId, data.companyId);
+    const reservationIds = reservations.map((row) => row.id);
+    const transactions: Array<{
+      id: string;
+      date: string;
+      reference: string;
+      guestName: string;
+      reservationId: string | null;
+      confirmationNumber: string | null;
+      description: string;
+      debit: number;
+      credit: number;
+      status: string;
+      folioId: string;
+    }> = [];
+    if (moneyAvailable && reservationIds.length > 0) {
+      const folios = await db
+        .from("guest_folios")
+        .select("id, folio_number, status, reservation_id, guest_id")
+        .eq("restaurant_id", data.restaurantId)
+        .in("reservation_id", reservationIds);
+      const folioRows = (folios.data ?? []) as Array<{
+        id: string;
+        folio_number: string;
+        status: string;
+        reservation_id: string | null;
+        guest_id: string;
+      }>;
+      const folioIds = folioRows.map((row) => row.id);
+      const reservationById = new Map(reservations.map((row) => [row.id, row]));
+      if (folioIds.length > 0) {
+        const txns = await db
+          .from("folio_transactions")
+          .select("id, folio_id, description, amount, posted_at, transaction_type")
+          .eq("restaurant_id", data.restaurantId)
+          .in("folio_id", folioIds)
+          .order("posted_at", { ascending: true });
+        for (const txn of (txns.data ?? []) as Array<{
+          id: string;
+          folio_id: string;
+          description: string | null;
+          amount: number | string;
+          posted_at: string;
+          transaction_type: string;
+        }>) {
+          const folio = folioRows.find((row) => row.id === txn.folio_id);
+          const reservation = folio?.reservation_id ? reservationById.get(folio.reservation_id) : undefined;
+          const amount = Number(txn.amount);
+          transactions.push({
+            id: txn.id,
+            date: txn.posted_at,
+            reference: folio?.folio_number ?? txn.id,
+            guestName: reservation
+              ? [reservation.guest_profiles?.first_name, reservation.guest_profiles?.last_name].filter(Boolean).join(" ").trim() || "Guest"
+              : "Guest",
+            reservationId: folio?.reservation_id ?? null,
+            confirmationNumber: reservation?.confirmation_number ?? null,
+            description: txn.description || txn.transaction_type,
+            debit: amount >= 0 ? amount : 0,
+            credit: amount < 0 ? -amount : 0,
+            status: folio?.status ?? "open",
+            folioId: txn.folio_id,
+          });
+        }
+      }
+    }
+    const q = data.q?.trim().toLowerCase();
+    const items = transactions.filter((row) => {
+      if (data.status && data.status !== "all" && row.status !== data.status) return false;
+      if (q && ![row.reference, row.guestName, row.confirmationNumber, row.description].join(" ").toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+    let running = 0;
+    const withBalance = items.map((row) => {
+      running += row.debit - row.credit;
+      return { ...row, balance: Math.round(running * 100) / 100 };
+    });
+    const totals = companyBillingTotals(
+      transactions.map((row) => ({ amount: row.debit - row.credit, folioStatus: row.status })),
+    );
+    return {
+      summary: {
+        accountStatus: company.data.account_status,
+        paymentTerms: (company.data as { payment_terms?: string | null }).payment_terms ?? null,
+        creditAccountEnabled: Boolean((company.data as { credit_account_enabled?: boolean }).credit_account_enabled),
+        creditLimitNote: (company.data as { credit_limit_note?: string | null }).credit_limit_note ?? null,
+        billingContact:
+          (company.data as { billing_contact_name?: string | null }).billing_contact_name ||
+          company.data.primary_contact_name ||
+          null,
+        moneyAvailable,
+        canOperate: moneyAvailable,
+      },
+      kpis: moneyAvailable
+        ? {
+            outstanding: totals.outstanding,
+            totalRevenue: totals.charges,
+            paid: totals.credits,
+            pending: transactions.filter((row) => row.status === "open").length,
+          }
+        : null,
+      items: withBalance,
+      actorRole: me.role,
+    };
+  });
+
+const DEFAULT_COMPANY_DOC_TYPES = [
+  { name: "Trade License", code: "TRADE_LICENSE" },
+  { name: "Tax Certificate", code: "TAX_CERTIFICATE" },
+  { name: "Contract", code: "CONTRACT" },
+  { name: "Other", code: "OTHER" },
+];
+
+async function ensureCompanyDocumentTypes(db: { from: (table: string) => any }, restaurantId: string) {
+  const existing = await db
+    .from("pms_company_document_types")
+    .select("id, name, code, active")
+    .eq("restaurant_id", restaurantId)
+    .order("name");
+  if (existing.error && isMissingSchemaError(existing.error)) return [];
+  if (existing.error) throw new Error(existing.error.message);
+  const rows = (existing.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>;
+  if (rows.length > 0) return rows;
+  const inserted = await db
+    .from("pms_company_document_types")
+    .insert(DEFAULT_COMPANY_DOC_TYPES.map((type) => ({ restaurant_id: restaurantId, ...type })))
+    .select("id, name, code, active");
+  if (inserted.error) return rows;
+  return (inserted.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>;
+}
+
+export const listCompanyDocuments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, companyId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    await loadCompanyMaster(db, data.restaurantId, data.companyId);
+    const types = await ensureCompanyDocumentTypes(db, data.restaurantId);
+    const docs = await db
+      .from("guest_company_documents")
+      .select(
+        "id, document_type_id, name, reference_number, issue_date, expiry_date, review_status, storage_path, uploaded_by_membership_id, reviewed_at, created_at",
+      )
+      .eq("restaurant_id", data.restaurantId)
+      .eq("company_master_id", data.companyId)
+      .order("created_at", { ascending: false });
+    if (docs.error && isMissingSchemaError(docs.error)) {
+      return { types, items: [], kpis: companyDocumentKpis([], propertyToday("UTC")), available: false };
+    }
+    if (docs.error) throw new Error(docs.error.message);
+    const today = propertyToday("UTC");
+    const typeById = new Map(types.map((type) => [type.id, type]));
+    const paths = ((docs.data ?? []) as Array<{ storage_path: string | null }>)
+      .map((row) => row.storage_path)
+      .filter((path): path is string => Boolean(path));
+    const signed = await signRoomImages(paths);
+    const items = ((docs.data ?? []) as Array<{
+      id: string;
+      document_type_id: string;
+      name: string;
+      reference_number: string | null;
+      issue_date: string | null;
+      expiry_date: string | null;
+      review_status: "pending" | "verified" | "rejected";
+      storage_path: string | null;
+      uploaded_by_membership_id: string | null;
+      reviewed_at: string | null;
+      created_at: string;
+    }>).map((row) => {
+      const status = companyDocumentStatus({ reviewStatus: row.review_status, expiryDate: row.expiry_date, today });
+      return {
+        id: row.id,
+        typeId: row.document_type_id,
+        typeName: typeById.get(row.document_type_id)?.name ?? "Document",
+        name: row.name,
+        referenceNumber: row.reference_number,
+        issueDate: row.issue_date,
+        expiryDate: row.expiry_date,
+        reviewStatus: row.review_status,
+        status,
+        previewUrl: row.storage_path ? signed.get(row.storage_path) ?? null : null,
+        storagePath: row.storage_path,
+        uploadedAt: row.created_at,
+        reviewedAt: row.reviewed_at,
+      };
+    });
+    return { types, items, kpis: companyDocumentKpis(items, today), available: true };
+  });
+
+export const createCompanyDocumentUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        contentType: z.enum(["image/jpeg", "image/png", "image/webp", "application/pdf"]),
+        size: z.number().int().positive().max(12 * 1024 * 1024),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    await loadCompanyMaster(admin((await import("@/integrations/supabase/client.server")).supabaseAdmin), data.restaurantId, data.companyId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ext = data.contentType === "application/pdf" ? "pdf" : (GUEST_IMAGE_EXT_BY_TYPE[data.contentType] ?? "jpg");
+    const path = `${data.restaurantId}/companies/${data.companyId}/docs/${crypto.randomUUID()}.${ext}`;
+    const { data: signed, error } = await supabaseAdmin.storage.from(ROOM_BUCKET).createSignedUploadUrl(path);
+    if (error || !signed) throw new Error("Could not start the document upload.");
+    return { ok: true as const, path, token: signed.token };
+  });
+
+export const saveCompanyDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        documentId: idSchema.optional(),
+        typeId: idSchema,
+        name: z.string().trim().min(1).max(200),
+        referenceNumber: z.string().max(80).optional().nullable(),
+        issueDate: z.string().max(20).optional().nullable(),
+        expiryDate: z.string().max(20).optional().nullable(),
+        path: z.string().min(1).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    await loadCompanyMaster(db, data.restaurantId, data.companyId);
+    const types = await ensureCompanyDocumentTypes(db, data.restaurantId);
+    const type = types.find((row) => row.id === data.typeId);
+    if (!type) throw new Error("Select a configured document type.");
+    if (!type.active && !data.documentId) throw new Error("That document type is inactive.");
+    const prefix = `${data.restaurantId}/companies/${data.companyId}/`;
+    if (data.path && !data.path.startsWith(prefix)) throw new Error("That document path is not valid for this company.");
+    const payload = {
+      restaurant_id: data.restaurantId,
+      company_master_id: data.companyId,
+      document_type_id: data.typeId,
+      name: data.name.trim(),
+      reference_number: blankToNull(data.referenceNumber),
+      issue_date: blankToNull(data.issueDate),
+      expiry_date: blankToNull(data.expiryDate),
+      ...(data.path ? { storage_path: data.path, uploaded_by_membership_id: me.id } : {}),
+    };
+    if (data.documentId) {
+      const updated = await db
+        .from("guest_company_documents")
+        .update(payload)
+        .eq("id", data.documentId)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("company_master_id", data.companyId);
+      if (updated.error) throw new Error(updated.error.message);
+      await recordGuestAccountEvent({
+        restaurantId: data.restaurantId,
+        masterId: data.companyId,
+        eventType: data.path ? "document_replaced" : "document_uploaded",
+        newValues: { documentId: data.documentId },
+        notes: data.name,
+        actorMembershipId: me.id,
+      });
+      return { id: data.documentId };
+    }
+    const inserted = await db.from("guest_company_documents").insert(payload).select("id").single();
+    if (inserted.error) throw new Error(inserted.error.message);
+    await recordGuestAccountEvent({
+      restaurantId: data.restaurantId,
+      masterId: data.companyId,
+      eventType: "document_uploaded",
+      newValues: { documentId: inserted.data.id },
+      notes: data.name,
+      actorMembershipId: me.id,
+    });
+    return { id: inserted.data.id as string };
+  });
+
+export const reviewCompanyDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        documentId: idSchema,
+        reviewStatus: z.enum(["verified", "rejected"]),
+        reviewNote: z.string().max(400).optional().nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    const updated = await db
+      .from("guest_company_documents")
+      .update({
+        review_status: data.reviewStatus,
+        reviewed_by_membership_id: me.id,
+        reviewed_at: new Date().toISOString(),
+        review_note: blankToNull(data.reviewNote),
+      })
+      .eq("id", data.documentId)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("company_master_id", data.companyId);
+    if (updated.error) throw new Error(updated.error.message);
+    await recordGuestAccountEvent({
+      restaurantId: data.restaurantId,
+      masterId: data.companyId,
+      eventType: data.reviewStatus === "verified" ? "document_verified" : "document_rejected",
+      newValues: { documentId: data.documentId },
+      notes: data.reviewNote ?? data.reviewStatus,
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
+  });
+
+export const deleteCompanyDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, companyId: idSchema, documentId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const result = await admin(supabaseAdmin)
+      .from("guest_company_documents")
+      .delete()
+      .eq("id", data.documentId)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("company_master_id", data.companyId);
+    if (result.error) throw new Error(result.error.message);
+    return { ok: true as const };
+  });
+
+export const listCompanyContracts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        companyId: idSchema,
+        status: z.string().max(40).optional(),
+        q: z.string().max(120).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    await loadCompanyMaster(db, data.restaurantId, data.companyId);
+    const today = propertyToday("UTC");
+    let agreements = await db
+      .from("pms_corporate_agreements")
+      .select(
+        "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path",
+      )
+      .eq("restaurant_id", data.restaurantId)
+      .eq("company_id", data.companyId)
+      .order("valid_from", { ascending: false });
+    if (agreements.error && (agreements.error.code === "42703" || agreements.error.code === "PGRST204")) {
+      agreements = await db
+        .from("pms_corporate_agreements")
+        .select("id, code, name, contract_number, valid_from, valid_to, currency_code, description, active")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("company_id", data.companyId)
+        .order("valid_from", { ascending: false });
+    }
+    if (agreements.error && isMissingSchemaError(agreements.error)) return { items: [], rates: [], kpis: { total: 0, active: 0, expiring: 0, expired: 0 } };
+    if (agreements.error) throw new Error(agreements.error.message);
+    const items = ((agreements.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+      const status = agreementStatus(
+        { active: row.active !== false, validFrom: String(row.valid_from ?? ""), validTo: String(row.valid_to ?? "") },
+        today,
+      );
+      return {
+        id: String(row.id),
+        code: String(row.code ?? ""),
+        name: String(row.name ?? ""),
+        contractNumber: String(row.contract_number ?? row.code ?? ""),
+        validFrom: String(row.valid_from ?? ""),
+        validTo: String(row.valid_to ?? ""),
+        currencyCode: String(row.currency_code ?? ""),
+        description: String(row.description ?? ""),
+        active: row.active !== false,
+        status,
+        autoRenew: row.auto_renew === true,
+        noticePeriodDays: row.notice_period_days == null ? null : Number(row.notice_period_days),
+        signedAt: row.signed_at ? String(row.signed_at) : null,
+        signedBy: row.signed_by ? String(row.signed_by) : null,
+        fileStoragePath: row.file_storage_path ? String(row.file_storage_path) : null,
+      };
+    });
+    const ids = items.map((row) => row.id);
+    const rates = ids.length
+      ? await db
+          .from("pms_contract_rates")
+          .select("id, agreement_id, room_type_id, rate_kind, amount, valid_from, valid_to, active")
+          .eq("restaurant_id", data.restaurantId)
+          .in("agreement_id", ids)
+      : { data: [], error: null };
+    const q = data.q?.trim().toLowerCase();
+    const filtered = items.filter((row) => {
+      if (data.status && data.status !== "all" && row.status !== data.status) return false;
+      if (q && ![row.name, row.code, row.contractNumber].join(" ").toLowerCase().includes(q)) return false;
+      return true;
+    });
+    return {
+      items: filtered,
+      rates: ((rates.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        agreementId: String(row.agreement_id),
+        roomTypeId: String(row.room_type_id),
+        rateKind: String(row.rate_kind),
+        amount: Number(row.amount ?? 0),
+        validFrom: String(row.valid_from ?? ""),
+        validTo: String(row.valid_to ?? ""),
+        active: row.active !== false,
+      })),
+      kpis: {
+        total: items.length,
+        active: items.filter((row) => row.status === "active").length,
+        expiring: items.filter((row) => row.status === "expiring").length,
+        expired: items.filter((row) => row.status === "expired").length,
+      },
+    };
+  });
+

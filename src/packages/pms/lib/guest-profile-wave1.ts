@@ -169,6 +169,7 @@ export function showEmptyDirectoryCta(hasGuest: boolean, card: GuestProfileCardI
 /** Optional `?card=` so Directory-back can reopen the same guest-required card. */
 export const COMPANY_DETAIL_NAV_IDS = [
   "overview",
+  "corporate",
   "contacts",
   "travelers",
   "contracts",

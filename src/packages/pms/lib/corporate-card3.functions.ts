@@ -50,6 +50,11 @@ const agreementSchema = z
       .refine((value) => /^[A-Z]{3}$/.test(value), "Use a 3-letter currency code."),
     description: descriptionSchema,
     active: z.boolean(),
+    autoRenew: z.boolean().optional(),
+    noticePeriodDays: z.number().int().min(0).max(3650).optional().nullable(),
+    signedAt: isoDate.optional().nullable(),
+    signedBy: z.string().trim().max(200).optional().nullable(),
+    fileStoragePath: z.string().trim().max(400).optional().nullable(),
   })
   .refine((data) => data.validTo >= data.validFrom, {
     message: "Valid to must be on or after valid from.",
@@ -205,10 +210,25 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Corpora
     db
       .from("pms_corporate_agreements")
       .select(
-        "id, company_id, code, name, contract_number, valid_from, valid_to, currency_code, description, active",
+        "id, company_id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path",
       )
       .eq("restaurant_id", restaurantId)
-      .order("code"),
+      .order("code")
+      .then(async (first: { data: any; error: { code?: string; message?: string } | null }) => {
+        if (
+          first.error &&
+          (first.error.code === "42703" || first.error.code === "PGRST204" || first.error.message?.includes("auto_renew"))
+        ) {
+          return db
+            .from("pms_corporate_agreements")
+            .select(
+              "id, company_id, code, name, contract_number, valid_from, valid_to, currency_code, description, active",
+            )
+            .eq("restaurant_id", restaurantId)
+            .order("code");
+        }
+        return first;
+      }),
     db
       .from("pms_contract_rates")
       .select(
@@ -238,6 +258,11 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Corpora
     currencyCode: String(row.currency_code ?? "").toUpperCase(),
     description: String(row.description ?? ""),
     active: row.active !== false,
+    autoRenew: row.auto_renew === true,
+    noticePeriodDays: row.notice_period_days == null ? null : Number(row.notice_period_days),
+    signedAt: row.signed_at ? String(row.signed_at) : null,
+    signedBy: row.signed_by ? String(row.signed_by) : null,
+    fileStoragePath: row.file_storage_path ? String(row.file_storage_path) : null,
   }));
   const agreementById = new Map(
     agreementRows.map((row) => [row.id, `${row.code} — ${row.name}`]),
@@ -370,6 +395,11 @@ export const saveCorporateAgreementCard3 = createServerFn({ method: "POST" })
       currency_code: data.currencyCode,
       description: data.description?.trim() ? data.description.trim() : null,
       active: data.active,
+      auto_renew: data.autoRenew ?? false,
+      notice_period_days: data.noticePeriodDays ?? null,
+      signed_at: data.signedAt ?? null,
+      signed_by: data.signedBy?.trim() ? data.signedBy.trim() : null,
+      file_storage_path: data.fileStoragePath?.trim() ? data.fileStoragePath.trim() : null,
     };
     const result = data.id
       ? await db
