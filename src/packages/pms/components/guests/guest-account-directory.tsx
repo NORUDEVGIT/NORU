@@ -9,6 +9,7 @@ import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-a
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
+  GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
@@ -186,7 +187,16 @@ export function GuestAccountDirectory({
           data-testid="guest-account-new"
           disabled={!canCreate}
           title={!canCreate ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-          onClick={() => setFormOpen(true)}
+          onClick={() => {
+            if (accountType === "group") {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "group", create: "group" }),
+              });
+              return;
+            }
+            setFormOpen(true);
+          }}
         >
           <Plus className="size-4 sm:mr-2" />
           <span className="hidden sm:inline">New {title}</span>
@@ -355,13 +365,15 @@ export function GuestAccountDirectory({
         </div>
       </div>
 
-      <GuestAccountFormDialog
-        restaurantId={restaurantId}
-        accountType={accountType}
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        onSaved={openAccount}
-      />
+      {accountType === "group" ? null : (
+        <GuestAccountFormDialog
+          restaurantId={restaurantId}
+          accountType={accountType}
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          onSaved={openAccount}
+        />
+      )}
     </div>
   );
 }

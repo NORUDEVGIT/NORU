@@ -585,7 +585,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.doesNotMatch(page, /CR-100|rooming list|allotment|group block/i);
     assert.doesNotMatch(context, /accountType: "group"|kind="group"/);
     assert.doesNotMatch(picker, /kind === "group"|Group account/);
-    assert.doesNotMatch(page, /groupAccountMasterId/);
+    assert.match(page, /groupAccountMasterId/);
   });
 
   it("AC-CR2-10 No second Company/TA table or API — reuse GE1/GE3 + list/create/links", () => {
@@ -1176,7 +1176,8 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.doesNotMatch(page, /CR-100|rooming list|allotment|group block/i);
     assert.doesNotMatch(associations, /accountType: "group"|kind="group"|kind="contact"|kind="member"/);
     assert.doesNotMatch(context, /accountType: "group"|kind="group"|kind="contact"|kind="member"/);
-    assert.doesNotMatch(page, /groupAccountMasterId|contactMasterId|memberMasterId/);
+    assert.match(page, /groupAccountMasterId/);
+    assert.doesNotMatch(page, /contactMasterId|memberMasterId/);
   });
 
   it("AC-CR2A-9 No second Company/TA table or API — reuse GE1/GE3 + list/create/links", () => {

@@ -125,10 +125,18 @@ export const Route = createFileRoute("/restaurant/bookings/new")({
     const companyMasterId = typeof search.companyMasterId === "string" ? search.companyMasterId.trim() : "";
     const travelAgentMasterId =
       typeof search.travelAgentMasterId === "string" ? search.travelAgentMasterId.trim() : "";
-    const next: { guestId?: string; companyMasterId?: string; travelAgentMasterId?: string } = {};
+    const groupAccountMasterId =
+      typeof search.groupAccountMasterId === "string" ? search.groupAccountMasterId.trim() : "";
+    const next: {
+      guestId?: string;
+      companyMasterId?: string;
+      travelAgentMasterId?: string;
+      groupAccountMasterId?: string;
+    } = {};
     if (uuid.test(guestId)) next.guestId = guestId;
     if (uuid.test(companyMasterId)) next.companyMasterId = companyMasterId;
     if (uuid.test(travelAgentMasterId)) next.travelAgentMasterId = travelAgentMasterId;
+    if (uuid.test(groupAccountMasterId)) next.groupAccountMasterId = groupAccountMasterId;
     return next;
   },
   beforeLoad: async () => {
@@ -177,6 +185,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
     guestId: prefillGuestId,
     companyMasterId: prefillCompanyMasterId,
     travelAgentMasterId: prefillTravelAgentMasterId,
+    groupAccountMasterId: prefillGroupAccountMasterId,
   } = Route.useSearch();
 
   const fetchAccess = useServerFn(getBookingsAccess);
@@ -497,6 +506,7 @@ function NewReservationPage({ membership }: { membership: RestaurantMembership }
           ratePlanId: ratePlanId || null,
           companyMasterId: boundMasters.companyMasterId,
           travelAgentMasterId: boundMasters.travelAgentMasterId,
+          groupAccountMasterId: prefillGroupAccountMasterId ?? null,
           commercialBookingSource: bookingSource.trim() || null,
           marketSegment: marketSegment.trim() || null,
           externalReference: externalReference.trim() || null,

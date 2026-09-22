@@ -732,6 +732,11 @@ export const createGuestAccount = createServerFn({ method: "POST" })
     }
     if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (error || !inserted) throw new Error(error?.message ?? "Could not create this account master.");
+    if (data.accountType === "group" && !columns.code) {
+      const { generateGroupCode } = await import("./guest-group-detail-workspace");
+      const code = generateGroupCode(inserted.id);
+      await db(context).from("guest_account_masters").update({ code }).eq("id", inserted.id);
+    }
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
       masterId: inserted.id,
@@ -995,8 +1000,12 @@ export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
     if (wave4Unavailable(masterError)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (masterError) throw new Error(masterError.message);
     if (!master) throw new Error("That account master could not be found.");
-    if (master.account_type !== "company" && master.account_type !== "travel_agent") {
-      throw new Error("Multi-guest link is available on Company and Travel Agent masters.");
+    if (
+      master.account_type !== "company" &&
+      master.account_type !== "travel_agent" &&
+      master.account_type !== "group"
+    ) {
+      throw new Error("Multi-guest link is available on Company, Travel Agent, and Group masters.");
     }
     const typeMismatch = assertRoleMatchesType(data.role, master.account_type as GuestAccountType);
     if (typeMismatch) throw new Error(typeMismatch);

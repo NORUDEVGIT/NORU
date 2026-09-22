@@ -135,6 +135,14 @@ export const GUEST_ACCOUNT_EVENT_TYPES = [
   "commission_updated",
   "allotment_changed",
   "settings_changed",
+  "member_imported",
+  "reservation_linked",
+  "reservation_unlinked",
+  "room_assigned",
+  "room_changed",
+  "room_unassigned",
+  "auto_assignment_failed",
+  "document_generated",
 ] as const;
 export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 

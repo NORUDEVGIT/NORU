@@ -450,6 +450,7 @@ export const createReservation = createServerFn({ method: "POST" })
         status: z.enum(["pending", "confirmed"]).optional(),
         companyMasterId: idSchema.nullable().optional(),
         travelAgentMasterId: idSchema.nullable().optional(),
+        groupAccountMasterId: idSchema.nullable().optional(),
         commercialBookingSource: z.string().max(120).nullable().optional(),
         marketSegment: z.string().max(120).nullable().optional(),
         externalReference: z.string().max(120).nullable().optional(),
@@ -521,6 +522,14 @@ export const createReservation = createServerFn({ method: "POST" })
     if (error) throw rateError(reservationError(error.message).message);
 
     const row = created as unknown as { id: string; confirmation_number: string };
+    if (data.groupAccountMasterId) {
+      const { error: groupError } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update({ group_account_master_id: data.groupAccountMasterId })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.id);
+      if (groupError) throw new Error(groupError.message);
+    }
     if (data.travelAgentMasterId) {
       const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
       const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");

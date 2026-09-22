@@ -20,8 +20,10 @@ import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-sta
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
 import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/guest-listing-workspace";
 import { GuestCreateWorkspace } from "@/packages/pms/components/workspaces/guest-create-workspace";
+import { GuestGroupCreateWorkspace } from "@/packages/pms/components/workspaces/guest-group-create-workspace";
 import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
 import { GuestTravelAgentDetailWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-detail-workspace";
+import { GuestGroupDetailWorkspace } from "@/packages/pms/components/workspaces/guest-group-detail-workspace";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -41,6 +43,7 @@ import {
   type CompanyDetailNavId,
   type GuestProfileWorkspaceNavId,
   type TravelAgentDetailNavId,
+  type GroupDetailNavId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
 import {
@@ -65,9 +68,9 @@ export function GuestProfileWorkspace({
   guestId?: string | undefined;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
   returnCard?: GuestProfileCardId | undefined;
-  returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | undefined;
+  returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
   profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
-  create?: "individual" | undefined;
+  create?: "individual" | "group" | undefined;
 }) {
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(
@@ -209,6 +212,10 @@ export function GuestProfileWorkspace({
     return <GuestCreateWorkspace restaurantId={membership.restaurant.id} />;
   }
 
+  if (!guestId && create === "group") {
+    return <GuestGroupCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
+
   if (guestId && operationalType === "company") {
     return (
       <GuestCompanyDetailWorkspace
@@ -224,6 +231,16 @@ export function GuestProfileWorkspace({
       <GuestTravelAgentDetailWorkspace
         membership={membership}
         agencyId={guestId}
+        nav={returnNav}
+      />
+    );
+  }
+
+  if (guestId && operationalType === "group") {
+    return (
+      <GuestGroupDetailWorkspace
+        membership={membership}
+        groupId={guestId}
         nav={returnNav}
       />
     );
