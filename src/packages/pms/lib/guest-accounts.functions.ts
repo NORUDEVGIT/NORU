@@ -5,7 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { blankToNull, normalizeEmail, recordGuestAccountEvent, recordGuestEvent, requireGuestManager } from "./guests.server";
+import { blankToNull, normalizeEmail, normalizePhone, recordGuestAccountEvent, recordGuestEvent, requireGuestManager } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { propertyToday, requireReservationManager } from "./reservations.server";
 import { deriveStayOverview } from "./guest-profile-wave3";
@@ -39,7 +39,15 @@ import {
   type GuestLoyaltyValue,
   type GuestRelationshipRole,
 } from "./guest-profile-wave4";
-import { isUuid, uuidFirstSegment } from "./guest-profile-listing";
+import {
+  companyCreateAllowed,
+  createStatusFromAutoApproval,
+  validateCompanyAgainstType,
+} from "./guest-companies-workspace";
+import { findCompanyDuplicateRows, loadBusinessSnapshot } from "./guest-companies.functions";
+import { listingCreateAllowed, isUuid, uuidFirstSegment } from "./guest-profile-listing";
+import { loadGuestWorkspaceConfig } from "./guest-workspace-config.functions";
+import { countryFromInput, countryNameFromInput } from "./pms-geography";
 
 const idSchema = z.string().uuid();
 
@@ -51,8 +59,8 @@ function db(context: { supabase: { from: (table: string) => unknown } }) {
 const MASTER_COLUMNS_BASE =
   "id, account_type, name, code, email, phone, address_line1, city, country, notes, account_status, created_at, updated_at";
 const MASTER_COLUMNS = `${MASTER_COLUMNS_BASE}, anonymised_at`;
-const MASTER_COLUMNS_COMPANY = `${MASTER_COLUMNS}, trade_name, company_type, company_type_other, tax_id, business_registration_number, phone_alt, email_alt, primary_contact_name, address_line2, region, postal_code, corporate_account_reference, negotiated_rate_reference, default_travel_agent_master_id, source_of_business`;
-const MASTER_COLUMNS_TA = `${MASTER_COLUMNS_COMPANY}, agency_type, agency_type_other, website, billing_contact_name, iata_license_number, license_expiry_date, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction`;
+const MASTER_COLUMNS_COMPANY = `${MASTER_COLUMNS}, trade_name, company_type, company_type_other, tax_id, business_registration_number, phone_alt, email_alt, primary_contact_name, website, address_line2, region, postal_code, corporate_account_reference, negotiated_rate_reference, default_travel_agent_master_id, source_of_business, business_profile_type_id, logo_storage_path, credit_account_enabled, primary_contact_title`;
+const MASTER_COLUMNS_TA = `${MASTER_COLUMNS_COMPANY}, agency_type, agency_type_other, billing_contact_name, iata_license_number, license_expiry_date, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction`;
 
 type MasterRow = {
   id: string;
@@ -101,6 +109,10 @@ type MasterRow = {
   payment_terms?: string | null;
   credit_limit_note?: string | null;
   billing_instruction?: string | null;
+  business_profile_type_id?: string | null;
+  primary_contact_title?: string | null;
+  credit_account_enabled?: boolean;
+  logo_storage_path?: string | null;
 };
 
 function emptyCompanyFields() {
@@ -135,6 +147,11 @@ function emptyCompanyFields() {
     paymentTerms: null as string | null,
     creditLimitNote: null as string | null,
     billingInstruction: null as string | null,
+    businessProfileTypeId: null as string | null,
+    primaryContactTitle: null as string | null,
+    creditAccountEnabled: false,
+    logoStoragePath: null as string | null,
+    logoUrl: null as string | null,
   };
 }
 
@@ -202,6 +219,11 @@ function toProfile(row: MasterRow, defaultTravelAgentMasterName: string | null =
           paymentTerms: row.payment_terms ?? null,
           creditLimitNote: row.credit_limit_note ?? null,
           billingInstruction: row.billing_instruction ?? null,
+          businessProfileTypeId: row.business_profile_type_id ?? null,
+          primaryContactTitle: row.primary_contact_title ?? null,
+          creditAccountEnabled: Boolean(row.credit_account_enabled),
+          logoStoragePath: row.logo_storage_path ?? null,
+          logoUrl: null,
         }),
   };
 }
@@ -278,6 +300,10 @@ const accountInputSchema = z.object({
   paymentTerms: z.string().max(120).optional().nullable(),
   creditLimitNote: z.string().max(200).optional().nullable(),
   billingInstruction: z.string().max(4000).optional().nullable(),
+  businessProfileTypeId: z.string().uuid().optional().nullable(),
+  primaryContactTitle: z.string().max(120).optional().nullable(),
+  creditAccountEnabled: z.boolean().optional(),
+  acknowledgeNameDuplicate: z.boolean().optional(),
 });
 
 function assertEmail(email: string | null, label: string) {
@@ -356,8 +382,69 @@ function toMasterColumns(
     corporate_account_reference: blankToNull(input.corporateAccountReference),
     default_travel_agent_master_id: input.defaultTravelAgentMasterId || null,
     source_of_business: blankToNull(input.sourceOfBusiness),
+    website: blankToNull(input.website),
+    business_profile_type_id: input.businessProfileTypeId || null,
+    primary_contact_title: blankToNull(input.primaryContactTitle),
+    credit_account_enabled: Boolean(input.creditAccountEnabled),
+    email_normalized: email,
+    phone_normalized: normalizePhone(input.phone),
+    country: input.country ? countryNameFromInput(input.country) : null,
     ...(options.includePaymentTerms ? paymentTermsColumns(input) : {}),
   };
+}
+
+async function assertCompanyWorkspace(
+  restaurantId: string,
+  input: z.infer<typeof accountInputSchema>,
+  mode: "create" | "update",
+  excludeId?: string,
+) {
+  const snapshot = await loadBusinessSnapshot(restaurantId);
+  if (!snapshot) throw new Error("Company & Business settings are unavailable.");
+  const listing = await loadGuestWorkspaceConfig(restaurantId);
+  if (mode === "create") {
+    const allowed = companyCreateAllowed(
+      snapshot.settings,
+      listingCreateAllowed("company", listing),
+      snapshot.types.filter((type) => type.active).length,
+    );
+    if (!allowed.ok) throw new Error(allowed.message);
+  }
+  if (!input.businessProfileTypeId) throw new Error("Select a company type.");
+  const type = snapshot.types.find((row) => row.id === input.businessProfileTypeId);
+  if (!type) throw new Error("That business profile type is not configured for this property.");
+  if (input.country && !countryFromInput(input.country)) {
+    throw new Error("Select a country from the catalogue.");
+  }
+  const error = validateCompanyAgainstType(
+    {
+      name: input.name,
+      taxId: input.taxId ?? null,
+      primaryContactName: input.primaryContactName ?? null,
+      phone: input.phone ?? null,
+      email: input.email ?? null,
+      addressLine1: input.addressLine1 ?? null,
+      city: input.city ?? null,
+      country: input.country ?? null,
+      businessRegistrationNumber: input.businessRegistrationNumber ?? null,
+      creditAccountEnabled: Boolean(input.creditAccountEnabled),
+      paymentTerms: input.paymentTerms ?? null,
+      creditLimitNote: input.creditLimitNote ?? null,
+    },
+    type,
+    snapshot.fields,
+    mode,
+  );
+  if (error) throw new Error(error);
+  const duplicates = await findCompanyDuplicateRows(restaurantId, input, excludeId);
+  const blocking = duplicates.find((row) => row.blocking);
+  if (blocking) {
+    throw new Error(`A company already exists with the same ${blocking.match.replaceAll("_", " ")}.`);
+  }
+  if (duplicates.some((row) => !row.blocking) && !input.acknowledgeNameDuplicate) {
+    throw new Error("A company with a similar name already exists. Open it or confirm to continue.");
+  }
+  return snapshot;
 }
 
 async function assertDefaultTravelAgent(
@@ -557,6 +644,8 @@ export const createGuestAccount = createServerFn({ method: "POST" })
     if (isCompany) {
       const typeError = validateCompanyType(data.account.companyType, data.account.companyTypeOther);
       if (typeError) throw new Error(typeError);
+      const snapshot = await assertCompanyWorkspace(data.restaurantId, data.account, "create");
+      data.account.accountStatus = createStatusFromAutoApproval(snapshot.settings.autoApproval);
       await assertDefaultTravelAgent(
         context,
         data.restaurantId,
@@ -670,6 +759,7 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
     if (isCompany) {
       const typeError = validateCompanyType(data.account.companyType, data.account.companyTypeOther);
       if (typeError) throw new Error(typeError);
+      await assertCompanyWorkspace(data.restaurantId, data.account, "update", data.accountId);
       await assertDefaultTravelAgent(
         context,
         data.restaurantId,

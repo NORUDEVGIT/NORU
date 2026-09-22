@@ -88,7 +88,7 @@ export const PREFERENCE_CANONICAL_NOTE =
   "Operational preferences stay on guest_preferences and pms_preference_options. Card 4 preference catalogues are setup-only this phase.";
 
 export const COMPANY_BUSINESS_CANONICAL_NOTE =
-  "Company masters stay on guest_account_masters. Card 4 business profile types are setup-only this phase.";
+  "Company masters stay on guest_account_masters. Card 4 business profile types control Company Type and registration rules.";
 
 export const PROFILE_TYPE_CREATE_BLOCKED =
   "This profile type is inactive in Guest Profile Rules. Existing records stay available. New records cannot be created.";

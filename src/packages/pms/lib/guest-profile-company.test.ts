@@ -60,10 +60,13 @@ describe("Guest Profile Company enrichment lock — AC-GE1-1…24", () => {
     const form = readRel("../components/guests/guest-company-form-dialog.tsx");
     const functions = readRel("./guest-accounts.functions.ts");
     assert.equal(companyLegalName("  Acme Ltd  "), "Acme Ltd");
-    assert.equal(validateCompanyType(null, null), "Company type is required.");
+    assert.equal(validateCompanyType(null, null), null);
     assert.match(form, /Legal \/ company name is required/);
+    assert.match(form, /Select a company type/);
     assert.match(form, /validateCompanyType/);
+    assert.match(form, /validateCompanyAgainstType/);
     assert.match(functions, /validateCompanyType/);
+    assert.match(functions, /assertCompanyWorkspace/);
     assert.match(functions, /name: companyLegalName\(input\.name\)/);
     assert.match(form, /guest-account-name/);
     assert.match(form, /company-type/);
@@ -95,7 +98,7 @@ describe("Guest Profile Company enrichment lock — AC-GE1-1…24", () => {
     ]);
     assert.equal(COMPANY_TYPE_LABELS.plc, "PLC");
     assert.equal(isCompanyType("plc"), true);
-    assert.equal(validateCompanyType("other", ""), "Describe the company type when Other is selected.");
+    assert.equal(validateCompanyType("other", ""), "Describe the legal form when Other is selected.");
     assert.equal(validateCompanyType("other", "Co-op"), null);
     assert.equal(validateCompanyType("ngo", null), null);
     assert.match(form, /company-type-other/);

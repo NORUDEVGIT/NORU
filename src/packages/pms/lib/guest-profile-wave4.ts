@@ -24,7 +24,7 @@ export const GUEST_ACCOUNT_TYPE_LABELS: Record<GuestAccountType, string> = {
   travel_agent: "Travel Agent",
 };
 
-export const GUEST_ACCOUNT_STATUSES = ["active", "inactive"] as const;
+export const GUEST_ACCOUNT_STATUSES = ["active", "inactive", "pending"] as const;
 export type GuestAccountStatus = (typeof GUEST_ACCOUNT_STATUSES)[number];
 
 export const GUEST_RELATIONSHIP_ROLES = [
@@ -114,6 +114,10 @@ export const GUEST_ACCOUNT_EVENT_TYPES = [
   "comms_sent",
   "exported",
   "anonymised",
+  "status_changed",
+  "logo_updated",
+  "credit_account_changed",
+  "imported",
 ] as const;
 export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 
@@ -160,6 +164,14 @@ export type GuestAccountSummary = {
   tradeName: string | null;
   companyType: string | null;
   agencyType: string | null;
+  businessProfileTypeId?: string | null;
+  businessProfileTypeName?: string | null;
+  businessProfileTypeActive?: boolean;
+  primaryContactName?: string | null;
+  country?: string | null;
+  creditAccountEnabled?: boolean;
+  logoUrl?: string | null;
+  logoStoragePath?: string | null;
 };
 
 export type GuestAccountListPage = {
@@ -213,6 +225,11 @@ export type GuestAccountProfile = GuestAccountSummary & {
   paymentTerms: string | null;
   creditLimitNote: string | null;
   billingInstruction: string | null;
+  businessProfileTypeId: string | null;
+  primaryContactTitle: string | null;
+  creditAccountEnabled: boolean;
+  logoStoragePath: string | null;
+  logoUrl: string | null;
 };
 
 export type GuestAccountLink = {
