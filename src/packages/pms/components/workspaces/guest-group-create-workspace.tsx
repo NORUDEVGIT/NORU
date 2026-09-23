@@ -88,6 +88,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
   const [draft, setDraft] = useState<GuestGroupCreateDraft>(() => localHold?.draft ?? emptyGuestGroupCreateDraft());
   const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
   const [startOverOpen, setStartOverOpen] = useState(false);
+  const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
   const [companyQuery, setCompanyQuery] = useState("");
   const [agencyQuery, setAgencyQuery] = useState("");
@@ -124,12 +125,12 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
   }, [context.data, defaultsApplied, restaurantId]);
 
   useEffect(() => {
-    if (!defaultsApplied) return;
+    if (!defaultsApplied || created) return;
     writeGuestGroupCreateHold(restaurantId, { step, draft });
-  }, [defaultsApplied, restaurantId, step, draft]);
+  }, [created, defaultsApplied, restaurantId, step, draft]);
 
   useEffect(() => {
-    if (!defaultsApplied) return;
+    if (!defaultsApplied || created) return;
     if (!guestGroupCreateHasChanges(draft)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
@@ -138,7 +139,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
         .catch(() => setHoldState("idle"));
     }, GUEST_GROUP_CREATE_HOLD_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [defaultsApplied, draft, restaurantId, saveDraftHold, step]);
+  }, [created, defaultsApplied, draft, restaurantId, saveDraftHold, step]);
 
   const catalogues = context.data?.catalogues;
   const companiesQuery = useQuery({
@@ -238,18 +239,14 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Group created.");
-      void navigate({
-        to: GUEST_PROFILE_DETAIL_PATH,
-        params: { guestId: result.id },
-        search: guestProfileSearch({ type: "group", nav: "overview" }),
-      });
+      setCreated({ id: result.id, name: draft.name, code: result.code || draft.code || null });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   function leave() {
-    writeGuestGroupCreateHold(restaurantId, { step, draft });
-    if (guestGroupCreateHasChanges(draft)) toast.success(GUEST_GROUP_CREATE_PROGRESS_KEPT);
+    if (!created) writeGuestGroupCreateHold(restaurantId, { step, draft });
+    if (!created && guestGroupCreateHasChanges(draft)) toast.success(GUEST_GROUP_CREATE_PROGRESS_KEPT);
     void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH, search: guestProfileSearch({ type: "group" }) });
   }
 
@@ -259,6 +256,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
     setDraft(next);
     setStep("details");
     setHoldState("idle");
+    setCreated(null);
     setImportCsv("");
     setMemberDraft(emptyGroupCreateMember());
     clearGuestGroupCreateHold(restaurantId);
@@ -331,6 +329,46 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
       <div className="p-6">
         <p className="font-display text-lg">Could not load group creation settings.</p>
         <p className="mt-2 text-sm text-muted-foreground">{(context.error as Error).message}</p>
+      </div>
+    );
+  }
+
+  if (created) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 p-6" data-testid="group-create-success">
+        <h1 className="font-display text-2xl">Group created</h1>
+        <p className="text-sm text-muted-foreground">
+          {created.name}
+          {created.code ? ` · ${created.code}` : ""}
+        </p>
+        <p className="text-sm">Group</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() =>
+              void navigate({
+                to: GUEST_PROFILE_DETAIL_PATH,
+                params: { guestId: created.id },
+                search: guestProfileSearch({ type: "group", nav: "overview" }),
+              })
+            }
+          >
+            View Group
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() =>
+              void navigate({ to: "/restaurant/bookings/new", search: { groupAccountMasterId: created.id } })
+            }
+          >
+            Create Reservation
+          </Button>
+          <Button variant="outline" onClick={resetForm}>
+            Add Another Group
+          </Button>
+          <Button variant="ghost" onClick={leave}>
+            Return to Group List
+          </Button>
+        </div>
       </div>
     );
   }

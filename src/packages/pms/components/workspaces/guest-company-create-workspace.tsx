@@ -84,6 +84,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   const [draft, setDraft] = useState<GuestCompanyCreateDraft>(() => localHold?.draft ?? emptyGuestCompanyCreateDraft());
   const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
   const [startOverOpen, setStartOverOpen] = useState(false);
+  const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
 
   const context = useQuery({
@@ -107,12 +108,12 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   }, [context.data, defaultsApplied, restaurantId]);
 
   useEffect(() => {
-    if (!defaultsApplied) return;
+    if (!defaultsApplied || created) return;
     writeGuestCompanyCreateHold(restaurantId, { step, draft });
-  }, [defaultsApplied, restaurantId, step, draft]);
+  }, [created, defaultsApplied, restaurantId, step, draft]);
 
   useEffect(() => {
-    if (!defaultsApplied) return;
+    if (!defaultsApplied || created) return;
     if (!guestCompanyCreateHasChanges(draft)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
@@ -121,7 +122,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
         .catch(() => setHoldState("idle"));
     }, GUEST_COMPANY_CREATE_HOLD_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [defaultsApplied, draft, restaurantId, saveDraftHold, step]);
+  }, [created, defaultsApplied, draft, restaurantId, saveDraftHold, step]);
 
   const catalogues = context.data?.catalogues;
   const selectedType = (catalogues?.businessTypes ?? []).find((row) => row.id === draft.businessProfileTypeId);
@@ -203,18 +204,14 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Company created.");
-      void navigate({
-        to: GUEST_PROFILE_DETAIL_PATH,
-        params: { guestId: result.id! },
-        search: guestProfileSearch({ type: "company", nav: "overview" }),
-      });
+      setCreated({ id: result.id!, name: draft.name, code: draft.code || null });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   function leave() {
-    writeGuestCompanyCreateHold(restaurantId, { step, draft });
-    if (guestCompanyCreateHasChanges(draft)) toast.success(GUEST_COMPANY_CREATE_PROGRESS_KEPT);
+    if (!created) writeGuestCompanyCreateHold(restaurantId, { step, draft });
+    if (!created && guestCompanyCreateHasChanges(draft)) toast.success(GUEST_COMPANY_CREATE_PROGRESS_KEPT);
     void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH, search: guestProfileSearch({ type: "company" }) });
   }
 
@@ -224,6 +221,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
     setDraft(next);
     setStep("details");
     setHoldState("idle");
+    setCreated(null);
     clearGuestCompanyCreateHold(restaurantId);
   }
 
@@ -248,6 +246,44 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
       <div className="p-6">
         <p className="font-display text-lg">Could not load company creation settings.</p>
         <p className="mt-2 text-sm text-muted-foreground">{(context.error as Error).message}</p>
+      </div>
+    );
+  }
+
+  if (created) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 p-6" data-testid="company-create-success">
+        <h1 className="font-display text-2xl">Company created</h1>
+        <p className="text-sm text-muted-foreground">
+          {created.name}
+          {created.code ? ` · ${created.code}` : ""}
+        </p>
+        <p className="text-sm">Company</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() =>
+              void navigate({
+                to: GUEST_PROFILE_DETAIL_PATH,
+                params: { guestId: created.id },
+                search: guestProfileSearch({ type: "company", nav: "overview" }),
+              })
+            }
+          >
+            View Company
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void navigate({ to: "/restaurant/bookings/new", search: { companyMasterId: created.id } })}
+          >
+            Create Reservation
+          </Button>
+          <Button variant="outline" onClick={resetForm}>
+            Add Another Company
+          </Button>
+          <Button variant="ghost" onClick={leave}>
+            Return to Company List
+          </Button>
+        </div>
       </div>
     );
   }
