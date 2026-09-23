@@ -425,6 +425,7 @@ function AmendDialog({
         data: {
           restaurantId,
           reservationId: reservation.id,
+          guestId: reservation.guestId,
           roomTypeId,
           roomId: roomId === UNASSIGNED ? null : roomId,
           arrival,

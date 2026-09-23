@@ -260,3 +260,28 @@ describe("FO-FS4 source locks", () => {
     assert.doesNotMatch(workspace, /shouldSuppressRestaurantPmsRail/);
   });
 });
+
+describe("Amend stay save payload", () => {
+  it("includes the reservation guestId and keeps guestId required on amendReservation", () => {
+    const detail = readFileSync(
+      new URL("../components/workspaces/reservation-detail-workspace.tsx", import.meta.url),
+      "utf8",
+    );
+    const functions = readFileSync(new URL("./reservations.functions.ts", import.meta.url), "utf8");
+    const amendDialog = detail.slice(
+      detail.indexOf("function AmendDialog"),
+      detail.indexOf("function PricingSection"),
+    );
+    const amendReservation = functions.slice(
+      functions.indexOf("export const amendReservation"),
+      functions.indexOf("export const assignReservationRoom"),
+    );
+
+    assert.match(amendDialog, /guestId:\s*reservation\.guestId/);
+    assert.match(amendDialog, /getRoomTypeAvailability|fetchAvailability/);
+    assert.match(functions, /getRoomTypeAvailabilityCompat/);
+    assert.match(amendReservation, /stayInputSchema\.extend\(\{\s*reservationId: idSchema \}\)/);
+    assert.match(functions, /guestId:\s*idSchema,/);
+    assert.doesNotMatch(amendReservation, /guestId:\s*idSchema\.optional\(\)/);
+  });
+});

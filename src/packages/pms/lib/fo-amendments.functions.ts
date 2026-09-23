@@ -18,6 +18,7 @@ import { cashierError, requireCashierOperator } from "./cashiering.server";
 import { parseSnapshot } from "./rates.server";
 import { nightsBetween } from "./reservation-dates";
 import type { FrontOfficeStay } from "./frontoffice.functions";
+import { getRoomTypeAvailabilityCompat } from "./room-inventory-compat";
 import {
   CATALOGUE_EMPTY_HINT,
   GUEST_REQUESTS_UNAVAILABLE,
@@ -414,22 +415,18 @@ export const getAmendContext = createServerFn({ method: "POST" })
 
     const roomTypes: AmendRoomType[] = [];
     for (const type of types ?? []) {
-      const { data: total } = await supabaseAdmin.rpc("count_sellable_rooms", {
-        _restaurant_id: data.restaurantId,
-        _room_type_id: type.id,
-      });
-      const { data: reserved } = await supabaseAdmin.rpc("count_reserved_rooms", {
-        _restaurant_id: data.restaurantId,
-        _room_type_id: type.id,
-        _arrival: stay.arrivalDate,
-        _departure: stay.departureDate,
-        _exclude_reservation_id: stay.id,
+      const availability = await getRoomTypeAvailabilityCompat(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        roomTypeId: type.id,
+        arrival: stay.arrivalDate,
+        departure: stay.departureDate,
+        excludeReservationId: stay.id,
       });
       roomTypes.push({
         id: type.id,
         name: type.name,
         maxOccupancy: type.max_occupancy,
-        available: Math.max(0, Number(total ?? 0) - Number(reserved ?? 0)),
+        available: availability.available,
       });
     }
 

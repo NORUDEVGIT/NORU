@@ -4,6 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
@@ -213,6 +221,12 @@ export function PmsPropertySetupCard2RoomTypes({
   const bulkFn = useServerFn(bulkCreateRooms);
 
   const [typeForm, setTypeForm] = useState<TypeForm>(emptyType);
+  const [typeEditorOpen, setTypeEditorOpen] = useState(false);
+  const [roomEditorOpen, setRoomEditorOpen] = useState(false);
+  const [bulkEditorOpen, setBulkEditorOpen] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+  const [roomTypeFilter, setRoomTypeFilter] = useState("__all");
+  const [roomStatusFilter, setRoomStatusFilter] = useState("__all");
   const [roomForm, setRoomForm] = useState<RoomForm | null>(null);
   const [featureDraft, setFeatureDraft] = useState("");
   const [bulk, setBulk] = useState({
@@ -307,6 +321,7 @@ export function PmsPropertySetupCard2RoomTypes({
       }
       toast.success("Room type saved");
       if (result.id) setTypeForm((prev) => ({ ...prev, id: result.id }));
+      setTypeEditorOpen(false);
       refresh();
     },
     onError: () => toast.error("Could not save the room type."),
@@ -345,6 +360,9 @@ export function PmsPropertySetupCard2RoomTypes({
         return;
       }
       toast.success("Room saved");
+      setRoomEditorOpen(false);
+      setFeatureDraft("");
+      setRoomForm(null);
       refresh();
     },
     onError: () => toast.error("Could not save the room."),
@@ -383,6 +401,7 @@ export function PmsPropertySetupCard2RoomTypes({
         return;
       }
       toast.success(`Created ${result.createdCount} rooms`);
+      setBulkEditorOpen(false);
       refresh();
     },
     onError: () => toast.error("Could not create rooms."),
@@ -390,12 +409,14 @@ export function PmsPropertySetupCard2RoomTypes({
 
   async function saveDraft(): Promise<boolean> {
     if (!canEdit) return false;
-    const typeResult = await saveTypeMutation.mutateAsync();
-    if (!typeResult.ok) {
-      toast.error(typeResult.message);
-      return false;
+    if (typeEditorOpen) {
+      const typeResult = await saveTypeMutation.mutateAsync();
+      if (!typeResult.ok) {
+        toast.error(typeResult.message);
+        return false;
+      }
     }
-    if (roomForm) {
+    if (roomEditorOpen && roomForm) {
       const roomResult = await saveRoomMutation.mutateAsync();
       if (roomResult && "ok" in roomResult && !roomResult.ok) {
         toast.error(roomResult.message);
@@ -434,6 +455,20 @@ export function PmsPropertySetupCard2RoomTypes({
     [bulk],
   );
 
+  const filteredRooms = useMemo(() => {
+    const search = roomSearch.trim().toLowerCase();
+    return rooms.filter((room) => {
+      const matchesSearch =
+        !search ||
+        room.roomNumber.toLowerCase().includes(search) ||
+        (room.roomCode ?? "").toLowerCase().includes(search) ||
+        room.roomTypeCode.toLowerCase().includes(search);
+      const matchesType = roomTypeFilter === "__all" || room.roomTypeId === roomTypeFilter;
+      const matchesStatus = roomStatusFilter === "__all" || room.status === roomStatusFilter;
+      return matchesSearch && matchesType && matchesStatus;
+    });
+  }, [rooms, roomSearch, roomTypeFilter, roomStatusFilter]);
+
   const disabled = !canEdit;
   const typeWings = wingsForBuilding(structure.wings, structure.floors, typeForm.defaultBuildingId);
   const typeFloors = floorsForBuildingAndWing(
@@ -449,67 +484,144 @@ export function PmsPropertySetupCard2RoomTypes({
     roomForm?.buildingId,
     roomForm?.wingId,
   );
+  const bulkWings = wingsForBuilding(
+    structure.wings,
+    structure.floors,
+    bulk.buildingId,
+  );
+  const bulkFloors = floorsForBuildingAndWing(
+    structure.floors,
+    structure.wings,
+    bulk.buildingId,
+    bulk.wingId,
+  );
 
   return (
     <div className="space-y-5" data-testid="pms-card2-room-types-form">
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <h2 className="font-display text-xl text-[#251605]">Room Types & Rooms</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Status is calculated on the server. Building, wing and floor on a room type are
-          preferences only.
+      <section className="rounded-xl border border-[#D9D2C4] bg-white px-4 py-3 shadow-sm">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 className="font-display text-lg text-[#251605]">Room Types & Rooms</h2>
+      <p className="mt-0.5 text-sm text-muted-foreground">
+        Configure room types and physical rooms. Building, wing and floor on a room type are
+        preferences only.
+      </p>
+    </div>
+
+    <div
+      className="rounded-lg border border-[#EDE6D8] bg-[#F7F4EE] px-3 py-2 text-sm"
+      data-testid="pms-card2-readiness"
+    >
+      <p className="font-medium text-[#251605]">
+        {readiness?.ready
+          ? "Ready"
+          : readiness?.stepStatus === "in_progress"
+            ? "In progress"
+            : "Not started"}
+      </p>
+
+      {(readiness?.blockers ?? []).length > 0 ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {readiness?.blockers[0]}
         </p>
-        <div
-          className="mt-3 rounded-xl border border-[#EDE6D8] bg-[#F7F4EE] px-3 py-2 text-sm text-[#251605]"
-          data-testid="pms-card2-readiness"
-        >
-          <p className="font-medium">
-            {readiness?.ready
-              ? "Ready"
-              : readiness?.stepStatus === "in_progress"
-                ? "In progress"
-                : "Not started"}
-          </p>
-          {(readiness?.blockers ?? []).length > 0 ? (
-            <ul className="mt-1 list-disc pl-5 text-muted-foreground">
-              {readiness?.blockers.map((row) => (
-                <li key={row}>{row}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1 text-muted-foreground">All Room Types & Rooms checks pass.</p>
-          )}
-        </div>
-      </section>
+      ) : (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          All Room Types & Rooms checks pass.
+        </p>
+      )}
+    </div>
+  </div>
+</section>
 
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-display text-lg text-[#251605]">Room type configuration</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg text-[#251605]">Room Types</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Configure the room types used by this property.
+            </p>
+          </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={disabled}
-            onClick={() => setTypeForm(emptyType())}
+            onClick={() => {
+              setTypeForm(emptyType());
+              setTypeEditorOpen(true);
+            }}
           >
-            New type
+            <Plus className="mr-1 h-4 w-4" />
+            New room type
           </Button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {types.map((row) => (
-            <Button
-              key={row.id}
-              type="button"
-              size="sm"
-              variant={typeForm.id === row.id ? "default" : "outline"}
-              className={
-                typeForm.id === row.id ? "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" : ""
-              }
-              onClick={() => setTypeForm(typeFromRow(row))}
-            >
-              {row.code}
-            </Button>
-          ))}
+
+        <div className="mt-4 overflow-x-auto rounded-lg border border-[#E6DFD3]">
+          <table className="w-full text-sm">
+            <thead className="bg-[#F7F4EE] text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Code</th>
+                <th className="px-3 py-2">Name</th>
+                <th className="px-3 py-2">Short Name</th>
+                <th className="px-3 py-2">Occupancy</th>
+                <th className="px-3 py-2">Sellable</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {types.map((row) => (
+                <tr key={row.id} className="border-t border-[#EDE6D8] hover:bg-[#FBF9F5]">
+                  <td className="px-3 py-2 font-medium text-[#251605]">{row.code}</td>
+                  <td className="px-3 py-2">{row.name}</td>
+                  <td className="px-3 py-2">{row.shortName || "—"}</td>
+                  <td className="px-3 py-2">
+                    {row.standardOccupancy} / {row.maxOccupancy}
+                  </td>
+                  <td className="px-3 py-2">{row.sellable ? "Yes" : "No"}</td>
+                  <td className="px-3 py-2">
+                    <span className="inline-flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${row.active ? "bg-green-500" : "bg-red-500"}`} />
+                      {row.active ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTypeForm(typeFromRow(row));
+                        setTypeEditorOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {types.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    No room types configured yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
+      </section>
+
+      <Dialog open={typeEditorOpen} onOpenChange={setTypeEditorOpen}>
+        <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-5 shadow-xl">
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
+              {typeForm.id ? "Edit room type" : "New room type"}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Configure identity, occupancy, location preferences, attributes, and bed setup.
+            </DialogDescription>
+          </DialogHeader>
         <PropertySetupFormGrid>
           <PropertySetupField label="Room Type Name">
             <Input
@@ -814,7 +926,7 @@ export function PmsPropertySetupCard2RoomTypes({
             </div>
           ))}
         </div>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3">
           <Button
             type="button"
             variant="outline"
@@ -829,26 +941,42 @@ export function PmsPropertySetupCard2RoomTypes({
           >
             <Plus className="mr-1 h-4 w-4" /> Add bed row
           </Button>
+        </div>
+
+        <div className="sticky bottom-0 -mx-5 mt-5 flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
           <Button
             type="button"
-            className="scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            variant="outline"
+            onClick={() => setTypeEditorOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             disabled={disabled || saveTypeMutation.isPending}
             onClick={() => saveTypeMutation.mutate()}
           >
-            Save room type
+            {saveTypeMutation.isPending ? "Saving..." : "Save room type"}
           </Button>
         </div>
-      </section>
+        </DialogContent>
+      </Dialog>
 
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-display text-lg text-[#251605]">Existing rooms</h3>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg text-[#251605]">Physical Rooms</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage configured rooms, placement, and operational defaults.
+            </p>
+          </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={disabled}
-            onClick={() =>
+            onClick={() => {
               setRoomForm({
                 roomTypeId: types[0]?.id ?? "",
                 roomNumber: "",
@@ -866,45 +994,137 @@ export function PmsPropertySetupCard2RoomTypes({
                 accessible: false,
                 roomFeatures: [],
                 links: [],
-              })
-            }
+              });
+              setRoomEditorOpen(true);
+            }}
           >
+            <Plus className="mr-1 h-4 w-4" />
             New room
           </Button>
         </div>
-        <div className="mt-3 overflow-x-auto">
+
+        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(10rem,0.8fr)_minmax(10rem,0.8fr)]">
+          <Input
+            value={roomSearch}
+            onChange={(e) => setRoomSearch(e.target.value)}
+            placeholder="Search room number, code, or type"
+          />
+          <Select value={roomTypeFilter} onValueChange={setRoomTypeFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="All room types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">All room types</SelectItem>
+              {types.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name} ({row.code})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={roomStatusFilter} onValueChange={setRoomStatusFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">All statuses</SelectItem>
+              {ROOM_STATUSES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value.replaceAll("_", " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="mt-4 overflow-x-auto rounded-lg border border-[#E6DFD3]">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1">Number</th>
-                <th>Code</th>
-                <th>Type</th>
-                <th>Ops</th>
-                <th>HK</th>
-                <th>Maint.</th>
-                <th>Sellable</th>
+            <thead className="bg-[#F7F4EE] text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Room</th>
+                <th className="px-3 py-2">Code</th>
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Building</th>
+                <th className="px-3 py-2">Floor</th>
+                <th className="px-3 py-2">Ops</th>
+                <th className="px-3 py-2">HK</th>
+                <th className="px-3 py-2">Maint.</th>
+                <th className="px-3 py-2">Sellable</th>
+                <th className="px-3 py-2 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
-              {rooms.map((row) => (
-                <tr
-                  key={row.id}
-                  className="cursor-pointer border-t border-[#EDE6D8]"
-                  onClick={() => setRoomForm(roomFromRow(row))}
-                >
-                  <td className="py-2">{row.roomNumber}</td>
-                  <td>{row.roomCode}</td>
-                  <td>{row.roomTypeCode}</td>
-                  <td>{row.status}</td>
-                  <td>{row.housekeepingStatus}</td>
-                  <td>{row.maintenanceStatus}</td>
-                  <td>{row.sellable ? "Yes" : "No"}</td>
+              {filteredRooms.map((row) => {
+                const buildingName =
+                  structure.buildings.find((building) => building.id === row.buildingId)?.name ?? "—";
+                const floorName =
+                  structure.floors.find((floor) => floor.id === row.floorId)?.name ?? "—";
+                return (
+                  <tr key={row.id} className="border-t border-[#EDE6D8] hover:bg-[#FBF9F5]">
+                    <td className="px-3 py-2 font-medium text-[#251605]">{row.roomNumber}</td>
+                    <td className="px-3 py-2">{row.roomCode || "—"}</td>
+                    <td className="px-3 py-2">{row.roomTypeCode}</td>
+                    <td className="px-3 py-2">{buildingName}</td>
+                    <td className="px-3 py-2">{floorName}</td>
+                    <td className="px-3 py-2 capitalize">{row.status.replaceAll("_", " ")}</td>
+                    <td className="px-3 py-2 capitalize">
+                      {(row.housekeepingStatus ?? "clean").replaceAll("_", " ")}
+                    </td>
+                    <td className="px-3 py-2 capitalize">
+                      {row.maintenanceStatus.replaceAll("_", " ")}
+                    </td>
+                    <td className="px-3 py-2">{row.sellable ? "Yes" : "No"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setRoomForm(roomFromRow(row));
+                          setRoomEditorOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredRooms.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
+                    No rooms match the current filters.
+                  </td>
                 </tr>
-              ))}
+              ) : null}
             </tbody>
           </table>
         </div>
-        {roomForm ? (
+      </section>
+
+      {roomForm ? (
+        <Dialog
+          open={roomEditorOpen}
+          onOpenChange={(open) => {
+            setRoomEditorOpen(open);
+            if (!open) {
+              setFeatureDraft("");
+              setRoomForm(null);
+            }
+          }}
+        >
+        <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-0 shadow-xl">
+          <div className="sticky top-0 z-10 border-b border-[#EDE6D8] bg-white px-5 py-4">
+            <DialogHeader className="space-y-1 text-left">
+              <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
+                {roomForm?.id ? "Edit room" : "New room"}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                Configure room identity, placement, operating defaults, and room relationships.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="p-5">
           <PropertySetupFormGrid>
             <PropertySetupField label="Room Number">
               <Input
@@ -1027,7 +1247,7 @@ export function PmsPropertySetupCard2RoomTypes({
               <Select
                 value={roomForm.status}
                 onValueChange={(value) => setRoomForm({ ...roomForm, status: value as RoomStatus })}
-                disabled={disabled}
+                disabled
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -1035,7 +1255,9 @@ export function PmsPropertySetupCard2RoomTypes({
                 <SelectContent>
                   {ROOM_STATUSES.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {value.replaceAll("_", " ")}
+                      {value
+                        .replaceAll("_", " ")
+                        .replace(/\b\w/g, (letter) => letter.toUpperCase())}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1055,7 +1277,9 @@ export function PmsPropertySetupCard2RoomTypes({
                 <SelectContent>
                   {HK_STATUSES.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {value}
+                      {value
+                        .replaceAll("_", " ")
+                        .replace(/\b\w/g, (letter) => letter.toUpperCase())}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1075,7 +1299,9 @@ export function PmsPropertySetupCard2RoomTypes({
                 <SelectContent>
                   {MAINTENANCE_STATUSES.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {value.replaceAll("_", " ")}
+                      {value
+                        .replaceAll("_", " ")
+                        .replace(/\b\w/g, (letter) => letter.toUpperCase())}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1224,25 +1450,66 @@ export function PmsPropertySetupCard2RoomTypes({
                 Add link
               </Button>
             </PropertySetupField>
-            <div className="md:col-span-2">
-              <Button
-                type="button"
-                className="scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                disabled={disabled || saveRoomMutation.isPending}
-                onClick={() => saveRoomMutation.mutate()}
-              >
-                Save room
-              </Button>
-            </div>
           </PropertySetupFormGrid>
-        ) : null}
-      </section>
+
+          </div>
+          <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRoomEditorOpen(false);
+                setFeatureDraft("");
+                setRoomForm(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+              disabled={disabled || saveRoomMutation.isPending || !roomForm}
+              onClick={() => saveRoomMutation.mutate()}
+            >
+              {saveRoomMutation.isPending ? "Saving..." : "Save room"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      ) : null}
 
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <h3 className="font-display text-lg text-[#251605]">Bulk room generation</h3>
-        <p className="text-xs text-muted-foreground">
-          Sequential numbering only. The server revalidates the batch in one insert.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg text-[#251605]">Bulk Room Generation</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Generate multiple sequential rooms for a configured room type.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => setBulkEditorOpen(true)}
+          >
+            Generate rooms
+          </Button>
+        </div>
+      </section>
+
+      <Dialog open={bulkEditorOpen} onOpenChange={setBulkEditorOpen}>
+        <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-0 shadow-xl">
+          <div className="sticky top-0 z-10 border-b border-[#EDE6D8] bg-white px-5 py-4">
+            <DialogHeader className="space-y-1 text-left">
+              <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
+                Generate rooms
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                Create a sequential batch. The server revalidates the batch before insert.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="p-5">
         <PropertySetupFormGrid>
           <PropertySetupField label="Target room type">
             <Select
@@ -1288,6 +1555,63 @@ export function PmsPropertySetupCard2RoomTypes({
               </SelectTrigger>
               <SelectContent>
                 {structure.buildings.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PropertySetupField>
+          <PropertySetupField label="Wing">
+            <Select
+              value={bulk.wingId || "__none"}
+              onValueChange={(value) => {
+                const next = cascadeLocationIds({
+                  buildingId: bulk.buildingId,
+                  wingId: value === "__none" ? "" : value,
+                  floorId: bulk.floorId,
+                  wings: structure.wings,
+                  floors: structure.floors,
+                  changed: "wing",
+                });
+                setBulk({
+                  ...bulk,
+                  wingId: next.wingId,
+                  floorId: next.floorId,
+                });
+              }}
+              disabled={disabled || !bulk.buildingId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">None</SelectItem>
+                {bulkWings.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PropertySetupField>
+          <PropertySetupField label="Floor">
+            <Select
+              value={bulk.floorId || "__none"}
+              onValueChange={(value) =>
+                setBulk({
+                  ...bulk,
+                  floorId: value === "__none" ? "" : value,
+                })
+              }
+              disabled={disabled || !bulk.buildingId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">None</SelectItem>
+                {bulkFloors.map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.name}
                   </SelectItem>
@@ -1347,7 +1671,10 @@ export function PmsPropertySetupCard2RoomTypes({
         >
           Create rooms
         </Button>
-      </section>
+
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
