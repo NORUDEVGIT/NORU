@@ -28,6 +28,7 @@ import {
 } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
 import {
   TA_ALLOTMENT_COPY,
+  TA_ALLOTMENT_STATUSES,
   TA_SETTINGS_SECTIONS,
   travelAgentSettingsSection,
   type TravelAgentSettingsSectionId,
@@ -276,6 +277,16 @@ function GeneralSettings({
   );
 }
 
+const emptyCommissionForm = {
+  commissionType: "percent" as "percent" | "fixed",
+  rateValue: "",
+  currency: "ETB",
+  effectiveOn: "",
+  expiresOn: "",
+  notes: "",
+  active: true,
+};
+
 function CommissionSettings({ restaurantId, agencyId }: { restaurantId: string; agencyId: string }) {
   const queryClient = useQueryClient();
   const load = useServerFn(listTravelAgentCommissionPlans);
@@ -284,32 +295,33 @@ function CommissionSettings({ restaurantId, agencyId }: { restaurantId: string; 
     queryKey: ["travel-agent-commission-plans", restaurantId, agencyId],
     queryFn: () => load({ data: { restaurantId, agencyId } }),
   });
-  const [form, setForm] = useState({
-    commissionType: "percent" as "percent" | "fixed",
-    rateValue: "",
-    currency: "ETB",
-    effectiveOn: "",
-    expiresOn: "",
-    notes: "",
-  });
+  const [editingId, setEditingId] = useState<string | undefined>();
+  const [form, setForm] = useState(emptyCommissionForm);
+  function resetForm() {
+    setEditingId(undefined);
+    setForm(emptyCommissionForm);
+  }
   const mutation = useMutation({
     mutationFn: () =>
       save({
         data: {
           restaurantId,
           agencyId,
+          id: editingId,
           commissionType: form.commissionType,
           rateValue: Number(form.rateValue),
           currency: form.currency,
           effectiveOn: form.effectiveOn,
           expiresOn: form.expiresOn || null,
           notes: form.notes || null,
-          active: true,
+          active: form.active,
         },
       }),
     onSuccess: async () => {
+      resetForm();
       await queryClient.invalidateQueries({ queryKey: ["travel-agent-commission-plans", restaurantId, agencyId] });
-      toast.success("Commission plan saved.");
+      await queryClient.invalidateQueries({ queryKey: ["travel-agent-detail", restaurantId, agencyId] });
+      toast.success(editingId ? "Commission plan updated." : "Commission plan saved.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -320,12 +332,35 @@ function CommissionSettings({ restaurantId, agencyId }: { restaurantId: string; 
       </p>
       <ul className="space-y-2 text-sm">
         {(query.data?.items ?? []).map((row) => (
-          <li key={row.id} className="rounded-xl border border-border p-3">
-            {row.commissionType} · {row.rateValue} {row.currency} · {row.effectiveOn}
-            {row.expiresOn ? ` – ${row.expiresOn}` : ""} {row.active ? "" : "(inactive)"}
+          <li key={row.id} className="flex items-start justify-between gap-3 rounded-xl border border-border p-3">
+            <span>
+              {row.commissionType} · {row.rateValue} {row.currency} · {row.effectiveOn}
+              {row.expiresOn ? ` – ${row.expiresOn}` : ""} {row.active ? "" : "(inactive)"}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="travel-agent-commission-edit"
+              onClick={() => {
+                setEditingId(row.id);
+                setForm({
+                  commissionType: row.commissionType === "fixed" ? "fixed" : "percent",
+                  rateValue: String(row.rateValue),
+                  currency: row.currency,
+                  effectiveOn: row.effectiveOn,
+                  expiresOn: row.expiresOn ?? "",
+                  notes: row.notes ?? "",
+                  active: row.active,
+                });
+              }}
+            >
+              Edit
+            </Button>
           </li>
         ))}
       </ul>
+      <p className="text-sm font-medium">{editingId ? "Edit commission plan" : "Add commission plan"}</p>
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Type">
           <Select value={form.commissionType} onValueChange={(value) => setForm((current) => ({ ...current, commissionType: value as "percent" | "fixed" }))}>
@@ -340,14 +375,35 @@ function CommissionSettings({ restaurantId, agencyId }: { restaurantId: string; 
         <Field label="Currency"><Input value={form.currency} onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} /></Field>
         <Field label="Effective on"><Input type="date" value={form.effectiveOn} onChange={(event) => setForm((current) => ({ ...current, effectiveOn: event.target.value }))} /></Field>
         <Field label="Expires on"><Input type="date" value={form.expiresOn} onChange={(event) => setForm((current) => ({ ...current, expiresOn: event.target.value }))} /></Field>
+        <label className="flex items-center gap-2 text-sm md:col-span-2">
+          <Checkbox checked={form.active} onCheckedChange={(value) => setForm((current) => ({ ...current, active: value === true }))} />
+          Active
+        </label>
         <div className="md:col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></div>
       </div>
-      <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.rateValue || !form.effectiveOn}>
-        Save plan
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.rateValue || !form.effectiveOn}>
+          {editingId ? "Update plan" : "Save plan"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={resetForm}>
+            Cancel edit
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
+
+const emptyAllotmentForm = {
+  roomTypeId: "",
+  allocatedQty: "",
+  startDate: "",
+  endDate: "",
+  releaseDays: "0",
+  status: "active" as (typeof TA_ALLOTMENT_STATUSES)[number],
+  notes: "",
+};
 
 function AllotmentSettings({ restaurantId, agencyId }: { restaurantId: string; agencyId: string }) {
   const queryClient = useQueryClient();
@@ -362,31 +418,32 @@ function AllotmentSettings({ restaurantId, agencyId }: { restaurantId: string; a
     queryKey: ["travel-agent-settings-catalogues", restaurantId, agencyId],
     queryFn: () => loadCatalogues({ data: { restaurantId, agencyId } }),
   });
-  const [form, setForm] = useState({
-    roomTypeId: "",
-    allocatedQty: "",
-    startDate: "",
-    endDate: "",
-    releaseDays: "0",
-    notes: "",
-  });
+  const [editingId, setEditingId] = useState<string | undefined>();
+  const [form, setForm] = useState(emptyAllotmentForm);
+  function resetForm() {
+    setEditingId(undefined);
+    setForm(emptyAllotmentForm);
+  }
   const mutation = useMutation({
     mutationFn: () =>
       save({
         data: {
           restaurantId,
           agencyId,
+          id: editingId,
           roomTypeId: form.roomTypeId,
           allocatedQty: Number(form.allocatedQty),
           startDate: form.startDate,
           endDate: form.endDate,
           releaseDays: Number(form.releaseDays || 0),
+          status: form.status,
           notes: form.notes || null,
         },
       }),
     onSuccess: async () => {
+      resetForm();
       await queryClient.invalidateQueries({ queryKey: ["travel-agent-allotments", restaurantId, agencyId] });
-      toast.success("Allotment saved.");
+      toast.success(editingId ? "Allotment updated." : "Allotment saved.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -395,11 +452,35 @@ function AllotmentSettings({ restaurantId, agencyId }: { restaurantId: string; a
       <p className="text-sm text-muted-foreground">{TA_ALLOTMENT_COPY}</p>
       <ul className="space-y-2 text-sm">
         {(query.data?.items ?? []).map((row) => (
-          <li key={row.id} className="rounded-xl border border-border p-3">
-            {row.roomTypeName}: {row.allocatedQty} rooms · {row.startDate} – {row.endDate} · release {row.releaseDays} days
+          <li key={row.id} className="flex items-start justify-between gap-3 rounded-xl border border-border p-3">
+            <span>
+              {row.roomTypeName}: {row.allocatedQty} rooms · {row.startDate} – {row.endDate} · release {row.releaseDays} days
+              {row.status === "inactive" ? " (inactive)" : ""}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="travel-agent-allotment-edit"
+              onClick={() => {
+                setEditingId(row.id);
+                setForm({
+                  roomTypeId: row.roomTypeId,
+                  allocatedQty: String(row.allocatedQty),
+                  startDate: row.startDate,
+                  endDate: row.endDate,
+                  releaseDays: String(row.releaseDays),
+                  status: row.status === "inactive" ? "inactive" : "active",
+                  notes: row.notes ?? "",
+                });
+              }}
+            >
+              Edit
+            </Button>
           </li>
         ))}
       </ul>
+      <p className="text-sm font-medium">{editingId ? "Edit allotment" : "Add allotment"}</p>
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Room type">
           <Select value={form.roomTypeId} onValueChange={(value) => setForm((current) => ({ ...current, roomTypeId: value }))}>
@@ -415,11 +496,28 @@ function AllotmentSettings({ restaurantId, agencyId }: { restaurantId: string; a
         <Field label="Start"><Input type="date" value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: event.target.value }))} /></Field>
         <Field label="End"><Input type="date" value={form.endDate} onChange={(event) => setForm((current) => ({ ...current, endDate: event.target.value }))} /></Field>
         <Field label="Release days before arrival"><Input type="number" value={form.releaseDays} onChange={(event) => setForm((current) => ({ ...current, releaseDays: event.target.value }))} /></Field>
+        <Field label="Status">
+          <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as (typeof TA_ALLOTMENT_STATUSES)[number] }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TA_ALLOTMENT_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
         <div className="md:col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></div>
       </div>
-      <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.roomTypeId}>
-        Save allotment
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.roomTypeId}>
+          {editingId ? "Update allotment" : "Save allotment"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={resetForm}>
+            Cancel edit
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
