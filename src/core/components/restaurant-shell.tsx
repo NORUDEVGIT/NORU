@@ -610,7 +610,9 @@ export function RestaurantShell({
     ? `PMS · ${pmsMod.title}`
     : pms && pmsPackage && workspace !== "pms"
       ? `PMS · ${MODULE_TITLE[workspace]}`
-      : MODULE_TITLE[workspace];
+      : active === "Settings"
+        ? "PMS - Settings"
+        : MODULE_TITLE[workspace];
 
   const pmsSidebarNav = (
     <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="PMS navigation">
@@ -1036,7 +1038,7 @@ export function RestaurantShell({
                 </>
               )}
               <div className="min-w-0">
-                <p className="truncate font-display text-lg leading-tight">
+                <p className="truncate font-sans text-lg font-semibold leading-tight">
                   {restaurant?.name ?? "Restaurant"}
                 </p>
                 <p className="text-xs text-muted-foreground">{contextLabel}</p>

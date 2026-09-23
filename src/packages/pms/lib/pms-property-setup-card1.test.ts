@@ -45,6 +45,8 @@ import {
   hasVatCertificate,
   isCard1WorkspaceHash,
   isNrcPropertyCode,
+  normalizeCard1CheckinOpsForPersistence,
+  parseCheckinOps,
   propertySetupStatusLabel,
   validateAddressFields,
   validateBrandImageFile,
@@ -60,13 +62,31 @@ import {
 } from "./pms-geography.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const ui = readFileSync(new URL("../components/settings/pms-property-setup-card1-section.tsx", import.meta.url), "utf8");
-const steps = readFileSync(new URL("../components/settings/pms-property-setup-card1-steps.tsx", import.meta.url), "utf8");
-const hub = readFileSync(new URL("../components/settings/pms-set1-hub.tsx", import.meta.url), "utf8");
-const settings = readFileSync(new URL("../../../routes/restaurant/settings.tsx", import.meta.url), "utf8");
-const shell = readFileSync(new URL("../../../core/components/restaurant-shell.tsx", import.meta.url), "utf8");
+const ui = readFileSync(
+  new URL("../components/settings/pms-property-setup-card1-section.tsx", import.meta.url),
+  "utf8",
+);
+const steps = readFileSync(
+  new URL("../components/settings/pms-property-setup-card1-steps.tsx", import.meta.url),
+  "utf8",
+);
+const hub = readFileSync(
+  new URL("../components/settings/pms-set1-hub.tsx", import.meta.url),
+  "utf8",
+);
+const settings = readFileSync(
+  new URL("../../../routes/restaurant/settings.tsx", import.meta.url),
+  "utf8",
+);
+const shell = readFileSync(
+  new URL("../../../core/components/restaurant-shell.tsx", import.meta.url),
+  "utf8",
+);
 const lib = readFileSync(new URL("./pms-property-setup-card1.ts", import.meta.url), "utf8");
-const fns = readFileSync(new URL("./pms-property-setup-card1.functions.ts", import.meta.url), "utf8");
+const fns = readFileSync(
+  new URL("./pms-property-setup-card1.functions.ts", import.meta.url),
+  "utf8",
+);
 
 describe("PMS Property Setup Card 1 fidelity locks", () => {
   it("keeps Agreement absent and finish does not Activate", () => {
@@ -86,14 +106,17 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(fns, /activated: false/);
     assert.match(fns, /CARD1_AUDIT_COMPLETED/);
     assert.equal(CARD1_AUDIT_COMPLETED, "pms_card1_completed");
-    assert.deepEqual([...CARD1_AUDIT_ACTIONS], ["pms_card1_draft_saved", "pms_card1_step_saved", "pms_card1_completed"]);
+    assert.deepEqual(
+      [...CARD1_AUDIT_ACTIONS],
+      ["pms_card1_draft_saved", "pms_card1_step_saved", "pms_card1_completed"],
+    );
 
     assert.doesNotMatch(ui, /sign the agreement|Agreement signing/i);
     assert.doesNotMatch(steps, /sign the agreement|Agreement signing/i);
-    assert.match(ui, /Save Draft/);
-    assert.match(ui, /Save & Continue/);
-    assert.match(ui, /Complete Card 1/);
-    assert.match(ui, /Save & Finish/);
+    assert.match(ui, /onSaveDraft/);
+    assert.match(ui, /continueLabel\(step\)/);
+    assert.match(ui, /finishLabel\(step\)/);
+    assert.match(ui, /saveMode\("draft"\)/);
     assert.equal(continueLabel("structure"), "Complete Card 1");
     assert.equal(finishLabel("structure"), "Save & Finish");
     assert.equal(continueLabel("identity"), "Save & Continue");
@@ -116,7 +139,11 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(isNrcPropertyCode("NRC0002"), true);
     assert.equal(isNrcPropertyCode("HH"), false);
 
-    const incomplete = emptyCard1Draft({ name: "Harbour House", timezone: "Africa/Addis_Ababa", currencyCode: "ETB" });
+    const incomplete = emptyCard1Draft({
+      name: "Harbour House",
+      timezone: "Africa/Addis_Ababa",
+      currencyCode: "ETB",
+    });
     assert.equal(card1StepComplete("identity", incomplete), false);
     assert.equal(
       card1StepComplete(
@@ -169,27 +196,44 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(isRegionValidForCountry("Kenya", "Addis Ababa"), false);
     assert.equal(isRegionValidForCountry("KE", "Nairobi"), true);
     const cleared = clearDependentGeography(
-      emptyCard1Draft({ country: "Kenya", addressRegion: "Addis Ababa", city: "Addis Ababa", addressWoreda: "03" }),
+      emptyCard1Draft({
+        country: "Kenya",
+        addressRegion: "Addis Ababa",
+        city: "Addis Ababa",
+        addressWoreda: "03",
+      }),
     );
     assert.equal(cleared.addressRegion, "");
     assert.equal(cleared.city, "");
     assert.equal(cleared.addressWoreda, "");
     assert.equal(
-      card1StepComplete("address", emptyCard1Draft({ country: "Kenya", addressRegion: "Addis Ababa", city: "Nairobi" })),
+      card1StepComplete(
+        "address",
+        emptyCard1Draft({ country: "Kenya", addressRegion: "Addis Ababa", city: "Nairobi" }),
+      ),
       false,
     );
     assert.equal(
-      card1StepComplete("address", emptyCard1Draft({ country: "Kenya", addressRegion: "Nairobi", city: "Nairobi" })),
+      card1StepComplete(
+        "address",
+        emptyCard1Draft({ country: "Kenya", addressRegion: "Nairobi", city: "Nairobi" }),
+      ),
       true,
     );
-    assert.equal(validateAddressFields(emptyCard1Draft({ latitude: "99999" })).latitude, "Latitude must be between -90 and 90.");
+    assert.equal(
+      validateAddressFields(emptyCard1Draft({ latitude: "99999" })).latitude,
+      "Latitude must be between -90 and 90.",
+    );
     assert.equal(
       validateAddressFields(emptyCard1Draft({ longitude: "9898989" })).longitude,
       "Longitude must be between -180 and 180.",
     );
     assert.equal(
-      validateAddressFields(emptyCard1Draft({ locationExtras: { googleMapsLink: "not-a-url", nearbyLandmark: "", pinVisible: true } }))
-        .googleMapsLink,
+      validateAddressFields(
+        emptyCard1Draft({
+          locationExtras: { googleMapsLink: "not-a-url", nearbyLandmark: "", pinVisible: true },
+        }),
+      ).googleMapsLink,
       "Enter a valid URL.",
     );
     assert.match(steps, /SearchableSelect/);
@@ -203,9 +247,16 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(hasVatCertificate([{ name: "vat.pdf", kind: "vat_certificate" }]), true);
     assert.equal(hasVatCertificate([{ name: "tin.pdf", kind: "tin" }]), false);
     assert.deepEqual(card1TaxWarnings(emptyCard1Draft({ vatRegistered: false })), []);
-    assert.ok(card1TaxWarnings(emptyCard1Draft({ vatRegistered: true }))[0]?.includes("VAT certificate"));
+    assert.ok(
+      card1TaxWarnings(emptyCard1Draft({ vatRegistered: true }))[0]?.includes("VAT certificate"),
+    );
     assert.deepEqual(
-      card1TaxWarnings(emptyCard1Draft({ vatRegistered: true, taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }] })),
+      card1TaxWarnings(
+        emptyCard1Draft({
+          vatRegistered: true,
+          taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
+        }),
+      ),
       [],
     );
     assert.equal(card1StepComplete("tax", emptyCard1Draft({ vatRegistered: false })), true);
@@ -276,7 +327,11 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
   it("keeps the eight-card programme and status honesty as cards are spec'd", () => {
     assert.equal(PROPERTY_SETUP_CARDS.length, 8);
     assert.deepEqual(
-      PROPERTY_SETUP_CARDS.map((card) => ({ number: card.number, title: card.title, purpose: card.purpose })),
+      PROPERTY_SETUP_CARDS.map((card) => ({
+        number: card.number,
+        title: card.title,
+        purpose: card.purpose,
+      })),
       [
         {
           number: 1,
@@ -286,7 +341,8 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
         {
           number: 2,
           title: "Rooms & Operations",
-          purpose: "Rooms & Room Types, Amenities, Housekeeping Rules, Room Inventory Rules, Maintenance Rules.",
+          purpose:
+            "Rooms & Room Types, Amenities, Housekeeping Rules, Room Inventory Rules, Maintenance Rules.",
         },
         {
           number: 3,
@@ -332,12 +388,19 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(PROPERTY_SETUP_CARDS[3].specced, true);
     assert.equal(PROPERTY_SETUP_CARDS[5].title, "Connectivity & Distribution");
     assert.equal(PROPERTY_SETUP_CARDS[5].specced, true);
+    assert.equal(PROPERTY_SETUP_CARDS[6].title, "Security, Data & Reports");
+    assert.equal(PROPERTY_SETUP_CARDS[6].specced, true);
+    assert.equal(PROPERTY_SETUP_CARDS[7].title, "System & Go-Live");
+    assert.equal(PROPERTY_SETUP_CARDS[7].specced, true);
     assert.deepEqual(
       PROPERTY_SETUP_CARDS.filter((card) => !card.specced).map((card) => card.number),
-      [4, 7, 8],
-      [5, 7, 8],
+      [],
     );
-    assert.ok(PROPERTY_SETUP_CARDS.every((card) => (card.specced ? card.hash !== null : card.hash === null)));
+    assert.ok(
+      PROPERTY_SETUP_CARDS.every((card) =>
+        card.specced ? card.hash !== null : card.hash === null,
+      ),
+    );
     assert.equal(CARD1_STEPS.length, 8);
     assert.deepEqual(
       CARD1_STEPS.map((step) => step.title),
@@ -358,12 +421,22 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
 
     const incomplete = evaluateCard1Status(emptyCard1Draft(), { cards: {}, card1Steps: {} });
     assert.equal(incomplete, "not_started");
-    const started = evaluateCard1Status(emptyCard1Draft({ name: "Harbour House", timezone: "Africa/Addis_Ababa", currencyCode: "ETB" }), {
-      cards: { "property-business": "in_progress" },
-      card1Steps: { identity: "complete" },
-    });
+    const started = evaluateCard1Status(
+      emptyCard1Draft({
+        name: "Harbour House",
+        timezone: "Africa/Addis_Ababa",
+        currencyCode: "ETB",
+      }),
+      {
+        cards: { "property-business": "in_progress" },
+        card1Steps: { identity: "complete" },
+      },
+    );
     assert.equal(started, "in_progress");
-    assert.equal(evaluateProgrammeCardStatus("rooms-inventory", { cards: {}, card1Steps: {} }, "complete"), "not_started");
+    assert.equal(
+      evaluateProgrammeCardStatus("rooms-inventory", { cards: {}, card1Steps: {} }, "complete"),
+      "not_started",
+    );
 
     assert.match(hub, /PROPERTY_SETUP_CARDS.map/);
     assert.match(hub, /Coming soon/);
@@ -391,11 +464,14 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
       ["Dashboard", "FO", "Reservation", "Housekeeping", "Cashiering", "Night Audit", "Settings"],
     );
     assert.match(ui, /pms-card1-fullscreen/);
-    assert.match(ui, /pms-card1-top-nav/);
-    assert.match(ui, /CARD1_WORKSPACE_TITLE/);
+    assert.doesNotMatch(ui, /pms-card1-top-nav/);
+    assert.doesNotMatch(ui, /CARD1_PMS_NAV/);
+    assert.match(ui, /setup-kit/);
+    assert.match(ui, /PropertySetupWorkspaceShell/);
     assert.match(ui, /CARD1_SIDEBAR_OUT/);
+    assert.match(hub, /contentClassName=\{workspaceOpen \? "p-0" : undefined\}/);
     assert.doesNotMatch(ui, /Foundation badge|SET1_FOUNDATION_CHIP/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.match(settings, /isCard1WorkspaceHash/);
     assert.match(settings, /isCard2WorkspaceHash/);
     assert.match(shell, /hidePackageRailProp/);
@@ -404,7 +480,10 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
 
   it("redirects property-setup honestly and keeps Card 1 hash", () => {
     assert.equal(propertySetupRedirectHref(""), SET1_HUB_HREF);
-    assert.equal(propertySetupRedirectHref("#property-business"), `${SET1_HUB_HREF}#property-business`);
+    assert.equal(
+      propertySetupRedirectHref("#property-business"),
+      `${SET1_HUB_HREF}#property-business`,
+    );
     assert.equal(propertySetupRedirectHref("#card-1"), `${SET1_HUB_HREF}#property-business`);
     assert.equal(propertySetupRedirectHref("#policies"), `${SET1_HUB_HREF}#policies`);
     assert.equal(isCard1WorkspaceHash("#property-business"), true);
@@ -416,11 +495,24 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(CARD1_SUBTITLE, /compliance for your NORU setup/);
     assert.deepEqual(
       CARD1_LANGUAGES.map((row) => row.label),
-      ["English", "Amharic", "Afaan Oromo", "Tigrinya", "Arabic", "Spanish", "Dutch", "Chinese", "Portuguese"],
+      [
+        "English",
+        "Amharic",
+        "Afaan Oromo",
+        "Tigrinya",
+        "Arabic",
+        "Spanish",
+        "Dutch",
+        "Chinese",
+        "Portuguese",
+      ],
     );
     assert.ok(card1LanguageOptions("so").some((row) => row.id === "so" && row.label === "Somali"));
     assert.equal(validateIdentityFields(emptyCard1Draft()).name, "Property name is required.");
-    assert.equal(validateIdentityFields(emptyCard1Draft()).openingDate, "Opening date is required.");
+    assert.equal(
+      validateIdentityFields(emptyCard1Draft()).openingDate,
+      "Opening date is required.",
+    );
     assert.equal(
       validateIdentityFields(emptyCard1Draft({ websiteUrl: "not-a-url" })).websiteUrl,
       "Enter a valid website address.",
@@ -437,11 +529,122 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(ui, /pms-card1-status-rail/);
     assert.match(steps, /BrandImageField/);
     assert.match(steps, /createPropertyBrandImageUpload/);
+    assert.match(steps, /card1-short-description/);
+    assert.match(steps, /card1-independent/);
+    assert.match(steps, /card1-public/);
+    assert.match(steps, /PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS/);
+    assert.match(ui, /isShortDescriptionOverLimit\(draft.shortDescription\)/);
+    assert.doesNotMatch(steps, /Current Settings Summary/);
+    assert.doesNotMatch(steps, /xl:grid-cols-\[minmax\(0,1fr\)_18rem\]/);
+    assert.doesNotMatch(steps, /xl:grid-cols-\[20rem_minmax\(0,1fr\)_16rem\]/);
+    assert.match(steps, /xl:grid-cols-\[20rem_minmax\(0,1fr\)\]/);
+    assert.equal((ui.match(/data-testid="pms-card1-status-rail"/g) ?? []).length, 1);
+  });
+
+  it("normalizes checkin_ops typed values without persisting blank numeric keys", () => {
+    const liveState = parseCheckinOps({
+      minLeadTime: "24",
+      minLeadTimeHours: 24,
+      overstayGrace: "",
+      childPolicy: "Children are welcome",
+      earlyCheckinPolicy: "Subject to availability",
+      lateCheckoutPolicy: "Subject to availability",
+    });
+    const liveOutput = normalizeCard1CheckinOpsForPersistence(liveState);
+    assert.equal(liveOutput.minLeadTimeHours, 24);
+    assert.equal(Object.hasOwn(liveOutput, "overstayGraceMinutes"), false);
+    assert.deepEqual(liveOutput.childPolicyConfig, { summary: "Children are welcome" });
+    assert.equal(Object.hasOwn(liveOutput.childPolicyConfig as object, "minAge"), false);
+
+    const percentFee = normalizeCard1CheckinOpsForPersistence({
+      earlyCheckin: { allowed: true, feeBasis: "percent_stay", feeValue: "25" },
+    });
+    assert.deepEqual(percentFee.earlyCheckin, {
+      allowed: true,
+      feeBasis: "percent_stay",
+      feeValue: 25,
+    });
+
+    const fixedFee = normalizeCard1CheckinOpsForPersistence({
+      lateCheckout: { allowed: true, feeBasis: "fixed", feeValue: "60" },
+    });
+    assert.deepEqual(fixedFee.lateCheckout, {
+      allowed: true,
+      feeBasis: "fixed",
+      feeValue: 60,
+    });
+
+    const blankFee = normalizeCard1CheckinOpsForPersistence({
+      earlyCheckin: { allowed: true, feeBasis: "first_night", feeValue: "" },
+    });
+    assert.deepEqual(blankFee.earlyCheckin, {
+      allowed: true,
+      feeBasis: "first_night",
+    });
+
+    const agesAndGrace = normalizeCard1CheckinOpsForPersistence({
+      minLeadTimeHours: "24",
+      overstayGraceMinutes: "60",
+      childPolicyConfig: {
+        summary: "Ages are configured",
+        minAge: "2",
+        maxAge: "12",
+        freeUntilAge: "",
+        chargeFromAge: "6",
+      },
+    });
+    assert.deepEqual(agesAndGrace, {
+      minLeadTimeHours: 24,
+      overstayGraceMinutes: 60,
+      childPolicyConfig: {
+        summary: "Ages are configured",
+        minAge: 2,
+        maxAge: 12,
+        chargeFromAge: 6,
+      },
+    });
+
+    const legacyOnly = {
+      minLeadTime: "24",
+      overstayGrace: "1 hour",
+      childPolicy: "Legacy summary",
+      earlyCheckinPolicy: "Legacy early",
+      lateCheckoutPolicy: "Legacy late",
+    };
+    assert.deepEqual(normalizeCard1CheckinOpsForPersistence(legacyOnly), legacyOnly);
+
+    const mixed = normalizeCard1CheckinOpsForPersistence({
+      ...legacyOnly,
+      dayUseAllowed: true,
+      minLeadTimeHours: "12",
+      overstayGraceMinutes: null,
+      earlyCheckin: { allowed: false, feeBasis: "fixed", feeValue: null },
+      childPolicyConfig: {
+        summary: "Mixed summary",
+        minAge: null,
+        maxAge: "",
+        freeUntilAge: "5",
+        chargeFromAge: null,
+      },
+    });
+    assert.deepEqual(mixed, {
+      ...legacyOnly,
+      dayUseAllowed: true,
+      minLeadTimeHours: 12,
+      earlyCheckin: { allowed: false, feeBasis: "fixed" },
+      childPolicyConfig: { summary: "Mixed summary", freeUntilAge: 5 },
+    });
   });
 
   it("ships dual-lane 0063 without live apply, seed, or a second live flag", () => {
-    const drizzle063 = join(here, "../../../../drizzle/migrations/0063_pms_property_setup_card1_fidelity.sql");
-    const supabase063 = join(here, "../../../../supabase/migrations/0063_pms_property_setup_card1_fidelity.sql");
+    const drizzle063 = join(
+      here,
+      "../../../../drizzle/migrations/0063_pms_property_setup_card1_fidelity.sql",
+    );
+    const supabase063 = join(
+      here,
+      "../../../../supabase/migrations/0063_pms_property_setup_card1_fidelity.sql",
+    );
     assert.equal(existsSync(drizzle063), true);
     assert.equal(existsSync(supabase063), true);
     const drizzle = readFileSync(drizzle063, "utf8");
@@ -463,7 +666,52 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.doesNotMatch(drizzle, /INSERT INTO/);
     assert.match(drizzle, /do not apply to production from an agent/i);
 
-    const audit = readFileSync(new URL("./pms-set1-foundation.functions.ts", import.meta.url), "utf8");
+    const audit = readFileSync(
+      new URL("./pms-set1-foundation.functions.ts", import.meta.url),
+      "utf8",
+    );
     assert.match(audit, /CARD1_AUDIT_ACTIONS/);
+  });
+
+  it("ships dual-lane 0094 Card 1 functional hardening without apply, types.ts, or a second clock", () => {
+    const drizzle094 = join(
+      here,
+      "../../../../drizzle/migrations/0094_pms_card1_functional_hardening.sql",
+    );
+    const supabase094 = join(
+      here,
+      "../../../../supabase/migrations/0094_pms_card1_functional_hardening.sql",
+    );
+    assert.equal(existsSync(drizzle094), true);
+    assert.equal(existsSync(supabase094), true);
+    const drizzle = readFileSync(drizzle094, "utf8");
+    const supabase = readFileSync(supabase094, "utf8");
+    assert.equal(drizzle, supabase);
+    assert.match(drizzle, /APPLY AFTER MERGE/);
+    assert.match(drizzle, /do not apply to production from an agent/i);
+    assert.match(drizzle, /pms_property_department_contacts/);
+    assert.match(drizzle, /REFERENCES public\.pms_departments/);
+    assert.match(drizzle, /department_contacts JSON remains/);
+    assert.match(drizzle, /minLeadTimeHours/);
+    assert.match(drizzle, /overstayGraceMinutes/);
+    assert.match(drizzle, /earlyCheckin/);
+    assert.match(drizzle, /lateCheckout/);
+    assert.match(drizzle, /percent_stay/);
+    assert.match(drizzle, /childPolicyConfig/);
+    assert.match(drizzle, /storage_path/);
+    assert.match(drizzle, /pms_property_areas/);
+    assert.match(drizzle, /ON DELETE RESTRICT/);
+    assert.match(drizzle, /hotel_floors_wing_fk/);
+    assert.match(drizzle, /is_restaurant_member/);
+    assert.match(drizzle, /has_restaurant_role\(restaurant_id, 'owner'\)/);
+    assert.match(drizzle, /restaurant_staff_audit_log/);
+    assert.match(drizzle, /restaurants.business_date stays canonical/);
+    assert.match(drizzle, /No pms_card1_live/);
+    assert.doesNotMatch(drizzle, /ADD COLUMN IF NOT EXISTS pms_card1_live/);
+    assert.doesNotMatch(drizzle, /CREATE FUNCTION/);
+    assert.match(drizzle, /No SECURITY DEFINER/);
+    assert.match(drizzle, /No types.ts regen/);
+    assert.doesNotMatch(drizzle, /CREATE TABLE IF NOT EXISTS public\.pms_departments/);
+    assert.doesNotMatch(drizzle, /ADD COLUMN IF NOT EXISTS business_date /);
   });
 });

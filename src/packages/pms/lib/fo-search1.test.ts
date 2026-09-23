@@ -177,7 +177,9 @@ describe("FO-SEARCH1 empty, cap and chrome", () => {
       false,
     );
 
-    const chrome = readRel("../components/frontoffice/front-office-chrome.tsx");
+    const chrome =
+      readRel("../components/frontoffice/front-office-chrome.tsx") +
+      readRel("../components/pms-command-chrome.tsx");
     assert.match(chrome, /onGuestSearch/);
     assert.match(chrome, /Guest search/);
     assert.doesNotMatch(chrome, /fo-nav-search/);

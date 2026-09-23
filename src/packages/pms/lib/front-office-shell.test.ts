@@ -108,7 +108,9 @@ describe("FO-FS0 single left nav", () => {
     assert.match(shell, /hidePackageRail \? null/);
     assert.doesNotMatch(shell, /Option A/);
 
-    const chrome = readFileSync(new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url), "utf8");
+    const chrome =
+      readFileSync(new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url), "utf8") +
+      readFileSync(new URL("../components/pms-command-chrome.tsx", import.meta.url), "utf8");
     assert.match(chrome, /fo-pms-modules-escape/);
     assert.match(chrome, /FO_ESCAPE_MODULES/);
     assert.match(chrome, /PMS modules/);

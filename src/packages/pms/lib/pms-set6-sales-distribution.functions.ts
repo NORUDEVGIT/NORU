@@ -399,6 +399,12 @@ export const savePmsReportsCataloguePosture = createServerFn({ method: "POST" })
       if (isMissingSchemaError(error)) throw new Error(SET6_UNAVAILABLE_REPORTS);
       throw new Error(error.message);
     }
+    const { syncCard7DefinitionsFromSet6 } = await import("./reports-card7.functions");
+    await syncCard7DefinitionsFromSet6(
+      supabaseAdmin,
+      data.restaurantId,
+      data.packs,
+    );
     const after = await loadSet6Snapshot(supabaseAdmin, data.restaurantId);
     const auditWritten = await writeAudit(supabaseAdmin, {
       restaurantId: data.restaurantId,
@@ -440,6 +446,11 @@ export const savePmsReportsScheduleAccessPosture = createServerFn({ method: "POS
       if (isMissingSchemaError(error)) throw new Error(SET6_UNAVAILABLE_REPORTS);
       throw new Error(error.message);
     }
+    const { syncCard7PolicyFromSet6 } = await import("./reports-card7.functions");
+    await syncCard7PolicyFromSet6(supabaseAdmin, data.restaurantId, {
+      scheduleEnabled: data.scheduleEnabled,
+      ownerManagerAccessOnly: data.ownerManagerAccessOnly,
+    });
     const after = await loadSet6Snapshot(supabaseAdmin, data.restaurantId);
     const auditWritten = await writeAudit(supabaseAdmin, {
       restaurantId: data.restaurantId,

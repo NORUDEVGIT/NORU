@@ -12,39 +12,8 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import type { Database, Json } from "@/integrations/supabase/types";
-import {
-  FO_FEE_DEFAULTS_AUDIT_ACTION,
-  normalizeFoFeeDefaults,
-  validateFoFeeDefaults,
-  type FoFeeDefaults,
-} from "./fo-fee-defaults";
-import {
-  SET1_ACTIVATE_DENIED,
-  SET1_AUDIT_ACTION,
-  SET1_DENIED,
-  canActivateSet1,
-  canEditSet1,
-  emptyIdentity,
-  emptyOps,
-  emptyPolicies,
-  emptyTaxes,
-  evaluateSet1Checklist,
-  isMissingColumnError,
-  normalizeClock,
-  optionalInt,
-  optionalNumber,
-  parseDepositType,
-  parseFeeBasis,
-  parsePropertyType,
-  parseTaxIdentities,
-  type Set1Foundation,
-  type Set1IdentityDraft,
-  type Set1OpsDraft,
-  type Set1PoliciesDraft,
-  type Set1SectionId,
-  type Set1TaxesDraft,
-  type TaxIdentity,
-} from "./pms-set1-foundation";
+import { FO_FEE_DEFAULTS_AUDIT_ACTION, normalizeFoFeeDefaults, validateFoFeeDefaults, type FoFeeDefaults } from "./fo-fee-defaults";
+import { SET1_ACTIVATE_DENIED, SET1_AUDIT_ACTION, SET1_DENIED, canActivateSet1, canEditSet1, emptyIdentity, emptyOps, emptyPolicies, emptyTaxes, evaluateSet1Checklist, isMissingColumnError, normalizeClock, optionalInt, optionalNumber, parseDepositType, parseFeeBasis, parsePropertyType, parseTaxIdentities, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1SectionId, type Set1TaxesDraft, type TaxIdentity } from "./pms-set1-foundation";
 import { SET2_AUDIT_AMENITY, SET2_AUDIT_OUTLET, SET2_AUDIT_STRUCTURE, activateInputFromSnapshot } from "./pms-set2-structure";
 import { loadSet2Snapshot } from "./pms-set2-structure.functions";
 import { SET3_AUDIT_ACTIONS, activateInputFromSet3Snapshot } from "./pms-set3-rates-guest";
@@ -58,14 +27,13 @@ import { loadSet6Snapshot } from "./pms-set6-sales-distribution.functions";
 import { POLISH1_AUDIT_ACTIONS, activateInputFromPolish1Snapshot } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { CARD1_AUDIT_ACTIONS } from "./pms-property-setup-card1";
+import { loadCard8ActivationEligibility } from "./pms-property-setup-card8-activation.server";
 
 const idSchema = z.string().uuid();
 
-const CORE_COLUMNS =
-  "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, tax_inclusive, tax_rate, service_enabled, service_rate, fo_cancel_fee_required, fo_cancel_fee_default, fo_noshow_fee_required, fo_noshow_fee_default";
+const CORE_COLUMNS = "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, tax_inclusive, tax_rate, service_enabled, service_rate, fo_cancel_fee_required, fo_cancel_fee_default, fo_noshow_fee_required, fo_noshow_fee_default";
 
-const FOUNDATION_COLUMNS =
-  `${CORE_COLUMNS}, property_code, legal_name, property_type, tax_identities, check_in_time, check_out_time, hotel_day_open, tax_name, cancel_window_hours, cancel_fee_basis, noshow_fee_basis, deposit_required, deposit_type, deposit_value, early_checkin_allowed, early_checkin_fee, early_checkin_needs_approval, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, pms_set1_live`;
+const FOUNDATION_COLUMNS = `${CORE_COLUMNS}, property_code, legal_name, property_type, tax_identities, check_in_time, check_out_time, hotel_day_open, tax_name, cancel_window_hours, cancel_fee_basis, noshow_fee_basis, deposit_required, deposit_type, deposit_value, early_checkin_allowed, early_checkin_fee, early_checkin_needs_approval, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, pms_set1_live`;
 
 type RestaurantRow = Database["public"]["Tables"]["restaurants"]["Row"];
 type RestaurantUpdate = Database["public"]["Tables"]["restaurants"]["Update"];
@@ -135,10 +103,7 @@ function snapshotFromRow(row: RestaurantRow | null, foundationColumnsAvailable: 
   };
 }
 
-async function loadRestaurantRow(
-  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
-  restaurantId: string,
-): Promise<{ row: RestaurantRow | null; foundationColumnsAvailable: boolean }> {
+async function loadRestaurantRow(supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], restaurantId: string): Promise<{ row: RestaurantRow | null; foundationColumnsAvailable: boolean }> {
   const full = await supabaseAdmin.from("restaurants").select(FOUNDATION_COLUMNS).eq("id", restaurantId).maybeSingle();
   if (!full.error) return { row: (full.data as RestaurantRow | null) ?? null, foundationColumnsAvailable: true };
   if (!isMissingColumnError(full.error)) throw new Error(full.error.message);
@@ -185,14 +150,7 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { row, foundationColumnsAvailable } = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const snapshot = snapshotFromRow(row, foundationColumnsAvailable);
-    const [set2, set3, set4, set5, set6, polish1] = await Promise.all([
-      loadSet2Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet3Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet4Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet5Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet6Snapshot(supabaseAdmin, data.restaurantId),
-      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
-    ]);
+    const [set2, set3, set4, set5, set6, polish1] = await Promise.all([loadSet2Snapshot(supabaseAdmin, data.restaurantId), loadSet3Snapshot(supabaseAdmin, data.restaurantId), loadSet4Snapshot(supabaseAdmin, data.restaurantId), loadSet5Snapshot(supabaseAdmin, data.restaurantId), loadSet6Snapshot(supabaseAdmin, data.restaurantId), loadPolish1Snapshot(supabaseAdmin, data.restaurantId)]);
     const checklist = evaluateSet1Checklist({
       identity: snapshot.identity,
       ops: snapshot.ops,
@@ -429,14 +387,7 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
       auditWritten = auditWritten && feeAudit;
     }
 
-    const [set2, set3, set4, set5, set6, polish1] = await Promise.all([
-      loadSet2Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet3Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet4Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet5Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet6Snapshot(supabaseAdmin, data.restaurantId),
-      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
-    ]);
+    const [set2, set3, set4, set5, set6, polish1] = await Promise.all([loadSet2Snapshot(supabaseAdmin, data.restaurantId), loadSet3Snapshot(supabaseAdmin, data.restaurantId), loadSet4Snapshot(supabaseAdmin, data.restaurantId), loadSet5Snapshot(supabaseAdmin, data.restaurantId), loadSet6Snapshot(supabaseAdmin, data.restaurantId), loadPolish1Snapshot(supabaseAdmin, data.restaurantId)]);
     const checklist = evaluateSet1Checklist({
       identity: after.identity,
       ops: after.ops,
@@ -452,57 +403,77 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
       set6: activateInputFromSet6Snapshot(set6),
       polish1: activateInputFromPolish1Snapshot(polish1),
     });
-    return { ok: true as const, snapshot: after, set2, set3, set4, set5, set6, polish1, checklist, auditWritten };
+    return {
+      ok: true as const,
+      snapshot: after,
+      set2,
+      set3,
+      set4,
+      set5,
+      set6,
+      polish1,
+      checklist,
+      auditWritten,
+    };
   });
+
+export async function loadSet1ActivationState(supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], restaurantId: string, role: string) {
+  const loaded = await loadRestaurantRow(supabaseAdmin, restaurantId);
+  if (!loaded.foundationColumnsAvailable) {
+    throw new Error("Activate is unavailable until foundation columns are applied.");
+  }
+  const snapshot = snapshotFromRow(loaded.row, true);
+  const [set2, set3, set4, set5, set6, polish1] = await Promise.all([loadSet2Snapshot(supabaseAdmin, restaurantId), loadSet3Snapshot(supabaseAdmin, restaurantId), loadSet4Snapshot(supabaseAdmin, restaurantId), loadSet5Snapshot(supabaseAdmin, restaurantId), loadSet6Snapshot(supabaseAdmin, restaurantId), loadPolish1Snapshot(supabaseAdmin, restaurantId)]);
+  const checklist = evaluateSet1Checklist({
+    identity: snapshot.identity,
+    ops: snapshot.ops,
+    taxes: snapshot.taxes,
+    policies: snapshot.policies,
+    foundationColumnsAvailable: true,
+    pmsSet1Live: snapshot.pmsSet1Live,
+    role,
+    set2: activateInputFromSnapshot(set2),
+    set3: activateInputFromSet3Snapshot(set3),
+    set4: activateInputFromSet4Snapshot(set4),
+    set5: activateInputFromSet5Snapshot(set5),
+    set6: activateInputFromSet6Snapshot(set6),
+    polish1: activateInputFromPolish1Snapshot(polish1),
+  });
+  return { snapshot, set2, set3, set4, set5, set6, polish1, checklist };
+}
 
 export const activatePmsSet1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        explicitConfirmation: z.boolean(),
+      })
+      .parse(input),
+  )
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canActivateSet1(me.role)) throw new Error(SET1_ACTIVATE_DENIED);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
-    if (!loaded.foundationColumnsAvailable) {
-      throw new Error("Activate is unavailable until foundation columns are applied.");
+    const activationState = await loadSet1ActivationState(supabaseAdmin, data.restaurantId, me.role);
+    const before = activationState.snapshot;
+    const eligibility = await loadCard8ActivationEligibility(supabaseAdmin, data.restaurantId, context.userId, me.role, activationState.checklist.canActivate);
+    const blockers = [...eligibility.blockers];
+    if (!data.explicitConfirmation) {
+      blockers.push("Explicit activation confirmation is required.");
     }
-    const before = snapshotFromRow(loaded.row, true);
-    const [set2Before, set3Before, set4Before, set5Before, set6Before, polish1Before] = await Promise.all([
-      loadSet2Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet3Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet4Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet5Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet6Snapshot(supabaseAdmin, data.restaurantId),
-      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
-    ]);
-    const checklist = evaluateSet1Checklist({
-      identity: before.identity,
-      ops: before.ops,
-      taxes: before.taxes,
-      policies: before.policies,
-      foundationColumnsAvailable: true,
-      pmsSet1Live: before.pmsSet1Live,
-      role: me.role,
-      set2: activateInputFromSnapshot(set2Before),
-      set3: activateInputFromSet3Snapshot(set3Before),
-      set4: activateInputFromSet4Snapshot(set4Before),
-      set5: activateInputFromSet5Snapshot(set5Before),
-      set6: activateInputFromSet6Snapshot(set6Before),
-      polish1: activateInputFromPolish1Snapshot(polish1Before),
-    });
-    if (!checklist.canActivate) {
-      throw new Error(
-        checklist.mandatoryMissing.length
-          ? `Cannot activate yet. Missing: ${checklist.mandatoryMissing.join(", ")}.`
-          : "Cannot activate until every mandatory Foundation, structure, rooms, outlets, rates, guest-rules, housekeeping and room-inventory item is complete.",
-      );
+    if (blockers.length > 0) {
+      return {
+        ok: false as const,
+        blockers,
+        warnings: eligibility.warnings,
+        eligibility,
+      };
     }
 
-    const { error } = await supabaseAdmin
-      .from("restaurants")
-      .update({ pms_set1_live: true })
-      .eq("id", data.restaurantId);
+    const { error } = await supabaseAdmin.from("restaurants").update({ pms_set1_live: true }).eq("id", data.restaurantId);
     if (error) {
       if (isMissingColumnError(error)) throw new Error("Activate is unavailable until foundation columns are applied.");
       throw new Error(error.message);
@@ -518,16 +489,11 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       before: { pmsSet1Live: before.pmsSet1Live },
       after: { pmsSet1Live: after.pmsSet1Live },
     });
-    const [set2After, set3After, set4After, set5After, set6After, polish1After] = await Promise.all([
-      loadSet2Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet3Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet4Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet5Snapshot(supabaseAdmin, data.restaurantId),
-      loadSet6Snapshot(supabaseAdmin, data.restaurantId),
-      loadPolish1Snapshot(supabaseAdmin, data.restaurantId),
-    ]);
+    const [set2After, set3After, set4After, set5After, set6After, polish1After] = await Promise.all([loadSet2Snapshot(supabaseAdmin, data.restaurantId), loadSet3Snapshot(supabaseAdmin, data.restaurantId), loadSet4Snapshot(supabaseAdmin, data.restaurantId), loadSet5Snapshot(supabaseAdmin, data.restaurantId), loadSet6Snapshot(supabaseAdmin, data.restaurantId), loadPolish1Snapshot(supabaseAdmin, data.restaurantId)]);
     return {
       ok: true as const,
+      blockers: [] as string[],
+      warnings: eligibility.warnings,
       snapshot: after,
       set2: set2After,
       set3: set3After,
@@ -571,30 +537,23 @@ export const listPmsSet1Audit = createServerFn({ method: "POST" })
       .from("restaurant_staff_audit_log")
       .select("id, action, created_at, metadata")
       .eq("restaurant_id", data.restaurantId)
-      .in("action", [
-        SET1_AUDIT_ACTION,
-        FO_FEE_DEFAULTS_AUDIT_ACTION,
-        SET2_AUDIT_STRUCTURE,
-        SET2_AUDIT_OUTLET,
-        SET2_AUDIT_AMENITY,
-        ...SET3_AUDIT_ACTIONS,
-        ...SET4_AUDIT_ACTIONS,
-        ...SET5_AUDIT_ACTIONS,
-        ...SET6_AUDIT_ACTIONS,
-        ...POLISH1_AUDIT_ACTIONS,
-        ...CARD1_AUDIT_ACTIONS,
-      ])
+      .in("action", [SET1_AUDIT_ACTION, FO_FEE_DEFAULTS_AUDIT_ACTION, SET2_AUDIT_STRUCTURE, SET2_AUDIT_OUTLET, SET2_AUDIT_AMENITY, ...SET3_AUDIT_ACTIONS, ...SET4_AUDIT_ACTIONS, ...SET5_AUDIT_ACTIONS, ...SET6_AUDIT_ACTIONS, ...POLISH1_AUDIT_ACTIONS, ...CARD1_AUDIT_ACTIONS])
       .order("created_at", { ascending: false })
       .limit(40);
     if (error) return [];
-    return ((rows ?? []) as Array<{ id: string; action: string; created_at: string; metadata: { section?: string } | null }>).map(
-      (row) => ({
-        id: row.id,
-        action: row.action,
-        createdAt: row.created_at,
-        section: row.metadata?.section ?? null,
-      }),
-    );
+    return (
+      (rows ?? []) as Array<{
+        id: string;
+        action: string;
+        created_at: string;
+        metadata: { section?: string } | null;
+      }>
+    ).map((row) => ({
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      section: row.metadata?.section ?? null,
+    }));
   });
 
 export type { Set1Foundation, Set1IdentityDraft, Set1OpsDraft, Set1TaxesDraft, Set1PoliciesDraft, Set1SectionId, TaxIdentity };

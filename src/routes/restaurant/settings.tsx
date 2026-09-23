@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { SettingsWorkspace } from "@/core/components/workspaces/settings-workspace";
@@ -12,6 +12,8 @@ import { isCard3WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card
 import { isCard5WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card5";
 import { isCard4WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card4";
 import { isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
+import { isCard7WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card7";
+import { isCard8WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card8";
 
 export const Route = createFileRoute("/restaurant/settings")({
   ssr: false,
@@ -37,32 +39,25 @@ export const Route = createFileRoute("/restaurant/settings")({
 });
 
 function RestaurantSettings() {
-  const [workspaceOpen, setWorkspaceOpen] = useState(() =>
-    typeof window !== "undefined"
-      ? isCard1WorkspaceHash(window.location.hash) ||
+  useEffect(() => {
+    const apply = () => {
+      void (
+        isCard1WorkspaceHash(window.location.hash) ||
         isCard2WorkspaceHash(window.location.hash) ||
         isCard3WorkspaceHash(window.location.hash) ||
         isCard5WorkspaceHash(window.location.hash) ||
         isCard4WorkspaceHash(window.location.hash) ||
-        isCard6WorkspaceHash(window.location.hash)
-      : false,
-  );
-  useEffect(() => {
-    const apply = () =>
-      setWorkspaceOpen(
-        isCard1WorkspaceHash(window.location.hash) ||
-          isCard2WorkspaceHash(window.location.hash) ||
-          isCard3WorkspaceHash(window.location.hash) ||
-          isCard5WorkspaceHash(window.location.hash) ||
-          isCard4WorkspaceHash(window.location.hash) ||
-          isCard6WorkspaceHash(window.location.hash),
+        isCard6WorkspaceHash(window.location.hash) ||
+        isCard7WorkspaceHash(window.location.hash) ||
+        isCard8WorkspaceHash(window.location.hash)
       );
+    };
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   return (
-    <RestaurantShell active="Settings" hidePackageRail={workspaceOpen}>
+    <RestaurantShell active="Settings" hidePackageRail>
       {(m) => <PropertySettingsPage membership={m} />}
     </RestaurantShell>
   );

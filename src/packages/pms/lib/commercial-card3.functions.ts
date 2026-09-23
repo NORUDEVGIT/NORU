@@ -34,7 +34,7 @@ const setupCode = z
   .string()
   .trim()
   .transform((value) => value.toUpperCase())
-  .refine((value) => /^[A-Z0-9_]{1,20}$/.test(value), "Use 1–20 letters, numbers, or underscores.");
+  .refine((value) => /^[A-Z0-9_]{1,20}$/.test(value), "Use 1–20 letters, numbers, or underscores. Example: VAT_15.");
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 const descriptionSchema = z.string().trim().max(500).optional();
 const roomTypeIdsSchema = z.array(idSchema).default([]);
@@ -364,6 +364,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string) {
     overbooking,
   };
 }
+
+export { loadSnapshot as loadCommercialCard3Snapshot };
 
 async function loadAudit(db: DbClient, restaurantId: string) {
   const result = await db

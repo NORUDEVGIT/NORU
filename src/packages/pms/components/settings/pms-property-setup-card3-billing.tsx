@@ -13,18 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
 import { Switch } from "@/shared/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
-import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  Card3InheritedStrip,
+  Card3ListSection,
+  Card3OverlapSheet,
+  Card3Section,
+  Card3StatusDot,
+  useCard3DraftSave,
+} from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   getBillingCard3,
@@ -41,8 +40,6 @@ import {
   INVOICE_TAX_DISPLAYS,
   type BillingPayerKind,
   type BillingRuleCard3Row,
-  type Card3BillingTabId,
-  type BillingCard3AuditRow,
   type BillingCard3Snapshot,
   type InvoiceFormat,
   type InvoiceTaxDisplay,
@@ -82,7 +79,6 @@ export function PmsPropertySetupCard3Billing({
   restaurantId,
   canEdit,
   domain,
-  onBack,
 }: {
   restaurantId: string;
   canEdit: boolean;
@@ -93,9 +89,7 @@ export function PmsPropertySetupCard3Billing({
   const load = useServerFn(getBillingCard3);
   const saveSettings = useServerFn(saveInvoiceSettingsCard3);
   const saveRule = useServerFn(saveBillingRuleCard3);
-  const [tab, setTab] = useState<Card3BillingTabId>("overview");
   const [search, setSearch] = useState("");
-  const [showAudit, setShowAudit] = useState(false);
   const [ruleDraft, setRuleDraft] = useState<BillingRuleCard3Row | "new" | null>(null);
 
   const query = useQuery({
@@ -103,8 +97,6 @@ export function PmsPropertySetupCard3Billing({
     queryFn: () => load({ data: { restaurantId } }),
   });
   const snapshot: BillingCard3Snapshot | undefined = query.data?.snapshot;
-  const audit = (query.data?.audit ?? []) as BillingCard3AuditRow[];
-  const readiness = query.data?.readiness;
   const inherited = snapshot?.inherited;
   const billingRules = useMemo(() => snapshot?.billingRules ?? [], [snapshot?.billingRules]);
   const filteredRules = useMemo(
@@ -143,198 +135,119 @@ export function PmsPropertySetupCard3Billing({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  void CARD3_BILLING_TABS;
 
   return (
-    <Tabs value={tab} onValueChange={(value) => setTab(value as Card3BillingTabId)}>
-      <PmsPropertySetupCard3Workspace
-        domain={domain}
-        onBack={onBack}
-        onAuditHistory={() => setShowAudit((open) => !open)}
-        tabs={
-          <TabsList className="mb-1 flex h-auto flex-wrap">
-            {CARD3_BILLING_TABS.map((item) => (
-              <TabsTrigger
-                key={item.id}
-                value={item.id}
-                className={goldFocus}
-                data-testid={`card3-billing-tab-${item.id}`}
-              >
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        }
-        search={
-          tab === "billing-rules" ? (
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search billing rules"
-              aria-label="Search billing rules"
-              className={`max-w-sm ${goldFocus}`}
-            />
-          ) : null
-        }
-        drawer={
-          showAudit ? (
-            <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-              <h2 className="font-display text-lg text-[#251605]">Audit History</h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                {audit.length === 0 ? (
-                  <li className="text-muted-foreground">
-                    No billing or invoice-setup changes recorded yet.
-                  </li>
-                ) : (
-                  audit.map((row) => (
-                    <li key={row.id}>
-                      <p className="font-medium text-[#251605]">{row.action}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.detail ? `${row.detail} · ` : ""}
-                        {row.createdAt}
-                      </p>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          ) : null
-        }
-      >
-        {query.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading billing and invoicing…</p>
-        ) : query.isError || !snapshot ? (
-          <p className="text-sm text-destructive">
-            {(query.error as Error | undefined)?.message ?? "Billing & Invoicing are unavailable."}
-          </p>
-        ) : (
-          <div className="space-y-4" data-testid="pms-card3-billing">
-            {tab === "overview" ? (
-              <div className="space-y-4">
-                <p className="rounded-xl border border-[#E6D7B8] bg-[#f7f4ef] p-4 text-sm text-[#251605]">
-                  Legal identity, branding, VAT, and base currency are inherited from Card 1. Taxes
-                  and payment methods stay on earlier Card 3 domains. City ledger is out of this workspace.
-                </p>
-                <dl className="grid gap-2 rounded-xl border border-[#E6D7B8] bg-white p-4 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Inherited from Card 1 · legal entity
-                    </dt>
-                    <dd className="text-[#251605]">{inherited?.legalEntityName || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Inherited from Card 1 · legal name
-                    </dt>
-                    <dd className="text-[#251605]">{inherited?.legalName || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Inherited from Card 1 · brand
-                    </dt>
-                    <dd className="text-[#251605]">{inherited?.brandName || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Inherited from Card 1 · trading name
-                    </dt>
-                    <dd className="text-[#251605]">{inherited?.tradingName || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Inherited from Card 1 · VAT
-                    </dt>
-                    <dd className="text-[#251605]">
-                      {inherited?.vatRegistered
-                        ? inherited.vatNumber || "Registered"
-                        : inherited?.vatNumber || "Not registered"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Inherited from Card 1 · currency
-                    </dt>
-                    <dd className="text-[#251605]">{inherited?.currencyCode || "—"}</dd>
-                  </div>
-                </dl>
-                <p className="rounded-xl border border-[#E6D7B8] bg-white p-4 text-sm text-muted-foreground">
-                  This configuration makes no reservation or folio operational changes.
-                </p>
-                <p className="text-sm font-medium text-[#251605]">
-                  Domain status: {propertySetupStatusLabel(readiness?.status ?? "not_started")}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Invoice settings {snapshot.invoiceSettings ? "saved" : "not saved"} ·{" "}
-                  {billingRules.length} billing rules
-                </p>
-                {(readiness?.blockers ?? []).length > 0 ? (
-                  <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                    {readiness?.blockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
-                ) : null}
+    <PmsPropertySetupCard3Workspace domain={domain}>
+      {query.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading billing and invoicing…</p>
+      ) : query.isError || !snapshot ? (
+        <p className="text-sm text-destructive">
+          {(query.error as Error | undefined)?.message ?? "Billing & Invoicing are unavailable."}
+        </p>
+      ) : (
+        <div className="space-y-4" data-testid="pms-card3-billing">
+          <Card3InheritedStrip>
+            Legal identity, branding, VAT, and base currency are inherited from Card 1. Taxes and
+            payment methods stay on earlier Card 3 domains. City ledger is out of this workspace.
+            This configuration makes no reservation or folio operational changes.
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Inherited from Card 1 · legal entity
+                </dt>
+                <dd className="text-[#251605]">{inherited?.legalEntityName || "—"}</dd>
               </div>
-            ) : null}
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Inherited from Card 1 · legal name
+                </dt>
+                <dd className="text-[#251605]">{inherited?.legalName || "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Inherited from Card 1 · brand
+                </dt>
+                <dd className="text-[#251605]">{inherited?.brandName || "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Inherited from Card 1 · trading name
+                </dt>
+                <dd className="text-[#251605]">{inherited?.tradingName || "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Inherited from Card 1 · VAT
+                </dt>
+                <dd className="text-[#251605]">
+                  {inherited?.vatRegistered
+                    ? inherited.vatNumber || "Registered"
+                    : inherited?.vatNumber || "Not registered"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Inherited from Card 1 · currency
+                </dt>
+                <dd className="text-[#251605]">{inherited?.currencyCode || "—"}</dd>
+              </div>
+            </dl>
+          </Card3InheritedStrip>
 
-            {tab === "invoice-settings" ? (
-              <InvoiceSettingsForm
-                key={
-                  snapshot.invoiceSettings
-                    ? `${snapshot.invoiceSettings.prefix}-${snapshot.invoiceSettings.startingNumber}`
-                    : "invoice-settings-empty"
-                }
-                canEdit={canEdit}
-                currencyCode={inherited?.currencyCode ?? ""}
-                value={snapshot.invoiceSettings}
-                pending={settingsMutation.isPending}
-                onSave={(payload) => settingsMutation.mutate({ restaurantId, ...payload })}
-              />
-            ) : null}
-
-            {tab === "billing-rules" ? (
-              <CatalogueTable
-                canEdit={canEdit}
-                addLabel="Add billing rule"
-                onAdd={() => setRuleDraft("new")}
-                columns={[
-                  "Code",
-                  "Name",
-                  "Payer",
-                  "Guest %",
-                  "Payment terms",
-                  "Default",
-                  "Status",
-                ]}
-                empty="No billing rules saved yet."
-                rows={filteredRules.map((row) => ({
-                  id: row.id,
-                  cells: [
-                    row.code,
-                    row.name,
-                    row.payerKindLabel,
-                    row.splitGuestPercent == null ? "—" : `${row.splitGuestPercent}%`,
-                    row.paymentTerms || "—",
-                    row.isDefault ? "Default" : "—",
-                    row.active ? "Active" : "Inactive",
-                  ],
-                  onEdit: () => setRuleDraft(row),
-                }))}
-              />
-            ) : null}
-
-            <BillingRuleSheet
-              key={ruleDraft === "new" ? "rule-new" : (ruleDraft?.id ?? "rule-closed")}
-              open={ruleDraft !== null}
+          <Card3Section title="Invoice settings" icon="document">
+            <InvoiceSettingsForm
+              key={
+                snapshot.invoiceSettings
+                  ? `${snapshot.invoiceSettings.prefix}-${snapshot.invoiceSettings.startingNumber}`
+                  : "invoice-settings-empty"
+              }
               canEdit={canEdit}
-              value={ruleDraft === "new" || ruleDraft === null ? null : ruleDraft}
-              pending={ruleMutation.isPending}
-              onClose={() => setRuleDraft(null)}
-              onSave={(payload) => ruleMutation.mutate({ restaurantId, ...payload })}
+              currencyCode={inherited?.currencyCode ?? ""}
+              value={snapshot.invoiceSettings}
+              pending={settingsMutation.isPending}
+              onSave={(payload) => settingsMutation.mutate({ restaurantId, ...payload })}
             />
-          </div>
-        )}
-      </PmsPropertySetupCard3Workspace>
-    </Tabs>
+          </Card3Section>
+
+          <Card3ListSection
+            title="Billing rules"
+            icon="document"
+            search={search}
+            onSearch={setSearch}
+            placeholder="Search billing rules"
+            canEdit={canEdit}
+            addLabel="Add billing rule"
+            onAdd={() => setRuleDraft("new")}
+            columns={["Code", "Name", "Payer", "Guest %", "Payment terms", "Default", "Status"]}
+            empty="No billing rules saved yet."
+            rows={filteredRules.map((row) => ({
+              id: row.id,
+              cells: [
+                row.code,
+                row.name,
+                row.payerKindLabel,
+                row.splitGuestPercent == null ? "—" : `${row.splitGuestPercent}%`,
+                row.paymentTerms || "—",
+                row.isDefault ? "Default" : "—",
+                <Card3StatusDot active={row.active} />,
+              ],
+              onEdit: () => setRuleDraft(row),
+            }))}
+          />
+
+          <BillingRuleSheet
+            key={ruleDraft === "new" ? "rule-new" : (ruleDraft?.id ?? "rule-closed")}
+            open={ruleDraft !== null}
+            canEdit={canEdit}
+            value={ruleDraft === "new" || ruleDraft === null ? null : ruleDraft}
+            pending={ruleMutation.isPending}
+            onClose={() => setRuleDraft(null)}
+            onSave={(payload) => ruleMutation.mutate({ restaurantId, ...payload })}
+          />
+        </div>
+      )}
+    </PmsPropertySetupCard3Workspace>
   );
 }
 
@@ -364,6 +277,35 @@ function InvoiceSettingsForm({
   const [invoiceFormat, setInvoiceFormat] = useState<InvoiceFormat>(
     value?.invoiceFormat ?? "standard",
   );
+  const payload = useMemo(
+    () => ({
+      prefix,
+      startingNumber: Number(startingNumber),
+      numberPadding: Number(numberPadding),
+      taxDisplay,
+      invoiceFormat,
+    }),
+    [prefix, startingNumber, numberPadding, taxDisplay, invoiceFormat],
+  );
+  const dirty =
+    prefix !== (value?.prefix ?? "INV") ||
+    Number(startingNumber) !== (value?.startingNumber ?? 1) ||
+    Number(numberPadding) !== (value?.numberPadding ?? 6) ||
+    taxDisplay !== (value?.taxDisplay ?? "exclusive") ||
+    invoiceFormat !== (value?.invoiceFormat ?? "standard");
+  useCard3DraftSave(
+    useMemo(
+      () =>
+        canEdit
+          ? {
+              dirty,
+              pending,
+              save: () => onSave(payload),
+            }
+          : null,
+      [canEdit, dirty, pending, onSave, payload],
+    ),
+  );
 
   return (
     <form
@@ -371,13 +313,7 @@ function InvoiceSettingsForm({
       onSubmit={(event) => {
         event.preventDefault();
         if (!canEdit) return;
-        onSave({
-          prefix,
-          startingNumber: Number(startingNumber),
-          numberPadding: Number(numberPadding),
-          taxDisplay,
-          invoiceFormat,
-        });
+        onSave(payload);
       }}
     >
       <p className="text-sm text-muted-foreground">
@@ -471,84 +407,6 @@ function InvoiceSettingsForm({
   );
 }
 
-function CatalogueTable({
-  canEdit,
-  addLabel,
-  empty,
-  columns,
-  rows,
-  onAdd,
-}: {
-  canEdit: boolean;
-  addLabel: string;
-  empty: string;
-  columns: string[];
-  rows: { id: string; cells: string[]; onEdit: () => void }[];
-  onAdd: () => void;
-}) {
-  return (
-    <div className="space-y-3">
-      {canEdit ? (
-        <Button
-          type="button"
-          onClick={onAdd}
-          className={`bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 ${goldFocus}`}
-        >
-          {addLabel}
-        </Button>
-      ) : null}
-      <div className="overflow-x-auto rounded-2xl border border-border bg-white">
-        <table className="w-full min-w-[48rem] text-left text-sm">
-          <thead className="border-b bg-[#f7f4ef] text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              {columns.map((column) => (
-                <th key={column} scope="col" className="px-3 py-2">
-                  {column}
-                </th>
-              ))}
-              <th scope="col" className="px-3 py-2">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length + 1} className="px-3 py-6 text-muted-foreground">
-                  {empty}
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.id} className="border-t">
-                  {row.cells.map((cell, index) => (
-                    <td key={`${row.id}-${index}`} className="px-3 py-2 align-top">
-                      {cell}
-                    </td>
-                  ))}
-                  <td className="px-3 py-2">
-                    {canEdit ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className={goldFocus}
-                        onClick={row.onEdit}
-                      >
-                        Edit
-                      </Button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function ActiveField({
   id,
   label,
@@ -613,135 +471,122 @@ function BillingRuleSheet({
   const [active, setActive] = useState(value?.active ?? true);
 
   return (
-    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{value ? "Edit billing rule" : "Add billing rule"}</SheetTitle>
-          <SheetDescription>
-            Setup payer hint only. This does not split folios or post city ledger.
-          </SheetDescription>
-        </SheetHeader>
-        <form
-          className="mt-4 space-y-3 px-1"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canEdit) return;
-            onSave({
-              ...(value ? { id: value.id } : {}),
-              code,
-              name,
-              description,
-              payerKind,
-              splitGuestPercent: payerKind === "split" ? Number(splitGuestPercent) : null,
-              paymentTerms,
-              isDefault,
-              active,
-            });
-          }}
-        >
-          <div className="space-y-1">
-            <Label htmlFor="rule-code">Code</Label>
-            <Input
-              id="rule-code"
-              value={code}
-              maxLength={20}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="rule-name">Name</Label>
-            <Input
-              id="rule-name"
-              value={name}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="rule-description">Description</Label>
-            <Textarea
-              id="rule-description"
-              value={description}
-              maxLength={500}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="rule-payer">Payer</Label>
-            <Select
-              value={payerKind}
-              onValueChange={(next) => setPayerKind(next as BillingPayerKind)}
-              disabled={!canEdit}
-            >
-              <SelectTrigger id="rule-payer" className={goldFocus}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BILLING_PAYER_KINDS.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {BILLING_PAYER_KIND_LABELS[item]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {payerKind === "split" ? (
-            <div className="space-y-1">
-              <Label htmlFor="rule-split">Guest percent</Label>
-              <Input
-                id="rule-split"
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                value={splitGuestPercent}
-                disabled={!canEdit}
-                className={goldFocus}
-                onChange={(event) => setSplitGuestPercent(event.target.value)}
-              />
-            </div>
-          ) : null}
-          <div className="space-y-1">
-            <Label htmlFor="rule-terms">Payment terms</Label>
-            <Input
-              id="rule-terms"
-              value={paymentTerms}
-              maxLength={80}
-              disabled={!canEdit}
-              className={goldFocus}
-              onChange={(event) => setPaymentTerms(event.target.value)}
-            />
-          </div>
-          <ActiveField
-            id="rule-default"
-            label="Default rule"
-            checked={isDefault}
-            canEdit={canEdit}
-            onChange={setIsDefault}
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit billing rule" : "Add billing rule"}
+      description="Setup payer hint only. This does not split folios or post city ledger."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save billing rule"
+      onSubmit={() =>
+        onSave({
+          ...(value ? { id: value.id } : {}),
+          code,
+          name,
+          description,
+          payerKind,
+          splitGuestPercent: payerKind === "split" ? Number(splitGuestPercent) : null,
+          paymentTerms,
+          isDefault,
+          active,
+        })
+      }
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="rule-code">Code</Label>
+          <Input
+            id="rule-code"
+            value={code}
+            maxLength={20}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
           />
-          <ActiveField
-            id="rule-active"
-            label="Active"
-            checked={active}
-            canEdit={canEdit}
-            onChange={setActive}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="rule-name">Name</Label>
+          <Input
+            id="rule-name"
+            value={name}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setName(event.target.value)}
           />
-          {canEdit ? (
-            <Button
-              type="submit"
-              disabled={pending}
-              className={`bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 ${goldFocus}`}
-            >
-              Save billing rule
-            </Button>
-          ) : null}
-        </form>
-      </SheetContent>
-    </Sheet>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="rule-description">Description</Label>
+          <Textarea
+            id="rule-description"
+            value={description}
+            maxLength={500}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="rule-payer">Payer</Label>
+          <Select
+            value={payerKind}
+            onValueChange={(next) => setPayerKind(next as BillingPayerKind)}
+            disabled={!canEdit}
+          >
+            <SelectTrigger id="rule-payer" className={goldFocus}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {BILLING_PAYER_KINDS.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {BILLING_PAYER_KIND_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {payerKind === "split" ? (
+          <div className="space-y-1">
+            <Label htmlFor="rule-split">Guest percent</Label>
+            <Input
+              id="rule-split"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={splitGuestPercent}
+              disabled={!canEdit}
+              className={goldFocus}
+              onChange={(event) => setSplitGuestPercent(event.target.value)}
+            />
+          </div>
+        ) : null}
+        <div className="space-y-1">
+          <Label htmlFor="rule-terms">Payment terms</Label>
+          <Input
+            id="rule-terms"
+            value={paymentTerms}
+            maxLength={80}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setPaymentTerms(event.target.value)}
+          />
+        </div>
+        <ActiveField
+          id="rule-default"
+          label="Default rule"
+          checked={isDefault}
+          canEdit={canEdit}
+          onChange={setIsDefault}
+        />
+        <ActiveField
+          id="rule-active"
+          label="Active"
+          checked={active}
+          canEdit={canEdit}
+          onChange={setActive}
+        />
+      </div>
+    </Card3OverlapSheet>
   );
 }

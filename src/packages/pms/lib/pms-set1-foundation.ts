@@ -327,6 +327,12 @@ export function propertySetupRedirectHref(hash = ""): string {
   if (raw === "card-6" || raw === "card6" || raw === "connectivity-distribution") {
     return `${SET1_HUB_HREF}#connectivity-distribution`;
   }
+  if (raw === "card-7" || raw === "card7" || raw === "security-data-reports") {
+    return `${SET1_HUB_HREF}#security-data-reports`;
+  }
+  if (raw === "card-8" || raw === "card8" || raw === "system-go-live") {
+    return `${SET1_HUB_HREF}#system-go-live`;
+  }
   const resolved = resolveSet1SectionHash(raw);
   if (resolved) return `${SET1_HUB_HREF}#${resolved}`;
   return `${SET1_HUB_HREF}#${raw}`;

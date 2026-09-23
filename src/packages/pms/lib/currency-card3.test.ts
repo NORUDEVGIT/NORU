@@ -104,7 +104,10 @@ describe("Card 3 Phase 1 currency readiness", () => {
     assert.match(section, /PmsPropertySetupCard3Currency/);
     assert.match(ui, /CARD1_HREF/);
     assert.match(ui, /FX_DIRECTION_COPY/);
-    assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
+    assert.match(ui, /Card3ListSection/);
+    assert.match(ui, /Save Rate/);
+    assert.match(ui, /Base Currency/);
+    assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.doesNotMatch(ui, /Taxes & Fees configuration will/);
   });
 });

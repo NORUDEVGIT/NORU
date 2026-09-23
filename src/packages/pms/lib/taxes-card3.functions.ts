@@ -35,7 +35,7 @@ const setupCode = z
   .string()
   .trim()
   .transform((value) => value.toUpperCase())
-  .refine((value) => isSetupCode(value), "Use 1–20 letters, numbers, or underscores.");
+  .refine((value) => isSetupCode(value), "Use 1–20 letters, numbers, or underscores. Example: VAT_15.");
 
 const taxSchema = z.object({
   restaurantId: idSchema,
@@ -228,6 +228,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<TaxesCa
     exemptionRules: (rules.data ?? []).map(mapExemption),
   };
 }
+
+export { loadSnapshot as loadTaxesCard3Snapshot };
 
 async function loadAudit(db: DbClient, restaurantId: string) {
   const result = await db

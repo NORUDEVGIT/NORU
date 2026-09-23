@@ -340,6 +340,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   };
 }
 
+export { loadSnapshot as loadMealsCard3Snapshot };
+
 async function loadAudit(db: DbClient, restaurantId: string) {
   const result = await db
     .from("restaurant_staff_audit_log")

@@ -76,9 +76,11 @@ describe("PMS Property Setup Card 5 Phase 0 shell", () => {
     assert.match(hub, /card5Open/);
     assert.match(hub, /isCard5WorkspaceHash/);
     assert.match(settings, /isCard5WorkspaceHash/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.match(section, /pms-card5-fullscreen/);
-    assert.match(section, /pms-card5-top-nav/);
+    assert.match(section, /PropertySetupWorkspaceShell/);
+    assert.doesNotMatch(section, /pms-card5-top-nav/);
+    assert.doesNotMatch(section, /CARD1_PMS_NAV/);
     assert.match(section, /pms-card5-tabs-slot/);
     assert.match(section, /Card5DepartmentsTab/);
     assert.match(section, /Card5OutletsTab/);
@@ -102,7 +104,10 @@ describe("PMS Property Setup Card 5 Phase 0 shell", () => {
     assert.match(section, /getCard5Validation/);
     assert.match(section, /pms-card5-overall-validate/);
     assert.match(section, /pms-card5-validation-report/);
-    const fnsPath = join(process.cwd(), "src/packages/pms/lib/pms-property-setup-card5.functions.ts");
+    const fnsPath = join(
+      process.cwd(),
+      "src/packages/pms/lib/pms-property-setup-card5.functions.ts",
+    );
     assert.equal(existsSync(fnsPath), true);
     const fns = readFileSync(fnsPath, "utf8");
     assert.match(fns, /getCard5Validation/);

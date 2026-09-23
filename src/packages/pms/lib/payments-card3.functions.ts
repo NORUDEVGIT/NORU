@@ -29,7 +29,7 @@ const setupCode = z
   .string()
   .trim()
   .transform((value) => value.toUpperCase())
-  .refine((value) => /^[A-Z0-9_]{1,20}$/.test(value), "Use 1–20 letters, numbers, or underscores.");
+  .refine((value) => /^[A-Z0-9_]{1,20}$/.test(value), "Use 1–20 letters, numbers, or underscores. Example: VAT_15.");
 const descriptionSchema = z.string().trim().max(500).optional();
 
 const paymentMethodSchema = z.object({
@@ -175,6 +175,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Payment
     depositPolicies: (policies.data ?? []).map(mapDepositPolicy),
   };
 }
+
+export { loadSnapshot as loadPaymentsCard3Snapshot };
 
 async function loadAudit(db: DbClient, restaurantId: string) {
   const result = await db

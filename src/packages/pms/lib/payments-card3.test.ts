@@ -108,11 +108,13 @@ describe("Card 3 Phase 5 payments and deposits", () => {
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_PAYMENTS_TABS/);
-    assert.match(ui, /onAuditHistory/);
+    assert.doesNotMatch(ui, /onAuditHistory/);
+    assert.match(ui, /Card3ListSection/);
+    assert.match(ui, /Card3OverlapSheet/);
     assert.match(ui, /Search payment methods/);
     assert.match(ui, /Search deposit policies/);
-    assert.match(ui, /SET1 restaurants\.deposit_\* columns are not written here/);
-    assert.match(ui, /no reservation or folio operational changes/);
+    assert.match(ui, /SET1 restaurants\.deposit_\* columns are not written\s+here/);
+    assert.match(ui, /no reservation or folio\s+operational changes/);
     assert.match(ui, /savePaymentMethodCard3/);
     assert.match(ui, /saveDepositPolicyCard3/);
     assert.match(ui, /focus-visible:ring-\[#C89933\]/);

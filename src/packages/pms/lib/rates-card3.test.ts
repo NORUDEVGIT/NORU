@@ -114,7 +114,8 @@ describe("Card 3 Phase 3 rates readiness", () => {
     assert.match(section, /PmsPropertySetupCard3Rates/);
     assert.match(ui, /CARD3_RATES_DERIVED_COPY/);
     assert.match(ui, /CARD3_RATES_CARD2_COPY/);
-    assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
+    assert.match(ui, /Card3ListSection/);
+    assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.equal(
       existsSync(join(here, "../components/settings/pms-property-setup-card3-meals.tsx")),
       true,

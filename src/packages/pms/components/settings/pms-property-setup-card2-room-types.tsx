@@ -1,15 +1,20 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import {
   bulkCreateRooms,
   evaluateCard2RoomTypesReadiness,
@@ -40,6 +45,12 @@ import {
   wingsForBuilding,
 } from "@/packages/pms/lib/rooms-card2.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  PropertySetupField,
+  PropertySetupFormGrid,
+  PropertySetupFormItem,
+  PropertySetupRemoveButton,
+} from "@/packages/pms/components/settings/setup-kit";
 
 type TypeForm = {
   id?: string;
@@ -187,7 +198,10 @@ export function PmsPropertySetupCard2RoomTypes({
   restaurantId: string;
   canEdit: boolean;
   onReadiness: (status: PropertySetupCardStatus, blockers: string[]) => void;
-  registerActions: (actions: { saveDraft: () => Promise<boolean>; saveAndContinue: () => Promise<boolean> }) => void;
+  registerActions: (actions: {
+    saveDraft: () => Promise<boolean>;
+    saveAndContinue: () => Promise<boolean>;
+  }) => void;
 }) {
   const queryClient = useQueryClient();
   const fetchTypes = useServerFn(listRoomTypes);
@@ -356,8 +370,12 @@ export function PmsPropertySetupCard2RoomTypes({
       if (!result.success) {
         const extra = [
           ...result.validationErrors,
-          result.conflicts.roomNumbers.length ? `Numbers in use: ${result.conflicts.roomNumbers.join(", ")}` : "",
-          result.conflicts.roomCodes.length ? `Codes in use: ${result.conflicts.roomCodes.join(", ")}` : "",
+          result.conflicts.roomNumbers.length
+            ? `Numbers in use: ${result.conflicts.roomNumbers.join(", ")}`
+            : "",
+          result.conflicts.roomCodes.length
+            ? `Codes in use: ${result.conflicts.roomCodes.join(", ")}`
+            : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -437,14 +455,19 @@ export function PmsPropertySetupCard2RoomTypes({
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
         <h2 className="font-display text-xl text-[#251605]">Room Types & Rooms</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Status is calculated on the server. Building, wing and floor on a room type are preferences only.
+          Status is calculated on the server. Building, wing and floor on a room type are
+          preferences only.
         </p>
         <div
           className="mt-3 rounded-xl border border-[#EDE6D8] bg-[#F7F4EE] px-3 py-2 text-sm text-[#251605]"
           data-testid="pms-card2-readiness"
         >
           <p className="font-medium">
-            {readiness?.ready ? "Ready" : readiness?.stepStatus === "in_progress" ? "In progress" : "Not started"}
+            {readiness?.ready
+              ? "Ready"
+              : readiness?.stepStatus === "in_progress"
+                ? "In progress"
+                : "Not started"}
           </p>
           {(readiness?.blockers ?? []).length > 0 ? (
             <ul className="mt-1 list-disc pl-5 text-muted-foreground">
@@ -461,7 +484,13 @@ export function PmsPropertySetupCard2RoomTypes({
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-lg text-[#251605]">Room type configuration</h3>
-          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setTypeForm(emptyType())}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setTypeForm(emptyType())}
+          >
             New type
           </Button>
         </div>
@@ -472,64 +501,135 @@ export function PmsPropertySetupCard2RoomTypes({
               type="button"
               size="sm"
               variant={typeForm.id === row.id ? "default" : "outline"}
-              className={typeForm.id === row.id ? "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" : ""}
+              className={
+                typeForm.id === row.id ? "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" : ""
+              }
               onClick={() => setTypeForm(typeFromRow(row))}
             >
               {row.code}
             </Button>
           ))}
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <Field label="Room Type Name">
-            <Input disabled={disabled} value={typeForm.name} onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })} />
-          </Field>
-          <Field label="Room Type Code">
-            <Input disabled={disabled} value={typeForm.code} onChange={(e) => setTypeForm({ ...typeForm, code: e.target.value })} />
-          </Field>
-          <Field label="Short Name">
-            <Input disabled={disabled} value={typeForm.shortName} onChange={(e) => setTypeForm({ ...typeForm, shortName: e.target.value })} />
-          </Field>
-          <Field label="Display Name">
-            <Input disabled={disabled} value={typeForm.displayName} onChange={(e) => setTypeForm({ ...typeForm, displayName: e.target.value })} />
-          </Field>
-          <Field label="Room Category">
-            <Input disabled={disabled} value={typeForm.category} onChange={(e) => setTypeForm({ ...typeForm, category: e.target.value })} />
-          </Field>
-          <Field label="Room Class">
-            <Input disabled={disabled} value={typeForm.class} onChange={(e) => setTypeForm({ ...typeForm, class: e.target.value })} />
-          </Field>
-          <Field label="Standard Occupancy">
-            <Input type="number" disabled={disabled} value={typeForm.standardOccupancy} onChange={(e) => setTypeForm({ ...typeForm, standardOccupancy: Number(e.target.value) })} />
-          </Field>
-          <Field label="Maximum Occupancy">
-            <Input type="number" disabled={disabled} value={typeForm.maxOccupancy} onChange={(e) => setTypeForm({ ...typeForm, maxOccupancy: Number(e.target.value) })} />
-          </Field>
-          <Field label="Maximum Adults">
-            <Input type="number" disabled={disabled} value={typeForm.adultCapacity} onChange={(e) => setTypeForm({ ...typeForm, adultCapacity: Number(e.target.value) })} />
-          </Field>
-          <Field label="Maximum Children">
-            <Input type="number" disabled={disabled} value={typeForm.childCapacity} onChange={(e) => setTypeForm({ ...typeForm, childCapacity: Number(e.target.value) })} />
-          </Field>
-          <Field label="Maximum Infants">
-            <Input type="number" disabled={disabled} value={typeForm.infantCapacity} onChange={(e) => setTypeForm({ ...typeForm, infantCapacity: Number(e.target.value) })} />
-          </Field>
-          <Field label="Room Size">
-            <Input disabled={disabled} value={typeForm.roomSize} onChange={(e) => setTypeForm({ ...typeForm, roomSize: e.target.value })} />
-          </Field>
-          <Field label="View Type">
-            <Input disabled={disabled} value={typeForm.roomView} onChange={(e) => setTypeForm({ ...typeForm, roomView: e.target.value })} />
-          </Field>
-          <Field label="Smoking Policy">
-            <Select value={typeForm.smokingPolicy} onValueChange={(value) => setTypeForm({ ...typeForm, smokingPolicy: value as SmokingPolicy })} disabled={disabled}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+        <PropertySetupFormGrid>
+          <PropertySetupField label="Room Type Name">
+            <Input
+              disabled={disabled}
+              value={typeForm.name}
+              onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Room Type Code">
+            <Input
+              disabled={disabled}
+              value={typeForm.code}
+              onChange={(e) => setTypeForm({ ...typeForm, code: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Short Name">
+            <Input
+              disabled={disabled}
+              value={typeForm.shortName}
+              onChange={(e) => setTypeForm({ ...typeForm, shortName: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Display Name">
+            <Input
+              disabled={disabled}
+              value={typeForm.displayName}
+              onChange={(e) => setTypeForm({ ...typeForm, displayName: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Room Category">
+            <Input
+              disabled={disabled}
+              value={typeForm.category}
+              onChange={(e) => setTypeForm({ ...typeForm, category: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Room Class">
+            <Input
+              disabled={disabled}
+              value={typeForm.class}
+              onChange={(e) => setTypeForm({ ...typeForm, class: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Standard Occupancy">
+            <Input
+              type="number"
+              disabled={disabled}
+              value={typeForm.standardOccupancy}
+              onChange={(e) =>
+                setTypeForm({ ...typeForm, standardOccupancy: Number(e.target.value) })
+              }
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Maximum Occupancy">
+            <Input
+              type="number"
+              disabled={disabled}
+              value={typeForm.maxOccupancy}
+              onChange={(e) => setTypeForm({ ...typeForm, maxOccupancy: Number(e.target.value) })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Maximum Adults">
+            <Input
+              type="number"
+              disabled={disabled}
+              value={typeForm.adultCapacity}
+              onChange={(e) => setTypeForm({ ...typeForm, adultCapacity: Number(e.target.value) })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Maximum Children">
+            <Input
+              type="number"
+              disabled={disabled}
+              value={typeForm.childCapacity}
+              onChange={(e) => setTypeForm({ ...typeForm, childCapacity: Number(e.target.value) })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Maximum Infants">
+            <Input
+              type="number"
+              disabled={disabled}
+              value={typeForm.infantCapacity}
+              onChange={(e) => setTypeForm({ ...typeForm, infantCapacity: Number(e.target.value) })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Room Size">
+            <Input
+              disabled={disabled}
+              value={typeForm.roomSize}
+              onChange={(e) => setTypeForm({ ...typeForm, roomSize: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="View Type">
+            <Input
+              disabled={disabled}
+              value={typeForm.roomView}
+              onChange={(e) => setTypeForm({ ...typeForm, roomView: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Smoking Policy">
+            <Select
+              value={typeForm.smokingPolicy}
+              onValueChange={(value) =>
+                setTypeForm({ ...typeForm, smokingPolicy: value as SmokingPolicy })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {SMOKING_POLICIES.map((value) => (
-                  <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>
+                  <SelectItem key={value} value={value}>
+                    {value.replaceAll("_", " ")}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-          <Field label="Default Building (preference)">
+          </PropertySetupField>
+          <PropertySetupField label="Default Building (preference)">
             <Select
               value={typeForm.defaultBuildingId || "__none"}
               onValueChange={(value) => {
@@ -550,16 +650,20 @@ export function PmsPropertySetupCard2RoomTypes({
               }}
               disabled={disabled}
             >
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">None</SelectItem>
                 {structure.buildings.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-          <Field label="Default Wing (preference)">
+          </PropertySetupField>
+          <PropertySetupField label="Default Wing (preference)">
             <Select
               value={typeForm.defaultWingId || "__none"}
               onValueChange={(value) => {
@@ -579,70 +683,158 @@ export function PmsPropertySetupCard2RoomTypes({
               }}
               disabled={disabled}
             >
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">None</SelectItem>
                 {typeWings.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-          <Field label="Preferred Floor (preference)">
-            <Select value={typeForm.preferredFloorId || "__none"} onValueChange={(value) => setTypeForm({ ...typeForm, preferredFloorId: value === "__none" ? "" : value })} disabled={disabled}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+          </PropertySetupField>
+          <PropertySetupField label="Preferred Floor (preference)">
+            <Select
+              value={typeForm.preferredFloorId || "__none"}
+              onValueChange={(value) =>
+                setTypeForm({ ...typeForm, preferredFloorId: value === "__none" ? "" : value })
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">None</SelectItem>
                 {typeFloors.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-        </div>
-        <Field label="Description" className="mt-3">
-          <Textarea disabled={disabled} value={typeForm.description} onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })} />
-        </Field>
+          </PropertySetupField>
+        </PropertySetupFormGrid>
+        <PropertySetupFormItem span={3}>
+          <PropertySetupField label="Description">
+            <Textarea
+              disabled={disabled}
+              value={typeForm.description}
+              onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })}
+            />
+          </PropertySetupField>
+        </PropertySetupFormItem>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Toggle label="Sellable" checked={typeForm.sellable} disabled={disabled} onChange={(value) => setTypeForm({ ...typeForm, sellable: value })} />
-          <Toggle label="Active" checked={typeForm.active} disabled={disabled} onChange={(value) => setTypeForm({ ...typeForm, active: value })} />
-          <Toggle label="Extra Guest Allowed" checked={typeForm.extraGuestAllowed} disabled={disabled} onChange={(value) => setTypeForm({ ...typeForm, extraGuestAllowed: value })} />
-          <Toggle label="Extra Bed Allowed" checked={typeForm.extraBedAllowed} disabled={disabled} onChange={(value) => setTypeForm({ ...typeForm, extraBedAllowed: value })} />
-          <Toggle label="Connecting Room Eligible" checked={typeForm.connectingEligible} disabled={disabled} onChange={(value) => setTypeForm({ ...typeForm, connectingEligible: value })} />
-          <Toggle label="Accessible Room Eligible" checked={typeForm.accessibleEligible} disabled={disabled} onChange={(value) => setTypeForm({ ...typeForm, accessibleEligible: value })} />
+          <Toggle
+            label="Sellable"
+            checked={typeForm.sellable}
+            disabled={disabled}
+            onChange={(value) => setTypeForm({ ...typeForm, sellable: value })}
+          />
+          <Toggle
+            label="Active"
+            checked={typeForm.active}
+            disabled={disabled}
+            onChange={(value) => setTypeForm({ ...typeForm, active: value })}
+          />
+          <Toggle
+            label="Extra Guest Allowed"
+            checked={typeForm.extraGuestAllowed}
+            disabled={disabled}
+            onChange={(value) => setTypeForm({ ...typeForm, extraGuestAllowed: value })}
+          />
+          <Toggle
+            label="Extra Bed Allowed"
+            checked={typeForm.extraBedAllowed}
+            disabled={disabled}
+            onChange={(value) => setTypeForm({ ...typeForm, extraBedAllowed: value })}
+          />
+          <Toggle
+            label="Connecting Room Eligible"
+            checked={typeForm.connectingEligible}
+            disabled={disabled}
+            onChange={(value) => setTypeForm({ ...typeForm, connectingEligible: value })}
+          />
+          <Toggle
+            label="Accessible Room Eligible"
+            checked={typeForm.accessibleEligible}
+            disabled={disabled}
+            onChange={(value) => setTypeForm({ ...typeForm, accessibleEligible: value })}
+          />
         </div>
 
         <h4 className="mt-6 font-medium text-[#251605]">Bed configuration</h4>
-        <p className="text-xs text-muted-foreground">Multiple rows per type. Empty rows are dropped. Invalid counts are rejected by the server.</p>
+        <p className="text-xs text-muted-foreground">
+          Multiple rows per type. Empty rows are dropped. Invalid counts are rejected by the server.
+        </p>
         <div className="mt-2 space-y-2">
           {typeForm.beds.map((bed, index) => (
             <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_6rem_auto]">
-              <Input disabled={disabled} placeholder="Bed type" value={bed.bedType} onChange={(e) => {
-                const beds = [...typeForm.beds];
-                beds[index] = { ...bed, bedType: e.target.value };
-                setTypeForm({ ...typeForm, beds });
-              }} />
-              <Input disabled={disabled} placeholder="Bed size" value={bed.bedSize} onChange={(e) => {
-                const beds = [...typeForm.beds];
-                beds[index] = { ...bed, bedSize: e.target.value };
-                setTypeForm({ ...typeForm, beds });
-              }} />
-              <Input type="number" disabled={disabled} min={1} value={bed.numberOfBeds} onChange={(e) => {
-                const beds = [...typeForm.beds];
-                beds[index] = { ...bed, numberOfBeds: Number(e.target.value) };
-                setTypeForm({ ...typeForm, beds });
-              }} />
-              <Button type="button" variant="ghost" size="icon" disabled={disabled || typeForm.beds.length < 2} onClick={() => setTypeForm({ ...typeForm, beds: typeForm.beds.filter((_, i) => i !== index) })}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <Input
+                disabled={disabled}
+                placeholder="Bed type"
+                value={bed.bedType}
+                onChange={(e) => {
+                  const beds = [...typeForm.beds];
+                  beds[index] = { ...bed, bedType: e.target.value };
+                  setTypeForm({ ...typeForm, beds });
+                }}
+              />
+              <Input
+                disabled={disabled}
+                placeholder="Bed size"
+                value={bed.bedSize}
+                onChange={(e) => {
+                  const beds = [...typeForm.beds];
+                  beds[index] = { ...bed, bedSize: e.target.value };
+                  setTypeForm({ ...typeForm, beds });
+                }}
+              />
+              <Input
+                type="number"
+                disabled={disabled}
+                min={1}
+                value={bed.numberOfBeds}
+                onChange={(e) => {
+                  const beds = [...typeForm.beds];
+                  beds[index] = { ...bed, numberOfBeds: Number(e.target.value) };
+                  setTypeForm({ ...typeForm, beds });
+                }}
+              />
+              <PropertySetupRemoveButton
+                disabled={disabled || typeForm.beds.length < 2}
+                label="Remove bed row"
+                onClick={() =>
+                  setTypeForm({ ...typeForm, beds: typeForm.beds.filter((_, i) => i !== index) })
+                }
+              />
             </div>
           ))}
         </div>
         <div className="mt-3 flex gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setTypeForm({ ...typeForm, beds: [...typeForm.beds, { bedType: "", bedSize: "", numberOfBeds: 1 }] })}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() =>
+              setTypeForm({
+                ...typeForm,
+                beds: [...typeForm.beds, { bedType: "", bedSize: "", numberOfBeds: 1 }],
+              })
+            }
+          >
             <Plus className="mr-1 h-4 w-4" /> Add bed row
           </Button>
-          <Button type="button" className="scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" disabled={disabled || saveTypeMutation.isPending} onClick={() => saveTypeMutation.mutate()}>
+          <Button
+            type="button"
+            className="scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            disabled={disabled || saveTypeMutation.isPending}
+            onClick={() => saveTypeMutation.mutate()}
+          >
             Save room type
           </Button>
         </div>
@@ -695,7 +887,11 @@ export function PmsPropertySetupCard2RoomTypes({
             </thead>
             <tbody>
               {rooms.map((row) => (
-                <tr key={row.id} className="cursor-pointer border-t border-[#EDE6D8]" onClick={() => setRoomForm(roomFromRow(row))}>
+                <tr
+                  key={row.id}
+                  className="cursor-pointer border-t border-[#EDE6D8]"
+                  onClick={() => setRoomForm(roomFromRow(row))}
+                >
                   <td className="py-2">{row.roomNumber}</td>
                   <td>{row.roomCode}</td>
                   <td>{row.roomTypeCode}</td>
@@ -709,24 +905,41 @@ export function PmsPropertySetupCard2RoomTypes({
           </table>
         </div>
         {roomForm ? (
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label="Room Number">
-              <Input disabled={disabled} value={roomForm.roomNumber} onChange={(e) => setRoomForm({ ...roomForm, roomNumber: e.target.value })} />
-            </Field>
-            <Field label="Room Code">
-              <Input disabled={disabled} value={roomForm.roomCode} onChange={(e) => setRoomForm({ ...roomForm, roomCode: e.target.value })} placeholder="Defaults to room number" />
-            </Field>
-            <Field label="Room Type">
-              <Select value={roomForm.roomTypeId} onValueChange={(value) => setRoomForm({ ...roomForm, roomTypeId: value })} disabled={disabled}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+          <PropertySetupFormGrid>
+            <PropertySetupField label="Room Number">
+              <Input
+                disabled={disabled}
+                value={roomForm.roomNumber}
+                onChange={(e) => setRoomForm({ ...roomForm, roomNumber: e.target.value })}
+              />
+            </PropertySetupField>
+            <PropertySetupField label="Room Code">
+              <Input
+                disabled={disabled}
+                value={roomForm.roomCode}
+                onChange={(e) => setRoomForm({ ...roomForm, roomCode: e.target.value })}
+                placeholder="Defaults to room number"
+              />
+            </PropertySetupField>
+            <PropertySetupField label="Room Type">
+              <Select
+                value={roomForm.roomTypeId}
+                onValueChange={(value) => setRoomForm({ ...roomForm, roomTypeId: value })}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {types.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>{row.name} ({row.code})</SelectItem>
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name} ({row.code})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Building">
+            </PropertySetupField>
+            <PropertySetupField label="Building">
               <Select
                 value={roomForm.buildingId || "__none"}
                 onValueChange={(value) => {
@@ -738,20 +951,29 @@ export function PmsPropertySetupCard2RoomTypes({
                     floors: structure.floors,
                     changed: "building",
                   });
-                  setRoomForm({ ...roomForm, buildingId: next.buildingId, wingId: next.wingId, floorId: next.floorId });
+                  setRoomForm({
+                    ...roomForm,
+                    buildingId: next.buildingId,
+                    wingId: next.wingId,
+                    floorId: next.floorId,
+                  });
                 }}
                 disabled={disabled}
               >
-                <SelectTrigger><SelectValue placeholder="Select building" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select building" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">None</SelectItem>
                   {structure.buildings.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Wing">
+            </PropertySetupField>
+            <PropertySetupField label="Wing">
               <Select
                 value={roomForm.wingId || "__none"}
                 onValueChange={(value) => {
@@ -767,139 +989,280 @@ export function PmsPropertySetupCard2RoomTypes({
                 }}
                 disabled={disabled}
               >
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">None</SelectItem>
                   {roomWings.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Floor">
-              <Select value={roomForm.floorId || "__none"} onValueChange={(value) => setRoomForm({ ...roomForm, floorId: value === "__none" ? "" : value })} disabled={disabled}>
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+            </PropertySetupField>
+            <PropertySetupField label="Floor">
+              <Select
+                value={roomForm.floorId || "__none"}
+                onValueChange={(value) =>
+                  setRoomForm({ ...roomForm, floorId: value === "__none" ? "" : value })
+                }
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">None</SelectItem>
                   {roomFloors.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Operational Status">
-              <Select value={roomForm.status} onValueChange={(value) => setRoomForm({ ...roomForm, status: value as RoomStatus })} disabled={disabled}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+            </PropertySetupField>
+            <PropertySetupField label="Operational Status">
+              <Select
+                value={roomForm.status}
+                onValueChange={(value) => setRoomForm({ ...roomForm, status: value as RoomStatus })}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {ROOM_STATUSES.map((value) => (
-                    <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>
+                    <SelectItem key={value} value={value}>
+                      {value.replaceAll("_", " ")}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Housekeeping Status">
-              <Select value={roomForm.housekeepingStatus} onValueChange={(value) => setRoomForm({ ...roomForm, housekeepingStatus: value as HkStatus })} disabled={disabled}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+            </PropertySetupField>
+            <PropertySetupField label="Housekeeping Status">
+              <Select
+                value={roomForm.housekeepingStatus}
+                onValueChange={(value) =>
+                  setRoomForm({ ...roomForm, housekeepingStatus: value as HkStatus })
+                }
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {HK_STATUSES.map((value) => (
-                    <SelectItem key={value} value={value}>{value}</SelectItem>
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Maintenance Status">
-              <Select value={roomForm.maintenanceStatus} onValueChange={(value) => setRoomForm({ ...roomForm, maintenanceStatus: value as MaintenanceStatus })} disabled={disabled}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+            </PropertySetupField>
+            <PropertySetupField label="Maintenance Status">
+              <Select
+                value={roomForm.maintenanceStatus}
+                onValueChange={(value) =>
+                  setRoomForm({ ...roomForm, maintenanceStatus: value as MaintenanceStatus })
+                }
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {MAINTENANCE_STATUSES.map((value) => (
-                    <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>
+                    <SelectItem key={value} value={value}>
+                      {value.replaceAll("_", " ")}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label="Room Notes" className="md:col-span-2">
-              <Textarea disabled={disabled} value={roomForm.notes} onChange={(e) => setRoomForm({ ...roomForm, notes: e.target.value })} />
-            </Field>
-            <Toggle label="Sellable" checked={roomForm.sellable} disabled={disabled} onChange={(value) => setRoomForm({ ...roomForm, sellable: value })} />
-            <Toggle label="Active" checked={roomForm.active} disabled={disabled} onChange={(value) => setRoomForm({ ...roomForm, active: value })} />
-            <Field label="Room features (not amenities)" className="md:col-span-2">
+            </PropertySetupField>
+            <PropertySetupField label="Room Notes" className="md:col-span-2">
+              <Textarea
+                disabled={disabled}
+                value={roomForm.notes}
+                onChange={(e) => setRoomForm({ ...roomForm, notes: e.target.value })}
+              />
+            </PropertySetupField>
+            <Toggle
+              label="Sellable"
+              checked={roomForm.sellable}
+              disabled={disabled}
+              onChange={(value) => setRoomForm({ ...roomForm, sellable: value })}
+            />
+            <Toggle
+              label="Active"
+              checked={roomForm.active}
+              disabled={disabled}
+              onChange={(value) => setRoomForm({ ...roomForm, active: value })}
+            />
+            <PropertySetupField label="Room features (not amenities)" className="md:col-span-2">
               <div className="flex flex-wrap gap-2">
                 {roomForm.roomFeatures.map((feature) => (
-                  <Button key={feature} type="button" size="sm" variant="outline" disabled={disabled} onClick={() => setRoomForm({ ...roomForm, roomFeatures: roomForm.roomFeatures.filter((row) => row !== feature) })}>
+                  <Button
+                    key={feature}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={disabled}
+                    onClick={() =>
+                      setRoomForm({
+                        ...roomForm,
+                        roomFeatures: roomForm.roomFeatures.filter((row) => row !== feature),
+                      })
+                    }
+                  >
                     {feature} ×
                   </Button>
                 ))}
               </div>
               <div className="mt-2 flex gap-2">
-                <Input disabled={disabled} value={featureDraft} onChange={(e) => setFeatureDraft(e.target.value)} placeholder="Add feature" />
-                <Button type="button" variant="outline" disabled={disabled || !featureDraft.trim()} onClick={() => {
-                  setRoomForm({ ...roomForm, roomFeatures: [...roomForm.roomFeatures, featureDraft.trim()] });
-                  setFeatureDraft("");
-                }}>
+                <Input
+                  disabled={disabled}
+                  value={featureDraft}
+                  onChange={(e) => setFeatureDraft(e.target.value)}
+                  placeholder="Add feature"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={disabled || !featureDraft.trim()}
+                  onClick={() => {
+                    setRoomForm({
+                      ...roomForm,
+                      roomFeatures: [...roomForm.roomFeatures, featureDraft.trim()],
+                    });
+                    setFeatureDraft("");
+                  }}
+                >
                   Add
                 </Button>
               </div>
-            </Field>
-            <Field label="Connecting / adjacent rooms" className="md:col-span-2">
+            </PropertySetupField>
+            <PropertySetupField label="Connecting / adjacent rooms" className="md:col-span-2">
               {roomForm.links.map((link, index) => (
-                <div key={`${link.otherRoomId}-${index}`} className="mb-2 grid gap-2 md:grid-cols-[1fr_10rem_auto]">
-                  <Select value={link.otherRoomId} onValueChange={(value) => {
-                    const links = [...roomForm.links];
-                    links[index] = { ...link, otherRoomId: value };
-                    setRoomForm({ ...roomForm, links });
-                  }} disabled={disabled}>
-                    <SelectTrigger><SelectValue placeholder="Room" /></SelectTrigger>
+                <div
+                  key={`${link.otherRoomId}-${index}`}
+                  className="mb-2 grid gap-2 md:grid-cols-[1fr_10rem_auto]"
+                >
+                  <Select
+                    value={link.otherRoomId}
+                    onValueChange={(value) => {
+                      const links = [...roomForm.links];
+                      links[index] = { ...link, otherRoomId: value };
+                      setRoomForm({ ...roomForm, links });
+                    }}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Room" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {rooms.filter((row) => row.id !== roomForm.id).map((row) => (
-                        <SelectItem key={row.id} value={row.id}>{row.roomNumber}</SelectItem>
-                      ))}
+                      {rooms
+                        .filter((row) => row.id !== roomForm.id)
+                        .map((row) => (
+                          <SelectItem key={row.id} value={row.id}>
+                            {row.roomNumber}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
-                  <Select value={link.kind} onValueChange={(value) => {
-                    const links = [...roomForm.links];
-                    links[index] = { ...link, kind: value as RoomLinkKind };
-                    setRoomForm({ ...roomForm, links });
-                  }} disabled={disabled}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={link.kind}
+                    onValueChange={(value) => {
+                      const links = [...roomForm.links];
+                      links[index] = { ...link, kind: value as RoomLinkKind };
+                      setRoomForm({ ...roomForm, links });
+                    }}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {ROOM_LINK_KINDS.map((value) => (
-                        <SelectItem key={value} value={value}>{value}</SelectItem>
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button type="button" variant="ghost" size="icon" disabled={disabled} onClick={() => setRoomForm({ ...roomForm, links: roomForm.links.filter((_, i) => i !== index) })}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <PropertySetupRemoveButton
+                    disabled={disabled}
+                    label="Remove room link"
+                    onClick={() =>
+                      setRoomForm({
+                        ...roomForm,
+                        links: roomForm.links.filter((_, i) => i !== index),
+                      })
+                    }
+                  />
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setRoomForm({ ...roomForm, links: [...roomForm.links, { otherRoomId: rooms.find((row) => row.id !== roomForm.id)?.id ?? "", kind: "connecting" }] })}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled}
+                onClick={() =>
+                  setRoomForm({
+                    ...roomForm,
+                    links: [
+                      ...roomForm.links,
+                      {
+                        otherRoomId: rooms.find((row) => row.id !== roomForm.id)?.id ?? "",
+                        kind: "connecting",
+                      },
+                    ],
+                  })
+                }
+              >
                 Add link
               </Button>
-            </Field>
+            </PropertySetupField>
             <div className="md:col-span-2">
-              <Button type="button" className="scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" disabled={disabled || saveRoomMutation.isPending} onClick={() => saveRoomMutation.mutate()}>
+              <Button
+                type="button"
+                className="scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                disabled={disabled || saveRoomMutation.isPending}
+                onClick={() => saveRoomMutation.mutate()}
+              >
                 Save room
               </Button>
             </div>
-          </div>
+          </PropertySetupFormGrid>
         ) : null}
       </section>
 
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
         <h3 className="font-display text-lg text-[#251605]">Bulk room generation</h3>
-        <p className="text-xs text-muted-foreground">Sequential numbering only. The server revalidates the batch in one insert.</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <Field label="Target room type">
-            <Select value={bulk.roomTypeId} onValueChange={(value) => setBulk({ ...bulk, roomTypeId: value })} disabled={disabled}>
-              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+        <p className="text-xs text-muted-foreground">
+          Sequential numbering only. The server revalidates the batch in one insert.
+        </p>
+        <PropertySetupFormGrid>
+          <PropertySetupField label="Target room type">
+            <Select
+              value={bulk.roomTypeId}
+              onValueChange={(value) => setBulk({ ...bulk, roomTypeId: value })}
+              disabled={disabled}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
               <SelectContent>
                 {types.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-          <Field label="Building">
+          </PropertySetupField>
+          <PropertySetupField label="Building">
             <Select
               value={bulk.buildingId}
               onValueChange={(value) => {
@@ -911,58 +1274,80 @@ export function PmsPropertySetupCard2RoomTypes({
                   floors: structure.floors,
                   changed: "building",
                 });
-                setBulk({ ...bulk, buildingId: next.buildingId, wingId: next.wingId, floorId: next.floorId });
+                setBulk({
+                  ...bulk,
+                  buildingId: next.buildingId,
+                  wingId: next.wingId,
+                  floorId: next.floorId,
+                });
               }}
               disabled={disabled}
             >
-              <SelectTrigger><SelectValue placeholder="Select building" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Select building" />
+              </SelectTrigger>
               <SelectContent>
                 {structure.buildings.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-          <Field label="Starting number">
-            <Input type="number" disabled={disabled} value={bulk.startNumber} onChange={(e) => setBulk({ ...bulk, startNumber: Number(e.target.value) })} />
-          </Field>
-          <Field label="Ending number">
-            <Input type="number" disabled={disabled} value={bulk.endNumber} onChange={(e) => setBulk({ ...bulk, endNumber: Number(e.target.value) })} />
-          </Field>
-          <Field label="Quantity (optional, instead of end)">
-            <Input disabled={disabled} value={bulk.quantity} onChange={(e) => setBulk({ ...bulk, quantity: e.target.value })} />
-          </Field>
-          <Field label="Prefix">
-            <Input disabled={disabled} value={bulk.prefix} onChange={(e) => setBulk({ ...bulk, prefix: e.target.value })} />
-          </Field>
-          <Field label="Suffix">
-            <Input disabled={disabled} value={bulk.suffix} onChange={(e) => setBulk({ ...bulk, suffix: e.target.value })} />
-          </Field>
-        </div>
+          </PropertySetupField>
+          <PropertySetupField label="Starting number">
+            <Input
+              type="number"
+              disabled={disabled}
+              value={bulk.startNumber}
+              onChange={(e) => setBulk({ ...bulk, startNumber: Number(e.target.value) })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Ending number">
+            <Input
+              type="number"
+              disabled={disabled}
+              value={bulk.endNumber}
+              onChange={(e) => setBulk({ ...bulk, endNumber: Number(e.target.value) })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Quantity (optional, instead of end)">
+            <Input
+              disabled={disabled}
+              value={bulk.quantity}
+              onChange={(e) => setBulk({ ...bulk, quantity: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Prefix">
+            <Input
+              disabled={disabled}
+              value={bulk.prefix}
+              onChange={(e) => setBulk({ ...bulk, prefix: e.target.value })}
+            />
+          </PropertySetupField>
+          <PropertySetupField label="Suffix">
+            <Input
+              disabled={disabled}
+              value={bulk.suffix}
+              onChange={(e) => setBulk({ ...bulk, suffix: e.target.value })}
+            />
+          </PropertySetupField>
+        </PropertySetupFormGrid>
         <p className="mt-3 text-sm text-[#251605]" data-testid="pms-card2-bulk-preview">
-          Preview: {preview.ok ? preview.labels.map((row) => row.roomNumber).join(", ") : preview.validationErrors.join(" ")}
+          Preview:{" "}
+          {preview.ok
+            ? preview.labels.map((row) => row.roomNumber).join(", ")
+            : preview.validationErrors.join(" ")}
         </p>
-        <Button type="button" className="mt-3 scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" disabled={disabled || bulkMutation.isPending || !preview.ok} onClick={() => bulkMutation.mutate()}>
+        <Button
+          type="button"
+          className="mt-3 scroll-mb-32 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+          disabled={disabled || bulkMutation.isPending || !preview.ok}
+          onClick={() => bulkMutation.mutate()}
+        >
           Create rooms
         </Button>
       </section>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <Label className="text-[#251605]">{label}</Label>
-      <div className="mt-1">{children}</div>
     </div>
   );
 }

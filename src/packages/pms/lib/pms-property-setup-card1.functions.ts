@@ -42,6 +42,7 @@ import {
   markCard1Complete,
   markStepComplete,
   markStepInProgress,
+  normalizeCard1CheckinOpsForPersistence,
   parseBusinessDateBlockers,
   parseBusinessDateConfig,
   parseCheckinOps,
@@ -61,6 +62,9 @@ import {
   vatCertificateRequired,
   hasVatCertificate,
   type Card1Draft,
+  type Card1DepartmentContact,
+  type Card1DepartmentOption,
+  type Card1PropertyArea,
   type Card1Snapshot,
   type Card1StepId,
   type PropertySetupStatus,
@@ -72,27 +76,42 @@ const idSchema = z.string().uuid();
 const SET1_COLUMNS =
   "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, property_code, legal_name, property_type, check_in_time, check_out_time, pms_set1_live, hotel_day_open";
 
-const CARD1_COLUMNS =
-  `${SET1_COLUMNS}, trading_name, star_rating, default_language, short_description, identity_toggles, brand_name, brand_code, chain_name, address_region, address_zone, address_woreda, address_kebele, address_subcity, address_house_no, latitude, longitude, full_address, whatsapp, social_contacts, department_contacts, checkin_policy_text, checkout_policy_text, early_checkin_policy_text, late_checkout_policy_text, business_date_config, business_date_blockers, legal_entity_name, legal_entity_type, registration_number, legal_upload_refs, vat_registered, vat_number, tin_number, licence_number, tax_upload_refs, structure_rules_posture, pms_property_setup_status`;
+const CARD1_COLUMNS = `${SET1_COLUMNS}, trading_name, star_rating, default_language, short_description, identity_toggles, brand_name, brand_code, chain_name, address_region, address_zone, address_woreda, address_kebele, address_subcity, address_house_no, latitude, longitude, full_address, whatsapp, social_contacts, department_contacts, checkin_policy_text, checkout_policy_text, early_checkin_policy_text, late_checkout_policy_text, business_date_config, business_date_blockers, legal_entity_name, legal_entity_type, registration_number, legal_upload_refs, vat_registered, vat_number, tin_number, licence_number, tax_upload_refs, structure_rules_posture, pms_property_setup_status`;
 
-const CARD1_FIDELITY_COLUMNS =
-  `${CARD1_COLUMNS}, opening_date, cover_image_url, primary_brand_colour, secondary_brand_colour, website_url, brand_affiliation, business_type, emergency_contacts, property_areas, location_extras, checkin_ops, legal_extras`;
+const CARD1_FIDELITY_COLUMNS = `${CARD1_COLUMNS}, opening_date, cover_image_url, primary_brand_colour, secondary_brand_colour, website_url, brand_affiliation, business_type, emergency_contacts, property_areas, location_extras, checkin_ops, legal_extras`;
 
 type RestaurantRow = Database["public"]["Tables"]["restaurants"]["Row"];
 type RestaurantUpdate = Database["public"]["Tables"]["restaurants"]["Update"];
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
 
-const uploadRefSchema = z.object({ name: z.string().trim().max(200), kind: z.string().trim().max(80) });
+const uploadRefSchema = z.object({
+  name: z.string().trim().max(200),
+  kind: z.string().trim().max(80),
+  storagePath: z.string().trim().max(500).optional(),
+  mimeType: z.string().trim().max(120).optional(),
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(CARD1_BRAND_IMAGE_MAX_BYTES - 1)
+    .optional(),
+  viewUrl: z.string().trim().max(2000).optional(),
+});
 const departmentSchema = z.object({
+  id: idSchema.optional(),
+  departmentId: idSchema.optional(),
   department: z.string().trim().max(80),
   name: z.string().trim().max(120),
   phone: z.string().trim().max(30),
   email: z.string().trim().max(254),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).max(9999).optional(),
 });
 const socialLinkSchema = z.object({
   platform: z.string().trim().max(40),
   url: z.string().trim().max(200),
 });
+const numericInputSchema = z.union([z.number(), z.string().trim().max(32), z.null()]);
 
 const draftSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -100,7 +119,14 @@ const draftSchema = z.object({
   propertyCode: z.string().trim().max(40).optional().nullable(),
   propertyType: z.string().trim().max(40).optional().nullable(),
   businessType: z.string().trim().max(40).optional().nullable(),
-  starRating: z.union([z.literal(""), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+  starRating: z.union([
+    z.literal(""),
+    z.literal(1),
+    z.literal(2),
+    z.literal(3),
+    z.literal(4),
+    z.literal(5),
+  ]),
   openingDate: z.string().trim().max(10).optional().nullable(),
   defaultLanguage: z.string().trim().max(16).optional().nullable(),
   shortDescription: z.string().trim().max(500).optional().nullable(),
@@ -162,13 +188,32 @@ const draftSchema = z.object({
   lateCheckoutPolicyText: z.string().trim().max(2000).optional().nullable(),
   checkinOps: z.object({
     minLeadTime: z.string().trim().max(40),
+    minLeadTimeHours: numericInputSchema,
     earlyCheckinPolicy: z.string().trim().max(80),
+    earlyCheckin: z.object({
+      allowed: z.boolean(),
+      feeBasis: z.enum(["percent_stay", "fixed", "first_night"]),
+      feeValue: numericInputSchema,
+    }),
     lateCheckoutPolicy: z.string().trim().max(80),
+    lateCheckout: z.object({
+      allowed: z.boolean(),
+      feeBasis: z.enum(["percent_stay", "fixed", "first_night"]),
+      feeValue: numericInputSchema,
+    }),
     dayUseAllowed: z.boolean(),
     frontDesk24h: z.boolean(),
     sameDayCutoff: z.string().trim().max(8),
     overstayGrace: z.string().trim().max(40),
+    overstayGraceMinutes: numericInputSchema,
     childPolicy: z.string().trim().max(200),
+    childPolicyConfig: z.object({
+      summary: z.string().trim().max(200),
+      minAge: numericInputSchema,
+      maxAge: numericInputSchema,
+      freeUntilAge: numericInputSchema,
+      chargeFromAge: numericInputSchema,
+    }),
     extraBedAvailable: z.boolean(),
     idRequiredAtCheckin: z.boolean(),
   }),
@@ -190,7 +235,14 @@ const draftSchema = z.object({
   businessDateBlockers: z.array(z.string().trim().max(120)).max(20),
   legalName: z.string().trim().max(160).optional().nullable(),
   legalEntityName: z.string().trim().max(160).optional().nullable(),
-  legalEntityType: z.enum(["", "plc", "private_limited", "sole_proprietor", "partnership", "other"]),
+  legalEntityType: z.enum([
+    "",
+    "plc",
+    "private_limited",
+    "sole_proprietor",
+    "partnership",
+    "other",
+  ]),
   registrationNumber: z.string().trim().max(80).optional().nullable(),
   legalUploadRefs: z.array(uploadRefSchema).max(12),
   legalExtras: z.object({
@@ -322,17 +374,25 @@ function snapshotFromRow(
     email: String(row?.email ?? ""),
     whatsapp: card1ColumnsAvailable ? text(row, "whatsapp") : "",
     social,
-    departmentContacts: card1ColumnsAvailable ? parseDepartmentContacts(row?.department_contacts) : [],
+    departmentContacts: card1ColumnsAvailable
+      ? parseDepartmentContacts(row?.department_contacts)
+      : [],
     emergency: parseEmergencyContact(fidelityColumnsAvailable ? row?.emergency_contacts : null),
     checkInTime: foundationColumnsAvailable ? normalizeClock(String(row?.check_in_time ?? "")) : "",
-    checkOutTime: foundationColumnsAvailable ? normalizeClock(String(row?.check_out_time ?? "")) : "",
+    checkOutTime: foundationColumnsAvailable
+      ? normalizeClock(String(row?.check_out_time ?? ""))
+      : "",
     checkinPolicyText: card1ColumnsAvailable ? text(row, "checkin_policy_text") : "",
     checkoutPolicyText: card1ColumnsAvailable ? text(row, "checkout_policy_text") : "",
     earlyCheckinPolicyText: card1ColumnsAvailable ? text(row, "early_checkin_policy_text") : "",
     lateCheckoutPolicyText: card1ColumnsAvailable ? text(row, "late_checkout_policy_text") : "",
     checkinOps: parseCheckinOps(fidelityColumnsAvailable ? row?.checkin_ops : null),
-    businessDateConfig: parseBusinessDateConfig(card1ColumnsAvailable ? row?.business_date_config : null),
-    businessDateBlockers: card1ColumnsAvailable ? parseBusinessDateBlockers(row?.business_date_blockers) : [],
+    businessDateConfig: parseBusinessDateConfig(
+      card1ColumnsAvailable ? row?.business_date_config : null,
+    ),
+    businessDateBlockers: card1ColumnsAvailable
+      ? parseBusinessDateBlockers(row?.business_date_blockers)
+      : [],
     legalName: foundationColumnsAvailable ? text(row, "legal_name") : "",
     legalEntityName: card1ColumnsAvailable ? text(row, "legal_entity_name") : "",
     legalEntityType: card1ColumnsAvailable ? parseLegalEntityType(row?.legal_entity_type) : "",
@@ -344,10 +404,15 @@ function snapshotFromRow(
     tinNumber: card1ColumnsAvailable ? text(row, "tin_number") : "",
     licenceNumber: card1ColumnsAvailable ? text(row, "licence_number") : "",
     taxUploadRefs: card1ColumnsAvailable ? parseUploadRefs(row?.tax_upload_refs) : [],
-    structureRules: parseStructureRules(card1ColumnsAvailable ? row?.structure_rules_posture : null),
+    structureRules: parseStructureRules(
+      card1ColumnsAvailable ? row?.structure_rules_posture : null,
+    ),
     propertyAreas: parsePropertyAreas(fidelityColumnsAvailable ? row?.property_areas : null),
   });
-  draft.fullAddress = card1ColumnsAvailable && text(row, "full_address") ? text(row, "full_address") : composeFullAddress(draft);
+  draft.fullAddress =
+    card1ColumnsAvailable && text(row, "full_address")
+      ? text(row, "full_address")
+      : composeFullAddress(draft);
   const status = card1ColumnsAvailable
     ? parsePropertySetupStatus(row?.pms_property_setup_status)
     : emptyCard1Snapshot().status;
@@ -372,6 +437,9 @@ function snapshotFromRow(
     }),
     logoPreviewUrl: isHttpOrDataAsset(draft.logoUrl) ? draft.logoUrl : "",
     coverPreviewUrl: isHttpOrDataAsset(draft.coverImageUrl) ? draft.coverImageUrl : "",
+    departmentOptions: [],
+    propertyAreaEntities: [],
+    functionalHardeningAvailable: false,
   };
 }
 
@@ -392,6 +460,119 @@ async function withBrandPreviews(snapshot: Card1Snapshot): Promise<Card1Snapshot
   };
 }
 
+async function withFunctionalHardening(
+  supabaseAdmin: Admin,
+  restaurantId: string,
+  snapshot: Card1Snapshot,
+): Promise<Card1Snapshot> {
+  const departments = await supabaseAdmin
+    .from("pms_departments")
+    .select("id, name, active")
+    .eq("restaurant_id", restaurantId)
+    .order("name");
+  if (departments.error && !isMissingColumnError(departments.error)) {
+    throw new Error(departments.error.message);
+  }
+  const departmentOptions = ((departments.data ?? []) as Card1DepartmentOption[]).map((row) => ({
+    id: row.id,
+    name: row.name,
+    active: row.active !== false,
+  }));
+
+  const contactTable = "pms_property_department_contacts" as keyof Database["public"]["Tables"];
+  const areaTable = "pms_property_areas" as keyof Database["public"]["Tables"];
+  const [contacts, areas] = await Promise.all([
+    supabaseAdmin
+      .from(contactTable)
+      .select("id, department_id, contact_name, phone, email, active, sort_order")
+      .eq("restaurant_id", restaurantId)
+      .order("sort_order"),
+    supabaseAdmin
+      .from(areaTable)
+      .select("id, name, description, active, sort_order")
+      .eq("restaurant_id", restaurantId)
+      .order("sort_order"),
+  ]);
+  const hardeningAvailable = !contacts.error && !areas.error;
+  if (contacts.error && !isMissingColumnError(contacts.error))
+    throw new Error(contacts.error.message);
+  if (areas.error && !isMissingColumnError(areas.error)) throw new Error(areas.error.message);
+
+  if (!contacts.error) {
+    const rows = (contacts.data ?? []) as unknown as Array<{
+      id: string;
+      department_id: string;
+      contact_name: string | null;
+      phone: string | null;
+      email: string | null;
+      active: boolean;
+      sort_order: number;
+    }>;
+    snapshot.draft.departmentContacts = rows.map((row) => ({
+      id: row.id,
+      departmentId: row.department_id,
+      department:
+        departmentOptions.find((department) => department.id === row.department_id)?.name ?? "",
+      name: row.contact_name ?? "",
+      phone: row.phone ?? "",
+      email: row.email ?? "",
+      active: row.active,
+      sortOrder: row.sort_order,
+    }));
+  }
+
+  const propertyAreaEntities = areas.error
+    ? []
+    : (
+        (areas.data ?? []) as unknown as Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          active: boolean;
+          sort_order: number;
+        }>
+      ).map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description ?? "",
+        active: row.active,
+        sortOrder: row.sort_order,
+      }));
+
+  const documentPaths = [...snapshot.draft.legalUploadRefs, ...snapshot.draft.taxUploadRefs]
+    .map((row) => row.storagePath ?? "")
+    .filter(Boolean);
+  const documentUrls =
+    documentPaths.length > 0 ? await signRoomImages(documentPaths) : new Map<string, string>();
+  const addViewUrls = (rows: Card1Draft["legalUploadRefs"]) =>
+    rows.map((row) => ({
+      ...row,
+      viewUrl: row.storagePath ? (documentUrls.get(row.storagePath) ?? "") : "",
+    }));
+
+  return {
+    ...snapshot,
+    draft: {
+      ...snapshot.draft,
+      legalUploadRefs: addViewUrls(snapshot.draft.legalUploadRefs),
+      taxUploadRefs: addViewUrls(snapshot.draft.taxUploadRefs),
+    },
+    departmentOptions,
+    propertyAreaEntities,
+    functionalHardeningAvailable: hardeningAvailable,
+  };
+}
+
+function persistedUploadRefs(rows: Card1Draft["legalUploadRefs"]): Json {
+  return rows.map((row) => ({
+    name: row.name,
+    kind: row.kind,
+    ...(row.storagePath ? { storage_path: row.storagePath } : {}),
+    ...(row.mimeType ? { mime_type: row.mimeType } : {}),
+    ...(row.sizeBytes ? { size_bytes: row.sizeBytes } : {}),
+  })) as unknown as Json;
+}
+
 async function loadRestaurantRow(
   supabaseAdmin: Admin,
   restaurantId: string,
@@ -401,7 +582,11 @@ async function loadRestaurantRow(
   fidelityColumnsAvailable: boolean;
   foundationColumnsAvailable: boolean;
 }> {
-  const fidelity = await supabaseAdmin.from("restaurants").select(CARD1_FIDELITY_COLUMNS).eq("id", restaurantId).maybeSingle();
+  const fidelity = await supabaseAdmin
+    .from("restaurants")
+    .select(CARD1_FIDELITY_COLUMNS)
+    .eq("id", restaurantId)
+    .maybeSingle();
   if (!fidelity.error) {
     return {
       row: (fidelity.data as RestaurantRow | null) ?? null,
@@ -411,7 +596,11 @@ async function loadRestaurantRow(
     };
   }
   if (!isMissingColumnError(fidelity.error)) throw new Error(fidelity.error.message);
-  const full = await supabaseAdmin.from("restaurants").select(CARD1_COLUMNS).eq("id", restaurantId).maybeSingle();
+  const full = await supabaseAdmin
+    .from("restaurants")
+    .select(CARD1_COLUMNS)
+    .eq("id", restaurantId)
+    .maybeSingle();
   if (!full.error) {
     return {
       row: (full.data as RestaurantRow | null) ?? null,
@@ -421,7 +610,11 @@ async function loadRestaurantRow(
     };
   }
   if (!isMissingColumnError(full.error)) throw new Error(full.error.message);
-  const foundation = await supabaseAdmin.from("restaurants").select(SET1_COLUMNS).eq("id", restaurantId).maybeSingle();
+  const foundation = await supabaseAdmin
+    .from("restaurants")
+    .select(SET1_COLUMNS)
+    .eq("id", restaurantId)
+    .maybeSingle();
   if (!foundation.error) {
     return {
       row: (foundation.data as RestaurantRow | null) ?? null,
@@ -433,7 +626,9 @@ async function loadRestaurantRow(
   if (!isMissingColumnError(foundation.error)) throw new Error(foundation.error.message);
   const core = await supabaseAdmin
     .from("restaurants")
-    .select("id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date")
+    .select(
+      "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date",
+    )
     .eq("id", restaurantId)
     .maybeSingle();
   if (core.error) throw new Error(core.error.message);
@@ -443,6 +638,29 @@ async function loadRestaurantRow(
     fidelityColumnsAvailable: false,
     foundationColumnsAvailable: false,
   };
+}
+
+/** Read-only Card 1 source loader for Card 8 System Validation. */
+export async function loadCard1ValidationSnapshot(
+  supabaseAdmin: Admin,
+  restaurantId: string,
+): Promise<{ snapshot: Card1Snapshot; set2: Set2Snapshot }> {
+  const [loaded, set2, lastSuccessfulNightAudit] = await Promise.all([
+    loadRestaurantRow(supabaseAdmin, restaurantId),
+    loadSet2Snapshot(supabaseAdmin, restaurantId),
+    loadLastNightAudit(supabaseAdmin, restaurantId),
+  ]);
+  const snapshot = await withBrandPreviews(
+    snapshotFromRow(
+      loaded.row,
+      loaded.card1ColumnsAvailable,
+      loaded.fidelityColumnsAvailable,
+      loaded.foundationColumnsAvailable,
+      set2,
+      lastSuccessfulNightAudit,
+    ),
+  );
+  return { snapshot, set2 };
 }
 
 async function writeAudit(
@@ -473,6 +691,53 @@ async function writeAudit(
     return false;
   }
   return true;
+}
+
+async function syncDepartmentContacts(
+  supabaseAdmin: Admin,
+  restaurantId: string,
+  contacts: Card1DepartmentContact[],
+): Promise<void> {
+  const table = "pms_property_department_contacts" as keyof Database["public"]["Tables"];
+  const probe = await supabaseAdmin
+    .from(table)
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .limit(1);
+  if (probe.error) {
+    if (isMissingColumnError(probe.error)) return;
+    throw new Error(probe.error.message);
+  }
+  const rows = contacts
+    .filter((row) => row.departmentId)
+    .map((row, index) => ({
+      restaurant_id: restaurantId,
+      department_id: row.departmentId,
+      contact_name: row.name.trim() || null,
+      phone: row.phone.trim() || null,
+      email: row.email.trim() || null,
+      active: row.active !== false,
+      sort_order: row.sortOrder ?? index,
+    }));
+  if (rows.length === 0) {
+    const remove = await supabaseAdmin.from(table).delete().eq("restaurant_id", restaurantId);
+    if (remove.error) throw new Error(remove.error.message);
+    return;
+  }
+  const insert = await supabaseAdmin
+    .from(table)
+    .insert(rows as never)
+    .select("id");
+  if (insert.error) throw new Error(insert.error.message);
+  const insertedIds = ((insert.data ?? []) as unknown as Array<{ id: string }>).map(
+    (row) => row.id,
+  );
+  const remove = await supabaseAdmin
+    .from(table)
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .not("id", "in", `(${insertedIds.join(",")})`);
+  if (remove.error) throw new Error(remove.error.message);
 }
 
 function draftFromSave(data: z.infer<typeof draftSchema>, propertyCode: string): Card1Draft {
@@ -572,12 +837,12 @@ function card1Patch(
     legal_entity_name: draft.legalEntityName.trim() || null,
     legal_entity_type: draft.legalEntityType || null,
     registration_number: draft.registrationNumber.trim() || null,
-    legal_upload_refs: draft.legalUploadRefs as unknown as Json,
+    legal_upload_refs: persistedUploadRefs(draft.legalUploadRefs),
     vat_registered: draft.vatRegistered,
     vat_number: draft.vatNumber.trim() || null,
     tin_number: draft.tinNumber.trim() || null,
     licence_number: draft.licenceNumber.trim() || null,
-    tax_upload_refs: draft.taxUploadRefs as unknown as Json,
+    tax_upload_refs: persistedUploadRefs(draft.taxUploadRefs),
     structure_rules_posture: draft.structureRules as unknown as Json,
     pms_property_setup_status: status as unknown as Json,
   };
@@ -592,7 +857,7 @@ function card1Patch(
     patch.emergency_contacts = draft.emergency as unknown as Json;
     patch.property_areas = draft.propertyAreas as unknown as Json;
     patch.location_extras = draft.locationExtras as unknown as Json;
-    patch.checkin_ops = draft.checkinOps as unknown as Json;
+    patch.checkin_ops = normalizeCard1CheckinOpsForPersistence(draft.checkinOps) as unknown as Json;
     patch.legal_extras = draft.legalExtras as unknown as Json;
   }
   if (foundationColumnsAvailable) {
@@ -624,19 +889,26 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     const lastSuccessfulNightAudit = await loadLastNightAudit(supabaseAdmin, data.restaurantId);
-    const snapshot = await withBrandPreviews(
-      snapshotFromRow(
-        loaded.row,
-        loaded.card1ColumnsAvailable,
-        loaded.fidelityColumnsAvailable,
-        loaded.foundationColumnsAvailable,
-        set2,
-        lastSuccessfulNightAudit,
+    const snapshot = await withFunctionalHardening(
+      supabaseAdmin,
+      data.restaurantId,
+      await withBrandPreviews(
+        snapshotFromRow(
+          loaded.row,
+          loaded.card1ColumnsAvailable,
+          loaded.fidelityColumnsAvailable,
+          loaded.foundationColumnsAvailable,
+          set2,
+          lastSuccessfulNightAudit,
+        ),
       ),
     );
     if (canEditSet1(me.role) && loaded.card1ColumnsAvailable) {
@@ -660,14 +932,24 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
-    const assignedCode = await assignPropertyCode(supabaseAdmin, loaded.row?.property_code ? String(loaded.row.property_code) : "");
+    const assignedCode = await assignPropertyCode(
+      supabaseAdmin,
+      loaded.row?.property_code ? String(loaded.row.property_code) : "",
+    );
     const draft = draftFromSave(data.draft, assignedCode);
-    if (data.mode !== "draft" && vatCertificateRequired(draft.vatRegistered) && !hasVatCertificate(draft.taxUploadRefs)) {
+    if (
+      data.mode !== "draft" &&
+      vatCertificateRequired(draft.vatRegistered) &&
+      !hasVatCertificate(draft.taxUploadRefs)
+    ) {
       throw new Error("VAT certificate is required while VAT Registered is On.");
     }
 
@@ -686,7 +968,10 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
       if (data.step === "identity" && !draft.openingDate.trim()) {
         throw new Error("Opening Date is required to complete Property Identity.");
       }
-      if (data.step === "contacts" && (!draft.emergency.name.trim() || !draft.emergency.phone.trim())) {
+      if (
+        data.step === "contacts" &&
+        (!draft.emergency.name.trim() || !draft.emergency.phone.trim())
+      ) {
         throw new Error("Emergency contact name and phone are required to complete Contacts.");
       }
       throw new Error("Complete the required fields on this step before continuing.");
@@ -696,7 +981,9 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
     if (data.mode === "finish") {
       status = markStepComplete(status, data.step, draft, set2Before);
       const complete = CARD1_STEPS.every((row) => card1StepComplete(row.id, draft, set2Before));
-      status = complete ? markCard1Complete(status) : { ...status, cards: { ...status.cards, "property-business": "in_progress" } };
+      status = complete
+        ? markCard1Complete(status)
+        : { ...status, cards: { ...status.cards, "property-business": "in_progress" } };
     } else if (data.mode === "continue") {
       status = markStepComplete(status, data.step, draft, set2Before);
     } else {
@@ -704,35 +991,77 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
     }
 
     const patch = loaded.card1ColumnsAvailable
-      ? card1Patch(draft, status, loaded.foundationColumnsAvailable, loaded.fidelityColumnsAvailable)
+      ? card1Patch(
+          draft,
+          status,
+          loaded.foundationColumnsAvailable,
+          loaded.fidelityColumnsAvailable,
+        )
       : corePatch(draft);
     if ("pms_set1_live" in patch) delete patch.pms_set1_live;
     if ("business_date" in patch) delete patch.business_date;
 
-    const { error } = await supabaseAdmin.from("restaurants").update(patch).eq("id", data.restaurantId);
+    const { error } = await supabaseAdmin
+      .from("restaurants")
+      .update(patch)
+      .eq("id", data.restaurantId);
     if (error) {
       if (isMissingColumnError(error)) {
-        const retry = await supabaseAdmin.from("restaurants").update(corePatch(draft)).eq("id", data.restaurantId);
+        const retry = await supabaseAdmin
+          .from("restaurants")
+          .update(corePatch(draft))
+          .eq("id", data.restaurantId);
         if (retry.error) throw new Error(retry.error.message);
         if (data.mode !== "draft") throw new Error(CARD1_COLUMNS_UNAVAILABLE);
       } else {
         throw new Error(error.message);
       }
     }
+    if (loaded.card1ColumnsAvailable) {
+      await syncDepartmentContacts(supabaseAdmin, data.restaurantId, draft.departmentContacts);
+      const previousDocumentPaths = [
+        ...parseUploadRefs(loaded.row?.legal_upload_refs),
+        ...parseUploadRefs(loaded.row?.tax_upload_refs),
+      ]
+        .map((row) => row.storagePath)
+        .filter((path): path is string => Boolean(path));
+      const currentDocumentPaths = new Set(
+        [...draft.legalUploadRefs, ...draft.taxUploadRefs]
+          .map((row) => row.storagePath)
+          .filter((path): path is string => Boolean(path)),
+      );
+      const removedDocumentPaths = previousDocumentPaths.filter(
+        (path) =>
+          path.startsWith(`${data.restaurantId}/compliance/`) && !currentDocumentPaths.has(path),
+      );
+      if (removedDocumentPaths.length > 0) {
+        const removed = await supabaseAdmin.storage.from(ROOM_BUCKET).remove(removedDocumentPaths);
+        if (removed.error) console.error("[pms-card1] document cleanup", removed.error.message);
+      }
+    }
 
     const afterLoad = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
-    const after = await withBrandPreviews(
-      snapshotFromRow(
-        afterLoad.row,
-        afterLoad.card1ColumnsAvailable,
-        afterLoad.fidelityColumnsAvailable,
-        afterLoad.foundationColumnsAvailable,
-        set2,
-        lastSuccessfulNightAudit,
+    const after = await withFunctionalHardening(
+      supabaseAdmin,
+      data.restaurantId,
+      await withBrandPreviews(
+        snapshotFromRow(
+          afterLoad.row,
+          afterLoad.card1ColumnsAvailable,
+          afterLoad.fidelityColumnsAvailable,
+          afterLoad.foundationColumnsAvailable,
+          set2,
+          lastSuccessfulNightAudit,
+        ),
       ),
     );
-    const action = data.mode === "finish" ? CARD1_AUDIT_COMPLETED : data.mode === "continue" ? CARD1_AUDIT_STEP : CARD1_AUDIT_DRAFT;
+    const action =
+      data.mode === "finish"
+        ? CARD1_AUDIT_COMPLETED
+        : data.mode === "continue"
+          ? CARD1_AUDIT_STEP
+          : CARD1_AUDIT_DRAFT;
     const auditWritten = await writeAudit(supabaseAdmin, {
       restaurantId: data.restaurantId,
       actorUserId: context.userId,
@@ -757,15 +1086,188 @@ export const createPropertyBrandImageUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const ext = IMAGE_EXT_BY_TYPE[data.contentType];
-    if (!ext) return { ok: false as const, message: "Only PNG, JPG, JPEG and WEBP images are allowed." };
+    if (!ext)
+      return { ok: false as const, message: "Only PNG, JPG, JPEG and WEBP images are allowed." };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const path = `${data.restaurantId}/branding/${data.kind}-${crypto.randomUUID()}.${ext}`;
-    const { data: signed, error } = await supabaseAdmin.storage.from(ROOM_BUCKET).createSignedUploadUrl(path);
-    if (error || !signed) return { ok: false as const, message: "Image upload failed. Please try again." };
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from(ROOM_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !signed)
+      return { ok: false as const, message: "Image upload failed. Please try again." };
     return { ok: true as const, path, token: signed.token };
+  });
+
+const COMPLIANCE_TYPES = ["application/pdf", "image/png", "image/jpeg"] as const;
+const COMPLIANCE_EXTENSIONS: Record<(typeof COMPLIANCE_TYPES)[number], string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+};
+const COMPLIANCE_KINDS = [
+  "certificate_of_incorporation",
+  "trade_license",
+  "tin_certificate",
+  "vat_certificate",
+] as const;
+
+export const createPropertyComplianceDocumentUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        kind: z.enum(COMPLIANCE_KINDS),
+        contentType: z.enum(COMPLIANCE_TYPES),
+        size: z
+          .number()
+          .int()
+          .positive()
+          .max(CARD1_BRAND_IMAGE_MAX_BYTES - 1),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
+    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    const ext = COMPLIANCE_EXTENSIONS[data.contentType];
+    const path = `${data.restaurantId}/compliance/${data.kind}-${crypto.randomUUID()}.${ext}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from(ROOM_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !signed) {
+      return { ok: false as const, message: "Document upload failed. Please try again." };
+    }
+    return { ok: true as const, path, token: signed.token };
+  });
+
+export const deletePropertyComplianceDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({ restaurantId: idSchema, storagePath: z.string().trim().min(1).max(500) })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
+    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    if (!data.storagePath.startsWith(`${data.restaurantId}/compliance/`)) {
+      throw new Error("Document path does not belong to this property.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.storage.from(ROOM_BUCKET).remove([data.storagePath]);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+const propertyAreaSchema = z.object({
+  restaurantId: idSchema,
+  id: idSchema.optional(),
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(500),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(9999),
+});
+
+export const saveCard1PropertyArea = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => propertyAreaSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
+    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const table = "pms_property_areas" as keyof Database["public"]["Tables"];
+    const payload = {
+      restaurant_id: data.restaurantId,
+      name: data.name,
+      description: data.description || null,
+      active: data.active,
+      sort_order: data.sortOrder,
+    };
+    const before = data.id
+      ? await supabaseAdmin
+          .from(table)
+          .select("*")
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+          .maybeSingle()
+      : { data: null };
+    const result = data.id
+      ? await supabaseAdmin
+          .from(table)
+          .update(payload as never)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+          .select("id, name, description, active, sort_order")
+          .single()
+      : await supabaseAdmin
+          .from(table)
+          .insert(payload as never)
+          .select("id, name, description, active, sort_order")
+          .single();
+    if (result.error) throw new Error(result.error.message);
+    await writeAudit(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      actorUserId: context.userId,
+      action: CARD1_AUDIT_DRAFT,
+      section: "property-area",
+      before: before.data,
+      after: result.data,
+    });
+    return { ok: true as const, area: result.data as unknown as Card1PropertyArea };
+  });
+
+export const deleteCard1PropertyArea = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await withPmsPackage(
+      data.restaurantId,
+      callerMembership(context as never, data.restaurantId),
+    );
+    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const table = "pms_property_areas" as keyof Database["public"]["Tables"];
+    const before = await supabaseAdmin
+      .from(table)
+      .select("*")
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (before.error) throw new Error(before.error.message);
+    const result = await supabaseAdmin
+      .from(table)
+      .delete()
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (result.error) throw new Error(result.error.message);
+    await writeAudit(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      actorUserId: context.userId,
+      action: CARD1_AUDIT_DRAFT,
+      section: "delete-property-area",
+      before: before.data,
+      after: null,
+    });
+    return { ok: true as const };
   });
 
 export type { Card1Snapshot };

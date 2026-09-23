@@ -650,6 +650,12 @@ export const savePmsAuditRetention = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
     const after = await loadSet5Snapshot(supabaseAdmin, data.restaurantId);
+    const { upsertAuditPolicyFromSet5 } = await import("./audit-card7.functions");
+    await upsertAuditPolicyFromSet5(supabaseAdmin, data.restaurantId, {
+      retentionDays: data.retentionDays,
+      maskIdNumbers: data.maskIdNumbers,
+      restrictGuestExport: data.restrictGuestExport,
+    });
     const auditWritten = await writeAudit(supabaseAdmin, {
       restaurantId: data.restaurantId,
       actorUserId: context.userId,

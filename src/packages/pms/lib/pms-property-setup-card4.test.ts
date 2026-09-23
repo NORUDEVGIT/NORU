@@ -14,12 +14,15 @@ import {
   CARD4_HASH,
   CARD4_HREF,
   CARD4_MAIN_SECTIONS,
+  CARD4_NOTIFICATION_STEPS,
   CARD4_STEPS,
   CARD4_TITLE,
   evaluateCard4StepStatus,
   evaluateGstStepStatus,
+  evaluateNotificationStepStatus,
   isCard4WorkspaceHash,
   nextCard4GstStep,
+  nextCard4NotificationStep,
   nextCard4Step,
   resolveCard4Hash,
 } from "./pms-property-setup-card4.ts";
@@ -110,11 +113,71 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     );
     assert.equal(nextCard4GstStep("service-categories"), "service-types");
     assert.equal(nextCard4GstStep("service-availability"), null);
+    assert.deepEqual(
+      CARD4_NOTIFICATION_STEPS.map((row) => [row.number, row.id]),
+      [
+        [1, "channels"],
+        [2, "communication-templates"],
+        [3, "notification-events"],
+        [4, "automation-rules"],
+        [5, "sender-settings"],
+        [6, "communication-defaults"],
+      ],
+    );
+    assert.equal(nextCard4NotificationStep("channels"), "communication-templates");
+    assert.equal(nextCard4NotificationStep("communication-defaults"), null);
+    assert.equal(evaluateNotificationStepStatus("channels", true), "complete");
+    assert.equal(evaluateNotificationStepStatus("communication-templates", true), "not_started");
+    assert.equal(evaluateNotificationStepStatus("communication-templates", true, true), "complete");
+    assert.equal(evaluateNotificationStepStatus("notification-events", true, true), "not_started");
+    assert.equal(
+      evaluateNotificationStepStatus("notification-events", true, true, true),
+      "complete",
+    );
+    assert.equal(
+      evaluateNotificationStepStatus("automation-rules", true, true, true),
+      "not_started",
+    );
+    assert.equal(
+      evaluateNotificationStepStatus("automation-rules", true, true, true, true),
+      "complete",
+    );
+    assert.equal(
+      evaluateNotificationStepStatus("sender-settings", true, true, true, true),
+      "not_started",
+    );
+    assert.equal(
+      evaluateNotificationStepStatus("sender-settings", true, true, true, true, true),
+      "complete",
+    );
+    assert.equal(
+      evaluateNotificationStepStatus("communication-defaults", true, true, true, true, true),
+      "not_started",
+    );
+    assert.equal(
+      evaluateNotificationStepStatus("communication-defaults", true, true, true, true, true, true),
+      "complete",
+    );
     assert.equal(evaluateGstStepStatus("service-categories", true), "complete");
     assert.equal(evaluateGstStepStatus("service-types", true), "not_started");
     assert.equal(evaluateGstStepStatus("service-types", true, true), "complete");
     assert.equal(evaluateGstStepStatus("service-pricing", true, true), "not_started");
     assert.equal(evaluateGstStepStatus("service-pricing", true, true, true), "complete");
+    assert.equal(evaluateGstStepStatus("department-assignment", true, true, true), "not_started");
+    assert.equal(
+      evaluateGstStepStatus("department-assignment", true, true, true, true),
+      "complete",
+    );
+    assert.equal(evaluateGstStepStatus("sla-rules", true, true, true, true), "not_started");
+    assert.equal(evaluateGstStepStatus("sla-rules", true, true, true, true, true), "complete");
+    assert.equal(
+      evaluateGstStepStatus("service-availability", true, true, true, true, true),
+      "not_started",
+    );
+    assert.equal(
+      evaluateGstStepStatus("service-availability", true, true, true, true, true, true),
+      "complete",
+    );
   });
 
   it("opens from hub Configure and hides the package rail", () => {
@@ -129,7 +192,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(hub, /PmsPropertySetupCard4Section/);
     assert.match(hub, /CARD4_HASH/);
     assert.match(settings, /isCard4WorkspaceHash/);
-    assert.match(settings, /hidePackageRail=\{workspaceOpen\}/);
+    assert.match(settings, /hidePackageRail/);
     assert.match(section, /PmsCard4RequiredFields/);
     assert.match(section, /PmsCard4IdentityDocuments/);
     assert.match(section, /PmsCard4Preferences/);
@@ -138,12 +201,23 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.match(section, /PmsCard4ServiceCategories/);
     assert.match(section, /PmsCard4ServiceTypes/);
     assert.match(section, /PmsCard4ServicePricing/);
+    assert.match(section, /PmsCard4ServiceDepartmentAssignment/);
+    assert.match(section, /PmsCard4ServiceSlaRules/);
+    assert.match(section, /PmsCard4CommunicationChannels/);
+    assert.match(section, /PmsCard4CommunicationTemplates/);
+    assert.match(section, /PmsCard4NotificationEvents/);
+    assert.match(section, /PmsCard4AutomationRules/);
+    assert.match(section, /PmsCard4SenderSettings/);
+    assert.match(section, /PmsCard4CommunicationDefaults/);
     assert.match(section, /identity-documents/);
     assert.match(section, /company-business/);
     assert.match(section, /group-types/);
     assert.match(section, /guest-service-types/);
     assert.match(lib, /CARD4_GST_STEPS/);
-    assert.match(section, /cardStatusLabel=\{propertySetupStatusLabel\(cardStatus\)\}/);
+    assert.match(section, /PropertySetupWorkspaceShell/);
+    assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
+    assert.doesNotMatch(section, /CARD1_PMS_NAV/);
+    assert.doesNotMatch(section, /card4ProgressPct/);
     assert.match(section, /allGprComplete/);
   });
 
@@ -292,6 +366,40 @@ describe("Card 4 dual-lane 0084", () => {
   });
 });
 
+describe("Card 4 dual-lane 0086", () => {
+  it("ships tenant-safe department assignments without creating departments or operational FKs", () => {
+    const drizzle = join(
+      process.cwd(),
+      "drizzle/migrations/0086_pms_card4_service_department_assignment.sql",
+    );
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0086_pms_card4_service_department_assignment.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(
+      sql,
+      /CREATE TABLE IF NOT EXISTS public\.pms_guest_service_department_assignments/,
+    );
+    assert.match(sql, /UNIQUE \(service_type_id, department_id\)/);
+    assert.match(
+      sql,
+      /FOREIGN KEY \(service_type_id, restaurant_id\)[\s\S]*pms_guest_service_types/,
+    );
+    assert.match(sql, /FOREIGN KEY \(department_id, restaurant_id\)[\s\S]*pms_departments/);
+    assert.doesNotMatch(sql, /CREATE TABLE IF NOT EXISTS public\.pms_departments/);
+    assert.doesNotMatch(sql, /pms_guest_request_types/);
+    assert.doesNotMatch(sql, /pms_department_routing_rules/);
+    assert.doesNotMatch(
+      sql,
+      /CREATE TABLE IF NOT EXISTS public\.(guest_service_requests|invoices|folio_transactions)/,
+    );
+  });
+});
+
 describe("Card 4 dual-lane 0085", () => {
   it("ships one tenant-safe numeric price per service type without operational charges", () => {
     const drizzle = join(process.cwd(), "drizzle/migrations/0085_pms_card4_service_pricing.sql");
@@ -312,6 +420,66 @@ describe("Card 4 dual-lane 0085", () => {
     assert.doesNotMatch(
       sql,
       /CREATE TABLE IF NOT EXISTS public\.(guest_service_requests|invoices|folio_transactions)/,
+    );
+  });
+});
+
+describe("Card 4 dual-lane 0087", () => {
+  it("ships one tenant-safe minute-based SLA rule per service type", () => {
+    const drizzle = join(process.cwd(), "drizzle/migrations/0087_pms_card4_service_sla_rules.sql");
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0087_pms_card4_service_sla_rules.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_service_sla_rules/);
+    assert.match(sql, /response_minutes integer NOT NULL/);
+    assert.match(sql, /resolution_minutes integer NOT NULL/);
+    assert.match(sql, /UNIQUE \(service_type_id\)/);
+    assert.match(
+      sql,
+      /FOREIGN KEY \(service_type_id, restaurant_id\)[\s\S]*pms_guest_service_types/,
+    );
+    assert.match(sql, /ALTER TABLE public\.pms_guest_service_sla_rules ENABLE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(sql, /pms_maintenance_sla|pms_guest_request_types/);
+    assert.doesNotMatch(
+      sql,
+      /CREATE TABLE IF NOT EXISTS public\.(pms_guest_service_availability|guest_service_requests|sla_tracking)/,
+    );
+  });
+});
+
+describe("Card 4 dual-lane 0088", () => {
+  it("ships tenant-safe structured weekly availability per service type", () => {
+    const drizzle = join(
+      process.cwd(),
+      "drizzle/migrations/0088_pms_card4_service_availability.sql",
+    );
+    const supabase = join(
+      process.cwd(),
+      "supabase/migrations/0088_pms_card4_service_availability.sql",
+    );
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.pms_guest_service_availability/);
+    assert.match(sql, /weekly_schedule jsonb NOT NULL/);
+    assert.match(sql, /UNIQUE \(service_type_id\)/);
+    assert.match(
+      sql,
+      /FOREIGN KEY \(service_type_id, restaurant_id\)[\s\S]*pms_guest_service_types/,
+    );
+    assert.match(
+      sql,
+      /ALTER TABLE public\.pms_guest_service_availability ENABLE ROW LEVEL SECURITY/,
+    );
+    assert.doesNotMatch(
+      sql,
+      /CREATE TABLE IF NOT EXISTS public\.(guest_service_requests|notification_templates|sla_tracking)/,
     );
   });
 });

@@ -369,6 +369,24 @@ export const getMaintenanceSummary = createServerFn({ method: "POST" })
     };
   });
 
+/** Read-only Card 2 Maintenance evaluator for Card 8. */
+export async function loadCard2MaintenanceValidation(db: DbClient, restaurantId: string) {
+  const loaded = await loadRules(db, restaurantId);
+  const persisted = Boolean(loaded.parent);
+  const rules = loaded.parent ? mapParent(loaded.parent, loaded.statusRules) : defaultMaintenanceRules();
+  const department = await departmentForRestaurant(
+    db,
+    restaurantId,
+    rules.preventiveAssignedDepartmentId,
+  );
+  return evaluateMaintenanceReadinessPure({
+    persisted,
+    persistedStatusCount: loaded.persistedStatusCount,
+    rules,
+    departmentValid: department.valid,
+  });
+}
+
 export const evaluateCard2MaintenanceReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))

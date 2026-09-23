@@ -198,6 +198,7 @@ async function loadSnapshot(
   restaurantId: string,
   userId: string,
   seeded = false,
+  seedMissing = true,
 ): Promise<PreferenceSnapshot> {
   const categoriesRes = await db
     .from("pms_guest_preference_categories")
@@ -208,9 +209,10 @@ async function loadSnapshot(
   if (categoriesRes.error) unavailable(categoriesRes.error);
 
   if ((categoriesRes.data ?? []).length === 0) {
+    if (!seedMissing) return { categories: [], types: [], lastUpdatedAt: null };
     if (seeded) throw new Error("Could not seed default preference categories.");
     await seedDefaults(db, restaurantId, userId);
-    return loadSnapshot(db, restaurantId, userId, true);
+    return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
   const typesRes = await db
@@ -235,6 +237,8 @@ async function loadSnapshot(
   }, null);
   return { categories, types, lastUpdatedAt };
 }
+
+export { loadSnapshot as loadPreferencesCard4Snapshot };
 
 export const getPmsCard4Preferences = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

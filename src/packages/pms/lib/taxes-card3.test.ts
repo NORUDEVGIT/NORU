@@ -151,7 +151,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     );
     assert.match(section, /PmsPropertySetupCard3Taxes/);
     assert.match(ui, /CARD3_TAXES_SET1_COPY/);
-    assert.match(section, /CARD3_DOMAIN_PLACEHOLDER/);
+    assert.match(ui, /Card3ListSection/);
+    assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.doesNotMatch(ui, /Rates & Pricing/);
   });
 });

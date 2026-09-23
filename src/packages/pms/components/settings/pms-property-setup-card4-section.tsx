@@ -2,7 +2,12 @@ import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { PmsPropertySetupWorkspace } from "@/packages/pms/components/settings/pms-property-setup-workspace";
+import {
+  PropertySetupStatusRail,
+  PropertySetupStepNav,
+  PropertySetupWorkspaceShell,
+} from "@/packages/pms/components/settings/setup-kit";
+import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
 import {
   Card4ProfileTypesGuide,
   PmsCard4ProfileTypes,
@@ -47,6 +52,42 @@ import {
   Card4ServicePricingGuide,
   PmsCard4ServicePricing,
 } from "@/packages/pms/components/settings/pms-card4-service-pricing";
+import {
+  Card4ServiceDepartmentAssignmentGuide,
+  PmsCard4ServiceDepartmentAssignment,
+} from "@/packages/pms/components/settings/pms-card4-service-department-assignment";
+import {
+  Card4ServiceSlaRulesGuide,
+  PmsCard4ServiceSlaRules,
+} from "@/packages/pms/components/settings/pms-card4-service-sla-rules";
+import {
+  Card4ServiceAvailabilityGuide,
+  PmsCard4ServiceAvailability,
+} from "@/packages/pms/components/settings/pms-card4-service-availability";
+import {
+  Card4CommunicationChannelsGuide,
+  PmsCard4CommunicationChannels,
+} from "@/packages/pms/components/settings/pms-card4-communication-channels";
+import {
+  Card4CommunicationTemplatesGuide,
+  PmsCard4CommunicationTemplates,
+} from "@/packages/pms/components/settings/pms-card4-communication-templates";
+import {
+  Card4NotificationEventsGuide,
+  PmsCard4NotificationEvents,
+} from "@/packages/pms/components/settings/pms-card4-notification-events";
+import {
+  Card4AutomationRulesGuide,
+  PmsCard4AutomationRules,
+} from "@/packages/pms/components/settings/pms-card4-automation-rules";
+import {
+  Card4SenderSettingsGuide,
+  PmsCard4SenderSettings,
+} from "@/packages/pms/components/settings/pms-card4-sender-settings";
+import {
+  Card4CommunicationDefaultsGuide,
+  PmsCard4CommunicationDefaults,
+} from "@/packages/pms/components/settings/pms-card4-communication-defaults";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4GroupTypes } from "@/packages/pms/lib/group-types-card4.functions";
@@ -57,31 +98,50 @@ import { getPmsCard4ServiceTypes } from "@/packages/pms/lib/service-types-card4.
 import { serviceTypesConfigured } from "@/packages/pms/lib/service-types-card4.server";
 import { getPmsCard4ServicePricing } from "@/packages/pms/lib/service-pricing-card4.functions";
 import { servicePricingConfigured } from "@/packages/pms/lib/service-pricing-card4.server";
+import { getPmsCard4ServiceDepartmentAssignments } from "@/packages/pms/lib/service-department-assignment-card4.functions";
+import { serviceDepartmentAssignmentsConfigured } from "@/packages/pms/lib/service-department-assignment-card4.server";
+import { getPmsCard4ServiceSlaRules } from "@/packages/pms/lib/service-sla-rules-card4.functions";
+import { serviceSlaRulesConfigured } from "@/packages/pms/lib/service-sla-rules-card4.server";
+import { getPmsCard4ServiceAvailability } from "@/packages/pms/lib/service-availability-card4.functions";
+import { serviceAvailabilityConfigured } from "@/packages/pms/lib/service-availability-card4.server";
+import { getPmsCard4CommunicationChannels } from "@/packages/pms/lib/communication-channels-card4.functions";
+import { communicationChannelsConfigured } from "@/packages/pms/lib/communication-channels-card4.server";
+import { getPmsCard4CommunicationTemplates } from "@/packages/pms/lib/communication-templates-card4.functions";
 import {
-  CARD1_PMS_NAV,
-  propertySetupStatusLabel,
-  type PropertySetupCardStatus,
-} from "@/packages/pms/lib/pms-property-setup-card1";
+  communicationTemplatesConfigured,
+  renderTemplateText,
+  stripTemplateHtml,
+} from "@/packages/pms/lib/communication-templates-card4.server";
+import { getPmsCard4NotificationEvents } from "@/packages/pms/lib/notification-events-card4.functions";
+import { notificationEventsConfigured } from "@/packages/pms/lib/notification-events-card4.server";
+import { getPmsCard4AutomationRules } from "@/packages/pms/lib/automation-rules-card4.functions";
+import { automationRulesConfigured } from "@/packages/pms/lib/automation-rules-card4.server";
+import { getPmsCard4SenderSettings } from "@/packages/pms/lib/sender-settings-card4.functions";
+import { senderSettingsConfigured } from "@/packages/pms/lib/sender-settings-card4.server";
+import { getPmsCard4CommunicationDefaults } from "@/packages/pms/lib/communication-defaults-card4.functions";
+import { communicationDefaultsConfigured } from "@/packages/pms/lib/communication-defaults-card4.server";
+import { type PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   CARD4_GST_STEPS,
   CARD4_GST_SUBTITLE,
   CARD4_GPR_SUBTITLE,
   CARD4_MAIN_SECTIONS,
+  CARD4_NOTIFICATION_STEPS,
   CARD4_NOTIFY_SUBTITLE,
   CARD4_SIDEBAR_OUT,
   CARD4_STEPS,
-  CARD4_WORKSPACE_TITLE,
-  card4CompletedCount,
-  card4GstCompletedCount,
   card4GstStepById,
-  card4ProgressPct,
+  card4NotificationStepById,
   card4StepById,
   evaluateCard4StepStatus,
   evaluateGstStepStatus,
+  evaluateNotificationStepStatus,
   nextCard4GstStep,
+  nextCard4NotificationStep,
   nextCard4Step,
   type Card4GstStepId,
   type Card4MainSectionId,
+  type Card4NotificationStepId,
   type Card4StepId,
 } from "@/packages/pms/lib/pms-property-setup-card4";
 import { cn } from "@/shared/lib/utils";
@@ -98,6 +158,7 @@ export function PmsPropertySetupCard4Section({
   const [mainSection, setMainSection] = useState<Card4MainSectionId>("profile-rules");
   const [step, setStep] = useState<Card4StepId>(initialStep);
   const [gstStep, setGstStep] = useState<Card4GstStepId>("service-categories");
+  const [notificationStep, setNotificationStep] = useState<Card4NotificationStepId>("channels");
   const [saveRequest, setSaveRequest] = useState<{ token: number; thenNext: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
   const [canSave, setCanSave] = useState(false);
@@ -110,6 +171,15 @@ export function PmsPropertySetupCard4Section({
   const loadServiceCategories = useServerFn(getPmsCard4ServiceCategories);
   const loadServiceTypes = useServerFn(getPmsCard4ServiceTypes);
   const loadServicePricing = useServerFn(getPmsCard4ServicePricing);
+  const loadAssignments = useServerFn(getPmsCard4ServiceDepartmentAssignments);
+  const loadSlaRules = useServerFn(getPmsCard4ServiceSlaRules);
+  const loadAvailability = useServerFn(getPmsCard4ServiceAvailability);
+  const loadCommunicationChannels = useServerFn(getPmsCard4CommunicationChannels);
+  const loadCommunicationTemplates = useServerFn(getPmsCard4CommunicationTemplates);
+  const loadNotificationEvents = useServerFn(getPmsCard4NotificationEvents);
+  const loadAutomationRules = useServerFn(getPmsCard4AutomationRules);
+  const loadSenderSettings = useServerFn(getPmsCard4SenderSettings);
+  const loadCommunicationDefaults = useServerFn(getPmsCard4CommunicationDefaults);
   const typesQuery = useQuery({
     queryKey: ["pms-card4-profile-types", restaurantId],
     queryFn: () => loadTypes({ data: { restaurantId } }),
@@ -156,6 +226,51 @@ export function PmsPropertySetupCard4Section({
     queryFn: () => loadServicePricing({ data: { restaurantId } }),
     retry: false,
   });
+  const assignmentsQuery = useQuery({
+    queryKey: ["pms-card4-department-assignment", restaurantId],
+    queryFn: () => loadAssignments({ data: { restaurantId } }),
+    retry: false,
+  });
+  const slaRulesQuery = useQuery({
+    queryKey: ["pms-card4-service-sla-rules", restaurantId],
+    queryFn: () => loadSlaRules({ data: { restaurantId } }),
+    retry: false,
+  });
+  const availabilityQuery = useQuery({
+    queryKey: ["pms-card4-service-availability", restaurantId],
+    queryFn: () => loadAvailability({ data: { restaurantId } }),
+    retry: false,
+  });
+  const communicationChannelsQuery = useQuery({
+    queryKey: ["pms-card4-communication-channels", restaurantId],
+    queryFn: () => loadCommunicationChannels({ data: { restaurantId } }),
+    retry: false,
+  });
+  const communicationTemplatesQuery = useQuery({
+    queryKey: ["pms-card4-communication-templates", restaurantId],
+    queryFn: () => loadCommunicationTemplates({ data: { restaurantId } }),
+    retry: false,
+  });
+  const notificationEventsQuery = useQuery({
+    queryKey: ["pms-card4-notification-events", restaurantId],
+    queryFn: () => loadNotificationEvents({ data: { restaurantId } }),
+    retry: false,
+  });
+  const automationRulesQuery = useQuery({
+    queryKey: ["pms-card4-automation-rules", restaurantId],
+    queryFn: () => loadAutomationRules({ data: { restaurantId } }),
+    retry: false,
+  });
+  const senderSettingsQuery = useQuery({
+    queryKey: ["pms-card4-sender-settings", restaurantId],
+    queryFn: () => loadSenderSettings({ data: { restaurantId } }),
+    retry: false,
+  });
+  const communicationDefaultsQuery = useQuery({
+    queryKey: ["pms-card4-communication-defaults", restaurantId],
+    queryFn: () => loadCommunicationDefaults({ data: { restaurantId } }),
+    retry: false,
+  });
   const profileTypesConfigured = (typesQuery.data?.types.length ?? 0) > 0;
   const requiredFieldsConfigured = guestFieldsConfigured(fieldsQuery.data?.fields ?? []);
   const identityDocumentsConfigured = identityDocumentTypesConfigured(
@@ -186,6 +301,36 @@ export function PmsPropertySetupCard4Section({
     servicePricingQuery.data?.pricing ?? [],
     servicePricingQuery.data?.serviceTypes ?? [],
   );
+  const assignmentsReady = serviceDepartmentAssignmentsConfigured(
+    assignmentsQuery.data?.assignments ?? [],
+    assignmentsQuery.data?.serviceTypes ?? [],
+    assignmentsQuery.data?.departments ?? [],
+  );
+  const slaRulesReady = serviceSlaRulesConfigured(
+    slaRulesQuery.data?.rules ?? [],
+    slaRulesQuery.data?.serviceTypes ?? [],
+  );
+  const availabilityReady = serviceAvailabilityConfigured(
+    availabilityQuery.data?.availability ?? [],
+    availabilityQuery.data?.serviceTypes ?? [],
+  );
+  const channelsReady = communicationChannelsConfigured(
+    communicationChannelsQuery.data?.channels ?? [],
+  );
+  const templatesReady = communicationTemplatesConfigured(
+    communicationTemplatesQuery.data?.templates ?? [],
+  );
+  const eventsReady = notificationEventsConfigured(notificationEventsQuery.data?.events ?? []);
+  const rulesReady = automationRulesConfigured(automationRulesQuery.data?.rules ?? []);
+  const senderReady = senderSettingsConfigured(
+    senderSettingsQuery.data?.settings ?? [],
+    communicationChannelsQuery.data?.channels ?? [],
+  );
+  const defaultsReady = communicationDefaultsConfigured(
+    communicationDefaultsQuery.data?.defaults ?? null,
+    communicationDefaultsQuery.data?.channels ?? [],
+    communicationDefaultsQuery.data?.senders ?? [],
+  );
 
   const onSavingChange = useCallback((nextSaving: boolean, nextCanSave: boolean) => {
     setSaving(nextSaving);
@@ -196,6 +341,8 @@ export function PmsPropertySetupCard4Section({
   const next = nextCard4Step(step);
   const gstCurrent = card4GstStepById(gstStep);
   const gstNext = nextCard4GstStep(gstStep);
+  const notificationCurrent = card4NotificationStepById(notificationStep);
+  const notificationNext = nextCard4NotificationStep(notificationStep);
   const stepStatuses: Partial<Record<Card4StepId, PropertySetupCardStatus>> = {
     "profile-types": evaluateCard4StepStatus(
       "profile-types",
@@ -256,41 +403,71 @@ export function PmsPropertySetupCard4Section({
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
+      slaRulesReady,
+      availabilityReady,
     ),
     "service-types": evaluateGstStepStatus(
       "service-types",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
+      slaRulesReady,
+      availabilityReady,
     ),
     "service-pricing": evaluateGstStepStatus(
       "service-pricing",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
+      slaRulesReady,
+      availabilityReady,
     ),
     "department-assignment": evaluateGstStepStatus(
       "department-assignment",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
+      slaRulesReady,
+      availabilityReady,
     ),
-    "sla-rules": evaluateGstStepStatus("sla-rules", categoriesReady, typesReady, pricingReady),
+    "sla-rules": evaluateGstStepStatus(
+      "sla-rules",
+      categoriesReady,
+      typesReady,
+      pricingReady,
+      assignmentsReady,
+      slaRulesReady,
+      availabilityReady,
+    ),
     "service-availability": evaluateGstStepStatus(
       "service-availability",
       categoriesReady,
       typesReady,
       pricingReady,
+      assignmentsReady,
+      slaRulesReady,
+      availabilityReady,
     ),
   };
-  const gprCompleted = card4CompletedCount(stepStatuses);
-  const gstCompleted = card4GstCompletedCount(gstStatuses);
-  const completedCount =
-    mainSection === "guest-service-types"
-      ? gstCompleted
-      : mainSection === "notifications"
-        ? 0
-        : gprCompleted;
+  const notificationStatuses: Partial<Record<Card4NotificationStepId, PropertySetupCardStatus>> =
+    Object.fromEntries(
+      CARD4_NOTIFICATION_STEPS.map((row) => [
+        row.id,
+        evaluateNotificationStepStatus(
+          row.id,
+          channelsReady,
+          templatesReady,
+          eventsReady,
+          rulesReady,
+          senderReady,
+          defaultsReady,
+        ),
+      ]),
+    );
   const allGprComplete =
     profileTypesConfigured &&
     requiredFieldsConfigured &&
@@ -299,7 +476,19 @@ export function PmsPropertySetupCard4Section({
     companyReady &&
     groupTypesReady;
   const cardStatus: PropertySetupCardStatus =
-    allGprComplete && categoriesReady && typesReady && pricingReady
+    allGprComplete &&
+    categoriesReady &&
+    typesReady &&
+    pricingReady &&
+    assignmentsReady &&
+    slaRulesReady &&
+    availabilityReady &&
+    channelsReady &&
+    templatesReady &&
+    eventsReady &&
+    rulesReady &&
+    senderReady &&
+    defaultsReady
       ? "complete"
       : profileTypesConfigured ||
           requiredFieldsConfigured ||
@@ -309,7 +498,16 @@ export function PmsPropertySetupCard4Section({
           groupTypesReady ||
           categoriesReady ||
           typesReady ||
-          pricingReady
+          pricingReady ||
+          assignmentsReady ||
+          slaRulesReady ||
+          availabilityReady ||
+          channelsReady ||
+          templatesReady ||
+          eventsReady ||
+          rulesReady ||
+          senderReady ||
+          defaultsReady
         ? "in_progress"
         : "not_started";
 
@@ -333,20 +531,43 @@ export function PmsPropertySetupCard4Section({
       }
       return;
     }
-    if (gstNext) setGstStep(gstNext);
+    if (mainSection === "guest-service-types") {
+      if (gstNext) setGstStep(gstNext);
+      else {
+        setMainSection("notifications");
+        setNotificationStep("channels");
+      }
+      return;
+    }
+    if (notificationNext) setNotificationStep(notificationNext);
     else goHub();
   }
 
   function goContinue() {
     if (mainSection === "notifications") {
-      goHub();
+      if (
+        notificationStep === "channels" ||
+        notificationStep === "communication-templates" ||
+        notificationStep === "notification-events" ||
+        notificationStep === "automation-rules" ||
+        notificationStep === "sender-settings" ||
+        notificationStep === "communication-defaults"
+      ) {
+        requestSave(true);
+        return;
+      }
+      if (notificationNext) setNotificationStep(notificationNext);
+      else goHub();
       return;
     }
     if (mainSection === "guest-service-types") {
       if (
         gstStep === "service-categories" ||
         gstStep === "service-types" ||
-        gstStep === "service-pricing"
+        gstStep === "service-pricing" ||
+        gstStep === "department-assignment" ||
+        gstStep === "sla-rules" ||
+        gstStep === "service-availability"
       ) {
         requestSave(true);
         return;
@@ -378,35 +599,27 @@ export function PmsPropertySetupCard4Section({
   const gstLive =
     gstStep === "service-categories" ||
     gstStep === "service-types" ||
-    gstStep === "service-pricing";
+    gstStep === "service-pricing" ||
+    gstStep === "department-assignment" ||
+    gstStep === "sla-rules" ||
+    gstStep === "service-availability";
   const liveStep =
     mainSection === "profile-rules"
       ? gprLive
       : mainSection === "guest-service-types"
         ? gstLive
-        : false;
+        : notificationStep === "channels" ||
+          notificationStep === "communication-templates" ||
+          notificationStep === "notification-events" ||
+          notificationStep === "automation-rules" ||
+          notificationStep === "sender-settings" ||
+          notificationStep === "communication-defaults";
   const subtitle =
     mainSection === "guest-service-types"
       ? CARD4_GST_SUBTITLE
       : mainSection === "notifications"
         ? CARD4_NOTIFY_SUBTITLE
         : CARD4_GPR_SUBTITLE;
-  const currentSectionTitle =
-    mainSection === "guest-service-types"
-      ? gstCurrent.title
-      : mainSection === "notifications"
-        ? "Notifications & Communication"
-        : current.title;
-  const nextStepTitle =
-    mainSection === "guest-service-types"
-      ? gstNext
-        ? card4GstStepById(gstNext).title
-        : null
-      : mainSection === "profile-rules"
-        ? next
-          ? card4StepById(next).title
-          : "Guest Service Types"
-        : null;
   const workspaceSteps =
     mainSection === "guest-service-types"
       ? CARD4_GST_STEPS.map((row) => ({
@@ -416,14 +629,12 @@ export function PmsPropertySetupCard4Section({
           status: gstStatuses[row.id] ?? "not_started",
         }))
       : mainSection === "notifications"
-        ? [
-            {
-              id: "notifications",
-              number: 1,
-              title: "Notifications & Communication",
-              status: "not_started" as const,
-            },
-          ]
+        ? CARD4_NOTIFICATION_STEPS.map((row) => ({
+            id: row.id,
+            number: row.number,
+            title: row.title,
+            status: notificationStatuses[row.id] ?? "not_started",
+          }))
         : CARD4_STEPS.map((row) => ({
             id: row.id,
             number: row.number,
@@ -431,216 +642,345 @@ export function PmsPropertySetupCard4Section({
             status: stepStatuses[row.id] ?? "not_started",
           }));
 
+  const railCounts = propertySetupRailCounts(workspaceSteps.map((row) => row.status));
+  const activeStepId =
+    mainSection === "guest-service-types"
+      ? gstStep
+      : mainSection === "notifications"
+        ? notificationStep
+        : step;
+
   return (
-    <PmsPropertySetupWorkspace
-      testIdPrefix="pms-card4"
-      sidebarOutCopy={CARD4_SIDEBAR_OUT}
-      nav={CARD1_PMS_NAV}
-      title={CARD4_WORKSPACE_TITLE}
-      subtitle={subtitle}
-      sectionSwitcher={
-        <div className="mt-3 flex flex-wrap gap-2" data-testid="pms-card4-main-sections">
-          {CARD4_MAIN_SECTIONS.map((row) => (
-            <button
-              key={row.id}
-              type="button"
-              onClick={() => setMainSection(row.id)}
-              aria-current={mainSection === row.id ? "true" : undefined}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium",
-                mainSection === row.id
-                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                  : "border-[#CCCCCC] text-muted-foreground hover:border-[#C89933]/60",
-              )}
-            >
-              {row.title}
-            </button>
-          ))}
-        </div>
-      }
-      steps={workspaceSteps}
-      activeStepId={
-        mainSection === "guest-service-types"
-          ? gstStep
-          : mainSection === "notifications"
-            ? "notifications"
-            : step
-      }
-      onSelectStep={(id) => {
-        if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
-        else if (mainSection === "profile-rules") setStep(id as Card4StepId);
-      }}
-      progressPct={
-        mainSection === "guest-service-types"
-          ? Math.round((gstCompleted / CARD4_GST_STEPS.length) * 100)
-          : mainSection === "notifications"
-            ? 0
-            : card4ProgressPct(gprCompleted)
-      }
-      completedCount={completedCount}
-      currentSection={currentSectionTitle}
-      nextStepTitle={nextStepTitle}
-      cardStatusLabel={propertySetupStatusLabel(cardStatus)}
-      progressLabel={
-        mainSection === "guest-service-types"
-          ? "Guest Service Types"
-          : mainSection === "notifications"
-            ? "Notifications & Communication"
-            : "Guest Profile Rules"
-      }
-      onBack={goHub}
-      backLabel="Cancel"
-      saveDraftDisabled={!canEdit || !liveStep || !canSave || saving}
-      continueDisabled={!canEdit || (liveStep && (!canSave || saving))}
-      continuePending={saving}
-      onSaveDraft={() => requestSave(false)}
-      onContinue={goContinue}
-      continueLabel="Save & Next"
-      railExtras={
-        mainSection === "guest-service-types" && gstStep === "service-categories" ? (
-          <Card4ServiceCategoriesGuide
-            count={serviceCategoriesQuery.data?.categories.length ?? 0}
-          />
-        ) : mainSection === "guest-service-types" && gstStep === "service-types" ? (
-          <Card4ServiceTypesGuide count={serviceTypesQuery.data?.types.length ?? 0} />
-        ) : mainSection === "guest-service-types" && gstStep === "service-pricing" ? (
-          <Card4ServicePricingGuide
-            pricedCount={servicePricingQuery.data?.pricing.length ?? 0}
-            activeServiceTypeCount={
-              servicePricingQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
-            }
-          />
-        ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
-          <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
-        ) : step === "required-fields" ? (
-          <Card4RequiredFieldsGuide
-            count={fieldsQuery.data?.fields.length ?? 0}
-            onGoIdentityDocuments={() => setStep("identity-documents")}
-          />
-        ) : step === "identity-documents" ? (
-          <Card4IdentityDocumentsGuide
-            activeCount={documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0}
-          />
-        ) : step === "preferences" ? (
-          <Card4PreferencesGuide
-            categoryCount={preferencesQuery.data?.categories.length ?? 0}
-            typeCount={preferencesQuery.data?.types.length ?? 0}
-          />
-        ) : step === "company-business" ? (
-          <Card4CompanyBusinessGuide
-            typeCount={companyQuery.data?.types.length ?? 0}
-            typesWithFields={
-              companyQuery.data?.types.filter((row) => row.requiredFieldIds.length > 0).length ?? 0
-            }
-            settingsReady={companyReady}
-            saved={Boolean(companyQuery.data?.lastUpdatedAt)}
-          />
-        ) : step === "group-types" ? (
-          <Card4GroupTypesGuide count={groupTypesQuery.data?.types.length ?? 0} />
-        ) : null
-      }
+    <section
+      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
+      data-testid="pms-card4-workspace"
+      data-card-fullscreen="true"
     >
-      {mainSection === "notifications" ? (
-        <div
-          className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
-          data-testid="card4-placeholder-notifications"
+      <div className="sr-only">{CARD4_SIDEBAR_OUT}</div>
+      <div className="min-w-0 flex-1" data-testid="pms-card4-fullscreen">
+        <PropertySetupWorkspaceShell
+          cardNumber={4}
+          status={cardStatus}
+          description={subtitle}
+          sections={workspaceSteps}
+          complete={railCounts.complete}
+          inProgress={railCounts.inProgress}
+          notStarted={railCounts.notStarted}
+          onBack={goHub}
+          onSaveDraft={() => requestSave(false)}
+          onContinue={goContinue}
+          saveDraftDisabled={!canEdit || !liveStep || !canSave || saving}
+          continueDisabled={!canEdit || (liveStep && (!canSave || saving))}
+          continuePending={saving}
+          continueLabel="Save & Next"
+          footerTestId="pms-card4-chrome"
+          rail={
+            <div data-testid="pms-card4-status-rail">
+              <PropertySetupStatusRail
+                sections={workspaceSteps}
+                complete={railCounts.complete}
+                inProgress={railCounts.inProgress}
+                notStarted={railCounts.notStarted}
+              />
+            </div>
+          }
+          stepNav={
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2" data-testid="pms-card4-main-sections">
+                {CARD4_MAIN_SECTIONS.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setMainSection(row.id)}
+                    aria-current={mainSection === row.id ? "true" : undefined}
+                    className={cn(
+                      "rounded-[6px] border px-3 py-1 text-xs font-medium",
+                      mainSection === row.id
+                        ? "border-[#C89933] bg-[#C89933] text-[#251605]"
+                        : "border-[#CCCCCC] bg-white text-muted-foreground hover:border-[#C89933]/60",
+                    )}
+                  >
+                    {row.title}
+                  </button>
+                ))}
+              </div>
+              <div data-testid="pms-card4-steps">
+                <PropertySetupStepNav
+                  activeId={activeStepId}
+                  onSelect={(id) => {
+                    if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
+                    else if (mainSection === "notifications")
+                      setNotificationStep(id as Card4NotificationStepId);
+                    else if (mainSection === "profile-rules") setStep(id as Card4StepId);
+                  }}
+                  steps={workspaceSteps}
+                />
+              </div>
+            </div>
+          }
         >
-          <h2 className="font-display text-2xl text-[#251605]">Notifications & Communication</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{CARD4_NOTIFY_SUBTITLE}</p>
-        </div>
-      ) : mainSection === "guest-service-types" ? (
-        gstStep === "service-categories" ? (
-          <PmsCard4ServiceCategories
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : gstStep === "service-types" ? (
-          <PmsCard4ServiceTypes
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : gstStep === "service-pricing" ? (
-          <PmsCard4ServicePricing
-            restaurantId={restaurantId}
-            canEdit={canEdit}
-            onSavingChange={onSavingChange}
-            saveRequest={saveRequest}
-            onSaved={onSaved}
-          />
-        ) : (
-          <div
-            className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
-            data-testid={`card4-placeholder-${gstStep}`}
-          >
-            <h2 className="font-display text-2xl text-[#251605]">{gstCurrent.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{gstCurrent.placeholder}</p>
+          <div className="space-y-4">
+            {mainSection === "notifications" && notificationStep === "channels" ? (
+              <Card4CommunicationChannelsGuide
+                channels={communicationChannelsQuery.data?.channels ?? []}
+              />
+            ) : mainSection === "notifications" &&
+              notificationStep === "communication-templates" ? (
+              <Card4CommunicationTemplatesGuide
+                templates={communicationTemplatesQuery.data?.templates ?? []}
+                previewSubject={renderTemplateText(
+                  communicationTemplatesQuery.data?.templates[0]?.subject ?? "",
+                )}
+                previewBody={renderTemplateText(
+                  stripTemplateHtml(communicationTemplatesQuery.data?.templates[0]?.message ?? ""),
+                )}
+              />
+            ) : mainSection === "notifications" && notificationStep === "notification-events" ? (
+              <Card4NotificationEventsGuide events={notificationEventsQuery.data?.events ?? []} />
+            ) : mainSection === "notifications" && notificationStep === "automation-rules" ? (
+              <Card4AutomationRulesGuide rules={automationRulesQuery.data?.rules ?? []} />
+            ) : mainSection === "notifications" && notificationStep === "sender-settings" ? (
+              <Card4SenderSettingsGuide settings={senderSettingsQuery.data?.settings ?? []} />
+            ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
+              <Card4ServiceCategoriesGuide
+                count={serviceCategoriesQuery.data?.categories.length ?? 0}
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "service-types" ? (
+              <Card4ServiceTypesGuide count={serviceTypesQuery.data?.types.length ?? 0} />
+            ) : mainSection === "guest-service-types" && gstStep === "service-pricing" ? (
+              <Card4ServicePricingGuide
+                pricedCount={servicePricingQuery.data?.pricing.length ?? 0}
+                activeServiceTypeCount={
+                  servicePricingQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "department-assignment" ? (
+              <Card4ServiceDepartmentAssignmentGuide
+                assignmentCount={assignmentsQuery.data?.assignments.length ?? 0}
+                activeDepartmentCount={
+                  assignmentsQuery.data?.departments.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "sla-rules" ? (
+              <Card4ServiceSlaRulesGuide
+                ruleCount={slaRulesQuery.data?.rules.length ?? 0}
+                activeServiceTypeCount={
+                  slaRulesQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection === "guest-service-types" && gstStep === "service-availability" ? (
+              <Card4ServiceAvailabilityGuide
+                configuredCount={availabilityQuery.data?.availability.length ?? 0}
+                activeServiceTypeCount={
+                  availabilityQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
+              <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
+            ) : step === "required-fields" ? (
+              <Card4RequiredFieldsGuide
+                count={fieldsQuery.data?.fields.length ?? 0}
+                onGoIdentityDocuments={() => setStep("identity-documents")}
+              />
+            ) : step === "identity-documents" ? (
+              <Card4IdentityDocumentsGuide
+                activeCount={
+                  documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0
+                }
+              />
+            ) : step === "preferences" ? (
+              <Card4PreferencesGuide
+                categoryCount={preferencesQuery.data?.categories.length ?? 0}
+                typeCount={preferencesQuery.data?.types.length ?? 0}
+              />
+            ) : step === "company-business" ? (
+              <Card4CompanyBusinessGuide
+                typeCount={companyQuery.data?.types.length ?? 0}
+                typesWithFields={
+                  companyQuery.data?.types.filter((row) => row.requiredFieldIds.length > 0)
+                    .length ?? 0
+                }
+                settingsReady={companyReady}
+                saved={Boolean(companyQuery.data?.lastUpdatedAt)}
+              />
+            ) : step === "group-types" ? (
+              <Card4GroupTypesGuide count={groupTypesQuery.data?.types.length ?? 0} />
+            ) : null}
+
+            {mainSection === "notifications" ? (
+              notificationStep === "channels" ? (
+                <PmsCard4CommunicationChannels
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "communication-templates" ? (
+                <PmsCard4CommunicationTemplates
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "notification-events" ? (
+                <PmsCard4NotificationEvents
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "automation-rules" ? (
+                <PmsCard4AutomationRules
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : notificationStep === "sender-settings" ? (
+                <PmsCard4SenderSettings
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : (
+                <div
+                  className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+                  data-testid={`card4-placeholder-${notificationStep}`}
+                >
+                  <h2 className="font-display text-2xl text-[#251605]">
+                    {notificationCurrent.title}
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {notificationCurrent.placeholder}
+                  </p>
+                </div>
+              )
+            ) : mainSection === "guest-service-types" ? (
+              gstStep === "service-categories" ? (
+                <PmsCard4ServiceCategories
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "service-types" ? (
+                <PmsCard4ServiceTypes
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "service-pricing" ? (
+                <PmsCard4ServicePricing
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "department-assignment" ? (
+                <PmsCard4ServiceDepartmentAssignment
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "sla-rules" ? (
+                <PmsCard4ServiceSlaRules
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : gstStep === "service-availability" ? (
+                <PmsCard4ServiceAvailability
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
+              ) : (
+                <div
+                  className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+                  data-testid={`card4-placeholder-${gstStep}`}
+                >
+                  <h2 className="font-display text-2xl text-[#251605]">{gstCurrent.title}</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">{gstCurrent.placeholder}</p>
+                </div>
+              )
+            ) : step === "profile-types" ? (
+              <PmsCard4ProfileTypes
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "required-fields" ? (
+              <PmsCard4RequiredFields
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+                onGoIdentityDocuments={() => setStep("identity-documents")}
+              />
+            ) : step === "identity-documents" ? (
+              <PmsCard4IdentityDocuments
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "preferences" ? (
+              <PmsCard4Preferences
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "company-business" ? (
+              <PmsCard4CompanyBusiness
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+                onGoRequiredFields={() => setStep("required-fields")}
+              />
+            ) : step === "group-types" ? (
+              <PmsCard4GroupTypes
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : (
+              <div
+                className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
+                data-testid={`card4-placeholder-${step}`}
+              >
+                <h2 className="font-display text-2xl text-[#251605]">{current.title}</h2>
+                <p className="mt-2 text-sm text-muted-foreground">{current.placeholder}</p>
+              </div>
+            )}
           </div>
-        )
-      ) : step === "profile-types" ? (
-        <PmsCard4ProfileTypes
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-        />
-      ) : step === "required-fields" ? (
-        <PmsCard4RequiredFields
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-          onGoIdentityDocuments={() => setStep("identity-documents")}
-        />
-      ) : step === "identity-documents" ? (
-        <PmsCard4IdentityDocuments
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-        />
-      ) : step === "preferences" ? (
-        <PmsCard4Preferences
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-        />
-      ) : step === "company-business" ? (
-        <PmsCard4CompanyBusiness
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-          onGoRequiredFields={() => setStep("required-fields")}
-        />
-      ) : step === "group-types" ? (
-        <PmsCard4GroupTypes
-          restaurantId={restaurantId}
-          canEdit={canEdit}
-          onSavingChange={onSavingChange}
-          saveRequest={saveRequest}
-          onSaved={onSaved}
-        />
-      ) : (
-        <div
-          className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
-          data-testid={`card4-placeholder-${step}`}
-        >
-          <h2 className="font-display text-2xl text-[#251605]">{current.title}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{current.placeholder}</p>
-        </div>
-      )}
-    </PmsPropertySetupWorkspace>
+        </PropertySetupWorkspaceShell>
+      </div>
+    </section>
   );
 }

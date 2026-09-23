@@ -155,6 +155,7 @@ async function loadSnapshot(
   restaurantId: string,
   userId: string,
   seeded = false,
+  seedMissing = true,
 ): Promise<ProfileTypeSnapshot> {
   const typesRes = await db
     .from("pms_guest_profile_types")
@@ -166,9 +167,12 @@ async function loadSnapshot(
   if (typesRes.error) unavailable(typesRes.error);
 
   if ((typesRes.data ?? []).length === 0) {
+    if (!seedMissing) {
+      return { types: [], documentTypes: [], preferenceTypes: [], lastUpdatedAt: null };
+    }
     if (seeded) throw new Error("Could not seed default profile types.");
     await seedDefaults(db, restaurantId, userId);
-    return loadSnapshot(db, restaurantId, userId, true);
+    return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
   if (!seeded) {
@@ -205,6 +209,8 @@ async function loadSnapshot(
 
   return { types, documentTypes, preferenceTypes, lastUpdatedAt };
 }
+
+export { loadSnapshot as loadProfileTypesCard4Snapshot };
 
 export const getPmsCard4ProfileTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

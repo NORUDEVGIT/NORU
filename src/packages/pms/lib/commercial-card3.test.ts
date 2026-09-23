@@ -122,13 +122,24 @@ describe("Card 3 Phase 8 revenue and commercial rules", () => {
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_COMMERCIAL_TABS/);
-    assert.match(ui, /onAuditHistory/);
+    assert.doesNotMatch(ui, /onAuditHistory/);
+    assert.match(ui, /Card3ListSection/);
+    assert.match(ui, /Card3OverlapSheet/);
     assert.match(ui, /Search restrictions/);
     assert.match(ui, /Search promotions/);
     assert.match(ui, /Search seasons/);
-    assert.match(ui, /Overbooking policy is inherited from Card 2 Inventory Rules. This tab does not save overbooking./);
-    assert.match(ui, /Empty room-type mapping means all types as a setup hint, not an availability engine./);
-    assert.match(ui, /This configuration does not write hotel_rate_restrictions or price_hotel_stay./);
+    assert.match(
+      ui,
+      /Overbooking policy is inherited from Card 2 Inventory Rules\.\s+This tab does not save\s+overbooking\./,
+    );
+    assert.match(
+      ui,
+      /Empty room-type mapping means all types as a setup hint, not an\s+availability engine\./,
+    );
+    assert.match(
+      ui,
+      /This configuration does not write hotel_rate_restrictions or\s+price_hotel_stay\./,
+    );
     assert.match(ui, /SET6 channel stop-sell stays out of this workspace./);
     assert.match(ui, /saveCommercialRestrictionCard3/);
     assert.match(ui, /saveCommercialPromotionCard3/);

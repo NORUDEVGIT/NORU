@@ -27,7 +27,7 @@ export function NoruLogo({
         draggable={false}
       />
       {withWordmark ? (
-        <span className={cn("font-display font-semibold tracking-wide", textSize, wordmarkClassName)}>
+        <span className={cn("font-brand font-semibold tracking-wide", textSize, wordmarkClassName)}>
           NORU
         </span>
       ) : null}

@@ -212,6 +212,8 @@ async function loadSnapshot(
   return { categories, types, lastUpdatedAt };
 }
 
+export { loadSnapshot as loadServiceTypesCard4Snapshot };
+
 export const getPmsCard4ServiceTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
@@ -322,13 +324,44 @@ export const deletePmsCard4ServiceType = createServerFn({ method: "POST" })
     if ((pricing.count ?? 0) > 0) {
       throw new Error("This service type cannot be deleted because pricing is configured.");
     }
+    const assignments = await db
+      .from("pms_guest_service_department_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("service_type_id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (assignments.error && assignments.error.code !== "42P01") unavailable(assignments.error);
+    if ((assignments.count ?? 0) > 0) {
+      throw new Error("This service type cannot be deleted because a department is assigned.");
+    }
+    const slaRules = await db
+      .from("pms_guest_service_sla_rules")
+      .select("id", { count: "exact", head: true })
+      .eq("service_type_id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (slaRules.error && slaRules.error.code !== "42P01") unavailable(slaRules.error);
+    if ((slaRules.count ?? 0) > 0) {
+      throw new Error("This service type cannot be deleted because an SLA rule is configured.");
+    }
+    const availability = await db
+      .from("pms_guest_service_availability")
+      .select("id", { count: "exact", head: true })
+      .eq("service_type_id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (availability.error && availability.error.code !== "42P01") {
+      unavailable(availability.error);
+    }
+    if ((availability.count ?? 0) > 0) {
+      throw new Error("This service type cannot be deleted because availability is configured.");
+    }
     const result = await db
       .from("pms_guest_service_types")
       .delete()
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId);
     if (result.error?.code === "23503") {
-      throw new Error("This service type cannot be deleted because pricing is configured.");
+      throw new Error(
+        "This service type cannot be deleted because pricing, a department assignment, an SLA rule, or availability is configured.",
+      );
     }
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_type_deleted", {

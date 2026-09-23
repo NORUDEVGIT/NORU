@@ -9,6 +9,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { ReadinessChip } from "@/packages/pms/components/settings/pms-set1-section";
+import { CARD7_HREF } from "@/packages/pms/lib/pms-property-setup-card7";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   DISTRIBUTION_CHANNEL_LABELS,
@@ -591,7 +592,7 @@ export function Set6ReportsSection({
           <h2 className="font-display text-lg text-[#251605]">Reports</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Catalogue and schedule/access posture aligned with the live Operational, Financial, Occupancy, Revenue and
-            Management tabs. {SET6_REPORTS_NO_BI}
+            Management tabs. Saves remain compatible with Card 7, which is the setup source of truth. {SET6_REPORTS_NO_BI}
           </p>
         </div>
         <ReadinessChip readiness={domain.readiness} />
@@ -654,11 +655,18 @@ export function Set6ReportsSection({
         </div>
       )}
 
-      <Button variant="outline" asChild>
-        <a href={SET6_REPORTS_HREF} data-testid="set6-open-reports">
-          Open reports
-        </a>
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" asChild>
+          <a href={CARD7_HREF} data-testid="set6-open-card7-reports">
+            Open Card 7 Reports setup
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={SET6_REPORTS_HREF} data-testid="set6-open-reports">
+            Open reports
+          </a>
+        </Button>
+      </div>
     </section>
   );
 }

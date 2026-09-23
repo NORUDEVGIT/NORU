@@ -108,6 +108,57 @@ async function loadLocationMasters(
   };
 }
 
+/** Read-only source loader for Card 2 Room Types & Rooms validation. */
+export async function loadCard2RoomTypesReadiness(supabase: DbClient, restaurantId: string) {
+  const [{ data: types }, { data: beds }, { data: rooms }, { data: floors }, { data: wings }] =
+    await Promise.all([
+      supabase
+        .from("room_types")
+        .select("id, code, standard_occupancy, max_occupancy, adult_capacity, child_capacity, infant_capacity")
+        .eq("restaurant_id", restaurantId),
+      supabase.from("room_type_beds").select("room_type_id, bed_count").eq("restaurant_id", restaurantId),
+      supabase
+        .from("hotel_rooms")
+        .select("id, room_number, room_code, room_type_id, building_id, wing_id, floor_id")
+        .eq("restaurant_id", restaurantId),
+      supabase.from("hotel_floors").select("id, building_id, wing_id").eq("restaurant_id", restaurantId),
+      supabase.from("hotel_wings").select("id, parent_building_id").eq("restaurant_id", restaurantId),
+    ]);
+  return evaluateRoomTypesRoomsReadiness({
+    types: (types ?? []).map((row: any) => ({
+      id: row.id,
+      code: String(row.code ?? ""),
+      standardOccupancy: Number(row.standard_occupancy ?? 0),
+      maxOccupancy: Number(row.max_occupancy ?? 0),
+      adultCapacity: Number(row.adult_capacity ?? 0),
+      childCapacity: Number(row.child_capacity ?? 0),
+      infantCapacity: Number(row.infant_capacity ?? 0),
+    })),
+    beds: (beds ?? []).map((row: any) => ({
+      roomTypeId: row.room_type_id,
+      bedCount: Number(row.bed_count ?? 0),
+    })),
+    rooms: (rooms ?? []).map((row: any) => ({
+      id: row.id,
+      roomNumber: String(row.room_number ?? ""),
+      roomCode: row.room_code ?? null,
+      roomTypeId: row.room_type_id ?? null,
+      buildingId: row.building_id ?? null,
+      wingId: row.wing_id ?? null,
+      floorId: row.floor_id ?? null,
+    })),
+    floors: (floors ?? []).map((row: any) => ({
+      id: row.id,
+      buildingId: row.building_id,
+      wingId: row.wing_id ?? null,
+    })),
+    wings: (wings ?? []).map((row: any) => ({
+      id: row.id,
+      parentBuildingId: row.parent_building_id ?? null,
+    })),
+  });
+}
+
 export async function persistCard2RoomTypesReadiness(supabase: DbClient, restaurantId: string): Promise<void> {
   const [{ data: types }, { data: beds }, { data: rooms }, { data: floors }, { data: wings }] =
     await Promise.all([

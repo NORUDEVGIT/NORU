@@ -14,7 +14,7 @@ export const CARD4_SUBTITLE = "Guest profile rules, guest service types, and not
 export const CARD4_GPR_SUBTITLE = "Guest Profile Rules for this property.";
 export const CARD4_GST_SUBTITLE = "Organize guest services into categories for easier management.";
 export const CARD4_NOTIFY_SUBTITLE =
-  "Notifications & Communication configuration will be implemented in a later phase.";
+  "Configure property communication channels, templates, events, and delivery defaults.";
 export const CARD4_PURPOSE =
   "Guest Profile Rules, Guest Service Types, Notifications & Communication.";
 export const CARD4_HASH = "guest-services";
@@ -94,23 +94,89 @@ export const CARD4_GST_STEPS = [
     id: "department-assignment",
     number: 4,
     title: "Department Assignment",
-    placeholder: "Department Assignment will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "sla-rules",
     number: 5,
     title: "SLA Rules",
-    placeholder: "SLA Rules will be implemented in a later phase.",
+    placeholder: null,
   },
   {
     id: "service-availability",
     number: 6,
     title: "Service Availability",
-    placeholder: "Service Availability will be implemented in a later phase.",
+    placeholder: null,
   },
 ] as const;
 
 export type Card4GstStepId = (typeof CARD4_GST_STEPS)[number]["id"];
+
+export const CARD4_NOTIFICATION_STEPS = [
+  { id: "channels", number: 1, title: "Channels", placeholder: null },
+  {
+    id: "communication-templates",
+    number: 2,
+    title: "Communication Templates",
+    placeholder: null,
+  },
+  {
+    id: "notification-events",
+    number: 3,
+    title: "Notification Events",
+    placeholder: null,
+  },
+  {
+    id: "automation-rules",
+    number: 4,
+    title: "Automation Rules",
+    placeholder: null,
+  },
+  {
+    id: "sender-settings",
+    number: 5,
+    title: "Sender Settings",
+    placeholder: null,
+  },
+  {
+    id: "communication-defaults",
+    number: 6,
+    title: "Communication Defaults",
+    placeholder: null,
+  },
+] as const;
+
+export type Card4NotificationStepId = (typeof CARD4_NOTIFICATION_STEPS)[number]["id"];
+
+export function card4NotificationStepById(step: Card4NotificationStepId) {
+  return CARD4_NOTIFICATION_STEPS.find((row) => row.id === step) ?? CARD4_NOTIFICATION_STEPS[0];
+}
+
+export function nextCard4NotificationStep(
+  step: Card4NotificationStepId,
+): Card4NotificationStepId | null {
+  const index = CARD4_NOTIFICATION_STEPS.findIndex((row) => row.id === step);
+  if (index < 0 || index >= CARD4_NOTIFICATION_STEPS.length - 1) return null;
+  return CARD4_NOTIFICATION_STEPS[index + 1]?.id ?? null;
+}
+
+export function evaluateNotificationStepStatus(
+  step: Card4NotificationStepId,
+  channelsConfigured: boolean,
+  templatesConfigured = false,
+  eventsConfigured = false,
+  rulesConfigured = false,
+  senderConfigured = false,
+  defaultsConfigured = false,
+): PropertySetupCardStatus {
+  if (step === "channels") return channelsConfigured ? "complete" : "not_started";
+  if (step === "communication-templates") return templatesConfigured ? "complete" : "not_started";
+  if (step === "notification-events") return eventsConfigured ? "complete" : "not_started";
+  if (step === "automation-rules") return rulesConfigured ? "complete" : "not_started";
+  if (step === "sender-settings") return senderConfigured ? "complete" : "not_started";
+  if (step === "communication-defaults") return defaultsConfigured ? "complete" : "not_started";
+  return "not_started";
+}
 
 export function card4GstStepById(step: Card4GstStepId) {
   return CARD4_GST_STEPS.find((row) => row.id === step) ?? CARD4_GST_STEPS[0];
@@ -127,6 +193,9 @@ export function evaluateGstStepStatus(
   serviceCategoriesConfigured: boolean,
   serviceTypesConfigured = false,
   servicePricingConfigured = false,
+  departmentAssignmentsConfigured = false,
+  serviceSlaRulesConfigured = false,
+  serviceAvailabilityConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "service-categories") {
     return serviceCategoriesConfigured ? "complete" : "not_started";
@@ -136,6 +205,15 @@ export function evaluateGstStepStatus(
   }
   if (step === "service-pricing") {
     return servicePricingConfigured ? "complete" : "not_started";
+  }
+  if (step === "department-assignment") {
+    return departmentAssignmentsConfigured ? "complete" : "not_started";
+  }
+  if (step === "sla-rules") {
+    return serviceSlaRulesConfigured ? "complete" : "not_started";
+  }
+  if (step === "service-availability") {
+    return serviceAvailabilityConfigured ? "complete" : "not_started";
   }
   return "not_started";
 }

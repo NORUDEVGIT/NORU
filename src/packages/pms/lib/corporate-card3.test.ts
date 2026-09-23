@@ -112,13 +112,15 @@ describe("Card 3 Phase 7 corporate and contract rates", () => {
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_CORPORATE_TABS/);
-    assert.match(ui, /onAuditHistory/);
+    assert.doesNotMatch(ui, /onAuditHistory/);
+    assert.match(ui, /Card3ListSection/);
+    assert.match(ui, /Card3OverlapSheet/);
     assert.match(ui, /Search corporate agreements/);
     assert.match(ui, /Search contract rates/);
     assert.match(ui, /Filter contract rates by agreement/);
     assert.match(ui, /Inherited payment terms/);
-    assert.match(ui, /Authorized bookers are out of this workspace/);
-    assert.match(ui, /no reservation or folio operational changes/);
+    assert.match(ui, /Authorized bookers\s+are out of this workspace/);
+    assert.match(ui, /no reservation or\s+folio operational changes/);
     assert.match(ui, /saveCorporateAgreementCard3/);
     assert.match(ui, /saveContractRateCard3/);
     assert.match(ui, /focus-visible:ring-\[#C89933\]/);
