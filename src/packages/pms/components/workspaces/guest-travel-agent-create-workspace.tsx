@@ -26,6 +26,7 @@ import {
 import { AGENCY_TYPE_LABELS } from "@/packages/pms/lib/guest-profile-travel-agency";
 import { GUEST_ACCOUNT_STATUSES } from "@/packages/pms/lib/guest-profile-wave4";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/guest-create-step-issues";
 import {
   ACCOUNT_BILLING_ARRANGEMENTS,
   ACCOUNT_CREATE_STATUS_LABELS,
@@ -54,9 +55,8 @@ import {
   optionLabel,
   primaryTravelAgentContact,
   readGuestTravelAgentCreateHold,
-  travelAgentCreateDraftErrors,
   travelAgentCreateDraftErrorsForSave,
-  travelAgentCreateStepErrors,
+  travelAgentCreateFieldIssues,
   writeGuestTravelAgentCreateHold,
   type GuestTravelAgentCreateDraft,
   type GuestTravelAgentCreateStepId,
@@ -86,6 +86,7 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<string>>(new Set());
 
   const context = useQuery({
     queryKey: ["travel-agent-create-context", restaurantId],
@@ -137,18 +138,42 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   const stepIndex = GUEST_TRAVEL_AGENT_CREATE_STEPS.findIndex((item) => item.id === step);
   const primary = primaryTravelAgentContact(draft);
 
+  const fieldIssues = travelAgentCreateFieldIssues(draft, catalogueIds);
+
+  function markAttempted(...ids: string[]) {
+    setAttemptedSteps((current) => {
+      const next = new Set(current);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }
+
+  function fieldError(key: string, stepId: GuestTravelAgentCreateStepId = step) {
+    if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
+    return fieldIssues.find((issue) => issue.key === key)?.message;
+  }
+
   function set<K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
   function go(next: GuestTravelAgentCreateStepId) {
+    const blockers = issuesBeforeStep(fieldIssues, GUEST_TRAVEL_AGENT_CREATE_STEPS, next);
+    if (blockers.length) {
+      markAttempted(step, ...blockers.map((issue) => issue.step));
+      toast.error(formatCreateIssuesByStep(blockers, GUEST_TRAVEL_AGENT_CREATE_STEPS));
+      const first = blockers[0];
+      if (first && first.step !== step) setStep(first.step);
+      return;
+    }
     setStep(next);
   }
 
   function validateCurrent(): boolean {
-    const errors = travelAgentCreateStepErrors(step, draft, catalogueIds);
-    if (errors.length) {
-      toast.error(errors[0]);
+    const current = fieldIssues.filter((issue) => issue.step === step);
+    if (current.length) {
+      markAttempted(step);
+      toast.error(formatCreateIssuesByStep(current, GUEST_TRAVEL_AGENT_CREATE_STEPS));
       return false;
     }
     return true;
@@ -174,8 +199,12 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
 
   const completeMutation = useMutation({
     mutationFn: async () => {
-      const errors = travelAgentCreateDraftErrors(draft, catalogueIds);
-      if (errors.length) throw new Error(errors[0]);
+      if (fieldIssues.length) {
+        markAttempted("review", ...fieldIssues.map((issue) => issue.step));
+        const first = fieldIssues[0];
+        if (first) setStep(first.step);
+        throw new Error(formatCreateIssuesByStep(fieldIssues, GUEST_TRAVEL_AGENT_CREATE_STEPS));
+      }
       const saved = await persist({ data: { restaurantId, draft, mode: "complete" } });
       if (saved.id) setDraft((current) => ({ ...current, accountId: saved.id, contacts: saved.contacts }));
       if (!saved.id) throw new Error("Travel agency could not be created.");
@@ -208,6 +237,7 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
     setStep("details");
     setHoldState("idle");
     setCreated(null);
+    setAttemptedSteps(new Set());
     clearGuestTravelAgentCreateHold(restaurantId);
   }
 
@@ -298,6 +328,7 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
           {GUEST_TRAVEL_AGENT_CREATE_STEPS.map((item, index) => {
             const current = item.id === step;
             const done = index < stepIndex;
+            const invalid = fieldIssues.some((issue) => issue.step === item.id) && (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
             return (
               <li key={item.id}>
                 <button
@@ -306,8 +337,9 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-xs font-medium",
                     current && "border-primary bg-primary text-primary-foreground",
-                    done && "border-primary/40 text-foreground",
-                    !current && !done && "border-border text-muted-foreground",
+                    done && !invalid && "border-primary/40 text-foreground",
+                    !current && !done && !invalid && "border-border text-muted-foreground",
+                    invalid && "border-destructive text-destructive",
                   )}
                 >
                   {done ? <Check className="mr-1 inline size-3" /> : `${item.number} `}
@@ -321,11 +353,11 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
 
       <div className="grid min-h-0 flex-1 items-start gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(18rem,20rem)] sm:p-6">
         <div className="min-w-0 space-y-4">
-          {step === "details" ? <DetailsStep draft={draft} set={set} /> : null}
-          {step === "contacts" ? <ContactsStep draft={draft} set={set} /> : null}
+          {step === "details" ? <DetailsStep draft={draft} set={set} fieldError={fieldError} /> : null}
+          {step === "contacts" ? <ContactsStep draft={draft} set={set} error={fieldError("contacts", "contacts")} /> : null}
           {step === "business" ? <BusinessStep draft={draft} set={set} catalogues={catalogues} /> : null}
-          {step === "billing" ? <BillingStep draft={draft} set={set} catalogues={catalogues} /> : null}
-          {step === "review" ? <ReviewStep draft={draft} catalogues={catalogues} onEdit={go} /> : null}
+          {step === "billing" ? <BillingStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} /> : null}
+          {step === "review" ? <ReviewStep draft={draft} catalogues={catalogues} issues={fieldIssues} onEdit={go} /> : null}
         </div>
         <aside className="space-y-4">
           <section className="rounded-2xl border border-border bg-card p-4">
@@ -434,14 +466,17 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   );
 }
 
-function Field({ label, required: isRequired, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label>
+      <Label className={error ? "text-destructive" : undefined}>
         {label}
         {isRequired ? " *" : ""}
       </Label>
-      {children}
+      <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
+        {children}
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -488,21 +523,23 @@ function NoneSelect({
 function DetailsStep({
   draft,
   set,
+  fieldError,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
+  fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
 }) {
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <h2 className="font-display text-lg">Agency Details</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Agency name" required>
+        <Field label="Agency name" required error={fieldError("name", "details")}>
           <Input data-testid="travel-agent-create-name" value={draft.name} onChange={(event) => set("name", event.target.value)} />
         </Field>
         <Field label="Trade name">
           <Input value={draft.tradeName} onChange={(event) => set("tradeName", event.target.value)} />
         </Field>
-        <Field label="Agency type" required>
+        <Field label="Agency type" required error={fieldError("agencyType", "details")}>
           <Select value={draft.agencyType} onValueChange={(value) => set("agencyType", value)}>
             <SelectTrigger data-testid="travel-agent-create-type">
               <SelectValue placeholder="Select agency type" />
@@ -517,7 +554,7 @@ function DetailsStep({
           </Select>
         </Field>
         {draft.agencyType === "other" ? (
-          <Field label="Agency type description">
+          <Field label="Agency type description" error={fieldError("agencyTypeOther", "details")}>
             <Input value={draft.agencyTypeOther} onChange={(event) => set("agencyTypeOther", event.target.value)} />
           </Field>
         ) : null}
@@ -559,18 +596,21 @@ function DetailsStep({
 function ContactsStep({
   draft,
   set,
+  error,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
+  error?: string;
 }) {
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-lg">Contacts</h2>
+        <h2 className={error ? "font-display text-lg text-destructive" : "font-display text-lg"}>Contacts</h2>
         <Button type="button" size="sm" variant="outline" onClick={() => set("contacts", [...draft.contacts, emptyAccountCreateContact()])}>
           <Plus className="mr-1 size-3" /> Add contact
         </Button>
       </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {draft.contacts.map((contact, index) => (
         <div key={contact.key} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
           <Field label="Name">
@@ -732,10 +772,12 @@ function BillingStep({
   draft,
   set,
   catalogues,
+  fieldError,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
   catalogues?: TravelAgentCreateContext["catalogues"];
+  fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
 }) {
   return (
     <div className="space-y-4">
@@ -754,13 +796,13 @@ function BillingStep({
           <Field label="Contract reference">
             <Input value={draft.contractReference} onChange={(event) => set("contractReference", event.target.value)} />
           </Field>
-          <Field label="Contract start">
+          <Field label="Contract start" error={fieldError("contractStartDate", "billing")}>
             <Input type="date" value={draft.contractStartDate} onChange={(event) => set("contractStartDate", event.target.value)} />
           </Field>
-          <Field label="Contract end">
+          <Field label="Contract end" error={fieldError("contractEndDate", "billing")}>
             <Input type="date" value={draft.contractEndDate} onChange={(event) => set("contractEndDate", event.target.value)} />
           </Field>
-          <Field label="Billing arrangement">
+          <Field label="Billing arrangement" error={fieldError("billingArrangement", "billing")}>
             <NoneSelect
               value={draft.billingArrangement}
               onChange={(value) => set("billingArrangement", value)}
@@ -768,10 +810,10 @@ function BillingStep({
               placeholder="Select arrangement"
             />
           </Field>
-          <Field label="Payment method">
+          <Field label="Payment method" error={fieldError("paymentMethodId", "billing")}>
             <NoneSelect value={draft.paymentMethodId} onChange={(value) => set("paymentMethodId", value)} options={catalogues?.paymentMethods ?? []} placeholder="Select method" />
           </Field>
-          <Field label="Currency">
+          <Field label="Currency" error={fieldError("currency", "billing")}>
             <NoneSelect
               value={draft.currency}
               onChange={(value) => set("currency", value)}
@@ -782,7 +824,7 @@ function BillingStep({
           <Field label="Billing contact">
             <Input value={draft.billingContactName} onChange={(event) => set("billingContactName", event.target.value)} />
           </Field>
-          <Field label="Credit limit amount">
+          <Field label="Credit limit amount" error={fieldError("creditLimitAmount", "billing")}>
             <Input type="number" min={0} value={draft.creditLimitAmount} onChange={(event) => set("creditLimitAmount", event.target.value)} />
           </Field>
           <Field label="Credit limit note">
@@ -800,7 +842,7 @@ function BillingStep({
         <p className="text-xs text-muted-foreground">{TA_COMMISSION_REFERENCE_COPY}</p>
         {draft.commissionEnabled ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Commission type">
+            <Field label="Commission type" error={fieldError("commissionType", "billing")}>
               <NoneSelect
                 value={draft.commissionType}
                 onChange={(value) => set("commissionType", value)}
@@ -808,7 +850,7 @@ function BillingStep({
                 placeholder="Select type"
               />
             </Field>
-            <Field label="Value">
+            <Field label="Value" error={fieldError("commissionValue", "billing")}>
               <Input type="number" min={0} value={draft.commissionValue} onChange={(event) => set("commissionValue", event.target.value)} />
             </Field>
             <Field label="Currency">
@@ -833,21 +875,41 @@ function BillingStep({
 function ReviewStep({
   draft,
   catalogues,
+  issues,
   onEdit,
 }: {
   draft: GuestTravelAgentCreateDraft;
   catalogues?: TravelAgentCreateContext["catalogues"];
+  issues: Array<{ key: string; message: string; step: GuestTravelAgentCreateStepId }>;
   onEdit: (step: GuestTravelAgentCreateStepId) => void;
 }) {
-  const remaining = guestTravelAgentCreateCompletion(draft).items.filter((item) => item.requiredRemaining);
+  const remaining = issues.length
+    ? issues
+    : guestTravelAgentCreateCompletion(draft).items.filter((item) => item.requiredRemaining).map((item) => ({
+        key: item.id,
+        message: item.label,
+        step: item.step,
+      }));
   const primary = primaryTravelAgentContact(draft);
   return (
     <div className="space-y-4">
       {remaining.length > 0 ? (
-        <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
-          <p className="font-medium">
+        <section className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4">
+          <p className="font-medium text-destructive">
             {remaining.length} required item{remaining.length === 1 ? "" : "s"} remaining
           </p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {remaining.map((item) => (
+              <li key={`${item.step}-${item.key}`}>
+                <span className="text-destructive">
+                  {GUEST_TRAVEL_AGENT_CREATE_STEPS.find((step) => step.id === item.step)?.title}: {item.message}
+                </span>{" "}
+                <button type="button" className="underline" onClick={() => onEdit(item.step)}>
+                  Go to step
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
       <ReviewCard title="Agency Details" onEdit={() => onEdit("details")}>

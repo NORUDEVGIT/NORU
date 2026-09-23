@@ -28,6 +28,7 @@ import { GUEST_ACCOUNT_STATUSES } from "@/packages/pms/lib/guest-profile-wave4";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import { findCompanyDuplicates } from "@/packages/pms/lib/guest-companies.functions";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/guest-create-step-issues";
 import {
   ACCOUNT_BILLING_ARRANGEMENTS,
   ACCOUNT_CREATE_STATUS_LABELS,
@@ -46,9 +47,8 @@ import {
   GUEST_COMPANY_CREATE_TITLE,
   billingArrangementLabel,
   clearGuestCompanyCreateHold,
-  companyCreateDraftErrors,
   companyCreateDraftErrorsForSave,
-  companyCreateStepErrors,
+  companyCreateFieldIssues,
   companyTypeLabel,
   emptyAccountCreateContact,
   emptyGuestCompanyCreateDraft,
@@ -86,6 +86,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<string>>(new Set());
 
   const context = useQuery({
     queryKey: ["company-create-context", restaurantId],
@@ -151,18 +152,42 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
     enabled: filled(draft.name) && (step === "details" || step === "review"),
   });
 
+  const fieldIssues = companyCreateFieldIssues(draft, catalogueIds);
+
+  function markAttempted(...ids: string[]) {
+    setAttemptedSteps((current) => {
+      const next = new Set(current);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }
+
+  function fieldError(key: string, stepId: GuestCompanyCreateStepId = step) {
+    if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
+    return fieldIssues.find((issue) => issue.key === key)?.message;
+  }
+
   function set<K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
   function go(next: GuestCompanyCreateStepId) {
+    const blockers = issuesBeforeStep(fieldIssues, GUEST_COMPANY_CREATE_STEPS, next);
+    if (blockers.length) {
+      markAttempted(step, ...blockers.map((issue) => issue.step));
+      toast.error(formatCreateIssuesByStep(blockers, GUEST_COMPANY_CREATE_STEPS));
+      const first = blockers[0];
+      if (first && first.step !== step) setStep(first.step);
+      return;
+    }
     setStep(next);
   }
 
   function validateCurrent(): boolean {
-    const errors = companyCreateStepErrors(step, draft, catalogueIds);
-    if (errors.length) {
-      toast.error(errors[0]);
+    const current = fieldIssues.filter((issue) => issue.step === step);
+    if (current.length) {
+      markAttempted(step);
+      toast.error(formatCreateIssuesByStep(current, GUEST_COMPANY_CREATE_STEPS));
       return false;
     }
     return true;
@@ -188,8 +213,12 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
 
   const completeMutation = useMutation({
     mutationFn: async () => {
-      const errors = companyCreateDraftErrors(draft, catalogueIds);
-      if (errors.length) throw new Error(errors[0]);
+      if (fieldIssues.length) {
+        markAttempted("review", ...fieldIssues.map((issue) => issue.step));
+        const first = fieldIssues[0];
+        if (first) setStep(first.step);
+        throw new Error(formatCreateIssuesByStep(fieldIssues, GUEST_COMPANY_CREATE_STEPS));
+      }
       if ((duplicates.data ?? []).some((row) => !row.blocking) && !draft.acknowledgeNameDuplicate) {
         throw new Error("A company with a similar name already exists. Open it or confirm to continue.");
       }
@@ -222,6 +251,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
     setStep("details");
     setHoldState("idle");
     setCreated(null);
+    setAttemptedSteps(new Set());
     clearGuestCompanyCreateHold(restaurantId);
   }
 
@@ -306,6 +336,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
           {GUEST_COMPANY_CREATE_STEPS.map((item, index) => {
             const current = item.id === step;
             const done = index < stepIndex;
+            const invalid = fieldIssues.some((issue) => issue.step === item.id) && (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
             return (
               <li key={item.id}>
                 <button
@@ -314,8 +345,9 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-xs font-medium",
                     current && "border-primary bg-primary text-primary-foreground",
-                    done && "border-primary/40 text-foreground",
-                    !current && !done && "border-border text-muted-foreground",
+                    done && !invalid && "border-primary/40 text-foreground",
+                    !current && !done && !invalid && "border-border text-muted-foreground",
+                    invalid && "border-destructive text-destructive",
                   )}
                 >
                   {done ? <Check className="mr-1 inline size-3" /> : `${item.number} `}
@@ -335,14 +367,15 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
               set={set}
               catalogues={catalogues}
               duplicates={(duplicates.data ?? []).filter((row) => !row.blocking)}
+              fieldError={fieldError}
             />
           ) : null}
-          {step === "contacts" ? <ContactsStep draft={draft} set={set} catalogues={catalogues} /> : null}
-          {step === "business" ? <BusinessStep draft={draft} set={set} catalogues={catalogues} /> : null}
+          {step === "contacts" ? <ContactsStep draft={draft} set={set} catalogues={catalogues} error={fieldError("contacts", "contacts")} /> : null}
+          {step === "business" ? <BusinessStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} /> : null}
           {step === "billing" ? (
-            <BillingStep draft={draft} set={set} catalogues={catalogues} creditAllowed={selectedType?.creditAccountAllowed} />
+            <BillingStep draft={draft} set={set} catalogues={catalogues} creditAllowed={selectedType?.creditAccountAllowed} fieldError={fieldError} />
           ) : null}
-          {step === "review" ? <ReviewStep draft={draft} catalogues={catalogues} onEdit={go} /> : null}
+          {step === "review" ? <ReviewStep draft={draft} catalogues={catalogues} issues={fieldIssues} onEdit={go} /> : null}
         </div>
 
         <aside className="space-y-4">
@@ -447,14 +480,17 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   );
 }
 
-function Field({ label, required: isRequired, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label>
+      <Label className={error ? "text-destructive" : undefined}>
         {label}
         {isRequired ? " *" : ""}
       </Label>
-      {children}
+      <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
+        {children}
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -503,24 +539,26 @@ function DetailsStep({
   set,
   catalogues,
   duplicates,
+  fieldError,
 }: {
   draft: GuestCompanyCreateDraft;
   set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
   catalogues?: CompanyCreateContext["catalogues"];
   duplicates: Array<{ id: string; name: string }>;
+  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
 }) {
   const types = (catalogues?.businessTypes ?? []).filter((row) => row.active !== false || row.id === draft.businessProfileTypeId);
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <h2 className="font-display text-lg">Company Details</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Company name" required>
+        <Field label="Company name" required error={fieldError("name", "details")}>
           <Input data-testid="company-create-name" value={draft.name} onChange={(event) => set("name", event.target.value)} />
         </Field>
         <Field label="Trade name">
           <Input value={draft.tradeName} onChange={(event) => set("tradeName", event.target.value)} />
         </Field>
-        <Field label="Company type" required>
+        <Field label="Company type" required error={fieldError("businessProfileTypeId", "details")}>
           <Select value={draft.businessProfileTypeId} onValueChange={(value) => set("businessProfileTypeId", value)}>
             <SelectTrigger data-testid="company-create-type">
               <SelectValue placeholder={types.length ? "Select type" : "Configure company types in settings"} />
@@ -534,7 +572,7 @@ function DetailsStep({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Legal form">
+        <Field label="Legal form" error={fieldError("companyType", "details")}>
           <NoneSelect
             value={draft.companyType}
             onChange={(value) => set("companyType", value)}
@@ -543,7 +581,7 @@ function DetailsStep({
           />
         </Field>
         {draft.companyType === "other" ? (
-          <Field label="Legal form description">
+          <Field label="Legal form description" error={fieldError("companyTypeOther", "details")}>
             <Input value={draft.companyTypeOther} onChange={(event) => set("companyTypeOther", event.target.value)} />
           </Field>
         ) : null}
@@ -602,19 +640,22 @@ function ContactsStep({
   draft,
   set,
   catalogues,
+  error,
 }: {
   draft: GuestCompanyCreateDraft;
   set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
   catalogues?: CompanyCreateContext["catalogues"];
+  error?: string;
 }) {
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-lg">Contacts</h2>
+        <h2 className={error ? "font-display text-lg text-destructive" : "font-display text-lg"}>Contacts</h2>
         <Button type="button" size="sm" variant="outline" onClick={() => set("contacts", [...draft.contacts, emptyAccountCreateContact()])}>
           <Plus className="mr-1 size-3" /> Add contact
         </Button>
       </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {draft.contacts.map((contact, index) => (
         <div key={contact.key} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
           <Field label="Name">
@@ -734,10 +775,12 @@ function BusinessStep({
   draft,
   set,
   catalogues,
+  fieldError,
 }: {
   draft: GuestCompanyCreateDraft;
   set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
   catalogues?: CompanyCreateContext["catalogues"];
+  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
 }) {
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
@@ -787,10 +830,10 @@ function BusinessStep({
         <Field label="Contract reference">
           <Input value={draft.contractReference} onChange={(event) => set("contractReference", event.target.value)} />
         </Field>
-        <Field label="Contract start">
+        <Field label="Contract start" error={fieldError("contractStartDate", "business")}>
           <Input type="date" value={draft.contractStartDate} onChange={(event) => set("contractStartDate", event.target.value)} />
         </Field>
-        <Field label="Contract end">
+        <Field label="Contract end" error={fieldError("contractEndDate", "business")}>
           <Input type="date" value={draft.contractEndDate} onChange={(event) => set("contractEndDate", event.target.value)} />
         </Field>
         <Field label="Default rate plan">
@@ -813,17 +856,19 @@ function BillingStep({
   set,
   catalogues,
   creditAllowed,
+  fieldError,
 }: {
   draft: GuestCompanyCreateDraft;
   set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
   catalogues?: CompanyCreateContext["catalogues"];
   creditAllowed?: boolean;
+  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
 }) {
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <h2 className="font-display text-lg">Billing & Credit</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Billing arrangement">
+        <Field label="Billing arrangement" error={fieldError("billingArrangement", "billing")}>
           <NoneSelect
             value={draft.billingArrangement}
             onChange={(value) => set("billingArrangement", value)}
@@ -831,10 +876,10 @@ function BillingStep({
             placeholder="Select arrangement"
           />
         </Field>
-        <Field label="Payment method">
+        <Field label="Payment method" error={fieldError("paymentMethodId", "billing")}>
           <NoneSelect value={draft.paymentMethodId} onChange={(value) => set("paymentMethodId", value)} options={catalogues?.paymentMethods ?? []} placeholder="Select method" />
         </Field>
-        <Field label="Currency">
+        <Field label="Currency" error={fieldError("currency", "billing")}>
           <NoneSelect
             value={draft.currency}
             onChange={(value) => set("currency", value)}
@@ -845,7 +890,7 @@ function BillingStep({
         <Field label="Billing contact">
           <Input value={draft.billingContactName} onChange={(event) => set("billingContactName", event.target.value)} />
         </Field>
-        <Field label="Billing email">
+        <Field label="Billing email" error={fieldError("billingEmail", "billing")}>
           <Input value={draft.billingEmail} onChange={(event) => set("billingEmail", event.target.value)} />
         </Field>
         <Field label="Payment terms">
@@ -855,13 +900,18 @@ function BillingStep({
       <Field label="Billing instruction">
         <Textarea value={draft.billingInstruction} onChange={(event) => set("billingInstruction", event.target.value)} />
       </Field>
-      <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-        <Label>Credit account</Label>
-        <Switch
-          checked={draft.creditAccountEnabled}
-          disabled={creditAllowed === false}
-          onCheckedChange={(checked) => set("creditAccountEnabled", Boolean(checked))}
-        />
+      <div className="space-y-1">
+        <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+          <Label className={fieldError("creditAccountEnabled", "billing") ? "text-destructive" : undefined}>Credit account</Label>
+          <Switch
+            checked={draft.creditAccountEnabled}
+            disabled={creditAllowed === false}
+            onCheckedChange={(checked) => set("creditAccountEnabled", Boolean(checked))}
+          />
+        </div>
+        {fieldError("creditAccountEnabled", "billing") ? (
+          <p className="text-xs text-destructive">{fieldError("creditAccountEnabled", "billing")}</p>
+        ) : null}
       </div>
       <p className="text-xs text-muted-foreground">{COMPANY_CREATE_CREDIT_COPY}</p>
       <Field label="Credit limit note">
@@ -878,21 +928,41 @@ function BillingStep({
 function ReviewStep({
   draft,
   catalogues,
+  issues,
   onEdit,
 }: {
   draft: GuestCompanyCreateDraft;
   catalogues?: CompanyCreateContext["catalogues"];
+  issues: Array<{ key: string; message: string; step: GuestCompanyCreateStepId }>;
   onEdit: (step: GuestCompanyCreateStepId) => void;
 }) {
-  const remaining = guestCompanyCreateCompletion(draft).items.filter((item) => item.requiredRemaining);
+  const remaining = issues.length
+    ? issues
+    : guestCompanyCreateCompletion(draft).items.filter((item) => item.requiredRemaining).map((item) => ({
+        key: item.id,
+        message: item.label,
+        step: item.step,
+      }));
   const primary = primaryCompanyContact(draft);
   return (
     <div className="space-y-4">
       {remaining.length > 0 ? (
-        <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
-          <p className="font-medium">
+        <section className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4">
+          <p className="font-medium text-destructive">
             {remaining.length} required item{remaining.length === 1 ? "" : "s"} remaining
           </p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {remaining.map((item) => (
+              <li key={`${item.step}-${item.key}`}>
+                <span className="text-destructive">
+                  {GUEST_COMPANY_CREATE_STEPS.find((step) => step.id === item.step)?.title}: {item.message}
+                </span>{" "}
+                <button type="button" className="underline" onClick={() => onEdit(item.step)}>
+                  Go to step
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
       <ReviewCard title="Company Details" onEdit={() => onEdit("details")}>

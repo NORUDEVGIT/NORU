@@ -5,6 +5,7 @@
  */
 
 import { validateGroupDates, type GroupMemberStatus } from "./guest-group-detail-workspace.ts";
+import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
 
 function nightsBetweenLocal(arrival: string, departure: string): number {
   const start = Date.parse(`${arrival}T00:00:00Z`);
@@ -426,8 +427,9 @@ export function stageGroupMemberImport(
   return { members, errors, staged };
 }
 
-export function groupCreateStepErrors(
-  step: GuestGroupCreateStepId,
+export type GroupCreateFieldIssue = CreateFieldIssue<GuestGroupCreateStepId>;
+
+export function groupCreateFieldIssues(
   draft: GuestGroupCreateDraft,
   options?: {
     groupTypeIds?: string[];
@@ -435,84 +437,89 @@ export function groupCreateStepErrors(
     paymentMethodIds?: string[];
     currencyCodes?: string[];
   },
-): string[] {
-  const errors: string[] = [];
+): GroupCreateFieldIssue[] {
+  const issues: GroupCreateFieldIssue[] = [];
   const groupTypeIds = options?.groupTypeIds;
   const roomTypeIds = options?.roomTypeIds;
   const paymentMethodIds = options?.paymentMethodIds;
   const currencyCodes = options?.currencyCodes;
-
-  if (step === "details" || step === "review") {
-    if (!filled(draft.name)) errors.push("Group name is required.");
-    if (!filled(draft.groupTypeId)) errors.push("Group type is required.");
-    if (filled(draft.groupTypeId) && groupTypeIds && !groupTypeIds.includes(draft.groupTypeId)) {
-      errors.push("Select a configured group type.");
+  if (!filled(draft.name)) issues.push({ key: "name", message: "Group name is required.", step: "details" });
+  if (!filled(draft.groupTypeId)) issues.push({ key: "groupTypeId", message: "Group type is required.", step: "details" });
+  if (filled(draft.groupTypeId) && groupTypeIds && !groupTypeIds.includes(draft.groupTypeId)) {
+    issues.push({ key: "groupTypeId", message: "Select a configured group type.", step: "details" });
+  }
+  if (!filled(draft.arrivalDate) || !filled(draft.departureDate)) {
+    issues.push({ key: "arrivalDate", message: "Arrival and departure dates are required.", step: "stay" });
+    issues.push({ key: "departureDate", message: "Arrival and departure dates are required.", step: "stay" });
+  }
+  const dateError = validateGroupDates(draft.arrivalDate, draft.departureDate);
+  if (dateError) {
+    issues.push({ key: "arrivalDate", message: dateError, step: "stay" });
+    issues.push({ key: "departureDate", message: dateError, step: "stay" });
+  }
+  if (parsePositiveInt(draft.expectedPax) == null) {
+    issues.push({ key: "expectedPax", message: "Expected guests must be greater than 0.", step: "stay" });
+  }
+  const rooms = draft.expectedRooms.trim() === "" ? 0 : parsePositiveInt(draft.expectedRooms, true);
+  if (draft.expectedRooms.trim() !== "" && rooms == null) {
+    issues.push({ key: "expectedRooms", message: "Expected rooms cannot be negative.", step: "stay" });
+  }
+  for (const need of draft.roomNeeds) {
+    if (need.rooms < 0 || need.pax < 0) {
+      issues.push({ key: "roomNeeds", message: "Room quantities cannot be negative.", step: "stay" });
+    }
+    if (filled(need.roomTypeId) && roomTypeIds && !roomTypeIds.includes(need.roomTypeId)) {
+      issues.push({ key: "roomNeeds", message: "Each room requirement must use a configured room type.", step: "stay" });
+    }
+    if (!filled(need.roomTypeId) && (need.rooms > 0 || need.pax > 0)) {
+      issues.push({ key: "roomNeeds", message: "Select a room type for each room requirement.", step: "stay" });
     }
   }
-
-  if (step === "stay" || step === "review") {
-    if (!filled(draft.arrivalDate) || !filled(draft.departureDate)) {
-      errors.push("Arrival and departure dates are required.");
-    }
-    const dateError = validateGroupDates(draft.arrivalDate, draft.departureDate);
-    if (dateError) errors.push(dateError);
-    const pax = parsePositiveInt(draft.expectedPax);
-    if (pax == null) errors.push("Expected guests must be greater than 0.");
-    const rooms = draft.expectedRooms.trim() === "" ? 0 : parsePositiveInt(draft.expectedRooms, true);
-    if (draft.expectedRooms.trim() !== "" && rooms == null) {
-      errors.push("Expected rooms cannot be negative.");
-    }
-    for (const need of draft.roomNeeds) {
-      if (need.rooms < 0 || need.pax < 0) errors.push("Room quantities cannot be negative.");
-      if (filled(need.roomTypeId) && roomTypeIds && !roomTypeIds.includes(need.roomTypeId)) {
-        errors.push("Each room requirement must use a configured room type.");
-      }
-      if (!filled(need.roomTypeId) && (need.rooms > 0 || need.pax > 0)) {
-        errors.push("Select a room type for each room requirement.");
-      }
+  const guestIds = draft.members.map((row) => row.guestId).filter(Boolean) as string[];
+  if (new Set(guestIds).size !== guestIds.length) {
+    issues.push({ key: "members", message: "A guest can only be added to this group once.", step: "guests" });
+  }
+  for (const member of draft.members) {
+    if (!member.guestId && !filled(member.firstName) && !filled(member.guestName)) {
+      issues.push({ key: "members", message: "Each staged member needs a guest profile or a first name.", step: "guests" });
+      break;
     }
   }
-
-  if (step === "guests" || step === "review") {
-    const guestIds = draft.members.map((row) => row.guestId).filter(Boolean) as string[];
-    if (new Set(guestIds).size !== guestIds.length) {
-      errors.push("A guest can only be added to this group once.");
+  if (!filled(draft.billingArrangement)) {
+    issues.push({ key: "billingArrangement", message: "Billing arrangement is required.", step: "billing" });
+  }
+  if (
+    filled(draft.billingArrangement) &&
+    !GROUP_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
+  ) {
+    issues.push({ key: "billingArrangement", message: "Select a configured billing arrangement.", step: "billing" });
+  }
+  if (filled(draft.paymentMethodId) && paymentMethodIds && !paymentMethodIds.includes(draft.paymentMethodId)) {
+    issues.push({ key: "paymentMethodId", message: "Select a configured payment method.", step: "billing" });
+  }
+  if (filled(draft.currency) && currencyCodes && currencyCodes.length > 0 && !currencyCodes.includes(draft.currency)) {
+    issues.push({ key: "currency", message: "Select a configured currency.", step: "billing" });
+  }
+  if (draft.depositRequired) {
+    const amount = draft.depositAmount.trim() === "" ? null : Number(draft.depositAmount);
+    const percent = draft.depositPercent.trim() === "" ? null : Number(draft.depositPercent);
+    if ((amount == null || Number.isNaN(amount) || amount <= 0) && (percent == null || Number.isNaN(percent) || percent <= 0)) {
+      issues.push({ key: "depositAmount", message: "Enter a deposit amount or percentage.", step: "billing" });
+      issues.push({ key: "depositPercent", message: "Enter a deposit amount or percentage.", step: "billing" });
     }
-    for (const member of draft.members) {
-      if (!member.guestId && !filled(member.firstName) && !filled(member.guestName)) {
-        errors.push("Each staged member needs a guest profile or a first name.");
-        break;
-      }
+    if (percent != null && !Number.isNaN(percent) && (percent < 0 || percent > 100)) {
+      issues.push({ key: "depositPercent", message: "Deposit percentage must be between 0 and 100.", step: "billing" });
     }
   }
+  return issues;
+}
 
-  if (step === "billing" || step === "review") {
-    if (!filled(draft.billingArrangement)) errors.push("Billing arrangement is required.");
-    if (
-      filled(draft.billingArrangement) &&
-      !GROUP_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
-    ) {
-      errors.push("Select a configured billing arrangement.");
-    }
-    if (filled(draft.paymentMethodId) && paymentMethodIds && !paymentMethodIds.includes(draft.paymentMethodId)) {
-      errors.push("Select a configured payment method.");
-    }
-    if (filled(draft.currency) && currencyCodes && currencyCodes.length > 0 && !currencyCodes.includes(draft.currency)) {
-      errors.push("Select a configured currency.");
-    }
-    if (draft.depositRequired) {
-      const amount = draft.depositAmount.trim() === "" ? null : Number(draft.depositAmount);
-      const percent = draft.depositPercent.trim() === "" ? null : Number(draft.depositPercent);
-      if ((amount == null || Number.isNaN(amount) || amount <= 0) && (percent == null || Number.isNaN(percent) || percent <= 0)) {
-        errors.push("Enter a deposit amount or percentage.");
-      }
-      if (percent != null && !Number.isNaN(percent) && (percent < 0 || percent > 100)) {
-        errors.push("Deposit percentage must be between 0 and 100.");
-      }
-    }
-  }
-
-  return [...new Set(errors)];
+export function groupCreateStepErrors(
+  step: GuestGroupCreateStepId,
+  draft: GuestGroupCreateDraft,
+  options?: Parameters<typeof groupCreateFieldIssues>[1],
+): string[] {
+  return uniqueIssueMessages(groupCreateFieldIssues(draft, options), step);
 }
 
 export function groupCreateDraftErrors(

@@ -16,6 +16,7 @@ import {
   guestGroupCreateHoldKey,
   groupCreateDraftErrors,
   groupCreateDraftErrorsForSave,
+  groupCreateFieldIssues,
   groupCreateMemberCounts,
   groupCreateNights,
   groupCreateStepErrors,
@@ -23,6 +24,7 @@ import {
   parseGuestGroupCreateHold,
   stageGroupMemberImport,
 } from "./guest-group-create-workspace.ts";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "./guest-create-step-issues.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -134,6 +136,14 @@ describe("Group create workflow helpers", () => {
     assert.ok(groupCreateDraftErrors(draft).length > 0);
   });
 
+  it("names the missing field and the step that holds it", () => {
+    const issues = groupCreateFieldIssues(emptyGuestGroupCreateDraft());
+    assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
+    assert.match(formatCreateIssuesByStep(issues, GUEST_GROUP_CREATE_STEPS), /Group Details — Group name is required/);
+    assert.equal(issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "details").length, 0);
+    assert.ok(issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "stay").some((issue) => issue.key === "name"));
+  });
+
   it("restores the held step and draft without wiping later steps", () => {
     const draft = filledDraft();
     draft.members = [
@@ -200,6 +210,10 @@ describe("Group create honesty", () => {
     assert.match(workspace, /groupAccountMasterId: created.id/);
     assert.doesNotMatch(workspace, /<Dialog/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
+    assert.match(workspace, /issuesBeforeStep/);
+    assert.match(workspace, /formatCreateIssuesByStep/);
+    assert.match(workspace, /Go to step/);
+    assert.match(workspace, /border-destructive/);
     assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);
     assert.match(directory, /create: "group"/);
     assert.match(shell, /create === "group"/);
