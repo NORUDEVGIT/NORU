@@ -14,8 +14,10 @@ export const GROUP_DETAIL_NAV = [
   { id: "members", title: "Members", live: true },
   { id: "reservations", title: "Reservations", live: true },
   { id: "rooming", title: "Rooming List", live: true },
+  { id: "itinerary", title: "Itinerary", live: true },
   { id: "financial", title: "Financials", live: true },
   { id: "communication", title: "Communication", live: true },
+  { id: "documents", title: "Documents", live: true },
   { id: "history", title: "Activity", live: true },
 ] as const;
 
@@ -56,8 +58,31 @@ export const GROUP_INVOICE_UNAVAILABLE =
 export const GROUP_TEMPLATES_UNAVAILABLE =
   "Group templates are not a Phase 1 domain. Create groups from the master form.";
 
+export const GROUP_TEMPLATES_MIGRATION_FILE = "0098_pms_group_phase2.sql";
+
+export const GROUP_EVENTS_UNAVAILABLE =
+  "Sales & Events operations are not available yet. Itinerary items here are guest service requests only.";
+
+export const GROUP_TRANSPORT_UNAVAILABLE =
+  "Transportation bookings are not available yet. Use a guest service request when the stay needs a pickup or transfer note.";
+
+export const GROUP_COMMS_TEMPLATES_UNAVAILABLE =
+  "Communication templates are not configured in PMS settings yet. Messages stay free-text.";
+
+export const GROUP_CONVERT_UNAVAILABLE =
+  "Converting a group to an individual profile is not available. Members stay on their existing guest profiles.";
+
+export const GROUP_INVOICE_SERVICE_UNAVAILABLE =
+  "Group invoices are not available until platform invoicing exists. Folio charges and payments stay on reservation folios.";
+
 export const GROUP_TOUR_OPERATOR_COPY =
   "Tour operator profiles are not available yet. Use Travel Agencies for booker travel-agent masters.";
+
+export const GROUP_DOCUMENTS_COPY =
+  "Group files reuse company document types and guest_company_documents. Identity scans stay on the guest profile.";
+
+export const GROUP_ITINERARY_COPY =
+  "Itinerary is a date view of member guest service requests. It is not a booking table.";
 
 export const GROUP_AUTO_ASSIGN_COPY =
   "Auto assignment uses Room Inventory availability. Unassigned rooms are reported as failures — success is never faked.";
@@ -136,6 +161,58 @@ export function groupOverviewKpis(input: {
 
 export function assignmentStatus(roomId: string | null | undefined): "assigned" | "unassigned" {
   return roomId ? "assigned" : "unassigned";
+}
+
+export const GROUP_ACTIONS = [
+  "edit",
+  "add_member",
+  "import_members",
+  "add_reservation",
+  "assign_rooms",
+  "confirm",
+  "cancel",
+  "reopen",
+  "duplicate",
+  "generate_invoice",
+  "send_confirmation",
+  "convert_individual",
+  "export_rooming",
+  "view_activity",
+  "manage_documents",
+] as const;
+export type GroupActionId = (typeof GROUP_ACTIONS)[number];
+
+export function groupActionAllowed(
+  action: GroupActionId,
+  status: string,
+  options?: {
+    canConfirm?: boolean;
+    hasReservations?: boolean;
+    canWrite?: boolean;
+    canManageRes?: boolean;
+  },
+): boolean {
+  const cancelled = status === "inactive";
+  const confirmed = status === "active";
+  const canWrite = options?.canWrite !== false;
+  const canManageRes = options?.canManageRes !== false;
+
+  if (action === "generate_invoice" || action === "send_confirmation" || action === "convert_individual") {
+    return false;
+  }
+  if (action === "duplicate") return canWrite;
+  if (action === "export_rooming" || action === "view_activity" || action === "manage_documents") return true;
+  if (action === "reopen") return canWrite && (confirmed || cancelled);
+  if (action === "cancel") return canWrite && !cancelled;
+  if (action === "confirm") return canWrite && !confirmed && !cancelled && Boolean(options?.canConfirm);
+  if (cancelled) return false;
+  if (action === "assign_rooms") return canManageRes && (confirmed || Boolean(options?.hasReservations));
+  if (action === "add_reservation") return canManageRes;
+  return canWrite;
+}
+
+export function isGroupCancelled(status: string | null | undefined): boolean {
+  return status === "inactive";
 }
 
 export function groupImportResultCounts(

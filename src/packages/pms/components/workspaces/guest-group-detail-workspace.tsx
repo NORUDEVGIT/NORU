@@ -8,8 +8,10 @@ import { GuestGroupOverview } from "@/packages/pms/components/guests/guest-group
 import { GuestGroupMembers } from "@/packages/pms/components/guests/guest-group-members";
 import { GuestGroupReservations } from "@/packages/pms/components/guests/guest-group-reservations";
 import { GuestGroupRooming } from "@/packages/pms/components/guests/guest-group-rooming";
+import { GuestGroupItinerary } from "@/packages/pms/components/guests/guest-group-itinerary";
 import { GuestGroupFinancials } from "@/packages/pms/components/guests/guest-group-financials";
 import { GuestGroupCommunication } from "@/packages/pms/components/guests/guest-group-communication";
+import { GuestGroupDocuments } from "@/packages/pms/components/guests/guest-group-documents";
 import { GuestGroupFormDialog } from "@/packages/pms/components/guests/guest-group-form-dialog";
 import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
 import {
@@ -17,7 +19,7 @@ import {
   guestProfileSearch,
   type GroupDetailNavId,
 } from "@/packages/pms/lib/guest-profile-wave1";
-import { GROUP_DETAIL_NAV, groupDetailNav } from "@/packages/pms/lib/guest-group-detail-workspace";
+import { GROUP_DETAIL_NAV, groupDetailNav, isGroupCancelled } from "@/packages/pms/lib/guest-group-detail-workspace";
 import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
 import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -65,18 +67,21 @@ export function GuestGroupDetailWorkspace({
   }
 
   const data = query.data;
-  const canWrite = membership.role === "owner" || membership.role === "manager";
+  const cancelled = isGroupCancelled(data.group.accountStatus);
+  const canWrite = (membership.role === "owner" || membership.role === "manager") && !cancelled;
   const canManageRes =
-    membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist";
+    (membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist") && !cancelled;
 
   return (
     <div className="space-y-6" data-testid="group-detail-workspace">
       <GuestGroupHeader
         restaurantId={restaurantId}
         group={data.group}
+        reservationCount={data.kpis.reservations}
         onEdit={() => setEditOpen(true)}
         onNavigate={selectNav}
-        canManageRes={canManageRes}
+        canWrite={membership.role === "owner" || membership.role === "manager"}
+        canManageRes={membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist"}
       />
       <nav
         aria-label="Group sections"
@@ -108,21 +113,26 @@ export function GuestGroupDetailWorkspace({
       {navId === "overview" ? (
         <GuestGroupOverview
           groupId={groupId}
+          restaurantId={restaurantId}
           data={data}
           onNavigate={selectNav}
           onEdit={() => setEditOpen(true)}
           canManageRes={canManageRes}
         />
       ) : navId === "members" ? (
-        <GuestGroupMembers restaurantId={restaurantId} groupId={groupId} />
+        <GuestGroupMembers restaurantId={restaurantId} groupId={groupId} cancelled={cancelled} />
       ) : navId === "reservations" ? (
         <GuestGroupReservations restaurantId={restaurantId} groupId={groupId} canManage={canManageRes} />
       ) : navId === "rooming" ? (
         <GuestGroupRooming restaurantId={restaurantId} groupId={groupId} canAssign={canManageRes} />
+      ) : navId === "itinerary" ? (
+        <GuestGroupItinerary restaurantId={restaurantId} groupId={groupId} cancelled={cancelled} />
       ) : navId === "financial" ? (
         <GuestGroupFinancials restaurantId={restaurantId} groupId={groupId} />
       ) : navId === "communication" ? (
-        <GuestGroupCommunication restaurantId={restaurantId} groupId={groupId} />
+        <GuestGroupCommunication restaurantId={restaurantId} groupId={groupId} cancelled={cancelled} />
+      ) : navId === "documents" ? (
+        <GuestGroupDocuments restaurantId={restaurantId} groupId={groupId} />
       ) : (
         <GuestActivityHubCard
           restaurantId={restaurantId}

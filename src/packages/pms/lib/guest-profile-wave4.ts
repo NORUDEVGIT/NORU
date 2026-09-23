@@ -143,6 +143,8 @@ export const GUEST_ACCOUNT_EVENT_TYPES = [
   "room_unassigned",
   "auto_assignment_failed",
   "document_generated",
+  "template_applied",
+  "duplicated",
 ] as const;
 export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 

@@ -201,8 +201,10 @@ export const GROUP_DETAIL_NAV_IDS = [
   "members",
   "reservations",
   "rooming",
+  "itinerary",
   "financial",
   "communication",
+  "documents",
   "history",
 ] as const;
 export type GroupDetailNavId = (typeof GROUP_DETAIL_NAV_IDS)[number];
