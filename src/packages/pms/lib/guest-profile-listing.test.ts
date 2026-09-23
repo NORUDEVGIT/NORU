@@ -46,7 +46,9 @@ describe("Guest listing mapping", () => {
     assert.equal(listingSectionFromCard4Code("ORG"), null);
     assert.equal(listingSectionFromCard4Code("IND"), "individual");
     assert.equal(listingSectionFromCard4Code("TOU"), "tour-operator");
+    assert.equal(listingSectionFromCard4Code("GRP"), "group");
     assert.equal("ORG" in CARD4_CODE_TO_SECTION, false);
+    assert.equal("GRP" in CARD4_CODE_TO_SECTION, true);
     assert.equal(isLiveListingSection("group"), true);
     assert.equal(isLiveListingSection("tour-operator"), false);
     assert.equal(operationalProfileType("contact"), "individual");
@@ -148,6 +150,7 @@ describe("Card 4 Active/Inactive workspace wiring", () => {
         { section: "individual" as const, active: true },
         { section: "company" as const, active: false },
         { section: "travel-agent" as const, active: true },
+        { section: "group" as const, active: false },
         { section: "tour-operator" as const, active: true },
         { section: "contact" as const, active: false },
       ],
@@ -155,7 +158,7 @@ describe("Card 4 Active/Inactive workspace wiring", () => {
     assert.equal(listingCreateAllowed("individual", inactiveCompany), true);
     assert.equal(listingCreateAllowed("company", inactiveCompany), false);
     assert.equal(listingCreateAllowed("travel-agent", inactiveCompany), true);
-    assert.equal(listingCreateAllowed("group", inactiveCompany), true);
+    assert.equal(listingCreateAllowed("group", inactiveCompany), false);
     assert.equal(listingCreateAllowed("tour-operator", inactiveCompany), false);
     assert.equal(listingCreateAllowed("contact", inactiveCompany), false);
     assert.equal(listingTypeInactive("company", inactiveCompany), true);
@@ -167,6 +170,7 @@ describe("Card 4 Active/Inactive workspace wiring", () => {
     assert.equal(listingCreateAllowed("individual", undefined), true);
     assert.equal(listingCreateAllowed("tour-operator", { available: false, types: [] }), false);
     assert.equal(listingCreateAllowed("company", { available: true, types: [] }), true);
+    assert.equal(listingCreateAllowed("group", { available: true, types: [] }), true);
   });
 
   it("reads Card 4 from FO requireGuestManager and blocks create APIs when inactive", () => {
@@ -182,6 +186,8 @@ describe("Card 4 Active/Inactive workspace wiring", () => {
     assert.match(guests, /assertListingCreateAllowed/);
     assert.match(accounts, /assertListingCreateAllowed/);
     assert.doesNotMatch(accounts, /assertListingCreateAllowed\(data\.restaurantId, "group"\)/);
+    assert.match(readRel("./guest-group-create.functions.ts"), /assertListingCreateAllowed/);
+    assert.match(readRel("./guest-group-detail.functions.ts"), /assertListingCreateAllowed/);
     assert.match(listing, /listingCreateAllowed\("company"/);
     assert.match(listing, /PROFILE_TYPE_INACTIVE_SECTION_COPY/);
     assert.match(listing, /guest-listing-inactive-copy/);

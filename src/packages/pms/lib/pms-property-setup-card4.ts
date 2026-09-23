@@ -53,6 +53,12 @@ export const CARD4_STEPS = [
     title: "Company & Business",
     placeholder: null,
   },
+  {
+    id: "group-types",
+    number: 6,
+    title: "Group Types",
+    placeholder: null,
+  },
 ] as const;
 
 export type Card4StepId = (typeof CARD4_STEPS)[number]["id"];
@@ -164,6 +170,7 @@ export function evaluateCard4StepStatus(
   identityDocumentsConfigured = false,
   preferencesConfigured = false,
   companyBusinessConfigured = false,
+  groupTypesConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "profile-types") {
     if (profileTypesConfigured) return "complete";
@@ -187,6 +194,11 @@ export function evaluateCard4StepStatus(
   }
   if (step === "company-business") {
     if (companyBusinessConfigured) return "complete";
+    if (stored === "in_progress" || stored === "complete") return stored;
+    return "not_started";
+  }
+  if (step === "group-types") {
+    if (groupTypesConfigured) return "complete";
     if (stored === "in_progress" || stored === "complete") return stored;
     return "not_started";
   }

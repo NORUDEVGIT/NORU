@@ -210,6 +210,7 @@ describe("Group create honesty", () => {
     assert.match(functions, /addGroupMember/);
     assert.match(functions, /createGroupMemberGuest/);
     assert.match(functions, /pms_group_types|loadGroupTypes/);
+    assert.match(functions, /assertListingCreateAllowed/);
     assert.match(functions, /room_types/);
     assert.match(functions, /hotel_rate_plans/);
     assert.match(functions, /pms_source_codes/);

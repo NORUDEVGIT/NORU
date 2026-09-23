@@ -673,7 +673,7 @@ function DefaultSelect({
 }
 
 export function Card4ProfileTypesGuide({ count }: { count: number }) {
-  const target = Math.max(count, 6);
+  const target = Math.max(count, 7);
   return (
     <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
