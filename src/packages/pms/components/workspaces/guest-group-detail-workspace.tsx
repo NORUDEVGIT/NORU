@@ -56,11 +56,13 @@ export function GuestGroupDetailWorkspace({
     return <p className="text-sm text-muted-foreground">Loading group…</p>;
   }
   if (query.error || !query.data) {
+    const message = (query.error as Error | undefined)?.message;
+    const missing = !message || /could not be found/i.test(message);
     return (
       <div className="rounded-2xl border border-dashed border-border p-6" data-testid="group-detail-missing">
-        <p className="font-display text-lg">Group not found</p>
+        <p className="font-display text-lg">{missing ? "Group not found" : "Unable to load group"}</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          {(query.error as Error | undefined)?.message ?? "This group is not available in the current property."}
+          {message ?? "This group is not available in the current property."}
         </p>
       </div>
     );
