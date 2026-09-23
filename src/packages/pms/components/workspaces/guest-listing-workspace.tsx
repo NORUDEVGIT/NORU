@@ -5,14 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { Search, Upload } from "lucide-react";
 
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
-import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
 import { GuestGroupTemplatesDialog } from "@/packages/pms/components/guests/guest-group-templates-dialog";
 import {
   GuestDirectoryWorkspace,
   GuestListingNewGuestMenu,
 } from "@/packages/pms/components/workspaces/guest-directory-workspace";
 import {
-  GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
   type GuestListingPlaceholderType,
@@ -62,8 +60,6 @@ export function GuestListingWorkspace({
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
 
   const [search, setSearch] = useState("");
-  const [companyOpen, setCompanyOpen] = useState(false);
-  const [agencyOpen, setAgencyOpen] = useState(false);
   const [templateApplyOpen, setTemplateApplyOpen] = useState(false);
   const [templateManageOpen, setTemplateManageOpen] = useState(false);
 
@@ -90,14 +86,6 @@ export function GuestListingWorkspace({
     void navigate({
       to: GUEST_PROFILE_DIRECTORY_PATH,
       search: guestProfileSearch({ type: next }),
-    });
-  }
-
-  function openCreated(id: string, type: GuestProfileTypeId) {
-    void navigate({
-      to: GUEST_PROFILE_DETAIL_PATH,
-      params: { guestId: id },
-      search: guestProfileSearch({ type }),
     });
   }
 
@@ -164,8 +152,18 @@ export function GuestListingWorkspace({
                 search: guestProfileSearch({ type: "individual", create: "individual" }),
               })
             }
-            onCompany={() => setCompanyOpen(true)}
-            onAgency={() => setAgencyOpen(true)}
+            onCompany={() =>
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "company", create: "company" }),
+              })
+            }
+            onAgency={() =>
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "travel-agent", create: "travel-agent" }),
+              })
+            }
             onGroup={() =>
               void navigate({
                 to: GUEST_PROFILE_DIRECTORY_PATH,
@@ -235,7 +233,12 @@ export function GuestListingWorkspace({
                 variant="outline"
                 disabled={!canCreateCompany}
                 title={!canCreateCompany ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-                onClick={() => setCompanyOpen(true)}
+                onClick={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({ type: "company", create: "company" }),
+                  })
+                }
               >
                 New Company
               </Button>
@@ -243,7 +246,12 @@ export function GuestListingWorkspace({
                 variant="outline"
                 disabled={!canCreateAgency}
                 title={!canCreateAgency ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-                onClick={() => setAgencyOpen(true)}
+                onClick={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({ type: "travel-agent", create: "travel-agent" }),
+                  })
+                }
               >
                 New Agency
               </Button>
@@ -313,20 +321,6 @@ export function GuestListingWorkspace({
         )}
       </div>
 
-      <GuestAccountFormDialog
-        restaurantId={restaurantId}
-        accountType="company"
-        open={companyOpen}
-        onOpenChange={setCompanyOpen}
-        onSaved={(id) => openCreated(id, "company")}
-      />
-      <GuestAccountFormDialog
-        restaurantId={restaurantId}
-        accountType="travel_agent"
-        open={agencyOpen}
-        onOpenChange={setAgencyOpen}
-        onSaved={(id) => openCreated(id, "travel-agent")}
-      />
       <GuestGroupTemplatesDialog
         restaurantId={restaurantId}
         open={templateApplyOpen}

@@ -5,7 +5,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search } from "lucide-react";
 
 import { GuestCompanyDirectory } from "@/packages/pms/components/guests/guest-company-directory";
-import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
@@ -85,7 +84,6 @@ export function GuestAccountDirectory({
   const [status, setStatus] = useState<string>(ALL);
   const [agencyType, setAgencyType] = useState<string>(ALL);
   const [country, setCountry] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<(typeof LISTING_PAGE_SIZES)[number]>(
     LISTING_DEFAULT_PAGE_SIZE,
@@ -195,7 +193,12 @@ export function GuestAccountDirectory({
               });
               return;
             }
-            setFormOpen(true);
+            if (accountType === "travel_agent") {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "travel-agent", create: "travel-agent" }),
+              });
+            }
           }}
         >
           <Plus className="size-4 sm:mr-2" />
@@ -365,15 +368,6 @@ export function GuestAccountDirectory({
         </div>
       </div>
 
-      {accountType === "group" ? null : (
-        <GuestAccountFormDialog
-          restaurantId={restaurantId}
-          accountType={accountType}
-          open={formOpen}
-          onOpenChange={setFormOpen}
-          onSaved={openAccount}
-        />
-      )}
     </div>
   );
 }

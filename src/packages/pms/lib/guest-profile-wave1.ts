@@ -218,10 +218,12 @@ export type GuestProfileCardSearch = {
 export const GUEST_LISTING_PLACEHOLDER_TYPES = ["tour-operator", "contact"] as const;
 export type GuestListingPlaceholderType = (typeof GUEST_LISTING_PLACEHOLDER_TYPES)[number];
 
+export type GuestProfileCreateId = "individual" | "group" | "company" | "travel-agent";
+
 /** Optional `?type=` for operational types plus listing placeholders. */
 export type GuestProfileSearch = GuestProfileCardSearch & {
   type?: GuestProfileTypeId | GuestListingPlaceholderType;
-  create?: "individual" | "group";
+  create?: GuestProfileCreateId;
 };
 
 const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
@@ -290,13 +292,22 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
   const card = parseGuestProfileCardSearch(search);
   const type = parseGuestListingTypeSearch(search);
   const create =
-    search["create"] === "individual" || search["create"] === "group" ? search["create"] : undefined;
+    search["create"] === "individual" ||
+    search["create"] === "group" ||
+    search["create"] === "company" ||
+    search["create"] === "travel-agent"
+      ? search["create"]
+      : undefined;
   const next =
     create === "group"
       ? { ...card, type: "group" as const }
-      : type === "individual"
-        ? { ...card }
-        : { ...card, type };
+      : create === "company"
+        ? { ...card, type: "company" as const }
+        : create === "travel-agent"
+          ? { ...card, type: "travel-agent" as const }
+          : type === "individual"
+            ? { ...card }
+            : { ...card, type };
   return create ? { ...next, create } : next;
 }
 
@@ -314,7 +325,7 @@ export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
   nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
-  create?: "individual" | "group" | undefined;
+  create?: GuestProfileCreateId | undefined;
 }): GuestProfileSearch {
   const card = guestProfileCardSearch(opts.card, opts.nav);
   const type = opts.type && opts.type !== "individual" ? opts.type : undefined;

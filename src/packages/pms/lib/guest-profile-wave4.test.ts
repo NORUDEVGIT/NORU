@@ -86,7 +86,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     assert.match(functions, /from\("guest_account_masters"\)/);
     assert.match(functions, /\.eq\("account_type", data\.accountType\)/);
     assert.match(functions, /name\.ilike/);
-    assert.match(directory, /createGuestAccount|GuestAccountFormDialog/);
+    assert.match(directory, /create: "company"|create: "travel-agent"|create: "group"/);
     assert.match(directory, /guest-account-search/);
     assert.match(directory, /guest-account-new/);
     assert.match(form, /guest-account-name/);

@@ -195,10 +195,12 @@ describe("Group create honesty", () => {
     assert.match(workspace, /Save as Draft/);
     assert.match(workspace, /nav: "overview"/);
     assert.doesNotMatch(workspace, /<Dialog/);
+    assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
+    assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);
     assert.match(directory, /create: "group"/);
     assert.match(shell, /create === "group"/);
     assert.match(shell, /GuestGroupCreateWorkspace/);
-    assert.match(wave1, /create\?: "individual" \| "group"/);
+    assert.match(wave1, /"individual" \| "group" \| "company" \| "travel-agent"/);
     assert.match(listing, /create: "group"/);
     assert.equal(GUEST_GROUP_CREATE_START_OVER, "Start Over");
   });
