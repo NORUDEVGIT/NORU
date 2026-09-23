@@ -5,7 +5,11 @@
  */
 
 import { companyBillingTotals } from "./guest-company-detail-workspace.ts";
-import { GROUP_INVOICE_UNAVAILABLE } from "./guest-group-detail-workspace.ts";
+import {
+  GROUP_COMMS_TEMPLATES_UNAVAILABLE,
+  GROUP_INVOICE_SERVICE_UNAVAILABLE,
+  GROUP_INVOICE_UNAVAILABLE,
+} from "./guest-group-detail-workspace.ts";
 
 export type GroupFolioTxn = {
   amount: number;
@@ -52,4 +56,36 @@ export function summarizeGroupFinancials(
 
 export function getGroupInvoices(): { invoices: []; reason: string } {
   return { invoices: [], reason: GROUP_INVOICE_UNAVAILABLE };
+}
+
+export type GroupInvoiceServiceResult = { available: false; reason: string };
+
+export const groupInvoiceService = {
+  create(): GroupInvoiceServiceResult {
+    return { available: false, reason: GROUP_INVOICE_SERVICE_UNAVAILABLE };
+  },
+  draft(): GroupInvoiceServiceResult {
+    return { available: false, reason: GROUP_INVOICE_SERVICE_UNAVAILABLE };
+  },
+  finalize(): GroupInvoiceServiceResult {
+    return { available: false, reason: GROUP_INVOICE_SERVICE_UNAVAILABLE };
+  },
+  send(): GroupInvoiceServiceResult {
+    return { available: false, reason: GROUP_INVOICE_SERVICE_UNAVAILABLE };
+  },
+};
+
+export const groupCommunicationTemplateService = {
+  list(): { templates: []; reason: string } {
+    return { templates: [], reason: GROUP_COMMS_TEMPLATES_UNAVAILABLE };
+  },
+  render(): { body: null; reason: string } {
+    return { body: null, reason: GROUP_COMMS_TEMPLATES_UNAVAILABLE };
+  },
+};
+
+export function categorizeGroupTxn(type: string): "room" | "payment" | "other" {
+  if (type === "payment" || type === "deposit" || type === "refund") return "payment";
+  if (type === "charge") return "room";
+  return "other";
 }

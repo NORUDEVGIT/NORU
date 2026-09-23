@@ -6,6 +6,7 @@ import { Search, Upload } from "lucide-react";
 
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
 import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
+import { GuestGroupTemplatesDialog } from "@/packages/pms/components/guests/guest-group-templates-dialog";
 import {
   GuestDirectoryWorkspace,
   GuestListingNewGuestMenu,
@@ -63,6 +64,8 @@ export function GuestListingWorkspace({
   const [search, setSearch] = useState("");
   const [companyOpen, setCompanyOpen] = useState(false);
   const [agencyOpen, setAgencyOpen] = useState(false);
+  const [templateApplyOpen, setTemplateApplyOpen] = useState(false);
+  const [templateManageOpen, setTemplateManageOpen] = useState(false);
 
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
@@ -144,6 +147,16 @@ export function GuestListingWorkspace({
             <Upload className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">Import Guests</span>
           </Button>
+          {canCreateGroup ? (
+            <>
+              <Button variant="outline" onClick={() => setTemplateApplyOpen(true)}>
+                From template
+              </Button>
+              <Button variant="outline" onClick={() => setTemplateManageOpen(true)}>
+                Templates
+              </Button>
+            </>
+          ) : null}
           <GuestListingNewGuestMenu
             onIndividual={() =>
               void navigate({
@@ -313,6 +326,18 @@ export function GuestListingWorkspace({
         open={agencyOpen}
         onOpenChange={setAgencyOpen}
         onSaved={(id) => openCreated(id, "travel-agent")}
+      />
+      <GuestGroupTemplatesDialog
+        restaurantId={restaurantId}
+        open={templateApplyOpen}
+        onOpenChange={setTemplateApplyOpen}
+        mode="apply"
+      />
+      <GuestGroupTemplatesDialog
+        restaurantId={restaurantId}
+        open={templateManageOpen}
+        onOpenChange={setTemplateManageOpen}
+        mode="manage"
       />
     </div>
   );

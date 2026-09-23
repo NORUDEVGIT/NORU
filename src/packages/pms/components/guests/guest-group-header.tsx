@@ -1,5 +1,5 @@
 import { MoreHorizontal } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -10,17 +10,26 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import { setGroupStatus } from "@/packages/pms/lib/guest-group-detail.functions";
-import { groupStatusLabel } from "@/packages/pms/lib/guest-group-detail-workspace";
-import type { GroupDetailNavId } from "@/packages/pms/lib/guest-profile-wave1";
+import { duplicateGroupMaster, setGroupStatus } from "@/packages/pms/lib/guest-group-detail.functions";
+import {
+  GROUP_CONVERT_UNAVAILABLE,
+  GROUP_INVOICE_SERVICE_UNAVAILABLE,
+  canConfirmGroup,
+  groupActionAllowed,
+  groupStatusLabel,
+} from "@/packages/pms/lib/guest-group-detail-workspace";
+import { GUEST_PROFILE_DETAIL_PATH, guestProfileSearch, type GroupDetailNavId } from "@/packages/pms/lib/guest-profile-wave1";
 
 export function GuestGroupHeader({
   restaurantId,
   group,
+  reservationCount,
   onEdit,
   onNavigate,
+  canWrite,
   canManageRes,
 }: {
   restaurantId: string;
@@ -31,24 +40,55 @@ export function GuestGroupHeader({
     email: string | null;
     phone: string | null;
     accountStatus: string;
+    groupTypeId?: string | null;
     groupTypeName: string | null;
     arrivalDate: string | null;
     departureDate: string | null;
     companyMasterName: string | null;
     travelAgentMasterName: string | null;
   };
+  reservationCount: number;
   onEdit: () => void;
   onNavigate: (nav: GroupDetailNavId) => void;
+  canWrite: boolean;
   canManageRes: boolean;
 }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const changeStatus = useServerFn(setGroupStatus);
+  const duplicate = useServerFn(duplicateGroupMaster);
+  const canConfirm = !canConfirmGroup({
+    name: group.name,
+    groupTypeId: group.groupTypeId,
+    arrivalDate: group.arrivalDate,
+    departureDate: group.departureDate,
+  });
+  const allowed = (action: Parameters<typeof groupActionAllowed>[0]) =>
+    groupActionAllowed(action, group.accountStatus, {
+      canConfirm,
+      hasReservations: reservationCount > 0,
+      canWrite,
+      canManageRes,
+    });
+
   const mutation = useMutation({
     mutationFn: (status: "pending" | "active" | "inactive") =>
       changeStatus({ data: { restaurantId, groupId: group.id, status } }),
     onSuccess: async (_result, status) => {
       await queryClient.invalidateQueries({ queryKey: ["group-detail", restaurantId, group.id] });
       toast.success(`Group ${groupStatusLabel(status).toLowerCase()}.`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const duplicateMutation = useMutation({
+    mutationFn: () => duplicate({ data: { restaurantId, groupId: group.id } }),
+    onSuccess: (result) => {
+      toast.success("Group duplicated.");
+      void navigate({
+        to: GUEST_PROFILE_DETAIL_PATH,
+        params: { guestId: result.id },
+        search: guestProfileSearch({ type: "group" }),
+      });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -79,14 +119,16 @@ export function GuestGroupHeader({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canManageRes ? (
+          {allowed("add_reservation") ? (
             <Link to="/restaurant/bookings/new" search={{ groupAccountMasterId: group.id }}>
               <Button type="button">Add reservation</Button>
             </Link>
           ) : null}
-          <Button type="button" variant="outline" onClick={onEdit}>
-            Edit
-          </Button>
+          {allowed("edit") ? (
+            <Button type="button" variant="outline" onClick={onEdit}>
+              Edit
+            </Button>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline" size="icon" aria-label="Group actions">
@@ -94,16 +136,48 @@ export function GuestGroupHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onNavigate("members")}>Members</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onNavigate("rooming")}>Rooming list</DropdownMenuItem>
-              {group.accountStatus !== "active" ? (
+              {allowed("add_member") ? (
+                <DropdownMenuItem onClick={() => onNavigate("members")}>Add member</DropdownMenuItem>
+              ) : null}
+              {allowed("import_members") ? (
+                <DropdownMenuItem onClick={() => onNavigate("members")}>Import members</DropdownMenuItem>
+              ) : null}
+              {allowed("assign_rooms") ? (
+                <DropdownMenuItem onClick={() => onNavigate("rooming")}>Assign rooms</DropdownMenuItem>
+              ) : null}
+              {allowed("confirm") ? (
                 <DropdownMenuItem onClick={() => mutation.mutate("active")}>Confirm group</DropdownMenuItem>
               ) : null}
-              {group.accountStatus === "active" ? (
-                <DropdownMenuItem onClick={() => mutation.mutate("pending")}>Revert to draft</DropdownMenuItem>
+              {allowed("reopen") ? (
+                <DropdownMenuItem onClick={() => mutation.mutate("pending")}>Reopen as draft</DropdownMenuItem>
               ) : null}
-              {group.accountStatus !== "inactive" ? (
+              {allowed("cancel") ? (
                 <DropdownMenuItem onClick={() => mutation.mutate("inactive")}>Cancel group</DropdownMenuItem>
+              ) : null}
+              {allowed("duplicate") ? (
+                <DropdownMenuItem disabled={duplicateMutation.isPending} onClick={() => duplicateMutation.mutate()}>
+                  Duplicate
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled title={GROUP_INVOICE_SERVICE_UNAVAILABLE}>
+                Generate invoice
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled title={GROUP_INVOICE_SERVICE_UNAVAILABLE}>
+                Send confirmation
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled title={GROUP_CONVERT_UNAVAILABLE}>
+                Convert to individual
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {allowed("export_rooming") ? (
+                <DropdownMenuItem onClick={() => onNavigate("rooming")}>Export rooming</DropdownMenuItem>
+              ) : null}
+              {allowed("manage_documents") ? (
+                <DropdownMenuItem onClick={() => onNavigate("documents")}>Documents</DropdownMenuItem>
+              ) : null}
+              {allowed("view_activity") ? (
+                <DropdownMenuItem onClick={() => onNavigate("history")}>View activity</DropdownMenuItem>
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>

@@ -70,6 +70,7 @@ import {
   type GroupCreateContext,
 } from "@/packages/pms/lib/guest-group-create.functions";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
+import { applyGroupTemplateToDraft, GROUP_TEMPLATE_COPY, listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
 
 export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: string }) {
   const navigate = useNavigate();
@@ -95,6 +96,12 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
   const [destinationInput, setDestinationInput] = useState("");
   const [importCsv, setImportCsv] = useState("");
   const [memberDraft, setMemberDraft] = useState(emptyGroupCreateMember());
+  const [templateId, setTemplateId] = useState("");
+  const loadTemplates = useServerFn(listGroupTemplates);
+  const templates = useQuery({
+    queryKey: ["group-templates", restaurantId],
+    queryFn: () => loadTemplates({ data: { restaurantId } }),
+  });
 
   const context = useQuery({
     queryKey: ["group-create-context", restaurantId],
@@ -341,6 +348,32 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
         <div className="mt-2">
           <h1 className="font-display text-2xl">{GUEST_GROUP_CREATE_TITLE}</h1>
           <p className="text-sm text-muted-foreground">{GUEST_GROUP_CREATE_COPY}</p>
+          <div className="mt-3 max-w-sm">
+            <p className="text-xs text-muted-foreground">{GROUP_TEMPLATE_COPY}</p>
+            <Select
+              value={templateId}
+              onValueChange={(value) => {
+                const template = (templates.data ?? []).find((row) => row.id === value);
+                setTemplateId(value);
+                if (template) {
+                  setDraft((current) => ({ ...applyGroupTemplateToDraft(template.payload), name: current.name, currency: current.currency }));
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Start from template (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {(templates.data ?? [])
+                  .filter((row) => row.active)
+                  .map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <ol className="mt-4 flex flex-wrap gap-2">
           {GUEST_GROUP_CREATE_STEPS.map((item, index) => {

@@ -39,7 +39,7 @@ describe("Group workspace helpers", () => {
   it("exposes operational nav without inventing isolated domains", () => {
     assert.deepEqual(
       GROUP_DETAIL_NAV.map((item) => item.id),
-      ["overview", "members", "reservations", "rooming", "financial", "communication", "history"],
+      ["overview", "members", "reservations", "rooming", "itinerary", "financial", "communication", "documents", "history"],
     );
     assert.equal(GROUP_DETAIL_NAV.every((item) => item.live), true);
     assert.equal(groupDetailNav("rooming"), "rooming");

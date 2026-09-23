@@ -43,9 +43,11 @@ import { GUEST_PROFILE_DETAIL_PATH, guestProfileSearch } from "@/packages/pms/li
 export function GuestGroupMembers({
   restaurantId,
   groupId,
+  cancelled = false,
 }: {
   restaurantId: string;
   groupId: string;
+  cancelled?: boolean;
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(listGroupMembers);
@@ -136,7 +138,9 @@ export function GuestGroupMembers({
         <p className="text-sm text-muted-foreground">
           Members reference Guest Profiles. Removing a member unlinks them from the group only.
         </p>
+        {cancelled ? <p className="mt-2 text-sm text-muted-foreground">Cancelled groups are view only.</p> : null}
       </div>
+      {cancelled ? null : (
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
           <h3 className="font-medium">Add existing guest</h3>
@@ -170,6 +174,7 @@ export function GuestGroupMembers({
           </Button>
         </div>
       </div>
+      )}
       <div className="rounded-2xl border border-border overflow-hidden">
         <Table>
           <TableHeader>
@@ -192,6 +197,7 @@ export function GuestGroupMembers({
                 <TableCell>
                   <Select
                     value={member.memberStatus}
+                    disabled={cancelled}
                     onValueChange={(value) =>
                       update({ data: { restaurantId, groupId, linkId: member.id, memberStatus: value as (typeof GROUP_MEMBER_STATUSES)[number] } }).then(invalidate)
                     }
@@ -210,9 +216,11 @@ export function GuestGroupMembers({
                 </TableCell>
                 <TableCell>{member.reservationId ? "Linked" : "—"}</TableCell>
                 <TableCell className="text-right">
-                  <Button type="button" variant="ghost" onClick={() => removeMutation.mutate(member.id)}>
-                    Remove
-                  </Button>
+                  {cancelled ? null : (
+                    <Button type="button" variant="ghost" onClick={() => removeMutation.mutate(member.id)}>
+                      Remove
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -226,6 +234,7 @@ export function GuestGroupMembers({
           </TableBody>
         </Table>
       </div>
+      {cancelled ? null : (
       <div className="rounded-2xl border border-border bg-card p-4 space-y-3" data-testid="group-member-import">
         <h3 className="font-medium">Import members</h3>
         <p className="text-sm text-muted-foreground">
@@ -263,6 +272,7 @@ export function GuestGroupMembers({
           </div>
         ) : null}
       </div>
+      )}
     </div>
   );
 }
