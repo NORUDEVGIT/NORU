@@ -8,6 +8,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireGuestManager } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { GROUP_WORKSPACE_UNAVAILABLE } from "./guest-group-detail-workspace";
+import { DEFAULT_GROUP_TYPES } from "./group-types-card4.server";
 
 const idSchema = z.string().uuid();
 
@@ -24,33 +25,74 @@ export type GroupTypeRow = {
   sortOrder: number;
 };
 
-export async function loadGroupTypes(
-  restaurantId: string,
-  supabase: { from: (table: string) => unknown },
-): Promise<GroupTypeRow[]> {
-  const result = await admin(supabase)
-    .from("pms_group_types")
-    .select("id, code, name, description, active, sort_order")
-    .eq("restaurant_id", restaurantId)
-    .order("sort_order")
-    .order("name");
-  if (result.error && isMissingSchemaError(result.error)) return [];
-  if (result.error) throw new Error(result.error.message);
-  return ((result.data ?? []) as Array<{
-    id: string;
-    code: string;
-    name: string;
-    description: string | null;
-    active: boolean;
-    sort_order: number;
-  }>).map((row) => ({
+type GroupTypeDbRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  sort_order: number;
+};
+
+function mapGroupType(row: GroupTypeDbRow): GroupTypeRow {
+  return {
     id: row.id,
     code: row.code,
     name: row.name,
     description: row.description ?? "",
     active: row.active,
     sortOrder: row.sort_order,
-  }));
+  };
+}
+
+async function fetchGroupTypes(
+  restaurantId: string,
+  supabase: { from: (table: string) => unknown },
+): Promise<{ rows: GroupTypeRow[]; missingSchema: boolean }> {
+  const result = await admin(supabase)
+    .from("pms_group_types")
+    .select("id, code, name, description, active, sort_order")
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order")
+    .order("name");
+  if (result.error && isMissingSchemaError(result.error)) return { rows: [], missingSchema: true };
+  if (result.error) throw new Error(result.error.message);
+  return {
+    rows: ((result.data ?? []) as GroupTypeDbRow[]).map(mapGroupType),
+    missingSchema: false,
+  };
+}
+
+async function ensureDefaultGroupTypes(
+  restaurantId: string,
+  supabase: { from: (table: string) => unknown },
+  existing: GroupTypeRow[],
+): Promise<GroupTypeRow[]> {
+  if (existing.length > 0) return existing;
+  const inserted = await admin(supabase)
+    .from("pms_group_types")
+    .insert(
+      DEFAULT_GROUP_TYPES.map((row) => ({
+        restaurant_id: restaurantId,
+        code: row.code,
+        name: row.name,
+        description: row.description,
+        active: true,
+        sort_order: row.sortOrder,
+      })),
+    );
+  if (inserted.error && inserted.error.code !== "23505") return existing;
+  const next = await fetchGroupTypes(restaurantId, supabase);
+  return next.rows;
+}
+
+export async function loadGroupTypes(
+  restaurantId: string,
+  supabase: { from: (table: string) => unknown },
+): Promise<GroupTypeRow[]> {
+  const loaded = await fetchGroupTypes(restaurantId, supabase);
+  if (loaded.missingSchema) return [];
+  return ensureDefaultGroupTypes(restaurantId, supabase, loaded.rows);
 }
 
 export async function assertActiveGroupType(

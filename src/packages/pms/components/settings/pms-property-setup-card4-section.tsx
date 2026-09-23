@@ -37,6 +37,10 @@ import {
   PmsCard4CompanyBusiness,
 } from "@/packages/pms/components/settings/pms-card4-company-business";
 import {
+  Card4GroupTypesGuide,
+  PmsCard4GroupTypes,
+} from "@/packages/pms/components/settings/pms-card4-group-types";
+import {
   Card4ServiceCategoriesGuide,
   PmsCard4ServiceCategories,
 } from "@/packages/pms/components/settings/pms-card4-service-categories";
@@ -86,6 +90,8 @@ import {
 } from "@/packages/pms/components/settings/pms-card4-communication-defaults";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
+import { getPmsCard4GroupTypes } from "@/packages/pms/lib/group-types-card4.functions";
+import { groupTypesConfigured as groupTypesReadyFn } from "@/packages/pms/lib/group-types-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
 import { serviceCategoriesConfigured } from "@/packages/pms/lib/service-categories-card4.server";
 import { getPmsCard4ServiceTypes } from "@/packages/pms/lib/service-types-card4.functions";
@@ -161,6 +167,7 @@ export function PmsPropertySetupCard4Section({
   const loadDocuments = useServerFn(getPmsCard4IdentityDocumentTypes);
   const loadPreferences = useServerFn(getPmsCard4Preferences);
   const loadCompanyBusiness = useServerFn(getPmsCard4CompanyBusiness);
+  const loadGroupTypes = useServerFn(getPmsCard4GroupTypes);
   const loadServiceCategories = useServerFn(getPmsCard4ServiceCategories);
   const loadServiceTypes = useServerFn(getPmsCard4ServiceTypes);
   const loadServicePricing = useServerFn(getPmsCard4ServicePricing);
@@ -197,6 +204,11 @@ export function PmsPropertySetupCard4Section({
   const companyQuery = useQuery({
     queryKey: ["pms-card4-company-business", restaurantId],
     queryFn: () => loadCompanyBusiness({ data: { restaurantId } }),
+    retry: false,
+  });
+  const groupTypesQuery = useQuery({
+    queryKey: ["pms-card4-group-types", restaurantId],
+    queryFn: () => loadGroupTypes({ data: { restaurantId } }),
     retry: false,
   });
   const serviceCategoriesQuery = useQuery({
@@ -277,6 +289,7 @@ export function PmsPropertySetupCard4Section({
       defaultInvalid: false,
     },
   );
+  const groupTypesReady = groupTypesReadyFn(groupTypesQuery.data?.types ?? []);
   const categoriesReady = serviceCategoriesConfigured(
     serviceCategoriesQuery.data?.categories ?? [],
   );
@@ -373,6 +386,16 @@ export function PmsPropertySetupCard4Section({
       preferencesReady,
       companyReady,
     ),
+    "group-types": evaluateCard4StepStatus(
+      "group-types",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+      identityDocumentsConfigured,
+      preferencesReady,
+      companyReady,
+      groupTypesReady,
+    ),
   };
   const gstStatuses: Partial<Record<Card4GstStepId, PropertySetupCardStatus>> = {
     "service-categories": evaluateGstStepStatus(
@@ -450,7 +473,8 @@ export function PmsPropertySetupCard4Section({
     requiredFieldsConfigured &&
     identityDocumentsConfigured &&
     preferencesReady &&
-    companyReady;
+    companyReady &&
+    groupTypesReady;
   const cardStatus: PropertySetupCardStatus =
     allGprComplete &&
     categoriesReady &&
@@ -471,6 +495,7 @@ export function PmsPropertySetupCard4Section({
           identityDocumentsConfigured ||
           preferencesReady ||
           companyReady ||
+          groupTypesReady ||
           categoriesReady ||
           typesReady ||
           pricingReady ||
@@ -555,7 +580,8 @@ export function PmsPropertySetupCard4Section({
       step === "required-fields" ||
       step === "identity-documents" ||
       step === "preferences" ||
-      step === "company-business"
+      step === "company-business" ||
+      step === "group-types"
     ) {
       requestSave(true);
       return;
@@ -568,7 +594,8 @@ export function PmsPropertySetupCard4Section({
     step === "required-fields" ||
     step === "identity-documents" ||
     step === "preferences" ||
-    step === "company-business";
+    step === "company-business" ||
+    step === "group-types";
   const gstLive =
     gstStep === "service-categories" ||
     gstStep === "service-types" ||
@@ -776,6 +803,8 @@ export function PmsPropertySetupCard4Section({
                 settingsReady={companyReady}
                 saved={Boolean(companyQuery.data?.lastUpdatedAt)}
               />
+            ) : step === "group-types" ? (
+              <Card4GroupTypesGuide count={groupTypesQuery.data?.types.length ?? 0} />
             ) : null}
 
             {mainSection === "notifications" ? (
@@ -931,6 +960,14 @@ export function PmsPropertySetupCard4Section({
                 saveRequest={saveRequest}
                 onSaved={onSaved}
                 onGoRequiredFields={() => setStep("required-fields")}
+              />
+            ) : step === "group-types" ? (
+              <PmsCard4GroupTypes
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
               />
             ) : (
               <div

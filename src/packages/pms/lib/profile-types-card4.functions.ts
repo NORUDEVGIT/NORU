@@ -108,8 +108,12 @@ async function writeAudit(
   if (result.error) console.error("[card4-profile-types] audit", result.error.message);
 }
 
-async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
-  const payload = DEFAULT_PROFILE_TYPES.map((row) => ({
+function defaultTypePayload(
+  restaurantId: string,
+  userId: string,
+  row: (typeof DEFAULT_PROFILE_TYPES)[number],
+) {
+  return {
     restaurant_id: restaurantId,
     name: row.name,
     code: row.code,
@@ -121,9 +125,29 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
     preference_type_ids: [],
     defaults: EMPTY_PROFILE_TYPE_DEFAULTS,
     updated_by: userId,
-  }));
+  };
+}
+
+async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
+  const payload = DEFAULT_PROFILE_TYPES.map((row) => defaultTypePayload(restaurantId, userId, row));
   const result = await db.from("pms_guest_profile_types").insert(payload);
   if (result.error && result.error.code !== "23505") unavailable(result.error);
+}
+
+async function ensureMissingDefaults(
+  db: DbClient,
+  restaurantId: string,
+  userId: string,
+  existingCodes: readonly string[],
+) {
+  const have = new Set(existingCodes.map((code) => normalizeProfileTypeCode(code)));
+  const missing = DEFAULT_PROFILE_TYPES.filter((row) => !have.has(row.code));
+  if (missing.length === 0) return false;
+  const result = await db
+    .from("pms_guest_profile_types")
+    .insert(missing.map((row) => defaultTypePayload(restaurantId, userId, row)));
+  if (result.error && result.error.code !== "23505") unavailable(result.error);
+  return true;
 }
 
 async function loadSnapshot(
@@ -149,6 +173,16 @@ async function loadSnapshot(
     if (seeded) throw new Error("Could not seed default profile types.");
     await seedDefaults(db, restaurantId, userId);
     return loadSnapshot(db, restaurantId, userId, true, seedMissing);
+  }
+
+  if (!seeded) {
+    const inserted = await ensureMissingDefaults(
+      db,
+      restaurantId,
+      userId,
+      ((typesRes.data ?? []) as Array<{ code: string }>).map((row) => row.code),
+    );
+    if (inserted) return loadSnapshot(db, restaurantId, userId, true);
   }
 
   const docsRes = await db

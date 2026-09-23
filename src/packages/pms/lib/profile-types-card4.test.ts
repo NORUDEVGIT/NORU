@@ -19,10 +19,10 @@ const functionsSrc = readFileSync(
 const wave1Src = readFileSync(new URL("./guest-profile-wave1.ts", import.meta.url), "utf8");
 
 describe("Card 4 Profile Types catalogue", () => {
-  it("seeds six default codes and keeps SET3-plus required field ids", () => {
+  it("seeds seven default codes including Group and keeps SET3-plus required field ids", () => {
     assert.deepEqual(
       DEFAULT_PROFILE_TYPES.map((row) => row.code),
-      ["IND", "COM", "TRA", "TOU", "ORG", "CON"],
+      ["IND", "COM", "TRA", "TOU", "ORG", "CON", "GRP"],
     );
     assert.deepEqual(
       PROFILE_TYPE_PREFERENCE_TYPES.map((row) => row.id),
@@ -57,6 +57,7 @@ describe("Card 4 Profile Types catalogue", () => {
     assert.doesNotMatch(functionsSrc, /GUEST_PROFILE_TYPES/);
     assert.match(functionsSrc, /requireRoomManager/);
     assert.match(functionsSrc, /seedDefaults/);
+    assert.match(functionsSrc, /ensureMissingDefaults/);
     assert.match(functionsSrc, /DEFAULT_PROFILE_TYPES/);
     assert.doesNotMatch(functionsSrc, /guest_profiles/);
     assert.equal(GUEST_PROFILE_TYPES.length, 4);

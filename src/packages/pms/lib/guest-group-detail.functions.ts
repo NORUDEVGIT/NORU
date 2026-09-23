@@ -466,6 +466,10 @@ export const saveGroupMaster = createServerFn({ method: "POST" })
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
+    if (!data.groupId) {
+      const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+      await assertListingCreateAllowed(data.restaurantId, "group");
+    }
     await assertActiveGroupType(data.restaurantId, data.account.groupTypeId, db);
     await assertRelatedMaster(db, data.restaurantId, data.account.companyMasterId, "company", "company");
     await assertRelatedMaster(

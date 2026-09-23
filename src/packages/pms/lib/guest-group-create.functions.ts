@@ -313,6 +313,8 @@ export const persistGroupCreate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
+    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+    await assertListingCreateAllowed(data.restaurantId, "group");
     const draft = data.draft;
     const saved = await saveGroupMaster({
       data: {
