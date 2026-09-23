@@ -379,13 +379,11 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
           {GUEST_GROUP_CREATE_STEPS.map((item, index) => {
             const current = item.id === step;
             const done = index < stepIndex;
-            const reachable = index <= stepIndex;
             return (
               <li key={item.id}>
                 <button
                   type="button"
-                  disabled={!reachable}
-                  onClick={() => (reachable ? go(item.id) : undefined)}
+                  onClick={() => go(item.id)}
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-xs font-medium",
                     current && "border-primary bg-primary text-primary-foreground",

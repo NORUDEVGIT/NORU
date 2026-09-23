@@ -9,6 +9,7 @@ import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-c
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
+  GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
@@ -256,11 +257,12 @@ export function GuestCompanyDirectory({
           <Button
             disabled={!createGate.ok}
             title={createGate.ok ? undefined : createGate.message}
-            onClick={() => {
-              setEditId(undefined);
-              setCreditFocus(false);
-              setFormOpen(true);
-            }}
+            onClick={() =>
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "company", create: "company" }),
+              })
+            }
             data-testid="companies-register"
           >
             <Building2 className="mr-2 size-4" />
@@ -368,7 +370,19 @@ export function GuestCompanyDirectory({
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-6">
           <p className="text-sm text-muted-foreground">{types.filter((type) => type.active).length === 0 ? COMPANIES_NO_TYPES : COMPANIES_EMPTY}</p>
-          {createGate.ok ? <Button className="mt-3" onClick={() => setFormOpen(true)}>Register New Company</Button> : null}
+          {createGate.ok ? (
+            <Button
+              className="mt-3"
+              onClick={() =>
+                void navigate({
+                  to: GUEST_PROFILE_DIRECTORY_PATH,
+                  search: guestProfileSearch({ type: "company", create: "company" }),
+                })
+              }
+            >
+              Register New Company
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border bg-card">

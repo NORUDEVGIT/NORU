@@ -21,6 +21,8 @@ import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest
 import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/guest-listing-workspace";
 import { GuestCreateWorkspace } from "@/packages/pms/components/workspaces/guest-create-workspace";
 import { GuestGroupCreateWorkspace } from "@/packages/pms/components/workspaces/guest-group-create-workspace";
+import { GuestCompanyCreateWorkspace } from "@/packages/pms/components/workspaces/guest-company-create-workspace";
+import { GuestTravelAgentCreateWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-create-workspace";
 import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
 import { GuestTravelAgentDetailWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-detail-workspace";
 import { GuestGroupDetailWorkspace } from "@/packages/pms/components/workspaces/guest-group-detail-workspace";
@@ -44,6 +46,7 @@ import {
   type GuestProfileWorkspaceNavId,
   type TravelAgentDetailNavId,
   type GroupDetailNavId,
+  type GuestProfileCreateId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
 import {
@@ -70,7 +73,7 @@ export function GuestProfileWorkspace({
   returnCard?: GuestProfileCardId | undefined;
   returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
   profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
-  create?: "individual" | "group" | undefined;
+  create?: GuestProfileCreateId | undefined;
 }) {
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(
@@ -214,6 +217,14 @@ export function GuestProfileWorkspace({
 
   if (!guestId && create === "group") {
     return <GuestGroupCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
+
+  if (!guestId && create === "company") {
+    return <GuestCompanyCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
+
+  if (!guestId && create === "travel-agent") {
+    return <GuestTravelAgentCreateWorkspace restaurantId={membership.restaurant.id} />;
   }
 
   if (guestId && operationalType === "company") {
