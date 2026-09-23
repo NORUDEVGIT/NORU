@@ -16,8 +16,10 @@ import {
   travelAgentCommissionReady,
   travelAgentCreateDraftErrors,
   travelAgentCreateDraftErrorsForSave,
+  travelAgentCreateFieldIssues,
   travelAgentCreateStepErrors,
 } from "./guest-travel-agent-create-workspace.ts";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "./guest-create-step-issues.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -56,6 +58,14 @@ describe("Travel agency create workflow helpers", () => {
     draft.name = "Blue Nile Travel";
     assert.equal(travelAgentCreateDraftErrorsForSave(draft).length, 0);
     assert.ok(travelAgentCreateDraftErrors(draft).length > 0);
+  });
+
+  it("names the missing field and the step that holds it", () => {
+    const issues = travelAgentCreateFieldIssues(emptyGuestTravelAgentCreateDraft());
+    assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
+    assert.match(formatCreateIssuesByStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS), /Agency Details — Agency name is required/);
+    assert.equal(issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "details").length, 0);
+    assert.ok(issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "contacts").some((issue) => issue.key === "name"));
   });
 
   it("does not treat empty commission as ready to persist", () => {
@@ -100,6 +110,10 @@ describe("Travel agency create honesty", () => {
     assert.match(workspace, /travelAgentMasterId: created.id/);
     assert.doesNotMatch(workspace, /<Dialog/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
+    assert.match(workspace, /issuesBeforeStep/);
+    assert.match(workspace, /formatCreateIssuesByStep/);
+    assert.match(workspace, /Go to step/);
+    assert.match(workspace, /border-destructive/);
     assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);
     assert.match(listing, /create: "travel-agent"/);
     assert.match(accounts, /create: "travel-agent"/);

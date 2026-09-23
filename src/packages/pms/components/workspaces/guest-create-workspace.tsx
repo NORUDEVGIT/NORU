@@ -42,8 +42,8 @@ import {
   createFieldRules,
   emptyGuestCreateDraft,
   guestCreateCompletion,
+  guestCreateFieldIssues,
   guestCreateHasChanges,
-  guestCreateStepErrors,
   guestDisplayName,
   readGuestCreateHold,
   writeGuestCreateHold,
@@ -86,6 +86,7 @@ import {
 import { GUEST_CONSENT_STATES } from "@/packages/pms/lib/guest-profile-wave2";
 import { GuestFormStagedLinks } from "@/packages/pms/components/guests/guest-form-staged-links";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/guest-create-step-issues";
 
 export function GuestCreateWorkspace({
   restaurantId,
@@ -125,6 +126,7 @@ export function GuestCreateWorkspace({
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [created, setCreated] = useState<{ id: string; name: string; profileNumber: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<string>>(new Set());
 
   const context = useQuery({
     queryKey: ["guest-create-context", restaurantId],
@@ -172,6 +174,25 @@ export function GuestCreateWorkspace({
   const visible = (code: string) => rules.find((rule) => rule.code === code)?.visible !== false;
   const required = (code: string) => Boolean(rules.find((rule) => rule.code === code)?.required);
   const stepIndex = GUEST_CREATE_STEPS.findIndex((item) => item.id === step);
+  const fieldIssues = guestCreateFieldIssues(draft, {
+    rules,
+    set3: context.data?.set3 ?? null,
+    requiredPreferenceTypeIds: requiredPrefs,
+    dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
+  });
+
+  function markAttempted(...ids: string[]) {
+    setAttemptedSteps((current) => {
+      const next = new Set(current);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }
+
+  function fieldError(key: string, stepId: GuestCreateStepId = step) {
+    if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
+    return fieldIssues.find((issue) => issue.key === key)?.message;
+  }
 
   function set<K extends keyof GuestCreateDraft>(key: K, value: GuestCreateDraft[K]) {
     touched.add(String(key));
@@ -179,18 +200,22 @@ export function GuestCreateWorkspace({
   }
 
   function go(next: GuestCreateStepId) {
+    const blockers = issuesBeforeStep(fieldIssues, GUEST_CREATE_STEPS, next);
+    if (blockers.length) {
+      markAttempted(step, ...blockers.map((issue) => issue.step));
+      toast.error(formatCreateIssuesByStep(blockers, GUEST_CREATE_STEPS));
+      const first = blockers[0];
+      if (first && first.step !== step) setStep(first.step);
+      return;
+    }
     setStep(next);
   }
 
   function validateCurrent(): boolean {
-    const errors = guestCreateStepErrors(step, draft, {
-      rules,
-      set3: context.data?.set3 ?? null,
-      requiredPreferenceTypeIds: requiredPrefs,
-      dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
-    });
-    if (errors.length) {
-      toast.error(errors[0]);
+    const current = fieldIssues.filter((issue) => issue.step === step);
+    if (current.length) {
+      markAttempted(step);
+      toast.error(formatCreateIssuesByStep(current, GUEST_CREATE_STEPS));
       return false;
     }
     return true;
@@ -228,13 +253,12 @@ export function GuestCreateWorkspace({
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const errors = guestCreateStepErrors("review", draft, {
-        rules,
-        set3: context.data?.set3 ?? null,
-        requiredPreferenceTypeIds: requiredPrefs,
-        dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
-      });
-      if (errors.length) throw new Error(errors[0]);
+      if (fieldIssues.length) {
+        markAttempted("review", ...fieldIssues.map((issue) => issue.step));
+        const first = fieldIssues[0];
+        if (first) setStep(first.step);
+        throw new Error(formatCreateIssuesByStep(fieldIssues, GUEST_CREATE_STEPS));
+      }
       const matches = draft.acknowledgeDuplicates
         ? []
         : await checkDuplicates({
@@ -499,6 +523,7 @@ export function GuestCreateWorkspace({
           {GUEST_CREATE_STEPS.map((item, index) => {
             const current = item.id === step;
             const done = index < stepIndex;
+            const invalid = fieldIssues.some((issue) => issue.step === item.id) && (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
             return (
               <li key={item.id}>
                 <button
@@ -507,8 +532,9 @@ export function GuestCreateWorkspace({
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-xs font-medium",
                     current && "border-primary bg-primary text-primary-foreground",
-                    done && "border-primary/40 text-foreground",
-                    !current && !done && "border-border text-muted-foreground",
+                    done && !invalid && "border-primary/40 text-foreground",
+                    !current && !done && !invalid && "border-border text-muted-foreground",
+                    invalid && "border-destructive text-destructive",
                   )}
                 >
                   {done ? <Check className="mr-1 inline size-3" /> : `${item.number} `}
@@ -548,7 +574,7 @@ export function GuestCreateWorkspace({
           ) : null}
 
           {step === "basic" ? (
-            <BasicStep draft={draft} set={set} visible={visible} required={required} photoPreview={photoPreview} onPhoto={(file) => {
+            <BasicStep draft={draft} set={set} visible={visible} required={required} fieldError={fieldError} photoPreview={photoPreview} onPhoto={(file) => {
               setPhotoFile(file);
               setPhotoPreview(file ? URL.createObjectURL(file) : null);
             }} />
@@ -561,6 +587,7 @@ export function GuestCreateWorkspace({
               profileTypeId={context.data?.profileType?.id ?? null}
               docFiles={docFiles}
               setDocFiles={setDocFiles}
+              error={fieldError("IDENTITY_DOCUMENT", "identity")}
             />
           ) : null}
           {step === "preferences" ? (
@@ -569,6 +596,7 @@ export function GuestCreateWorkspace({
               setDraft={setDraft}
               categories={context.data?.preferenceCategories ?? []}
               types={context.data?.preferenceTypes ?? []}
+              fieldError={fieldError}
             />
           ) : null}
           {step === "business" ? (
@@ -579,16 +607,24 @@ export function GuestCreateWorkspace({
                 links={draft.links}
                 onChange={(links) => set("links", links)}
               />
+              {fieldError("COMPANY", "business") ? (
+                <p className="text-xs text-destructive">{fieldError("COMPANY", "business")}</p>
+              ) : null}
               <div className="rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground">
                 {GUEST_CREATE_LOYALTY_UNAVAILABLE}
               </div>
             </div>
           ) : null}
           {step === "additional" ? (
-            <AdditionalStep draft={draft} set={set} dataProcessingRequired={Boolean(context.data?.dataProcessingRequired)} />
+            <AdditionalStep
+              draft={draft}
+              set={set}
+              dataProcessingRequired={Boolean(context.data?.dataProcessingRequired)}
+              fieldError={fieldError}
+            />
           ) : null}
           {step === "review" ? (
-            <ReviewStep draft={draft} rules={rules} completion={completion} onEdit={go} />
+            <ReviewStep draft={draft} rules={rules} completion={completion} issues={fieldIssues} onEdit={go} />
           ) : null}
         </div>
 
@@ -686,11 +722,14 @@ export function GuestCreateWorkspace({
   );
 }
 
-function Field({ label, required: isRequired, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label>{label}{isRequired ? " *" : ""}</Label>
-      {children}
+      <Label className={error ? "text-destructive" : undefined}>{label}{isRequired ? " *" : ""}</Label>
+      <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
+        {children}
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -700,6 +739,7 @@ function BasicStep({
   set,
   visible,
   required,
+  fieldError,
   photoPreview,
   onPhoto,
 }: {
@@ -707,6 +747,7 @@ function BasicStep({
   set: <K extends keyof GuestCreateDraft>(key: K, value: GuestCreateDraft[K]) => void;
   visible: (code: string) => boolean;
   required: (code: string) => boolean;
+  fieldError: (key: string, stepId?: GuestCreateStepId) => string | undefined;
   photoPreview: string | null;
   onPhoto: (file: File | null) => void;
 }) {
@@ -727,7 +768,7 @@ function BasicStep({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="First Name" required>
+          <Field label="First Name" required error={fieldError("FIRST_NAME", "basic")}>
             <Input
               value={draft.firstName}
               onChange={(event) => set("firstName", event.target.value)}
@@ -739,7 +780,7 @@ function BasicStep({
             <Input value={draft.middleName} onChange={(event) => set("middleName", event.target.value)} />
           </Field>
           {visible("LAST_NAME") ? (
-            <Field label="Last Name" required={required("LAST_NAME")}>
+            <Field label="Last Name" required={required("LAST_NAME")} error={fieldError("LAST_NAME", "basic")}>
               <Input value={draft.lastName} onChange={(event) => set("lastName", event.target.value)} />
             </Field>
           ) : null}
@@ -747,7 +788,7 @@ function BasicStep({
             <Input value={draft.preferredName} onChange={(event) => set("preferredName", event.target.value)} />
           </Field>
           {visible("DATE_OF_BIRTH") ? (
-            <Field label="Date of Birth" required={required("DATE_OF_BIRTH")}>
+            <Field label="Date of Birth" required={required("DATE_OF_BIRTH")} error={fieldError("DATE_OF_BIRTH", "basic")}>
               <Input type="date" value={draft.dateOfBirth} onChange={(event) => set("dateOfBirth", event.target.value)} />
             </Field>
           ) : null}
@@ -761,7 +802,7 @@ function BasicStep({
             </Select>
           </Field>
           {visible("NATIONALITY") ? (
-            <Field label="Nationality" required={required("NATIONALITY")}>
+            <Field label="Nationality" required={required("NATIONALITY")} error={fieldError("NATIONALITY", "basic")}>
               <Input value={draft.nationality} onChange={(event) => set("nationality", event.target.value)} />
             </Field>
           ) : null}
@@ -778,7 +819,7 @@ function BasicStep({
         <h2 className="font-display text-lg">Contact Information</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {visible("PHONE") ? (
-            <Field label="Mobile Phone" required={required("PHONE")}>
+            <Field label="Mobile Phone" required={required("PHONE")} error={fieldError("PHONE", "basic")}>
               <Input value={draft.phone} onChange={(event) => set("phone", event.target.value)} />
             </Field>
           ) : null}
@@ -786,7 +827,7 @@ function BasicStep({
             <Input value={draft.phoneAlt} onChange={(event) => set("phoneAlt", event.target.value)} />
           </Field>
           {visible("EMAIL") ? (
-            <Field label="Email" required={required("EMAIL")}>
+            <Field label="Email" required={required("EMAIL")} error={fieldError("EMAIL", "basic")}>
               <Input value={draft.email} onChange={(event) => set("email", event.target.value)} />
             </Field>
           ) : null}
@@ -817,7 +858,7 @@ function BasicStep({
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg">Address Information</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label="Country" required={required("ADDRESS")}>
+            <Field label="Country" required={required("ADDRESS")} error={fieldError("ADDRESS", "basic")}>
               <Input value={draft.country} onChange={(event) => set("country", event.target.value)} />
             </Field>
             <Field label="Region / State">
@@ -849,6 +890,7 @@ function IdentityStep({
   profileTypeId,
   docFiles,
   setDocFiles,
+  error,
 }: {
   draft: GuestCreateDraft;
   setDraft: React.Dispatch<React.SetStateAction<GuestCreateDraft>>;
@@ -865,6 +907,7 @@ function IdentityStep({
   profileTypeId: string | null;
   docFiles: Record<string, File | undefined>;
   setDocFiles: React.Dispatch<React.SetStateAction<Record<string, File | undefined>>>;
+  error?: string;
 }) {
   const available = types.filter((type) => type.active && (type.validForProfileTypeIds.length === 0 || !profileTypeId || type.validForProfileTypeIds.includes(profileTypeId)));
   function add() {
@@ -888,6 +931,7 @@ function IdentityStep({
   }
   return (
     <div className="space-y-4">
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {draft.documents.map((document) => {
         const type = available.find((row) => row.id === document.idTypeId) ?? types.find((row) => row.id === document.idTypeId);
         return (
@@ -954,11 +998,13 @@ function PreferencesStep({
   setDraft,
   categories,
   types,
+  fieldError,
 }: {
   draft: GuestCreateDraft;
   setDraft: React.Dispatch<React.SetStateAction<GuestCreateDraft>>;
   categories: Array<{ id: string; name: string; active: boolean }>;
   types: Array<{ id: string; categoryId: string; name: string; valueType: string; required: boolean; active: boolean; options: Array<{ label: string; value: string; active: boolean }> }>;
+  fieldError: (key: string, stepId?: GuestCreateStepId) => string | undefined;
 }) {
   const activeCategories = categories.filter((category) => category.active);
   if (activeCategories.length === 0 || types.filter((type) => type.active).length === 0) {
@@ -988,7 +1034,7 @@ function PreferencesStep({
               {categoryTypes.map((type) => {
                 const values = valuesFor(type.id);
                 return (
-                  <Field key={type.id} label={type.name} required={type.required}>
+                  <Field key={type.id} label={type.name} required={type.required} error={fieldError(`PREF:${type.id}`, "preferences")}>
                     {type.valueType === "yes_no" ? (
                       <Switch checked={values[0] === "yes"} onCheckedChange={(checked) => setValues(type.id, [checked ? "yes" : "no"])} />
                     ) : type.valueType === "multi" ? (
@@ -1031,10 +1077,12 @@ function AdditionalStep({
   draft,
   set,
   dataProcessingRequired,
+  fieldError,
 }: {
   draft: GuestCreateDraft;
   set: <K extends keyof GuestCreateDraft>(key: K, value: GuestCreateDraft[K]) => void;
   dataProcessingRequired: boolean;
+  fieldError: (key: string, stepId?: GuestCreateStepId) => string | undefined;
 }) {
   return (
     <div className="space-y-4">
@@ -1066,11 +1114,11 @@ function AdditionalStep({
         <Field label="Staged note"><Textarea value={draft.stagedNote} onChange={(event) => set("stagedNote", event.target.value)} /></Field>
         <label className="mt-3 flex items-center gap-2 text-sm"><Checkbox checked={draft.restricted} onCheckedChange={(checked) => set("restricted", Boolean(checked))} /> Restricted</label>
         <label className="flex items-center gap-2 text-sm"><Checkbox checked={draft.blacklisted} onCheckedChange={(checked) => set("blacklisted", Boolean(checked))} /> Blacklisted</label>
-        <Field label="Restriction reason"><Textarea value={draft.restrictionReason} onChange={(event) => set("restrictionReason", event.target.value)} /></Field>
+        <Field label="Restriction reason" error={fieldError("restrictionReason", "additional")}><Textarea value={draft.restrictionReason} onChange={(event) => set("restrictionReason", event.target.value)} /></Field>
       </section>
       <section className="rounded-2xl border border-border bg-card p-4">
         <h2 className="font-display text-lg">Privacy & Consent</h2>
-        <Field label="Data processing" required={dataProcessingRequired}>
+        <Field label="Data processing" required={dataProcessingRequired} error={fieldError("dataProcessing", "additional")}>
           <Select value={draft.dataProcessingConsent} onValueChange={(value) => set("dataProcessingConsent", value as GuestCreateDraft["dataProcessingConsent"])}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -1095,23 +1143,31 @@ function ReviewStep({
   draft,
   rules,
   completion,
+  issues,
   onEdit,
 }: {
   draft: GuestCreateDraft;
   rules: ReturnType<typeof createFieldRules>;
   completion: ReturnType<typeof guestCreateCompletion>;
+  issues: Array<{ key: string; message: string; step: GuestCreateStepId }>;
   onEdit: (step: GuestCreateStepId) => void;
 }) {
-  const remaining = completion.items.filter((item) => item.requiredRemaining);
+  const remaining = issues.length
+    ? issues
+    : completion.items.filter((item) => item.requiredRemaining).map((item) => ({
+        key: item.id,
+        message: item.label,
+        step: item.step,
+      }));
   return (
     <div className="space-y-4">
       {remaining.length > 0 ? (
-        <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
-          <p className="font-medium">{remaining.length} required item{remaining.length === 1 ? "" : "s"} remaining</p>
+        <section className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4">
+          <p className="font-medium text-destructive">{remaining.length} required item{remaining.length === 1 ? "" : "s"} remaining</p>
           <ul className="mt-2 space-y-1 text-sm">
             {remaining.map((item) => (
-              <li key={item.id}>
-                {item.label}{" "}
+              <li key={`${item.step}-${item.key}`}>
+                <span className="text-destructive">{GUEST_CREATE_STEPS.find((step) => step.id === item.step)?.title}: {item.message}</span>{" "}
                 <button type="button" className="underline" onClick={() => onEdit(item.step)}>Go to step</button>
               </li>
             ))}

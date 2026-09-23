@@ -15,11 +15,13 @@ import {
   emptyGuestCreateDraft,
   guestCreateCompletion,
   guestCreateHoldKey,
+  guestCreateFieldIssues,
   guestCreateStepErrors,
   guestDisplayName,
   inferGuestCreateStep,
   parseGuestCreateHold,
 } from "./guest-create-workspace.ts";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "./guest-create-step-issues.ts";
 import type { GuestFieldRecord } from "./required-fields-card4.server.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -125,6 +127,19 @@ describe("Guest create workflow helpers", () => {
     });
     assert.ok(errors.length > 0);
   });
+
+  it("names the missing field and the step that holds it", () => {
+    const issues = guestCreateFieldIssues(emptyGuestCreateDraft(), {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+    });
+    assert.ok(issues.some((issue) => issue.key === "FIRST_NAME" && issue.step === "basic"));
+    assert.match(formatCreateIssuesByStep(issues, GUEST_CREATE_STEPS), /Basic Information — First name is required/);
+    assert.equal(issuesBeforeStep(issues, GUEST_CREATE_STEPS, "basic").length, 0);
+    assert.ok(issuesBeforeStep(issues, GUEST_CREATE_STEPS, "identity").some((issue) => issue.key === "FIRST_NAME"));
+  });
 });
 
 describe("Guest create honesty", () => {
@@ -144,6 +159,10 @@ describe("Guest create honesty", () => {
     assert.match(workspace, /writeGuestCreateHold/);
     assert.match(workspace, /readGuestCreateHold/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
+    assert.match(workspace, /issuesBeforeStep/);
+    assert.match(workspace, /formatCreateIssuesByStep/);
+    assert.match(workspace, /Go to step/);
+    assert.match(workspace, /border-destructive/);
     assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);
     assert.doesNotMatch(workspace, /done \|\| current \|\| index <= stepIndex/);
     assert.match(workspace, /GUEST_CREATE_START_OVER/);

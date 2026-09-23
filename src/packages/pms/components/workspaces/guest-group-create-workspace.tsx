@@ -48,11 +48,10 @@ import {
   filled,
   guestGroupCreateCompletion,
   guestGroupCreateHasChanges,
-  groupCreateDraftErrors,
   groupCreateDraftErrorsForSave,
+  groupCreateFieldIssues,
   groupCreateMemberCounts,
   groupCreateNights,
-  groupCreateStepErrors,
   optionLabel,
   readGuestGroupCreateHold,
   stageGroupMemberImport,
@@ -70,6 +69,7 @@ import {
   type GroupCreateContext,
 } from "@/packages/pms/lib/guest-group-create.functions";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/guest-create-step-issues";
 import { applyGroupTemplateToDraft, GROUP_TEMPLATE_COPY, listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
 
 export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: string }) {
@@ -90,6 +90,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<string>>(new Set());
   const [companyQuery, setCompanyQuery] = useState("");
   const [agencyQuery, setAgencyQuery] = useState("");
   const [contactQuery, setContactQuery] = useState("");
@@ -181,18 +182,42 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
     currencyCodes: catalogues?.currencies ?? [],
   };
 
+  const fieldIssues = groupCreateFieldIssues(draft, catalogueIds);
+
+  function markAttempted(...ids: string[]) {
+    setAttemptedSteps((current) => {
+      const next = new Set(current);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }
+
+  function fieldError(key: string, stepId: GuestGroupCreateStepId = step) {
+    if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
+    return fieldIssues.find((issue) => issue.key === key)?.message;
+  }
+
   function set<K extends keyof GuestGroupCreateDraft>(key: K, value: GuestGroupCreateDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
   function go(next: GuestGroupCreateStepId) {
+    const blockers = issuesBeforeStep(fieldIssues, GUEST_GROUP_CREATE_STEPS, next);
+    if (blockers.length) {
+      markAttempted(step, ...blockers.map((issue) => issue.step));
+      toast.error(formatCreateIssuesByStep(blockers, GUEST_GROUP_CREATE_STEPS));
+      const first = blockers[0];
+      if (first && first.step !== step) setStep(first.step);
+      return;
+    }
     setStep(next);
   }
 
   function validateCurrent(): boolean {
-    const errors = groupCreateStepErrors(step, draft, catalogueIds);
-    if (errors.length) {
-      toast.error(errors[0]);
+    const current = fieldIssues.filter((issue) => issue.step === step);
+    if (current.length) {
+      markAttempted(step);
+      toast.error(formatCreateIssuesByStep(current, GUEST_GROUP_CREATE_STEPS));
       return false;
     }
     if (step === "guests" && counts.expected > 0 && counts.registered !== counts.expected) {
@@ -229,8 +254,12 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
 
   const completeMutation = useMutation({
     mutationFn: async () => {
-      const errors = groupCreateDraftErrors(draft, catalogueIds);
-      if (errors.length) throw new Error(errors[0]);
+      if (fieldIssues.length) {
+        markAttempted("review", ...fieldIssues.map((issue) => issue.step));
+        const first = fieldIssues[0];
+        if (first) setStep(first.step);
+        throw new Error(formatCreateIssuesByStep(fieldIssues, GUEST_GROUP_CREATE_STEPS));
+      }
       const saved = await persist({ data: { restaurantId, draft } });
       clearGuestGroupCreateHold(restaurantId);
       await clearDraft({ data: { restaurantId } }).catch(() => undefined);
@@ -257,6 +286,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
     setStep("details");
     setHoldState("idle");
     setCreated(null);
+    setAttemptedSteps(new Set());
     setImportCsv("");
     setMemberDraft(emptyGroupCreateMember());
     clearGuestGroupCreateHold(restaurantId);
@@ -417,6 +447,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
           {GUEST_GROUP_CREATE_STEPS.map((item, index) => {
             const current = item.id === step;
             const done = index < stepIndex;
+            const invalid = fieldIssues.some((issue) => issue.step === item.id) && (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
             return (
               <li key={item.id}>
                 <button
@@ -425,8 +456,9 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-xs font-medium",
                     current && "border-primary bg-primary text-primary-foreground",
-                    done && "border-primary/40 text-foreground",
-                    !current && !done && "border-border text-muted-foreground",
+                    done && !invalid && "border-primary/40 text-foreground",
+                    !current && !done && !invalid && "border-border text-muted-foreground",
+                    invalid && "border-destructive text-destructive",
                   )}
                 >
                   {done ? <Check className="mr-1 inline size-3" /> : `${item.number} `}
@@ -454,6 +486,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
               onCompanyQuery={setCompanyQuery}
               onAgencyQuery={setAgencyQuery}
               onContactQuery={setContactQuery}
+              fieldError={fieldError}
             />
           ) : null}
           {step === "stay" ? (
@@ -464,6 +497,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
               catalogues={catalogues}
               destinationInput={destinationInput}
               onDestinationInput={setDestinationInput}
+              fieldError={fieldError}
             />
           ) : null}
           {step === "guests" ? (
@@ -482,10 +516,11 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
               onAddExisting={addExistingMember}
               onAddNew={addNewMember}
               onImport={stageImport}
+              error={fieldError("members", "guests")}
             />
           ) : null}
           {step === "billing" ? (
-            <BillingStep draft={draft} set={set} catalogues={catalogues} credit={creditQuery.data ?? null} estimate={estimate} />
+            <BillingStep draft={draft} set={set} catalogues={catalogues} credit={creditQuery.data ?? null} estimate={estimate} fieldError={fieldError} />
           ) : null}
           {step === "review" ? (
             <ReviewStep
@@ -494,6 +529,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
               counts={counts}
               nights={nights}
               estimate={estimate}
+              issues={fieldIssues}
               onEdit={go}
             />
           ) : null}
@@ -618,14 +654,17 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
   );
 }
 
-function Field({ label, required: isRequired, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label>
+      <Label className={error ? "text-destructive" : undefined}>
         {label}
         {isRequired ? " *" : ""}
       </Label>
-      {children}
+      <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
+        {children}
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -682,6 +721,7 @@ function DetailsStep({
   onCompanyQuery,
   onAgencyQuery,
   onContactQuery,
+  fieldError,
 }: {
   draft: GuestGroupCreateDraft;
   set: <K extends keyof GuestGroupCreateDraft>(key: K, value: GuestGroupCreateDraft[K]) => void;
@@ -695,13 +735,14 @@ function DetailsStep({
   onCompanyQuery: (value: string) => void;
   onAgencyQuery: (value: string) => void;
   onContactQuery: (value: string) => void;
+  fieldError: (key: string, stepId?: GuestGroupCreateStepId) => string | undefined;
 }) {
   const types = (catalogues?.groupTypes ?? []).filter((row) => row.active !== false || row.id === draft.groupTypeId);
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <h2 className="font-display text-lg">Group Details</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Group Name" required>
+        <Field label="Group Name" required error={fieldError("name", "details")}>
           <Input data-testid="group-create-name" value={draft.name} onChange={(event) => set("name", event.target.value)} placeholder="Europe Heritage Tour" />
         </Field>
         <Field label="Group Code">
@@ -714,7 +755,7 @@ function DetailsStep({
             placeholder="Assigned on save"
           />
         </Field>
-        <Field label="Group Type" required>
+        <Field label="Group Type" required error={fieldError("groupTypeId", "details")}>
           <Select value={draft.groupTypeId} onValueChange={(value) => set("groupTypeId", value)}>
             <SelectTrigger data-testid="group-create-type">
               <SelectValue placeholder={types.length ? "Select type" : "Configure group types in settings"} />
@@ -849,6 +890,7 @@ function StayStep({
   catalogues,
   destinationInput,
   onDestinationInput,
+  fieldError,
 }: {
   draft: GuestGroupCreateDraft;
   set: <K extends keyof GuestGroupCreateDraft>(key: K, value: GuestGroupCreateDraft[K]) => void;
@@ -856,16 +898,17 @@ function StayStep({
   catalogues?: GroupCreateContext["catalogues"];
   destinationInput: string;
   onDestinationInput: (value: string) => void;
+  fieldError: (key: string, stepId?: GuestGroupCreateStepId) => string | undefined;
 }) {
   return (
     <div className="space-y-4">
       <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
         <h2 className="font-display text-lg">Travel & Stay</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Arrival Date" required>
+          <Field label="Arrival Date" required error={fieldError("arrivalDate", "stay")}>
             <Input type="date" value={draft.arrivalDate} onChange={(event) => set("arrivalDate", event.target.value)} />
           </Field>
-          <Field label="Departure Date" required>
+          <Field label="Departure Date" required error={fieldError("departureDate", "stay")}>
             <Input type="date" value={draft.departureDate} onChange={(event) => set("departureDate", event.target.value)} />
           </Field>
           <Field label="Arrival Time">
@@ -877,10 +920,10 @@ function StayStep({
           <Field label="Total Nights">
             <Input value={nights == null ? "" : String(nights)} readOnly placeholder="Calculated from dates" />
           </Field>
-          <Field label="Expected Pax" required>
+          <Field label="Expected Pax" required error={fieldError("expectedPax", "stay")}>
             <Input type="number" min={1} value={draft.expectedPax} onChange={(event) => set("expectedPax", event.target.value)} />
           </Field>
-          <Field label="Expected Rooms">
+          <Field label="Expected Rooms" error={fieldError("expectedRooms", "stay")}>
             <Input type="number" min={0} value={draft.expectedRooms} onChange={(event) => set("expectedRooms", event.target.value)} />
           </Field>
           <Field label="Arrival Method">
@@ -972,6 +1015,7 @@ function StayStep({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">{GROUP_CREATE_NO_PHYSICAL_ROOMS}</p>
+        {fieldError("roomNeeds", "stay") ? <p className="text-xs text-destructive">{fieldError("roomNeeds", "stay")}</p> : null}
         {draft.roomNeeds.map((need, index) => (
           <div key={need.key} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-6">
             <Field label="Room Type">
@@ -1071,6 +1115,7 @@ function GuestsStep({
   onAddExisting,
   onAddNew,
   onImport,
+  error,
 }: {
   draft: GuestGroupCreateDraft;
   set: <K extends keyof GuestGroupCreateDraft>(key: K, value: GuestGroupCreateDraft[K]) => void;
@@ -1086,6 +1131,7 @@ function GuestsStep({
   onAddExisting: (guest: { id: string; name: string; email: string | null; phone: string | null }) => void;
   onAddNew: () => void;
   onImport: () => void;
+  error?: string;
 }) {
   return (
     <div className="space-y-4">
@@ -1097,6 +1143,7 @@ function GuestsStep({
         <p className="mt-1 text-xs text-muted-foreground">
           Members are optional. The group can be created with expected pax only.
         </p>
+        {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
       </section>
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
         <h3 className="font-medium">Select existing Guest Profile</h3>
@@ -1190,6 +1237,7 @@ function BillingStep({
   catalogues,
   credit,
   estimate,
+  fieldError,
 }: {
   draft: GuestGroupCreateDraft;
   set: <K extends keyof GuestGroupCreateDraft>(key: K, value: GuestGroupCreateDraft[K]) => void;
@@ -1201,6 +1249,7 @@ function BillingStep({
     creditAccountEnabled: boolean | null;
   } | null;
   estimate: ReturnType<typeof estimateGroupCreationCharges>;
+  fieldError: (key: string, stepId?: GuestGroupCreateStepId) => string | undefined;
 }) {
   const depositAmount = Number(draft.depositAmount);
   const exceeded =
@@ -1222,7 +1271,7 @@ function BillingStep({
           <Field label="Meal Plan">
             <NoneSelect value={draft.mealPlanId} onChange={(value) => set("mealPlanId", value)} options={catalogues?.mealPlans ?? []} placeholder="Select meal plan" />
           </Field>
-          <Field label="Currency">
+          <Field label="Currency" error={fieldError("currency", "billing")}>
             <Select value={draft.currency || "none"} onValueChange={(value) => set("currency", value === "none" ? "" : value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Property currency" />
@@ -1237,10 +1286,10 @@ function BillingStep({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Payment Method">
+          <Field label="Payment Method" error={fieldError("paymentMethodId", "billing")}>
             <NoneSelect value={draft.paymentMethodId} onChange={(value) => set("paymentMethodId", value)} options={catalogues?.paymentMethods ?? []} placeholder="Select payment method" />
           </Field>
-          <Field label="Billing Arrangement" required>
+          <Field label="Billing Arrangement" required error={fieldError("billingArrangement", "billing")}>
             <Select value={draft.billingArrangement} onValueChange={(value) => set("billingArrangement", value)}>
               <SelectTrigger data-testid="group-create-billing">
                 <SelectValue placeholder="Select arrangement" />
@@ -1261,10 +1310,10 @@ function BillingStep({
         </div>
         {draft.depositRequired ? (
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Deposit Amount">
+            <Field label="Deposit Amount" error={fieldError("depositAmount", "billing")}>
               <Input type="number" min={0} value={draft.depositAmount} onChange={(event) => set("depositAmount", event.target.value)} />
             </Field>
-            <Field label="Deposit Percentage">
+            <Field label="Deposit Percentage" error={fieldError("depositPercent", "billing")}>
               <Input type="number" min={0} max={100} value={draft.depositPercent} onChange={(event) => set("depositPercent", event.target.value)} />
             </Field>
             <Field label="Deposit Due Date">
@@ -1307,6 +1356,7 @@ function ReviewStep({
   counts,
   nights,
   estimate,
+  issues,
   onEdit,
 }: {
   draft: GuestGroupCreateDraft;
@@ -1314,20 +1364,29 @@ function ReviewStep({
   counts: { expected: number; registered: number; remaining: number };
   nights: number | null;
   estimate: ReturnType<typeof estimateGroupCreationCharges>;
+  issues: Array<{ key: string; message: string; step: GuestGroupCreateStepId }>;
   onEdit: (step: GuestGroupCreateStepId) => void;
 }) {
-  const remaining = guestGroupCreateCompletion(draft).items.filter((item) => item.requiredRemaining);
+  const remaining = issues.length
+    ? issues
+    : guestGroupCreateCompletion(draft).items.filter((item) => item.requiredRemaining).map((item) => ({
+        key: item.id,
+        message: item.label,
+        step: item.step,
+      }));
   return (
     <div className="space-y-4">
       {remaining.length > 0 ? (
-        <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
-          <p className="font-medium">
+        <section className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4">
+          <p className="font-medium text-destructive">
             {remaining.length} required item{remaining.length === 1 ? "" : "s"} remaining
           </p>
           <ul className="mt-2 space-y-1 text-sm">
             {remaining.map((item) => (
-              <li key={item.id}>
-                {item.label}{" "}
+              <li key={`${item.step}-${item.key}`}>
+                <span className="text-destructive">
+                  {GUEST_GROUP_CREATE_STEPS.find((step) => step.id === item.step)?.title}: {item.message}
+                </span>{" "}
                 <button type="button" className="underline" onClick={() => onEdit(item.step)}>
                   Go to step
                 </button>

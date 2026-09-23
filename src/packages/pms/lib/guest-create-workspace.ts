@@ -18,6 +18,7 @@ import {
   type RestrictionSeverity,
 } from "./guest-profile-individual.ts";
 import type { GuestStatus } from "./guests.server.ts";
+import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
 
 export const GUEST_CREATE_MIGRATION_FILE = "0093_pms_guest_create_drafts.sql";
 
@@ -369,6 +370,51 @@ export function card4CreateGaps(
   return gaps;
 }
 
+export type GuestCreateFieldIssue = CreateFieldIssue<GuestCreateStepId>;
+
+export function guestCreateFieldIssues(
+  draft: GuestCreateDraft,
+  options: {
+    rules: GuestCreateFieldRule[];
+    set3: GuestProfileRules | null;
+    requiredPreferenceTypeIds: string[];
+    dataProcessingRequired: boolean;
+  },
+): GuestCreateFieldIssue[] {
+  const issues: GuestCreateFieldIssue[] = [];
+  if (!filled(draft.firstName)) {
+    issues.push({ key: "FIRST_NAME", message: "First name is required.", step: "basic" });
+  }
+  const set3 = options.set3 ? guestCreateBlocked(options.set3, draft) : null;
+  if (set3) issues.push({ key: "SET3", message: set3, step: "basic" });
+  for (const gap of card4CreateGaps(draft, options.rules)) {
+    if (gap.code === "FIRST_NAME" && issues.some((issue) => issue.key === "FIRST_NAME")) continue;
+    issues.push({ key: gap.code, message: `${gap.label} is required.`, step: gap.step });
+  }
+  for (const typeId of options.requiredPreferenceTypeIds) {
+    const answer = draft.preferenceAnswers.find((row) => row.typeId === typeId);
+    if (!answer || answer.values.length === 0) {
+      issues.push({
+        key: `PREF:${typeId}`,
+        message: "Complete the required preferences configured for this property.",
+        step: "preferences",
+      });
+    }
+  }
+  const emergencyError = validateEmergencyContacts(draft.emergencyContacts);
+  if (emergencyError) issues.push({ key: "emergency", message: emergencyError, step: "additional" });
+  const restrictionError = validateRestrictionReason(draft.restricted, draft.blacklisted, draft.restrictionReason);
+  if (restrictionError) issues.push({ key: "restrictionReason", message: restrictionError, step: "additional" });
+  if (options.dataProcessingRequired && draft.dataProcessingConsent !== "granted") {
+    issues.push({
+      key: "dataProcessing",
+      message: "Data-processing consent is required by this property.",
+      step: "additional",
+    });
+  }
+  return issues;
+}
+
 export function guestCreateStepErrors(
   step: GuestCreateStepId,
   draft: GuestCreateDraft,
@@ -379,49 +425,7 @@ export function guestCreateStepErrors(
     dataProcessingRequired: boolean;
   },
 ): string[] {
-  const errors: string[] = [];
-  const gaps = card4CreateGaps(draft, options.rules);
-  if (step === "basic" || step === "review") {
-    if (!filled(draft.firstName)) errors.push("First name is required.");
-    const set3 = options.set3 ? guestCreateBlocked(options.set3, draft) : null;
-    if (set3) errors.push(set3);
-    for (const gap of gaps.filter((item) => item.step === "basic")) {
-      errors.push(`${gap.label} is required.`);
-    }
-  }
-  if (step === "identity" || step === "review") {
-    for (const gap of gaps.filter((item) => item.step === "identity")) {
-      errors.push(`${gap.label} is required.`);
-    }
-  }
-  if (step === "preferences" || step === "review") {
-    for (const typeId of options.requiredPreferenceTypeIds) {
-      const answer = draft.preferenceAnswers.find((row) => row.typeId === typeId);
-      if (!answer || answer.values.length === 0) {
-        errors.push("Complete the required preferences configured for this property.");
-        break;
-      }
-    }
-  }
-  if (step === "business" || step === "review") {
-    for (const gap of gaps.filter((item) => item.step === "business")) {
-      errors.push(`${gap.label} is required.`);
-    }
-  }
-  if (step === "additional" || step === "review") {
-    const emergencyError = validateEmergencyContacts(draft.emergencyContacts);
-    if (emergencyError) errors.push(emergencyError);
-    const restrictionError = validateRestrictionReason(
-      draft.restricted,
-      draft.blacklisted,
-      draft.restrictionReason,
-    );
-    if (restrictionError) errors.push(restrictionError);
-    if (options.dataProcessingRequired && draft.dataProcessingConsent !== "granted") {
-      errors.push("Data-processing consent is required by this property.");
-    }
-  }
-  return [...new Set(errors)];
+  return uniqueIssueMessages(guestCreateFieldIssues(draft, options), step);
 }
 
 export function guestCreateCompletion(

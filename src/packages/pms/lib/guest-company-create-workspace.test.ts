@@ -11,12 +11,14 @@ import {
   GUEST_COMPANY_CREATE_STEPS,
   companyCreateDraftErrors,
   companyCreateDraftErrorsForSave,
+  companyCreateFieldIssues,
   companyCreateStepErrors,
   emptyGuestCompanyCreateDraft,
   guestCompanyCreateHoldKey,
   inferGuestCompanyCreateStep,
   parseGuestCompanyCreateHold,
 } from "./guest-company-create-workspace.ts";
+import { formatCreateIssuesByStep, issuesBeforeStep } from "./guest-create-step-issues.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +70,14 @@ describe("Company create workflow helpers", () => {
     assert.ok(companyCreateDraftErrors(draft).length > 0);
   });
 
+  it("names the missing field and the step that holds it", () => {
+    const issues = companyCreateFieldIssues(emptyGuestCompanyCreateDraft());
+    assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
+    assert.match(formatCreateIssuesByStep(issues, GUEST_COMPANY_CREATE_STEPS), /Company Details — Company name is required/);
+    assert.equal(issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "details").length, 0);
+    assert.ok(issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contacts").some((issue) => issue.key === "name"));
+  });
+
   it("restores the held step and draft", () => {
     const draft = filledDraft();
     draft.billingArrangement = "company_master";
@@ -100,6 +110,10 @@ describe("Company create honesty", () => {
     assert.match(workspace, /companyMasterId: created.id/);
     assert.doesNotMatch(workspace, /<Dialog/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
+    assert.match(workspace, /issuesBeforeStep/);
+    assert.match(workspace, /formatCreateIssuesByStep/);
+    assert.match(workspace, /Go to step/);
+    assert.match(workspace, /border-destructive/);
     assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);
     assert.match(directory, /create: "company"/);
     assert.match(listing, /create: "company"/);

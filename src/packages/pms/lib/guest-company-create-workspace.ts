@@ -6,6 +6,7 @@
 
 import { COMPANY_TYPES, isCompanyType } from "./guest-profile-company.ts";
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
+import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
 
 export const GUEST_COMPANY_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
@@ -307,8 +308,9 @@ function contractDateError(start: string, end: string): string | null {
   return null;
 }
 
-export function companyCreateStepErrors(
-  step: GuestCompanyCreateStepId,
+export type CompanyCreateFieldIssue = CreateFieldIssue<GuestCompanyCreateStepId>;
+
+export function companyCreateFieldIssues(
   draft: GuestCompanyCreateDraft,
   options?: {
     businessProfileTypeIds?: string[];
@@ -316,62 +318,68 @@ export function companyCreateStepErrors(
     currencyCodes?: string[];
     creditAccountAllowed?: boolean;
   },
-): string[] {
-  const errors: string[] = [];
+): CompanyCreateFieldIssue[] {
+  const issues: CompanyCreateFieldIssue[] = [];
   const typeIds = options?.businessProfileTypeIds;
-
-  if (step === "details" || step === "review") {
-    if (!filled(draft.name)) errors.push("Company name is required.");
-    if (!filled(draft.businessProfileTypeId)) errors.push("Company type is required.");
-    if (filled(draft.businessProfileTypeId) && typeIds && !typeIds.includes(draft.businessProfileTypeId)) {
-      errors.push("Select a configured company type.");
-    }
-    if (filled(draft.companyType) && !isCompanyType(draft.companyType)) {
-      errors.push("Select a recognised legal form.");
-    }
-    if (draft.companyType === "other" && !filled(draft.companyTypeOther)) {
-      errors.push("Describe the legal form when Other is selected.");
+  if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "details" });
+  if (!filled(draft.businessProfileTypeId)) {
+    issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "details" });
+  }
+  if (filled(draft.businessProfileTypeId) && typeIds && !typeIds.includes(draft.businessProfileTypeId)) {
+    issues.push({ key: "businessProfileTypeId", message: "Select a configured company type.", step: "details" });
+  }
+  if (filled(draft.companyType) && !isCompanyType(draft.companyType)) {
+    issues.push({ key: "companyType", message: "Select a recognised legal form.", step: "details" });
+  }
+  if (draft.companyType === "other" && !filled(draft.companyTypeOther)) {
+    issues.push({ key: "companyTypeOther", message: "Describe the legal form when Other is selected.", step: "details" });
+  }
+  const named = draft.contacts.filter((row) => filled(row.name));
+  const primaries = named.filter((row) => row.isPrimary);
+  if (named.length > 0 && primaries.length !== 1) {
+    issues.push({
+      key: "contacts",
+      message: "Exactly one primary contact is required when contacts are entered.",
+      step: "contacts",
+    });
+  }
+  for (const contact of named) {
+    if (!validEmail(contact.email)) {
+      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
     }
   }
-
-  if (step === "contacts" || step === "review") {
-    const named = draft.contacts.filter((row) => filled(row.name));
-    const primaries = named.filter((row) => row.isPrimary);
-    if (named.length > 0 && primaries.length !== 1) {
-      errors.push("Exactly one primary contact is required when contacts are entered.");
-    }
-    for (const contact of named) {
-      if (!validEmail(contact.email)) errors.push("Enter a valid contact email.");
-    }
+  const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
+  if (dateError) {
+    issues.push({ key: "contractStartDate", message: dateError, step: "business" });
+    issues.push({ key: "contractEndDate", message: dateError, step: "business" });
   }
-
-  if (step === "business" || step === "review") {
-    const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
-    if (dateError) errors.push(dateError);
+  if (
+    filled(draft.billingArrangement) &&
+    !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
+  ) {
+    issues.push({ key: "billingArrangement", message: "Select a configured billing arrangement.", step: "billing" });
   }
-
-  if (step === "billing" || step === "review") {
-    if (
-      filled(draft.billingArrangement) &&
-      !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
-    ) {
-      errors.push("Select a configured billing arrangement.");
-    }
-    if (filled(draft.paymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.paymentMethodId)) {
-      errors.push("Select a configured payment method.");
-    }
-    if (filled(draft.currency) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.currency)) {
-      errors.push("Select a configured currency.");
-    }
-    if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
-      errors.push("Enter a valid billing email.");
-    }
-    if (draft.creditAccountEnabled && options?.creditAccountAllowed === false) {
-      errors.push("This company type does not allow a credit account.");
-    }
+  if (filled(draft.paymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.paymentMethodId)) {
+    issues.push({ key: "paymentMethodId", message: "Select a configured payment method.", step: "billing" });
   }
+  if (filled(draft.currency) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.currency)) {
+    issues.push({ key: "currency", message: "Select a configured currency.", step: "billing" });
+  }
+  if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
+    issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "billing" });
+  }
+  if (draft.creditAccountEnabled && options?.creditAccountAllowed === false) {
+    issues.push({ key: "creditAccountEnabled", message: "This company type does not allow a credit account.", step: "billing" });
+  }
+  return issues;
+}
 
-  return [...new Set(errors)];
+export function companyCreateStepErrors(
+  step: GuestCompanyCreateStepId,
+  draft: GuestCompanyCreateDraft,
+  options?: Parameters<typeof companyCreateFieldIssues>[1],
+): string[] {
+  return uniqueIssueMessages(companyCreateFieldIssues(draft, options), step);
 }
 
 export function companyCreateDraftErrors(

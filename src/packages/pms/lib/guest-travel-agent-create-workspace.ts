@@ -13,6 +13,7 @@ import {
 } from "./guest-profile-travel-agency.ts";
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
 import { TA_COMMISSION_PLAN_TYPES } from "./guest-travel-agent-detail-workspace.ts";
+import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
 
 export const GUEST_TRAVEL_AGENT_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
@@ -313,74 +314,81 @@ function contractDateError(start: string, end: string): string | null {
   return null;
 }
 
-export function travelAgentCreateStepErrors(
-  step: GuestTravelAgentCreateStepId,
+export type TravelAgentCreateFieldIssue = CreateFieldIssue<GuestTravelAgentCreateStepId>;
+
+export function travelAgentCreateFieldIssues(
   draft: GuestTravelAgentCreateDraft,
   options?: {
     paymentMethodIds?: string[];
     currencyCodes?: string[];
   },
+): TravelAgentCreateFieldIssue[] {
+  const issues: TravelAgentCreateFieldIssue[] = [];
+  if (!filled(draft.name)) issues.push({ key: "name", message: "Agency name is required.", step: "details" });
+  if (!filled(draft.agencyType) || !isAgencyType(draft.agencyType)) {
+    issues.push({ key: "agencyType", message: "Agency type is required.", step: "details" });
+  }
+  if (draft.agencyType === "other" && !filled(draft.agencyTypeOther)) {
+    issues.push({ key: "agencyTypeOther", message: "Describe the agency type when Other is selected.", step: "details" });
+  }
+  const named = draft.contacts.filter((row) => filled(row.name));
+  const primaries = named.filter((row) => row.isPrimary);
+  if (named.length > 0 && primaries.length !== 1) {
+    issues.push({
+      key: "contacts",
+      message: "Exactly one primary contact is required when contacts are entered.",
+      step: "contacts",
+    });
+  }
+  for (const contact of named) {
+    if (!validEmail(contact.email)) {
+      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
+    }
+  }
+  const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
+  if (dateError) {
+    issues.push({ key: "contractStartDate", message: dateError, step: "billing" });
+    issues.push({ key: "contractEndDate", message: dateError, step: "billing" });
+  }
+  if (
+    filled(draft.billingArrangement) &&
+    !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
+  ) {
+    issues.push({ key: "billingArrangement", message: "Select a configured billing arrangement.", step: "billing" });
+  }
+  if (filled(draft.paymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.paymentMethodId)) {
+    issues.push({ key: "paymentMethodId", message: "Select a configured payment method.", step: "billing" });
+  }
+  if (filled(draft.currency) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.currency)) {
+    issues.push({ key: "currency", message: "Select a configured currency.", step: "billing" });
+  }
+  if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
+    issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "billing" });
+  }
+  if (filled(draft.creditLimitAmount)) {
+    const amount = Number(draft.creditLimitAmount);
+    if (Number.isNaN(amount) || amount < 0) {
+      issues.push({ key: "creditLimitAmount", message: "Credit limit amount cannot be negative.", step: "billing" });
+    }
+  }
+  if (draft.commissionEnabled) {
+    if (!TA_COMMISSION_PLAN_TYPES.includes(draft.commissionType as (typeof TA_COMMISSION_PLAN_TYPES)[number])) {
+      issues.push({ key: "commissionType", message: "Select a commission type.", step: "billing" });
+    }
+    const value = Number(draft.commissionValue);
+    if (!filled(draft.commissionValue) || Number.isNaN(value) || value < 0) {
+      issues.push({ key: "commissionValue", message: "Enter a commission value.", step: "billing" });
+    }
+  }
+  return issues;
+}
+
+export function travelAgentCreateStepErrors(
+  step: GuestTravelAgentCreateStepId,
+  draft: GuestTravelAgentCreateDraft,
+  options?: Parameters<typeof travelAgentCreateFieldIssues>[1],
 ): string[] {
-  const errors: string[] = [];
-
-  if (step === "details" || step === "review") {
-    if (!filled(draft.name)) errors.push("Agency name is required.");
-    if (!filled(draft.agencyType) || !isAgencyType(draft.agencyType)) {
-      errors.push("Agency type is required.");
-    }
-    if (draft.agencyType === "other" && !filled(draft.agencyTypeOther)) {
-      errors.push("Describe the agency type when Other is selected.");
-    }
-  }
-
-  if (step === "contacts" || step === "review") {
-    const named = draft.contacts.filter((row) => filled(row.name));
-    const primaries = named.filter((row) => row.isPrimary);
-    if (named.length > 0 && primaries.length !== 1) {
-      errors.push("Exactly one primary contact is required when contacts are entered.");
-    }
-    for (const contact of named) {
-      if (!validEmail(contact.email)) errors.push("Enter a valid contact email.");
-    }
-  }
-
-  if (step === "business" || step === "review") {
-    const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
-    if (dateError) errors.push(dateError);
-  }
-
-  if (step === "billing" || step === "review") {
-    if (
-      filled(draft.billingArrangement) &&
-      !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
-    ) {
-      errors.push("Select a configured billing arrangement.");
-    }
-    if (filled(draft.paymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.paymentMethodId)) {
-      errors.push("Select a configured payment method.");
-    }
-    if (filled(draft.currency) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.currency)) {
-      errors.push("Select a configured currency.");
-    }
-    if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
-      errors.push("Enter a valid billing email.");
-    }
-    if (filled(draft.creditLimitAmount)) {
-      const amount = Number(draft.creditLimitAmount);
-      if (Number.isNaN(amount) || amount < 0) errors.push("Credit limit amount cannot be negative.");
-    }
-    if (draft.commissionEnabled) {
-      if (!TA_COMMISSION_PLAN_TYPES.includes(draft.commissionType as (typeof TA_COMMISSION_PLAN_TYPES)[number])) {
-        errors.push("Select a commission type.");
-      }
-      const value = Number(draft.commissionValue);
-      if (!filled(draft.commissionValue) || Number.isNaN(value) || value < 0) {
-        errors.push("Enter a commission value.");
-      }
-    }
-  }
-
-  return [...new Set(errors)];
+  return uniqueIssueMessages(travelAgentCreateFieldIssues(draft, options), step);
 }
 
 export function travelAgentCreateDraftErrors(
