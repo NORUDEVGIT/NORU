@@ -146,10 +146,12 @@ describe("Group workspace helpers", () => {
     assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS public\.pms_groups\b/);
     assert.doesNotMatch(migration, /CREATE TABLE IF NOT EXISTS public\.group_rooming/);
     assert.match(functions, /group_account_master_id/);
+    assert.doesNotMatch(functions, /hotel_reservations[\s\S]*folio_balance/);
     assert.match(functions, /guest_account_links/);
     assert.match(functions, /listAssignableRooms/);
     assert.match(functions, /assignReservationRoom/);
     assert.match(workspace, /GuestGroupDetailWorkspace/);
+    assert.match(workspace, /Unable to load group/);
     assert.match(shell, /operationalType === "group"/);
     assert.match(page, /groupAccountMasterId/);
     assert.equal(GUEST_ACCOUNT_EVENT_TYPES.includes("member_imported"), true);

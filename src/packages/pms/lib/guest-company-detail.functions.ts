@@ -354,7 +354,7 @@ async function loadCompanyReservations(
   const result = await db
     .from("hotel_reservations")
     .select(
-      "id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, folio_balance, room_type_id, rate_plan_id, source, room_types!hotel_reservations_type_same_property ( name ), guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
+      "id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, room_type_id, rate_plan_id, source, room_types!hotel_reservations_type_same_property ( name ), guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
     )
     .eq("restaurant_id", restaurantId)
     .eq("company_master_id", companyId)

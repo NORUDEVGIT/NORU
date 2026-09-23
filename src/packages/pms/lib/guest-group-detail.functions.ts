@@ -250,7 +250,7 @@ async function loadGroupReservations(
   const result = await db
     .from("hotel_reservations")
     .select(
-      "id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, folio_balance, adults, children, room_type_id, room_id, special_requests, room_types!hotel_reservations_type_same_property ( name ), hotel_rooms!hotel_reservations_room_same_type ( room_number ), guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
+      "id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, adults, children, room_type_id, room_id, special_requests, room_types!hotel_reservations_type_same_property ( name ), hotel_rooms!hotel_reservations_room_same_type ( room_number ), guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
     )
     .eq("restaurant_id", restaurantId)
     .eq("group_account_master_id", groupId)
@@ -259,12 +259,12 @@ async function loadGroupReservations(
     const fallback = await db
       .from("hotel_reservations")
       .select(
-        "id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, folio_balance, adults, children, room_type_id, room_id, special_requests",
+        "id, confirmation_number, guest_id, arrival_date, departure_date, status, currency, room_subtotal, adults, children, room_type_id, room_id, special_requests",
       )
       .eq("restaurant_id", restaurantId)
       .eq("group_account_master_id", groupId)
       .order("arrival_date", { ascending: true });
-    if (fallback.error) throw new Error(fallback.error.message);
+    if (fallback.error) return [];
     return (fallback.data ?? []) as ReservationRow[];
   }
   return (result.data ?? []) as ReservationRow[];
@@ -279,7 +279,6 @@ type ReservationRow = {
   status: string;
   currency: string | null;
   room_subtotal: number | string | null;
-  folio_balance: number | string | null;
   adults: number;
   children: number;
   room_type_id: string;
@@ -313,7 +312,7 @@ function mapReservation(row: ReservationRow, folioAccess: boolean) {
     assignment: assignmentStatus(row.room_id),
     specialRequests: row.special_requests,
     roomSubtotal: folioAccess && row.room_subtotal != null ? Number(row.room_subtotal) : null,
-    folioBalance: folioAccess && row.folio_balance != null ? Number(row.folio_balance) : null,
+    folioBalance: null,
     currency: row.currency,
   };
 }
