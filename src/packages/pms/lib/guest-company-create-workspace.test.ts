@@ -94,6 +94,10 @@ describe("Company create honesty", () => {
     assert.match(workspace, /Create Company/);
     assert.match(workspace, /Save as Draft/);
     assert.match(workspace, /nav: "overview"/);
+    assert.match(workspace, /company-create-success/);
+    assert.match(workspace, /View Company/);
+    assert.match(workspace, /Add Another Company/);
+    assert.match(workspace, /companyMasterId: created.id/);
     assert.doesNotMatch(workspace, /<Dialog/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
     assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);

@@ -194,6 +194,10 @@ describe("Group create honesty", () => {
     assert.match(workspace, /Complete Registration/);
     assert.match(workspace, /Save as Draft/);
     assert.match(workspace, /nav: "overview"/);
+    assert.match(workspace, /group-create-success/);
+    assert.match(workspace, /View Group/);
+    assert.match(workspace, /Add Another Group/);
+    assert.match(workspace, /groupAccountMasterId: created.id/);
     assert.doesNotMatch(workspace, /<Dialog/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
     assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);

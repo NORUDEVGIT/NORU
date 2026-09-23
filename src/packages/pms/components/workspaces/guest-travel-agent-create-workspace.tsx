@@ -84,6 +84,7 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   );
   const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
   const [startOverOpen, setStartOverOpen] = useState(false);
+  const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
 
   const context = useQuery({
@@ -111,12 +112,12 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   }, [context.data, defaultsApplied, restaurantId]);
 
   useEffect(() => {
-    if (!defaultsApplied) return;
+    if (!defaultsApplied || created) return;
     writeGuestTravelAgentCreateHold(restaurantId, { step, draft });
-  }, [defaultsApplied, restaurantId, step, draft]);
+  }, [created, defaultsApplied, restaurantId, step, draft]);
 
   useEffect(() => {
-    if (!defaultsApplied) return;
+    if (!defaultsApplied || created) return;
     if (!guestTravelAgentCreateHasChanges(draft)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
@@ -125,7 +126,7 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
         .catch(() => setHoldState("idle"));
     }, GUEST_TRAVEL_AGENT_CREATE_HOLD_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [defaultsApplied, draft, restaurantId, saveDraftHold, step]);
+  }, [created, defaultsApplied, draft, restaurantId, saveDraftHold, step]);
 
   const catalogues = context.data?.catalogues;
   const catalogueIds = {
@@ -186,18 +187,14 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Travel agency created.");
-      void navigate({
-        to: GUEST_PROFILE_DETAIL_PATH,
-        params: { guestId: result.id! },
-        search: guestProfileSearch({ type: "travel-agent", nav: "overview" }),
-      });
+      setCreated({ id: result.id!, name: draft.name, code: draft.code || null });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   function leave() {
-    writeGuestTravelAgentCreateHold(restaurantId, { step, draft });
-    if (guestTravelAgentCreateHasChanges(draft)) toast.success(GUEST_TRAVEL_AGENT_CREATE_PROGRESS_KEPT);
+    if (!created) writeGuestTravelAgentCreateHold(restaurantId, { step, draft });
+    if (!created && guestTravelAgentCreateHasChanges(draft)) toast.success(GUEST_TRAVEL_AGENT_CREATE_PROGRESS_KEPT);
     void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH, search: guestProfileSearch({ type: "travel-agent" }) });
   }
 
@@ -210,6 +207,7 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
     setDraft(next);
     setStep("details");
     setHoldState("idle");
+    setCreated(null);
     clearGuestTravelAgentCreateHold(restaurantId);
   }
 
@@ -234,6 +232,46 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
       <div className="p-6">
         <p className="font-display text-lg">Could not load travel agency creation settings.</p>
         <p className="mt-2 text-sm text-muted-foreground">{(context.error as Error).message}</p>
+      </div>
+    );
+  }
+
+  if (created) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 p-6" data-testid="travel-agent-create-success">
+        <h1 className="font-display text-2xl">Travel agency created</h1>
+        <p className="text-sm text-muted-foreground">
+          {created.name}
+          {created.code ? ` · ${created.code}` : ""}
+        </p>
+        <p className="text-sm">Travel Agency</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() =>
+              void navigate({
+                to: GUEST_PROFILE_DETAIL_PATH,
+                params: { guestId: created.id },
+                search: guestProfileSearch({ type: "travel-agent", nav: "overview" }),
+              })
+            }
+          >
+            View Travel Agency
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() =>
+              void navigate({ to: "/restaurant/bookings/new", search: { travelAgentMasterId: created.id } })
+            }
+          >
+            Create Reservation
+          </Button>
+          <Button variant="outline" onClick={resetForm}>
+            Add Another Travel Agency
+          </Button>
+          <Button variant="ghost" onClick={leave}>
+            Return to Travel Agency List
+          </Button>
+        </div>
       </div>
     );
   }
