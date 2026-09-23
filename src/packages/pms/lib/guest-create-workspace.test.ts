@@ -143,6 +143,9 @@ describe("Guest create honesty", () => {
     assert.match(workspace, /GuestFormStagedLinks/);
     assert.match(workspace, /writeGuestCreateHold/);
     assert.match(workspace, /readGuestCreateHold/);
+    assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
+    assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);
+    assert.doesNotMatch(workspace, /done \|\| current \|\| index <= stepIndex/);
     assert.match(workspace, /GUEST_CREATE_START_OVER/);
     assert.match(workspace, /guest-create-start-over/);
     assert.doesNotMatch(workspace, /Discard unsaved changes/);

@@ -503,7 +503,7 @@ export function GuestCreateWorkspace({
               <li key={item.id}>
                 <button
                   type="button"
-                  onClick={() => (done || current || index <= stepIndex ? go(item.id) : undefined)}
+                  onClick={() => go(item.id)}
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-xs font-medium",
                     current && "border-primary bg-primary text-primary-foreground",

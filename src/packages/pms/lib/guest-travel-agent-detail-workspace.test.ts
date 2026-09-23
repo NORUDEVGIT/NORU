@@ -185,6 +185,11 @@ describe("Travel Agency workspace wiring", () => {
     assert.match(settings, /saveTravelAgentCommissionPlan/);
     assert.match(settings, /saveTravelAgentAllotment/);
     assert.match(settings, /TA_ALLOTMENT_COPY/);
+    assert.match(settings, /id: editingId/);
+    assert.match(settings, /travel-agent-commission-edit/);
+    assert.match(settings, /travel-agent-allotment-edit/);
+    assert.match(settings, /Update plan/);
+    assert.match(settings, /Update allotment/);
   });
 
   it("adds listing filters, slims the form, and keeps Company TRA as a ComingBlock", () => {
