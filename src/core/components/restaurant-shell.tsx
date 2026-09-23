@@ -489,6 +489,7 @@ export function RestaurantShell({
   posModule,
   sidebarDefaultCollapsed,
   hidePackageRail: hidePackageRailProp,
+  hideTopHeader = false,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -532,6 +533,8 @@ export function RestaurantShell({
   sidebarDefaultCollapsed?: boolean;
   /** Hide the left package / SETTINGS rail (FO chrome and Card 1 full-screen). */
   hidePackageRail?: boolean;
+  /** Let a full-screen workspace supply the single approved application chrome. */
+  hideTopHeader?: boolean;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -996,6 +999,7 @@ export function RestaurantShell({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
+          {hideTopHeader ? null : (
           <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
             <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
               {hidePackageRail ? null : (
@@ -1063,6 +1067,7 @@ export function RestaurantShell({
               </div>
             </div>
           </header>
+          )}
 
           <main className={cn("min-w-0 flex-1", hidePackageRail ? "flex flex-col p-0" : "px-4 py-6 sm:px-6")}>
             {isLoading ? (
