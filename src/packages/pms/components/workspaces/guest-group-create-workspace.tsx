@@ -239,7 +239,7 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Group created.");
-      setCreated({ id: result.id, name: draft.name, code: result.code ?? draft.code || null });
+      setCreated({ id: result.id, name: draft.name, code: result.code || draft.code || null });
     },
     onError: (error: Error) => toast.error(error.message),
   });
