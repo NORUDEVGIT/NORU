@@ -174,7 +174,7 @@ export const PMS_MODULES: PmsModule[] = [
     group: "core",
     moduleKey: "configuration",
     canonicalRoute: "/restaurant/pms/rates-revenue",
-    legacyRoutes: ["/restaurant/bookings/rates?tab=plans"],
+    legacyRoutes: ["/restaurant/bookings/rates?tab=plans", "/restaurant/pms/rates-revenue?tab=overview"],
     domain: "pms",
     implementationStatus: "existing",
   },

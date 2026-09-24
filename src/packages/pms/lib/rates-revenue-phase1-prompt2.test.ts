@@ -109,12 +109,12 @@ describe("Rate & Revenue Phase 1 Prompt 2 — responsibility split", () => {
     assert.doesNotMatch(admin, /to="\/restaurant\/pms\/rates-revenue"/);
   });
 
-  it("workspace identity is operational and defaults to overview", () => {
+  it("workspace identity is operational and does not default to rate masters", () => {
     const workspace = readRel("../components/workspaces/rates-workspace.tsx");
-    assert.match(workspace, /PMS · Rate/);
     assert.doesNotMatch(workspace, /Configuration · Rates/);
+    assert.match(workspace, /Rate & Revenue/);
     const route = readRel("../../../routes/restaurant/pms/rates-revenue.tsx");
-    assert.match(route, /initialTab=\{searchTab \?\? "overview"\}/);
     assert.doesNotMatch(route, /searchTab \?\? "plans"/);
+    assert.match(workspace, /search\.view \?\? search\.tab/);
   });
 });

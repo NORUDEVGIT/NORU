@@ -93,9 +93,17 @@ export function RevenueOverviewTab({ restaurantId, today }: { restaurantId: stri
 
 /* ------------------------------------------------------------- rate plans */
 
-export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
+export function RatePlansTab({
+  restaurantId,
+  roomTypeId,
+}: {
+  restaurantId: string;
+  roomTypeId?: string | null;
+}) {
   const money = useMoney();
-  const [roomTypeFilter, setRoomTypeFilter] = useState<string>(ALL);
+  const [localRoomType, setLocalRoomType] = useState<string>(ALL);
+  const usingSharedRoomType = roomTypeId !== undefined;
+  const roomTypeFilter = usingSharedRoomType ? roomTypeId || ALL : localRoomType;
   const [activeOnly, setActiveOnly] = useState(false);
 
   const fetchPlans = useServerFn(listRatePlans);
@@ -124,9 +132,10 @@ export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-card p-4">
+        {usingSharedRoomType ? null : (
         <div className="min-w-48">
           <Label>Room type</Label>
-          <Select value={roomTypeFilter} onValueChange={setRoomTypeFilter}>
+          <Select value={localRoomType} onValueChange={setLocalRoomType}>
             <SelectTrigger>
               <SelectValue placeholder="All room types" />
             </SelectTrigger>
@@ -140,6 +149,7 @@ export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
             </SelectContent>
           </Select>
         </div>
+        )}
         <label className="flex items-center gap-2 pb-2 text-sm">
           <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Active only
         </label>
@@ -152,7 +162,7 @@ export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
         <p className="text-sm text-muted-foreground">Loading rate plans…</p>
       ) : plans.length === 0 ? (
         <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          No active rate plans are configured. Configure rate plans in <PropertySetupRatesLink />.
+          No rate plans are configured for this property. Configure rate plans in <PropertySetupRatesLink />.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border bg-card">
@@ -288,27 +298,39 @@ function PlanFilters({
 
 /* ---------------------------------------------------------- rate calendar */
 
-export function RateCalendarTab({ restaurantId, today }: { restaurantId: string; today: string }) {
+export function RateCalendarTab({
+  restaurantId,
+  today,
+  context,
+}: {
+  restaurantId: string;
+  today: string;
+  context?: { fromDate: string; toDate: string; roomTypeId: string | null; ratePlanId: string | null };
+}) {
   const money = useMoney();
   const queryClient = useQueryClient();
   const picker = usePlanPicker(restaurantId);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(addDays(today, 13));
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const rangeFrom = context?.fromDate ?? from;
+  const rangeTo = context?.toDate ?? to;
+  const ratePlanId = context ? context.ratePlanId ?? "" : picker.ratePlanId;
 
   const fetchCalendar = useServerFn(listRateCalendar);
   const saveOverride = useServerFn(saveRateOverride);
 
   const calendarQuery = useQuery({
-    queryKey: ["rate-calendar", restaurantId, picker.ratePlanId, from, to],
-    queryFn: () => fetchCalendar({ data: { restaurantId, ratePlanId: picker.ratePlanId, from, to } }),
-    enabled: !!picker.ratePlanId,
+    queryKey: ["rate-calendar", restaurantId, ratePlanId, rangeFrom, rangeTo],
+    queryFn: () =>
+      fetchCalendar({ data: { restaurantId, ratePlanId, from: rangeFrom, to: rangeTo } }),
+    enabled: !!ratePlanId,
     retry: false,
   });
 
   const mutation = useMutation({
     mutationFn: (vars: { date: string; nightlyRate: number | null }) =>
-      saveOverride({ data: { restaurantId, ratePlanId: picker.ratePlanId, ...vars } }),
+      saveOverride({ data: { restaurantId, ratePlanId, ...vars } }),
     onSuccess: () => {
       toast.success("Rate saved");
       void queryClient.invalidateQueries({ queryKey: ["rate-calendar", restaurantId] });
@@ -318,9 +340,9 @@ export function RateCalendarTab({ restaurantId, today }: { restaurantId: string;
 
   return (
     <div className="space-y-4">
-      <PlanFilters picker={picker} from={from} to={to} setFrom={setFrom} setTo={setTo} />
+      {context ? null : <PlanFilters picker={picker} from={from} to={to} setFrom={setFrom} setTo={setTo} />}
 
-      {!picker.ratePlanId ? (
+      {!ratePlanId ? (
         <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
           No active rate plan is available. Configure rate plans in <PropertySetupRatesLink /> before setting daily rates.
         </p>
@@ -409,33 +431,45 @@ type RestrictionDraft = {
   stopSell: boolean;
 };
 
-export function RateRestrictionsTab({ restaurantId, today }: { restaurantId: string; today: string }) {
+export function RateRestrictionsTab({
+  restaurantId,
+  today,
+  context,
+}: {
+  restaurantId: string;
+  today: string;
+  context?: { fromDate: string; toDate: string; roomTypeId: string | null; ratePlanId: string | null };
+}) {
   const queryClient = useQueryClient();
   const picker = usePlanPicker(restaurantId);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(addDays(today, 13));
   const [drafts, setDrafts] = useState<Record<string, RestrictionDraft>>({});
+  const rangeFrom = context?.fromDate ?? from;
+  const rangeTo = context?.toDate ?? to;
+  const ratePlanId = context ? context.ratePlanId ?? "" : picker.ratePlanId;
 
   const fetchRestrictions = useServerFn(listRateRestrictions);
   const saveRestriction = useServerFn(saveRateRestriction);
 
   const query = useQuery({
-    queryKey: ["rate-restrictions", restaurantId, picker.ratePlanId, from, to],
-    queryFn: () => fetchRestrictions({ data: { restaurantId, ratePlanId: picker.ratePlanId, from, to } }),
-    enabled: !!picker.ratePlanId,
+    queryKey: ["rate-restrictions", restaurantId, ratePlanId, rangeFrom, rangeTo],
+    queryFn: () =>
+      fetchRestrictions({ data: { restaurantId, ratePlanId, from: rangeFrom, to: rangeTo } }),
+    enabled: !!ratePlanId,
     retry: false,
   });
 
   useEffect(() => {
     setDrafts({});
-  }, [picker.ratePlanId, from, to]);
+  }, [ratePlanId, rangeFrom, rangeTo]);
 
   const mutation = useMutation({
     mutationFn: (vars: { date: string; draft: RestrictionDraft }) =>
       saveRestriction({
         data: {
           restaurantId,
-          ratePlanId: picker.ratePlanId,
+          ratePlanId,
           date: vars.date,
           minStay: vars.draft.minStay.trim() === "" ? null : Number(vars.draft.minStay),
           maxStay: vars.draft.maxStay.trim() === "" ? null : Number(vars.draft.maxStay),
@@ -453,9 +487,9 @@ export function RateRestrictionsTab({ restaurantId, today }: { restaurantId: str
 
   return (
     <div className="space-y-4">
-      <PlanFilters picker={picker} from={from} to={to} setFrom={setFrom} setTo={setTo} />
+      {context ? null : <PlanFilters picker={picker} from={from} to={to} setFrom={setFrom} setTo={setTo} />}
 
-      {!picker.ratePlanId ? (
+      {!ratePlanId ? (
         <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
           No active rate plan is available. Configure rate plans in <PropertySetupRatesLink /> before applying date restrictions.
         </p>

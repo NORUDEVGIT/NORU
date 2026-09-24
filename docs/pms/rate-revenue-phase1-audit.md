@@ -9,7 +9,9 @@
 
 This record established a verified baseline before Prompt 2. **Prompt 2 (responsibility refactor) is implemented** in product copy and Rate & Revenue UI. Living ownership: [`rate-revenue-responsibility.md`](./rate-revenue-responsibility.md).
 
-**Prompt 2 correction:** the Prompt 1 claim that Room & Inventory chrome/availability/calendar files do not exist was **stale relative to current main**. Prompt 3 must treat those files as the layout reference when they are present. Prompt 2 does not create Rate & Revenue chrome and does not modify Room & Inventory.
+**Prompt 2 correction:** the Prompt 1 claim that Room & Inventory chrome/availability/calendar files do not exist was **stale relative to current main**. Prompt 3 treats those files as the layout reference and does not modify them.
+
+**Prompt 3:** operational command chrome and primary/secondary navigation are implemented. Living IA: [`rate-revenue-workspace.md`](./rate-revenue-workspace.md). This audit remains the Prompt 1 baseline; later sections that describe the four-tab page are historical.
 
 ---
 

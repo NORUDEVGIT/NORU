@@ -42,5 +42,7 @@ External connectivity (Card 6 mappings / sync intent — not a live OTA engine).
 - `hotel_rate_plans.active` meaning is unchanged; the RR **toggle is removed**.
 - `pms_commercial_restrictions` is **not** applied onto `hotel_rate_restrictions`.
 - Card 3 still has a **duplicate** calendar writer (`saveRateOverrideCard3`). Not removed.
-- Route still uses `RestaurantShell` `module="configuration"` so the existing left rail works. Prompt 3 owns chrome/moduleKey restructure.
-- Room & Inventory chrome files (`room-inventory-chrome.tsx`, availability, calendar) are Prompt 3 layout references. This Prompt 2 checkout may not list them; **do not modify RI**.
+- Prompt 3 replaces the four-tab page with Rate & Revenue command chrome. `RestaurantShell` still supplies auth/membership with `hidePackageRail` + `hideTopHeader` so the configuration rail is not shown. `pms-modules` `moduleKey` remains `"configuration"` (registry only).
+- Room & Inventory chrome files are the layout reference. **Do not modify RI.**
+- Default workspace view is `control-center`. Rate Plans remains a read-only reference under Rates.
+- Prompt 3 does **not** implement UI-01–UI-40 internals. See [`rate-revenue-workspace.md`](./rate-revenue-workspace.md).
