@@ -118,13 +118,16 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   it("AC-CR4-2 Availability is stay-dated for arrival → departure", () => {
     const page = readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
+    const compatibility = readRel("./room-inventory-compat.ts");
     assert.match(page, /\["room-type-availability", restaurantId, arrival, departure\]/);
     assert.match(page, /enabled: canManage && datesValid/);
-    assert.match(functions, /count_sellable_rooms/);
-    assert.match(functions, /count_reserved_rooms/);
-    assert.match(functions, /_arrival: arrival/);
-    assert.match(functions, /_departure: departure/);
-    assert.match(functions, /available: Math\.max\(0, totalRooms - reservedRooms\)/);
+    assert.match(functions, /getRoomTypeAvailabilityCompat/);
+    assert.match(compatibility, /pms_room_type_availability/);
+    assert.match(compatibility, /count_sellable_rooms/);
+    assert.match(compatibility, /count_reserved_rooms/);
+    assert.match(compatibility, /_arrival: input\.arrival/);
+    assert.match(compatibility, /_departure: input\.departure/);
+    assert.match(compatibility, /available: Math\.max\(0, physicalCapacity - reserved\)/);
   });
 
   it("AC-CR4-3 Staff-visible states map CURRENT integers; limited threshold documented; no new inventory RPC", () => {

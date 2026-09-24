@@ -21,6 +21,11 @@ import {
   assertCreateReservationSection7,
   section7PersistApplied,
 } from "./create-reservation-phase1-section7";
+import {
+  getAssignmentEligibilityCompat,
+  getRoomTypeAvailabilityCompat,
+  type AssignmentEligibilityResult,
+} from "./room-inventory-compat";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -230,19 +235,16 @@ export const getRoomTypeAvailability = createServerFn({ method: "POST" })
 
     const out: RoomTypeAvailability[] = [];
     for (const type of types ?? []) {
-      const { data: total } = await context.supabase.rpc("count_sellable_rooms", {
-        _restaurant_id: data.restaurantId,
-        _room_type_id: type.id,
+      const availability = await getRoomTypeAvailabilityCompat(context.supabase, {
+        restaurantId: data.restaurantId,
+        roomTypeId: type.id,
+        arrival,
+        departure,
+        excludeReservationId: data.excludeReservationId ?? null,
       });
-      const { data: reserved } = await context.supabase.rpc("count_reserved_rooms", {
-        _restaurant_id: data.restaurantId,
-        _room_type_id: type.id,
-        _arrival: arrival,
-        _departure: departure,
-        ...(data.excludeReservationId ? { _exclude_reservation_id: data.excludeReservationId } : {}),
-      });
-      const totalRooms = Number(total ?? 0);
-      const reservedRooms = Number(reserved ?? 0);
+      const totalRooms = availability.physicalCapacity;
+      const reservedRooms =
+        availability.reserved ?? Math.max(0, totalRooms - availability.available);
       out.push({
         roomTypeId: type.id,
         code: type.code,
@@ -252,7 +254,7 @@ export const getRoomTypeAvailability = createServerFn({ method: "POST" })
         childCapacity: type.child_capacity,
         totalRooms,
         reserved: reservedRooms,
-        available: Math.max(0, totalRooms - reservedRooms),
+        available: availability.available,
       });
     }
     return out;
@@ -277,11 +279,10 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
-      .select("id, room_number, floor, building, housekeeping_status")
+      .select("id, room_number, floor, building, housekeeping_status, status")
       .eq("restaurant_id", data.restaurantId)
       .eq("room_type_id", data.roomTypeId)
       .eq("active", true)
-      .eq("status", "available")
       .order("room_number");
     if (error) throw new Error(error.message);
 
@@ -298,15 +299,53 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
     const { data: clashes } = await clashQuery;
     const taken = new Set((clashes ?? []).map((r: { room_id: string | null }) => r.room_id));
 
-    return (rooms ?? [])
-      .filter((r) => !taken.has(r.id))
-      .map((r) => ({
-        id: r.id,
-        roomNumber: r.room_number,
-        floor: r.floor,
-        building: r.building,
-        housekeepingStatus: (r as { housekeeping_status?: string | null }).housekeeping_status ?? null,
-      }));
+    const candidates = (rooms ?? []).map((r) => ({
+      id: r.id,
+      roomNumber: r.room_number,
+      floor: r.floor,
+      building: r.building,
+      housekeepingStatus:
+        (r as { housekeeping_status?: string | null }).housekeeping_status ?? null,
+      status: r.status,
+    }));
+
+    const output: AssignableRoom[] = [];
+    let canonicalSupported = true;
+    for (const room of candidates) {
+      const legacyResult = (): AssignmentEligibilityResult => ({
+        source: "legacy",
+        eligible: room.status === "available" && !taken.has(room.id),
+        blockers: [],
+        warnings: [],
+        preferenceScore: 0,
+        preferenceReasons: [],
+      });
+      const eligibility = canonicalSupported
+        ? await getAssignmentEligibilityCompat(
+            context.supabase,
+            {
+              restaurantId: data.restaurantId,
+              roomId: room.id,
+              roomTypeId: data.roomTypeId,
+              arrival,
+              departure,
+              excludeReservationId: data.excludeReservationId ?? null,
+            },
+            legacyResult,
+          )
+        : legacyResult();
+      if (eligibility.source === "legacy") canonicalSupported = false;
+      if (eligibility.eligible) {
+        output.push({
+          id: room.id,
+          roomNumber: room.roomNumber,
+          floor: room.floor,
+          building: room.building,
+          housekeepingStatus: room.housekeepingStatus,
+        });
+      }
+    }
+    return output;
   });
 
 /* -------------------------------------------------------------------- list */

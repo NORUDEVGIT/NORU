@@ -42,6 +42,7 @@ import {
 } from "./pms-set4-hk-inventory";
 import { loadSet4Snapshot } from "./pms-set4-hk-inventory.functions";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
+import { setOperationalRestrictionCompat } from "./room-inventory-compat";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -768,15 +769,20 @@ export const setRoomRestriction = createServerFn({ method: "POST" })
     });
     if (postureBlocked) throw new Error(postureBlocked);
 
-    const { error } = await supabaseAdmin.rpc("housekeeping_set_room_restriction", {
-      _restaurant_id: data.restaurantId,
-      _room_id: data.roomId,
-      _status: data.status,
-      _reason: blankToNull(data.reason) as unknown as string,
-      _expected_return: (data.expectedReturn ?? null) as unknown as string,
-      _membership_id: me.id,
-    });
-    if (error) throw housekeepingError(error.message);
+    try {
+      await setOperationalRestrictionCompat(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        roomId: data.roomId,
+        status: data.status,
+        reason: blankToNull(data.reason),
+        expectedReturn: data.expectedReturn ?? null,
+        membershipId: me.id,
+      });
+    } catch (error) {
+      throw housekeepingError(
+        error instanceof Error ? error.message : "Could not update room restriction.",
+      );
+    }
     return { id: data.roomId, status: data.status };
   });
 
