@@ -9,6 +9,7 @@ import { RevenueFoundationView } from "@/packages/pms/components/rates/revenue-f
 import { RevenueContextBar } from "@/packages/pms/components/rates/revenue-context-bar";
 import { RevenueControlView } from "@/packages/pms/components/rates/revenue-control/revenue-control-view";
 import { RateCalendarView } from "@/packages/pms/components/rates/rate-calendar/rate-calendar-view";
+import { BulkRateChangeView } from "@/packages/pms/components/rates/bulk-rate-change/bulk-rate-change-view";
 import {
   RatePlansTab,
   RateRestrictionsTab,
@@ -244,6 +245,16 @@ export function RatesWorkspace({
             access={access!}
             businessDate={businessDate}
             onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
+          />
+        );
+      case "bulk-rate-change":
+        return (
+          <BulkRateChangeView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
           />
         );
       case "restrictions":

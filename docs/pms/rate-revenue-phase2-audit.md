@@ -69,8 +69,8 @@ There was **no** atomic bulk apply path. A JS loop of `saveRateOverride` would n
 | UI-01 | Revenue Control | **Yes** — `getRevenueControlWorkspace` | **Yes** — RR-P2-02 (booked metrics, no forecast/approvals) |
 | UI-02 | Rate Calendar | **Yes** — `getRevenueRateCalendar` | **Yes** — RR-P2-03 matrix |
 | UI-03 | Rate Detail & Edit | **Yes** — `previewRateChanges` / `applyRateChanges` | **Yes** — RR-P2-03 drawer |
-| UI-04 | Bulk Rate Change | **Yes** — same APIs, atomic RPC | **Foundation only** |
-| UI-05 | Impact Review | **Yes** — deterministic preview, no forecast | **No screen** |
+| UI-04 | Bulk Rate Change | **Yes** — same APIs, atomic RPC | **Yes** — RR-P2-04 wizard |
+| UI-05 | Impact Review | **Yes** — deterministic preview, no forecast | **Yes** — RR-P2-04 review/confirm steps |
 | UI-06 | Rate Change History | **Yes** — paginated read APIs | **Foundation only** |
 
 Approvals stay UI-26–UI-30. No generic Draft → Validate → Approval → Apply framework.
