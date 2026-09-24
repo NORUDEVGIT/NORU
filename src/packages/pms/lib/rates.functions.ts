@@ -382,6 +382,8 @@ export const saveRateOverride = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string }> => {
+    // Operational Rate & Revenue writer. Card 3 also writes hotel_rate_calendar via
+    // saveRateOverrideCard3; that duplicate stays until a Settings adapter is specified.
     const me = await requireRateManager(context as never, data.restaurantId);
     await assertPlan(context as never, data.restaurantId, data.ratePlanId);
 

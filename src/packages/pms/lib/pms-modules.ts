@@ -169,7 +169,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "rates-revenue",
     title: "Rate & Revenue Management",
-    description: "Rate plans, rate calendar and stay restrictions.",
+    description: "Daily pricing, revenue control and commercial operations.",
     icon: TrendingUp,
     group: "core",
     moduleKey: "configuration",

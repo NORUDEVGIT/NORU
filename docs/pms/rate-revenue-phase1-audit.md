@@ -7,7 +7,9 @@
 | **Scope** | Read-only audit of current Rate & Revenue + Property Setup Card 3/6 + pricing engine. No redesign, no schema, no pricing-engine change. |
 | **Code wins** | Where product language and code disagree, this file records the code. |
 
-This record establishes a verified baseline before Prompt 2. It does **not** authorise moving masters out of Rate & Revenue, building a new shell, adding operational Rate & Revenue tables, or changing `price_hotel_stay`.
+This record established a verified baseline before Prompt 2. **Prompt 2 (responsibility refactor) is implemented** in product copy and Rate & Revenue UI. Living ownership: [`rate-revenue-responsibility.md`](./rate-revenue-responsibility.md).
+
+**Prompt 2 correction:** the Prompt 1 claim that Room & Inventory chrome/availability/calendar files do not exist was **stale relative to current main**. Prompt 3 must treat those files as the layout reference when they are present. Prompt 2 does not create Rate & Revenue chrome and does not modify Room & Inventory.
 
 ---
 
@@ -34,14 +36,14 @@ The pricing engine (`price_hotel_stay` and companions in migration `0016`) is **
 
 | Layer | Location | Role today |
 |---|---|---|
-| Canonical route | `src/routes/restaurant/pms/rates-revenue.tsx` | Auth + `requireRoutePackage("pms")`. Search `?tab=`. Default workspace tab is **plans**, not overview. |
+| Canonical route | `src/routes/restaurant/pms/rates-revenue.tsx` | Auth + `requireRoutePackage("pms")`. Search `?tab=`. **Prompt 2 default is overview.** `?tab=plans\|calendar\|restrictions` still work. `module="configuration"` deferred to Prompt 3. |
 | Legacy redirect | `src/routes/restaurant/bookings/rates.tsx` | Redirects to canonical route. |
-| Workspace | `src/packages/pms/components/workspaces/rates-workspace.tsx` | Labelled **Configuration · Rates & Revenue**. Four tabs. Owner/manager gate via `getRatesAccess`. |
-| UI | `src/packages/pms/components/rates/rates-tabs.tsx` | Overview KPIs; CRUD categories/plans; calendar overrides; restriction grid. |
+| Workspace | `src/packages/pms/components/workspaces/rates-workspace.tsx` | **PMS · Rate & Revenue** (operational copy). Four tabs. Owner/manager gate via `getRatesAccess`. |
+| UI | `src/packages/pms/components/rates/rates-tabs.tsx` | Overview KPIs; **read-only** plan reference; calendar overrides; restriction grid. Master CRUD removed from RR UI (server fns kept). |
 | Server writes | `src/packages/pms/lib/rates.functions.ts` | Categories, plans, calendar, restrictions, quote, reprice, revenue overview. |
 | Helpers | `src/packages/pms/lib/rates.server.ts` | `requireRateManager`, `REVENUE_STATUSES`, error mapping, snapshot parse. |
 | Module catalogue | `src/packages/pms/lib/pms-modules.ts` | `rates-revenue` key; `moduleKey: "configuration"`; status `existing`. |
-| SET3 deep-link | `SET3_RATES_HREF` = `/restaurant/pms/rates-revenue` | Property Setup still sends operators to this workspace. |
+| SET3 deep-link | `SET3_RATES_HREF` = `/restaurant/settings#financial-commercial` (configure). Operational: `SET3_RATES_REVENUE_HREF` = `/restaurant/pms/rates-revenue`. |
 
 The workspace is **not** wired to Card 3 corporate rates, meal/package catalogues, promotions, seasons, distribution mappings, cashiering ledgers, or night-audit business date.
 

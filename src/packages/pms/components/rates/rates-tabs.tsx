@@ -457,7 +457,7 @@ export function RateRestrictionsTab({ restaurantId, today }: { restaurantId: str
 
       {!picker.ratePlanId ? (
         <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          Create an active rate plan to manage restrictions.
+          No active rate plan is available. Configure rate plans in <PropertySetupRatesLink /> before applying date restrictions.
         </p>
       ) : query.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading restrictions…</p>

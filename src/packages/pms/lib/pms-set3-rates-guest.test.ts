@@ -34,6 +34,7 @@ import {
   SET3_MEALS_WARNING,
   SET3_PACKAGES_WARNING,
   SET3_RATES_HREF,
+  SET3_RATES_REVENUE_HREF,
   SET3_RATES_UNAVAILABLE,
   SET3_VIP_WARNING,
   completeSet3Activate,
@@ -196,7 +197,8 @@ describe("PMS-SET3 single Activate and checklist expand", () => {
 
 describe("PMS-SET3 hub unmute and deep-links", () => {
   it("promotes Rates and Guest profile to Live cards and deep-links the existing workspaces", () => {
-    assert.equal(SET3_RATES_HREF, "/restaurant/pms/rates-revenue");
+    assert.equal(SET3_RATES_HREF, "/restaurant/settings#financial-commercial");
+    assert.equal(SET3_RATES_REVENUE_HREF, "/restaurant/pms/rates-revenue");
     assert.equal(SET3_GUESTS_HREF, "/restaurant/pms/guests");
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rates" && card.title === "Rates & meal plans"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "guest-profile" && card.title === "Guest profile rules"));
@@ -215,7 +217,9 @@ describe("PMS-SET3 hub unmute and deep-links", () => {
 
     const section = readFileSync(new URL("../components/settings/pms-set3-section.tsx", import.meta.url), "utf8");
     assert.match(section, /SET3_RATES_HREF/);
-    assert.match(section, /Open rates workspace/);
+    assert.match(section, /Configure rates/);
+    assert.match(section, /SET3_RATES_REVENUE_HREF/);
+    assert.match(section, /Open Rate/);
     assert.match(section, /SET3_GUESTS_HREF/);
     assert.match(section, /Open guest profiles/);
     assert.doesNotMatch(section, /rate calendar/i);
