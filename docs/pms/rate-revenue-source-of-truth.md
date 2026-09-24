@@ -62,7 +62,7 @@ Legacy `?tab=` still maps through Prompt 3. Unknown IDs are dropped after catalo
 
 | View | Consumes shared context | Notes |
 |---|---|---|
-| Control Center | Bar only | KPI query stays local last-30-days so metric meaning is unchanged |
+| Control Center | Shared dates + room type + rate plan | `getRevenueControlWorkspace`. Segment/source/channel are not applied to occupancy. Reports still uses local last-30-days `getRevenueOverview`. |
 | Rate Plans | `roomTypeId` | Read-only reference |
 | Rate Calendar | dates + room type + rate plan | Hides local `PlanFilters` |
 | Restrictions | dates + room type + rate plan | Applied `hotel_rate_restrictions` only |

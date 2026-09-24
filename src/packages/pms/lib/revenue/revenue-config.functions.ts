@@ -12,6 +12,7 @@ import {
   loadRevenueRatePlans,
   loadRevenueRoomTypes,
 } from "./revenue-config.server";
+import { REVENUE_CONFIG_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error";
 
 const idSchema = z.string().uuid();
 const restaurantSchema = z.object({ restaurantId: idSchema });
@@ -23,7 +24,12 @@ export const getRevenueBaseConfig = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
-    return loadRevenueBaseConfig(context.supabase, data.restaurantId, "");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadRevenueBaseConfig(supabaseAdmin, data.restaurantId, "");
+    } catch (error) {
+      throw toRevenueReadError(error, REVENUE_CONFIG_LOAD_ERROR);
+    }
   });
 
 export const listRevenueRoomTypes = createServerFn({ method: "POST" })
@@ -31,7 +37,12 @@ export const listRevenueRoomTypes = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
-    return loadRevenueRoomTypes(context.supabase, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadRevenueRoomTypes(supabaseAdmin, data.restaurantId);
+    } catch (error) {
+      throw toRevenueReadError(error, REVENUE_CONFIG_LOAD_ERROR);
+    }
   });
 
 export const listRevenueRatePlans = createServerFn({ method: "POST" })
@@ -41,7 +52,12 @@ export const listRevenueRatePlans = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
-    return loadRevenueRatePlans(context.supabase, data.restaurantId, data.roomTypeId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadRevenueRatePlans(supabaseAdmin, data.restaurantId, data.roomTypeId);
+    } catch (error) {
+      throw toRevenueReadError(error, REVENUE_CONFIG_LOAD_ERROR);
+    }
   });
 
 export const listRevenueCatalogues = createServerFn({ method: "POST" })

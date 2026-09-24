@@ -53,6 +53,10 @@ export async function assertOwnedId(
   if (!result.data) throw new Error(message);
 }
 
+/**
+ * Trusted-server read. Callers must already have run requireRateManager
+ * and must pass supabaseAdmin — authenticated clients cannot SELECT restaurants.
+ */
 export async function loadRevenueProperty(
   db: DbClient,
   restaurantId: string,

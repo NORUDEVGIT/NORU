@@ -11,6 +11,7 @@ import type {
   RevenueRoomType,
   RevenueSalesChannel,
 } from "@/packages/pms/lib/revenue/revenue-config.types";
+import { REVENUE_CONFIG_LOAD_ERROR } from "@/packages/pms/lib/revenue/revenue-read-error";
 
 const ALL = "all";
 
@@ -30,6 +31,7 @@ function FilterSelect({
   empty,
   emptyHref,
   options,
+  status = "success",
 }: {
   label: string;
   value: string | null;
@@ -38,7 +40,19 @@ function FilterSelect({
   empty: string;
   emptyHref: string;
   options: Array<{ id: string; label: string }>;
+  status?: "loading" | "error" | "success";
 }) {
+  if (status === "loading") {
+    return (
+      <div className="min-w-44">
+        <Label>{label}</Label>
+        <p className="mt-2 text-xs text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+  if (status === "error") {
+    return null;
+  }
   return (
     <div className="min-w-44">
       <Label>{label}</Label>
@@ -75,6 +89,8 @@ export function RevenueContextBar({
   bookingSources,
   salesChannels,
   cataloguesError,
+  coreConfigStatus = "success",
+  cataloguesStatus = "success",
 }: {
   fields: readonly RevenueContextField[];
   context: RevenueContext;
@@ -85,6 +101,8 @@ export function RevenueContextBar({
   bookingSources: RevenueBookingSource[];
   salesChannels: RevenueSalesChannel[];
   cataloguesError?: string | null;
+  coreConfigStatus?: "loading" | "error" | "success";
+  cataloguesStatus?: "loading" | "error" | "success";
 }) {
   if (fields.length === 0) return null;
 
@@ -125,6 +143,7 @@ export function RevenueContextBar({
           placeholder="All room types"
           empty="No room types are configured for this property."
           emptyHref={CARD3_HREF}
+          status={coreConfigStatus}
           options={roomTypes.map((row) => ({
             id: row.id,
             label: row.active ? row.name : `${row.name} (inactive)`,
@@ -140,6 +159,7 @@ export function RevenueContextBar({
           placeholder="All rate plans"
           empty="No rate plans are configured for this property."
           emptyHref={CARD3_HREF}
+          status={coreConfigStatus}
           options={visiblePlans.map((row) => ({
             id: row.id,
             label: row.active ? `${row.code} — ${row.name}` : `${row.code} — ${row.name} (inactive)`,
@@ -155,6 +175,7 @@ export function RevenueContextBar({
           placeholder="All segments"
           empty="No market segments are configured."
           emptyHref={`${SET1_HUB_HREF}#sales-events`}
+          status={cataloguesStatus}
           options={marketSegments.map((row) => ({
             id: row.id,
             label: row.active ? row.name : `${row.name} (inactive)`,
@@ -170,6 +191,7 @@ export function RevenueContextBar({
           placeholder="All sources"
           empty="No booking sources are configured."
           emptyHref={`${SET1_HUB_HREF}#sales-events`}
+          status={cataloguesStatus}
           options={bookingSources.map((row) => ({
             id: row.id,
             label: row.active ? row.name : `${row.name} (inactive)`,
@@ -185,6 +207,7 @@ export function RevenueContextBar({
           placeholder="All channels"
           empty="No sales channels are configured."
           emptyHref={`${SET1_HUB_HREF}#distribution`}
+          status={cataloguesStatus}
           options={salesChannels.map((row) => ({
             id: row.id,
             label: row.active ? row.name : `${row.name} (inactive)`,
@@ -192,6 +215,9 @@ export function RevenueContextBar({
         />
       ) : null}
 
+      {coreConfigStatus === "error" ? (
+        <p className="w-full text-xs text-destructive">{REVENUE_CONFIG_LOAD_ERROR}</p>
+      ) : null}
       {cataloguesError ? (
         <p className="w-full text-xs text-destructive">{cataloguesError}</p>
       ) : null}

@@ -7,18 +7,20 @@ import { ChevronDown } from "lucide-react";
 import { RateRevenueChrome } from "@/packages/pms/components/rates/rate-revenue-chrome";
 import { RevenueFoundationView } from "@/packages/pms/components/rates/revenue-foundation-view";
 import { RevenueContextBar } from "@/packages/pms/components/rates/revenue-context-bar";
+import { RevenueControlView } from "@/packages/pms/components/rates/revenue-control/revenue-control-view";
 import {
   RateCalendarTab,
   RatePlansTab,
   RateRestrictionsTab,
-  RevenueOverviewTab,
 } from "@/packages/pms/components/rates/rates-tabs";
+import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
 import {
   getRevenueBaseConfig,
   listRevenueCatalogues,
   REVENUE_CONFIG_STALE_MS,
 } from "@/packages/pms/lib/revenue/revenue-config.functions";
+import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import {
   patchRevenueContext,
   sanitizeLoadedContext,
@@ -133,11 +135,17 @@ export function RatesWorkspace({
     retry: false,
   });
 
-  const roomTypes = baseQuery.data?.roomTypes ?? [];
-  const ratePlans = baseQuery.data?.ratePlans ?? [];
-  const marketSegments = cataloguesQuery.data?.marketSegments ?? [];
-  const bookingSources = cataloguesQuery.data?.bookingSources ?? [];
-  const salesChannels = cataloguesQuery.data?.salesChannels ?? [];
+  const coreConfigStatus = baseQuery.isLoading ? "loading" : baseQuery.isError ? "error" : "success";
+  const cataloguesStatus = cataloguesQuery.isLoading
+    ? "loading"
+    : cataloguesQuery.isError
+      ? "error"
+      : "success";
+  const roomTypes = baseQuery.isSuccess ? baseQuery.data.roomTypes : [];
+  const ratePlans = baseQuery.isSuccess ? baseQuery.data.ratePlans : [];
+  const marketSegments = cataloguesQuery.isSuccess ? cataloguesQuery.data.marketSegments : [];
+  const bookingSources = cataloguesQuery.isSuccess ? cataloguesQuery.data.bookingSources : [];
+  const salesChannels = cataloguesQuery.isSuccess ? cataloguesQuery.data.salesChannels : [];
   const businessDate = baseQuery.data?.property.businessDate ?? today;
   const contextOptions = {
     roomTypes,
@@ -184,6 +192,15 @@ export function RatesWorkspace({
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
+    if (requestedView !== "control-center") return;
+    if (search.from || search.to) return;
+    const range = defaultControlCenterRange(businessDate);
+    if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
+    writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+  }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
+
+  useEffect(() => {
+    if (!baseQuery.isSuccess) return;
     if (requestedView !== "rate-calendar" && requestedView !== "restrictions") return;
     if (context.ratePlanId) return;
     const compatible = ratePlans.filter(
@@ -206,7 +223,7 @@ export function RatesWorkspace({
   function renderView() {
     switch (requestedView) {
       case "control-center":
-        return <RevenueOverviewTab restaurantId={restaurantId} today={today} />;
+        return <RevenueControlView restaurantId={restaurantId} context={context} access={access} />;
       case "rate-plans-reference":
         return <RatePlansTab restaurantId={restaurantId} roomTypeId={context.roomTypeId} />;
       case "rate-calendar":
@@ -350,7 +367,13 @@ export function RatesWorkspace({
             marketSegments={marketSegments}
             bookingSources={bookingSources}
             salesChannels={salesChannels}
-            cataloguesError={cataloguesQuery.isError ? (cataloguesQuery.error as Error).message : null}
+            cataloguesError={
+              cataloguesQuery.isError
+                ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")
+                : null
+            }
+            coreConfigStatus={coreConfigStatus}
+            cataloguesStatus={cataloguesStatus}
           />
         </div>
 

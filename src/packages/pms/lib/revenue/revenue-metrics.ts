@@ -55,7 +55,7 @@ export type BookedRevenueOverviewMetrics = {
 export const REVENUE_METRIC_KNOWN_GAPS = [
   "Available room nights currently count active hotel_rooms × days and may include OOO/OOS rooms.",
   "ADR divides booked snapshot revenue by all sold nights, so unpriced sold nights understate ADR.",
-  "Control Center KPI dates are a local last-30-days picker, not Night Audit business-date vs calendar-range.",
+  "Revenue Control uses shared RevenueContext dates, clamped to 62 days. Occupancy still uses active hotel_rooms × days.",
   "Room revenue is booked snapshot revenue, not posted Cashiering or collected payments.",
 ] as const;
 

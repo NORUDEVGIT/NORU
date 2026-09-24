@@ -171,7 +171,7 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     assert.equal(ready.marketSegmentId, null);
   });
 
-  it("H. workspace wires shared context; Control Center KPI dates stay local", () => {
+  it("H. workspace wires shared context; Reports overview dates stay local", () => {
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
     const tabs = readRel("../../components/rates/rates-tabs.tsx");
     const route = readRel("../../../../routes/restaurant/pms/rates-revenue.tsx");
@@ -183,7 +183,8 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     assert.match(workspace, /RateCalendarTab/);
     assert.match(workspace, /fromDate: context\.fromDate/);
     assert.match(workspace, /ratePlanId: context\.ratePlanId/);
-    assert.match(workspace, /<RevenueOverviewTab restaurantId=\{restaurantId\} today=\{today\} \/>/);
+    assert.match(workspace, /RevenueControlView/);
+    assert.match(workspace, /defaultControlCenterRange/);
 
     const overviewStart = tabs.indexOf("export function RevenueOverviewTab");
     const plansStart = tabs.indexOf("export function RatePlansTab");

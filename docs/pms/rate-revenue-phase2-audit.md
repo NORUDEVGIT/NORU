@@ -66,7 +66,7 @@ There was **no** atomic bulk apply path. A JS loop of `saveRateOverride` would n
 
 | UI | Screen | Domain ready? | UI ready? |
 |---|---|---|---|
-| UI-01 | Revenue Control | Metrics exist (booked only) | **No** — Control Center is the current overview, not the locked 6-panel |
+| UI-01 | Revenue Control | **Yes** — `getRevenueControlWorkspace` | **Yes** — RR-P2-02 (booked metrics, no forecast/approvals) |
 | UI-02 | Rate Calendar | Calendar writer exists | **No redesign** in this prompt |
 | UI-03 | Rate Detail & Edit | **Yes** — `previewRateChanges` / `applyRateChanges` | **No drawer** |
 | UI-04 | Bulk Rate Change | **Yes** — same APIs, atomic RPC | **Foundation only** |
