@@ -11,10 +11,8 @@ import { RevenueControlView } from "@/packages/pms/components/rates/revenue-cont
 import { RateCalendarView } from "@/packages/pms/components/rates/rate-calendar/rate-calendar-view";
 import { BulkRateChangeView } from "@/packages/pms/components/rates/bulk-rate-change/bulk-rate-change-view";
 import { RateHistoryView } from "@/packages/pms/components/rates/rate-history/rate-history-view";
-import {
-  RatePlansTab,
-  RateRestrictionsTab,
-} from "@/packages/pms/components/rates/rates-tabs";
+import { RatePlansTab } from "@/packages/pms/components/rates/rates-tabs";
+import { RestrictionCalendarView } from "@/packages/pms/components/rates/restrictions/restriction-calendar-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
 import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
@@ -204,24 +202,12 @@ export function RatesWorkspace({
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
-    if (requestedView !== "rate-calendar") return;
+    if (requestedView !== "rate-calendar" && requestedView !== "restrictions") return;
     if (search.from || search.to) return;
     const range = defaultRateCalendarRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
-
-  useEffect(() => {
-    if (!baseQuery.isSuccess) return;
-    if (requestedView !== "restrictions") return;
-    if (context.ratePlanId) return;
-    const compatible = ratePlans.filter(
-      (plan) => !context.roomTypeId || plan.roomTypeId === context.roomTypeId,
-    );
-    const first = compatible.find((plan) => plan.active) ?? compatible[0];
-    if (!first) return;
-    writeState(requestedView, patchRevenueContext(context, { ratePlanId: first.id }, contextOptions));
-  }, [requestedView, baseQuery.isSuccess, context.ratePlanId, context.roomTypeId, ratePlans]);
 
   function selectPrimary(section: RevenuePrimarySection) {
     if (section === "more") {
@@ -262,16 +248,12 @@ export function RatesWorkspace({
         return <RateHistoryView restaurantId={restaurantId} context={context} />;
       case "restrictions":
         return (
-          <RateRestrictionsTab
+          <RestrictionCalendarView
             restaurantId={restaurantId}
-            today={today}
-            canApplyRestrictions={access?.canApplyRestrictions === true}
-            context={{
-              fromDate: context.fromDate,
-              toDate: context.toDate,
-              roomTypeId: context.roomTypeId,
-              ratePlanId: context.ratePlanId,
-            }}
+            context={context}
+            access={access!}
+            businessDate={businessDate}
+            onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
           />
         );
       default:

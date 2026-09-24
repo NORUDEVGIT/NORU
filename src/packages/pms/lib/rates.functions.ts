@@ -460,6 +460,7 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
     );
   });
 
+/** Compatibility Restriction Calendar writer. Official Phase 3 writes use applyRestrictionChanges. */
 export const saveRateRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

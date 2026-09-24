@@ -57,7 +57,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /<RevenueControlView /);
     assert.match(workspace, /<RatePlansTab /);
     assert.match(workspace, /<RateCalendarView/);
-    assert.match(workspace, /<RateRestrictionsTab/);
+    assert.match(workspace, /<RestrictionCalendarView/);
     assert.match(workspace, /<BulkRateChangeView/);
     assert.match(workspace, /<RateHistoryView/);
     assert.match(workspace, /case "control-center"/);

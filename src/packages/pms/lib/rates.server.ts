@@ -65,6 +65,19 @@ const RATE_ERRORS: Record<string, string> = {
   RATE_CHANGE_SOURCE_INVALID: "The copy-from date is not valid for this rate plan.",
   RATE_CHANGE_OVER_MAX: "That nightly rate is above the allowed maximum.",
   RATE_CHANGE_EVENT_IMMUTABLE: "Rate change history cannot be edited.",
+  RESTRICTION_PLAN_NOT_FOUND: "That rate plan doesn't belong to this property.",
+  RESTRICTION_CHANGE_STALE: "This restriction was changed by someone else. Refresh and try again.",
+  RESTRICTION_INVALID_DATE: "Use a valid YYYY-MM-DD date.",
+  RESTRICTION_DUPLICATE_TARGET: "The same rate plan and date cannot appear twice in one change.",
+  RESTRICTION_MIN_STAY_INVALID: "Min stay must be empty or an integer from 1 to 365.",
+  RESTRICTION_MAX_STAY_INVALID: "Max stay must be empty or an integer from 1 to 365.",
+  RESTRICTION_STAY_RANGE_INVALID: "Max stay cannot be shorter than min stay.",
+  RESTRICTION_NO_FIELDS: "Provide at least one restriction field to change.",
+  RESTRICTION_TARGET_LIMIT: "At most 366 dates can be changed at once.",
+  RESTRICTION_CHANGE_FORBIDDEN: "You don't have access to change restrictions for this property.",
+  RESTRICTION_CHANGE_EMPTY: "Select at least one date to change.",
+  RESTRICTION_CHANGE_UNSUPPORTED: "That restriction change is not supported.",
+  RESTRICTION_CHANGE_EVENT_IMMUTABLE: "Restriction change history cannot be edited.",
 };
 
 /** Map RAISE EXCEPTION codes from the pricing functions to user-facing text. */

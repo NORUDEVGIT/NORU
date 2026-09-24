@@ -11,6 +11,7 @@
 
 import { z } from "zod";
 import { ABSENT_CALENDAR_VERSION, calendarVersionToken } from "./rate-change.ts";
+import { restrictionVersionToken } from "./restriction-change.ts";
 
 export const RATE_CALENDAR_MAX_COLUMNS = 14;
 export const RATE_CALENDAR_DEFAULT_DAYS = 7;
@@ -54,6 +55,7 @@ export type RateCalendarCell = {
   currency: string;
   restriction: RateCalendarRestriction;
   restrictionLabel: string | null;
+  restrictionExpectedVersion: string;
   inventory: RateCalendarInventory;
   planActive: boolean;
   outsideValidity: boolean;
@@ -115,6 +117,7 @@ export type CalendarOverride = {
 export type CalendarRestriction = RateCalendarRestriction & {
   ratePlanId: string;
   date: string;
+  updatedAt?: string | null;
 };
 
 export type RateCalendarBuildInput = {
@@ -338,6 +341,7 @@ export function buildRateCalendarModel(input: RateCalendarBuildInput): RateCalen
         currency: plan.currency || input.currency,
         restriction: restrictionContext,
         restrictionLabel: restrictionLabel(restrictionContext),
+        restrictionExpectedVersion: restrictionVersionToken(restriction?.updatedAt),
         inventory: composeInventory(sold.get(`${plan.roomTypeId}|${date}`) ?? 0, available),
         planActive: plan.active,
         outsideValidity: isOutsideValidity(date, plan.validFrom, plan.validTo),

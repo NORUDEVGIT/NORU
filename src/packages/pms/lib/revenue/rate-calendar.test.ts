@@ -247,7 +247,7 @@ describe("RR-P2-03 — wiring, drawer and no fake product", () => {
     assert.match(toolbar, /Bulk Rate Change/);
     assert.match(workspace, /RateCalendarView/);
     assert.doesNotMatch(workspace, /<RateCalendarTab/);
-    assert.match(workspace, /requestedView !== "restrictions"/);
+    assert.match(workspace, /requestedView !== "rate-calendar" && requestedView !== "restrictions"/);
   });
 
   it("does not add a migration or change 0016 pricing", () => {

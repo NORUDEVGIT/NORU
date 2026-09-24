@@ -122,7 +122,7 @@ async function loadRestrictions(
 ): Promise<CalendarRestriction[]> {
   const result = await db
     .from("hotel_rate_restrictions")
-    .select("rate_plan_id, restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell")
+    .select("rate_plan_id, restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell, updated_at")
     .eq("restaurant_id", restaurantId)
     .gte("restriction_date", fromDate)
     .lte("restriction_date", toDate);
@@ -136,6 +136,7 @@ async function loadRestrictions(
       closed_to_arrival: boolean;
       closed_to_departure: boolean;
       stop_sell: boolean;
+      updated_at: string | null;
     }[]
   ).map((row) => ({
     ratePlanId: row.rate_plan_id,
@@ -145,6 +146,7 @@ async function loadRestrictions(
     closedToArrival: row.closed_to_arrival,
     closedToDeparture: row.closed_to_departure,
     stopSell: row.stop_sell,
+    updatedAt: row.updated_at,
   }));
 }
 
