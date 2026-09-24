@@ -5,6 +5,9 @@
 --   supabase/migrations/0095_pms_room_inventory_operational_foundation.sql
 --
 -- PROPOSAL ONLY. DO NOT APPLY FROM AN AGENT.
+-- DB-00 (2026-09-23): non-prod qcwptraosaudcbjasmul already has these
+-- tables/RPCs, but supabase_migrations.schema_migrations has no 0095 row.
+-- Do not re-apply this file blindly. See docs/pms/db-00-reservation-deployed-schema-truth.md.
 -- Does not regenerate types.ts. Does not enable overbooking.
 -- Housekeeping readiness is not part of type-level availability.
 -- OOO/OOS is point-in-time; dated blocks own future inventory restrictions.

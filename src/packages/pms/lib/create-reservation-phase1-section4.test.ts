@@ -27,6 +27,7 @@ import {
   CREATE_RESERVATION_SECTION4_TIP_AC_MAP,
   CREATE_RESERVATION_STALE_SELECTION_RULE,
   ROOM_TYPE_AVAILABILITY_LABELS,
+  assertRoomTypeOccupancy,
   isRoomTypeSelectable,
   occupancySoftWarn,
   remainingCountCopy,
@@ -102,7 +103,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-1 Room type select lists active + sellable types from getRoomTypeAvailability", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /CreateReservationRoomType/);
@@ -116,7 +119,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-2 Availability is stay-dated for arrival → departure", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const compatibility = readRel("./room-inventory-compat.ts");
     assert.match(page, /\["room-type-availability", restaurantId, arrival, departure\]/);
@@ -137,13 +142,18 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.match(roomType, /roomTypeAvailabilityState\(row\.available\)/);
     assert.match(roomType, /availability-state-\$\{state\}/);
     assert.match(helpers, /CREATE_RESERVATION_LIMITED_AVAILABLE_MAX = 2/);
-    assert.doesNotMatch(functions, /createServerFn[\s\S]*getLimitedAvailability|overbookingEngine/s);
+    assert.doesNotMatch(
+      functions,
+      /createServerFn[\s\S]*getLimitedAvailability|overbookingEngine/s,
+    );
     assert.doesNotMatch(helpers, /count_ota_rooms|rms_yield|allotment_hold/);
   });
 
   it("AC-CR4-4 None (available === 0) is explicit fully booked and not selectable as success", () => {
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(roomTypeAvailabilityState(0), "none");
     assert.equal(isRoomTypeSelectable(0), false);
     assert.match(roomType, /disabled=\{disabled\}/);
@@ -151,34 +161,47 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.match(roomType, /ROOM_TYPE_AVAILABILITY_LABELS/);
     assert.match(page, /canSubmitCreateReservation/);
     assert.match(page, /available: selectedType\?\.available \?\? 0/);
-    assert.match(stickyAvailabilityCopy({ kind: "state", state: "none", available: 0, totalRooms: 4 }), /Fully booked \(none\)/);
+    assert.match(
+      stickyAvailabilityCopy({ kind: "state", state: "none", available: 0, totalRooms: 4 }),
+      /Fully booked \(none\)/,
+    );
   });
 
-  it("AC-CR4-5 Occupancy soft-warn uses FO occupancyExceeded; warn-only; not a silent fit", () => {
+  it("AC-CR4-5 Occupancy uses FO occupancyExceeded; create is hard-blocked over max occupancy", () => {
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const helpers = readRel("./create-reservation-phase1-section4.ts");
     const functions = readRel("./reservations.functions.ts");
     assert.equal(occupancyExceeded(2, 1, 2), true);
     assert.match(occupancySoftWarn(2, 1, 2) ?? "", /maximum occupancy/);
     assert.equal(occupancySoftWarn(2, 0, 2), null);
     assert.equal(occupancySoftWarn(4, 0, undefined), null);
-    assert.equal(CREATE_RESERVATION_CAPACITY_ENFORCEMENT, "maxOccupancy-warn-only");
+    assert.equal(CREATE_RESERVATION_CAPACITY_ENFORCEMENT, "maxOccupancy-hard-block");
     assert.match(helpers, /occupancyExceeded/);
     assert.match(helpers, /occupancyBlockMessage/);
+    assert.match(helpers, /assertRoomTypeOccupancy/);
     assert.match(roomType, /OccupancySoftWarn/);
     assert.match(roomType, /data-testid=\{testId\}/);
     assert.match(page, /summary-occupancy-warn/);
-    assert.match(CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE, /not blocked for occupancy/);
-    assert.doesNotMatch(page, /occupancyExceeded.*canSubmit|canSubmit.*occupancy/);
+    assert.match(page, /occupancyOk/);
+    assert.match(CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE, /blocked until occupancy fits/);
+    assert.throws(() => assertRoomTypeOccupancy(3, 0, 2), /maximum occupancy/);
+    assert.doesNotThrow(() => assertRoomTypeOccupancy(2, 0, 2));
     const createStart = functions.indexOf("export const createReservation");
-    const createFn = functions.slice(createStart, functions.indexOf("export const amendReservation"));
-    assert.doesNotMatch(createFn, /occupancyExceeded|max_occupancy|OCCUPANCY_EXCEEDED/);
-    assert.doesNotMatch(createFn, /RAISE EXCEPTION 'OCCUPANCY/);
+    const createFn = functions.slice(
+      createStart,
+      functions.indexOf("export const amendReservation"),
+    );
+    assert.match(createFn, /assertRoomTypeOccupancy/);
+    assert.match(createFn, /max_occupancy/);
   });
 
   it("AC-CR4-6 Selected room type binds room_type_id via createReservation → create_hotel_reservation_priced", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /createReservation/);
     assert.match(page, /roomTypeId,/);
@@ -191,7 +214,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-7 No fake availability — CURRENT count_* only; no invented OTA/RMS/yield/overbooking", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     const helpers = readRel("./create-reservation-phase1-section4.ts");
     const functions = readRel("./reservations.functions.ts");
@@ -203,12 +228,17 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-8 Server / RPC remains source of truth; create still fail-closes on NO_AVAILABILITY", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const server = readRel("./reservations.server.ts");
     assert.match(page, /available: selectedType\?\.available \?\? 0/);
     assert.match(functions, /create_hotel_reservation_priced/);
-    assert.match(server, /NO_AVAILABILITY: "No rooms of that type are available for those dates\."/);
+    assert.match(
+      server,
+      /NO_AVAILABILITY: "No rooms of that type are available for those dates\."/,
+    );
     const sql = readRel("../../../../drizzle/migrations/0013_create_hotel_reservations.sql");
     assert.match(sql, /assert_reservation_capacity/);
     assert.match(sql, /RAISE EXCEPTION 'NO_AVAILABILITY'/);
@@ -217,7 +247,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-9 Sticky summary shows selected room type + availability state; no fake rate total", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /data-testid="create-reservation-summary"/);
     assert.match(page, /data-testid="summary-room-type"/);
     assert.match(page, /data-testid="summary-availability"/);
@@ -230,7 +262,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-10 Section 4 does not force a rate plan; null _rate_plan_id remains allowed", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /ratePlanId: ratePlanId \|\| null/);
@@ -240,7 +274,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-11 Specific room assign is not expanded; unassigned default remains", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /Room assignment \(optional\)/);
     assert.match(page, /const UNASSIGNED = "unassigned"/);
     assert.match(page, /roomId: roomId === UNASSIGNED \? null : roomId/);
@@ -251,7 +287,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-12 No Group allotment / block / CR-100 / Company-TA inventory", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     const helpers = readRel("./create-reservation-phase1-section4.ts");
     assert.match(helpers, /parent Company Reservation CR-100/);
@@ -260,17 +298,24 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-13 Existing permission gates preserved; no new entitlement / RLS model", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
     assert.match(functions, /requireReservationManager/);
-    assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
+    assert.doesNotMatch(
+      page,
+      /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/,
+    );
     assert.doesNotMatch(functions, /requireAvailabilityManager|inventory_entitlement/);
   });
 
   it("AC-CR4-14 Confirm chrome is Section 7; none still disables create", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /create-reservation-actions/);
     assert.match(page, /disabled=\{!canSubmit \|\| create\.isPending\}/);
     assert.match(page, /available: selectedType\?\.available \?\? 0/);
@@ -279,7 +324,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-15 Date/occupancy change revalidates; keep selection + disable submit if none", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     assert.equal(CREATE_RESERVATION_STALE_SELECTION_RULE, "keep-selection-disable-submit");
     assert.match(page, /\["room-type-availability", restaurantId, arrival, departure\]/);
@@ -308,12 +355,20 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-16 Honest empty catalogue; invalid dates do not invent availability", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     assert.match(roomType, /CREATE_RESERVATION_EMPTY_CATALOGUE/);
     assert.match(roomType, /CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES/);
-    assert.equal(CREATE_RESERVATION_EMPTY_CATALOGUE, "No sellable room types yet. Add them in Configuration → Rooms.");
-    assert.equal(CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES, "Choose valid dates to see availability.");
+    assert.equal(
+      CREATE_RESERVATION_EMPTY_CATALOGUE,
+      "No sellable room types yet. Add them in Configuration → Rooms.",
+    );
+    assert.equal(
+      CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES,
+      "Choose valid dates to see availability.",
+    );
     assert.match(page, /enabled: canManage && datesValid/);
     const needsDates = stickyAvailability({
       roomTypeId: "t1",
@@ -326,7 +381,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-17 Section 4 does not claim Phase 1 or Create Reservation DONE", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
@@ -338,7 +395,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-18 Locked non-goals in §4 are absent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     const helpers = readRel("./create-reservation-phase1-section4.ts");
     const functions = readRel("./reservations.functions.ts");
@@ -369,17 +428,26 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const shell = readRel("./front-office-shell.ts");
     assert.equal(CREATE_RESERVATION_SECTION4_MIGRATION, "NONE");
-    assert.match(CREATE_RESERVATION_SECTION4_MIGRATION_REASON, /Inventory and create RPCs already exist/);
+    assert.match(
+      CREATE_RESERVATION_SECTION4_MIGRATION_REASON,
+      /Inventory and create RPCs already exist/,
+    );
     assert.match(helpers, /Migration for this section: NONE/);
     assert.doesNotMatch(functions, /overbooking_limit|availability_state|limited_threshold/);
     const drizzleDir = join(here, "../../../../drizzle/migrations");
     const supabaseDir = join(here, "../../../../supabase/migrations");
     for (const file of readdirSync(drizzleDir)) {
-      assert.doesNotMatch(file, /create.reservation.phase1.section4|cr4.section4|room_type_availability_state/i);
+      assert.doesNotMatch(
+        file,
+        /create.reservation.phase1.section4|cr4.section4|room_type_availability_state/i,
+      );
     }
     if (existsSync(supabaseDir)) {
       for (const file of readdirSync(supabaseDir)) {
-        assert.doesNotMatch(file, /create.reservation.phase1.section4|cr4.section4|room_type_availability_state/i);
+        assert.doesNotMatch(
+          file,
+          /create.reservation.phase1.section4|cr4.section4|room_type_availability_state/i,
+        );
       }
     }
     assert.match(dialogs, /createReservation/);
@@ -389,7 +457,9 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
   });
 
   it("AC-CR4-21 Additive expansion of existing /restaurant/bookings/new — no second product", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
     assert.match(page, /CreateReservationRoomType/);

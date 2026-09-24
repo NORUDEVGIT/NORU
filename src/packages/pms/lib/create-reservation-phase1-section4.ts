@@ -21,7 +21,7 @@ export const CREATE_RESERVATION_LIMITED_AVAILABLE_MAX = 2;
 
 export const CREATE_RESERVATION_STALE_SELECTION_RULE = "keep-selection-disable-submit";
 
-export const CREATE_RESERVATION_CAPACITY_ENFORCEMENT = "maxOccupancy-warn-only";
+export const CREATE_RESERVATION_CAPACITY_ENFORCEMENT = "maxOccupancy-hard-block";
 
 export const CREATE_RESERVATION_ACCEPTANCE_CRITERIA_SECTION4 = [
   "AC-CR4-1",
@@ -80,7 +80,8 @@ export const CREATE_RESERVATION_SECTION4_SCOPE =
 
 export const CREATE_RESERVATION_NO_ROOM_TYPE = "No room type selected";
 
-export const CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES = "Choose valid dates to see availability.";
+export const CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES =
+  "Choose valid dates to see availability.";
 
 export const CREATE_RESERVATION_EMPTY_CATALOGUE =
   "No sellable room types yet. Add them in Configuration → Rooms.";
@@ -88,10 +89,10 @@ export const CREATE_RESERVATION_EMPTY_CATALOGUE =
 export const CREATE_RESERVATION_CHECKING_AVAILABILITY = "Checking availability…";
 
 export const CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY =
-  "Adult and child capacity labels are display-only. Occupancy warn uses max occupancy (adults + children).";
+  "Adult and child capacity labels are display-only. Occupancy block uses max occupancy (adults + children).";
 
 export const CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE =
-  "This is a warning — create is not blocked for occupancy on this section.";
+  "Create is blocked until occupancy fits this room type.";
 
 export const CREATE_RESERVATION_SECTION4_MIGRATION_REASON =
   "Section 4 maps CURRENT getRoomTypeAvailability integers and binds the existing roomTypeId → _room_type_id writer. Inventory and create RPCs already exist. No additive columns or SECURITY DEFINER replacements in this section.";
@@ -165,7 +166,9 @@ export function roomTypeCapacityDisplay(adultCapacity: number, childCapacity: nu
   return `Adult capacity ${adultCapacity} · Child capacity ${childCapacity} (display only)`;
 }
 
-export function stickyRoomTypeLabel(selected: { name: string; code: string } | null | undefined): string {
+export function stickyRoomTypeLabel(
+  selected: { name: string; code: string } | null | undefined,
+): string {
   if (!selected) return CREATE_RESERVATION_NO_ROOM_TYPE;
   return `${selected.name} (${selected.code})`;
 }
@@ -198,7 +201,7 @@ export function stickyAvailabilityCopy(row: StickyAvailability): string {
   return `${ROOM_TYPE_AVAILABILITY_LABELS[row.state]} · ${remainingCountCopy(row.available)}`;
 }
 
-/** Warn-only. Does not add a create-RPC occupancy hard-block. */
+/** Occupancy message when adults+children exceed room-type max occupancy. */
 export function occupancySoftWarn(
   adults: number,
   children: number,
@@ -207,4 +210,13 @@ export function occupancySoftWarn(
   if (maxOccupancy == null) return null;
   if (!occupancyExceeded(adults, children, maxOccupancy)) return null;
   return occupancyBlockMessage(adults, children, maxOccupancy);
+}
+
+export function assertRoomTypeOccupancy(
+  adults: number,
+  children: number,
+  maxOccupancy: number | null | undefined,
+): void {
+  const blocked = occupancySoftWarn(adults, children, maxOccupancy ?? undefined);
+  if (blocked) throw new Error(blocked);
 }

@@ -22,9 +22,15 @@ export const Route = createFileRoute("/restaurant/pms/reservations/")({
   head: () => ({
     meta: [
       { title: "Reservations — NORU PMS" },
-      { name: "description", content: "Search, filter and manage hotel reservations for your property." },
+      {
+        name: "description",
+        content: "Search, filter and manage hotel reservations for your property.",
+      },
       { property: "og:title", content: "Reservations — NORU PMS" },
-      { property: "og:description", content: "Search, filter and manage hotel reservations for your property." },
+      {
+        property: "og:description",
+        content: "Search, filter and manage hotel reservations for your property.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -36,7 +42,14 @@ export const Route = createFileRoute("/restaurant/pms/reservations/")({
 function ReservationsPmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
-    <RestaurantShell active="Reservations" module="rooms" pms pmsModule="reservations">
+    <RestaurantShell
+      active="Reservations"
+      module="rooms"
+      pms
+      pmsModule="reservations"
+      hidePackageRail
+      hideTopHeader
+    >
       {(m) => <ReservationsWorkspace membership={m} initialTab={searchTab ?? "individual"} />}
     </RestaurantShell>
   );

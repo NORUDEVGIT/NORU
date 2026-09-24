@@ -5,7 +5,6 @@ import {
   CREATE_RESERVATION_ROOM_CHECKING,
   CREATE_RESERVATION_ROOM_EMPTY,
   CREATE_RESERVATION_ROOM_NEEDS_TYPE,
-  CREATE_RESERVATION_SECTION6_SCOPE,
   formatAssignedRoomLabel,
   type AssignedRoomView,
 } from "@/packages/pms/lib/create-reservation-phase1-section6";
@@ -36,9 +35,12 @@ export function CreateReservationRoomAssignment({
   const showEmpty = ready && !loading && rooms.length === 0;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4" data-testid="create-reservation-room-assignment">
+    <section
+      className="rounded-2xl border border-border bg-card p-4"
+      data-testid="create-reservation-room-assignment"
+    >
       <h2 className="font-display text-lg">{title}</h2>
-      <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION6_SCOPE}</p>
+      {/* CREATE_RESERVATION_SECTION6_SCOPE */}
 
       {!ready ? (
         <p className="mt-3 text-sm text-muted-foreground" data-testid="room-assignment-needs-type">
@@ -57,12 +59,16 @@ export function CreateReservationRoomAssignment({
               onClick={() => onSelect(unassignedValue)}
               className={cn(
                 "w-full rounded-xl border p-3 text-left transition-colors",
-                roomId === unassignedValue ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
+                roomId === unassignedValue
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-accent/40",
               )}
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium">{CREATE_RESERVATION_ASSIGN_LATER}</span>
-                {roomId === unassignedValue ? <Check className="ml-auto size-4 text-primary" /> : null}
+                {roomId === unassignedValue ? (
+                  <Check className="ml-auto size-4 text-primary" />
+                ) : null}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">Unassigned — bind a room later.</p>
             </button>

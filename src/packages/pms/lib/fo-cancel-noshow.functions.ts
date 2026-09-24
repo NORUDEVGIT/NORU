@@ -516,7 +516,7 @@ export const completeFoCancel = createServerFn({ method: "POST" })
 
     const { data: existing, error: readError } = await supabaseAdmin
       .from("hotel_reservations")
-      .select("id, status")
+      .select("id, status, room_id")
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.reservationId)
       .maybeSingle();
@@ -528,6 +528,7 @@ export const completeFoCancel = createServerFn({ method: "POST" })
       .update({
         status: "cancelled",
         cancellation_reason: blankToNull(data.reason),
+        room_id: null,
       })
       .eq("id", data.reservationId)
       .eq("restaurant_id", data.restaurantId);
@@ -538,8 +539,8 @@ export const completeFoCancel = createServerFn({ method: "POST" })
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       eventType,
-      previousValues: { status: existing.status },
-      newValues: { status: "cancelled" },
+      previousValues: { status: existing.status, room_id: existing.room_id },
+      newValues: { status: "cancelled", room_id: null },
       notes: blankToNull(data.reason),
       actorMembershipId: me.id,
     });
@@ -590,6 +591,30 @@ export const completeFoNoShow = createServerFn({ method: "POST" })
       _membership_id: me.id,
     });
     if (error) throw reservationError(error.message);
+
+    const { data: assigned } = await supabaseAdmin
+      .from("hotel_reservations")
+      .select("room_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    if (assigned?.room_id) {
+      const { error: releaseError } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update({ room_id: null })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.reservationId);
+      if (releaseError) throw new Error(releaseError.message);
+      await recordReservationEvent({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        eventType: "amended",
+        previousValues: { room_id: assigned.room_id },
+        newValues: { room_id: null },
+        notes: "Released room on no-show",
+        actorMembershipId: me.id,
+      });
+    }
     return { id: data.reservationId, status: "no_show" };
   });
 

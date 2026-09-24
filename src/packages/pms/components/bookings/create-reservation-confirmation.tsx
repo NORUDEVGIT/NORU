@@ -8,8 +8,14 @@ import {
 
 export function CreateReservationConfirmation({
   view,
+  onOpenReservation,
+  onReturnToDesk,
+  onCreateAnother,
 }: {
   view: CreatedReservationConfirmation;
+  onOpenReservation?: (reservationId: string) => void;
+  onReturnToDesk?: () => void;
+  onCreateAnother?: () => void;
 }) {
   return (
     <section
@@ -18,8 +24,8 @@ export function CreateReservationConfirmation({
     >
       <h1 className="font-display text-2xl">Reservation created</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Confirmation {view.confirmationNumber}. Print this page for the guest — email and SMS are not sent from
-        create.
+        Confirmation {view.confirmationNumber}. Print this page for the guest —{" "}
+        {"email and SMS are not sent from create."}
       </p>
 
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
@@ -29,7 +35,9 @@ export function CreateReservationConfirmation({
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Status</dt>
-          <dd data-testid="confirmation-status">{view.status === "confirmed" ? "Confirmed" : "Pending"}</dd>
+          <dd data-testid="confirmation-status">
+            {view.status === "confirmed" ? "Confirmed" : "Pending"}
+          </dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
@@ -60,7 +68,9 @@ export function CreateReservationConfirmation({
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay total</dt>
           <dd data-testid="confirmation-stay-total">
-            {view.unpriced || !view.stayTotal ? "No stay total — a server quote is required before a total can appear." : view.stayTotal}
+            {view.unpriced || !view.stayTotal
+              ? "No stay total — a server quote is required before a total can appear."
+              : view.stayTotal}
           </dd>
         </div>
         {view.guaranteeMethod ? (
@@ -77,19 +87,25 @@ export function CreateReservationConfirmation({
         ) : null}
         {view.bookingSource ? (
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Booking source</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Booking source
+            </dt>
             <dd>{view.bookingSource}</dd>
           </div>
         ) : null}
         {view.marketSegment ? (
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Market segment</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Market segment
+            </dt>
             <dd>{view.marketSegment}</dd>
           </div>
         ) : null}
         {view.externalReference ? (
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">External reference</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              External reference
+            </dt>
             <dd>{view.externalReference}</dd>
           </div>
         ) : null}
@@ -99,15 +115,36 @@ export function CreateReservationConfirmation({
         <Button type="button" data-testid="create-reservation-print" onClick={() => window.print()}>
           {CREATE_RESERVATION_PRINT_LABEL}
         </Button>
-        <Button asChild variant="outline">
-          <Link
-            to="/restaurant/pms/reservations/$reservationId"
-            params={{ reservationId: view.id }}
+        {onOpenReservation ? (
+          <Button
+            type="button"
+            variant="outline"
             data-testid="open-reservation"
+            onClick={() => onOpenReservation(view.id)}
           >
             {CREATE_RESERVATION_OPEN_RESERVATION_LABEL}
-          </Link>
-        </Button>
+          </Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link
+              to="/restaurant/pms/reservations/$reservationId"
+              params={{ reservationId: view.id }}
+              data-testid="open-reservation"
+            >
+              {CREATE_RESERVATION_OPEN_RESERVATION_LABEL}
+            </Link>
+          </Button>
+        )}
+        {onReturnToDesk ? (
+          <Button type="button" variant="outline" onClick={onReturnToDesk}>
+            Return to Reservation Desk
+          </Button>
+        ) : null}
+        {onCreateAnother ? (
+          <Button type="button" variant="outline" onClick={onCreateAnother}>
+            New Reservation
+          </Button>
+        ) : null}
       </div>
 
       <style>{`

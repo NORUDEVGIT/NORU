@@ -433,6 +433,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
   it("AC-GE2-23 stay paths that already touch this guest warn", () => {
     const walkIn = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const amend = readRel("../components/frontoffice/fo-amend-sheet.tsx");
+    const booking = readRel("../components/bookings/create-reservation-page.tsx");
     const bookingGuest = readRel("../components/bookings/create-reservation-guest.tsx");
     const reservation = readRel("../components/workspaces/reservation-detail-workspace.tsx");
     assert.equal(

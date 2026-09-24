@@ -157,7 +157,15 @@ export function FoCheckOutStepper({
       });
     // Folio open is a Step B entry side-effect; refetch is owned by the query.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step, restaurantId, stay.id, ctx?.folio.folioId, contextQuery.isLoading, contextQuery.isError]);
+  }, [
+    open,
+    step,
+    restaurantId,
+    stay.id,
+    ctx?.folio.folioId,
+    contextQuery.isLoading,
+    contextQuery.isError,
+  ]);
 
   const stayOk = canContinueStay({
     loaded: Boolean(ctx) && !contextQuery.isLoading,
@@ -246,8 +254,7 @@ export function FoCheckOutStepper({
   });
 
   const emailMut = useMutation({
-    mutationFn: () =>
-      emailFn({ data: { restaurantId, reservationId: stay.id, toEmail: emailTo } }),
+    mutationFn: () => emailFn({ data: { restaurantId, reservationId: stay.id, toEmail: emailTo } }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -368,7 +375,7 @@ export function FoCheckOutStepper({
         <SheetContent
           side="right"
           data-testid="fo-check-out-stepper"
-          className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+          className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
         >
           <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
             <SheetTitle className="text-[#251605]">Check out</SheetTitle>
@@ -387,7 +394,8 @@ export function FoCheckOutStepper({
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
                         state === "done" && "bg-[#436436]/15 text-[#436436]",
-                        state === "current" && "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
+                        state === "current" &&
+                          "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
                         state === "blocked" && "bg-destructive/10 text-destructive",
                         state === "locked" && "bg-[#CCCCCC]/40 text-muted-foreground",
                       )}
@@ -408,7 +416,9 @@ export function FoCheckOutStepper({
               <PermissionDeniedPanel message={errorText(contextQuery.error)} />
             ) : (
               <>
-                {denyMessage ? <PermissionDeniedPanel className="mb-4" message={denyMessage} /> : null}
+                {denyMessage ? (
+                  <PermissionDeniedPanel className="mb-4" message={denyMessage} />
+                ) : null}
 
                 {step === "stay" ? (
                   <div className="space-y-4">
@@ -419,19 +429,27 @@ export function FoCheckOutStepper({
                     ) : null}
                     <dl className="grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Guest
+                        </dt>
                         <dd>{guestLabel}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Room</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Room
+                        </dt>
                         <dd>{stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Stay
+                        </dt>
                         <dd>{dates}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guests</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Guests
+                        </dt>
                         <dd>
                           {stay.adults} adult{stay.adults === 1 ? "" : "s"}
                           {stay.children ? ` · ${stay.children} child` : ""}
@@ -443,7 +461,9 @@ export function FoCheckOutStepper({
                       {stay.overstay ? " · Overstay" : ""}
                     </p>
                     {stay.specialRequests ? (
-                      <p className="text-sm text-muted-foreground">Special requests: {stay.specialRequests}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Special requests: {stay.specialRequests}
+                      </p>
                     ) : null}
                     {ctx?.rateMissing ? (
                       <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
@@ -501,7 +521,8 @@ export function FoCheckOutStepper({
                   <div className="space-y-4">
                     {isFolioSettled(balance) ? (
                       <p className="rounded-xl bg-[#436436]/15 px-3 py-2 text-sm font-medium text-[#436436]">
-                        Settled{folio?.folioNumber ? ` · ${folio.folioNumber}` : ""} · {money(balance)}
+                        Settled{folio?.folioNumber ? ` · ${folio.folioNumber}` : ""} ·{" "}
+                        {money(balance)}
                       </p>
                     ) : isCreditBalance(balance) ? (
                       <>
@@ -512,7 +533,10 @@ export function FoCheckOutStepper({
                           Credit {money(Math.abs(balance))}
                           {folio?.folioNumber ? ` on ${folio.folioNumber}` : ""}.
                         </p>
-                        <Button asChild className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90">
+                        <Button
+                          asChild
+                          className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                        >
                           <a href={cashieringRefundHref(folio?.folioNumber)}>
                             {REFUND_IN_CASHIERING_CTA}
                           </a>
@@ -536,7 +560,9 @@ export function FoCheckOutStepper({
                             }}
                           />
                         </Field>
-                        <p className="text-xs text-muted-foreground">Outstanding {money(remaining)}.</p>
+                        <p className="text-xs text-muted-foreground">
+                          Outstanding {money(remaining)}.
+                        </p>
                         <div className="flex flex-wrap gap-2">
                           {SETTLEMENT_METHOD_CHIPS.map((chip) => (
                             <button
@@ -575,7 +601,9 @@ export function FoCheckOutStepper({
                     ) : overrideKind ? (
                       <div className="space-y-2 rounded-xl border border-border p-3">
                         <Label htmlFor="checkout-override">
-                          {overrideKind === "credit" ? OVERRIDE_CREDIT_TITLE : OVERRIDE_UNPAID_TITLE}
+                          {overrideKind === "credit"
+                            ? OVERRIDE_CREDIT_TITLE
+                            : OVERRIDE_UNPAID_TITLE}
                         </Label>
                         <Textarea
                           id="checkout-override"
@@ -625,10 +653,20 @@ export function FoCheckOutStepper({
                     <div className="space-y-3 rounded-xl border border-border p-3">
                       <p className="text-sm font-medium text-[#251605]">Guest document</p>
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" variant="outline" disabled={!snapshot} onClick={() => setDocumentOpen((v) => !v)}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!snapshot}
+                          onClick={() => setDocumentOpen((v) => !v)}
+                        >
                           View
                         </Button>
-                        <Button type="button" variant="outline" disabled={!snapshot} onClick={printDocument}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!snapshot}
+                          onClick={printDocument}
+                        >
                           Print
                         </Button>
                         <Button
@@ -642,7 +680,9 @@ export function FoCheckOutStepper({
                         </Button>
                       </div>
                       {!ctx?.emailConfigured ? (
-                        <p className="text-xs text-muted-foreground">{EMAIL_NOT_CONFIGURED_MESSAGE}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {EMAIL_NOT_CONFIGURED_MESSAGE}
+                        </p>
                       ) : (
                         <Field label="Guest email">
                           <Input
@@ -652,7 +692,9 @@ export function FoCheckOutStepper({
                           />
                         </Field>
                       )}
-                      {documentOpen && snapshot ? <CheckoutDocumentView snapshot={snapshot} /> : null}
+                      {documentOpen && snapshot ? (
+                        <CheckoutDocumentView snapshot={snapshot} />
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
@@ -782,7 +824,9 @@ function SummaryRow({ label, value, ok }: { label: string; value: string; ok: bo
   return (
     <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>{value}</span>
+      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -792,9 +836,7 @@ function CheckoutDocumentView({ snapshot }: { snapshot: CheckOutDocumentSnapshot
     <div className="fo-check-out-document space-y-2 bg-white px-3 py-4 text-[#251605]">
       <p className="text-[10px] uppercase tracking-[0.16em] text-[#C89933]">NORU</p>
       <p className="font-display text-lg">{snapshot.propertyName}</p>
-      <p className="text-sm">
-        Guest document · Folio {snapshot.folioNumber}
-      </p>
+      <p className="text-sm">Guest document · Folio {snapshot.folioNumber}</p>
       <p className="text-sm">
         {snapshot.guestName} · {snapshot.confirmationNumber}
       </p>
@@ -806,7 +848,9 @@ function CheckoutDocumentView({ snapshot }: { snapshot: CheckOutDocumentSnapshot
         {snapshot.lines.map((line, index) => (
           <li key={`${line.description}-${index}`} className="flex justify-between gap-3">
             <span>{line.description}</span>
-            <span className="tabular-nums">{formatCheckoutMoney(line.amount, snapshot.currency)}</span>
+            <span className="tabular-nums">
+              {formatCheckoutMoney(line.amount, snapshot.currency)}
+            </span>
           </li>
         ))}
       </ul>
@@ -816,7 +860,9 @@ function CheckoutDocumentView({ snapshot }: { snapshot: CheckOutDocumentSnapshot
         Balance {formatCheckoutMoney(snapshot.balance, snapshot.currency)}
       </p>
       {snapshot.overrideOpen ? (
-        <p className="rounded-full bg-[#C89933] px-2.5 py-1 text-xs font-semibold">{FOLIO_LEFT_OPEN_CHIP}</p>
+        <p className="rounded-full bg-[#C89933] px-2.5 py-1 text-xs font-semibold">
+          {FOLIO_LEFT_OPEN_CHIP}
+        </p>
       ) : null}
     </div>
   );

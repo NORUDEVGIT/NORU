@@ -317,6 +317,8 @@ export const AMENDMENT_EVENT_LABELS: Record<string, string> = {
   stay_dates_changed: "Stay dates changed",
   priced: "Repriced",
   repriced: "Repriced",
+  expected_arrival_updated: "Expected arrival updated",
+  late_checkout_updated: "Late checkout updated",
 };
 
 export function amendmentEventLabel(eventType: string): string {

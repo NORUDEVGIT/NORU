@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/
 const NAV_ITEMS = [
   { label: "Front Office", to: "/restaurant/pms/front-office" },
   { label: "Reservations", to: "/restaurant/pms/reservations" },
-  { label: "Rooms & Inventory", to: "/restaurant/pms/room-inventory", active: true },
+  { label: "Rooms & Inventory", to: "/restaurant/pms/room-inventory" },
   { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
   { label: "F&B", to: "/restaurant/restaurant-management/dashboard" },
   { label: "Reports", to: "/restaurant/pms/reports" },
@@ -27,10 +27,18 @@ const NAV_ITEMS = [
 export function RoomInventoryChrome({
   membership,
   onRoomSearch,
+  activeModule = "Rooms & Inventory",
+  searchPlaceholder = "Search room…",
+  helpLabel = "Room & Inventory operational workspace",
+  shellTestId = "room-inventory-command-shell",
   children,
 }: {
   membership: RestaurantMembership;
   onRoomSearch: (value: string) => void;
+  activeModule?: (typeof NAV_ITEMS)[number]["label"];
+  searchPlaceholder?: string;
+  helpLabel?: string;
+  shellTestId?: string;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
@@ -54,7 +62,7 @@ export function RoomInventoryChrome({
 
   return (
     <PmsCommandChrome
-      shellTestId="room-inventory-command-shell"
+      shellTestId={shellTestId}
       contentClassName="p-0"
       useDefaultControls={false}
       onGuestSearch={() => void navigate({ to: "/restaurant/pms/guests" })}
@@ -72,9 +80,9 @@ export function RoomInventoryChrome({
               <Link
                 key={item.label}
                 to={item.to}
-                aria-current={item.active ? "page" : undefined}
+                aria-current={item.label === activeModule ? "page" : undefined}
                 className={
-                  item.active
+                  item.label === activeModule
                     ? "border-b-2 border-[#C89933] px-2.5 py-2 text-xs font-medium text-white"
                     : "border-b-2 border-transparent px-2.5 py-2 text-xs text-white/75 transition-colors hover:text-white"
                 }
@@ -89,7 +97,7 @@ export function RoomInventoryChrome({
         <div className="border-b border-border bg-card px-3 py-2 lg:hidden">
           <select
             aria-label="PMS module"
-            value="/restaurant/pms/room-inventory"
+            value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
             onChange={(event) => window.location.assign(event.target.value)}
             className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
@@ -125,7 +133,7 @@ export function RoomInventoryChrome({
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search room…"
+                placeholder={searchPlaceholder}
                 className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
               />
             </label>
@@ -135,12 +143,12 @@ export function RoomInventoryChrome({
               <button
                 type="button"
                 className="rounded-lg p-1.5 text-white/75 hover:bg-white/10 hover:text-white"
-                aria-label="Room & Inventory help"
+                aria-label={`${activeModule} help`}
               >
                 <HelpCircle className="size-4" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>Room & Inventory operational workspace</TooltipContent>
+            <TooltipContent>{helpLabel}</TooltipContent>
           </Tooltip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

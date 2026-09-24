@@ -1,37 +1,10 @@
-import { useEffect, useState } from "react";
-import { createFileRoute, redirect, Link } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
-import { CreateReservationRoomType, OccupancySoftWarn } from "@/packages/pms/components/bookings/create-reservation-room-type";
-import { CreateReservationRate } from "@/packages/pms/components/bookings/create-reservation-rate";
-import { CreateReservationRoomAssignment } from "@/packages/pms/components/bookings/create-reservation-room-assignment";
-import { CreateReservationPackages } from "@/packages/pms/components/bookings/create-reservation-packages";
-import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/create-reservation-guarantee";
-import { CreateReservationConfirmation } from "@/packages/pms/components/bookings/create-reservation-confirmation";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { Button } from "@/shared/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/shared/components/ui/alert-dialog";
-import { addDays, formatStayDate, propertyToday } from "@/packages/pms/components/bookings/reservation-bits";
-import { CreateReservationContext } from "@/packages/pms/components/bookings/create-reservation-context";
-import { CreateReservationAssociations } from "@/packages/pms/components/bookings/create-reservation-associations";
-import {
-  CreateReservationGuest,
-  type PickedReservationGuest,
-} from "@/packages/pms/components/bookings/create-reservation-guest";
-import { CreateReservationStay } from "@/packages/pms/components/bookings/create-reservation-stay";
+import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED } from "@/packages/pms/lib/create-reservation-phase1";
 import { getGuestsAccess, getGuest, getGuestReservationPreferenceDefaults } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
@@ -152,10 +125,14 @@ export const Route = createFileRoute("/restaurant/bookings/new")({
       { title: "New Reservation — Front Office — NORU" },
       {
         name: "description",
-        content: "Create a hotel reservation: pick the guest, stay dates, room type and optional room assignment.",
+        content:
+          "Create a hotel reservation: pick the guest, stay dates, room type and optional room assignment.",
       },
       { property: "og:title", content: "New Reservation — NORU" },
-      { property: "og:description", content: "Create a reservation with live room-type availability." },
+      {
+        property: "og:description",
+        content: "Create a reservation with live room-type availability.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -170,7 +147,7 @@ function NewReservationRoute() {
       active="New Reservation"
       sidebarDefaultCollapsed={CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED}
     >
-      {(m) => <NewReservationPage membership={m} />}
+      {(m) => <CreateReservationPage membership={m} />}
     </RestaurantShell>
   );
 }
