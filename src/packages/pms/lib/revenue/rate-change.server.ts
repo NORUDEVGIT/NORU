@@ -351,6 +351,7 @@ export async function listRateChangeHistory(
     restaurantId: string;
     from?: string;
     to?: string;
+    stayDate?: string;
     ratePlanId?: string;
     roomTypeId?: string;
     actionType?: RateChangeActionType;
@@ -373,6 +374,7 @@ export async function listRateChangeHistory(
 
   if (query.from) request = request.gte("created_at", `${query.from}T00:00:00.000Z`);
   if (query.to) request = request.lte("created_at", `${query.to}T23:59:59.999Z`);
+  if (query.stayDate) request = request.eq("stay_date", query.stayDate);
   if (query.ratePlanId) request = request.eq("rate_plan_id", query.ratePlanId);
   if (query.roomTypeId) request = request.eq("room_type_id", query.roomTypeId);
   if (query.actionType) request = request.eq("action_type", query.actionType);

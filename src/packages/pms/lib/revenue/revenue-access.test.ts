@@ -92,10 +92,13 @@ describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
     assert.equal(requiredCapabilityForView("export"), "canExport");
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
     const tabs = readRel("../../components/rates/rates-tabs.tsx");
+    const drawer = readRel("../../components/rates/rate-detail/rate-detail-drawer.tsx");
     assert.match(workspace, /getRevenueAccess/);
     assert.match(workspace, /!access\?\.canView/);
     assert.match(workspace, /canAccessRevenueView/);
-    assert.match(workspace, /canEditDailyRates=\{access\?\.canEditDailyRates === true\}/);
+    assert.match(workspace, /<RateCalendarView/);
+    assert.match(workspace, /access=\{access!\}/);
+    assert.match(drawer, /canEdit=\{access.canEditDailyRates\}/);
     assert.match(workspace, /canApplyRestrictions=\{access\?\.canApplyRestrictions === true\}/);
     assert.doesNotMatch(workspace, /membership\.role === "owner"/);
     assert.match(tabs, /disabled=\{mutation\.isPending \|\| !canEditDailyRates\}/);

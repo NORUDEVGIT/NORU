@@ -219,6 +219,7 @@ export const rateChangeHistoryQuerySchema = z.object({
   restaurantId: z.string().uuid(),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
+  stayDate: isoDateSchema.optional(),
   ratePlanId: z.string().uuid().optional(),
   roomTypeId: z.string().uuid().optional(),
   actionType: z.enum(RATE_CHANGE_ACTION_TYPES).optional(),

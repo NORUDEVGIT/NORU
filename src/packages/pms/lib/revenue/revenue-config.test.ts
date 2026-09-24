@@ -180,7 +180,7 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     assert.match(workspace, /RevenueContextBar/);
     assert.match(workspace, /contextFieldsForView\(requestedView\)/);
     assert.match(workspace, /roomTypeId=\{context\.roomTypeId\}/);
-    assert.match(workspace, /RateCalendarTab/);
+    assert.match(workspace, /RateCalendarView/);
     assert.match(workspace, /fromDate: context\.fromDate/);
     assert.match(workspace, /ratePlanId: context\.ratePlanId/);
     assert.match(workspace, /RevenueControlView/);

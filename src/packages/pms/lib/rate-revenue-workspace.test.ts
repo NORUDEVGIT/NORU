@@ -56,7 +56,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     const workspace = readRel("../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /<RevenueControlView /);
     assert.match(workspace, /<RatePlansTab /);
-    assert.match(workspace, /<RateCalendarTab/);
+    assert.match(workspace, /<RateCalendarView/);
     assert.match(workspace, /<RateRestrictionsTab/);
     assert.match(workspace, /case "control-center"/);
     assert.match(workspace, /case "rate-plans-reference"/);

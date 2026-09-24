@@ -67,8 +67,8 @@ There was **no** atomic bulk apply path. A JS loop of `saveRateOverride` would n
 | UI | Screen | Domain ready? | UI ready? |
 |---|---|---|---|
 | UI-01 | Revenue Control | **Yes** — `getRevenueControlWorkspace` | **Yes** — RR-P2-02 (booked metrics, no forecast/approvals) |
-| UI-02 | Rate Calendar | Calendar writer exists | **No redesign** in this prompt |
-| UI-03 | Rate Detail & Edit | **Yes** — `previewRateChanges` / `applyRateChanges` | **No drawer** |
+| UI-02 | Rate Calendar | **Yes** — `getRevenueRateCalendar` | **Yes** — RR-P2-03 matrix |
+| UI-03 | Rate Detail & Edit | **Yes** — `previewRateChanges` / `applyRateChanges` | **Yes** — RR-P2-03 drawer |
 | UI-04 | Bulk Rate Change | **Yes** — same APIs, atomic RPC | **Foundation only** |
 | UI-05 | Impact Review | **Yes** — deterministic preview, no forecast | **No screen** |
 | UI-06 | Rate Change History | **Yes** — paginated read APIs | **Foundation only** |

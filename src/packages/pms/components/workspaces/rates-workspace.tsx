@@ -8,11 +8,12 @@ import { RateRevenueChrome } from "@/packages/pms/components/rates/rate-revenue-
 import { RevenueFoundationView } from "@/packages/pms/components/rates/revenue-foundation-view";
 import { RevenueContextBar } from "@/packages/pms/components/rates/revenue-context-bar";
 import { RevenueControlView } from "@/packages/pms/components/rates/revenue-control/revenue-control-view";
+import { RateCalendarView } from "@/packages/pms/components/rates/rate-calendar/rate-calendar-view";
 import {
-  RateCalendarTab,
   RatePlansTab,
   RateRestrictionsTab,
 } from "@/packages/pms/components/rates/rates-tabs";
+import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
 import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
 import {
@@ -201,7 +202,16 @@ export function RatesWorkspace({
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
-    if (requestedView !== "rate-calendar" && requestedView !== "restrictions") return;
+    if (requestedView !== "rate-calendar") return;
+    if (search.from || search.to) return;
+    const range = defaultRateCalendarRange(businessDate);
+    if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
+    writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+  }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
+
+  useEffect(() => {
+    if (!baseQuery.isSuccess) return;
+    if (requestedView !== "restrictions") return;
     if (context.ratePlanId) return;
     const compatible = ratePlans.filter(
       (plan) => !context.roomTypeId || plan.roomTypeId === context.roomTypeId,
@@ -228,16 +238,12 @@ export function RatesWorkspace({
         return <RatePlansTab restaurantId={restaurantId} roomTypeId={context.roomTypeId} />;
       case "rate-calendar":
         return (
-          <RateCalendarTab
+          <RateCalendarView
             restaurantId={restaurantId}
-            today={today}
-            canEditDailyRates={access?.canEditDailyRates === true}
-            context={{
-              fromDate: context.fromDate,
-              toDate: context.toDate,
-              roomTypeId: context.roomTypeId,
-              ratePlanId: context.ratePlanId,
-            }}
+            context={context}
+            access={access!}
+            businessDate={businessDate}
+            onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
           />
         );
       case "restrictions":

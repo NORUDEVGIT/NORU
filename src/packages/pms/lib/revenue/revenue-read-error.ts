@@ -1,6 +1,7 @@
 /** Generic UI copy for core Rate & Revenue read failures. Do not surface raw DB grants. */
 export const REVENUE_CONFIG_LOAD_ERROR = "Revenue configuration could not be loaded.";
 export const REVENUE_CONTROL_LOAD_ERROR = "Revenue Control could not load.";
+export const RATE_CALENDAR_LOAD_ERROR = "Rate Calendar could not load.";
 
 export function isPrivilegedDbError(message: string): boolean {
   return /permission denied|row-level security|42501/i.test(message);
