@@ -322,7 +322,7 @@ export function RateCalendarTab({ restaurantId, today }: { restaurantId: string;
 
       {!picker.ratePlanId ? (
         <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          Create an active rate plan to manage daily rates.
+          No active rate plan is available. Configure rate plans in <PropertySetupRatesLink /> before setting daily rates.
         </p>
       ) : calendarQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading rates…</p>
