@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { requireRoomManager } from "./rooms.server";
 import {
+  DEFAULT_BUSINESS_CONTACT_ROLES,
   DEFAULT_BUSINESS_FIELDS,
   DEFAULT_BUSINESS_PROFILE_TYPES,
   emptyBusinessSettings,
@@ -14,6 +15,8 @@ import {
   staleRequiredFieldIds,
   validateBusinessSettings,
   validateBusinessTypeDraft,
+  validateContactRoleDraft,
+  type BusinessContactRoleRecord,
   type BusinessFieldOption,
   type BusinessProfileSettings,
   type BusinessProfileSnapshot,
@@ -306,7 +309,63 @@ async function loadSnapshot(
     return latest;
   }, null);
 
-  return { types, settings, fields, lastUpdatedAt };
+  const rolesRes = await db
+    .from("pms_business_contact_roles")
+    .select("id, name, code, active, created_at, updated_at")
+    .eq("restaurant_id", restaurantId)
+    .order("name");
+  let roles: BusinessContactRoleRecord[] = [];
+  if (!rolesRes.error) {
+    if ((rolesRes.data ?? []).length === 0) {
+      await db.from("pms_business_contact_roles").insert(
+        DEFAULT_BUSINESS_CONTACT_ROLES.map((row) => ({
+          restaurant_id: restaurantId,
+          name: row.name,
+          code: row.code,
+          active: true,
+          updated_by: userId,
+        })),
+      );
+      const seeded = await db
+        .from("pms_business_contact_roles")
+        .select("id, name, code, active, created_at, updated_at")
+        .eq("restaurant_id", restaurantId)
+        .order("name");
+      roles = ((seeded.data ?? []) as Array<{
+        id: string;
+        name: string;
+        code: string;
+        active: boolean;
+        created_at: string;
+        updated_at: string;
+      }>).map((row) => ({
+        id: row.id,
+        name: row.name,
+        code: row.code,
+        active: row.active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    } else {
+      roles = (rolesRes.data as Array<{
+        id: string;
+        name: string;
+        code: string;
+        active: boolean;
+        created_at: string;
+        updated_at: string;
+      }>).map((row) => ({
+        id: row.id,
+        name: row.name,
+        code: row.code,
+        active: row.active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    }
+  }
+
+  return { types, settings, fields, roles, lastUpdatedAt };
 }
 
 export { loadSnapshot as loadCompanyBusinessCard4Snapshot };
@@ -467,6 +526,71 @@ export const savePmsCard4BusinessSettings = createServerFn({ method: "POST" })
       enabled: data.enabled,
       defaultBusinessTypeId: data.defaultBusinessTypeId,
       autoApproval: data.autoApproval,
+    });
+    return { ok: true as const };
+  });
+
+const roleSaveSchema = z
+  .object({
+    restaurantId: idSchema,
+    id: idSchema.optional(),
+    name: z.string().max(80),
+    code: z.string().max(12),
+    active: z.boolean(),
+  })
+  .strict();
+
+export const savePmsCard4ContactRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => roleSaveSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+    const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
+    const name = normalizeBusinessTypeName(data.name);
+    const code = normalizeBusinessTypeCode(data.code);
+    const errors = validateContactRoleDraft(
+      { id: data.id ?? null, name, code, active: data.active },
+      snapshot.roles,
+    );
+    if (errors.length > 0) throw new Error(errors[0]?.message ?? "Fix the contact role before saving.");
+    const payload = {
+      restaurant_id: data.restaurantId,
+      name,
+      code,
+      active: data.active,
+      updated_by: context.userId,
+    };
+    const result = data.id
+      ? await db.from("pms_business_contact_roles").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      : await db.from("pms_business_contact_roles").insert(payload).select("id").single();
+    if (result.error) unavailable(result.error);
+    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_contact_role_saved", {
+      id: data.id ?? (result.data as { id?: string } | null)?.id,
+      code,
+    });
+    return { ok: true as const };
+  });
+
+export const setPmsCard4ContactRoleActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+    const result = await db
+      .from("pms_business_contact_roles")
+      .update({ active: data.active, updated_by: context.userId })
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (result.error) unavailable(result.error);
+    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_contact_role_toggled", {
+      id: data.id,
+      active: data.active,
     });
     return { ok: true as const };
   });

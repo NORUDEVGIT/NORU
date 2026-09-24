@@ -5,12 +5,15 @@
  * or store values on guest_preferences.
  */
 
-export const PREFERENCE_VALUE_TYPES = ["single", "multi"] as const;
+export const PREFERENCE_VALUE_TYPES = ["single", "multi", "yes_no", "text", "number"] as const;
 export type PreferenceValueType = (typeof PREFERENCE_VALUE_TYPES)[number];
 
 export const PREFERENCE_VALUE_TYPE_LABELS: Record<PreferenceValueType, string> = {
   single: "Select (Single Choice)",
   multi: "Multiple Choice",
+  yes_no: "Yes / No",
+  text: "Text",
+  number: "Number",
 };
 
 export type PreferenceOption = {
@@ -281,12 +284,13 @@ export function preferencesConfigured(
   const activeCategories = categories.filter((row) => row.active);
   if (activeCategories.length === 0) return false;
   return activeCategories.every((category) =>
-    types.some(
-      (row) =>
-        row.categoryId === category.id &&
-        row.active &&
-        row.options.some((option) => option.label.trim() && option.value.trim()),
-    ),
+    types.some((row) => {
+      if (row.categoryId !== category.id || !row.active) return false;
+      if (row.valueType === "yes_no" || row.valueType === "text" || row.valueType === "number") {
+        return true;
+      }
+      return row.options.some((option) => option.label.trim() && option.value.trim());
+    }),
   );
 }
 
@@ -348,7 +352,7 @@ export function validatePreferenceTypeDraft(
     });
   }
   if (!isPreferenceValueType(draft.valueType)) {
-    errors.push({ field: "valueType", message: "Choose single or multiple choice." });
+    errors.push({ field: "valueType", message: "Choose a valid value type." });
   }
   if (!Number.isInteger(draft.displayOrder) || draft.displayOrder < 1) {
     errors.push({
@@ -375,8 +379,9 @@ export function validatePreferenceTypeDraft(
   if (!draft.active && draft.required) {
     errors.push({ field: "required", message: "An inactive preference cannot be required." });
   }
+  const needsOptions = draft.valueType === "single" || draft.valueType === "multi";
   const live = draft.options.filter((row) => row.label.trim() && row.value.trim());
-  if (live.length === 0) {
+  if (needsOptions && live.length === 0) {
     errors.push({ field: "options", message: "Add at least one option." });
   }
   const labels = new Set<string>();

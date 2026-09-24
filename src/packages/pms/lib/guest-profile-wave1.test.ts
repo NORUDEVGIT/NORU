@@ -16,6 +16,7 @@ import {
   GUEST_PROFILE_OPEN_DIRECTORY_LABEL,
   GUEST_PROFILE_TITLE,
   GUEST_PROFILE_TYPES,
+  GUEST_PROFILE_WORKSPACE_NAV,
   comingInWaveLabel,
   defaultGuestProfileCard,
   guestProfileCardSearch,
@@ -23,6 +24,7 @@ import {
   isGuestProfileNavCard,
   isGuestRequiredProfileCard,
   parseGuestProfileCardSearch,
+  parseGuestProfileWorkspaceNav,
   showEmptyDirectoryCta,
 } from "./guest-profile-wave1.ts";
 
@@ -55,7 +57,7 @@ describe("Guest Profile Wave 1 catalogue", () => {
   });
 
   it("exposes ten individual cards with Directory, Information, Identity, Preferences, Stay History and Dashboard LIVE", () => {
-    assert.equal(GUEST_PROFILE_CARDS.length, 10);
+    assert.equal(GUEST_PROFILE_CARDS.length, 12);
     const live = GUEST_PROFILE_CARDS.filter((card) => card.live).map((card) => card.id);
     assert.deepEqual(live, [
       "dashboard",
@@ -68,6 +70,8 @@ describe("Guest Profile Wave 1 catalogue", () => {
       "relationships",
       "notes-comms",
       "admin-privacy",
+      "services",
+      "financial",
     ]);
     for (const card of GUEST_PROFILE_CARDS) {
       if (card.live) continue;
@@ -77,7 +81,7 @@ describe("Guest Profile Wave 1 catalogue", () => {
       assert.equal(comingInWaveLabel(card.wave), `Coming in Wave ${card.wave}`);
     }
     assert.equal(defaultGuestProfileCard(false), "directory");
-    assert.equal(defaultGuestProfileCard(true), "information");
+    assert.equal(defaultGuestProfileCard(true), "dashboard");
   });
 
   it("keeps Company, Group and TA LIVE with Guest-owned master CRUD", () => {
@@ -121,30 +125,73 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.doesNotMatch(functions, /guest_profiles_wave|guest_profile_v2/);
   });
 
-  it("uses a directory-first landing with compact global KPIs and compact profile sections", () => {
+  it("uses a directory-first listing workspace with property stats and compact profile sections", () => {
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
     const functions = readRel("./guests.functions.ts");
-    assert.match(directory, /Guest Profiles/);
-    assert.match(directory, /Search, manage and open guest profiles/);
-    assert.match(directory, /guest-directory-kpis/);
-    assert.match(directory, /Total guests/);
-    assert.match(directory, /Returning guests/);
+    assert.match(listing, /Guest Profile/);
+    assert.match(listing, /Search, manage and open guest profiles/);
+    assert.match(listing, /guest-workspace-stats/);
+    assert.match(listing, /Total Profiles/);
     assert.match(functions, /export const getGuestDirectoryStats/);
+    assert.match(functions, /export const getGuestWorkspaceStats/);
     assert.match(functions, /requireGuestManager/);
     assert.match(functions, /count > 1/);
+    assert.match(shell, /GuestListingWorkspace/);
     assert.match(shell, /guest-profile-section-nav/);
-    assert.match(shell, /isGuestProfileNavCard/);
+    assert.match(shell, /GUEST_PROFILE_WORKSPACE_NAV/);
     assert.match(shell, /overflow-x-auto/);
     assert.doesNotMatch(shell, /sm:grid-cols-2 xl:grid-cols-5/);
+    assert.match(directory, /guest-listing-table/);
     assert.deepEqual(
-      GUEST_PROFILE_CARDS.filter((card) => isGuestProfileNavCard(card.id)).map((card) => card.id),
-      ["dashboard", "information", "identity", "stay-history", "preferences", "relationships"],
+      GUEST_PROFILE_WORKSPACE_NAV.map((item) => item.id),
+      [
+        "overview",
+        "personal",
+        "contact",
+        "identity",
+        "preferences",
+        "business",
+        "bookings",
+        "services",
+        "financial",
+        "notes",
+        "history",
+      ],
     );
     assert.equal(isGuestProfileNavCard("loyalty"), false);
     assert.equal(isGuestProfileNavCard("notes-comms"), false);
     assert.equal(isGuestProfileNavCard("admin-privacy"), false);
     assert.equal(isGuestProfileNavCard("directory"), false);
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "stays" }), "bookings");
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "reservations" }), "bookings");
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "reservations", type: "company" }),
+      "reservations",
+    );
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "contacts" }), "contacts");
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "bookings" }), "bookings");
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "commission", type: "travel-agent" }),
+      "commission",
+    );
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "settings", type: "travel-agent" }),
+      "settings",
+    );
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "agreements", type: "travel-agent" }),
+      "agreements",
+    );
+    assert.equal(
+      GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === "bookings")?.title,
+      "Stays & Reservations",
+    );
+    assert.equal(
+      GUEST_PROFILE_WORKSPACE_NAV.filter((item) => item.card === "stay-history").length,
+      1,
+    );
     assert.equal(isGuestRequiredProfileCard("loyalty"), true);
     assert.equal(isGuestRequiredProfileCard("notes-comms"), true);
     assert.equal(isGuestRequiredProfileCard("admin-privacy"), true);
@@ -219,7 +266,7 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     assert.deepEqual(guestProfileCardSearch("dashboard"), { card: "dashboard" });
     assert.deepEqual(guestProfileCardSearch("directory"), {});
     assert.equal(initialGuestProfileCard(true, "identity"), "identity");
-    assert.equal(initialGuestProfileCard(true), "information");
+    assert.equal(initialGuestProfileCard(true), "dashboard");
     assert.equal(initialGuestProfileCard(false, "dashboard"), "directory");
 
     const header = readRel("../components/guests/guest-profile-header.tsx");
@@ -228,7 +275,7 @@ describe("Guest Profile Directory-back — AC-DIR-1…7 (Spec §5.15)", () => {
     const indexRoute = readRel("../../../routes/restaurant/pms/guests.index.tsx");
     const detailRoute = readRel("../../../routes/restaurant/pms/guests.$guestId.tsx");
     assert.match(header, /guestProfileSearch\(\{ card: returnCard, type: profileType \}\)/);
-    assert.match(directory, /guestProfileCardSearch\(returnCard\)/);
+    assert.match(directory, /guestProfileSearch\(\{ card: returnCard, type: "individual" \}\)/);
     assert.match(shell, /initialGuestProfileCard/);
     assert.match(indexRoute, /parseGuestProfileSearch/);
     assert.match(detailRoute, /parseGuestProfileSearch/);
@@ -294,7 +341,7 @@ describe("Guest Profile empty guest — AC-EMPTY-1…6 (Spec §5.16)", () => {
     assert.match(open, /guestProfileSearch\(\{ card: fromCard, type: profileType \}\)/);
     assert.match(shell, /setCard\("directory"\)/);
     assert.match(shell, /returnCard \?\? emptyReturnCard/);
-    assert.match(directory, /guestProfileCardSearch\(returnCard\)/);
+    assert.match(directory, /guestProfileSearch\(\{ card: returnCard, type: "individual" \}\)/);
     assert.deepEqual(guestProfileCardSearch("dashboard"), { card: "dashboard" });
     assert.deepEqual(guestProfileCardSearch("stay-history"), { card: "stay-history" });
     assert.equal(initialGuestProfileCard(true, "identity"), "identity");

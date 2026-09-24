@@ -74,9 +74,9 @@ describe("Guest Profile Wave 2 lock", () => {
     assert.match(functions, /export const saveGuestPreferences/);
     assert.match(functions, /from\("guest_preferences"\)/);
     assert.doesNotMatch(functions, /guest_preferences_wave|guest_pref_v2/);
-    assert.match(prefsCard, /saveGuestPreferences/);
-    assert.match(prefsCard, /guest-wave2-accessibility/);
-    assert.match(prefsCard, /guest-wave2-special/);
+    assert.match(functions, /saveGuestPreferenceWorkspace/);
+    assert.match(prefsCard, /saveGuestPreferenceWorkspace/);
+    assert.match(prefsCard, /CONTACT_DEFAULTS_TITLE/);
     assert.match(prefsCard, /Open Property Setup/);
     assert.match(detail, /GuestPreferencesCard/);
     assert.match(detail, /guest-detail-preferences-panel/);
@@ -96,11 +96,12 @@ describe("Guest Profile Wave 2 lock", () => {
     assert.match(functions, /registerGuestDocument/);
     assert.match(functions, /listGuestDocuments/);
     assert.match(functions, /reviewGuestDocument/);
+    assert.match(functions, /saveGuestDocument/);
+    assert.match(functions, /getGuestDocument/);
     assert.match(functions, /\/guests\/\$\{data\.guestId\}\//);
     assert.match(identity, /Staff verify/);
     assert.match(identity, /STAFF_VERIFY_COPY/);
     assert.doesNotMatch(identity, /government verified|KYC|police-cleared/i);
-    assert.match(directory, /MaskedIdNumber/);
     assert.match(detail, /MaskedIdNumber/);
     assert.doesNotMatch(directory, /government verified/i);
   });

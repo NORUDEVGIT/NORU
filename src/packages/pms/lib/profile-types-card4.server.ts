@@ -101,6 +101,12 @@ export const DEFAULT_PROFILE_TYPES = [
     description: "Contact person linked to another profile.",
     icon: "contact" as const,
   },
+  {
+    name: "Group",
+    code: "GRP",
+    description: "Group master for multi-guest stays.",
+    icon: "users" as const,
+  },
 ] as const;
 
 export type ProfileTypeDefaults = {

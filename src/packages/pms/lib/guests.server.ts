@@ -26,6 +26,8 @@ export const GUEST_EVENT_TYPES = [
   "document_uploaded",
   "document_verified",
   "document_rejected",
+  "document_updated",
+  "document_deleted",
   "merged_from",
   "merged_into",
   "consent_updated",
@@ -40,6 +42,9 @@ export const GUEST_EVENT_TYPES = [
   "restriction_set",
   "restriction_cleared",
   "restriction_lifted",
+  "photo_updated",
+  "service_request_created",
+  "service_request_updated",
 ] as const;
 export type GuestEventType = (typeof GUEST_EVENT_TYPES)[number];
 
@@ -53,6 +58,10 @@ export const GUEST_IMAGE_EXT_BY_TYPE: Record<string, string> = {
 /** Storage object path inside this property's guest namespace. */
 export function guestDocumentPath(restaurantId: string, guestId: string, ext: string): string {
   return `${restaurantId}/guests/${guestId}/${crypto.randomUUID()}.${ext}`;
+}
+
+export function guestPhotoPath(restaurantId: string, guestId: string, ext: string): string {
+  return `${restaurantId}/guests/${guestId}/photo-${crypto.randomUUID()}.${ext}`;
 }
 
 export function canManageGuests(role: string): boolean {

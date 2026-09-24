@@ -19,7 +19,7 @@ import {
   type TaLinkRole,
 } from "@/packages/pms/lib/guest-profile-travel-agency";
 import { GUEST_RELATIONSHIP_ROLE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
-import { listGuests } from "@/packages/pms/lib/guests.functions";
+import { guestListItems, listGuests } from "@/packages/pms/lib/guests.functions";
 
 export function GuestFormStagedGuestLinks({
   restaurantId,
@@ -85,10 +85,10 @@ export function GuestFormStagedGuestLinks({
       <div className="max-h-64 space-y-1 overflow-y-auto">
         {guestsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading guests…</p>
-        ) : (guestsQuery.data ?? []).length === 0 ? (
+        ) : guestListItems(guestsQuery.data).length === 0 ? (
           <p className="text-sm text-muted-foreground">No guests match this search.</p>
         ) : (
-          (guestsQuery.data ?? []).map((guest) => {
+          guestListItems(guestsQuery.data).map((guest) => {
             const key = `${guest.id}:${role}`;
             const checked = links.some((link) => link.key === key);
             return (

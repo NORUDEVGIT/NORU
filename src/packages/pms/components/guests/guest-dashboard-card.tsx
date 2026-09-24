@@ -7,6 +7,10 @@ import {
   WAVE3_DASHBOARD_CONTEXT,
   WAVE3_KPI_NOT_AVAILABLE,
 } from "@/packages/pms/lib/guest-profile-wave3";
+import {
+  OVERVIEW_BALANCE_PLACEHOLDER,
+  OVERVIEW_REVENUE_PLACEHOLDER,
+} from "@/packages/pms/lib/guest-profile-overview";
 import { getGuestStayOverview } from "@/packages/pms/lib/guests.functions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 
@@ -33,30 +37,10 @@ export function GuestDashboardCard({
     retry: false,
   });
 
-  if (overviewQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading dashboard…</p>;
-  }
-  if (overviewQuery.isError) {
-    return (
-      <div
-        className="rounded-2xl border border-dashed border-border bg-card p-6"
-        data-testid="guest-dashboard"
-      >
-        <h2 className="font-display text-xl" data-testid="guest-dashboard-guest-name">
-          {guestName}
-        </h2>
-        <p className="mt-1 text-sm font-medium">Guest summary</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {overviewQuery.error instanceof Error
-            ? overviewQuery.error.message
-            : "Dashboard figures could not be loaded."}
-        </p>
-      </div>
-    );
-  }
-
   const overview = overviewQuery.data;
-  if (!overview) return null;
+  const stayCount = overview?.stayCount ?? 0;
+  const nightCount = overview?.nightCount ?? 0;
+  const upcomingCount = overview?.upcomingCount ?? 0;
 
   return (
     <div className="space-y-4" data-testid="guest-dashboard">
@@ -70,41 +54,46 @@ export function GuestDashboardCard({
         <div className="grid min-w-[720px] grid-cols-5 divide-x divide-border">
           <SummaryItem
             label="Total stays"
-            value={overview.stayCount}
+            value={overviewQuery.isLoading ? "…" : stayCount}
             testId="guest-dashboard-kpi-stays"
           />
           <SummaryItem
             label="Total nights"
-            value={overview.nightCount}
+            value={overviewQuery.isLoading ? "…" : nightCount}
             testId="guest-dashboard-kpi-nights"
           />
           <SummaryItem
-            label="Last stay"
-            value={
-              overview.lastStay
-                ? formatStayDate(overview.lastStay.departureDate)
-                : WAVE3_KPI_NOT_AVAILABLE
-            }
-            testId="guest-dashboard-kpi-last-stay"
+            label="Upcoming stays"
+            value={overviewQuery.isLoading ? "…" : upcomingCount}
+            testId="guest-dashboard-kpi-upcoming"
           />
           <SummaryItem
-            label="Next stay"
-            value={
-              overview.nextStay
-                ? formatStayDate(overview.nextStay.arrivalDate)
-                : WAVE3_KPI_NOT_AVAILABLE
-            }
-            testId="guest-dashboard-kpi-next-stay"
+            label="Total revenue"
+            value={OVERVIEW_REVENUE_PLACEHOLDER}
+            testId="guest-dashboard-kpi-revenue"
           />
           <SummaryItem
-            label="VIP / loyalty"
-            value={vipStatus ? "VIP" : "Standard"}
-            testId="guest-dashboard-kpi-vip"
+            label="Outstanding balance"
+            value={OVERVIEW_BALANCE_PLACEHOLDER}
+            testId="guest-dashboard-kpi-outstanding"
           />
         </div>
       </div>
+      <div className="sr-only">
+        <span data-testid="guest-dashboard-kpi-last-stay">
+          {overview?.lastStay
+            ? formatStayDate(overview.lastStay.departureDate)
+            : WAVE3_KPI_NOT_AVAILABLE}
+        </span>
+        <span data-testid="guest-dashboard-kpi-next-stay">
+          {overview?.nextStay
+            ? formatStayDate(overview.nextStay.arrivalDate)
+            : WAVE3_KPI_NOT_AVAILABLE}
+        </span>
+        <span data-testid="guest-dashboard-kpi-vip">{vipStatus ? "VIP" : "Standard"}</span>
+      </div>
 
-      {showQuickActions && overview.featuredStay ? (
+      {showQuickActions && overview?.featuredStay ? (
         <div
           className="rounded-2xl border border-border bg-card p-5"
           data-testid="guest-dashboard-quick-actions"
@@ -121,7 +110,7 @@ export function GuestDashboardCard({
             <GuestStayActions stay={overview.featuredStay} access={overview.access} today={today} />
           </div>
         </div>
-      ) : showQuickActions && overview.stayCount === 0 ? (
+      ) : showQuickActions && stayCount === 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="guest-dashboard-quick-actions">
           Quick actions appear when this guest has an in-house or upcoming reservation.
         </p>
@@ -148,7 +137,7 @@ function SummaryItem({
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 truncate font-display text-lg">{value}</p>
+      <p className="mt-1 font-display text-lg leading-snug break-words">{value}</p>
     </div>
   );
 }

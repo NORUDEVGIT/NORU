@@ -785,6 +785,10 @@ export type Database = {
         Row: {
           amount: number
           category: string
+          accessibility_requirements: string | null
+          apply_to_future_reservations: boolean
+          bed_preference: string | null
+          communication_preference: string | null
           created_at: string
           description: string
           folio_id: string
@@ -800,6 +804,10 @@ export type Database = {
         Insert: {
           amount: number
           category: string
+          accessibility_requirements?: string | null
+          apply_to_future_reservations?: boolean
+          bed_preference?: string | null
+          communication_preference?: string | null
           created_at?: string
           description: string
           folio_id: string
@@ -815,6 +823,10 @@ export type Database = {
         Update: {
           amount?: number
           category?: string
+          accessibility_requirements?: string | null
+          apply_to_future_reservations?: boolean
+          bed_preference?: string | null
+          communication_preference?: string | null
           created_at?: string
           description?: string
           folio_id?: string
@@ -842,6 +854,82 @@ export type Database = {
             referencedRelation: "restaurant_users"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      guest_documents: {
+        Row: {
+          back_storage_path: string | null
+          created_at: string
+          document_number: string | null
+          expiry_date: string | null
+          guest_id: string
+          id: string
+          id_type_id: string | null
+          issue_date: string | null
+          issuing_authority: string | null
+          issuing_country: string | null
+          kind: string
+          mime_type: string | null
+          notes: string | null
+          rejection_reason: string | null
+          restaurant_id: string
+          size_bytes: number | null
+          storage_path: string | null
+          updated_at: string
+          uploaded_by_membership_id: string | null
+          verification_status: string
+          verified_at: string | null
+          verified_by_membership_id: string | null
+        }
+        Insert: {
+          back_storage_path?: string | null
+          created_at?: string
+          document_number?: string | null
+          expiry_date?: string | null
+          guest_id: string
+          id?: string
+          id_type_id?: string | null
+          issue_date?: string | null
+          issuing_authority?: string | null
+          issuing_country?: string | null
+          kind?: string
+          mime_type?: string | null
+          notes?: string | null
+          rejection_reason?: string | null
+          restaurant_id: string
+          size_bytes?: number | null
+          storage_path?: string | null
+          updated_at?: string
+          uploaded_by_membership_id?: string | null
+          verification_status?: string
+          verified_at?: string | null
+          verified_by_membership_id?: string | null
+        }
+        Update: {
+          back_storage_path?: string | null
+          created_at?: string
+          document_number?: string | null
+          expiry_date?: string | null
+          guest_id?: string
+          id?: string
+          id_type_id?: string | null
+          issue_date?: string | null
+          issuing_authority?: string | null
+          issuing_country?: string | null
+          kind?: string
+          mime_type?: string | null
+          notes?: string | null
+          rejection_reason?: string | null
+          restaurant_id?: string
+          size_bytes?: number | null
+          storage_path?: string | null
+          updated_at?: string
+          uploaded_by_membership_id?: string | null
+          verification_status?: string
+          verified_at?: string | null
+          verified_by_membership_id?: string | null
+        }
+        Relationships: [
           {
             foreignKeyName: "folio_transactions_restaurant_id_fkey"
             columns: ["restaurant_id"]

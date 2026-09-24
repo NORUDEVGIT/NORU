@@ -5,21 +5,15 @@ import { AlertTriangle, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import { GuestFormStagedGuestLinks } from "@/packages/pms/components/guests/guest-form-staged-guest-links";
+import { supabase } from "@/integrations/supabase/client";
 import { createGuestAccount, linkGuestAccount, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import {
   AGENCY_TYPE_LABELS,
   AGENCY_TYPES,
-  COMMISSION_TYPE_LABELS,
-  COMMISSION_TYPES,
-  CONTRACT_STATUS_LABELS,
-  CONTRACT_STATUSES,
-  PAYMENT_TERMS_REFERENCE_COPY,
-  TA_COMMISSION_REFERENCE_COPY,
-  TA_CONTRACT_COPY,
   TA_LICENSE_COPY,
   TA_MULTI_LINK_COPY,
   TA_PARTIAL_CREATE_COPY,
-  TA_RATE_REFERENCE_COPY,
   TA_STAGED_CREATE_COPY,
   validateAgencyType,
   type AgencyType,
@@ -27,6 +21,11 @@ import {
   type ContractStatus,
   type StagedGuestLink,
 } from "@/packages/pms/lib/guest-profile-travel-agency";
+import { TA_FORM_OPERATIONAL_COPY } from "@/packages/pms/lib/guest-travel-agent-detail-workspace";
+import {
+  createTravelAgentLogoUpload,
+  saveTravelAgentLogo,
+} from "@/packages/pms/lib/guest-travel-agent-detail.functions";
 import {
   type GuestAccountProfile,
   type GuestAccountStatus,
@@ -227,7 +226,10 @@ export function GuestTravelAgentFormDialog({
   const create = useServerFn(createGuestAccount);
   const update = useServerFn(updateGuestAccount);
   const submitLink = useServerFn(linkGuestAccount);
+  const startLogoUpload = useServerFn(createTravelAgentLogoUpload);
+  const persistLogo = useServerFn(saveTravelAgentLogo);
   const [form, setForm] = useState<TaFormValues>(EMPTY);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [stagedLinks, setStagedLinks] = useState<StagedGuestLink[]>([]);
   const [createdAccountId, setCreatedAccountId] = useState<string | null>(null);
   const [followupErrors, setFollowupErrors] = useState<string[]>([]);
@@ -235,6 +237,7 @@ export function GuestTravelAgentFormDialog({
   useEffect(() => {
     if (open) {
       setForm(account ? fromProfile(account) : EMPTY);
+      setLogoFile(null);
       setStagedLinks([]);
       setCreatedAccountId(null);
       setFollowupErrors([]);
@@ -298,6 +301,28 @@ export function GuestTravelAgentFormDialog({
     return errors.length === 0;
   }
 
+  async function uploadLogoIfNeeded(agencyId: string) {
+    if (!logoFile) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"] as const;
+    if (!(allowed as readonly string[]).includes(logoFile.type)) {
+      throw new Error("Logo must be JPG, PNG, or WebP.");
+    }
+    const ticket = await startLogoUpload({
+      data: {
+        restaurantId,
+        agencyId,
+        contentType: logoFile.type as (typeof allowed)[number],
+        size: logoFile.size,
+      },
+    });
+    const uploaded = await supabase.storage
+      .from("property-images")
+      .uploadToSignedUrl(ticket.path, ticket.token, logoFile);
+    if (uploaded.error) throw new Error("Logo upload failed.");
+    await persistLogo({ data: { restaurantId, agencyId, path: ticket.path } });
+    setLogoFile(null);
+  }
+
   const save = useMutation({
     mutationFn: async () => {
       if (form.name.trim() === "") throw new Error("Legal / agency name is required.");
@@ -305,17 +330,19 @@ export function GuestTravelAgentFormDialog({
       if (typeError) throw new Error(typeError);
       if (account) {
         await update({ data: { restaurantId, accountId: account.id, account: payload } });
+        await uploadLogoIfNeeded(account.id);
         return { id: account.id, complete: true as const };
       }
       const accountId = createdAccountId
         ? createdAccountId
         : (await create({ data: { restaurantId, accountType: "travel_agent", account: payload } })).id;
       setCreatedAccountId(accountId);
+      if (!createdAccountId) await uploadLogoIfNeeded(accountId);
       const complete = await applyStagedFollowups(accountId);
       return { id: accountId, complete };
     },
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["guest-accounts", restaurantId] });
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest-account", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId] });
       if (!result.complete) {
@@ -430,6 +457,16 @@ export function GuestTravelAgentFormDialog({
                 data-testid="ta-website"
                 value={form.website}
                 onChange={(e) => setForm((prev) => ({ ...prev, website: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="ta-logo">Logo</Label>
+              <Input
+                id="ta-logo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                data-testid="ta-logo"
+                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
               />
             </div>
           </Section>
@@ -601,166 +638,10 @@ export function GuestTravelAgentFormDialog({
             </div>
           </Section>
 
-          <Section id="commission" title="Commission">
-            <p className="text-xs text-muted-foreground">{TA_COMMISSION_REFERENCE_COPY}</p>
-            <div>
-              <Label htmlFor="ta-commission-label">Commission % or rule label</Label>
-              <Input
-                id="ta-commission-label"
-                data-testid="ta-commission-label"
-                value={form.commissionLabel}
-                onChange={(e) => setForm((prev) => ({ ...prev, commissionLabel: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Commission type</Label>
-              <Select
-                value={form.commissionType || "__none"}
-                onValueChange={(value) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    commissionType: value === "__none" ? "" : (value as CommissionType),
-                  }))
-                }
-              >
-                <SelectTrigger data-testid="ta-commission-type">
-                  <SelectValue placeholder="Choose type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">None</SelectItem>
-                  {COMMISSION_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {COMMISSION_TYPE_LABELS[type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="ta-commission-currency">Currency note</Label>
-              <Input
-                id="ta-commission-currency"
-                data-testid="ta-commission-currency"
-                value={form.commissionCurrencyNote}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, commissionCurrencyNote: e.target.value }))
-                }
-              />
-            </div>
-          </Section>
-
-          <Section id="contract" title="Contract">
-            <p className="text-xs text-muted-foreground">{TA_CONTRACT_COPY}</p>
-            <div>
-              <Label htmlFor="ta-contract-ref">Contract reference</Label>
-              <Input
-                id="ta-contract-ref"
-                data-testid="ta-contract-ref"
-                value={form.contractReference}
-                onChange={(e) => setForm((prev) => ({ ...prev, contractReference: e.target.value }))}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="ta-contract-start">Start date</Label>
-                <Input
-                  id="ta-contract-start"
-                  data-testid="ta-contract-start"
-                  type="date"
-                  value={form.contractStartDate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, contractStartDate: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="ta-contract-end">End date</Label>
-                <Input
-                  id="ta-contract-end"
-                  data-testid="ta-contract-end"
-                  type="date"
-                  value={form.contractEndDate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, contractEndDate: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Contract status</Label>
-              <Select
-                value={form.contractStatus || "__none"}
-                onValueChange={(value) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    contractStatus: value === "__none" ? "" : (value as ContractStatus),
-                  }))
-                }
-              >
-                <SelectTrigger data-testid="ta-contract-status">
-                  <SelectValue placeholder="Choose status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">None</SelectItem>
-                  {CONTRACT_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {CONTRACT_STATUS_LABELS[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="ta-contract-signed-with">Signed with</Label>
-              <Input
-                id="ta-contract-signed-with"
-                data-testid="ta-contract-signed-with"
-                value={form.contractSignedWith}
-                onChange={(e) => setForm((prev) => ({ ...prev, contractSignedWith: e.target.value }))}
-              />
-            </div>
-          </Section>
-
-          <Section id="rates" title="Rates">
-            <div>
-              <Label htmlFor="ta-rate-ref">Negotiated rate / allotment reference</Label>
-              <Input
-                id="ta-rate-ref"
-                data-testid="ta-rate-ref"
-                value={form.negotiatedRateReference}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, negotiatedRateReference: e.target.value }))
-                }
-              />
-              <p className="mt-1 text-xs text-muted-foreground">{TA_RATE_REFERENCE_COPY}</p>
-            </div>
-          </Section>
-
-          <Section id="payment-terms" title="Payment Terms">
-            <p className="text-xs text-muted-foreground">{PAYMENT_TERMS_REFERENCE_COPY}</p>
-            <div>
-              <Label htmlFor="ta-payment-terms">Terms code / label</Label>
-              <Input
-                id="ta-payment-terms"
-                data-testid="ta-payment-terms"
-                value={form.paymentTerms}
-                onChange={(e) => setForm((prev) => ({ ...prev, paymentTerms: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="ta-credit-limit">Credit limit note</Label>
-              <Input
-                id="ta-credit-limit"
-                data-testid="ta-credit-limit"
-                value={form.creditLimitNote}
-                onChange={(e) => setForm((prev) => ({ ...prev, creditLimitNote: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="ta-billing-instruction">Billing instruction</Label>
-              <Textarea
-                id="ta-billing-instruction"
-                data-testid="ta-billing-instruction"
-                value={form.billingInstruction}
-                onChange={(e) => setForm((prev) => ({ ...prev, billingInstruction: e.target.value }))}
-              />
-            </div>
+          <Section id="operations" title="Operational settings">
+            <p className="text-xs text-muted-foreground" data-testid="ta-form-operational-copy">
+              {TA_FORM_OPERATIONAL_COPY}
+            </p>
           </Section>
 
           <Section id="notes" title="Notes">

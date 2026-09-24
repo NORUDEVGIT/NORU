@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { GuestProfileWorkspace } from "@/packages/pms/components/workspaces/guest-profile-workspace";
 import { parseGuestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
+import { GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED } from "@/packages/pms/lib/guest-profile-listing";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/restaurant/pms/guests/$guestId")({
 
 function GuestProfileDetailRoute() {
   const { guestId } = Route.useParams();
-  const { card, type } = Route.useSearch();
+  const { card, type, nav } = Route.useSearch();
   return (
     <RestaurantShell
       active="Guests"
@@ -46,12 +47,14 @@ function GuestProfileDetailRoute() {
       pms
       pmsModule="guest-profile"
       pmsLeaf="Information"
+      sidebarDefaultCollapsed={GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED}
     >
       {(m) => (
         <GuestProfileWorkspace
           membership={m}
           guestId={guestId}
           returnCard={card}
+          returnNav={nav}
           profileType={type ?? "individual"}
         />
       )}

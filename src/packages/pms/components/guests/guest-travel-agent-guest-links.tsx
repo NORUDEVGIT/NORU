@@ -23,7 +23,7 @@ import {
   listGuestAccountLinks,
   unlinkGuestAccount,
 } from "@/packages/pms/lib/guest-accounts.functions";
-import { listGuests } from "@/packages/pms/lib/guests.functions";
+import { guestListItems, listGuests } from "@/packages/pms/lib/guests.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
@@ -216,10 +216,10 @@ export function GuestTravelAgentGuestLinks({
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {guestsQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading guests…</p>
-            ) : (guestsQuery.data ?? []).length === 0 ? (
+            ) : guestListItems(guestsQuery.data).length === 0 ? (
               <p className="text-sm text-muted-foreground">No guests match this search.</p>
             ) : (
-              (guestsQuery.data ?? []).map((guest) => {
+              guestListItems(guestsQuery.data).map((guest) => {
                 const already = linkedGuestKeys.has(`${guest.id}:${role}`);
                 const checked = already || selected.includes(guest.id);
                 return (

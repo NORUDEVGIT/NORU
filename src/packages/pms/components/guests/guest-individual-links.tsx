@@ -19,6 +19,7 @@ import {
   ROLE_ACCOUNT_TYPE,
   WAVE4_MIGRATION_UNAVAILABLE,
   WAVE4_UNLINK_COPY,
+  accountListItems,
   accountTypeToProfileType,
 } from "@/packages/pms/lib/guest-profile-wave4";
 import {
@@ -216,7 +217,7 @@ export function GuestIndividualLinks({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none">Choose…</SelectItem>
-              {(accountsQuery.data ?? []).map((row) => {
+              {accountListItems(accountsQuery.data).map((row) => {
                 const already = linkedKeys.has(`${row.id}:${role}`);
                 return (
                   <SelectItem key={row.id} value={row.id} disabled={already}>

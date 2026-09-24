@@ -6,31 +6,53 @@ import { useServerFn } from "@tanstack/react-start";
 import { GuestAccountDetail } from "@/packages/pms/components/guests/guest-account-detail";
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
 import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
-import { GuestDashboardCard } from "@/packages/pms/components/guests/guest-dashboard-card";
 import { GuestDirectoryOpenButton } from "@/packages/pms/components/guests/guest-directory-open-button";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
+import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
 import { GuestLoyaltyCard } from "@/packages/pms/components/guests/guest-loyalty-card";
+import { GuestOverviewCard } from "@/packages/pms/components/guests/guest-overview-card";
+import { GuestProfileActionsProvider } from "@/packages/pms/components/guests/guest-profile-actions";
 import { GuestProfileHeader } from "@/packages/pms/components/guests/guest-profile-header";
 import { GuestPrivacyCard } from "@/packages/pms/components/guests/guest-privacy-card";
 import { GuestRelationshipsCard } from "@/packages/pms/components/guests/guest-relationships-card";
+import { GuestServiceHistoryCard } from "@/packages/pms/components/guests/guest-service-history-card";
 import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
 import { GuestDetailWorkspace } from "@/packages/pms/components/workspaces/guest-detail-workspace";
-import { GuestDirectoryWorkspace } from "@/packages/pms/components/workspaces/guest-directory-workspace";
+import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/guest-listing-workspace";
+import { GuestCreateWorkspace } from "@/packages/pms/components/workspaces/guest-create-workspace";
+import { GuestGroupCreateWorkspace } from "@/packages/pms/components/workspaces/guest-group-create-workspace";
+import { GuestCompanyCreateWorkspace } from "@/packages/pms/components/workspaces/guest-company-create-workspace";
+import { GuestTravelAgentCreateWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-create-workspace";
+import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
+import { GuestTravelAgentDetailWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-detail-workspace";
+import { GuestGroupDetailWorkspace } from "@/packages/pms/components/workspaces/guest-group-detail-workspace";
 import {
-  GUEST_PROFILE_CARDS,
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
   GUEST_PROFILE_TYPES,
+  GUEST_PROFILE_WORKSPACE_NAV,
   comingInWaveLabel,
   guestProfileCard,
   guestProfileSearch,
+  guestProfileWorkspaceNav,
   initialGuestProfileCard,
-  isGuestProfileNavCard,
   isGuestRequiredProfileCard,
   showEmptyDirectoryCta,
+  workspaceNavForCard,
+  type GuestListingPlaceholderType,
   type GuestProfileCardId,
   type GuestProfileTypeId,
+  type CompanyDetailNavId,
+  type GuestProfileWorkspaceNavId,
+  type TravelAgentDetailNavId,
+  type GroupDetailNavId,
+  type GuestProfileCreateId,
 } from "@/packages/pms/lib/guest-profile-wave1";
+import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
+import {
+  guestListingSection,
+  operationalProfileType,
+} from "@/packages/pms/lib/guest-profile-listing";
 import { profileTypeToAccountType } from "@/packages/pms/lib/guest-profile-wave4";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
 import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
@@ -41,22 +63,37 @@ export function GuestProfileWorkspace({
   membership,
   guestId,
   returnCard,
+  returnNav,
   profileType = "individual",
+  create,
 }: {
   membership: RestaurantMembership;
   guestId?: string | undefined;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
   returnCard?: GuestProfileCardId | undefined;
-  profileType?: GuestProfileTypeId | undefined;
+  returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
+  profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
+  create?: GuestProfileCreateId | undefined;
 }) {
   const navigate = useNavigate();
   const [card, setCard] = useState<GuestProfileCardId>(
     initialGuestProfileCard(Boolean(guestId), returnCard),
   );
+  const [navId, setNavId] = useState<GuestProfileWorkspaceNavId | null>(() => {
+    if (!guestId) return null;
+    if (returnNav && GUEST_PROFILE_WORKSPACE_NAV.some((item) => item.id === returnNav)) {
+      return returnNav as GuestProfileWorkspaceNavId;
+    }
+    const start = initialGuestProfileCard(true, returnCard);
+    return GUEST_PROFILE_WORKSPACE_NAV.some((item) => item.card === start)
+      ? workspaceNavForCard(start)
+      : null;
+  });
   const [emptyReturnCard, setEmptyReturnCard] = useState<GuestProfileCardId | undefined>();
   const selected = guestProfileCard(card);
   const restaurantId = membership.restaurant.id;
-  const accountType = profileTypeToAccountType(profileType);
+  const operationalType = operationalProfileType(guestListingSection(profileType));
+  const accountType = profileTypeToAccountType(operationalType);
   const isAccount = accountType !== null;
   const fetchGuest = useServerFn(getGuest);
   const fetchAccount = useServerFn(getGuestAccount);
@@ -89,22 +126,37 @@ export function GuestProfileWorkspace({
     });
   }
 
-  function selectCard(next: GuestProfileCardId) {
+  function selectCard(next: GuestProfileCardId, nextNav?: GuestProfileWorkspaceNavId) {
     if (next === "directory" && guestId) {
       void navigate({
         to: GUEST_PROFILE_DIRECTORY_PATH,
-        search: guestProfileSearch({ card, type: profileType }),
+        search: guestProfileSearch({ card, nav: navId ?? undefined, type: profileType }),
       });
       return;
     }
+    const resolvedNav =
+      nextNav ??
+      (GUEST_PROFILE_WORKSPACE_NAV.some((item) => item.card === next)
+        ? workspaceNavForCard(next)
+        : undefined);
     setCard(next);
+    setNavId(resolvedNav ?? null);
     if (guestId && isGuestRequiredProfileCard(next)) {
       void navigate({
         to: GUEST_PROFILE_DETAIL_PATH,
         params: { guestId },
-        search: guestProfileSearch({ card: next, type: profileType }),
+        search: guestProfileSearch({
+          card: next,
+          nav: resolvedNav,
+          type: profileType,
+        }),
       });
     }
+  }
+
+  function selectNav(next: GuestProfileWorkspaceNavId) {
+    const item = guestProfileWorkspaceNav(next);
+    selectCard(item.card, next);
   }
 
   const detailSection = card === "preferences" ? "preferences" : "overview";
@@ -159,20 +211,65 @@ export function GuestProfileWorkspace({
     </div>
   );
 
-  if (!guestId && card === "directory" && !isAccount) {
+  if (!guestId && create === "individual") {
+    return <GuestCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
+
+  if (!guestId && create === "group") {
+    return <GuestGroupCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
+
+  if (!guestId && create === "company") {
+    return <GuestCompanyCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
+
+  if (!guestId && create === "travel-agent") {
+    return <GuestTravelAgentCreateWorkspace restaurantId={membership.restaurant.id} />;
+  }
+
+  if (guestId && operationalType === "company") {
+    return (
+      <GuestCompanyDetailWorkspace
+        membership={membership}
+        companyId={guestId}
+        nav={returnNav}
+      />
+    );
+  }
+
+  if (guestId && operationalType === "travel-agent") {
+    return (
+      <GuestTravelAgentDetailWorkspace
+        membership={membership}
+        agencyId={guestId}
+        nav={returnNav}
+      />
+    );
+  }
+
+  if (guestId && operationalType === "group") {
+    return (
+      <GuestGroupDetailWorkspace
+        membership={membership}
+        groupId={guestId}
+        nav={returnNav}
+      />
+    );
+  }
+
+  if (!guestId && card === "directory") {
     return (
       <div className="space-y-6" data-testid="guest-profile-shell">
-        <GuestDirectoryWorkspace
+        <GuestListingWorkspace
           membership={membership}
-          compact
+          listingType={profileType}
           returnCard={returnCard ?? emptyReturnCard}
-          typeSwitcher={typeSwitcher}
         />
       </div>
     );
   }
 
-  return (
+  const shell = (
     <div className="space-y-6" data-testid="guest-profile-shell">
       {!isAccount && guestQuery.data ? (
         <>
@@ -180,15 +277,7 @@ export function GuestProfileWorkspace({
             restaurantId={restaurantId}
             guest={guestQuery.data.guest}
             returnCard={card}
-            profileType={profileType}
-          />
-          <GuestDashboardCard
-            restaurantId={restaurantId}
-            guestId={guestId!}
-            guestName={guestQuery.data.guest.fullName}
-            timezone={membership.restaurant.timezone}
-            vipStatus={guestQuery.data.guest.vipStatus}
-            showQuickActions={card === "dashboard"}
+            profileType={operationalType}
           />
         </>
       ) : (
@@ -198,7 +287,7 @@ export function GuestProfileWorkspace({
         </div>
       )}
 
-      {typeSwitcher}
+      {guestId ? null : typeSwitcher}
 
       {guestId ? (
         <nav
@@ -207,14 +296,14 @@ export function GuestProfileWorkspace({
           role="tablist"
           data-testid="guest-profile-section-nav"
         >
-          {GUEST_PROFILE_CARDS.filter((item) => isGuestProfileNavCard(item.id)).map((item) => {
-            const active = item.id === card;
+          {GUEST_PROFILE_WORKSPACE_NAV.map((item) => {
+            const active = item.id === navId;
             return (
               <button
                 key={item.id}
                 type="button"
                 data-testid={`guest-profile-card-${item.id}`}
-                onClick={() => selectCard(item.id)}
+                onClick={() => selectNav(item.id)}
                 role="tab"
                 aria-selected={active}
                 className={cn(
@@ -224,7 +313,7 @@ export function GuestProfileWorkspace({
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
-                {profileSectionLabel(item.id)}
+                {item.title}
               </button>
             );
           })}
@@ -248,22 +337,36 @@ export function GuestProfileWorkspace({
       ) : (
         <>
           {(card === "information" || card === "preferences") && guestId && !isAccount ? (
-            <GuestDetailWorkspace
-              membership={membership}
-              guestId={guestId}
-              backTo="guest-profile"
-              section={detailSection}
-              hideHeader
-              onSectionChange={(next) => {
-                const nextCard = next === "preferences" ? "preferences" : "information";
-                setCard(nextCard);
-                void navigate({
-                  to: GUEST_PROFILE_DETAIL_PATH,
-                  params: { guestId },
-                  search: guestProfileSearch({ card: nextCard, type: profileType }),
-                });
-              }}
-            />
+            <>
+              {card === "information" ? (
+                <p className="font-display text-lg">
+                  {navId === "contact" ? "Contact" : "Personal"}
+                </p>
+              ) : null}
+              <GuestDetailWorkspace
+                membership={membership}
+                guestId={guestId}
+                backTo="guest-profile"
+                section={detailSection}
+                hideHeader
+                onSectionChange={(next) => {
+                  const nextCard = next === "preferences" ? "preferences" : "information";
+                  const nextNav =
+                    next === "preferences"
+                      ? "preferences"
+                      : navId === "contact"
+                        ? "contact"
+                        : "personal";
+                  setCard(nextCard);
+                  setNavId(nextNav);
+                  void navigate({
+                    to: GUEST_PROFILE_DETAIL_PATH,
+                    params: { guestId },
+                    search: guestProfileSearch({ card: nextCard, nav: nextNav, type: profileType }),
+                  });
+                }}
+              />
+            </>
           ) : card === "information" && guestId && isAccount ? (
             <GuestAccountDetail
               restaurantId={restaurantId}
@@ -304,21 +407,53 @@ export function GuestProfileWorkspace({
               title={selected.title}
               copy="That guest could not be found for this property."
             />
-          ) : (card === "dashboard" || card === "stay-history") && isAccount ? (
+          ) : (card === "dashboard" ||
+              card === "stay-history" ||
+              card === "services" ||
+              card === "financial") &&
+            isAccount ? (
             <ComingCard
               title={selected.title}
-              copy="Dashboard and Stay History are for individual guests. Linked members appear on Relationships and Loyalty & Value."
+              copy="Dashboard, stays and financial summary are for individual guests. Linked members appear on Business and Loyalty."
             />
-          ) : (card === "dashboard" || card === "stay-history") && guestId && guestQuery.data ? (
-            card === "dashboard" ? null : (
+          ) : (card === "dashboard" ||
+              card === "stay-history" ||
+              card === "services" ||
+              card === "financial") &&
+            guestId &&
+            guestQuery.data ? (
+            card === "dashboard" ? (
+              <GuestOverviewCard
+                restaurantId={restaurantId}
+                guest={guestQuery.data.guest}
+                timezone={membership.restaurant.timezone}
+                history={guestQuery.data.history}
+              />
+            ) : card === "services" ? (
+              <GuestServiceHistoryCard
+                restaurantId={restaurantId}
+                guestId={guestId}
+                guestName={guestQuery.data.guest.fullName}
+                guestProfileNumber={guestQuery.data.guest.profileNumber}
+                timezone={membership.restaurant.timezone}
+                onOpenBookings={() => selectNav("bookings")}
+              />
+            ) : card === "financial" ? (
+              <ComingCard title="Financial" copy={OVERVIEW_FINANCIAL_COPY} />
+            ) : (
               <GuestStayHistoryCard
                 restaurantId={restaurantId}
                 guestId={guestId}
                 guestName={guestQuery.data.guest.fullName}
+                guestProfileNumber={guestQuery.data.guest.profileNumber}
                 timezone={membership.restaurant.timezone}
+                onOpenFinancial={() => selectNav("financial")}
               />
             )
-          ) : card === "dashboard" || card === "stay-history" ? (
+          ) : card === "dashboard" ||
+            card === "stay-history" ||
+            card === "services" ||
+            card === "financial" ? (
             <ComingCard
               title={selected.title}
               copy={
@@ -361,12 +496,17 @@ export function GuestProfileWorkspace({
             accountQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading account…</p>
           ) : card === "notes-comms" && guestId && (isAccount || guestQuery.data) ? (
-            <GuestActivityHubCard
-              restaurantId={restaurantId}
-              guestId={isAccount ? undefined : guestId}
-              accountId={isAccount ? guestId : undefined}
-              partyName={partyName || (isAccount ? "Account" : "Guest")}
-            />
+            <div>
+              <p className="mb-3 font-display text-lg">
+                {navId === "history" ? "History" : "Notes"}
+              </p>
+              <GuestActivityHubCard
+                restaurantId={restaurantId}
+                guestId={isAccount ? undefined : guestId}
+                accountId={isAccount ? guestId : undefined}
+                partyName={partyName || (isAccount ? "Account" : "Guest")}
+              />
+            </div>
           ) : card === "admin-privacy" && guestId && (isAccount || guestQuery.data) ? (
             <GuestPrivacyCard
               restaurantId={restaurantId}
@@ -402,6 +542,28 @@ export function GuestProfileWorkspace({
       )}
     </div>
   );
+
+  if (!isAccount && guestQuery.data) {
+    return (
+      <GuestProfileActionsProvider
+        restaurantId={restaurantId}
+        guest={guestQuery.data.guest}
+        membershipRole={membership.role}
+        onOpenLoyalty={() => selectCard("loyalty")}
+        onOpenNotesPage={() => selectNav("notes")}
+        onOpenStaysPage={() => selectNav("bookings")}
+        onOpenReservationsPage={() => selectNav("bookings")}
+        onOpenIdentityPage={() => selectNav("identity")}
+        onMerged={() => {
+          void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
+        }}
+      >
+        {shell}
+      </GuestProfileActionsProvider>
+    );
+  }
+
+  return shell;
 }
 
 function ComingCard({
@@ -414,7 +576,7 @@ function ComingCard({
   title: string;
   copy: string;
   directoryFromCard?: GuestProfileCardId | undefined;
-  profileType?: GuestProfileTypeId | undefined;
+  profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   onOpenDirectory?: (() => void) | undefined;
 }) {
   return (
@@ -433,20 +595,4 @@ function ComingCard({
       ) : null}
     </div>
   );
-}
-
-function profileSectionLabel(id: GuestProfileCardId): string {
-  const labels: Record<GuestProfileCardId, string> = {
-    dashboard: "Overview",
-    directory: "Directory",
-    information: "Information",
-    identity: "Documents",
-    "stay-history": "Stay History",
-    preferences: "Preferences",
-    loyalty: "Loyalty & Value",
-    relationships: "Relationships",
-    "notes-comms": "Notes & Activity",
-    "admin-privacy": "Admin & Privacy",
-  };
-  return labels[id];
 }

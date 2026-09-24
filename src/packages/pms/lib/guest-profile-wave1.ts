@@ -54,7 +54,7 @@ export const GUEST_PROFILE_CARDS = [
   },
   {
     id: "stay-history",
-    title: "Stay History",
+    title: "Stays & Reservations",
     live: true,
     wave: 3,
     copy: "Real reservations for this guest. This card does not invent stays and is not profile-event history.",
@@ -94,16 +94,58 @@ export const GUEST_PROFILE_CARDS = [
     wave: 5,
     copy: "Export, anonymise and unmerge (or a recorded exception). Wave 2 consent stays on Information. VIP and status remain there too.",
   },
+  {
+    id: "services",
+    title: "Services",
+    live: true,
+    wave: 3,
+    copy: "Operational guest service requests for this stay. Types come from Guest & Services Settings.",
+  },
+  {
+    id: "financial",
+    title: "Financial",
+    live: true,
+    wave: 3,
+    copy: "Placeholder until Financial functionality is implemented.",
+  },
 ] as const;
 
 export type GuestProfileCardId = (typeof GUEST_PROFILE_CARDS)[number]["id"];
+
+/** Individual workspace chrome. Personal and Contact share Information content. */
+export const GUEST_PROFILE_WORKSPACE_NAV = [
+  { id: "overview", card: "dashboard", title: "Overview" },
+  { id: "personal", card: "information", title: "Personal" },
+  { id: "contact", card: "information", title: "Contact" },
+  { id: "identity", card: "identity", title: "Identity Documents" },
+  { id: "preferences", card: "preferences", title: "Preferences" },
+  { id: "business", card: "relationships", title: "Business" },
+  { id: "bookings", card: "stay-history", title: "Stays & Reservations" },
+  { id: "services", card: "services", title: "Services" },
+  { id: "financial", card: "financial", title: "Financial" },
+  { id: "notes", card: "notes-comms", title: "Notes" },
+  { id: "history", card: "notes-comms", title: "History" },
+] as const;
+
+export type GuestProfileWorkspaceNavId = (typeof GUEST_PROFILE_WORKSPACE_NAV)[number]["id"];
+
+export function guestProfileWorkspaceNav(id: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId) {
+  return (
+    GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === id) ?? GUEST_PROFILE_WORKSPACE_NAV[0]
+  );
+}
+
+export function workspaceNavForCard(card: GuestProfileCardId): GuestProfileWorkspaceNavId {
+  const match = GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.card === card);
+  return match?.id ?? "overview";
+}
 
 export function guestProfileCard(id: GuestProfileCardId) {
   return GUEST_PROFILE_CARDS.find((card) => card.id === id) ?? GUEST_PROFILE_CARDS[1];
 }
 
 export function defaultGuestProfileCard(hasGuest: boolean): GuestProfileCardId {
-  return hasGuest ? "information" : "directory";
+  return hasGuest ? "dashboard" : "directory";
 }
 
 /**
@@ -125,23 +167,109 @@ export function showEmptyDirectoryCta(hasGuest: boolean, card: GuestProfileCardI
 }
 
 /** Optional `?card=` so Directory-back can reopen the same guest-required card. */
+export const COMPANY_DETAIL_NAV_IDS = [
+  "overview",
+  "corporate",
+  "contacts",
+  "travelers",
+  "contracts",
+  "reservations",
+  "notes",
+  "history",
+  "documents",
+  "credit",
+  "travel-agent-settings",
+] as const;
+export type CompanyDetailNavId = (typeof COMPANY_DETAIL_NAV_IDS)[number];
+
+export const TRAVEL_AGENT_DETAIL_NAV_IDS = [
+  "overview",
+  "contacts",
+  "bookings",
+  "commission",
+  "agreements",
+  "payment",
+  "documents",
+  "notes",
+  "history",
+  "settings",
+] as const;
+export type TravelAgentDetailNavId = (typeof TRAVEL_AGENT_DETAIL_NAV_IDS)[number];
+
+export const GROUP_DETAIL_NAV_IDS = [
+  "overview",
+  "members",
+  "reservations",
+  "rooming",
+  "itinerary",
+  "financial",
+  "communication",
+  "documents",
+  "history",
+] as const;
+export type GroupDetailNavId = (typeof GROUP_DETAIL_NAV_IDS)[number];
+
 export type GuestProfileCardSearch = {
   card?: GuestProfileCardId;
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId;
 };
 
-/** Optional `?type=` for the LIVE Individual | Company | Group | TA switcher. */
+/** Listing-only placeholders — not operational GUEST_PROFILE_TYPES. */
+export const GUEST_LISTING_PLACEHOLDER_TYPES = ["tour-operator", "contact"] as const;
+export type GuestListingPlaceholderType = (typeof GUEST_LISTING_PLACEHOLDER_TYPES)[number];
+
+export type GuestProfileCreateId = "individual" | "group" | "company" | "travel-agent";
+
+/** Optional `?type=` for operational types plus listing placeholders. */
 export type GuestProfileSearch = GuestProfileCardSearch & {
-  type?: GuestProfileTypeId;
+  type?: GuestProfileTypeId | GuestListingPlaceholderType;
+  create?: GuestProfileCreateId;
 };
+
+const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
+  stays: "bookings",
+  reservations: "bookings",
+};
+
+export function parseGuestProfileWorkspaceNav(
+  search: Record<string, unknown>,
+): GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined {
+  const raw = typeof search["nav"] === "string" ? search["nav"] : undefined;
+  if (!raw) return undefined;
+  const type = typeof search["type"] === "string" ? search["type"] : undefined;
+  if (type === "travel-agent" && (TRAVEL_AGENT_DETAIL_NAV_IDS as readonly string[]).includes(raw)) {
+    return raw as TravelAgentDetailNavId;
+  }
+  if (type === "group" && (GROUP_DETAIL_NAV_IDS as readonly string[]).includes(raw)) {
+    return raw as GroupDetailNavId;
+  }
+  if (type === "company" && (COMPANY_DETAIL_NAV_IDS as readonly string[]).includes(raw)) {
+    return raw as CompanyDetailNavId;
+  }
+  if (raw in LEGACY_GUEST_PROFILE_NAV) return LEGACY_GUEST_PROFILE_NAV[raw];
+  if ((COMPANY_DETAIL_NAV_IDS as readonly string[]).includes(raw) && raw !== "reservations") {
+    return raw as CompanyDetailNavId;
+  }
+  return GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === raw)?.id;
+}
 
 export function parseGuestProfileCardSearch(
   search: Record<string, unknown>,
 ): GuestProfileCardSearch {
+  const nav = parseGuestProfileWorkspaceNav(search);
   const raw = typeof search["card"] === "string" ? search["card"] : undefined;
-  if (!raw) return {};
-  const match = GUEST_PROFILE_CARDS.find((item) => item.id === raw);
-  if (!match || !isGuestRequiredProfileCard(match.id)) return {};
-  return { card: match.id };
+  const match = raw ? GUEST_PROFILE_CARDS.find((item) => item.id === raw) : undefined;
+  const card =
+    match && isGuestRequiredProfileCard(match.id)
+      ? match.id
+      : nav
+        ? guestProfileWorkspaceNav(nav).card
+        : undefined;
+  if (!card && !nav) return {};
+  return {
+    ...(card ? { card } : {}),
+    ...(nav ? { nav } : {}),
+  };
 }
 
 export function parseGuestProfileTypeSearch(search: Record<string, unknown>): GuestProfileTypeId {
@@ -150,26 +278,59 @@ export function parseGuestProfileTypeSearch(search: Record<string, unknown>): Gu
   return match?.id ?? "individual";
 }
 
+export function parseGuestListingTypeSearch(
+  search: Record<string, unknown>,
+): GuestProfileTypeId | GuestListingPlaceholderType {
+  const raw = typeof search["type"] === "string" ? search["type"] : undefined;
+  if (raw && (GUEST_LISTING_PLACEHOLDER_TYPES as readonly string[]).includes(raw)) {
+    return raw as GuestListingPlaceholderType;
+  }
+  return parseGuestProfileTypeSearch(search);
+}
+
 export function parseGuestProfileSearch(search: Record<string, unknown>): GuestProfileSearch {
   const card = parseGuestProfileCardSearch(search);
-  const type = parseGuestProfileTypeSearch(search);
-  return type === "individual" ? card : { ...card, type };
+  const type = parseGuestListingTypeSearch(search);
+  const create =
+    search["create"] === "individual" ||
+    search["create"] === "group" ||
+    search["create"] === "company" ||
+    search["create"] === "travel-agent"
+      ? search["create"]
+      : undefined;
+  const next =
+    create === "group"
+      ? { ...card, type: "group" as const }
+      : create === "company"
+        ? { ...card, type: "company" as const }
+        : create === "travel-agent"
+          ? { ...card, type: "travel-agent" as const }
+          : type === "individual"
+            ? { ...card }
+            : { ...card, type };
+  return create ? { ...next, create } : next;
 }
 
 export function guestProfileCardSearch(
   card: GuestProfileCardId | undefined,
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined,
 ): GuestProfileCardSearch {
-  if (card && isGuestRequiredProfileCard(card)) return { card };
-  return {};
+  if (card && isGuestRequiredProfileCard(card)) {
+    return nav ? { card, nav } : { card };
+  }
+  return nav ? { nav } : {};
 }
 
 export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
-  type?: GuestProfileTypeId | undefined;
+  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
+  type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
+  create?: GuestProfileCreateId | undefined;
 }): GuestProfileSearch {
-  const card = guestProfileCardSearch(opts.card);
+  const card = guestProfileCardSearch(opts.card, opts.nav);
   const type = opts.type && opts.type !== "individual" ? opts.type : undefined;
-  return type ? { ...card, type } : card;
+  const next = type ? { ...card, type } : card;
+  return opts.create ? { ...next, create: opts.create } : next;
 }
 
 export function initialGuestProfileCard(

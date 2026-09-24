@@ -20,6 +20,7 @@ import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-pre
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
+import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import { STAFF_VERIFY_COPY } from "@/packages/pms/lib/guest-profile-wave2";
 import { WAVE3_PROFILE_HISTORY_COPY } from "@/packages/pms/lib/guest-profile-wave3";
 import { Button } from "@/shared/components/ui/button";
@@ -136,8 +137,8 @@ export function GuestDetailWorkspace({
   });
 
   function refresh() {
+    invalidateGuestWorkspaceQueries(queryClient, restaurantId);
     void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId, guestId] });
-    void queryClient.invalidateQueries({ queryKey: ["guests", restaurantId] });
   }
 
   const vipMutation = useMutation({
@@ -423,6 +424,7 @@ export function GuestDetailWorkspace({
           <GuestPreferencesCard
             restaurantId={restaurantId}
             guestId={guestId}
+            guest={guestQuery.data.guest}
             preferences={guestQuery.data.preferences}
             onSaved={refresh}
           />
