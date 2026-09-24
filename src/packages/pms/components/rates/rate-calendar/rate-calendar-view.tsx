@@ -123,6 +123,7 @@ export function RateCalendarView({
       ) : paged ? (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="min-w-0 space-y-2">
+          <RateCalendarLegend />
             <RateCalendarGrid
               data={paged}
               selected={selected}
@@ -154,7 +155,7 @@ export function RateCalendarView({
                 </button>
               </div>
             ) : null}
-            <RateCalendarLegend />
+            
           </div>
           <RateDetailDrawer
             restaurantId={restaurantId}

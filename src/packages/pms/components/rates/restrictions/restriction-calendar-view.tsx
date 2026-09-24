@@ -139,8 +139,10 @@ export function RestrictionCalendarView({
           description="Configure room types and rate plans in Property Setup."
         />
       ) : paged ? (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="min-w-0 space-y-2">
+          <RestrictionCalendarLegend />
+
             <RestrictionCalendarGrid
               data={paged}
               selected={selectedCell}
@@ -172,7 +174,6 @@ export function RestrictionCalendarView({
                 </button>
               </div>
             ) : null}
-            <RestrictionCalendarLegend />
           </div>
           <RestrictionDetailDrawer
             restaurantId={restaurantId}
