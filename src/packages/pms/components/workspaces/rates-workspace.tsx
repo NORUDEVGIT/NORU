@@ -10,6 +10,7 @@ import { RevenueContextBar } from "@/packages/pms/components/rates/revenue-conte
 import { RevenueControlView } from "@/packages/pms/components/rates/revenue-control/revenue-control-view";
 import { RateCalendarView } from "@/packages/pms/components/rates/rate-calendar/rate-calendar-view";
 import { BulkRateChangeView } from "@/packages/pms/components/rates/bulk-rate-change/bulk-rate-change-view";
+import { RateHistoryView } from "@/packages/pms/components/rates/rate-history/rate-history-view";
 import {
   RatePlansTab,
   RateRestrictionsTab,
@@ -257,6 +258,8 @@ export function RatesWorkspace({
             ratePlans={ratePlans}
           />
         );
+      case "rate-history":
+        return <RateHistoryView restaurantId={restaurantId} context={context} />;
       case "restrictions":
         return (
           <RateRestrictionsTab

@@ -141,10 +141,68 @@ function mapEvent(row: EventRow): RateChangeHistoryRow {
     currency: row.currency,
     reason: row.reason,
     actorMembershipId: row.actor_membership_id,
+    actorName: null,
     source: row.source,
     createdAt: row.created_at,
     metadata: row.metadata ?? {},
   };
+}
+
+async function loadActorNames(
+  db: DbClient,
+  restaurantId: string,
+  membershipIds: Array<string | null>,
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const unique = [...new Set(membershipIds.filter((id): id is string => Boolean(id)))];
+  if (unique.length === 0) return names;
+  try {
+    const members = await db
+      .from("restaurant_users")
+      .select("id, user_id")
+      .eq("restaurant_id", restaurantId)
+      .in("id", unique);
+    if (members.error) return names;
+    const userIds = [...new Set((members.data ?? []).map((row: { user_id: string }) => row.user_id))];
+    const profiles =
+      userIds.length > 0
+        ? await db.from("profiles").select("id, first_name, last_name, email").in("id", userIds)
+        : { data: [], error: null };
+    if (profiles.error) return names;
+    const byUser = new Map(
+      ((profiles.data ?? []) as Array<{
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+      }>).map((profile) => [
+        profile.id,
+        [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() || profile.email || "Staff",
+      ]),
+    );
+    for (const member of (members.data ?? []) as Array<{ id: string; user_id: string }>) {
+      names.set(member.id, byUser.get(member.user_id) ?? "Staff");
+    }
+  } catch {
+    return names;
+  }
+  return names;
+}
+
+export async function attachHistoryActorNames(
+  db: DbClient,
+  restaurantId: string,
+  rows: RateChangeHistoryRow[],
+): Promise<RateChangeHistoryRow[]> {
+  const names = await loadActorNames(
+    db,
+    restaurantId,
+    rows.map((row) => row.actorMembershipId),
+  );
+  return rows.map((row) => ({
+    ...row,
+    actorName: row.actorMembershipId ? names.get(row.actorMembershipId) ?? "Staff" : null,
+  }));
 }
 
 async function loadPlans(db: DbClient, restaurantId: string, planIds: string[]) {
@@ -383,8 +441,14 @@ export async function listRateChangeHistory(
   const result = await request;
   if (result.error) throw new Error(result.error.message);
 
+  const rows = await attachHistoryActorNames(
+    db,
+    query.restaurantId,
+    ((result.data ?? []) as EventRow[]).map(mapEvent),
+  );
+
   return {
-    rows: ((result.data ?? []) as EventRow[]).map(mapEvent),
+    rows,
     page,
     pageSize,
     total: result.count ?? 0,
@@ -416,7 +480,11 @@ export async function getRateChangeOperationDetail(
     .order("stay_date", { ascending: true });
   if (result.error) throw new Error(result.error.message);
 
-  const events = ((result.data ?? []) as EventRow[]).map(mapEvent);
+  const events = await attachHistoryActorNames(
+    db,
+    query.restaurantId,
+    ((result.data ?? []) as EventRow[]).map(mapEvent),
+  );
   const first = events[0];
   if (!first) return null;
 
@@ -426,6 +494,7 @@ export async function getRateChangeOperationDetail(
     source: first.source,
     reason: first.reason,
     actorMembershipId: first.actorMembershipId,
+    actorName: first.actorName,
     createdAt: first.createdAt,
     restaurantId: query.restaurantId,
     events,

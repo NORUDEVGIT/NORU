@@ -71,7 +71,7 @@ There was **no** atomic bulk apply path. A JS loop of `saveRateOverride` would n
 | UI-03 | Rate Detail & Edit | **Yes** — `previewRateChanges` / `applyRateChanges` | **Yes** — RR-P2-03 drawer |
 | UI-04 | Bulk Rate Change | **Yes** — same APIs, atomic RPC | **Yes** — RR-P2-04 wizard |
 | UI-05 | Impact Review | **Yes** — deterministic preview, no forecast | **Yes** — RR-P2-04 review/confirm steps |
-| UI-06 | Rate Change History | **Yes** — paginated read APIs | **Foundation only** |
+| UI-06 | Rate Change History | **Yes** — paginated read APIs | **Yes** — RR-P2-05 history view |
 
 Approvals stay UI-26–UI-30. No generic Draft → Validate → Approval → Apply framework.
 

@@ -42,6 +42,8 @@ describe("Rate & Revenue Phase 1 Prompt 5 — completion locks", () => {
       "control-center",
       "rate-plans-reference",
       "rate-calendar",
+      "bulk-rate-change",
+      "rate-history",
       "restrictions",
     ]);
     assert.ok(foundationRevenueViews().includes("demand-forecast"));

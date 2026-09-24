@@ -17,6 +17,7 @@ import {
   listRateChangeHistory as loadRateChangeHistory,
   previewRateChanges as previewRateChangesOnServer,
 } from "./rate-change.server";
+import { RATE_HISTORY_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error";
 
 export const previewRateChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -43,7 +44,12 @@ export const listRateChangeHistory = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => rateChangeHistoryQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
-    return loadRateChangeHistory(context.supabase, data);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadRateChangeHistory(supabaseAdmin, data);
+    } catch (error) {
+      throw toRevenueReadError(error, RATE_HISTORY_LOAD_ERROR);
+    }
   });
 
 export const getRateChangeOperationDetail = createServerFn({ method: "POST" })
@@ -51,5 +57,10 @@ export const getRateChangeOperationDetail = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => rateChangeOperationQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
-    return loadRateChangeOperationDetail(context.supabase, data);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadRateChangeOperationDetail(supabaseAdmin, data);
+    } catch (error) {
+      throw toRevenueReadError(error, RATE_HISTORY_LOAD_ERROR);
+    }
   });

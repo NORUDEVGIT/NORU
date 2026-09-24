@@ -120,9 +120,7 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     label: "Rate History",
     section: "rates",
     description: "Review historical daily rate changes.",
-    implemented: false,
-    plannedCapability: "Immutable history of operational rate overrides.",
-    sources: ["Rate Calendar"],
+    implemented: true,
     contextFields: ["dateRange", "roomType", "ratePlan"],
   },
   {

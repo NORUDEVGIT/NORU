@@ -159,6 +159,7 @@ export type RateChangeHistoryRow = {
   currency: string;
   reason: string | null;
   actorMembershipId: string | null;
+  actorName: string | null;
   source: string;
   createdAt: string;
   metadata: Record<string, unknown>;
@@ -177,6 +178,7 @@ export type RateChangeOperationDetail = {
   source: string;
   reason: string | null;
   actorMembershipId: string | null;
+  actorName: string | null;
   createdAt: string;
   restaurantId: string;
   events: RateChangeHistoryRow[];
@@ -614,6 +616,7 @@ export function groupHistoryByOperation(rows: RateChangeHistoryRow[]): RateChang
     source: events[0]?.source ?? "rate_revenue",
     reason: events[0]?.reason ?? null,
     actorMembershipId: events[0]?.actorMembershipId ?? null,
+    actorName: events[0]?.actorName ?? null,
     createdAt: events[0]?.createdAt ?? "",
     restaurantId: "",
     events,

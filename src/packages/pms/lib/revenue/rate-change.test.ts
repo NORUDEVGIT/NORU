@@ -90,6 +90,7 @@ function historyRow(partial: Partial<RateChangeHistoryRow>): RateChangeHistoryRo
     currency: "EUR",
     reason: null,
     actorMembershipId: "mem-1",
+    actorName: null,
     source: "rate_revenue",
     createdAt: "2026-09-24T10:00:00.000Z",
     metadata: {},

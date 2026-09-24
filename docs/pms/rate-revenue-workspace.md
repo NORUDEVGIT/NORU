@@ -11,7 +11,7 @@ Ownership stays the Prompt 2 boundary: Property Setup owns masters; Rate & Reven
 | Section | Views | Status |
 |---|---|---|
 | Revenue Control | Control Center | **Implemented** — existing `RevenueOverviewTab` |
-| Rates | Rate Plans · Rate Calendar · Bulk Rate Change · Rate History | Plans + Calendar **implemented**; bulk + history **foundation only** |
+| Rates | Rate Plans · Rate Calendar · Bulk Rate Change · Rate History | Plans, Calendar, Bulk Rate Change, and Rate History **implemented** |
 | Restrictions | Restrictions · Apply Restriction · Restriction History | Restrictions **implemented** (`hotel_rate_restrictions`); apply + history **foundation only** |
 | Demand & Forecast | Demand & Forecast · Pickup & Pace · Forecast Detail · Demand Calendar · Forecast History | **Foundation only** |
 | Commercial | Promotions · Packages · Market Intelligence · Approvals | **Foundation only** |
