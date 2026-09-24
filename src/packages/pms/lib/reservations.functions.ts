@@ -687,6 +687,8 @@ export const createReservation = createServerFn({ method: "POST" })
           departureDate: departure,
           status,
         },
+      });
+    }
     if (data.travelAgentMasterId) {
       const { enforceTravelAgentBooking } = await import("./guest-travel-agent-booking");
       await enforceTravelAgentBooking({
@@ -735,6 +737,8 @@ export const createReservation = createServerFn({ method: "POST" })
         reservationId: row.id,
         groupId: groupLink.groupId,
         blockId: groupLink.blockId,
+      });
+    }
     if (data.groupAccountMasterId) {
       const { error: groupError } = await supabaseAdmin
         .from("hotel_reservations")
@@ -828,7 +832,7 @@ export const amendReservation = createServerFn({ method: "POST" })
     const { data: existing, error: readError } = await supabaseAdmin
       .from("hotel_reservations")
       .select(
-        "id, guest_id, room_type_id, commercial_booking_source, market_segment, external_reference, guarantee_method",
+        "id, guest_id, room_type_id, commercial_booking_source, market_segment, external_reference, guarantee_method, travel_agent_master_id",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.reservationId)
@@ -846,14 +850,9 @@ export const amendReservation = createServerFn({ method: "POST" })
     if (!roomType) throw new Error("Room type not found for this property.");
     assertRoomTypeOccupancy(data.adults, data.children, roomType.max_occupancy);
 
-    const existing = await supabaseAdmin
-      .from("hotel_reservations")
-      .select("travel_agent_master_id")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.reservationId)
-      .maybeSingle();
-    const travelAgentMasterId = (existing.data as { travel_agent_master_id?: string | null } | null)
-      ?.travel_agent_master_id;
+    const travelAgentMasterId = (
+      existing as { travel_agent_master_id?: string | null }
+    ).travel_agent_master_id;
     if (travelAgentMasterId) {
       const { enforceTravelAgentBooking } = await import("./guest-travel-agent-booking");
       await enforceTravelAgentBooking({

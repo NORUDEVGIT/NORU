@@ -212,8 +212,6 @@ export function CreateReservationMasterPicker({
                     ? "No matching companies."
                     : "No matching travel agencies."}
               </li>
-            {accountListItems(accountsQuery.data).length === 0 ? (
-              <li className="text-sm text-muted-foreground">{copy.empty}</li>
             ) : null}
           </ul>
           {canCreate ? (
