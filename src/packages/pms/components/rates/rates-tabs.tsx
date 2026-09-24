@@ -73,9 +73,13 @@ export function RevenueOverviewTab({ restaurantId, today }: { restaurantId: stri
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Occupancy" value={`${data.occupancyPercent}%`} hint="Sold ÷ available room nights" />
-            <StatCard label="ADR" value={money(data.adr)} hint="Room revenue ÷ sold room nights" />
-            <StatCard label="RevPAR" value={money(data.revPar)} hint="Room revenue ÷ available room nights" />
-            <StatCard label="Room revenue" value={money(data.roomRevenue)} />
+            <StatCard label="ADR" value={money(data.adr)} hint="Booked room revenue ÷ sold room nights" />
+            <StatCard label="RevPAR" value={money(data.revPar)} hint="Booked room revenue ÷ available room nights" />
+            <StatCard
+              label="Booked room revenue"
+              value={money(data.roomRevenue)}
+              hint="Based on reservation pricing snapshots."
+            />
             <StatCard label="Sold room nights" value={data.soldRoomNights} />
             <StatCard label="Available room nights" value={data.availableRoomNights} />
           </div>
@@ -302,10 +306,12 @@ export function RateCalendarTab({
   restaurantId,
   today,
   context,
+  canEditDailyRates = true,
 }: {
   restaurantId: string;
   today: string;
   context?: { fromDate: string; toDate: string; roomTypeId: string | null; ratePlanId: string | null };
+  canEditDailyRates?: boolean;
 }) {
   const money = useMoney();
   const queryClient = useQueryClient();
@@ -376,6 +382,7 @@ export function RateCalendarTab({
                         step="0.01"
                         className="w-32"
                         placeholder="—"
+                        disabled={!canEditDailyRates}
                         value={draft}
                         onChange={(e) => setDrafts((prev) => ({ ...prev, [row.date]: e.target.value }))}
                       />
@@ -386,7 +393,7 @@ export function RateCalendarTab({
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={mutation.isPending}
+                          disabled={mutation.isPending || !canEditDailyRates}
                           onClick={() =>
                             mutation.mutate({
                               date: row.date,
@@ -400,6 +407,7 @@ export function RateCalendarTab({
                           <Button
                             size="sm"
                             variant="ghost"
+                            disabled={mutation.isPending || !canEditDailyRates}
                             onClick={() => {
                               setDrafts((prev) => ({ ...prev, [row.date]: "" }));
                               mutation.mutate({ date: row.date, nightlyRate: null });
@@ -435,10 +443,12 @@ export function RateRestrictionsTab({
   restaurantId,
   today,
   context,
+  canApplyRestrictions = true,
 }: {
   restaurantId: string;
   today: string;
   context?: { fromDate: string; toDate: string; roomTypeId: string | null; ratePlanId: string | null };
+  canApplyRestrictions?: boolean;
 }) {
   const queryClient = useQueryClient();
   const picker = usePlanPicker(restaurantId);
@@ -531,6 +541,7 @@ export function RateRestrictionsTab({
                         min={1}
                         className="w-20"
                         value={draft.minStay}
+                        disabled={!canApplyRestrictions}
                         onChange={(e) => patch({ minStay: e.target.value })}
                       />
                     </td>
@@ -540,12 +551,14 @@ export function RateRestrictionsTab({
                         min={1}
                         className="w-20"
                         value={draft.maxStay}
+                        disabled={!canApplyRestrictions}
                         onChange={(e) => patch({ maxStay: e.target.value })}
                       />
                     </td>
                     <td className="px-4 py-2">
                       <Checkbox
                         checked={draft.closedToArrival}
+                        disabled={!canApplyRestrictions}
                         onCheckedChange={(v) => patch({ closedToArrival: v === true })}
                         aria-label={`Closed to arrival on ${row.date}`}
                       />
@@ -553,6 +566,7 @@ export function RateRestrictionsTab({
                     <td className="px-4 py-2">
                       <Checkbox
                         checked={draft.closedToDeparture}
+                        disabled={!canApplyRestrictions}
                         onCheckedChange={(v) => patch({ closedToDeparture: v === true })}
                         aria-label={`Closed to departure on ${row.date}`}
                       />
@@ -560,6 +574,7 @@ export function RateRestrictionsTab({
                     <td className="px-4 py-2">
                       <Checkbox
                         checked={draft.stopSell}
+                        disabled={!canApplyRestrictions}
                         onCheckedChange={(v) => patch({ stopSell: v === true })}
                         aria-label={`Stop sell on ${row.date}`}
                       />
@@ -568,7 +583,7 @@ export function RateRestrictionsTab({
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={mutation.isPending}
+                        disabled={mutation.isPending || !canApplyRestrictions}
                         onClick={() => mutation.mutate({ date: row.date, draft })}
                       >
                         Save

@@ -13,7 +13,7 @@ import {
   RateRestrictionsTab,
   RevenueOverviewTab,
 } from "@/packages/pms/components/rates/rates-tabs";
-import { getRatesAccess } from "@/packages/pms/lib/rates.functions";
+import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
 import {
   getRevenueBaseConfig,
   listRevenueCatalogues,
@@ -31,7 +31,9 @@ import {
   type RevenueWorkspaceView,
   REVENUE_PRIMARY_SECTIONS,
   REVENUE_SECTION_DEFAULTS,
+  canAccessRevenueView,
   contextFieldsForView,
+  firstAccessibleRevenueView,
   normalizeRevenueView,
   revenueViewDefinition,
   sectionForRevenueView,
@@ -108,12 +110,13 @@ export function RatesWorkspace({
     setView(normalizeRevenueView(search.view ?? search.tab));
   }, [search.view, search.tab]);
 
-  const fetchAccess = useServerFn(getRatesAccess);
+  const fetchAccess = useServerFn(getRevenueAccess);
   const accessQuery = useQuery({
-    queryKey: ["rates-access", restaurantId],
+    queryKey: ["revenue-access", restaurantId],
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
+  const access = accessQuery.data;
 
   const fetchBase = useServerFn(getRevenueBaseConfig);
   const fetchCatalogues = useServerFn(listRevenueCatalogues);
@@ -148,11 +151,17 @@ export function RatesWorkspace({
     catalogues: cataloguesQuery.isSuccess,
   });
 
-  const definition = revenueViewDefinition(view);
-  const activeSection = sectionForRevenueView(view);
-  const secondaryViews = viewsForRevenueSection(activeSection);
+  const requestedView = access && !canAccessRevenueView(access, view)
+    ? firstAccessibleRevenueView(access) ?? view
+    : view;
+  const definition = revenueViewDefinition(requestedView);
+  const activeSection = sectionForRevenueView(requestedView);
+  const secondaryViews = viewsForRevenueSection(activeSection, access);
   const showSecondary = activeSection !== "revenue-control" && activeSection !== "more";
-  const moreViews = viewsForRevenueSection("more");
+  const moreViews = viewsForRevenueSection("more", access);
+  const primarySections = REVENUE_PRIMARY_SECTIONS.filter(
+    (section) => viewsForRevenueSection(section.id, access).length > 0,
+  );
 
   function writeState(nextView: RevenueWorkspaceView, nextContext: RevenueContext) {
     setView(nextView);
@@ -165,24 +174,25 @@ export function RatesWorkspace({
   }
 
   function selectView(nextView: RevenueWorkspaceView) {
+    if (access && !canAccessRevenueView(access, nextView)) return;
     writeState(nextView, context);
   }
 
   function updateContext(patch: Partial<RevenueContext>) {
-    writeState(view, patchRevenueContext(context, patch, contextOptions));
+    writeState(requestedView, patchRevenueContext(context, patch, contextOptions));
   }
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
-    if (view !== "rate-calendar" && view !== "restrictions") return;
+    if (requestedView !== "rate-calendar" && requestedView !== "restrictions") return;
     if (context.ratePlanId) return;
     const compatible = ratePlans.filter(
       (plan) => !context.roomTypeId || plan.roomTypeId === context.roomTypeId,
     );
     const first = compatible.find((plan) => plan.active) ?? compatible[0];
     if (!first) return;
-    writeState(view, patchRevenueContext(context, { ratePlanId: first.id }, contextOptions));
-  }, [view, baseQuery.isSuccess, context.ratePlanId, context.roomTypeId, ratePlans]);
+    writeState(requestedView, patchRevenueContext(context, { ratePlanId: first.id }, contextOptions));
+  }, [requestedView, baseQuery.isSuccess, context.ratePlanId, context.roomTypeId, ratePlans]);
 
   function selectPrimary(section: RevenuePrimarySection) {
     if (section === "more") {
@@ -194,7 +204,7 @@ export function RatesWorkspace({
   }
 
   function renderView() {
-    switch (view) {
+    switch (requestedView) {
       case "control-center":
         return <RevenueOverviewTab restaurantId={restaurantId} today={today} />;
       case "rate-plans-reference":
@@ -204,6 +214,7 @@ export function RatesWorkspace({
           <RateCalendarTab
             restaurantId={restaurantId}
             today={today}
+            canEditDailyRates={access?.canEditDailyRates === true}
             context={{
               fromDate: context.fromDate,
               toDate: context.toDate,
@@ -217,6 +228,7 @@ export function RatesWorkspace({
           <RateRestrictionsTab
             restaurantId={restaurantId}
             today={today}
+            canApplyRestrictions={access?.canApplyRestrictions === true}
             context={{
               fromDate: context.fromDate,
               toDate: context.toDate,
@@ -241,7 +253,7 @@ export function RatesWorkspace({
     return <p className="px-6 py-10 text-sm text-muted-foreground">Loading Rate & Revenue…</p>;
   }
 
-  if (!accessQuery.data?.canManage) {
+  if (!access?.canView) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl font-semibold">Rate & Revenue</h1>
@@ -270,7 +282,7 @@ export function RatesWorkspace({
           </div>
 
           <div className="relative mt-3 flex items-end gap-1 overflow-x-auto px-5 sm:px-6">
-            {REVENUE_PRIMARY_SECTIONS.map((section) =>
+            {primarySections.map((section) =>
               section.id === "more" ? (
                 <div key={section.id} className="relative">
                   <SectionButton
@@ -295,7 +307,7 @@ export function RatesWorkspace({
                             onClick={() => selectView(item)}
                             className={[
                               "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                              view === item
+                              requestedView === item
                                 ? "bg-muted font-medium text-foreground"
                                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                             ].join(" ")}
@@ -322,7 +334,7 @@ export function RatesWorkspace({
           {showSecondary ? (
             <div className="flex items-end gap-1 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
               {secondaryViews.map((item) => (
-                <SecondaryButton key={item} active={view === item} onClick={() => selectView(item)}>
+                <SecondaryButton key={item} active={requestedView === item} onClick={() => selectView(item)}>
                   {revenueViewDefinition(item).label}
                 </SecondaryButton>
               ))}
@@ -330,7 +342,7 @@ export function RatesWorkspace({
           ) : null}
 
           <RevenueContextBar
-            fields={contextFieldsForView(view)}
+            fields={contextFieldsForView(requestedView)}
             context={context}
             onChange={updateContext}
             roomTypes={roomTypes}

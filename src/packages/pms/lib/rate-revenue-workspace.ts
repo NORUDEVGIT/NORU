@@ -1,10 +1,11 @@
 /**
- * Rate & Revenue workspace information architecture (Phase 1 Prompt 3).
+ * Rate & Revenue workspace information architecture (Phase 1 Prompt 3–5).
  *
- * Navigation, URL compatibility, and Prompt 4 context-field declarations.
- * Does not implement UI-01–UI-40 internals or RevenueAccess.
+ * Navigation, URL compatibility, context-field declarations, and view capabilities.
+ * Does not implement UI-01–UI-40 internals.
  */
 
+import type { RevenueAccess, RevenueCapability } from "./revenue/revenue-access";
 import type { RevenueContextField } from "./revenue/revenue-context";
 
 export type RevenueWorkspaceView =
@@ -46,7 +47,31 @@ export interface RevenueViewDefinition {
   plannedCapability?: string;
   sources?: readonly string[];
   contextFields: readonly RevenueContextField[];
+  requiredCapability?: RevenueCapability;
 }
+
+export const REVENUE_VIEW_REQUIRED_CAPABILITY: Record<RevenueWorkspaceView, RevenueCapability> = {
+  "control-center": "canView",
+  "rate-plans-reference": "canViewRates",
+  "rate-calendar": "canViewRates",
+  "bulk-rate-change": "canViewRates",
+  "rate-history": "canViewRates",
+  restrictions: "canViewRestrictions",
+  "apply-restriction": "canViewRestrictions",
+  "restriction-history": "canViewRestrictions",
+  "demand-forecast": "canViewForecast",
+  "pickup-pace": "canViewForecast",
+  "forecast-detail": "canViewForecast",
+  "demand-calendar": "canViewForecast",
+  "forecast-history": "canViewForecast",
+  promotions: "canViewCommercial",
+  packages: "canViewCommercial",
+  "market-intelligence": "canViewCommercial",
+  approvals: "canViewApprovals",
+  "revenue-performance": "canViewAnalytics",
+  "audit-control": "canViewAudit",
+  export: "canExport",
+};
 
 export const REVENUE_DEFAULT_VIEW: RevenueWorkspaceView = "control-center";
 
@@ -334,17 +359,46 @@ export function normalizeRevenueView(input?: string): RevenueWorkspaceView {
 }
 
 export function revenueViewDefinition(view: RevenueWorkspaceView): RevenueViewDefinition {
-  return REVENUE_VIEW_DEFINITIONS.find((definition) => definition.id === view) ?? REVENUE_VIEW_DEFINITIONS[0]!;
+  const definition =
+    REVENUE_VIEW_DEFINITIONS.find((row) => row.id === view) ?? REVENUE_VIEW_DEFINITIONS[0]!;
+  return {
+    ...definition,
+    requiredCapability: REVENUE_VIEW_REQUIRED_CAPABILITY[definition.id],
+  };
+}
+
+export function requiredCapabilityForView(view: RevenueWorkspaceView): RevenueCapability {
+  return REVENUE_VIEW_REQUIRED_CAPABILITY[view];
+}
+
+export function canAccessRevenueView(access: RevenueAccess, view: RevenueWorkspaceView): boolean {
+  if (!access.canView) return false;
+  return access[requiredCapabilityForView(view)];
+}
+
+export function firstAccessibleRevenueView(access: RevenueAccess): RevenueWorkspaceView | null {
+  return REVENUE_VIEW_DEFINITIONS.find((definition) => canAccessRevenueView(access, definition.id))?.id ?? null;
 }
 
 export function sectionForRevenueView(view: RevenueWorkspaceView): RevenuePrimarySection {
   return revenueViewDefinition(view).section;
 }
 
-export function viewsForRevenueSection(section: RevenuePrimarySection): RevenueWorkspaceView[] {
-  return REVENUE_VIEW_DEFINITIONS.filter((definition) => definition.section === section).map(
-    (definition) => definition.id,
-  );
+export function viewsForRevenueSection(
+  section: RevenuePrimarySection,
+  access?: RevenueAccess,
+): RevenueWorkspaceView[] {
+  return REVENUE_VIEW_DEFINITIONS.filter((definition) => {
+    if (definition.section !== section) return false;
+    if (!access) return true;
+    return canAccessRevenueView(access, definition.id);
+  }).map((definition) => definition.id);
+}
+
+export function visibleRevenueSections(access: RevenueAccess): RevenuePrimarySection[] {
+  return REVENUE_PRIMARY_SECTIONS.filter(
+    (section) => viewsForRevenueSection(section.id, access).length > 0,
+  ).map((section) => section.id);
 }
 
 export function implementedRevenueViews(): RevenueWorkspaceView[] {

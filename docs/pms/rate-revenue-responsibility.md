@@ -15,7 +15,7 @@ Canonical configure-rates destination: `/restaurant/settings#financial-commercia
 
 ## RATE & REVENUE OWNS
 
-- Operational daily rate calendar overrides (`hotel_rate_calendar` via `saveRateOverride`)
+- Operational daily rate calendar overrides (`hotel_rate_calendar` via `saveRateOverride`; official Phase 2 apply is `applyRateChanges`)
 - Date-level restrictions on `hotel_rate_restrictions` (min/max stay, CTA, CTD, stop sell)
 - Operational revenue monitoring (`getRevenueOverview` / Overview tab)
 - Future commercial activation/application, demand/forecast, analytics, approval, and audit **workflows** (not built in Prompt 2)

@@ -54,6 +54,17 @@ const RATE_ERRORS: Record<string, string> = {
     "That room can't be used — check it is active, available and of the reserved type.",
   ROOM_ALREADY_BOOKED: "That room is already booked or occupied for part of those dates.",
   RESERVATION_CANCELLED: "This reservation is cancelled. Restore it before amending.",
+  RATE_CHANGE_STALE: "This rate was changed by someone else. Refresh and try again.",
+  RATE_CHANGE_FORBIDDEN: "You don't have access to change rates for this property.",
+  RATE_CHANGE_EMPTY: "Select at least one date to change.",
+  RATE_CHANGE_DUPLICATE: "The same rate plan and date cannot appear twice in one change.",
+  RATE_CHANGE_UNSUPPORTED: "That rate change is not supported.",
+  RATE_CHANGE_INVALID_DATE: "Use a valid YYYY-MM-DD date.",
+  RATE_CHANGE_NEGATIVE: "A nightly rate cannot be negative.",
+  RATE_CHANGE_VALUE_REQUIRED: "Enter a rate or percentage for this change.",
+  RATE_CHANGE_SOURCE_INVALID: "The copy-from date is not valid for this rate plan.",
+  RATE_CHANGE_OVER_MAX: "That nightly rate is above the allowed maximum.",
+  RATE_CHANGE_EVENT_IMMUTABLE: "Rate change history cannot be edited.",
 };
 
 /** Map RAISE EXCEPTION codes from the pricing functions to user-facing text. */

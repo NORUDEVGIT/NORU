@@ -81,4 +81,4 @@ Rate search in chrome is **disabled** (no fake results). Prompt 4 added the shar
 
 ## Deferred
 
-Later prompts own Settings write adapters, RevenueAccess, KPI formula changes, forecast/approval tables, and UI-01–UI-40 internals.
+Prompt 5 centralized RevenueAccess and metric definitions without changing formulas. Later work owns Settings write adapters, KPI redesign, forecast/approval tables, and UI-01–UI-40 internals.

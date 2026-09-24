@@ -39,7 +39,7 @@ Configure masters at [`CARD3_HREF`](../../src/packages/pms/lib/pms-property-setu
 
 | Surface | Table / contract | Not replaced by Prompt 4 |
 |---|---|---|
-| Daily rate overrides | `hotel_rate_overrides` via `saveRateOverride` | Calendar remains the writer |
+| Daily rate overrides | `hotel_rate_calendar` via `saveRateOverride` (Calendar compatibility) and `applyRateChanges` (official Phase 2 apply) | Calendar remains the live writer until UI-03 |
 | Applied date restrictions | `hotel_rate_restrictions` | Distinct from Card 3 restriction templates |
 | Control Center KPIs | `getRevenueOverview` | Still last 30 property days unless the operator changes the **local** overview dates |
 | Stay pricing | `price_hotel_stay` / priced reservation RPCs | Unchanged |
@@ -67,6 +67,12 @@ Legacy `?tab=` still maps through Prompt 3. Unknown IDs are dropped after catalo
 | Rate Calendar | dates + room type + rate plan | Hides local `PlanFilters` |
 | Restrictions | dates + room type + rate plan | Applied `hotel_rate_restrictions` only |
 | Foundation views | Bar fields from the view model | No internals yet |
+
+## Access and metrics (Prompt 5)
+
+Workspace entry uses `getRevenueAccess` / `resolveRevenueAccess`. Owner and manager keep current operational access. Accountant reports read `getRevenueOverview` only — they do not receive the Rate & Revenue workspace. Mutations stay on `requireRateManager`.
+
+Metric formulas live in `revenue-metrics.ts` and are consumed by `getRevenueOverview`. Room revenue remains booked snapshot revenue.
 
 ## Out of scope
 

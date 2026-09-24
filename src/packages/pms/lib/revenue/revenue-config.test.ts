@@ -178,7 +178,7 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     const bar = readRel("../../components/rates/revenue-context-bar.tsx");
 
     assert.match(workspace, /RevenueContextBar/);
-    assert.match(workspace, /contextFieldsForView\(view\)/);
+    assert.match(workspace, /contextFieldsForView\(requestedView\)/);
     assert.match(workspace, /roomTypeId=\{context\.roomTypeId\}/);
     assert.match(workspace, /RateCalendarTab/);
     assert.match(workspace, /fromDate: context\.fromDate/);
@@ -221,7 +221,7 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     assert.match(rooms, /RoomInventoryChrome/);
 
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
-    assert.doesNotMatch(workspace, /RevenueAccess/);
+    assert.match(workspace, /getRevenueAccess/);
     assert.doesNotMatch(workspace, /Add rate plan/);
   });
 });
