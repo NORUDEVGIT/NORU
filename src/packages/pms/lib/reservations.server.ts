@@ -8,6 +8,7 @@
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
+import { isAllowedBookingStatusTransition } from "./reservation-dates";
 
 /** Front Office operations: owners, managers and receptionists. */
 export const RESERVATION_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
@@ -15,10 +16,12 @@ export const RESERVATION_MANAGE_ROLES = ["owner", "manager", "receptionist"] as 
 export {
   RESERVATION_STATUSES,
   MANUAL_RESERVATION_STATUSES,
+  BOOKING_STATUS_TRANSITIONS,
+  isAllowedBookingStatusTransition,
   nightsBetween,
   propertyToday,
 } from "./reservation-dates";
-export type { ReservationStatus } from "./reservation-dates";
+export type { ReservationStatus, ManualReservationStatus } from "./reservation-dates";
 
 export const RESERVATION_EVENT_TYPES = [
   "created",
@@ -36,6 +39,8 @@ export const RESERVATION_EVENT_TYPES = [
   "stay_dates_changed",
   "no_show",
   "repriced",
+  "expected_arrival_updated",
+  "late_checkout_updated",
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
 
@@ -106,6 +111,12 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_TRAVEL_AGENT_MASTER: "That Travel Agency master is not valid for this property.",
   DUAL_COMPANY_TA_NOT_ALLOWED: "This create path cannot bind Company and Travel Agency together.",
 };
+
+/** Generic Reservation status writer — booking-side allowlist only (DB03-B01). */
+export function assertBookingStatusTransition(from: string, to: string): void {
+  if (isAllowedBookingStatusTransition(from, to)) return;
+  throw reservationError("INVALID_TRANSITION");
+}
 
 /** Turn RAISE EXCEPTION codes from the reservation functions into user-facing text. */
 export function reservationError(message: string): Error {

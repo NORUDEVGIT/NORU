@@ -8,7 +8,6 @@ import {
   CREATE_RESERVATION_CHECKING_AVAILABILITY,
   CREATE_RESERVATION_EMPTY_CATALOGUE,
   CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE,
-  CREATE_RESERVATION_SECTION4_SCOPE,
   ROOM_TYPE_AVAILABILITY_LABELS,
   isRoomTypeSelectable,
   occupancySoftWarn,
@@ -51,12 +50,14 @@ export function OccupancySoftWarn({
   return (
     <div
       data-testid={testId}
-      className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+      className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
     >
       <AlertTriangle className="mt-0.5 size-4 shrink-0" />
       <div>
         <p>{message}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE}
+        </p>
       </div>
     </div>
   );
@@ -85,14 +86,21 @@ export function CreateReservationRoomType({
   const occupancyCeiling = selected?.maxOccupancy ?? selectedMaxOccupancy;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4" data-testid="create-reservation-room-type">
+    <section
+      className="rounded-2xl border border-border bg-card p-4"
+      data-testid="create-reservation-room-type"
+    >
       <h2 className="font-display text-lg">Room type</h2>
-      <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION4_SCOPE}</p>
+      {/* CREATE_RESERVATION_SECTION4_SCOPE */}
 
       {!datesValid ? (
-        <p className="mt-3 text-sm text-muted-foreground">{CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES}</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES}
+        </p>
       ) : loading ? (
-        <p className="mt-3 text-sm text-muted-foreground">{CREATE_RESERVATION_CHECKING_AVAILABILITY}</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {CREATE_RESERVATION_CHECKING_AVAILABILITY}
+        </p>
       ) : availability.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">{CREATE_RESERVATION_EMPTY_CATALOGUE}</p>
       ) : (
@@ -111,7 +119,9 @@ export function CreateReservationRoomType({
                   onClick={() => onSelect(row)}
                   className={cn(
                     "w-full rounded-xl border p-3 text-left transition-colors",
-                    selectedCard ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
+                    selectedCard
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-accent/40",
                     disabled && "cursor-not-allowed opacity-60",
                   )}
                 >
@@ -122,9 +132,12 @@ export function CreateReservationRoomType({
                     {selectedCard ? <Check className="ml-auto size-4 text-primary" /> : null}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Sleeps {row.maxOccupancy} · {roomTypeAvailabilityCopy(row.available, row.totalRooms)}
+                    Sleeps {row.maxOccupancy} ·{" "}
+                    {roomTypeAvailabilityCopy(row.available, row.totalRooms)}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">{roomTypeCapacityDisplay(row.adultCapacity, row.childCapacity)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {roomTypeCapacityDisplay(row.adultCapacity, row.childCapacity)}
+                  </p>
                 </button>
               </li>
             );
@@ -134,8 +147,14 @@ export function CreateReservationRoomType({
 
       {roomTypeId ? (
         <div className="mt-3 space-y-2">
-          <OccupancySoftWarn adults={adults} childCount={childCount} maxOccupancy={occupancyCeiling} />
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY}</p>
+          <OccupancySoftWarn
+            adults={adults}
+            childCount={childCount}
+            maxOccupancy={occupancyCeiling}
+          />
+          <p className="text-xs text-muted-foreground">
+            {CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY}
+          </p>
         </div>
       ) : null}
     </section>

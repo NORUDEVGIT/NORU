@@ -117,7 +117,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
   });
 
   it("AC-CR1-1 Context fields render; type switch shows Corporate/TA chrome without clearing guest", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
     assert.match(page, /CreateReservationContext/);
@@ -167,7 +167,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
 
   it("AC-CR1-4 Restricted/blacklisted warn-first; staff can continue; no hard block", () => {
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const bits = readRel("../components/guests/guest-bits.tsx");
     assert.match(guest, /GuestRestrictionWarn/);
     assert.match(bits, /guestRestrictionWarning/);
@@ -179,7 +179,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
 
   it("AC-CR1-5 Creating a guest does not navigate to the guest directory", () => {
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.doesNotMatch(guest, /to="\/restaurant\/pms\/guests"/);
     assert.doesNotMatch(page, /to="\/restaurant\/pms\/guests"/);
     assert.match(guest, /Create guest/);
@@ -198,7 +198,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
   });
 
   it("AC-CR1-7 Existing gates preserved — pms + reservation manager + guest-manage on writes", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const guests = readRel("./guests.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
@@ -211,7 +211,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
   });
 
   it("AC-CR1-8 Changing reservation type warns and preserves guest/stay draft", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /type-change-warn/);
     assert.match(page, /CREATE_RESERVATION_TYPE_CHANGE_WARN/);
     assert.match(CREATE_RESERVATION_TYPE_CHANGE_WARN, /stay as they are/);
@@ -223,7 +223,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
 
   it("AC-CR1-9 Booking source and market segment use SET6 when active, else §3.1 defaults", () => {
     const context = readRel("../components/bookings/create-reservation-context.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /getPmsSet6Snapshot/);
     assert.match(page, /resolveBookingSourceOptions/);
     assert.match(page, /resolveMarketSegmentOptions/);
@@ -255,7 +255,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
 
   it("AC-CR1-10 External reference is optional; booking agent defaults to current user and is not a second staff master", () => {
     const context = readRel("../components/bookings/create-reservation-context.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(context, /external-reference/);
     assert.match(context, /placeholder="Optional"/);
@@ -300,7 +300,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
 
   it("AC-CR1-14 Company/TA chrome is Section 2 pickers; Individual persist is AC-CR2A", () => {
     const context = readRel("../components/bookings/create-reservation-context.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(context, /CreateReservationMasterPicker/);
     assert.doesNotMatch(context, /reservationType === "individual"[\s\S]{0,200}CreateReservationMasterPicker/);
@@ -315,7 +315,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
   });
 
   it("AC-CR1-15 Section 1 does not claim Phase 1 or Create Reservation DONE", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
     assert.match(page, /CREATE_RESERVATION_SECTION1_SCOPE/);
@@ -325,7 +325,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
   });
 
   it("AC-CR1-16 Locked non-goals are absent from this section", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     const functions = readRel("./reservations.functions.ts");
@@ -387,7 +387,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
   });
 
   it("AC-CR1-20 Additive expansion of existing bookings/new — Doc2 shell does not fake later-section totals", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
     assert.match(page, /create-reservation-summary/);
@@ -400,7 +400,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
   });
 
   it("AC-CR1-21 Create Reservation collapses the existing app sidebar; expand stays; other pages unchanged", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const shell = readRel("../../../core/components/restaurant-shell.tsx");
     const bookingsIndex = readRel("../../../routes/restaurant/bookings/index.tsx");
     const reservationsIndex = readRel("../../../routes/restaurant/pms/reservations.index.tsx");
@@ -450,7 +450,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   it("AC-CR2-1 Corporate mode shows a Company picker over listGuestAccounts company", () => {
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /CreateReservationContext/);
     assert.match(context, /reservationType === "corporate"/);
     assert.match(context, /kind="company"/);
@@ -472,7 +472,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
 
   it("AC-CR2-3 Exclusive Context chrome still hides Individual pickers; neither master is required", () => {
     const context = readRel("../components/bookings/create-reservation-context.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(context, /reservationType === "corporate" \?/);
     assert.match(context, /reservationType === "travel_agency" \?/);
     assert.doesNotMatch(context, /reservationType === "individual"[\s\S]{0,200}CreateReservationMasterPicker/);
@@ -486,7 +486,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-4 Create in Corporate / TA mode binds the selected master on the same writer", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /mastersForCreateMode/);
     assert.match(page, /companyMasterId: boundMasters.companyMasterId/);
@@ -523,7 +523,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-6 Prefill from guest links; staff override wins when the guest changes", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const helpers = readRel("./create-reservation-phase1.ts");
     assert.match(page, /listGuestAccountLinks/);
     assert.match(page, /pickPrefillMasterId/);
@@ -580,7 +580,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-9 No Group / block / allotment / rooming / CR-100 on this create surface", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
     assert.doesNotMatch(page, /CR-100|rooming list|allotment|group block/i);
@@ -591,7 +591,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
 
   it("AC-CR2-10 No second Company/TA table or API — reuse GE1/GE3 + list/create/links", () => {
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(picker, /listGuestAccounts/);
     assert.match(picker, /getGuestAccount/);
     assert.match(picker, /GuestCompanyFormDialog/);
@@ -603,7 +603,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-11 Existing permission gates preserved; no new entitlement / RLS model", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const accounts = readRel("./guest-accounts.functions.ts");
     const migration = readRel("../../../../supabase/migrations/0059_pms_create_reservation_company_ta.sql");
@@ -620,7 +620,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-12 Type switch warns, preserves guest/stay, and clears Company/TA", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /type-change-warn/);
     assert.match(page, /CREATE_RESERVATION_TYPE_CHANGE_WARN/);
     assert.match(CREATE_RESERVATION_TYPE_CHANGE_WARN, /stay as they are/);
@@ -637,7 +637,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-13 Confirm hard-block may live in Section 7; Section 2 collects and persists honestly", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
     assert.match(page, /canSubmitCreateReservation/);
     assert.match(page, /hasGuest: !!guest/);
@@ -649,7 +649,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-14 Section 2 does not claim Phase 1 or Create Reservation DONE", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
     assert.match(page, /CREATE_RESERVATION_SECTION2_SCOPE/);
@@ -658,7 +658,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-15 Locked non-goals in §4 are absent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.equal(CREATE_RESERVATION_LOCKED_NON_GOALS.length, 12);
@@ -704,7 +704,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
   });
 
   it("AC-CR2-18 Additive expansion of existing /restaurant/bookings/new — no second product", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
@@ -745,7 +745,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-1 Arrival is required and defaults with property timezone honesty", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     assert.match(page, /CreateReservationStay/);
     assert.match(page, /useRestaurantTimezone\(\)/);
@@ -757,7 +757,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-2 Departure and nights are linked; arrival change keeps nights", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     const helpers = readRel("./create-reservation-phase1.ts");
     assert.equal(CREATE_RESERVATION_ARRIVAL_CHANGE_RULE, "keep_nights");
@@ -781,7 +781,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-3 Invalid range is blocked in UI; assertStayDates remains; min 1 night", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     const functions = readRel("./reservations.functions.ts");
     const server = readRel("./reservations.server.ts");
@@ -799,11 +799,10 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     assert.equal(isStayRangeValid("", "2026-09-16"), false);
     assert.equal(isStayRangeValid("2026-09-15", "2026-09-16"), true);
     assert.equal(linkedStayFromDeparture("2026-09-15", "2026-09-15").valid, false);
-    assert.doesNotMatch(page, /occupancyWarn.*canSubmit|canSubmit.*occupancyWarn/);
   });
 
   it("AC-CR3-4 Adults ≥1 and children ≥0 are captured on the create payload", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(stay, /data-testid="stay-adults"/);
@@ -818,18 +817,18 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     assert.match(functions, /_children: data\.children/);
   });
 
-  it("AC-CR3-5 Room-type occupancy is a soft-warn only — no hard invent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+  it("AC-CR3-5 Room-type occupancy is shown on Stay and blocks create when over capacity", () => {
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     const roomType = readRel("../components/bookings/create-reservation-room-type.tsx");
     assert.match(page, /OccupancySoftWarn/);
     assert.match(page, /testId="stay-occupancy-warn"/);
     assert.match(stay, /occupancyWarn/);
     assert.match(roomType, /OccupancySoftWarn/);
-    assert.match(CREATE_RESERVATION_OCCUPANCY_SOFT_WARN, /later section/);
+    assert.match(CREATE_RESERVATION_OCCUPANCY_SOFT_WARN, /blocked until occupancy fits/);
+    assert.match(page, /occupancyOk/);
     assert.match(page, /canSubmitCreateReservation/);
     assert.match(page, /hasGuest: !!guest/);
-    assert.doesNotMatch(page, /occupancyWarn.*canSubmit|canSubmit.*occupancyWarn/);
     const capacity = { maxOccupancy: 2, adultCapacity: 2, childCapacity: 0 };
     assert.deepEqual(occupancyCapacityIssues(1, 0, capacity), []);
     assert.equal(occupancyCapacitySoftWarn(1, 0, capacity), null);
@@ -838,11 +837,10 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     assert.deepEqual(occupancyCapacityIssues(2, 1, capacity), ["maxOccupancy", "childCapacity"]);
     assert.match(occupancyCapacitySoftWarn(3, 0, capacity) ?? "", /sleeps 2/);
     assert.equal(occupancyCapacitySoftWarn(2, 0, null), null);
-    assert.doesNotMatch(stay, /cannot continue|create blocked|hard invent/i);
   });
 
   it("AC-CR3-6 Special requests and notes persist via CURRENT payload fields", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(stay, /data-testid="stay-special-requests"/);
@@ -856,7 +854,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-7 Sticky summary shows honest stay and no fake totals", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /data-testid="create-reservation-summary"/);
     assert.match(page, /data-testid="summary-stay-dates"/);
     assert.match(page, /data-testid="summary-stay-nights"/);
@@ -870,7 +868,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-8 No second Stay writer — same createReservation stack; walk-in same writer", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const shell = readRel("./front-office-shell.ts");
@@ -884,7 +882,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-9 Existing permission gates preserved; no new entitlement / RLS model", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
@@ -904,7 +902,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-11 Section 3 does not claim Phase 1 or Create Reservation DONE", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
     assert.match(page, /CREATE_RESERVATION_SECTION3_SCOPE/);
@@ -913,7 +911,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-12 Locked non-goals in §4 are absent from this Stay section", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     const helpers = readRel("./create-reservation-phase1.ts");
     const functions = readRel("./reservations.functions.ts");
@@ -964,7 +962,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-14 Additive expansion of existing /restaurant/bookings/new — no second product", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /CreateReservationStay/);
     assert.match(page, /createReservation/);
@@ -973,7 +971,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-15 Walk-in / same-form honesty — no new status model; create still pending|confirmed only", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     assert.match(page, /useState<"pending" \| "confirmed">\("pending"\)/);
     assert.match(page, /data-testid="create-as-status"/);
@@ -986,7 +984,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
   });
 
   it("AC-CR3-16 Reuse existing date helpers — no parallel date library", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     const helpers = readRel("./create-reservation-phase1.ts");
     const dates = readRel("./reservation-dates.ts");
@@ -1040,7 +1038,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-1 Individual always shows Associations with optional Company and TA", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     assert.match(page, /CreateReservationAssociations/);
     assert.match(page, /reservationType === "individual"/);
@@ -1079,7 +1077,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-4 Prefill employer + booker_ta independently; staff override/clear wins", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const helpers = readRel("./create-reservation-phase1.ts");
     assert.match(page, /listGuestAccountLinks/);
     assert.match(page, /createReservationPrefillRoles/);
@@ -1116,7 +1114,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-5 Individual persist uses optional companyMasterId / travelAgentMasterId together", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /mastersForCreateMode/);
     assert.match(page, /companyMasterId: boundMasters.companyMasterId/);
@@ -1139,7 +1137,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-6 Individual does not hide Company/TA; exclusive Corporate/TA chrome may remain", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     assert.match(page, /reservationType === "individual" \? \(/);
@@ -1153,7 +1151,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-7 Associations is its own NORU box; placement may sit beside Guest", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
     assert.match(associations, /data-testid="create-reservation-associations"/);
@@ -1171,7 +1169,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-8 No Group / block / allotment / rooming / CR-100; no Contact/Member invent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     const context = readRel("../components/bookings/create-reservation-context.tsx");
     assert.doesNotMatch(page, /CR-100|rooming list|allotment|group block/i);
@@ -1183,7 +1181,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   it("AC-CR2A-9 No second Company/TA table or API — reuse GE1/GE3 + list/create/links", () => {
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(associations, /CreateReservationMasterPicker/);
     assert.match(picker, /listGuestAccounts/);
     assert.match(picker, /getGuestAccount/);
@@ -1196,7 +1194,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-10 Permission gates preserved; no new entitlement / RLS model", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const accounts = readRel("./guest-accounts.functions.ts");
     const migration = readRel("../../../../supabase/migrations/0060_pms_create_reservation_individual_associations.sql");
@@ -1225,7 +1223,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-12 Does not claim Phase 1 or Create Reservation DONE; Guest GE stay closed", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const helpers = readRel("./create-reservation-phase1.ts");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
@@ -1266,7 +1264,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-14 Additive expansion of existing /restaurant/bookings/new — walk-in same writer", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const shell = readRel("./front-office-shell.ts");
@@ -1281,7 +1279,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
   });
 
   it("AC-CR2A-15 Locked non-goals in §4 are absent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.equal(CREATE_RESERVATION_SECTION2A_LOCKED_NON_GOALS.length, 16);

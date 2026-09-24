@@ -18,6 +18,7 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { requireReservationManager } from "./reservations.server";
 import { requirePmsPackage } from "./pms-package.server";
 import { propertyToday } from "./reservation-dates";
+import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { evaluateNa1Blockers } from "./na1.server";
 import {
   canConfirmNightAudit,
@@ -118,7 +119,7 @@ async function loadProperty(admin: any, restaurantId: string) {
   return {
     timezone: row.timezone,
     currency: row.currency_code,
-    businessDate: row.business_date ?? propertyToday(row.timezone),
+    businessDate: resolvePropertyBusinessDate(row.business_date, row.timezone),
   };
 }
 

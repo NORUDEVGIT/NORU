@@ -10,7 +10,6 @@ import {
   CREATE_RESERVATION_GUARANTEE_LABELS_ONLY,
   CREATE_RESERVATION_NO_PAYMENT_TERMS,
   CREATE_RESERVATION_PERSIST_HELD_COPY,
-  CREATE_RESERVATION_SECTION7_SCOPE,
   type GuaranteeMethodOption,
 } from "@/packages/pms/lib/create-reservation-phase1-section7";
 import { CREATE_RESERVATION_PAYMENT_TERMS_COPY } from "@/packages/pms/lib/create-reservation-phase1";
@@ -39,10 +38,15 @@ export function CreateReservationGuarantee({
   const hasMaster = Boolean(companyName || travelAgentName);
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4" data-testid="create-reservation-guarantee">
+    <section
+      className="rounded-2xl border border-border bg-card p-4"
+      data-testid="create-reservation-guarantee"
+    >
       <h2 className="font-display text-lg">Guarantee</h2>
-      <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION7_SCOPE}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_GUARANTEE_LABELS_ONLY}</p>
+      {/* CREATE_RESERVATION_SECTION7_SCOPE */}
+      <p className="mt-1 text-xs text-muted-foreground">
+        {CREATE_RESERVATION_GUARANTEE_LABELS_ONLY}
+      </p>
 
       <div className="mt-3 max-w-sm space-y-1">
         <Label htmlFor="guarantee-method">Guarantee method</Label>
@@ -76,13 +80,17 @@ export function CreateReservationGuarantee({
           ) : null}
           {travelAgentName ? (
             <p data-testid="guarantee-ta-terms">
-              Travel Agency · {travelAgentTerms?.trim() ? travelAgentTerms : CREATE_RESERVATION_NO_PAYMENT_TERMS}
+              Travel Agency ·{" "}
+              {travelAgentTerms?.trim() ? travelAgentTerms : CREATE_RESERVATION_NO_PAYMENT_TERMS}
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_PAYMENT_TERMS_COPY}</p>
         </div>
       ) : (
-        <p className="mt-3 text-xs text-muted-foreground" data-testid="guarantee-payment-terms-empty">
+        <p
+          className="mt-3 text-xs text-muted-foreground"
+          data-testid="guarantee-payment-terms-empty"
+        >
           Payment terms appear when a Company or Travel Agency is linked.
         </p>
       )}

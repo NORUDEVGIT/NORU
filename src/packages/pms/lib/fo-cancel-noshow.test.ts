@@ -81,6 +81,10 @@ describe("FO-FS3 charge-before-status", () => {
     const fns = readFileSync(new URL("./fo-cancel-noshow.functions.ts", import.meta.url), "utf8");
     const cancelSrc = fns.slice(fns.indexOf("export const completeFoCancel"));
     const noShowSrc = fns.slice(fns.indexOf("export const completeFoNoShow"));
+    assert.match(fns, /room_id: null/);
+    const reservationFns = readFileSync(new URL("./reservations.functions.ts", import.meta.url), "utf8");
+    assert.match(reservationFns, /export const copyReservation/);
+    assert.match(reservationFns, /roomId: null/);
     assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf(".update({"));
     assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf("cancellation_reason"));
     assert.ok(noShowSrc.indexOf("canCompleteNoShow") < noShowSrc.indexOf("mark_hotel_reservation_no_show"));
