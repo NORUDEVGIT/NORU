@@ -6,34 +6,29 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import { Switch } from "@/shared/components/ui/switch";
 import { Checkbox } from "@/shared/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { StatCard, formatStayDate, addDays } from "@/packages/pms/components/bookings/reservation-bits";
 import { listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import {
   getRevenueOverview,
   listRateCalendar,
-  listRateCategories,
   listRatePlans,
   listRateRestrictions,
-  saveRateCategory,
   saveRateOverride,
-  saveRatePlan,
   saveRateRestriction,
-  setRatePlanActive,
-  type RatePlan,
 } from "@/packages/pms/lib/rates.functions";
+import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+
+function PropertySetupRatesLink({ className }: { className?: string }) {
+  return (
+    <a href={CARD3_HREF} className={className ?? "font-medium text-primary underline-offset-2 hover:underline"}>
+      Property Setup
+    </a>
+  );
+}
 
 const ALL = "all";
 
@@ -100,19 +95,11 @@ export function RevenueOverviewTab({ restaurantId, today }: { restaurantId: stri
 
 export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
   const money = useMoney();
-  const queryClient = useQueryClient();
   const [roomTypeFilter, setRoomTypeFilter] = useState<string>(ALL);
   const [activeOnly, setActiveOnly] = useState(false);
-  const [planDialog, setPlanDialog] = useState<{ open: boolean; plan: RatePlan | null }>({
-    open: false,
-    plan: null,
-  });
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
 
   const fetchPlans = useServerFn(listRatePlans);
   const fetchTypes = useServerFn(listRoomTypes);
-  const fetchCategories = useServerFn(listRateCategories);
-  const toggleActive = useServerFn(setRatePlanActive);
 
   const plansQuery = useQuery({
     queryKey: ["rate-plans", restaurantId, roomTypeFilter, activeOnly],
@@ -130,21 +117,6 @@ export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
     queryKey: ["room-types", restaurantId],
     queryFn: () => fetchTypes({ data: { restaurantId } }),
     retry: false,
-  });
-  const categoriesQuery = useQuery({
-    queryKey: ["rate-categories", restaurantId],
-    queryFn: () => fetchCategories({ data: { restaurantId } }),
-    retry: false,
-  });
-
-  const activeMutation = useMutation({
-    mutationFn: (vars: { ratePlanId: string; active: boolean }) =>
-      toggleActive({ data: { restaurantId, ...vars } }),
-    onSuccess: () => {
-      toast.success("Rate plan updated");
-      void queryClient.invalidateQueries({ queryKey: ["rate-plans", restaurantId] });
-    },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   const plans = plansQuery.data ?? [];
@@ -171,19 +143,16 @@ export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
         <label className="flex items-center gap-2 pb-2 text-sm">
           <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Active only
         </label>
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" onClick={() => setCategoryDialogOpen(true)}>
-            Add category
-          </Button>
-          <Button onClick={() => setPlanDialog({ open: true, plan: null })}>Add rate plan</Button>
-        </div>
+        <p className="ml-auto max-w-md pb-2 text-xs text-muted-foreground">
+          Rate plan masters are configured in <PropertySetupRatesLink />.
+        </p>
       </div>
 
       {plansQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading rate plans…</p>
       ) : plans.length === 0 ? (
         <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          No rate plans yet. Create a category (for example BAR) and then a rate plan for a room type.
+          No active rate plans are configured. Configure rate plans in <PropertySetupRatesLink />.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border bg-card">
@@ -197,7 +166,6 @@ export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
                 <th className="px-4 py-3">Base rate</th>
                 <th className="px-4 py-3">Validity</th>
                 <th className="px-4 py-3">Active</th>
-                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -215,284 +183,13 @@ export function RatePlansTab({ restaurantId }: { restaurantId: string }) {
                     {plan.validTo ? formatStayDate(plan.validTo) : "Any"}
                   </td>
                   <td className="px-4 py-3">{plan.active ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setPlanDialog({ open: true, plan })}>
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => activeMutation.mutate({ ratePlanId: plan.id, active: !plan.active })}
-                      >
-                        {plan.active ? "Deactivate" : "Activate"}
-                      </Button>
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-
-      <RatePlanDialog
-        restaurantId={restaurantId}
-        open={planDialog.open}
-        plan={planDialog.plan}
-        categories={(categoriesQuery.data ?? []).map((c) => ({ id: c.id, label: `${c.code} — ${c.name}` }))}
-        roomTypes={(typesQuery.data ?? []).map((t) => ({ id: t.id, label: t.name }))}
-        onClose={() => setPlanDialog({ open: false, plan: null })}
-      />
-      <RateCategoryDialog
-        restaurantId={restaurantId}
-        open={categoryDialogOpen}
-        onClose={() => setCategoryDialogOpen(false)}
-      />
     </div>
-  );
-}
-
-function RateCategoryDialog({
-  restaurantId,
-  open,
-  onClose,
-}: {
-  restaurantId: string;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const save = useServerFn(saveRateCategory);
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-
-  useEffect(() => {
-    if (open) {
-      setCode("");
-      setName("");
-      setDescription("");
-    }
-  }, [open]);
-
-  const mutation = useMutation({
-    mutationFn: () => save({ data: { restaurantId, code, name, description: description || null } }),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success("Rate category saved");
-      void queryClient.invalidateQueries({ queryKey: ["rate-categories", restaurantId] });
-      onClose();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add rate category</DialogTitle>
-          <DialogDescription>Group rate plans, for example BAR, Standard or Promotional.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="cat-code">Code</Label>
-            <Input id="cat-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="BAR" />
-          </div>
-          <div>
-            <Label htmlFor="cat-name">Name</Label>
-            <Input
-              id="cat-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Best Available Rate"
-            />
-          </div>
-          <div>
-            <Label htmlFor="cat-desc">Description</Label>
-            <Textarea id="cat-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!code.trim() || !name.trim() || mutation.isPending} onClick={() => mutation.mutate()}>
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function RatePlanDialog({
-  restaurantId,
-  open,
-  plan,
-  categories,
-  roomTypes,
-  onClose,
-}: {
-  restaurantId: string;
-  open: boolean;
-  plan: RatePlan | null;
-  categories: { id: string; label: string }[];
-  roomTypes: { id: string; label: string }[];
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const save = useServerFn(saveRatePlan);
-
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [roomTypeId, setRoomTypeId] = useState("");
-  const [baseRate, setBaseRate] = useState("0");
-  const [validFrom, setValidFrom] = useState("");
-  const [validTo, setValidTo] = useState("");
-  const [active, setActive] = useState(true);
-
-  useEffect(() => {
-    if (!open) return;
-    setCode(plan?.code ?? "");
-    setName(plan?.name ?? "");
-    setDescription(plan?.description ?? "");
-    setCategoryId(plan?.categoryId ?? categories[0]?.id ?? "");
-    setRoomTypeId(plan?.roomTypeId ?? roomTypes[0]?.id ?? "");
-    setBaseRate(String(plan?.baseRate ?? 0));
-    setValidFrom(plan?.validFrom ?? "");
-    setValidTo(plan?.validTo ?? "");
-    setActive(plan?.active ?? true);
-  }, [open, plan, categories, roomTypes]);
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      save({
-        data: {
-          restaurantId,
-          ...(plan ? { ratePlanId: plan.id } : {}),
-          rateCategoryId: categoryId,
-          roomTypeId,
-          code,
-          name,
-          description: description || null,
-          baseRate: Number(baseRate),
-          validFrom: validFrom || null,
-          validTo: validTo || null,
-          active,
-        },
-      }),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success("Rate plan saved");
-      void queryClient.invalidateQueries({ queryKey: ["rate-plans", restaurantId] });
-      onClose();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const valid = code.trim() && name.trim() && categoryId && roomTypeId && Number(baseRate) >= 0;
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent className="max-h-[85dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{plan ? "Edit rate plan" : "Add rate plan"}</DialogTitle>
-          <DialogDescription>
-            The plan's currency follows the property currency. Base rate applies to every night without an override.
-          </DialogDescription>
-        </DialogHeader>
-
-        {categories.length === 0 ? (
-          <p className="text-sm text-destructive">Create a rate category first.</p>
-        ) : null}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="plan-code">Code</Label>
-            <Input id="plan-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="BAR-DLX" />
-          </div>
-          <div>
-            <Label htmlFor="plan-name">Name</Label>
-            <Input id="plan-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <Label>Category</Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Room type</Label>
-            <Select value={roomTypeId} onValueChange={setRoomTypeId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select room type" />
-              </SelectTrigger>
-              <SelectContent>
-                {roomTypes.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="plan-rate">Base rate</Label>
-            <Input
-              id="plan-rate"
-              type="number"
-              min={0}
-              step="0.01"
-              value={baseRate}
-              onChange={(e) => setBaseRate(e.target.value)}
-            />
-          </div>
-          <div className="flex items-end gap-2 pb-2">
-            <Switch checked={active} onCheckedChange={setActive} id="plan-active" />
-            <Label htmlFor="plan-active">Active</Label>
-          </div>
-          <div>
-            <Label htmlFor="plan-from">Valid from</Label>
-            <Input id="plan-from" type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="plan-to">Valid to</Label>
-            <Input id="plan-to" type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="plan-desc">Description</Label>
-            <Textarea id="plan-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!valid || mutation.isPending} onClick={() => mutation.mutate()}>
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

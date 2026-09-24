@@ -43,6 +43,7 @@ Wave 1–5 engineering gates exited after Independent QA PASS (Rekik), merge, an
 | PMS Dashboard (`/restaurant/pms/dashboard` → `RoomsDashboardTab`) | [dashboard.md](./dashboard.md) |
 | Guest Profile (`/restaurant/pms/guests`, `/restaurant/pms/guests/$guestId`) | [guests.md](./guests.md) — Waves 1–5 **IMPLEMENTED ON MAIN**; Wave 5 **OPERATIONALLY ACCEPTED**; Gap-edit 2 Spec **Eng-ready** / ENGINEERING **IN PROGRESS** (Independent QA **HELD** until staged-create; not implemented); programme **READY FOR HOTEL UAT**; module **not** COMPLETE |
 | Create Reservation (`/restaurant/bookings/new`) — Phase 1 Section 1 | [specs/create-reservation-phase1-section1.md](./specs/create-reservation-phase1-section1.md) — **Eng-ready** / **IN PROGRESS Spec**. ENGINEERING **NOT STARTED**. Context + Guest only. **Not** CURRENT feature documentation for a completed create workspace |
+| Rate & Revenue (`/restaurant/pms/rates-revenue`) — Phase 1 Prompt 1 | [rate-revenue-phase1-audit.md](./rate-revenue-phase1-audit.md) — **AUDIT / BASELINE ONLY**. Not a Spec. Does not authorise UI-01–UI-40, pricing-engine changes, or moving masters. |
 
 Other PMS area docs (reservations, rates, housekeeping, cashiering, night audit, and the rest) will be added here as those features complete their own cycles. Absence of a file is not a claim that the surface does not exist in the product.
 

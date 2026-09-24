@@ -21,10 +21,10 @@ export const Route = createFileRoute("/restaurant/pms/rates-revenue")({
   },
   head: () => ({
     meta: [
-      { title: "Rate & Revenue Management — NORU PMS" },
-      { name: "description", content: "Rate plans, rate calendar and stay restrictions for your property." },
-      { property: "og:title", content: "Rate & Revenue Management — NORU PMS" },
-      { property: "og:description", content: "Rate plans, rate calendar and stay restrictions for your property." },
+      { title: "Rate & Revenue — NORU PMS" },
+      { name: "description", content: "Daily pricing, revenue control and commercial operations for your property." },
+      { property: "og:title", content: "Rate & Revenue — NORU PMS" },
+      { property: "og:description", content: "Daily pricing, revenue control and commercial operations for your property." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -35,9 +35,11 @@ export const Route = createFileRoute("/restaurant/pms/rates-revenue")({
 
 function RatesRevenuePmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  // module="configuration" still selects the existing left-rail registry. User-facing
+  // copy is operational; Prompt 3 owns any shell/moduleKey restructure.
   return (
     <RestaurantShell active="Rates & Revenue" module="configuration" pms pmsModule="rates-revenue">
-      {(m) => <RatesWorkspace membership={m} initialTab={searchTab ?? "plans"} />}
+      {(m) => <RatesWorkspace membership={m} initialTab={searchTab ?? "overview"} />}
     </RestaurantShell>
   );
 }

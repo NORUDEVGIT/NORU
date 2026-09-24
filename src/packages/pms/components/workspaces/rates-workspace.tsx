@@ -50,11 +50,11 @@ export function RatesWorkspace({ membership, initialTab }: { membership: Restaur
     <div className="space-y-6">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Configuration · Rates &amp; Revenue
+          PMS · Rate &amp; Revenue
         </p>
-        <h1 className="font-display text-2xl"><PageHeading fallback="Rates & Revenue" /></h1>
+        <h1 className="font-display text-2xl"><PageHeading fallback="Rate & Revenue" /></h1>
         <p className="text-sm text-muted-foreground">
-          Rate plans, daily rates, restrictions and revenue performance for {membership.restaurant.name}.
+          Daily pricing, revenue control and commercial operations for {membership.restaurant.name}.
         </p>
       </div>
 
