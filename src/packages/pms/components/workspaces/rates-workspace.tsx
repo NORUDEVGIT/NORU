@@ -16,7 +16,10 @@ import { RestrictionCalendarView } from "@/packages/pms/components/rates/restric
 import { BulkRestrictionView } from "@/packages/pms/components/rates/bulk-restriction/bulk-restriction-view";
 import { RestrictionHistoryView } from "@/packages/pms/components/rates/restriction-history/restriction-history-view";
 import { DemandForecastView } from "@/packages/pms/components/rates/demand-overview/demand-forecast-view";
+import { DemandCalendarView } from "@/packages/pms/components/rates/demand-calendar/demand-calendar-view";
+import { PickupPaceView } from "@/packages/pms/components/rates/pickup-pace/pickup-pace-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
+import { defaultDemandCalendarRange } from "@/packages/pms/lib/revenue/demand-calendar";
 import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
 import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
@@ -215,9 +218,18 @@ export function RatesWorkspace({
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
-    if (requestedView !== "demand-forecast") return;
+    if (requestedView !== "demand-forecast" && requestedView !== "pickup-pace") return;
     if (search.from || search.to) return;
     const range = defaultDemandRange(businessDate);
+    if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
+    writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+  }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
+
+  useEffect(() => {
+    if (!baseQuery.isSuccess) return;
+    if (requestedView !== "demand-calendar") return;
+    if (search.from || search.to) return;
+    const range = defaultDemandCalendarRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
@@ -284,6 +296,17 @@ export function RatesWorkspace({
         return <RestrictionHistoryView restaurantId={restaurantId} context={context} />;
       case "demand-forecast":
         return <DemandForecastView restaurantId={restaurantId} context={context} />;
+      case "pickup-pace":
+        return <PickupPaceView restaurantId={restaurantId} context={context} />;
+      case "demand-calendar":
+        return (
+          <DemandCalendarView
+            restaurantId={restaurantId}
+            context={context}
+            businessDate={businessDate}
+            onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
+          />
+        );
       default:
         return (
           <RevenueFoundationView

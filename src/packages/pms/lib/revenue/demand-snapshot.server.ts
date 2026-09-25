@@ -45,6 +45,44 @@ export async function loadOtbSnapshotHistoryStart(
   return row?.as_of_business_date ?? null;
 }
 
+export async function loadLatestOtbSnapshotAsOf(
+  db: DbClient,
+  restaurantId: string,
+): Promise<string | null> {
+  const result = await db
+    .from("hotel_revenue_otb_snapshots")
+    .select("as_of_business_date")
+    .eq("restaurant_id", restaurantId)
+    .order("as_of_business_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return null;
+    throw new Error(result.error.message);
+  }
+  const row = result.data as { as_of_business_date?: string } | null;
+  return row?.as_of_business_date ?? null;
+}
+
+export async function otbSnapshotExistsForAsOf(
+  db: DbClient,
+  restaurantId: string,
+  asOfBusinessDate: string,
+): Promise<boolean> {
+  const result = await db
+    .from("hotel_revenue_otb_snapshots")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("as_of_business_date", asOfBusinessDate)
+    .limit(1)
+    .maybeSingle();
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return false;
+    throw new Error(result.error.message);
+  }
+  return Boolean(result.data);
+}
+
 export async function listRevenueOtbSnapshots(
   db: DbClient,
   query: OtbSnapshotQuery,
@@ -56,7 +94,8 @@ export async function listRevenueOtbSnapshots(
     )
     .eq("restaurant_id", query.restaurantId)
     .order("as_of_business_date", { ascending: true })
-    .order("stay_date", { ascending: true });
+    .order("stay_date", { ascending: true })
+    .limit(5000);
   if (query.asOfFrom) request = request.gte("as_of_business_date", query.asOfFrom);
   if (query.asOfTo) request = request.lte("as_of_business_date", query.asOfTo);
   if (query.stayFrom) request = request.gte("stay_date", query.stayFrom);

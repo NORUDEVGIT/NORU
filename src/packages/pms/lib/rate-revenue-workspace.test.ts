@@ -63,6 +63,8 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /<BulkRestrictionView/);
     assert.match(workspace, /<RestrictionHistoryView/);
     assert.match(workspace, /<DemandForecastView/);
+    assert.match(workspace, /<PickupPaceView/);
+    assert.match(workspace, /<DemandCalendarView/);
     assert.match(workspace, /case "control-center"/);
     assert.match(workspace, /case "rate-plans-reference"/);
     assert.match(workspace, /case "rate-calendar"/);
@@ -72,6 +74,8 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /case "apply-restriction"/);
     assert.match(workspace, /case "restriction-history"/);
     assert.match(workspace, /case "demand-forecast"/);
+    assert.match(workspace, /case "pickup-pace"/);
+    assert.match(workspace, /case "demand-calendar"/);
     assert.deepEqual(implementedRevenueViews(), [
       "control-center",
       "rate-plans-reference",
@@ -82,6 +86,8 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
       "apply-restriction",
       "restriction-history",
       "demand-forecast",
+      "pickup-pace",
+      "demand-calendar",
     ]);
   });
 
@@ -96,7 +102,10 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.doesNotMatch(foundation, /\$\d/);
     assert.doesNotMatch(foundation, /approval queue/i);
     assert.ok(!foundationRevenueViews().includes("demand-forecast"));
-    assert.ok(foundationRevenueViews().includes("pickup-pace"));
+    assert.ok(!foundationRevenueViews().includes("pickup-pace"));
+    assert.ok(!foundationRevenueViews().includes("demand-calendar"));
+    assert.ok(foundationRevenueViews().includes("forecast-detail"));
+    assert.ok(foundationRevenueViews().includes("forecast-history"));
     assert.ok(!foundationRevenueViews().includes("rate-history"));
     assert.ok(!foundationRevenueViews().includes("bulk-rate-change"));
     assert.ok(!foundationRevenueViews().includes("apply-restriction"));

@@ -97,7 +97,9 @@ describe("RR-P4-02 — UI-12 Demand & Forecast Overview", () => {
     assert.match(view, /"revenue-demand-overview"/);
     assert.doesNotMatch(view, /getRevenueControlWorkspace|getRevenueOtbSnapshots|captureRevenueOtbSnapshot|getRevenueRateCalendar/);
     assert.doesNotMatch(view, /marketSegmentId|commercialSourceId|salesChannelId/);
-    assert.doesNotMatch(view, /pickup-pace|demand-calendar/);
+    assert.match(view, /View Demand Calendar/);
+    assert.doesNotMatch(view, /DemandDetailDrawer|getRevenueDemandCalendar/);
+    assert.doesNotMatch(view, /pickup-pace/);
   });
 
   it("labels summary KPIs as room nights, not physical rooms", () => {
@@ -297,7 +299,7 @@ describe("RR-P4-02 — UI-12 Demand & Forecast Overview", () => {
     assert.deepEqual(defaultDemandRange("2026-09-25"), { fromDate: "2026-09-25", toDate: "2026-10-24" });
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /defaultDemandRange\(businessDate\)/);
-    assert.match(workspace, /requestedView !== "demand-forecast"/);
+    assert.match(workspace, /requestedView !== "demand-forecast" && requestedView !== "pickup-pace"/);
     const demandEffect = workspace.slice(workspace.indexOf('requestedView !== "demand-forecast"'));
     assert.match(demandEffect, /if \(search\.from \|\| search\.to\) return;/);
   });

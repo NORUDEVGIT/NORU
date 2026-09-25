@@ -6,6 +6,7 @@
 | **Date** | 2026-09-25 |
 | **Branch** | `feature/guest-preferences-workspace` |
 | **RR-P4-01** | **Foundation implemented.** Live Demand read model + immutable OTB daily snapshots. |
+| **Phase 4 status** | **Demand COMPLETE · Pickup COMPLETE · Predictive forecast NOT AVAILABLE · Forecast History NOT AVAILABLE** |
 
 ## 1. Executive Summary
 
@@ -59,19 +60,19 @@ After successful `close_business_date` (and on already-closed retry). Close is n
 
 ## 13. UI-13 Audit
 
-**NO as Pickup until snapshots accumulate.** Recent booking activity is available and must not be labeled Pickup.
+**IMPLEMENTED (RR-P4-03).** `view=pickup-pace` mounts `PickupPaceView` and consumes `getRevenuePickupPace`. Pickup is snapshot-to-snapshot via `computePickup` for windows 1/3/7/14. Missing prior and partial stay-date coverage are unavailable, not zero. Recent booking activity is omitted. YoY / same-lead-time pace remain unavailable.
 
 ## 14. UI-14 Audit
 
-**PARTIAL** as Demand Detail (OTB / inventory / rates / restrictions / recent activity). No forecast composition.
+**IMPLEMENTED (RR-P4-04) as a drawer, not `view=forecast-detail`.** `DemandDetailDrawer` opens from a Demand Calendar cell. Tabs: Overview, Pickup, Rates & Restrictions, Related. Forecast is an information line only: **Forecast: Not Yet Available**. `forecast-detail` remains `implemented: false`.
 
 ## 15. UI-15 Audit
 
-**PARTIAL** as occupancy/inventory calendar. Reuse Rate/Restriction grid primitives. No demand score.
+**IMPLEMENTED (RR-P4-04).** `view=demand-calendar` mounts `DemandCalendarView` and consumes `getRevenueDemandCalendar`. Grain is stay date × room type. Color bands are occupancy/inventory states (Sold Out / High Occupancy / Elevated Occupancy / Open Inventory) plus Stop Sell overlay. No demand score.
 
 ## 16. UI-16 Audit
 
-**D — requires a forecast model.** OTB snapshots ≠ forecast history.
+**NOT IMPLEMENTED.** **D — requires a forecast model.** `view=forecast-history` stays `implemented: false`. OTB snapshots ≠ forecast history.
 
 ## 17. Metric Definitions
 
@@ -107,7 +108,7 @@ One composed server read. Default 30 / max 90 days. No per-date browser queries.
 
 ## 25. Routing
 
-`demand-forecast` is `implemented: true`. `pickup-pace`, `forecast-detail`, `demand-calendar`, and `forecast-history` remain `implemented: false`.
+`demand-forecast`, `pickup-pace`, and `demand-calendar` are `implemented: true`. `forecast-detail` and `forecast-history` remain `implemented: false`. UI-14 is the Demand Detail drawer, not a workspace view.
 
 ## 26. Access
 
@@ -115,11 +116,11 @@ One composed server read. Default 30 / max 90 days. No per-date browser queries.
 
 ## 27. Frontend Architecture
 
-UI-12 lives in `components/rates/demand-overview/`. Later: `pickup-pace/`, `demand-detail/`, `demand-calendar/`. Do not grow `rates-tabs.tsx`.
+UI-12 lives in `components/rates/demand-overview/`. UI-13 lives in `components/rates/pickup-pace/`. UI-15 lives in `components/rates/demand-calendar/`. UI-14 lives in `components/rates/demand-detail/`. Do not grow `rates-tabs.tsx`.
 
 ## 28. Backend Architecture
 
-`revenue/demand.*` live read. `revenue/demand-snapshot.*` capture/history. Official APIs: `getRevenueDemandOverview`, `getRevenueOtbSnapshots`, `getRevenueOtbSnapshotHistoryStart`. Capture: `captureRevenueOtbSnapshot` (server only).
+`revenue/demand.*` live read. `revenue/demand-snapshot.*` capture/history. `revenue/pickup-pace.*` snapshot-to-snapshot pickup. `revenue/demand-calendar.*` composed calendar read. Official APIs: `getRevenueDemandOverview`, `getRevenueOtbSnapshots`, `getRevenueOtbSnapshotHistoryStart`, `getRevenuePickupPace`, `getRevenueDemandCalendar`. Capture: `captureRevenueOtbSnapshot` (server only).
 
 ## 29. Database Changes
 
@@ -158,10 +159,10 @@ Current OTB occupancy / remaining / booked revenue / priced share / recent booki
 ## 35. Recommended Prompt Sequence
 
 1. **RR-P4-01** Demand read + OTB snapshots — **done**
-2. RR-P4-02 UI-12 Demand Overview
-3. RR-P4-03 UI-13 Pickup
-4. RR-P4-04 UI-15 + UI-14
+2. **RR-P4-02** UI-12 Demand Overview — **done**
+3. **RR-P4-03** UI-13 Pickup — **done**
+4. **RR-P4-04** UI-15 + UI-14 — **done**. UI-16 stays foundation.
 
 ## 36. Definition of Done
 
-Demand complete when UI-12/14/15 consume the live read honestly. Pickup complete after snapshots exist. Forecast remains unavailable. UI-16 not marked complete.
+**Demand COMPLETE.** UI-12/14/15 consume the live read honestly. **Pickup COMPLETE** after snapshots exist. **Predictive forecast NOT AVAILABLE.** **Forecast History NOT AVAILABLE.** UI-16 is not marked complete.

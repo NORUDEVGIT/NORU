@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { Link } from "@tanstack/react-router";
+
 import { InventoryState } from "@/packages/pms/components/rooms/room-inventory-shared";
 import { getRevenueDemandOverview } from "@/packages/pms/lib/revenue/demand.functions";
+import { serializeRevenueSearch } from "@/packages/pms/lib/revenue/revenue-context";
 import {
   collectDemandAttention,
   demandHasOtb,
@@ -72,11 +75,20 @@ export function DemandForecastView({
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="font-display text-xl font-semibold tracking-tight text-[#251605]">Demand & Forecast</h2>
-        <p className="text-xs text-muted-foreground">
-          Live on-the-books occupancy, booked revenue and restriction context.
-        </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-display text-xl font-semibold tracking-tight text-[#251605]">Demand & Forecast</h2>
+          <p className="text-xs text-muted-foreground">
+            Live on-the-books occupancy, booked revenue and restriction context.
+          </p>
+        </div>
+        <Link
+          to="/restaurant/pms/rates-revenue"
+          search={serializeRevenueSearch("demand-calendar", context)}
+          className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-[10px] text-[#251605] hover:bg-[#F8F1E5]"
+        >
+          View Demand Calendar
+        </Link>
       </div>
 
       {query.isLoading ? (
