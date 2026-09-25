@@ -9,6 +9,10 @@ export const DEMAND_LOAD_ERROR = "Demand could not be loaded.";
 export const OTB_SNAPSHOT_LOAD_ERROR = "On-the-books snapshot history could not be loaded.";
 export const PICKUP_PACE_LOAD_ERROR = "Pickup & Pace could not be loaded.";
 export const DEMAND_CALENDAR_LOAD_ERROR = "Demand Calendar could not be loaded.";
+export const COMMERCIAL_HISTORY_LOAD_ERROR = "Commercial change history could not be loaded.";
+export const COMMERCIAL_OVERVIEW_LOAD_ERROR = "Commercial overview could not be loaded.";
+export const COMMERCIAL_PROMOTIONS_LOAD_ERROR = "Promotions could not be loaded.";
+export const COMMERCIAL_PACKAGES_LOAD_ERROR = "Packages could not be loaded.";
 
 export function isPrivilegedDbError(message: string): boolean {
   return /permission denied|row-level security|42501/i.test(message);

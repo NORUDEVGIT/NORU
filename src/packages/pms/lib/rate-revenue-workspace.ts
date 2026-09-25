@@ -22,8 +22,10 @@ export type RevenueWorkspaceView =
   | "forecast-detail"
   | "demand-calendar"
   | "forecast-history"
+  | "commercial"
   | "promotions"
   | "packages"
+  | "commercial-history"
   | "market-intelligence"
   | "approvals"
   | "revenue-performance"
@@ -64,8 +66,10 @@ export const REVENUE_VIEW_REQUIRED_CAPABILITY: Record<RevenueWorkspaceView, Reve
   "forecast-detail": "canViewForecast",
   "demand-calendar": "canViewForecast",
   "forecast-history": "canViewForecast",
+  commercial: "canViewCommercial",
   promotions: "canViewCommercial",
   packages: "canViewCommercial",
+  "commercial-history": "canViewCommercial",
   "market-intelligence": "canViewCommercial",
   approvals: "canViewApprovals",
   "revenue-performance": "canViewAnalytics",
@@ -196,13 +200,21 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     contextFields: ["dateRange", "roomType", "ratePlan"],
   },
   {
+    id: "commercial",
+    label: "Commercial Overview",
+    section: "commercial",
+    description: "Monitor active promotions, packages, commercial scope, and post-launch performance.",
+    implemented: true,
+    sources: ["Property Setup", "Reservations"],
+    contextFields: ["dateRange", "roomType", "ratePlan"],
+  },
+  {
     id: "promotions",
     label: "Promotions",
     section: "commercial",
     description: "Operational activation of promotion masters from Property Setup.",
-    implemented: false,
-    plannedCapability: "Apply and monitor promotions without owning master definitions.",
-    sources: ["Property Setup"],
+    implemented: true,
+    sources: ["Property Setup", "Reservations"],
     contextFields: ["dateRange", "roomType", "ratePlan"],
   },
   {
@@ -210,10 +222,19 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     label: "Packages",
     section: "commercial",
     description: "Operational package availability and performance.",
-    implemented: false,
-    plannedCapability: "Activate and review packages defined in Property Setup.",
+    implemented: true,
     sources: ["Property Setup", "Reservations"],
     contextFields: ["dateRange", "roomType", "ratePlan"],
+  },
+  {
+    id: "commercial-history",
+    label: "Commercial History",
+    section: "commercial",
+    description: "Review operational commercial activation changes.",
+    implemented: false,
+    plannedCapability: "Full commercial change history table once UI-21 ships.",
+    sources: ["hotel_commercial_change_events"],
+    contextFields: ["dateRange"],
   },
   {
     id: "market-intelligence",
@@ -284,7 +305,7 @@ export const REVENUE_SECTION_DEFAULTS: Record<RevenuePrimarySection, RevenueWork
   rates: "rate-plans-reference",
   restrictions: "restrictions",
   "demand-forecast": "demand-forecast",
-  commercial: "promotions",
+  commercial: "commercial",
   more: "revenue-performance",
 };
 
@@ -310,11 +331,11 @@ export const REVENUE_UI_SCREEN_MAP: Array<{
   { ui: "UI-14", view: "forecast-detail" },
   { ui: "UI-15", view: "demand-calendar" },
   { ui: "UI-16", view: "forecast-history" },
-  { ui: "UI-17", view: "promotions" },
-  { ui: "UI-18", view: null, note: "future promotion activation workflow" },
-  { ui: "UI-19", view: null, note: "future promotion performance detail" },
-  { ui: "UI-20", view: "packages" },
-  { ui: "UI-21", view: null, note: "future package activation workflow" },
+  { ui: "UI-17", view: "commercial" },
+  { ui: "UI-18", view: "promotions" },
+  { ui: "UI-19", view: "packages" },
+  { ui: "UI-20", view: null, note: "activation wizard, not primary nav" },
+  { ui: "UI-21", view: "commercial-history", note: "foundation until UI-21" },
   { ui: "UI-22", view: "market-intelligence" },
   { ui: "UI-23", view: null, note: "future comparison subview/detail" },
   { ui: "UI-24", view: null, note: "future market-position subview" },

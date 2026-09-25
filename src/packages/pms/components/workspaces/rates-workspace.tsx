@@ -18,6 +18,9 @@ import { RestrictionHistoryView } from "@/packages/pms/components/rates/restrict
 import { DemandForecastView } from "@/packages/pms/components/rates/demand-overview/demand-forecast-view";
 import { DemandCalendarView } from "@/packages/pms/components/rates/demand-calendar/demand-calendar-view";
 import { PickupPaceView } from "@/packages/pms/components/rates/pickup-pace/pickup-pace-view";
+import { CommercialOverviewView } from "@/packages/pms/components/rates/commercial-overview/commercial-overview-view";
+import { PromotionsView } from "@/packages/pms/components/rates/promotions/promotions-view";
+import { PackagesView } from "@/packages/pms/components/rates/packages/packages-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
 import { defaultDemandCalendarRange } from "@/packages/pms/lib/revenue/demand-calendar";
 import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
@@ -227,6 +230,15 @@ export function RatesWorkspace({
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
+    if (requestedView !== "commercial" && requestedView !== "promotions") return;
+    if (search.from || search.to) return;
+    const range = defaultControlCenterRange(businessDate);
+    if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
+    writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+  }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
+
+  useEffect(() => {
+    if (!baseQuery.isSuccess) return;
     if (requestedView !== "demand-calendar") return;
     if (search.from || search.to) return;
     const range = defaultDemandCalendarRange(businessDate);
@@ -305,6 +317,37 @@ export function RatesWorkspace({
             context={context}
             businessDate={businessDate}
             onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
+          />
+        );
+      case "commercial":
+        return (
+          <CommercialOverviewView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
+            onNavigateView={selectView}
+          />
+        );
+      case "promotions":
+        return (
+          <PromotionsView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
+          />
+        );
+      case "packages":
+        return (
+          <PackagesView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
           />
         );
       default:

@@ -638,10 +638,20 @@ export const createReservation = createServerFn({ method: "POST" })
         reservationType: z.enum(["individual", "corporate", "travel_agency"]).optional(),
         pmsGroupId: idSchema.nullable().optional(),
         pmsGroupBlockId: idSchema.nullable().optional(),
+        promotionActivationId: idSchema.optional(),
+        packageActivationIds: z.array(idSchema).optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string; confirmationNumber: string }> => {
+  .handler(async ({ data, context }): Promise<{
+    id: string;
+    confirmationNumber: string;
+    roomSubtotal: number | null;
+    promotionDiscount: number;
+    roomSubtotalAfterPromotion: number | null;
+    packagesSubtotal: number;
+    grandCommercialSubtotal: number | null;
+  }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const status = data.status ?? "pending";
     assertCreateReservationPricing({
@@ -700,7 +710,7 @@ export const createReservation = createServerFn({ method: "POST" })
         roomTypeId: data.roomTypeId,
       });
     }
-    const { data: created, error } = await supabaseAdmin.rpc("create_hotel_reservation_priced", {
+    const pricedArgs = {
       _restaurant_id: data.restaurantId,
       _guest_id: data.guestId,
       _room_type_id: data.roomTypeId,
@@ -726,10 +736,25 @@ export const createReservation = createServerFn({ method: "POST" })
             _guarantee_method: blankToNull(data.guaranteeMethod) as unknown as string,
           }
         : {}),
-    });
+    };
+    const hasCommercialSelection =
+      Boolean(data.promotionActivationId) || (data.packageActivationIds?.length ?? 0) > 0;
+    const { data: created, error } = hasCommercialSelection
+      ? await (supabaseAdmin as never as {
+          rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+        }).rpc("create_hotel_reservation_priced_commercial", {
+          ...pricedArgs,
+          _promotion_activation_id: data.promotionActivationId ?? null,
+          _package_activation_ids: data.packageActivationIds ?? null,
+        })
+      : await supabaseAdmin.rpc("create_hotel_reservation_priced", pricedArgs);
     if (error) throw rateError(reservationError(error.message).message);
 
-    const row = created as unknown as { id: string; confirmation_number: string };
+    const row = created as unknown as {
+      id: string;
+      confirmation_number: string;
+      room_subtotal: number | string | null;
+    };
     if (groupLink) {
       const { attachReservationToGroup } = await import("./groups.functions");
       await attachReservationToGroup(supabaseAdmin, me.id, {
@@ -763,7 +788,22 @@ export const createReservation = createServerFn({ method: "POST" })
         body: `Reservation ${row.confirmation_number} was created for this travel agency.`,
       });
     }
-    return { id: row.id, confirmationNumber: row.confirmation_number };
+    const roomSubtotal = row.room_subtotal == null ? null : Number(row.room_subtotal);
+    const { getReservationCommercialAttribution } = await import("./revenue/commercial-package.server");
+    const commercial = await getReservationCommercialAttribution(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      reservationId: row.id,
+      roomSubtotal,
+    });
+    return {
+      id: row.id,
+      confirmationNumber: row.confirmation_number,
+      roomSubtotal,
+      promotionDiscount: commercial.promotionDiscount,
+      roomSubtotalAfterPromotion: commercial.roomSubtotalAfterPromotion,
+      packagesSubtotal: commercial.packagesSubtotal,
+      grandCommercialSubtotal: commercial.grandCommercialSubtotal,
+    };
   });
 
 export const copyReservation = createServerFn({ method: "POST" })

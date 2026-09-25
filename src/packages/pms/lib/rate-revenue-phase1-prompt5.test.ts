@@ -50,6 +50,9 @@ describe("Rate & Revenue Phase 1 Prompt 5 — completion locks", () => {
       "demand-forecast",
       "pickup-pace",
       "demand-calendar",
+      "commercial",
+      "promotions",
+      "packages",
     ]);
     assert.ok(!foundationRevenueViews().includes("demand-forecast"));
     assert.ok(!foundationRevenueViews().includes("pickup-pace"));

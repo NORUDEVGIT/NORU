@@ -595,7 +595,17 @@ export const repriceReservation = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<{ ok: true; id: string; subtotal: number } | { ok: false; message: string }> => {
+    }): Promise<
+      | {
+          ok: true;
+          id: string;
+          subtotal: number;
+          promotionDiscount: number;
+          roomSubtotalAfterPromotion: number;
+          promotionDropped: boolean;
+        }
+      | { ok: false; message: string }
+    > => {
       const me = await requireRateManager(context as never, data.restaurantId);
 
       const { data: reservation } = await context.supabase
@@ -617,7 +627,20 @@ export const repriceReservation = createServerFn({ method: "POST" })
       if (error) return { ok: false, message: rateError(error.message).message };
 
       const row = updated as unknown as { id: string; room_subtotal: number | string };
-      return { ok: true, id: row.id, subtotal: Number(row.room_subtotal ?? 0) };
+      const { getReservationPromotionAttribution } = await import("./revenue/commercial-promotion.server");
+      const attribution = await getReservationPromotionAttribution(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        reservationId: row.id,
+      });
+      const subtotal = Number(row.room_subtotal ?? 0);
+      return {
+        ok: true,
+        id: row.id,
+        subtotal,
+        promotionDiscount: attribution?.discountAmount ?? 0,
+        roomSubtotalAfterPromotion: attribution?.roomSubtotalAfterPromotion ?? subtotal,
+        promotionDropped: !attribution,
+      };
     },
   );
 
