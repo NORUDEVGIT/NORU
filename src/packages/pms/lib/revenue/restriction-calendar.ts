@@ -4,7 +4,7 @@
  * Composes on getRevenueRateCalendar. Restriction is primary; inventory is
  * secondary context. Templates are not applied state.
  *
- * Template prefill is deferred (possible UI-09). Card 3 catalogue stays
+ * Template prefill is deferred (UI-09 also deferred it). Card 3 catalogue stays
  * Property Setup only — no template write, no FK.
  */
 

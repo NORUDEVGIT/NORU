@@ -13,6 +13,7 @@ import { BulkRateChangeView } from "@/packages/pms/components/rates/bulk-rate-ch
 import { RateHistoryView } from "@/packages/pms/components/rates/rate-history/rate-history-view";
 import { RatePlansTab } from "@/packages/pms/components/rates/rates-tabs";
 import { RestrictionCalendarView } from "@/packages/pms/components/rates/restrictions/restriction-calendar-view";
+import { BulkRestrictionView } from "@/packages/pms/components/rates/bulk-restriction/bulk-restriction-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
 import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
@@ -254,6 +255,17 @@ export function RatesWorkspace({
             access={access!}
             businessDate={businessDate}
             onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
+          />
+        );
+      case "apply-restriction":
+        return (
+          <BulkRestrictionView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
+            canApplyRestrictions={access?.canApplyRestrictions === true}
           />
         );
       default:

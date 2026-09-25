@@ -7,6 +7,7 @@
 | **Phase 2** | UI-01–UI-06 complete. |
 | **RR-P3-01** | **Foundation implemented.** Restriction-change domain, immutable history, atomic apply. |
 | **RR-P3-02** | **UI-07 and UI-08 implemented.** Restriction Calendar + Detail/Edit. |
+| **RR-P3-03** | **UI-09 and UI-10 implemented.** Bulk Apply Restriction + Impact Review. |
 
 ## Current operational facts (pre-flight)
 
@@ -57,17 +58,17 @@ Unchanged:
 | Prompt | Surfaces |
 |---|---|
 | RR-P3-02 | **Done.** UI-07 Restriction Calendar + UI-08 Restriction Detail/Edit |
-| RR-P3-03 | UI-09 Bulk Apply Restriction + UI-10 Impact Review |
+| RR-P3-03 | **Done.** UI-09 Bulk Apply Restriction + UI-10 Impact Review |
 | RR-P3-04 | UI-11 Restriction Change History + Phase 3 closeout |
 
-Workspace: `restrictions` mounts UI-07. `apply-restriction` and `restriction-history` remain `implemented: false`.
+Workspace: `restrictions` mounts UI-07. `apply-restriction` mounts UI-09/UI-10. `restriction-history` remains `implemented: false`.
 
 ## Open product decisions (preserved)
 
 1. Active plan / `valid_from` / `valid_to` are **not** enforced on restriction apply (matches `saveRateRestriction`).
 2. Past dates and Night Audit-closed dates are **not** blocked.
 3. Reason remains optional.
-4. Overlapping reservation count is **not** in RR-P3-01 preview (avoid N+1 / pricing-domain coupling). UI-10 may join calendar inventory later.
+4. Overlapping reservation count is **not** in RR-P3-01 preview (avoid N+1 / pricing-domain coupling). UI-10 joins calendar inventory for the first 14 days; later dates show "—".
 
 ## Intentional exclusions
 

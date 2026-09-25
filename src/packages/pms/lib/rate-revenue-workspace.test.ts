@@ -60,12 +60,14 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /<RestrictionCalendarView/);
     assert.match(workspace, /<BulkRateChangeView/);
     assert.match(workspace, /<RateHistoryView/);
+    assert.match(workspace, /<BulkRestrictionView/);
     assert.match(workspace, /case "control-center"/);
     assert.match(workspace, /case "rate-plans-reference"/);
     assert.match(workspace, /case "rate-calendar"/);
     assert.match(workspace, /case "bulk-rate-change"/);
     assert.match(workspace, /case "rate-history"/);
     assert.match(workspace, /case "restrictions"/);
+    assert.match(workspace, /case "apply-restriction"/);
     assert.deepEqual(implementedRevenueViews(), [
       "control-center",
       "rate-plans-reference",
@@ -73,6 +75,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
       "bulk-rate-change",
       "rate-history",
       "restrictions",
+      "apply-restriction",
     ]);
   });
 
@@ -89,6 +92,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.ok(foundationRevenueViews().includes("demand-forecast"));
     assert.ok(!foundationRevenueViews().includes("rate-history"));
     assert.ok(!foundationRevenueViews().includes("bulk-rate-change"));
+    assert.ok(!foundationRevenueViews().includes("apply-restriction"));
     assert.equal(
       foundationRevenueViews().length,
       REVENUE_VIEW_DEFINITIONS.filter((view) => !view.implemented).length,
