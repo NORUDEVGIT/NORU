@@ -36,6 +36,7 @@ import {
   SET3_MEALS_WARNING,
   SET3_PACKAGES_WARNING,
   SET3_RATES_HREF,
+  SET3_RATES_REVENUE_HREF,
   SET3_RATES_UNAVAILABLE,
   SET3_VIP_WARNING,
   TAX_POSTURE_LABELS,
@@ -146,7 +147,8 @@ export function Set3RatesSection({
         <div>
           <h2 className="font-display text-lg text-[#251605]">Rates &amp; meal plans</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Rate plans stay in the rates workspace. Meal and package catalogues are edited here.
+            Rate plan masters are configured in Property Setup. Meal and package catalogues are edited here.
+            Daily rates and restrictions stay in Rate &amp; Revenue.
           </p>
         </div>
         <ReadinessChip readiness={checklist.domains.rates.readiness} />
@@ -162,11 +164,18 @@ export function Set3RatesSection({
           value={snapshot.packages.filter((row) => row.active).length}
         />
       </dl>
-      <Button className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" asChild>
-        <a href={SET3_RATES_HREF} data-testid="set3-open-rates-workspace">
-          Open rates workspace
-        </a>
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90" asChild>
+          <a href={SET3_RATES_HREF} data-testid="set3-configure-rates">
+            Configure rates
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={SET3_RATES_REVENUE_HREF} data-testid="set3-open-rates-workspace">
+            Open Rate &amp; Revenue
+          </a>
+        </Button>
+      </div>
 
       <div className="space-y-3 border-t border-border pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">

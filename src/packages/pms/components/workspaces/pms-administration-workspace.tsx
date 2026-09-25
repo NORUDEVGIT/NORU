@@ -146,8 +146,8 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
               <AdminCard
                 icon={TrendingUp}
                 title="Rate plans & categories"
-                description="Rate structures used when pricing a stay."
-                to="/restaurant/pms/rates-revenue"
+                description="Rate structures used when pricing a stay. Configured in Property Setup."
+                to="/restaurant/settings#financial-commercial"
               />
               <AdminCard
                 icon={Wallet}
