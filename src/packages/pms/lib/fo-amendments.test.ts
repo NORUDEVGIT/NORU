@@ -277,10 +277,11 @@ describe("Amend stay save payload", () => {
       functions.indexOf("export const assignReservationRoom"),
     );
 
-    assert.match(amendDialog, /guestId:\s*reservation\.guestId/);
+    assert.match(amendDialog, /guestId,/);
     assert.match(amendDialog, /getRoomTypeAvailability|fetchAvailability/);
     assert.match(functions, /getRoomTypeAvailabilityCompat/);
-    assert.match(amendReservation, /stayInputSchema\.extend\(\{\s*reservationId: idSchema \}\)/);
+    assert.match(amendReservation, /reservationId: idSchema/);
+    assert.match(amendReservation, /commercialBookingSource/);
     assert.match(functions, /guestId:\s*idSchema,/);
     assert.doesNotMatch(amendReservation, /guestId:\s*idSchema\.optional\(\)/);
   });

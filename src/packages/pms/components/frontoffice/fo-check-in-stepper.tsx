@@ -33,7 +33,10 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
-import { assignReservationRoom, listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
+import {
+  assignReservationRoom,
+  listAssignableRooms,
+} from "@/packages/pms/lib/reservations.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
@@ -142,7 +145,15 @@ export function FoCheckInStepper({
   const ctx = contextQuery.data;
 
   const roomsQuery = useQuery({
-    queryKey: ["front-office", "assignable", restaurantId, stay.id, stay.roomTypeId, stay.arrivalDate, stay.departureDate],
+    queryKey: [
+      "front-office",
+      "assignable",
+      restaurantId,
+      stay.id,
+      stay.roomTypeId,
+      stay.arrivalDate,
+      stay.departureDate,
+    ],
     queryFn: () =>
       fetchRooms({
         data: {
@@ -232,7 +243,10 @@ export function FoCheckInStepper({
     idDocumentNumber: idNumber || null,
     idDocumentExpiry: idExpiry || null,
   };
-  const registrationOk = canContinueRegistration(registrationDraft, ctx?.progress.registrationWaived ?? false);
+  const registrationOk = canContinueRegistration(
+    registrationDraft,
+    ctx?.progress.registrationWaived ?? false,
+  );
   const depositOk = canContinueDeposit({
     postedAmount: ctx?.folio.postedAmount ?? 0,
     waived: ctx?.progress.depositWaived ?? false,
@@ -404,7 +418,9 @@ export function FoCheckInStepper({
   const completeMut = useMutation({
     mutationFn: () => complete({ data: { restaurantId, reservationId: stay.id } }),
     onSuccess: (result) => {
-      toast.success(`Checked in · ${result.roomNumber ? `Room ${result.roomNumber}` : stay.roomTypeName}`);
+      toast.success(
+        `Checked in · ${result.roomNumber ? `Room ${result.roomNumber}` : stay.roomTypeName}`,
+      );
       refreshDesk();
       onOpenChange(false);
     },
@@ -461,7 +477,7 @@ export function FoCheckInStepper({
         <SheetContent
           side="right"
           data-testid="fo-check-in-stepper"
-          className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+          className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
         >
           <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
             <SheetTitle className="text-[#251605]">Check in</SheetTitle>
@@ -480,7 +496,8 @@ export function FoCheckInStepper({
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
                         state === "done" && "bg-[#436436]/15 text-[#436436]",
-                        state === "current" && "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
+                        state === "current" &&
+                          "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
                         state === "blocked" && "bg-destructive/10 text-destructive",
                         state === "locked" && "bg-[#CCCCCC]/40 text-muted-foreground",
                       )}
@@ -501,7 +518,9 @@ export function FoCheckInStepper({
               <PermissionDeniedPanel message={errorText(contextQuery.error)} />
             ) : (
               <>
-                {denyMessage ? <PermissionDeniedPanel className="mb-4" message={denyMessage} /> : null}
+                {denyMessage ? (
+                  <PermissionDeniedPanel className="mb-4" message={denyMessage} />
+                ) : null}
 
                 {step === "stay" ? (
                   <div className="space-y-4">
@@ -515,7 +534,9 @@ export function FoCheckInStepper({
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={roomsQuery.isLoading ? "Loading rooms…" : "Select a room"} />
+                          <SelectValue
+                            placeholder={roomsQuery.isLoading ? "Loading rooms…" : "Select a room"}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           {rooms.map((room) => (
@@ -527,7 +548,9 @@ export function FoCheckInStepper({
                         </SelectContent>
                       </Select>
                     </div>
-                    {roomGate.reason ? <p className="text-sm text-destructive">{roomGate.reason}</p> : null}
+                    {roomGate.reason ? (
+                      <p className="text-sm text-destructive">{roomGate.reason}</p>
+                    ) : null}
                     {ctx?.rateMissing ? (
                       <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
                         This stay has no rate on file. You can still continue.
@@ -553,14 +576,33 @@ export function FoCheckInStepper({
                       </p>
                     ) : null}
                     <Field label="Full name">
-                      <Input value={fullName} onChange={(e) => { setFullName(e.target.value); markDirty(); }} />
+                      <Input
+                        value={fullName}
+                        onChange={(e) => {
+                          setFullName(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="Phone">
-                        <Input value={phone} onChange={(e) => { setPhone(e.target.value); markDirty(); }} />
+                        <Input
+                          value={phone}
+                          onChange={(e) => {
+                            setPhone(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                       <Field label="Email">
-                        <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); markDirty(); }} />
+                        <Input
+                          type="email"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -586,27 +628,64 @@ export function FoCheckInStepper({
                         </Select>
                       </div>
                       <Field label="ID number">
-                        <Input value={idNumber} onChange={(e) => { setIdNumber(e.target.value); markDirty(); }} />
+                        <Input
+                          value={idNumber}
+                          onChange={(e) => {
+                            setIdNumber(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                     </div>
                     <Field label="ID expiry">
-                      <Input type="date" value={idExpiry} onChange={(e) => { setIdExpiry(e.target.value); markDirty(); }} />
+                      <Input
+                        type="date"
+                        value={idExpiry}
+                        onChange={(e) => {
+                          setIdExpiry(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     {promptPassportExpiry(idType || null, idExpiry) ? (
                       <p className="text-xs text-[#C89933]">Passport expiry is recommended.</p>
                     ) : null}
                     <Field label="Nationality">
-                      <Input value={nationality} onChange={(e) => { setNationality(e.target.value); markDirty(); }} />
+                      <Input
+                        value={nationality}
+                        onChange={(e) => {
+                          setNationality(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <Field label="Address">
-                      <Input value={addressLine1} onChange={(e) => { setAddressLine1(e.target.value); markDirty(); }} />
+                      <Input
+                        value={addressLine1}
+                        onChange={(e) => {
+                          setAddressLine1(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="City">
-                        <Input value={city} onChange={(e) => { setCity(e.target.value); markDirty(); }} />
+                        <Input
+                          value={city}
+                          onChange={(e) => {
+                            setCity(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                       <Field label="Country">
-                        <Input value={country} onChange={(e) => { setCountry(e.target.value); markDirty(); }} />
+                        <Input
+                          value={country}
+                          onChange={(e) => {
+                            setCountry(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -636,7 +715,9 @@ export function FoCheckInStepper({
                       </Field>
                     </div>
                     {stay.specialRequests ? (
-                      <p className="text-sm text-muted-foreground">Special requests: {stay.specialRequests}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Special requests: {stay.specialRequests}
+                      </p>
                     ) : null}
                     <div className="space-y-2 rounded-xl border border-border p-3">
                       <Label htmlFor="reg-waiver">Request waiver</Label>
@@ -664,7 +745,10 @@ export function FoCheckInStepper({
                       <FolioChip label="open" on={ctx?.folio.open ?? false} />
                       <FolioChip label="required" on />
                       <FolioChip label="already posted" on={(ctx?.folio.postedAmount ?? 0) > 0} />
-                      <FolioChip label="outstanding" on={(ctx?.folio.outstanding ?? 0) > 0 && !depositOk} />
+                      <FolioChip
+                        label="outstanding"
+                        on={(ctx?.folio.outstanding ?? 0) > 0 && !depositOk}
+                      />
                     </div>
                     {depositOk ? (
                       <p className="rounded-xl bg-[#436436]/15 px-3 py-2 text-sm font-medium text-[#436436]">
@@ -707,7 +791,10 @@ export function FoCheckInStepper({
                           ))}
                         </div>
                         <Field label="Reference">
-                          <Input value={depositRef} onChange={(e) => setDepositRef(e.target.value)} />
+                          <Input
+                            value={depositRef}
+                            onChange={(e) => setDepositRef(e.target.value)}
+                          />
                         </Field>
                         <Button
                           type="button"
@@ -768,7 +855,13 @@ export function FoCheckInStepper({
                       </Select>
                     </div>
                     <Field label="Identifier">
-                      <Input value={keyId} onChange={(e) => { setKeyId(e.target.value); markDirty(); }} />
+                      <Input
+                        value={keyId}
+                        onChange={(e) => {
+                          setKeyId(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <Field label="Number of keys">
                       <Input
@@ -780,7 +873,10 @@ export function FoCheckInStepper({
                       />
                     </Field>
                     <p className="text-xs text-muted-foreground">
-                      Issued at {ctx?.progress.keyIssuedAt ? formatStayDate(ctx.progress.keyIssuedAt.slice(0, 10)) : "now"}
+                      Issued at{" "}
+                      {ctx?.progress.keyIssuedAt
+                        ? formatStayDate(ctx.progress.keyIssuedAt.slice(0, 10))
+                        : "now"}
                       {ctx?.actorName ? ` · ${ctx.actorName}` : ""}
                     </p>
                     <div className="space-y-2 rounded-xl border border-border p-3">
@@ -807,7 +903,13 @@ export function FoCheckInStepper({
                   <div className="space-y-3 text-sm">
                     <SummaryRow
                       label="Room"
-                      value={assignedRoom ? `Room ${assignedRoom.roomNumber}` : stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}
+                      value={
+                        assignedRoom
+                          ? `Room ${assignedRoom.roomNumber}`
+                          : stay.roomNumber
+                            ? `Room ${stay.roomNumber}`
+                            : "Unassigned"
+                      }
                       ok={roomGate.ready}
                     />
                     <SummaryRow
@@ -922,7 +1024,9 @@ function SummaryRow({ label, value, ok }: { label: string; value: string; ok: bo
   return (
     <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>{value}</span>
+      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>
+        {value}
+      </span>
     </div>
   );
 }

@@ -130,18 +130,26 @@ export function CreateReservationMasterPicker({
           <div className="min-w-0">
             <p className="font-medium">
               {master.name}
-              {master.code ? <span className="ml-2 text-xs text-muted-foreground">{master.code}</span> : null}
+              {master.code ? (
+                <span className="ml-2 text-xs text-muted-foreground">{master.code}</span>
+              ) : null}
             </p>
-            {master.paymentTerms ? (
-              <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
-                Payment terms: {master.paymentTerms}
-              </p>
-            ) : (
-              <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
-                No payment terms on this master.
-              </p>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_PAYMENT_TERMS_COPY}</p>
+            {canCreate ? (
+              <>
+                {master.paymentTerms ? (
+                  <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
+                    Payment terms: {master.paymentTerms}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
+                    No payment terms on this master.
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {CREATE_RESERVATION_PAYMENT_TERMS_COPY}
+                </p>
+              </>
+            ) : null}
           </div>
           <Button
             variant="outline"
@@ -170,7 +178,12 @@ export function CreateReservationMasterPicker({
               />
             </div>
             {canCreate ? (
-              <Button type="button" variant="outline" data-testid={copy.createTestId} onClick={() => setFormOpen(true)}>
+              <Button
+                type="button"
+                variant="outline"
+                data-testid={copy.createTestId}
+                onClick={() => setFormOpen(true)}
+              >
                 <Icon className="size-4 sm:mr-2" />
                 <span className="hidden sm:inline">{copy.createLabel}</span>
               </Button>
@@ -185,15 +198,27 @@ export function CreateReservationMasterPicker({
                   className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
                 >
                   <span className="font-medium">{row.name}</span>
-                  {row.code ? <span className="ml-2 text-xs text-muted-foreground">{row.code}</span> : null}
+                  {row.code ? (
+                    <span className="ml-2 text-xs text-muted-foreground">{row.code}</span>
+                  ) : null}
                 </button>
               </li>
             ))}
-            {accountListItems(accountsQuery.data).length === 0 ? (
-              <li className="text-sm text-muted-foreground">{copy.empty}</li>
+            {accountsQuery.data?.length === 0 ? (
+              <li className="text-sm text-muted-foreground">
+                {canCreate
+                  ? copy.empty
+                  : kind === "company"
+                    ? "No matching companies."
+                    : "No matching travel agencies."}
+              </li>
             ) : null}
           </ul>
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_MASTER_CONFIRM_COPY}</p>
+          {canCreate ? (
+            <p className="text-xs text-muted-foreground">
+              {CREATE_RESERVATION_MASTER_CONFIRM_COPY}
+            </p>
+          ) : null}
         </div>
       )}
 

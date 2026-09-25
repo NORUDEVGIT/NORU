@@ -149,12 +149,13 @@ function FoAmendSheet({
       <SheetContent
         side="right"
         data-testid="fo-amend-sheet"
-        className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+        className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
       >
         <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
           <SheetTitle className="text-[#251605]">{title}</SheetTitle>
           <SheetDescription>
-            {stay.guestName} · {stay.confirmationNumber} · {stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}
+            {stay.guestName} · {stay.confirmationNumber} ·{" "}
+            {stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}
           </SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">{children}</div>
@@ -237,7 +238,15 @@ export function FoAmendUpgradeSheet({
   }, [open, stay.id]);
 
   const roomsQuery = useQuery({
-    queryKey: ["fo-amend", "assignable", restaurantId, stay.id, roomTypeId, stay.arrivalDate, stay.departureDate],
+    queryKey: [
+      "fo-amend",
+      "assignable",
+      restaurantId,
+      stay.id,
+      roomTypeId,
+      stay.arrivalDate,
+      stay.departureDate,
+    ],
     queryFn: () =>
       fetchRooms({
         data: {
@@ -340,7 +349,9 @@ export function FoAmendUpgradeSheet({
           }}
         >
           <SelectTrigger>
-            <SelectValue placeholder={contextQuery.isLoading ? "Loading types…" : "Select room type"} />
+            <SelectValue
+              placeholder={contextQuery.isLoading ? "Loading types…" : "Select room type"}
+            />
           </SelectTrigger>
           <SelectContent>
             {(ctx?.roomTypes ?? [])
@@ -368,13 +379,19 @@ export function FoAmendUpgradeSheet({
             ))}
           </SelectContent>
         </Select>
-        {roomGate.blocked && roomId ? <p className="text-xs text-destructive">{roomGate.reason}</p> : null}
+        {roomGate.blocked && roomId ? (
+          <p className="text-xs text-destructive">{roomGate.reason}</p>
+        ) : null}
       </div>
       <ReasonField id="fo-upgrade-reason" value={reason} onChange={setReason} />
       <BeforeAfterCard
         rows={[
           { label: "room type", previous: stay.roomTypeName, next: targetType?.name ?? "—" },
-          { label: "room", previous: stay.roomNumber ?? "Unassigned", next: selectedRoom?.roomNumber ?? (roomId ? "—" : "Unassigned") },
+          {
+            label: "room",
+            previous: stay.roomNumber ?? "Unassigned",
+            next: selectedRoom?.roomNumber ?? (roomId ? "—" : "Unassigned"),
+          },
         ]}
         rate={rate}
       />
@@ -575,11 +592,21 @@ export function FoAmendGuestsSheet({
         <div className="space-y-2">
           <Label htmlFor="fo-amend-adults">Adults</Label>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setAdults((n) => Math.max(1, n - 1))}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAdults((n) => Math.max(1, n - 1))}
+            >
               −
             </Button>
             <Input id="fo-amend-adults" readOnly value={adults} className="text-center" />
-            <Button type="button" variant="outline" size="sm" onClick={() => setAdults((n) => Math.min(20, n + 1))}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAdults((n) => Math.min(20, n + 1))}
+            >
               +
             </Button>
           </div>
@@ -587,11 +614,21 @@ export function FoAmendGuestsSheet({
         <div className="space-y-2">
           <Label htmlFor="fo-amend-children">Children</Label>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setChildren((n) => Math.max(0, n - 1))}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setChildren((n) => Math.max(0, n - 1))}
+            >
               −
             </Button>
             <Input id="fo-amend-children" readOnly value={children} className="text-center" />
-            <Button type="button" variant="outline" size="sm" onClick={() => setChildren((n) => Math.min(20, n + 1))}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setChildren((n) => Math.min(20, n + 1))}
+            >
               +
             </Button>
           </div>
@@ -636,7 +673,10 @@ export function FoAmendGuestsSheet({
         {companionsDenied ? (
           <PermissionDeniedPanel message={companionsError ?? COMPANIONS_UNAVAILABLE} />
         ) : companionsError ? (
-          <div className="rounded-2xl border border-border bg-card p-4" data-testid="fo-companions-unavailable">
+          <div
+            className="rounded-2xl border border-border bg-card p-4"
+            data-testid="fo-companions-unavailable"
+          >
             <p className="text-sm font-medium text-[#251605]">Unavailable</p>
             <p className="mt-1 text-sm text-muted-foreground">{companionsError}</p>
           </div>
@@ -644,10 +684,14 @@ export function FoAmendGuestsSheet({
           <>
             <ul className="space-y-2">
               <li className="rounded-xl border border-border px-3 py-2 text-sm">
-                {stayGuestLine(primaryGuest?.name ?? stay.guestName, primaryGuest?.type ?? null)} · Primary
+                {stayGuestLine(primaryGuest?.name ?? stay.guestName, primaryGuest?.type ?? null)} ·
+                Primary
               </li>
               {companions.map((row) => (
-                <li key={row.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+                <li
+                  key={row.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+                >
                   <span className="text-sm">{stayGuestLine(row.name, row.type)}</span>
                   <Button
                     type="button"
@@ -701,7 +745,9 @@ export function FoAmendGuestsSheet({
               <p className="text-sm">Pending add: {pendingAttach.fullName}</p>
             ) : null}
             {pendingDetach ? (
-              <p className="text-sm">Pending remove: {stayGuestLine(pendingDetach.name, pendingDetach.type)}</p>
+              <p className="text-sm">
+                Pending remove: {stayGuestLine(pendingDetach.name, pendingDetach.type)}
+              </p>
             ) : null}
           </>
         )}
@@ -771,7 +817,8 @@ export function FoAmendServiceSheet({
 
   const catalogue = contextQuery.data?.catalogue ?? [];
   const pickFirst = catalogue.length > 0;
-  const catalogueHint = contextQuery.data?.catalogueHint ?? (pickFirst ? null : CATALOGUE_EMPTY_HINT);
+  const catalogueHint =
+    contextQuery.data?.catalogueHint ?? (pickFirst ? null : CATALOGUE_EMPTY_HINT);
   const filteredCatalogue = catalogue.filter((item) =>
     item.name.toLowerCase().includes(catalogueSearch.trim().toLowerCase()),
   );
@@ -795,7 +842,9 @@ export function FoAmendServiceSheet({
         },
       }),
     onSuccess: (result) => {
-      toast.success(result.posted ? "Service posted to the folio." : "Service recorded on the stay.");
+      toast.success(
+        result.posted ? "Service posted to the folio." : "Service recorded on the stay.",
+      );
       refreshKeys(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["reservation-folio"] });
       onOpenChange(false);
@@ -900,7 +949,11 @@ export function FoAmendServiceSheet({
       <BeforeAfterCard
         rows={[
           { label: "service", previous: "—", next: name.trim() || "—" },
-          { label: "amount", previous: money(0), next: Number.isFinite(amountNumber) ? money(amountNumber) : "—" },
+          {
+            label: "amount",
+            previous: money(0),
+            next: Number.isFinite(amountNumber) ? money(amountNumber) : "—",
+          },
         ]}
         rate={rateImpact({
           roomSubtotal: contextQuery.data?.roomSubtotal,
@@ -1009,7 +1062,12 @@ export function FoAmendSpecialRequestSheet({
       </div>
       <div className="space-y-2">
         <Label htmlFor="fo-special-text">Request</Label>
-        <Textarea id="fo-special-text" value={text} onChange={(e) => setText(e.target.value)} rows={4} />
+        <Textarea
+          id="fo-special-text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+        />
       </div>
       <ReasonField id="fo-special-reason" value={reason} onChange={setReason} />
       <BeforeAfterCard
@@ -1124,7 +1182,9 @@ export function FoGuestRequestSheet({
           rows={4}
           placeholder="What did the guest ask for?"
         />
-        <p className="text-xs text-muted-foreground">This text is the auditable statement. Status starts as Open.</p>
+        <p className="text-xs text-muted-foreground">
+          This text is the auditable statement. Status starts as Open.
+        </p>
       </div>
       <BeforeAfterCard
         rows={[{ label: "request", previous: "—", next: text.trim() || "—" }]}
@@ -1140,7 +1200,10 @@ export function FoGuestRequestSheet({
         ) : (
           <ul className="space-y-2">
             {requests.map((row) => (
-              <li key={row.id} className="flex items-start justify-between gap-2 rounded-xl border border-border p-3">
+              <li
+                key={row.id}
+                className="flex items-start justify-between gap-2 rounded-xl border border-border p-3"
+              >
                 <div>
                   <p className="text-sm">{row.requestText}</p>
                   <p className="text-xs text-muted-foreground capitalize">{row.status}</p>
@@ -1149,7 +1212,10 @@ export function FoGuestRequestSheet({
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    toggle.mutate({ requestId: row.id, status: row.status === "open" ? "done" : "open" })
+                    toggle.mutate({
+                      requestId: row.id,
+                      status: row.status === "open" ? "done" : "open",
+                    })
                   }
                 >
                   {row.status === "open" ? "Mark done" : "Reopen"}

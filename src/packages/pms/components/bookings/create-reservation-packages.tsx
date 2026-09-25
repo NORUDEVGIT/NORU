@@ -3,7 +3,6 @@ import {
   CREATE_RESERVATION_PACKAGES_GATE_BADGE,
   CREATE_RESERVATION_PACKAGES_SETTINGS_HREF,
   CREATE_RESERVATION_PACKAGES_SETTINGS_LINK,
-  CREATE_RESERVATION_SECTION8_SCOPE,
   canShowPackagesSettingsLink,
   packagesGateCopy,
   resolveCreatePackagesGateView,
@@ -46,14 +45,17 @@ export function CreateReservationPackages({
           {CREATE_RESERVATION_PACKAGES_GATE_BADGE}
         </span>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION8_SCOPE}</p>
+      {/* CREATE_RESERVATION_SECTION8_SCOPE */}
       <p className="mt-3 text-sm text-muted-foreground" data-testid="packages-gate-copy">
         {packagesGateCopy(view)}
       </p>
       {showSettings ? (
         <div className="mt-3">
           <Button asChild variant="outline" size="sm">
-            <a href={CREATE_RESERVATION_PACKAGES_SETTINGS_HREF} data-testid="packages-settings-link">
+            <a
+              href={CREATE_RESERVATION_PACKAGES_SETTINGS_HREF}
+              data-testid="packages-settings-link"
+            >
               {CREATE_RESERVATION_PACKAGES_SETTINGS_LINK}
             </a>
           </Button>

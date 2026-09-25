@@ -30,6 +30,7 @@ export interface FrontOfficeStay {
   guestName: string;
   guestVip: boolean;
   guestPhone: string | null;
+  guestEmail: string | null;
   roomTypeId: string;
   roomTypeName: string;
   roomId: string | null;
@@ -42,8 +43,13 @@ export interface FrontOfficeStay {
   status: ReservationStatus;
   specialRequests: string | null;
   source?: string | null;
+  guaranteeMethod?: string | null;
   overstay: boolean;
   walkInIncomplete?: boolean;
+  expectedArrivalAt?: string | null;
+  lateCheckoutGranted?: boolean;
+  lateCheckoutUntil?: string | null;
+  lateCheckoutNote?: string | null;
 }
 
 export interface FrontOfficeDashboard {
@@ -72,8 +78,9 @@ export interface OccupancyRoom {
 
 const STAY_SELECT = `
   id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
-  adults, children, status, special_requests,
-  guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, vip_status ),
+  adults, children, status, special_requests, source, guarantee_method,
+  expected_arrival_at, late_checkout_granted, late_checkout_until, late_checkout_note,
+  guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
   room_types!hotel_reservations_type_same_property ( name ),
   hotel_rooms!hotel_reservations_room_same_type ( room_number )
 `;
@@ -90,10 +97,17 @@ type StayRow = {
   children: number;
   status: string;
   special_requests: string | null;
+  source: string | null;
+  guarantee_method: string | null;
+  expected_arrival_at: string | null;
+  late_checkout_granted: boolean | null;
+  late_checkout_until: string | null;
+  late_checkout_note: string | null;
   guest_profiles: {
     first_name: string;
     last_name: string | null;
     phone: string | null;
+    email: string | null;
     vip_status: boolean;
   } | null;
   room_types: { name: string } | null;
@@ -109,6 +123,7 @@ function toStay(row: StayRow, businessDate: string): FrontOfficeStay {
     guestName: [guest?.first_name, guest?.last_name].filter(Boolean).join(" ").trim() || "Guest",
     guestVip: guest?.vip_status ?? false,
     guestPhone: guest?.phone ?? null,
+    guestEmail: guest?.email ?? null,
     roomTypeId: row.room_type_id,
     roomTypeName: row.room_types?.name ?? "Room type",
     roomId: row.room_id,
@@ -120,8 +135,14 @@ function toStay(row: StayRow, businessDate: string): FrontOfficeStay {
     children: row.children,
     status: row.status as ReservationStatus,
     specialRequests: row.special_requests,
+    source: row.source,
+    guaranteeMethod: row.guarantee_method,
     overstay: row.status === "checked_in" && row.departure_date < businessDate,
     walkInIncomplete: false,
+    expectedArrivalAt: row.expected_arrival_at ?? null,
+    lateCheckoutGranted: row.late_checkout_granted === true,
+    lateCheckoutUntil: row.late_checkout_until ?? null,
+    lateCheckoutNote: row.late_checkout_note ?? null,
   };
 }
 
@@ -183,6 +204,55 @@ export const getFrontOfficeDashboard = createServerFn({ method: "POST" })
 
 /* ----------------------------------------------------------------- listing */
 
+type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+
+export async function loadFrontOfficeArrivals(
+  supabase: WorkspaceClient,
+  data: {
+    restaurantId: string;
+    date: string;
+    status?: "pending" | "confirmed";
+    roomTypeId?: string;
+    assignment?: "assigned" | "unassigned";
+  },
+): Promise<FrontOfficeStay[]> {
+  const date = assertDateOnly(data.date, "Arrival date");
+
+  let query = supabase
+    .from("hotel_reservations")
+    .select(STAY_SELECT)
+    .eq("restaurant_id", data.restaurantId)
+    .eq("arrival_date", date)
+    .in("status", data.status ? [data.status] : ["pending", "confirmed"])
+    .order("confirmation_number");
+
+  if (data.roomTypeId) query = query.eq("room_type_id", data.roomTypeId);
+  if (data.assignment === "assigned") query = query.not("room_id", "is", null);
+  if (data.assignment === "unassigned") query = query.is("room_id", null);
+
+  const { data: rows, error } = await query;
+  if (error) throw new Error(error.message);
+  const stays = ((rows ?? []) as unknown as StayRow[]).map((r) => toStay(r, date));
+  if (stays.length === 0) return stays;
+
+  const { data: progressRows, error: progressError } = await supabase
+    .from("fo_checkin_progress")
+    .select("reservation_id, walk_in_incomplete")
+    .eq("restaurant_id", data.restaurantId)
+    .in(
+      "reservation_id",
+      stays.map((s) => s.id),
+    )
+    .eq("walk_in_incomplete", true);
+  if (progressError) return stays;
+  const incomplete = new Set(
+    ((progressRows ?? []) as { reservation_id: string; walk_in_incomplete: boolean }[])
+      .filter((p) => p.walk_in_incomplete)
+      .map((p) => p.reservation_id),
+  );
+  return stays.map((s) => ({ ...s, walkInIncomplete: incomplete.has(s.id) }));
+}
+
 export const listArrivals = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -198,39 +268,32 @@ export const listArrivals = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<FrontOfficeStay[]> => {
     await requireReservationManager(context as never, data.restaurantId);
-    const date = assertDateOnly(data.date, "Arrival date");
-
-    let query = context.supabase
-      .from("hotel_reservations")
-      .select(STAY_SELECT)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("arrival_date", date)
-      .in("status", data.status ? [data.status] : ["pending", "confirmed"])
-      .order("confirmation_number");
-
-    if (data.roomTypeId) query = query.eq("room_type_id", data.roomTypeId);
-    if (data.assignment === "assigned") query = query.not("room_id", "is", null);
-    if (data.assignment === "unassigned") query = query.is("room_id", null);
-
-    const { data: rows, error } = await query;
-    if (error) throw new Error(error.message);
-    const stays = ((rows ?? []) as unknown as StayRow[]).map((r) => toStay(r, date));
-    if (stays.length === 0) return stays;
-
-    const { data: progressRows, error: progressError } = await context.supabase
-      .from("fo_checkin_progress")
-      .select("reservation_id, walk_in_incomplete")
-      .eq("restaurant_id", data.restaurantId)
-      .in("reservation_id", stays.map((s) => s.id))
-      .eq("walk_in_incomplete", true);
-    if (progressError) return stays;
-    const incomplete = new Set(
-      ((progressRows ?? []) as { reservation_id: string; walk_in_incomplete: boolean }[])
-        .filter((p) => p.walk_in_incomplete)
-        .map((p) => p.reservation_id),
-    );
-    return stays.map((s) => ({ ...s, walkInIncomplete: incomplete.has(s.id) }));
+    return loadFrontOfficeArrivals(context.supabase, data);
   });
+
+export async function loadFrontOfficeInHouse(
+  supabase: WorkspaceClient,
+  data: { restaurantId: string; today: string; search?: string },
+): Promise<FrontOfficeStay[]> {
+  const today = assertDateOnly(data.today, "Business date");
+  const { data: rows, error } = await supabase
+    .from("hotel_reservations")
+    .select(STAY_SELECT)
+    .eq("restaurant_id", data.restaurantId)
+    .eq("status", "checked_in")
+    .order("departure_date");
+  if (error) throw new Error(error.message);
+
+  const stays = ((rows ?? []) as unknown as StayRow[]).map((r) => toStay(r, today));
+  const term = (data.search ?? "").trim().toLowerCase();
+  if (!term) return stays;
+  return stays.filter(
+    (s) =>
+      s.guestName.toLowerCase().includes(term) ||
+      s.confirmationNumber.toLowerCase().includes(term) ||
+      (s.roomNumber ?? "").toLowerCase().includes(term),
+  );
+}
 
 export const listInHouse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -241,26 +304,40 @@ export const listInHouse = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<FrontOfficeStay[]> => {
     await requireReservationManager(context as never, data.restaurantId);
-    const today = assertDateOnly(data.today, "Business date");
+    return loadFrontOfficeInHouse(context.supabase, data);
+  });
 
-    const { data: rows, error } = await context.supabase
+export async function loadFrontOfficeDepartures(
+  supabase: WorkspaceClient,
+  data: { restaurantId: string; date: string },
+): Promise<FrontOfficeStay[]> {
+  const date = assertDateOnly(data.date, "Departure date");
+
+  const [dueToday, overdue] = await Promise.all([
+    supabase
+      .from("hotel_reservations")
+      .select(STAY_SELECT)
+      .eq("restaurant_id", data.restaurantId)
+      .in("status", ["confirmed", "checked_in"])
+      .eq("departure_date", date)
+      .order("confirmation_number"),
+    supabase
       .from("hotel_reservations")
       .select(STAY_SELECT)
       .eq("restaurant_id", data.restaurantId)
       .eq("status", "checked_in")
-      .order("departure_date");
-    if (error) throw new Error(error.message);
+      .lt("departure_date", date)
+      .order("departure_date"),
+  ]);
+  if (dueToday.error) throw new Error(dueToday.error.message);
+  if (overdue.error) throw new Error(overdue.error.message);
 
-    const stays = ((rows ?? []) as unknown as StayRow[]).map((r) => toStay(r, today));
-    const term = (data.search ?? "").trim().toLowerCase();
-    if (!term) return stays;
-    return stays.filter(
-      (s) =>
-        s.guestName.toLowerCase().includes(term) ||
-        s.confirmationNumber.toLowerCase().includes(term) ||
-        (s.roomNumber ?? "").toLowerCase().includes(term),
-    );
-  });
+  const rows = [
+    ...((overdue.data ?? []) as unknown as StayRow[]),
+    ...((dueToday.data ?? []) as unknown as StayRow[]),
+  ];
+  return rows.map((r) => toStay(r, date));
+}
 
 export const listDepartures = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -269,29 +346,7 @@ export const listDepartures = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<FrontOfficeStay[]> => {
     await requireReservationManager(context as never, data.restaurantId);
-    const date = assertDateOnly(data.date, "Departure date");
-
-    const [dueToday, overdue] = await Promise.all([
-      context.supabase
-        .from("hotel_reservations")
-        .select(STAY_SELECT)
-        .eq("restaurant_id", data.restaurantId)
-        .in("status", ["confirmed", "checked_in"])
-        .eq("departure_date", date)
-        .order("confirmation_number"),
-      context.supabase
-        .from("hotel_reservations")
-        .select(STAY_SELECT)
-        .eq("restaurant_id", data.restaurantId)
-        .eq("status", "checked_in")
-        .lt("departure_date", date)
-        .order("departure_date"),
-    ]);
-    if (dueToday.error) throw new Error(dueToday.error.message);
-    if (overdue.error) throw new Error(overdue.error.message);
-
-    const rows = [...((overdue.data ?? []) as unknown as StayRow[]), ...((dueToday.data ?? []) as unknown as StayRow[])];
-    return rows.map((r) => toStay(r, date));
+    return loadFrontOfficeDepartures(context.supabase, data);
   });
 
 /** Room-level occupancy view; occupancy is derived from checked-in stays. */
@@ -329,14 +384,16 @@ export const listOccupancy = createServerFn({ method: "POST" })
       if (s.room_id) byRoom.set(s.room_id, s);
     }
 
-    return ((rooms ?? []) as unknown as Array<{
-      id: string;
-      room_number: string;
-      floor: string | null;
-      status: string;
-      room_type_id: string;
-      room_types: { name: string } | null;
-    }>).map((room) => {
+    return (
+      (rooms ?? []) as unknown as Array<{
+        id: string;
+        room_number: string;
+        floor: string | null;
+        status: string;
+        room_type_id: string;
+        room_types: { name: string } | null;
+      }>
+    ).map((room) => {
       const stay = byRoom.get(room.id);
       return {
         id: room.id,
@@ -347,7 +404,10 @@ export const listOccupancy = createServerFn({ method: "POST" })
         status: room.status,
         occupancy: stay ? ("occupied" as const) : ("vacant" as const),
         guestName: stay
-          ? [stay.guest_profiles?.first_name, stay.guest_profiles?.last_name].filter(Boolean).join(" ").trim() || "Guest"
+          ? [stay.guest_profiles?.first_name, stay.guest_profiles?.last_name]
+              .filter(Boolean)
+              .join(" ")
+              .trim() || "Guest"
           : null,
         reservationId: stay?.id ?? null,
         departureDate: stay?.departure_date ?? null,
@@ -361,7 +421,11 @@ export const checkInReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z
-      .object({ restaurantId: idSchema, reservationId: idSchema, roomId: idSchema.nullable().optional() })
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        roomId: idSchema.nullable().optional(),
+      })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: ReservationStatus }> => {
@@ -432,20 +496,22 @@ export const changeStayDates = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string; arrival: string; departure: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    const { arrival, departure } = assertStayDates(data.arrival, data.departure);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.rpc("change_hotel_stay_dates", {
-      _restaurant_id: data.restaurantId,
-      _reservation_id: data.reservationId,
-      _arrival: arrival,
-      _departure: departure,
-      _membership_id: me.id,
-    });
-    if (error) throw reservationError(error.message);
-    return { id: data.reservationId, arrival, departure };
-  });
+  .handler(
+    async ({ data, context }): Promise<{ id: string; arrival: string; departure: string }> => {
+      const me = await requireReservationManager(context as never, data.restaurantId);
+      const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { error } = await supabaseAdmin.rpc("change_hotel_stay_dates", {
+        _restaurant_id: data.restaurantId,
+        _reservation_id: data.reservationId,
+        _arrival: arrival,
+        _departure: departure,
+        _membership_id: me.id,
+      });
+      if (error) throw reservationError(error.message);
+      return { id: data.reservationId, arrival, departure };
+    },
+  );
 
 export const markNoShow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

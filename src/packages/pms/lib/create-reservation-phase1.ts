@@ -244,7 +244,7 @@ export const CREATE_RESERVATION_MIN_NIGHTS = 1;
 export const CREATE_RESERVATION_STAY_INVALID_RANGE = "Departure must be after arrival.";
 
 export const CREATE_RESERVATION_OCCUPANCY_SOFT_WARN =
-  "This occupancy is above the selected room type's capacity. You can still continue — availability invent stays with a later section.";
+  "This occupancy is above the selected room type's capacity. Create is blocked until occupancy fits.";
 
 export const CREATE_RESERVATION_SECTION3_LOCKED_NON_GOALS = [
   "rate binding",

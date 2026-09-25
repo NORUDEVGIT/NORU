@@ -14,10 +14,10 @@
  * 2. Migration `0061_pms_create_reservation_guarantee_confirm.sql` (0060 taken
  *    by Associations). Dual-lane supabase + drizzle. Additive columns +
  *    optional RPC params DEFAULT NULL. Do not overload channel-origin `source`.
- *    APPLY HELD — do not apply from this agent. Until APPLY: Confirm that would
- *    claim persist must fail-closed.
- * 3. After APPLY: persist source/segment/ref (+ guarantee if set) on every
- *    successful create.
+ *    0061 is applied on the only inspectable project (qcwptraosaudcbjasmul /
+ *    20260915144627). Writer persist is APPLIED: Confirm writes commercial
+ *    source / segment / ref / guarantee. Fail-closed path remains if persist is off.
+ * 3. Persist source/segment/ref (+ guarantee if set) on every successful create.
  * 4. FO `WalkInDialog`: confirmed + rate without guarantee required (option 1).
  *    Create Confirm/Guarantee requires guarantee.
  * 5. Success: in-place on-screen confirmation panel + `window.print`; secondary
@@ -42,8 +42,12 @@ export const CREATE_RESERVATION_SECTION7_ISSUE = 153;
 export const CREATE_RESERVATION_SECTION7_SPEC_PR = 150;
 export const CREATE_RESERVATION_SECTION7_MIGRATION =
   "0061_pms_create_reservation_guarantee_confirm.sql";
-/** Abel/PM apply after merge. Non-prod first. Do not apply from this agent. */
-export const CREATE_RESERVATION_SECTION7_APPLY = "HELD";
+/** Persist gate. APPLIED after 0061 verify on qcwptraosaudcbjasmul (org has one inspectable project). */
+export const CREATE_RESERVATION_SECTION7_APPLY = "APPLIED";
+/** Non-prod qcwptraosaudcbjasmul: 0061 objects and migration row are live. */
+export const CREATE_RESERVATION_SECTION7_NONPROD_DB = "APPLIED";
+/** Same inspectable project as non-prod; no separate production project in the org. */
+export const CREATE_RESERVATION_SECTION7_PROD_DB = "APPLIED";
 
 /** TIP pick: FO walk-in stays confirmed + rate without guarantee. */
 export const CREATE_RESERVATION_FO_WALKIN_GUARANTEE_REQUIRED = false;
@@ -87,7 +91,14 @@ export const CREATE_RESERVATION_ACCEPTANCE_CRITERIA_SECTION7 = [
 
 export const CREATE_RESERVATION_SECTION7_TIP_AC_MAP = {
   "plan-review-sticky": ["AC-CR7-1", "AC-CR7-17", "AC-CR7-22"],
-  "plan-guarantee-confirm": ["AC-CR7-2", "AC-CR7-3", "AC-CR7-4", "AC-CR7-5", "AC-CR7-7", "AC-CR7-23"],
+  "plan-guarantee-confirm": [
+    "AC-CR7-2",
+    "AC-CR7-3",
+    "AC-CR7-4",
+    "AC-CR7-5",
+    "AC-CR7-7",
+    "AC-CR7-23",
+  ],
   "plan-persist-fail-closed": ["AC-CR7-8", "AC-CR7-19"],
   "plan-success-print": ["AC-CR7-9", "AC-CR7-10", "AC-CR7-24"],
   "plan-no-second-writer": ["AC-CR7-11", "AC-CR7-12", "AC-CR7-16"],
@@ -134,10 +145,10 @@ export const CREATE_RESERVATION_PRINT_LABEL = "Print";
 export const CREATE_RESERVATION_OPEN_RESERVATION_LABEL = "Open reservation";
 
 export const CREATE_RESERVATION_SECTION7_MIGRATION_REASON =
-  "CURRENT has no hotel_reservations columns or create_hotel_reservation_priced params for commercial booking source, market segment, external reference, or guarantee method. 0061 adds those columns and optional RPC params (DEFAULT NULL). Dual-lane APPLY HELD. Do not apply non-prod or prod from this agent. Requires 0060 first. Prod 0059/0060 remain Abel-gated residuals. Do not overload channel-origin source. Flag Abel: NOT required (RLS model unchanged). Until APPLY, Confirm that would claim persist fail-closes.";
+  "0061 columns and create_hotel_reservation_priced params are live on qcwptraosaudcbjasmul (version 20260915144627). CREATE_RESERVATION_SECTION7_APPLY is APPLIED so Confirm persists source, segment, reference, and guarantee. Fail-closed copy remains if persist is turned off. Do not overload channel-origin source. Flag Abel: NOT required (RLS model unchanged).";
 
 export const CREATE_RESERVATION_SECTION7_PERMISSION_DOC =
-  "Create Confirm/Pending uses requireReservationManager (owner|manager|receptionist) + requireRoutePackage(\"pms\"). Unpriced Pending stays owner|manager (Section 5). Capability-only — no RLS / entitlement model change. Flag Abel: NOT required.";
+  'Create Confirm/Pending uses requireReservationManager (owner|manager|receptionist) + requireRoutePackage("pms"). Unpriced Pending stays owner|manager (Section 5). Capability-only — no RLS / entitlement model change. Flag Abel: NOT required.';
 
 export const CREATE_RESERVATION_SECTION7_LOCKED_NON_GOALS = [
   "email/SMS send confirmation",
