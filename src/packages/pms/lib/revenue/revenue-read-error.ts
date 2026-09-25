@@ -5,6 +5,8 @@ export const RATE_CALENDAR_LOAD_ERROR = "Rate Calendar could not load.";
 export const RESTRICTION_CALENDAR_LOAD_ERROR = "Restriction Calendar could not load.";
 export const RATE_HISTORY_LOAD_ERROR = "Rate change history could not be loaded.";
 export const RESTRICTION_HISTORY_LOAD_ERROR = "Restriction change history could not be loaded.";
+export const DEMAND_LOAD_ERROR = "Demand could not be loaded.";
+export const OTB_SNAPSHOT_LOAD_ERROR = "On-the-books snapshot history could not be loaded.";
 
 export function isPrivilegedDbError(message: string): boolean {
   return /permission denied|row-level security|42501/i.test(message);

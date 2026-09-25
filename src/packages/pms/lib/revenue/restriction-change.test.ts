@@ -568,15 +568,10 @@ describe("RR-P3-01 — SQL contracts, pricing, and ownership", () => {
     assert.match(domain, /not enforce these/);
   });
 
-  it("does not add approvals, distribution sync, or a history workspace", () => {
+  it("does not add approvals or distribution sync", () => {
     assert.doesNotMatch(domain, /lost revenue|expected booking loss|forecast/i);
     assert.doesNotMatch(server, /approval_status|submit for approval|draft status/i);
     assert.doesNotMatch(functions, /approveRestrictionChange|rejectRestrictionChange/);
     assert.match(workspace, /id: "restriction-history"/);
-    const historyDef = workspace.slice(
-      workspace.indexOf('id: "restriction-history"'),
-      workspace.indexOf('id: "demand-forecast"'),
-    );
-    assert.match(historyDef, /implemented: false/);
   });
 });

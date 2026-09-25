@@ -61,6 +61,8 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /<BulkRateChangeView/);
     assert.match(workspace, /<RateHistoryView/);
     assert.match(workspace, /<BulkRestrictionView/);
+    assert.match(workspace, /<RestrictionHistoryView/);
+    assert.match(workspace, /<DemandForecastView/);
     assert.match(workspace, /case "control-center"/);
     assert.match(workspace, /case "rate-plans-reference"/);
     assert.match(workspace, /case "rate-calendar"/);
@@ -68,6 +70,8 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /case "rate-history"/);
     assert.match(workspace, /case "restrictions"/);
     assert.match(workspace, /case "apply-restriction"/);
+    assert.match(workspace, /case "restriction-history"/);
+    assert.match(workspace, /case "demand-forecast"/);
     assert.deepEqual(implementedRevenueViews(), [
       "control-center",
       "rate-plans-reference",
@@ -76,6 +80,8 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
       "rate-history",
       "restrictions",
       "apply-restriction",
+      "restriction-history",
+      "demand-forecast",
     ]);
   });
 
@@ -89,10 +95,12 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.doesNotMatch(foundation, /RevPAR/);
     assert.doesNotMatch(foundation, /\$\d/);
     assert.doesNotMatch(foundation, /approval queue/i);
-    assert.ok(foundationRevenueViews().includes("demand-forecast"));
+    assert.ok(!foundationRevenueViews().includes("demand-forecast"));
+    assert.ok(foundationRevenueViews().includes("pickup-pace"));
     assert.ok(!foundationRevenueViews().includes("rate-history"));
     assert.ok(!foundationRevenueViews().includes("bulk-rate-change"));
     assert.ok(!foundationRevenueViews().includes("apply-restriction"));
+    assert.ok(!foundationRevenueViews().includes("restriction-history"));
     assert.equal(
       foundationRevenueViews().length,
       REVENUE_VIEW_DEFINITIONS.filter((view) => !view.implemented).length,

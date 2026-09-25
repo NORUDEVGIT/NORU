@@ -32,6 +32,7 @@ import {
   type NaLastClosed,
   type NaWorkspaceStatus,
 } from "./na1";
+import type { OtbCaptureResult } from "./revenue/demand-snapshot";
 import {
   NON_IGNORABLE_TYPES,
   evaluateAudit,
@@ -120,6 +121,17 @@ async function loadProperty(admin: any, restaurantId: string) {
     currency: row.currency_code,
     businessDate: row.business_date ?? propertyToday(row.timezone),
   };
+}
+
+/** Analytics follow-up after a completed close. Never throws. */
+async function captureOtbAfterClose(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  restaurantId: string,
+  asOfBusinessDate: string,
+): Promise<OtbCaptureResult> {
+  const { captureOtbSnapshotAfterClose } = await import("./revenue/demand-snapshot.server");
+  return captureOtbSnapshotAfterClose(supabaseAdmin, restaurantId, asOfBusinessDate);
 }
 
 type ExceptionRow = {
@@ -527,8 +539,15 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<
-      | { ok: true; businessDate: string; nextBusinessDate: string; alreadyClosed: boolean }
+    }    ): Promise<
+      | {
+          ok: true;
+          businessDate: string;
+          nextBusinessDate: string;
+          alreadyClosed: boolean;
+          otbSnapshotStatus?: "captured" | "already_present" | "failed";
+          otbSnapshotError?: string | null;
+        }
       | { ok: false; message: string }
     > => {
       const me = await requireCashierManager(context as never, data.restaurantId);
@@ -545,11 +564,14 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       const run = runRow as { id: string; business_date: string; status: string };
 
       if (run.status === "closed") {
+        const snapshot = await captureOtbAfterClose(supabaseAdmin, data.restaurantId, run.business_date);
         return {
           ok: true,
           businessDate: run.business_date,
           nextBusinessDate: property.businessDate,
           alreadyClosed: true,
+          otbSnapshotStatus: snapshot.status,
+          otbSnapshotError: snapshot.error ?? null,
         };
       }
 
@@ -621,12 +643,16 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         await supabaseAdmin.from("night_audit_runs").update({ notes: note }).eq("id", run.id);
       }
 
+      // Analytics only. Never roll back a completed close if snapshot capture fails.
+      const snapshot = await captureOtbAfterClose(supabaseAdmin, data.restaurantId, run.business_date);
       const after = await loadProperty(supabaseAdmin, data.restaurantId);
       return {
         ok: true,
         businessDate: run.business_date,
         nextBusinessDate: after.businessDate,
         alreadyClosed: false,
+        otbSnapshotStatus: snapshot.status,
+        otbSnapshotError: snapshot.error ?? null,
       };
     },
   );

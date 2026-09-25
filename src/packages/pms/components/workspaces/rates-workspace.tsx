@@ -14,7 +14,10 @@ import { RateHistoryView } from "@/packages/pms/components/rates/rate-history/ra
 import { RatePlansTab } from "@/packages/pms/components/rates/rates-tabs";
 import { RestrictionCalendarView } from "@/packages/pms/components/rates/restrictions/restriction-calendar-view";
 import { BulkRestrictionView } from "@/packages/pms/components/rates/bulk-restriction/bulk-restriction-view";
+import { RestrictionHistoryView } from "@/packages/pms/components/rates/restriction-history/restriction-history-view";
+import { DemandForecastView } from "@/packages/pms/components/rates/demand-overview/demand-forecast-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
+import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
 import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
 import {
@@ -210,6 +213,15 @@ export function RatesWorkspace({
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
 
+  useEffect(() => {
+    if (!baseQuery.isSuccess) return;
+    if (requestedView !== "demand-forecast") return;
+    if (search.from || search.to) return;
+    const range = defaultDemandRange(businessDate);
+    if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
+    writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+  }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
+
   function selectPrimary(section: RevenuePrimarySection) {
     if (section === "more") {
       setMoreOpen((current) => !current);
@@ -268,6 +280,10 @@ export function RatesWorkspace({
             canApplyRestrictions={access?.canApplyRestrictions === true}
           />
         );
+      case "restriction-history":
+        return <RestrictionHistoryView restaurantId={restaurantId} context={context} />;
+      case "demand-forecast":
+        return <DemandForecastView restaurantId={restaurantId} context={context} />;
       default:
         return (
           <RevenueFoundationView

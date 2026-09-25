@@ -45,8 +45,12 @@ describe("Rate & Revenue Phase 1 Prompt 5 — completion locks", () => {
       "bulk-rate-change",
       "rate-history",
       "restrictions",
+      "apply-restriction",
+      "restriction-history",
+      "demand-forecast",
     ]);
-    assert.ok(foundationRevenueViews().includes("demand-forecast"));
+    assert.ok(!foundationRevenueViews().includes("demand-forecast"));
+    assert.ok(foundationRevenueViews().includes("pickup-pace"));
     assert.ok(foundationRevenueViews().includes("approvals"));
     const workspace = readRel("../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /Rate & Revenue/);
