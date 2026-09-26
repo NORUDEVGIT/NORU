@@ -1,7 +1,27 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Filter, GripVertical, ScanSearch, Triangle } from "lucide-react";
+import {
+  AlertTriangle,
+  Ban,
+  BedDouble,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  DoorOpen,
+  Filter,
+  GripVertical,
+  House,
+  LogIn,
+  LogOut,
+  Percent,
+  ScanSearch,
+  Sparkles,
+  Triangle,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -27,10 +47,12 @@ import {
   LIVE_HORIZONS,
   RESERVATION_LEGEND,
   ROOM_LEGEND,
+  calendarHorizonLabel,
   countActiveRackFilters,
   dateRange,
   hkStatusAriaLabel,
   isLiveHorizon,
+  isOpsStripFilterActive,
   isPermissionDeniedMessage,
   liveHkStatus,
   reservationBarColor,
@@ -40,9 +62,11 @@ import {
   stayFromReservation,
   stayMatchesFilters,
   stayOverlapsRange,
+  groupRackRooms,
   type CalendarHorizon,
   type LiveHkStatus,
   type RackFilters,
+  type RackGroupBy,
 } from "@/packages/pms/lib/front-office-shell";
 import {
   NO_STAYS_MATCH_FILTERS,
@@ -67,6 +91,7 @@ import {
 import { listRoomRack, type RackRoom } from "@/packages/pms/lib/housekeeping.functions";
 import { listReservations, type ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import { addDays, formatStayDate } from "@/packages/pms/lib/reservation-dates";
+import { cn } from "@/shared/lib/utils";
 import { deriveOpsStrip, type FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { listFoExceptionFeeds } from "@/packages/pms/lib/fo-exceptions.functions";
 
@@ -79,16 +104,29 @@ export function RoomRackCalendar({
   today,
   viewport,
   rackFocus = null,
+  initialHorizon,
+  initialFocusDate,
+  initialGroup = "none",
   onSelectStay,
+  onSelectRoom,
+  onRackSearchChange,
+  onWalkIn,
 }: {
   restaurantId: string;
   today: string;
   viewport: Viewport;
   rackFocus?: FoRackFocus | null;
+  initialHorizon?: CalendarHorizon;
+  initialFocusDate?: string;
+  initialGroup?: RackGroupBy;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectRoom: (roomId: string) => void;
+  onRackSearchChange?: (next: { horizon: CalendarHorizon; date: string; group: RackGroupBy }) => void;
+  onWalkIn?: () => void;
 }) {
-  const [focusDate, setFocusDate] = useState(rackFocus?.focusDate ?? today);
-  const [horizon, setHorizon] = useState<CalendarHorizon>(viewport === "phone" ? 1 : 7);
+  const [focusDate, setFocusDate] = useState(rackFocus?.focusDate ?? initialFocusDate ?? today);
+  const [horizon, setHorizon] = useState<CalendarHorizon>(initialHorizon ?? (viewport === "phone" ? 1 : 7));
+  const [groupBy, setGroupBy] = useState<RackGroupBy>(initialGroup);
   const [filters, setFilters] = useState<RackFilters>(() =>
     rackFocus
       ? {
@@ -122,6 +160,10 @@ export function RoomRackCalendar({
       ...(rackFocus.discrepancy ? { discrepancy: rackFocus.discrepancy } : {}),
     });
   }, [rackFocus]);
+
+  useEffect(() => {
+    onRackSearchChange?.({ horizon, date: focusDate, group: groupBy });
+  }, [horizon, focusDate, groupBy, onRackSearchChange]);
 
   const occupancyQuery = useQuery({
     queryKey: ["front-office", "occupancy", restaurantId],
@@ -224,40 +266,6 @@ export function RoomRackCalendar({
 
   return (
     <div className="space-y-4" data-testid="fo-room-rack-calendar">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-xl">Room Rack + Calendar</h2>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setFocusDate(today)}>
-            Today
-          </Button>
-          <Button variant="outline" size="icon" onClick={() => setFocusDate(addDays(focusDate, -1))} aria-label="Previous day">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Input type="date" className="w-40" value={focusDate} onChange={(e) => setFocusDate(e.target.value)} />
-          <Button variant="outline" size="icon" onClick={() => setFocusDate(addDays(focusDate, 1))} aria-label="Next day">
-            <ChevronRight className="size-4" />
-          </Button>
-          {LIVE_HORIZONS.map((n) => (
-            <Button
-              key={n}
-              size="sm"
-              variant={horizon === n ? "default" : "outline"}
-              onClick={() => setHorizon(n)}
-            >
-              {n} day{n === 1 ? "" : "s"}
-            </Button>
-          ))}
-          <RackFiltersButton
-            filters={filters}
-            onChange={setFilters}
-            floors={floors}
-            types={types}
-            sources={sources}
-            hkAvailable={hkAvailable}
-          />
-        </div>
-      </div>
-
       <OpsStrip
         {...(dashboardQuery.data ? { dashboard: dashboardQuery.data } : {})}
         loading={dashboardQuery.isLoading}
@@ -269,8 +277,64 @@ export function RoomRackCalendar({
         hkAvailable={hkAvailable}
         occupancyTrusted={!occupancyQuery.isError && !dashboardQuery.isError}
         openDiscrepancies={discrepancyLive ? (feedsQuery.data?.discrepancies.length ?? 0) : null}
+        filters={filters}
         onFilter={(next) => setFilters({ ...EMPTY_RACK_FILTERS, ...next })}
       />
+
+      <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm" data-testid="fo-rack-toolbar">
+        <div className="flex flex-wrap items-end gap-3">
+          <Button variant="outline" size="sm" className="h-9" onClick={() => setFocusDate(today)}>
+            Today
+          </Button>
+          <Button variant="outline" size="icon" className="size-9" onClick={() => setFocusDate(addDays(focusDate, -1))} aria-label="Previous day">
+            <ChevronLeft className="size-4" />
+          </Button>
+          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+            Date
+            <Input type="date" className="h-9 w-40" value={focusDate} onChange={(e) => setFocusDate(e.target.value)} />
+          </label>
+          <Button variant="outline" size="icon" className="size-9" onClick={() => setFocusDate(addDays(focusDate, 1))} aria-label="Next day">
+            <ChevronRight className="size-4" />
+          </Button>
+          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+            View range
+            <Select
+              value={String(horizon)}
+              onValueChange={(value) => setHorizon(Number(value) as CalendarHorizon)}
+            >
+              <SelectTrigger className="h-9 w-[9.5rem]" aria-label="View range" data-testid="fo-horizon-select">
+                <SelectValue placeholder="View range" />
+              </SelectTrigger>
+              <SelectContent>
+                {LIVE_HORIZONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {calendarHorizonLabel(n)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <div className="ml-auto flex flex-wrap items-end gap-2">
+            <RackFiltersButton
+              filters={filters}
+              onChange={setFilters}
+              floors={floors}
+              types={types}
+              sources={sources}
+              hkAvailable={hkAvailable}
+            />
+            {onWalkIn ? (
+              <Button
+                className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                data-testid="fo-walk-in-cta"
+                onClick={onWalkIn}
+              >
+                Walk-in
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
       {hkDenied ? (
         <PermissionDeniedPanel
@@ -299,8 +363,11 @@ export function RoomRackCalendar({
           stays={visibleStays}
           hkByRoom={hkByRoom}
           today={focusDate}
+          groupBy={groupBy}
+          onGroupBy={setGroupBy}
           openDiscrepancyRoomIds={openDiscrepancyRoomIds}
           onSelectStay={onSelectStay}
+          onSelectRoom={onSelectRoom}
         />
       ) : (
         <CalendarBoard
@@ -311,11 +378,14 @@ export function RoomRackCalendar({
           hkAvailable={hkAvailable}
           focusDate={focusDate}
           days={days}
+          groupBy={groupBy}
+          onGroupBy={setGroupBy}
           showDrag={showDrag}
           preview={preview}
           openDiscrepancyRoomIds={openDiscrepancyRoomIds}
           highlightRoomId={rackFocus?.roomId ?? null}
           onSelectStay={onSelectStay}
+          onSelectRoom={onSelectRoom}
           onPreview={setPreview}
           onOpenConfirm={openConfirm}
         />
@@ -358,6 +428,7 @@ function OpsStrip({
   hkAvailable,
   occupancyTrusted = true,
   openDiscrepancies = null,
+  filters,
   onFilter,
 }: {
   dashboard?: {
@@ -374,6 +445,7 @@ function OpsStrip({
   hkAvailable: boolean;
   occupancyTrusted?: boolean;
   openDiscrepancies?: number | null;
+  filters: RackFilters;
   onFilter: (next: Partial<RackFilters>) => void;
 }) {
   const cards = dashboard
@@ -393,22 +465,67 @@ function OpsStrip({
     : [];
 
   return (
-    <div className="flex flex-wrap gap-2" data-testid="fo-ops-strip">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-6" data-testid="fo-ops-strip">
       {loading ? <p className="text-xs text-muted-foreground">Loading occupancy strip…</p> : null}
-      {cards.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          data-testid={`fo-ops-${item.id}`}
-          className="rounded-xl border border-border bg-card px-3 py-2 text-left hover:border-[#C89933]"
-          onClick={() => onFilter(item.filter)}
-        >
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{item.label}</p>
-          <p className="font-display text-lg">{item.display ?? item.value}</p>
-        </button>
-      ))}
+      {cards.map((item) => {
+        const active = isOpsStripFilterActive(filters, item.filter);
+        const meta = opsKpiMeta(item.id);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            data-testid={`fo-ops-${item.id}`}
+            aria-pressed={active}
+            className={cn(
+              "flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3 text-left shadow-sm transition-colors",
+              active ? "border-[#C89933] ring-1 ring-[#C89933]/40" : "border-[#DDD4C5] hover:border-[#C89933]",
+            )}
+            onClick={() => onFilter(item.filter)}
+          >
+            <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", meta.tone)}>{meta.icon}</span>
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-medium text-[#756A5B]">{item.label}</p>
+              <p className="font-display text-xl font-semibold leading-tight tracking-tight text-[#251605]">
+                {item.display ?? item.value}
+              </p>
+              {meta.hint ? <p className="truncate text-[9px] text-muted-foreground">{meta.hint}</p> : null}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
+}
+
+function opsKpiMeta(id: string): { icon: ReactNode; tone: string; hint?: string } {
+  switch (id) {
+    case "arrivals":
+      return { icon: <LogIn className="size-4" />, tone: "bg-emerald-50 text-emerald-700", hint: "Today" };
+    case "departures":
+      return { icon: <LogOut className="size-4" />, tone: "bg-rose-50 text-rose-700", hint: "Today" };
+    case "in_house":
+      return { icon: <House className="size-4" />, tone: "bg-blue-50 text-blue-700" };
+    case "occupied":
+      return { icon: <BedDouble className="size-4" />, tone: "bg-amber-50 text-amber-800" };
+    case "available":
+      return { icon: <DoorOpen className="size-4" />, tone: "bg-indigo-50 text-indigo-700" };
+    case "vacant":
+      return { icon: <Circle className="size-4" />, tone: "bg-slate-50 text-slate-600" };
+    case "vacant_dirty":
+      return { icon: <AlertTriangle className="size-4" />, tone: "bg-orange-50 text-orange-700" };
+    case "vacant_clean":
+      return { icon: <Sparkles className="size-4" />, tone: "bg-teal-50 text-teal-700" };
+    case "ooo":
+      return { icon: <Ban className="size-4" />, tone: "bg-neutral-100 text-neutral-600" };
+    case "oos":
+      return { icon: <Ban className="size-4" />, tone: "bg-stone-100 text-stone-600" };
+    case "occupancy_pct":
+      return { icon: <Percent className="size-4" />, tone: "bg-[#F4E9D0] text-[#8A641A]" };
+    case "discrepancies":
+      return { icon: <Triangle className="size-4" />, tone: "bg-amber-50 text-amber-700" };
+    default:
+      return { icon: <UserRound className="size-4" />, tone: "bg-[#F4E9D0] text-[#8A641A]" };
+  }
 }
 
 function RackFiltersButton({
@@ -608,6 +725,27 @@ function FilterSelect({
   );
 }
 
+function RackGroupSelect({
+  groupBy,
+  onGroupBy,
+}: {
+  groupBy: RackGroupBy;
+  onGroupBy: (next: RackGroupBy) => void;
+}) {
+  return (
+    <Select value={groupBy} onValueChange={(value) => onGroupBy(value as RackGroupBy)}>
+      <SelectTrigger className="h-7 w-[8.75rem] text-xs" aria-label="Group rooms" data-testid="fo-rack-group-by">
+        <SelectValue placeholder="Grouping" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">No grouping</SelectItem>
+        <SelectItem value="floor">Floor</SelectItem>
+        <SelectItem value="room_type">Room Type</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
 function CalendarBoard({
   rooms,
   stays,
@@ -616,11 +754,14 @@ function CalendarBoard({
   hkAvailable,
   focusDate,
   days,
+  groupBy,
+  onGroupBy,
   showDrag,
   preview,
   openDiscrepancyRoomIds,
   highlightRoomId,
   onSelectStay,
+  onSelectRoom,
   onPreview,
   onOpenConfirm,
 }: {
@@ -631,11 +772,14 @@ function CalendarBoard({
   hkAvailable: boolean;
   focusDate: string;
   days: number;
+  groupBy: RackGroupBy;
+  onGroupBy: (next: RackGroupBy) => void;
   showDrag: boolean;
   preview: RackConfirmDraft | null;
   openDiscrepancyRoomIds: Set<string>;
   highlightRoomId: string | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectRoom: (roomId: string) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenConfirm: (next: RackConfirmDraft) => void;
 }) {
@@ -727,7 +871,7 @@ function CalendarBoard({
 
   return (
     <div
-      className="overflow-auto rounded-2xl border border-border"
+      className="overflow-auto rounded-xl border border-[#DDD4C5] bg-[#FAF8F4] shadow-sm"
       data-testid="fo-calendar-board"
       data-focus-date={focusDate}
     >
@@ -738,8 +882,9 @@ function CalendarBoard({
           gridTemplateColumns: `220px repeat(${days}, minmax(${colMin}px, 1fr))`,
         }}
       >
-        <div className="sticky left-0 z-20 border-b border-r border-border bg-card px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Room
+        <div className="sticky left-0 z-20 flex items-center justify-between gap-2 border-b border-r border-border bg-card px-2 py-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Room</span>
+          <RackGroupSelect groupBy={groupBy} onGroupBy={onGroupBy} />
         </div>
         {dates.map((d) => (
           <div key={d} className="border-b border-border px-3 py-2 text-xs font-medium">
@@ -762,25 +907,39 @@ function CalendarBoard({
           />
         ) : null}
 
-        {rooms.map((room) => (
-          <RoomRow
-            key={room.id}
-            room={room}
-            hk={hkByRoom.get(room.id) ?? null}
-            stays={byRoom.get(room.id) ?? []}
-            focusDate={focusDate}
-            days={days}
-            dates={dates}
-            colMin={colMin}
-            showDrag={showDrag}
-            preview={preview}
-            hasOpenDiscrepancy={openDiscrepancyRoomIds.has(room.id)}
-            highlight={highlightRoomId === room.id}
-            onSelectStay={onSelectStay}
-            onDropStay={(id) => dropOnRoom(id, room)}
-            onPreview={onPreview}
-            onOpenDateConfirm={openDateConfirm}
-          />
+        {groupRackRooms(rooms, groupBy).map((group) => (
+          <Fragment key={group.key}>
+            {groupBy !== "none" ? (
+              <div
+                className="sticky left-0 z-10 border-b border-[#DDD4C5] bg-[#F3EEE4] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#765719]"
+                style={{ gridColumn: `1 / span ${days + 1}` }}
+                data-testid="fo-rack-group"
+              >
+                {group.label}
+              </div>
+            ) : null}
+            {group.rooms.map((room) => (
+              <RoomRow
+                key={room.id}
+                room={room}
+                hk={hkByRoom.get(room.id) ?? null}
+                stays={byRoom.get(room.id) ?? []}
+                focusDate={focusDate}
+                days={days}
+                dates={dates}
+                colMin={colMin}
+                showDrag={showDrag}
+                preview={preview}
+                hasOpenDiscrepancy={openDiscrepancyRoomIds.has(room.id)}
+                highlight={highlightRoomId === room.id}
+                onSelectStay={onSelectStay}
+                onSelectRoom={onSelectRoom}
+                onDropStay={(id) => dropOnRoom(id, room)}
+                onPreview={onPreview}
+                onOpenDateConfirm={openDateConfirm}
+              />
+            ))}
+          </Fragment>
         ))}
       </div>
     </div>
@@ -853,6 +1012,7 @@ function RoomRow({
   hasOpenDiscrepancy,
   highlight,
   onSelectStay,
+  onSelectRoom,
   onDropStay,
   onPreview,
   onOpenDateConfirm,
@@ -869,6 +1029,7 @@ function RoomRow({
   hasOpenDiscrepancy: boolean;
   highlight: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectRoom: (roomId: string) => void;
   onDropStay: (reservationId: string) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: ReservationDetail, arrival: string, departure: string) => void;
@@ -901,11 +1062,16 @@ function RoomRow({
             : undefined
         }
       >
-        <p className="inline-flex items-center gap-1.5 font-medium">
+        <button
+          type="button"
+          className="inline-flex max-w-full items-center gap-1.5 text-left font-medium"
+          data-testid="fo-room-identity"
+          onClick={() => onSelectRoom(room.id)}
+        >
           <span>{room.roomNumber}</span>
           <FoHkStatusGlyph status={hk?.housekeepingStatus} />
           <span className="text-xs font-normal text-muted-foreground">{room.roomTypeName}</span>
-        </p>
+        </button>
         <StayBadgeStrip
           badges={liveStayBadges({ guestVip: false, hasOpenDiscrepancy })}
           mode={badgeDisplayMode(days)}
@@ -1085,7 +1251,8 @@ function ReservationBar({
             ? (e) => startDateGesture(e, stay, "shift", days, focusDate, onPreviewDates, onCommitDates, dragged)
             : undefined
         }
-        onClick={() => {
+        onClick={(event) => {
+          event.stopPropagation();
           if (dragged.current) {
             dragged.current = false;
             return;
@@ -1193,49 +1360,74 @@ function PhoneRackList({
   stays,
   hkByRoom,
   today,
+  groupBy,
+  onGroupBy,
   openDiscrepancyRoomIds,
   onSelectStay,
+  onSelectRoom,
 }: {
   rooms: OccupancyRoom[];
   stays: ReservationDetail[];
   hkByRoom: Map<string, RackRoom>;
   today: string;
+  groupBy: RackGroupBy;
+  onGroupBy: (next: RackGroupBy) => void;
   openDiscrepancyRoomIds: Set<string>;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectRoom: (roomId: string) => void;
 }) {
   const todayStays = stays.filter((s) => s.arrivalDate <= today && s.departureDate > today);
   return (
     <div className="space-y-3" data-testid="fo-phone-rack-list">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Room</p>
+        <RackGroupSelect groupBy={groupBy} onGroupBy={onGroupBy} />
+      </div>
       <p className="text-sm text-muted-foreground">
         Phone shows rooms and today&apos;s stays. The week Gantt stays on larger screens.
       </p>
-      <ul className="space-y-2">
-        {rooms.map((room) => {
-          const hk = hkByRoom.get(room.id);
-          return (
-            <li key={room.id} className="rounded-2xl border border-border bg-card p-3">
-              <p className="inline-flex items-center gap-1.5 font-medium">
-                <span>{room.roomNumber}</span>
-                <FoHkStatusGlyph status={hk?.housekeepingStatus} />
-                <span className="font-normal text-muted-foreground">· {room.roomTypeName}</span>
-              </p>
-              <StayBadgeStrip
-                badges={liveStayBadges({ guestVip: false, hasOpenDiscrepancy: openDiscrepancyRoomIds.has(room.id) })}
-                mode="full"
-              />
-              <p className="text-xs text-muted-foreground">
-                {room.occupancy} · {room.guestName ?? "Vacant"}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
+      {groupRackRooms(rooms, groupBy).map((group) => (
+        <div key={group.key} className="space-y-2">
+          {groupBy !== "none" ? (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#765719]" data-testid="fo-rack-group">
+              {group.label}
+            </p>
+          ) : null}
+          <ul className="space-y-2">
+            {group.rooms.map((room) => {
+              const hk = hkByRoom.get(room.id);
+              return (
+                <li key={room.id} className="rounded-xl border border-[#DDD4C5] bg-card p-3">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 text-left font-medium"
+                    data-testid="fo-room-identity"
+                    onClick={() => onSelectRoom(room.id)}
+                  >
+                    <span>{room.roomNumber}</span>
+                    <FoHkStatusGlyph status={hk?.housekeepingStatus} />
+                    <span className="font-normal text-muted-foreground">· {room.roomTypeName}</span>
+                  </button>
+                  <StayBadgeStrip
+                    badges={liveStayBadges({ guestVip: false, hasOpenDiscrepancy: openDiscrepancyRoomIds.has(room.id) })}
+                    mode="full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {room.occupancy} · {room.guestName ?? "Vacant"}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
       <ul className="space-y-2">
         {todayStays.map((stay) => (
           <li key={stay.id}>
             <button
               type="button"
-              className="w-full rounded-2xl border border-border bg-card p-3 text-left"
+              data-testid="fo-phone-stay"
+              className="w-full rounded-xl border border-[#DDD4C5] bg-card p-3 text-left"
               onClick={() => onSelectStay(stayFromReservation(stay, today))}
             >
               <p className="font-medium">{stay.guestName}</p>

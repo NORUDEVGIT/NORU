@@ -16,7 +16,11 @@ export type ManualReservationStatus = (typeof MANUAL_RESERVATION_STATUSES)[numbe
 
 /**
  * Booking-side transitions for `setReservationStatus` only.
- * Front Office owns checked_in / checked_out / no_show via dedicated RPCs.
+ * Front Office owns checked_in / checked_out / no_show via gated steppers.
+ *
+ * Cancellation split (do not unify):
+ * - Front Office desk (fees, room clear, operational audit) → `completeFoCancel`
+ * - Reservation pre-arrival pending/confirmed (no FO fee path) → `setReservationStatus`
  */
 export const BOOKING_STATUS_TRANSITIONS = {
   pending: ["confirmed", "cancelled"],

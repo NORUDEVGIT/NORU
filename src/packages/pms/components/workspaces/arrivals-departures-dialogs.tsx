@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { shiftMoment } from "@/core/lib/workforce-rules";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
+import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
 import {
   bulkSetExpectedArrivalTime,
   setExpectedArrivalTime,
@@ -236,9 +238,20 @@ export function LateCheckoutDialog({
   onSaved: () => void;
 }) {
   const submit = useServerFn(setLateCheckout);
+  const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
   const policy = row?.operational.lateCheckout.policy;
   const [clock, setClock] = useState("");
   const [note, setNote] = useState("");
+  const needsApproval = policy?.needsApproval === true;
+  const approvalQuery = useQuery({
+    queryKey: ["front-office", "approval", restaurantId, "late_checkout.authorize"],
+    queryFn: () =>
+      fetchApproval({ data: { restaurantId, actionKey: "late_checkout.authorize" } }),
+    enabled: open && needsApproval,
+    retry: false,
+  });
+  const lateAuth = approvalQuery.data;
+  const canAuthorize = !needsApproval || lateAuth?.canCurrentUserAuthorize === true;
 
   useEffect(() => {
     if (!row) return;
@@ -313,18 +326,38 @@ export function LateCheckoutDialog({
             aria-label="Late checkout time"
           />
         </label>
-        <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-          Note
-          <Input
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            maxLength={500}
-            aria-label="Late checkout note"
+        {needsApproval ? (
+          <FoAuthorizationCard
+            requirement={lateAuth}
+            guestLine={`${row.guest.name} · ${row.confirmationNumber}`}
+            reason={note}
+            onReasonChange={setNote}
+            pending={mutation.isPending}
+            confirmDisabled={!clock || policy?.allowed === false}
+            confirmLabel={row.operational.lateCheckout.granted ? "Update" : "Grant"}
+            onAuthorize={() =>
+              mutation.mutate({
+                granted: true,
+                until: instantFromClock(row.stay.departureDate, clock, timezone),
+                note: note.trim() || null,
+              })
+            }
+            reasonId="late-checkout-auth"
           />
-        </label>
+        ) : (
+          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+            Note
+            <Input
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              maxLength={500}
+              aria-label="Late checkout note"
+            />
+          </label>
+        )}
         <p className="text-xs text-muted-foreground">Cashiering remains the owner of any fee posting.</p>
         <DialogFooter className="gap-2">
-          {row.operational.lateCheckout.granted ? (
+          {row.operational.lateCheckout.granted && canAuthorize ? (
             <Button
               variant="outline"
               disabled={mutation.isPending}
@@ -333,19 +366,21 @@ export function LateCheckoutDialog({
               Revoke
             </Button>
           ) : null}
-          <Button
-            className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-            disabled={!clock || mutation.isPending || policy?.allowed === false}
-            onClick={() =>
-              mutation.mutate({
-                granted: true,
-                until: instantFromClock(row.stay.departureDate, clock, timezone),
-                note: note.trim() || null,
-              })
-            }
-          >
-            {mutation.isPending ? "Saving…" : row.operational.lateCheckout.granted ? "Update" : "Grant"}
-          </Button>
+          {!needsApproval ? (
+            <Button
+              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+              disabled={!clock || mutation.isPending || policy?.allowed === false}
+              onClick={() =>
+                mutation.mutate({
+                  granted: true,
+                  until: instantFromClock(row.stay.departureDate, clock, timezone),
+                  note: note.trim() || null,
+                })
+              }
+            >
+              {mutation.isPending ? "Saving…" : row.operational.lateCheckout.granted ? "Update" : "Grant"}
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

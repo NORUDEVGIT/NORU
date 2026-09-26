@@ -92,15 +92,39 @@ export function isMissingRpcFunction(error: RpcErrorLike | null, functionName: s
 }
 
 function rpcError(error: RpcErrorLike, fallback: string): Error {
-  return new Error(error.message || error.details || fallback);
+  const text = [error.code, error.message || error.details || fallback].filter(Boolean).join(" ");
+  return new Error(text);
 }
 
-function firstRow(data: unknown): Record<string, unknown> | null {
-  if (Array.isArray(data)) {
-    const row = data[0];
-    return row && typeof row === "object" ? (row as Record<string, unknown>) : null;
+const WRAPPED_RPC_KEYS = new Set(["pms_evaluate_room_assignment", "pms_room_type_availability"]);
+
+/**
+ * PostgREST may return jsonb as an object, a one-row array, a JSON string,
+ * or a `{ function_name: payload }` wrapper. Eligibility keys must still be
+ * read from the payload — a wrapper without `eligible` must not look like a
+ * successful "not eligible" result.
+ */
+export function coerceRpcRow(data: unknown): Record<string, unknown> | null {
+  let value: unknown = data;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      value = JSON.parse(trimmed) as unknown;
+    } catch {
+      return null;
+    }
   }
-  return data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  if (Array.isArray(value)) {
+    return value.length === 0 ? null : coerceRpcRow(value[0]);
+  }
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length === 1 && WRAPPED_RPC_KEYS.has(keys[0] ?? "")) {
+    return coerceRpcRow(record[keys[0] ?? ""]);
+  }
+  return record;
 }
 
 function numberValue(value: unknown): number {
@@ -141,7 +165,7 @@ export async function getRoomTypeAvailabilityCompat(
   });
 
   if (!modern.error) {
-    const row = firstRow(modern.data);
+    const row = coerceRpcRow(modern.data);
     if (!row) throw new Error("Availability RPC returned no result.");
     return {
       source: "canonical",
@@ -221,8 +245,14 @@ export async function getAssignmentEligibilityCompat(
   });
 
   if (!modern.error) {
-    const row = firstRow(modern.data);
-    if (!row) throw new Error("Assignment eligibility RPC returned no result.");
+    const row = coerceRpcRow(modern.data);
+    if (!row || !("eligible" in row)) {
+      const preview =
+        modern.data && typeof modern.data === "object"
+          ? Object.keys(modern.data as object).join(",")
+          : typeof modern.data;
+      throw new Error(`Assignment eligibility RPC returned no result (${preview}).`);
+    }
     return {
       source: "canonical",
       eligible: row["eligible"] === true,

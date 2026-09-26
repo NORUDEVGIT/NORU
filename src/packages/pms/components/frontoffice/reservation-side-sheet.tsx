@@ -2,10 +2,20 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
-import { GripVertical } from "lucide-react";
+import { GripVertical, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -13,13 +23,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
-import { ComingSoonButton, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { StayBadgeStrip } from "@/packages/pms/components/frontoffice/fo-stay-badges";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { getReservationFolio } from "@/packages/pms/lib/cashiering.functions";
 import { getReservation } from "@/packages/pms/lib/reservations.functions";
-import { actionsForMenu, isPermissionDeniedMessage, type FoActionDef } from "@/packages/pms/lib/front-office-shell";
+import {
+  isPermissionDeniedMessage,
+  stayQuickViewAmendItems,
+  stayQuickViewCanAmend,
+  stayQuickViewMenuItems,
+  type StayQuickViewMenuItem,
+} from "@/packages/pms/lib/front-office-shell";
 import { liveStayBadges, onRackDrop } from "@/packages/pms/lib/fo-rack-power";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
@@ -121,19 +137,76 @@ export function ReservationSideSheet({
 
   if (!stay) return null;
 
-  const actions = actionsForMenu("sheet");
+  const menuItems = stayQuickViewMenuItems({ status: stay.status, assigned: Boolean(stay.roomId) });
+  const amendItems = stayQuickViewAmendItems(stay.status);
   const reservation = detailQuery.data?.reservation;
   const folioDenied = folioQuery.isError && isPermissionDeniedMessage(folioQuery.error);
+
+  function onStayMenu(action: StayQuickViewMenuItem) {
+    if (action.id === "cancel_fees") {
+      setFeeOpen((open) => !open);
+      return;
+    }
+    onAction(action.id as SideSheetAction, stay);
+  }
 
   return (
     <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md" data-testid="fo-reservation-sheet">
-        <SheetHeader>
-          <SheetTitle>{stay.guestName}</SheetTitle>
-          <SheetDescription>
-            {stay.confirmationNumber} · {stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}
-          </SheetDescription>
+        <SheetHeader className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <SheetTitle>{stay.guestName}</SheetTitle>
+              <SheetDescription>
+                {stay.confirmationNumber} · {stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}
+              </SheetDescription>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                size="sm"
+                className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                asChild
+                data-testid="fo-stay-qv-open-reservation"
+              >
+                <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: stay.id }}>
+                  Open Reservation
+                </Link>
+              </Button>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    aria-label="Stay actions"
+                    data-testid="fo-stay-qv-actions"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52" data-testid="fo-stay-qv-menu">
+                  {stayQuickViewCanAmend(stay.status) ? (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger data-testid="fo-stay-qv-amend">Amend Stay</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {amendItems.map((item) => (
+                          <DropdownMenuItem key={item.id} onSelect={() => onStayMenu(item)}>
+                            {item.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : null}
+                  {stayQuickViewCanAmend(stay.status) && menuItems.length > 0 ? <DropdownMenuSeparator /> : null}
+                  {menuItems.map((item) => (
+                    <DropdownMenuItem key={item.id} onSelect={() => onStayMenu(item)}>
+                      {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </SheetHeader>
 
         <div className="mt-4 space-y-4">
@@ -165,6 +238,10 @@ export function ReservationSideSheet({
             <div>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Room type</dt>
               <dd>{stay.roomTypeName}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Nights</dt>
+              <dd>{stay.nights}</dd>
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guests</dt>
@@ -272,22 +349,6 @@ export function ReservationSideSheet({
             Drag a stay on Room Rack + Calendar, then Confirm. Phone uses Room Move and Extend Stay.
           </div>
 
-          <div className="flex flex-col gap-2">
-            {actions.map((action) => (
-              <SheetActionButton
-                key={action.id}
-                action={action}
-                onLive={() => {
-                  if (action.id === "cancel_fees") {
-                    setFeeOpen((open) => !open);
-                    return;
-                  }
-                  onAction(action.id as SideSheetAction, stay);
-                }}
-              />
-            ))}
-          </div>
-
           {feeOpen ? (
             <div className="rounded-xl border border-border p-3" data-testid="fo-cancel-fee-summary">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{FO_FEE_DEFAULTS_SECTION}</p>
@@ -340,12 +401,6 @@ export function ReservationSideSheet({
               ) : null}
             </div>
           ) : null}
-
-          <Button variant="outline" asChild>
-            <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: stay.id }}>
-              Open reservation
-            </Link>
-          </Button>
         </div>
       </SheetContent>
     </Sheet>
@@ -358,17 +413,6 @@ export function ReservationSideSheet({
       />
     ) : null}
     </>
-  );
-}
-
-function SheetActionButton({ action, onLive }: { action: FoActionDef; onLive: () => void }) {
-  if (action.lane === "coming_soon") {
-    return <ComingSoonButton label={action.label} />;
-  }
-  return (
-    <Button variant={action.id === "view" ? "default" : "outline"} onClick={onLive}>
-      {action.label}
-    </Button>
   );
 }
 

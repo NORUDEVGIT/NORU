@@ -121,7 +121,7 @@ export const PMS_MODULES: PmsModule[] = [
     group: "core",
     moduleKey: "front_office",
     canonicalRoute: "/restaurant/pms/front-office",
-    legacyRoutes: ["/restaurant/rooms/arrivals"],
+    legacyRoutes: ["/restaurant/rooms/arrivals", "/restaurant/rooms/in-house", "/restaurant/rooms/departures"],
     domain: "pms",
     implementationStatus: "existing",
   },

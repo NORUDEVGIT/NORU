@@ -26,6 +26,8 @@ import { listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { guestListItems, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
+import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
@@ -37,7 +39,6 @@ import {
   SERVICE_ZERO_NO_POST,
   SPECIAL_REQUEST_CATEGORIES,
   SPECIAL_REQUEST_CATEGORY_LABELS,
-  canConfirmGuestRequest,
   canConfirmGuests,
   canConfirmService,
   canConfirmSpecialRequest,
@@ -58,13 +59,21 @@ import {
   addStayService,
   amendStayGuests,
   attachStayCompanion,
-  createGuestRequest,
   detachStayCompanion,
   getAmendContext,
-  setGuestRequestStatus,
   upgradeReservationType,
   type StayGuestRow,
 } from "@/packages/pms/lib/fo-amendments.functions";
+import { createGuestServiceRequest } from "@/packages/pms/lib/guests.functions";
+import { getFrontOfficeGuestServiceSummary } from "@/packages/pms/lib/fo-guest-services.functions";
+import { canConfirmFoGuestServiceRequest } from "@/packages/pms/lib/fo-guest-services";
+import {
+  GUEST_SERVICE_DESCRIPTION_MAX,
+  GUEST_SERVICE_PRIORITIES,
+  GUEST_SERVICE_PRIORITY_LABELS,
+  GUEST_SERVICES_NO_TYPES,
+  type GuestServicePriority,
+} from "@/packages/pms/lib/guest-services-workspace";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
@@ -76,6 +85,7 @@ function refreshKeys(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ["reservation"] });
   void queryClient.invalidateQueries({ queryKey: ["reservation-amendments"] });
   void queryClient.invalidateQueries({ queryKey: ["fo-amend"] });
+  void queryClient.invalidateQueries({ queryKey: ["guest-service-history"] });
 }
 
 function BeforeAfterCard({
@@ -258,6 +268,7 @@ export function FoAmendUpgradeSheet({
         },
       }),
     enabled: open && !!roomTypeId,
+    retry: false,
   });
 
   const ctx = contextQuery.data;
@@ -279,6 +290,11 @@ export function FoAmendUpgradeSheet({
     reason,
   });
   const targetType = (ctx?.roomTypes ?? []).find((t) => t.id === roomTypeId);
+  const upgradeRoomsState = assignableListUi({
+    isPending: roomsQuery.isPending,
+    isError: roomsQuery.isError,
+    rooms: roomsQuery.data,
+  });
   const rate = rateImpact({
     roomSubtotal: ctx?.roomSubtotal,
     nightlyRates: ctx?.nightlyRates,
@@ -332,7 +348,7 @@ export function FoAmendUpgradeSheet({
       </p>
       <div className="rounded-xl border border-border p-3 text-sm">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Current</p>
-        <p className="mt-1 font-medium">{stay.roomTypeName}</p>
+        <p className="mt-1 font-medium">{formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}</p>
         <p>Room {stay.roomNumber ?? "—"}</p>
         <p className="text-muted-foreground">
           HK {ctx?.currentRoom?.housekeepingStatus ?? "—"}
@@ -358,7 +374,7 @@ export function FoAmendUpgradeSheet({
               .filter((t) => t.id !== stay.roomTypeId)
               .map((t) => (
                 <SelectItem key={t.id} value={t.id}>
-                  {t.name} · {t.available} available
+                  {formatRoomTypeLabel(t.name, t.code)} · {t.available} available
                 </SelectItem>
               ))}
           </SelectContent>
@@ -366,9 +382,15 @@ export function FoAmendUpgradeSheet({
       </div>
       <div className="space-y-2">
         <Label>Target room{roomRequired ? "" : " (optional)"}</Label>
-        <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId}>
+        <Select
+          value={roomId}
+          onValueChange={setRoomId}
+          disabled={!roomTypeId || upgradeRoomsState.status === "error"}
+        >
           <SelectTrigger>
-            <SelectValue placeholder={roomsQuery.isLoading ? "Loading rooms…" : "Select a room"} />
+            <SelectValue
+              placeholder={upgradeRoomsState.status === "loading" ? "Loading rooms…" : "Select a room"}
+            />
           </SelectTrigger>
           <SelectContent>
             {(roomsQuery.data ?? []).map((room) => (
@@ -379,6 +401,14 @@ export function FoAmendUpgradeSheet({
             ))}
           </SelectContent>
         </Select>
+        {roomTypeId ? (
+          <AssignableRoomsHint
+            status={upgradeRoomsState.status}
+            roomTypeLabel={formatRoomTypeLabel(targetType?.name ?? "room type", targetType?.code)}
+            onRetry={() => void roomsQuery.refetch()}
+            detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
+          />
+        ) : null}
         {roomGate.blocked && roomId ? (
           <p className="text-xs text-destructive">{roomGate.reason}</p>
         ) : null}
@@ -386,7 +416,7 @@ export function FoAmendUpgradeSheet({
       <ReasonField id="fo-upgrade-reason" value={reason} onChange={setReason} />
       <BeforeAfterCard
         rows={[
-          { label: "room type", previous: stay.roomTypeName, next: targetType?.name ?? "—" },
+          { label: "room type", previous: formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode), next: targetType ? formatRoomTypeLabel(targetType.name, targetType.code) : "—" },
           {
             label: "room",
             previous: stay.roomNumber ?? "Unassigned",
@@ -876,6 +906,9 @@ export function FoAmendServiceSheet({
       pending={mutation.isPending}
       onConfirm={() => mutation.mutate()}
     >
+      <p className="text-xs text-muted-foreground">
+        Add Service posts a stay extra to the folio. Operational Guest Services requests use Guest Request.
+      </p>
       {pickFirst ? (
         <div className="space-y-2" data-testid="fo-service-catalogue">
           <Label htmlFor="fo-service-catalogue-search">Catalogue</Label>
@@ -1102,32 +1135,64 @@ export function FoGuestRequestSheet({
   onOpenChange: (v: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const fetchContext = useServerFn(getAmendContext);
-  const create = useServerFn(createGuestRequest);
-  const setStatus = useServerFn(setGuestRequestStatus);
-  const [text, setText] = useState("");
+  const fetchSummary = useServerFn(getFrontOfficeGuestServiceSummary);
+  const create = useServerFn(createGuestServiceRequest);
+  const [serviceTypeId, setServiceTypeId] = useState("");
+  const [priority, setPriority] = useState<GuestServicePriority>("normal");
+  const [description, setDescription] = useState("");
+  const [notes, setNotes] = useState("");
   const [deny, setDeny] = useState<string | null>(null);
 
-  const contextQuery = useQuery({
-    queryKey: ["fo-amend", restaurantId, stay.id],
-    queryFn: () => fetchContext({ data: { restaurantId, reservationId: stay.id } }),
+  const summaryQuery = useQuery({
+    queryKey: ["front-office", "guest-services", restaurantId, stay.id],
+    queryFn: () =>
+      fetchSummary({ data: { restaurantId, reservationId: stay.id, guestId: stay.guestId } }),
     enabled: open,
     retry: false,
   });
 
   useEffect(() => {
     if (open) {
-      setText("");
+      setPriority("normal");
+      setDescription("");
+      setNotes("");
       setDeny(null);
     }
   }, [open, stay.id]);
 
-  const canConfirm = canConfirmGuestRequest({ text });
+  useEffect(() => {
+    const first = summaryQuery.data?.types[0]?.id;
+    if (open && first && !summaryQuery.data?.types.some((type) => type.id === serviceTypeId)) {
+      setServiceTypeId(first);
+    }
+  }, [open, summaryQuery.data, serviceTypeId]);
+
+  const typesConfigured = summaryQuery.data?.typesConfigured === true;
+  const canConfirm = canConfirmFoGuestServiceRequest({
+    serviceTypeId,
+    description,
+    typesConfigured,
+  });
 
   const mutation = useMutation({
-    mutationFn: () => create({ data: { restaurantId, reservationId: stay.id, text: text.trim() } }),
-    onSuccess: () => {
-      toast.success("Guest request opened.");
+    mutationFn: () =>
+      create({
+        data: {
+          restaurantId,
+          guestId: stay.guestId,
+          serviceTypeId,
+          priority,
+          description: description.trim(),
+          reservationId: stay.id,
+          specialInstructions: notes.trim() || undefined,
+        },
+      }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success("Guest service request created.");
       refreshKeys(queryClient);
       onOpenChange(false);
     },
@@ -1137,29 +1202,29 @@ export function FoGuestRequestSheet({
     },
   });
 
-  const toggle = useMutation({
-    mutationFn: (input: { requestId: string; status: "open" | "done" }) =>
-      setStatus({ data: { restaurantId, requestId: input.requestId, status: input.status } }),
-    onSuccess: () => {
-      toast.success("Guest request updated.");
-      refreshKeys(queryClient);
-      void contextQuery.refetch();
-    },
-    onError: (error) => toast.error(errorText(error)),
-  });
-
-  if (deny) {
+  if (deny || (summaryQuery.isError && isPermissionDeniedMessage(summaryQuery.error))) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message={deny} />
+          <PermissionDeniedPanel
+            message={deny ?? errorText(summaryQuery.error)}
+          />
         </SheetContent>
       </Sheet>
     );
   }
 
-  const requests = contextQuery.data?.guestRequests ?? [];
-  const requestsError = contextQuery.data?.guestRequestsError;
+  if (summaryQuery.data?.permissionDenied) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="sm:max-w-[560px]">
+          <PermissionDeniedPanel message="You don't have access to Guest Services for this stay." />
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  const selected = summaryQuery.data?.types.find((type) => type.id === serviceTypeId);
 
   return (
     <FoAmendSheet
@@ -1167,64 +1232,79 @@ export function FoGuestRequestSheet({
       onOpenChange={onOpenChange}
       title="Guest Request"
       stay={stay}
-      confirmLabel="Confirm"
+      confirmLabel="Create request"
       confirmDisabled={!canConfirm}
       pending={mutation.isPending}
       onConfirm={() => mutation.mutate()}
     >
-      {requestsError ? <p className="text-sm text-destructive">{requestsError}</p> : null}
+      <p className="text-xs text-muted-foreground">
+        Creates a Guest Services request for {stay.guestName}
+        {stay.roomNumber ? ` · Room ${stay.roomNumber}` : ""} · {stay.confirmationNumber}.
+      </p>
+      {!summaryQuery.data?.available && !summaryQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Guest Services is unavailable until its workspace is configured.</p>
+      ) : null}
+      {summaryQuery.data && !typesConfigured ? (
+        <p className="text-sm text-muted-foreground">{GUEST_SERVICES_NO_TYPES}</p>
+      ) : null}
       <div className="space-y-2">
-        <Label htmlFor="fo-guest-request-text">Request</Label>
+        <Label>Service type</Label>
+        <Select value={serviceTypeId} onValueChange={setServiceTypeId} disabled={!typesConfigured}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select a type" />
+          </SelectTrigger>
+          <SelectContent>
+            {(summaryQuery.data?.types ?? []).map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                {type.categoryName ? `${type.categoryName} · ${type.name}` : type.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Priority</Label>
+        <Select value={priority} onValueChange={(value) => setPriority(value as GuestServicePriority)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GUEST_SERVICE_PRIORITIES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {GUEST_SERVICE_PRIORITY_LABELS[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="fo-guest-request-text">Description</Label>
         <Textarea
           id="fo-guest-request-text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          value={description}
+          onChange={(e) => setDescription(e.target.value.slice(0, GUEST_SERVICE_DESCRIPTION_MAX))}
           rows={4}
           placeholder="What did the guest ask for?"
         />
-        <p className="text-xs text-muted-foreground">
-          This text is the auditable statement. Status starts as Open.
-        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="fo-guest-request-notes">Notes</Label>
+        <Textarea
+          id="fo-guest-request-notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value.slice(0, GUEST_SERVICE_DESCRIPTION_MAX))}
+          rows={2}
+          placeholder="Optional instructions"
+        />
       </div>
       <BeforeAfterCard
-        rows={[{ label: "request", previous: "—", next: text.trim() || "—" }]}
-        rate={rateImpact({
-          roomSubtotal: contextQuery.data?.roomSubtotal,
-          nightlyRates: contextQuery.data?.nightlyRates,
-        })}
+        rows={[
+          { label: "type", previous: "—", next: selected?.name ?? "—" },
+          { label: "priority", previous: "—", next: GUEST_SERVICE_PRIORITY_LABELS[priority] },
+          { label: "request", previous: "—", next: description.trim() || "—" },
+        ]}
+        rate={rateImpact({ roomSubtotal: null, nightlyRates: null })}
       />
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">On this stay</p>
-        {requests.length === 0 && !requestsError ? (
-          <p className="text-sm text-muted-foreground">No guest requests yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {requests.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-start justify-between gap-2 rounded-xl border border-border p-3"
-              >
-                <div>
-                  <p className="text-sm">{row.requestText}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{row.status}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    toggle.mutate({
-                      requestId: row.id,
-                      status: row.status === "open" ? "done" : "open",
-                    })
-                  }
-                >
-                  {row.status === "open" ? "Mark done" : "Reopen"}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </FoAmendSheet>
   );
 }

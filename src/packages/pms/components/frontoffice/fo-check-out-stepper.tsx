@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Sheet,
   SheetContent,
@@ -28,6 +27,8 @@ import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/com
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
+import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
+import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import { stepRailState } from "@/packages/pms/lib/fo-check-in";
 import {
@@ -37,8 +38,6 @@ import {
   CREDIT_BLOCK_BANNER,
   EMAIL_NOT_CONFIGURED_MESSAGE,
   FOLIO_LEFT_OPEN_CHIP,
-  OVERRIDE_CREDIT_TITLE,
-  OVERRIDE_UNPAID_TITLE,
   REFUND_IN_CASHIERING_CTA,
   SETTLE_REQUIRED_BANNER,
   SETTLEMENT_METHOD_CHIPS,
@@ -117,6 +116,15 @@ export function FoCheckOutStepper({
     retry: false,
   });
   const ctx = contextQuery.data;
+  const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
+  const approvalQuery = useQuery({
+    queryKey: ["front-office", "approval", restaurantId, "front_office.check_out.override"],
+    queryFn: () =>
+      fetchApproval({ data: { restaurantId, actionKey: "front_office.check_out.override" } }),
+    enabled: open,
+    retry: false,
+  });
+  const checkOutAuth = approvalQuery.data;
   const folio = ctx?.folio;
   const balance = folio?.balance ?? 0;
   const override = ctx?.override.recorded ?? false;
@@ -599,27 +607,16 @@ export function FoCheckOutStepper({
                         {FOLIO_LEFT_OPEN_CHIP}
                       </p>
                     ) : overrideKind ? (
-                      <div className="space-y-2 rounded-xl border border-border p-3">
-                        <Label htmlFor="checkout-override">
-                          {overrideKind === "credit"
-                            ? OVERRIDE_CREDIT_TITLE
-                            : OVERRIDE_UNPAID_TITLE}
-                        </Label>
-                        <Textarea
-                          id="checkout-override"
-                          value={overrideReason}
-                          onChange={(e) => setOverrideReason(e.target.value)}
-                          placeholder="Supervisor reason"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={!overrideReason.trim() || overrideMut.isPending}
-                          onClick={() => overrideMut.mutate()}
-                        >
-                          {overrideMut.isPending ? "Saving…" : "Record override"}
-                        </Button>
-                      </div>
+                      <FoAuthorizationCard
+                        requirement={checkOutAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={overrideReason}
+                        onReasonChange={setOverrideReason}
+                        pending={overrideMut.isPending}
+                        confirmLabel="Record override"
+                        onAuthorize={() => overrideMut.mutate()}
+                        reasonId="checkout-override"
+                      />
                     ) : null}
                   </div>
                 ) : null}
@@ -701,23 +698,39 @@ export function FoCheckOutStepper({
 
                 {step === "complete" ? (
                   <div className="space-y-3 text-sm">
+                    <SummaryRow label="Guest" value={ctx?.stay.guestName ?? stay.guestName} ok={stayOk} />
+                    <SummaryRow label="Reservation" value={stay.confirmationNumber} ok={stayOk} />
                     <SummaryRow
-                      label="Stay"
+                      label="Room"
                       value={stay.roomNumber ? `Room ${stay.roomNumber}` : stay.roomTypeName}
                       ok={stayOk}
                     />
                     <SummaryRow
+                      label="Departure"
+                      value={formatStayDate(stay.departureDate)}
+                      ok={stayOk}
+                    />
+                    <SummaryRow
+                      label="Late checkout"
+                      value={stay.lateCheckoutGranted ? stay.lateCheckoutUntil ?? "Granted" : "Not set"}
+                      ok
+                    />
+                    <SummaryRow
                       label="Folio"
-                      value={folio?.folioNumber ?? "required"}
+                      value={
+                        folio?.folioNumber
+                          ? `${folio.folioNumber} · ${money(balance)}`
+                          : "required"
+                      }
                       ok={folioOk}
                     />
                     <SummaryRow
-                      label="Settle"
+                      label="Settlement"
                       value={
                         override
                           ? FOLIO_LEFT_OPEN_CHIP
                           : isFolioSettled(balance)
-                            ? `Settled · ${money(balance)}`
+                            ? `Settled · ${folio?.status ?? "open"}`
                             : money(balance)
                       }
                       ok={settleOk}
@@ -755,7 +768,7 @@ export function FoCheckOutStepper({
                     disabled={continueDisabled}
                     onClick={() => completeMut.mutate()}
                   >
-                    {completeMut.isPending ? "Checking out…" : "Complete check-out"}
+                    {completeMut.isPending ? "Checking out…" : "Check Out"}
                   </Button>
                 ) : (
                   <Button
