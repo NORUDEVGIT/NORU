@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -38,6 +37,8 @@ import {
   listAssignableRooms,
 } from "@/packages/pms/lib/reservations.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
+import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import {
@@ -73,6 +74,9 @@ import {
   waiveCheckInKey,
   waiveCheckInRegistration,
 } from "@/packages/pms/lib/fo-check-in.functions";
+import { etaTiming, GUARANTEE_HOLD_UNSUPPORTED } from "@/packages/pms/lib/fo-arrival";
+import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
+import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
 import { cn } from "@/shared/lib/utils";
 
 function errorText(error: unknown): string {
@@ -143,6 +147,15 @@ export function FoCheckInStepper({
     retry: false,
   });
   const ctx = contextQuery.data;
+  const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
+  const approvalQuery = useQuery({
+    queryKey: ["front-office", "approval", restaurantId, "front_office.check_in.override"],
+    queryFn: () =>
+      fetchApproval({ data: { restaurantId, actionKey: "front_office.check_in.override" } }),
+    enabled: open,
+    retry: false,
+  });
+  const checkInAuth = approvalQuery.data;
 
   const roomsQuery = useQuery({
     queryKey: [
@@ -165,6 +178,7 @@ export function FoCheckInStepper({
         },
       }),
     enabled: open,
+    retry: false,
   });
 
   useEffect(() => {
@@ -285,6 +299,8 @@ export function FoCheckInStepper({
     void queryClient.invalidateQueries({ queryKey: ["reservations"] });
     void queryClient.invalidateQueries({ queryKey: ["reservation"] });
     void queryClient.invalidateQueries({ queryKey: ["fo-check-in"] });
+    void queryClient.invalidateQueries({ queryKey: ["fo-arrival-qv"] });
+    void queryClient.invalidateQueries({ queryKey: ["front-office", "arrivals-desk"] });
     void queryClient.invalidateQueries({ queryKey: ["rooms-dashboard"] });
   }
 
@@ -465,6 +481,12 @@ export function FoCheckInStepper({
   const confirmation = ctx?.stay.confirmationNumber ?? stay.confirmationNumber;
   const dates = `${formatStayDate(stay.arrivalDate)} → ${formatStayDate(stay.departureDate)}`;
   const rooms = roomsQuery.data ?? [];
+  const roomsState = assignableListUi({
+    isPending: roomsQuery.isPending,
+    isError: roomsQuery.isError,
+    rooms: roomsQuery.data,
+  });
+  const roomTypeLabel = formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode);
 
   return (
     <>
@@ -477,7 +499,7 @@ export function FoCheckInStepper({
         <SheetContent
           side="right"
           data-testid="fo-check-in-stepper"
-          className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+          className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]"
         >
           <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
             <SheetTitle className="text-[#251605]">Check in</SheetTitle>
@@ -532,10 +554,11 @@ export function FoCheckInStepper({
                           setRoomId(v);
                           markDirty();
                         }}
+                        disabled={roomsState.status === "loading" || roomsState.status === "error"}
                       >
                         <SelectTrigger>
                           <SelectValue
-                            placeholder={roomsQuery.isLoading ? "Loading rooms…" : "Select a room"}
+                            placeholder={roomsState.status === "loading" ? "Loading rooms…" : "Select a room"}
                           />
                         </SelectTrigger>
                         <SelectContent>
@@ -547,17 +570,43 @@ export function FoCheckInStepper({
                           ))}
                         </SelectContent>
                       </Select>
+                      <AssignableRoomsHint
+                        status={roomsState.status}
+                        roomTypeLabel={roomTypeLabel}
+                        onRetry={() => void roomsQuery.refetch()}
+                        detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
+                      />
                     </div>
                     {roomGate.reason ? (
                       <p className="text-sm text-destructive">{roomGate.reason}</p>
                     ) : null}
+                    {ctx?.stay.expectedArrivalAt && ctx.checkInTime
+                      ? (() => {
+                          const timing = etaTiming({
+                            expectedArrivalAt: ctx.stay.expectedArrivalAt,
+                            checkInTime: ctx.checkInTime,
+                            timezone: ctx.timezone,
+                          });
+                          if (timing !== "early") return null;
+                          return (
+                            <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
+                              Expected arrival is before property check-in time
+                              {ctx.earlyCheckinAllowed === false
+                                ? ". Early check-in is not allowed in Settings."
+                                : ctx.earlyCheckinNeedsApproval
+                                  ? ". Settings require approval — there is no approval inbox yet."
+                                  : "."}
+                            </p>
+                          );
+                        })()
+                      : null}
                     {ctx?.rateMissing ? (
                       <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
                         This stay has no rate on file. You can still continue.
                       </p>
                     ) : null}
                     <p className="text-xs text-muted-foreground">
-                      {stay.roomTypeName} · {stay.adults} adult{stay.adults === 1 ? "" : "s"}
+                      {roomTypeLabel} · {stay.adults} adult{stay.adults === 1 ? "" : "s"}
                       {stay.children ? ` · ${stay.children} child` : ""}
                     </p>
                   </div>
@@ -575,7 +624,7 @@ export function FoCheckInStepper({
                         Registration waived
                       </p>
                     ) : null}
-                    <Field label="Full name">
+                    <Field label="Full name" required>
                       <Input
                         value={fullName}
                         onChange={(e) => {
@@ -605,9 +654,13 @@ export function FoCheckInStepper({
                         />
                       </Field>
                     </div>
+                    <p className="text-xs text-muted-foreground">Phone or email is required, plus ID type and number.</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>ID type</Label>
+                        <Label>
+                          ID type
+                          <span className="text-destructive"> *</span>
+                        </Label>
                         <Select
                           value={idType}
                           onValueChange={(v) => {
@@ -627,7 +680,7 @@ export function FoCheckInStepper({
                           </SelectContent>
                         </Select>
                       </div>
-                      <Field label="ID number">
+                      <Field label="ID number" required>
                         <Input
                           value={idNumber}
                           onChange={(e) => {
@@ -719,23 +772,18 @@ export function FoCheckInStepper({
                         Special requests: {stay.specialRequests}
                       </p>
                     ) : null}
-                    <div className="space-y-2 rounded-xl border border-border p-3">
-                      <Label htmlFor="reg-waiver">Request waiver</Label>
-                      <Textarea
-                        id="reg-waiver"
-                        value={regReason}
-                        onChange={(e) => setRegReason(e.target.value)}
-                        placeholder="Supervisor reason"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!regReason.trim() || waiveRegMut.isPending}
-                        onClick={() => waiveRegMut.mutate()}
-                      >
-                        {waiveRegMut.isPending ? "Saving…" : "Request waiver"}
-                      </Button>
-                    </div>
+                    {ctx?.progress.registrationWaived ? null : (
+                    <FoAuthorizationCard
+                      requirement={checkInAuth}
+                      guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                      reason={regReason}
+                      onReasonChange={setRegReason}
+                      pending={waiveRegMut.isPending}
+                      confirmLabel="Waive registration"
+                      onAuthorize={() => waiveRegMut.mutate()}
+                      reasonId="reg-waiver"
+                    />
+                    )}
                   </div>
                 ) : null}
 
@@ -750,6 +798,7 @@ export function FoCheckInStepper({
                         on={(ctx?.folio.outstanding ?? 0) > 0 && !depositOk}
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">{GUARANTEE_HOLD_UNSUPPORTED}</p>
                     {depositOk ? (
                       <p className="rounded-xl bg-[#436436]/15 px-3 py-2 text-sm font-medium text-[#436436]">
                         {ctx?.progress.depositWaived
@@ -806,23 +855,18 @@ export function FoCheckInStepper({
                         </Button>
                       </>
                     )}
-                    <div className="space-y-2 rounded-xl border border-border p-3">
-                      <Label htmlFor="dep-waiver">Waive deposit</Label>
-                      <Textarea
-                        id="dep-waiver"
-                        value={depositReason}
-                        onChange={(e) => setDepositReason(e.target.value)}
-                        placeholder="Supervisor reason"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!depositReason.trim() || waiveDepMut.isPending}
-                        onClick={() => waiveDepMut.mutate()}
-                      >
-                        {waiveDepMut.isPending ? "Saving…" : "Waive deposit"}
-                      </Button>
-                    </div>
+                    {ctx?.progress.depositWaived ? null : (
+                    <FoAuthorizationCard
+                      requirement={checkInAuth}
+                      guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                      reason={depositReason}
+                      onReasonChange={setDepositReason}
+                      pending={waiveDepMut.isPending}
+                      confirmLabel="Waive deposit"
+                      onAuthorize={() => waiveDepMut.mutate()}
+                      reasonId="dep-waiver"
+                    />
+                    )}
                   </div>
                 ) : null}
 
@@ -879,33 +923,35 @@ export function FoCheckInStepper({
                         : "now"}
                       {ctx?.actorName ? ` · ${ctx.actorName}` : ""}
                     </p>
-                    <div className="space-y-2 rounded-xl border border-border p-3">
-                      <Label htmlFor="key-waiver">Keys later</Label>
-                      <Textarea
-                        id="key-waiver"
-                        value={keyReason}
-                        onChange={(e) => setKeyReason(e.target.value)}
-                        placeholder="Supervisor reason"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!keyReason.trim() || waiveKeyMut.isPending}
-                        onClick={() => waiveKeyMut.mutate()}
-                      >
-                        {waiveKeyMut.isPending ? "Saving…" : "Keys later"}
-                      </Button>
-                    </div>
+                    {ctx?.progress.keyWaived ? null : (
+                    <FoAuthorizationCard
+                      requirement={checkInAuth}
+                      guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                      reason={keyReason}
+                      onReasonChange={setKeyReason}
+                      pending={waiveKeyMut.isPending}
+                      confirmLabel="Keys later"
+                      onAuthorize={() => waiveKeyMut.mutate()}
+                      reasonId="key-waiver"
+                    />
+                    )}
                   </div>
                 ) : null}
 
                 {step === "complete" ? (
                   <div className="space-y-3 text-sm">
+                    <SummaryRow label="Guest" value={guestLabel} ok={registrationOk} />
+                    <SummaryRow
+                      label="Reservation"
+                      value={`${confirmation} · ${stay.status.replace("_", " ")}`}
+                      ok={stay.status === "confirmed"}
+                    />
+                    <SummaryRow label="Dates" value={dates} ok />
                     <SummaryRow
                       label="Room"
                       value={
                         assignedRoom
-                          ? `Room ${assignedRoom.roomNumber}`
+                          ? `Room ${assignedRoom.roomNumber}${roomGate.ready ? " · ready" : ""}`
                           : stay.roomNumber
                             ? `Room ${stay.roomNumber}`
                             : "Unassigned"
@@ -933,6 +979,11 @@ export function FoCheckInStepper({
                       value={ctx?.progress.keyWaived ? "waived" : "recorded"}
                       ok={keyOk}
                     />
+                    {!completeOk ? (
+                      <p className="text-sm text-destructive">
+                        Check-in stays disabled until every gate above is green.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </>
@@ -955,7 +1006,7 @@ export function FoCheckInStepper({
                     disabled={continueDisabled}
                     onClick={() => completeMut.mutate()}
                   >
-                    {completeMut.isPending ? "Checking in…" : "Complete check-in"}
+                    {completeMut.isPending ? "Checking in…" : "Check In"}
                   </Button>
                 ) : (
                   <Button
@@ -998,10 +1049,13 @@ export function FoCheckInStepper({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <Label>
+        {label}
+        {required ? <span className="text-destructive"> *</span> : null}
+      </Label>
       {children}
     </div>
   );

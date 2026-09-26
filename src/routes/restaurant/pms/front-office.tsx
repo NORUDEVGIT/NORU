@@ -1,13 +1,13 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { FrontOfficeWorkspace } from "@/packages/pms/components/workspaces/front-office-workspace";
+import { foSearchFromUnknown } from "@/packages/pms/lib/front-office-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/front-office")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) =>
-    typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
+  validateSearch: (search: Record<string, unknown>) => foSearchFromUnknown(search),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -34,10 +34,17 @@ export const Route = createFileRoute("/restaurant/pms/front-office")({
 });
 
 function FrontOfficePmsRoute() {
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const search = Route.useSearch();
   return (
-    <RestaurantShell active="Arrivals" module="rooms" pms pmsModule="front-office">
-      {(m) => <FrontOfficeWorkspace membership={m} initialTab={searchTab ?? "rack"} />}
+    <RestaurantShell
+      active="Arrivals"
+      module="rooms"
+      pms
+      pmsModule="front-office"
+      hidePackageRail
+      hideTopHeader
+    >
+      {(m) => <FrontOfficeWorkspace membership={m} search={search} />}
     </RestaurantShell>
   );
 }

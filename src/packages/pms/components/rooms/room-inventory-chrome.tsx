@@ -29,7 +29,10 @@ export function RoomInventoryChrome({
   onRoomSearch,
   activeModule = "Rooms & Inventory",
   searchPlaceholder = "Search room…",
+  searchTestId,
   helpLabel = "Room & Inventory operational workspace",
+  onHelpClick,
+  overflowItems = [],
   shellTestId = "room-inventory-command-shell",
   children,
 }: {
@@ -37,7 +40,10 @@ export function RoomInventoryChrome({
   onRoomSearch: (value: string) => void;
   activeModule?: (typeof NAV_ITEMS)[number]["label"];
   searchPlaceholder?: string;
+  searchTestId?: string;
   helpLabel?: string;
+  onHelpClick?: () => void;
+  overflowItems?: Array<{ label: string; onSelect: () => void; testId?: string }>;
   shellTestId?: string;
   children: ReactNode;
 }) {
@@ -75,6 +81,7 @@ export function RoomInventoryChrome({
           <nav
             className="hidden min-w-0 items-center gap-0.5 overflow-x-auto lg:flex"
             aria-label="PMS modules"
+            data-testid="pms-module-nav"
           >
             {NAV_ITEMS.map((item) => (
               <Link
@@ -128,12 +135,14 @@ export function RoomInventoryChrome({
             </span>
           </div>
           <form onSubmit={submitSearch} className="hidden lg:block">
-            <label className="flex h-8 w-44 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 focus-within:border-[#C89933]/70">
+            <label className="flex h-8 w-52 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 focus-within:border-[#C89933]/70">
               <Search className="size-3.5 shrink-0" />
               <input
+                data-testid={searchTestId}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
                 className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
               />
             </label>
@@ -144,6 +153,8 @@ export function RoomInventoryChrome({
                 type="button"
                 className="rounded-lg p-1.5 text-white/75 hover:bg-white/10 hover:text-white"
                 aria-label={`${activeModule} help`}
+                data-testid={onHelpClick ? "fo-help" : undefined}
+                onClick={onHelpClick}
               >
                 <HelpCircle className="size-4" />
               </button>
@@ -161,6 +172,11 @@ export function RoomInventoryChrome({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {overflowItems.map((item) => (
+                <DropdownMenuItem key={item.label} data-testid={item.testId} onSelect={item.onSelect}>
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
               <DropdownMenuItem onSelect={() => void navigate({ to: "/restaurant/pms" })}>
                 PMS home
               </DropdownMenuItem>

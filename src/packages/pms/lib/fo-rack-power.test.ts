@@ -337,7 +337,7 @@ describe("FO-FS5 badges, horizons, phone handle", () => {
     assert.ok(RESERVED_BADGE_SLOTS.filter((slot) => slot.lane === "live").every((slot) => slot.lane === "live"));
     assert.ok(RESERVED_BADGE_SLOTS.some((slot) => slot.id === "early_arrival_badge" && slot.lane === "empty"));
     assert.ok(RESERVED_BADGE_SLOTS.some((slot) => slot.id === "late_arrival_badge" && slot.lane === "empty"));
-    assert.deepEqual(LIVE_HORIZONS, [1, 7, 14, 30]);
+    assert.deepEqual(LIVE_HORIZONS, [1, 3, 7, 14, 30]);
     assert.equal(shouldShowDragHandle("phone"), false);
     assert.equal(shouldShowDragHandle("desktop"), true);
     assert.equal(NO_STAYS_MATCH_FILTERS, "No stays match these filters.");

@@ -46,6 +46,7 @@ const idSchema = z.string().uuid();
 export type AmendRoomType = {
   id: string;
   name: string;
+  code: string | null;
   maxOccupancy: number;
   available: number;
 };
@@ -136,7 +137,7 @@ async function loadStayRow(
   const { data: row, error } = await supabaseAdmin
     .from("hotel_reservations")
     .select(
-      "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, adults, children, status, special_requests, notes, rate_plan_id, room_subtotal, nightly_rate_snapshot, currency, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ), room_types!hotel_reservations_type_same_property ( name, max_occupancy ), hotel_rooms!hotel_reservations_room_same_type ( room_number )",
+      "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, adults, children, status, special_requests, notes, rate_plan_id, room_subtotal, nightly_rate_snapshot, currency, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ), room_types!hotel_reservations_type_same_property ( name, code, max_occupancy ), hotel_rooms!hotel_reservations_room_same_type ( room_number )",
     )
     .eq("restaurant_id", restaurantId)
     .eq("id", reservationId)
@@ -165,7 +166,7 @@ function toStay(
       phone: string | null;
       vip_status: boolean;
     } | null;
-    room_types: { name: string; max_occupancy?: number } | null;
+    room_types: { name: string; code?: string | null; max_occupancy?: number } | null;
     hotel_rooms: { room_number: string } | null;
   },
 ): FrontOfficeStay {
@@ -178,6 +179,7 @@ function toStay(
     guestPhone: row.guest_profiles?.phone ?? null,
     roomTypeId: row.room_type_id,
     roomTypeName: row.room_types?.name ?? "Room type",
+    roomTypeCode: row.room_types?.code ?? null,
     roomId: row.room_id,
     roomNumber: row.hotel_rooms?.room_number ?? null,
     arrivalDate: row.arrival_date,
@@ -407,7 +409,7 @@ export const getAmendContext = createServerFn({ method: "POST" })
 
     const { data: types } = await supabaseAdmin
       .from("room_types")
-      .select("id, name, max_occupancy")
+      .select("id, name, code, max_occupancy")
       .eq("restaurant_id", data.restaurantId)
       .eq("active", true)
       .eq("sellable", true)
@@ -425,6 +427,7 @@ export const getAmendContext = createServerFn({ method: "POST" })
       roomTypes.push({
         id: type.id,
         name: type.name,
+        code: type.code ?? null,
         maxOccupancy: type.max_occupancy,
         available: availability.available,
       });

@@ -1,6 +1,10 @@
 /**
  * FO-FS3 — Cancel / No-show money writes.
  *
+ * Front Office desk cancel → `completeFoCancel` (fees, room_id clear, history).
+ * Reservation pre-arrival cancel → `setReservationStatus` (Reservations-owned).
+ * Do not route FO cancel through setReservationStatus cancelled.
+ *
  * Fee/charge posts through post_folio_transaction type `charge` before the
  * Live status flip. No Cashiering RPC rewrite. Deposits stay visible only.
  */

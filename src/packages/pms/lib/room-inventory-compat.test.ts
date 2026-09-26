@@ -166,6 +166,100 @@ describe("Room & Inventory compatibility wrappers", () => {
     assert.equal(legacyCalls, 1);
   });
 
+  it("does not hide real assignment RPC errors behind the legacy fallback", async () => {
+    let legacyCalls = 0;
+    await assert.rejects(
+      () =>
+        getAssignmentEligibilityCompat(
+          {
+            rpc: async () => ({
+              data: null,
+              error: { code: "P0001", message: "INSUFFICIENT_PRIVILEGE" },
+            }),
+          },
+          {
+            ...input,
+            roomId: "33333333-3333-4333-8333-333333333333",
+          },
+          () => {
+            legacyCalls += 1;
+            return {
+              source: "legacy",
+              eligible: true,
+              blockers: [],
+              warnings: [],
+              preferenceScore: 0,
+              preferenceReasons: [],
+            };
+          },
+        ),
+      /INSUFFICIENT_PRIVILEGE/,
+    );
+    assert.equal(legacyCalls, 0);
+  });
+
+  it("reads jsonb assignment payloads that PostgREST wraps or stringifies", async () => {
+    const wrapped = await getAssignmentEligibilityCompat(
+      {
+        rpc: async () => ({
+          data: {
+            pms_evaluate_room_assignment: {
+              eligible: true,
+              blockers: [],
+              warnings: [],
+              preferenceScore: 0,
+              preferenceReasons: [],
+            },
+          },
+          error: null,
+        }),
+      },
+      { ...input, roomId: "33333333-3333-4333-8333-333333333333" },
+      () => {
+        throw new Error("legacy must not run");
+      },
+    );
+    assert.equal(wrapped.eligible, true);
+
+    const asString = await getAssignmentEligibilityCompat(
+      {
+        rpc: async () => ({
+          data: JSON.stringify({
+            eligible: true,
+            blockers: [],
+            warnings: [],
+            preferenceScore: 1,
+            preferenceReasons: ["floor"],
+          }),
+          error: null,
+        }),
+      },
+      { ...input, roomId: "33333333-3333-4333-8333-333333333333" },
+      () => {
+        throw new Error("legacy must not run");
+      },
+    );
+    assert.equal(asString.eligible, true);
+    assert.equal(asString.preferenceScore, 1);
+
+    await assert.rejects(
+      () =>
+        getAssignmentEligibilityCompat(
+          {
+            rpc: async () => ({
+              data: { unexpected: true },
+              error: null,
+            }),
+          },
+          { ...input, roomId: "33333333-3333-4333-8333-333333333333" },
+          () => {
+            throw new Error("legacy must not run");
+          },
+        ),
+      /Assignment eligibility RPC returned no result/,
+    );
+  });
+
   it("strips operational fields from updates while preserving master data", () => {
     const result = roomPersistencePayload(
       {

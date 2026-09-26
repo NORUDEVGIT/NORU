@@ -28,6 +28,8 @@ import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/com
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
+import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
+import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 import {
   CANCEL_NOSHOW_STEPS,
@@ -103,6 +105,15 @@ export function FoCancelNoShowStepper({
     retry: false,
   });
   const ctx = contextQuery.data;
+  const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
+  const approvalQuery = useQuery({
+    queryKey: ["front-office", "approval", restaurantId, "front_office.fee.override"],
+    queryFn: () =>
+      fetchApproval({ data: { restaurantId, actionKey: "front_office.fee.override" } }),
+    enabled: open,
+    retry: false,
+  });
+  const feeAuth = approvalQuery.data;
   const folio = ctx?.folio;
   const policy = ctx?.policy;
   const posted = ctx?.posted ?? false;
@@ -535,23 +546,16 @@ export function FoCancelNoShowStepper({
                               ? "Post cancel fee"
                               : "Post no-show charge"}
                         </Button>
-                        <div className="space-y-2 rounded-xl border border-border p-3">
-                          <Label htmlFor="fo-fs3-waive">Waive (owner or manager)</Label>
-                          <Textarea
-                            id="fo-fs3-waive"
-                            value={waiveReason}
-                            onChange={(e) => setWaiveReason(e.target.value)}
-                            placeholder="Supervisor reason"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={!waiveReason.trim() || waiveMut.isPending}
-                            onClick={() => waiveMut.mutate()}
-                          >
-                            {waiveMut.isPending ? "Saving…" : "Waive fee"}
-                          </Button>
-                        </div>
+                        <FoAuthorizationCard
+                          requirement={feeAuth}
+                          guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                          reason={waiveReason}
+                          onReasonChange={setWaiveReason}
+                          pending={waiveMut.isPending}
+                          confirmLabel="Waive fee"
+                          onAuthorize={() => waiveMut.mutate()}
+                          reasonId="fo-fs3-waive"
+                        />
                       </>
                     ) : null}
                   </div>

@@ -241,8 +241,8 @@ const ROOMS_NAV: NavEntry[] = [
     roles: FO,
   },
   { to: "/restaurant/pms/front-office", label: "Arrivals", icon: LogIn, roles: FO },
-  { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: FO },
-  { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: FO },
+  { to: "/restaurant/pms/front-office", tab: "inhouse", label: "In-House", icon: Hotel, roles: FO },
+  { to: "/restaurant/pms/front-office", tab: "departures", label: "Departures", icon: LogOut, roles: FO },
   {
     to: "/restaurant/pms/reservations",
     label: "Reservations",

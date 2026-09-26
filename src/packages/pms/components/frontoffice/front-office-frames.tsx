@@ -511,6 +511,7 @@ export function GuestSearchDialog({
   restaurantId,
   today,
   open,
+  initialTerm = "",
   onOpenChange,
   onOpenStay,
   onShowOnRack,
@@ -521,6 +522,7 @@ export function GuestSearchDialog({
   restaurantId: string;
   today: string;
   open: boolean;
+  initialTerm?: string;
   onOpenChange: (v: boolean) => void;
   onOpenStay: (stay: FrontOfficeStay) => void;
   onShowOnRack: (stay: FrontOfficeStay) => void;
@@ -528,8 +530,8 @@ export function GuestSearchDialog({
   onCheckOut: (stay: FrontOfficeStay) => void;
   onCancel: (stay: FrontOfficeStay) => void;
 }) {
-  const [term, setTerm] = useState("");
-  const [debounced, setDebounced] = useState("");
+  const [term, setTerm] = useState(initialTerm);
+  const [debounced, setDebounced] = useState(initialTerm);
   const fetchStays = useServerFn(searchFrontOfficeStays);
 
   useEffect(() => {
@@ -538,10 +540,14 @@ export function GuestSearchDialog({
   }, [term]);
 
   useEffect(() => {
-    if (open) return;
-    setTerm("");
-    setDebounced("");
-  }, [open]);
+    if (!open) {
+      setTerm("");
+      setDebounced("");
+      return;
+    }
+    setTerm(initialTerm);
+    setDebounced(initialTerm);
+  }, [open, initialTerm]);
 
   const ready = isSearchReady(debounced);
   const searchQuery = useQuery({

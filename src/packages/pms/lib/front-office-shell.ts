@@ -29,6 +29,7 @@ type StayLike = {
   guestPhone: string | null;
   roomTypeId: string;
   roomTypeName: string;
+  roomTypeCode?: string | null;
   roomId: string | null;
   roomNumber: string | null;
   arrivalDate: string;
@@ -50,6 +51,11 @@ export const FO_BRAND = {
 
 export const FO_PRIMARY_TITLE = "Room Rack + Calendar";
 
+export const FO_DESK_TITLE = "Front Office Desk";
+
+export const FO_DESK_DESCRIPTION =
+  "Manage arrivals, departures, in-house guests, room status and front office operations.";
+
 export const FO_NAV_ITEMS = [
   { id: "rack", label: FO_PRIMARY_TITLE },
   { id: "arrivals", label: "Arrivals" },
@@ -63,6 +69,83 @@ export const FO_NAV_ITEMS = [
 ] as const;
 
 export type FoNavId = (typeof FO_NAV_ITEMS)[number]["id"];
+
+export const FO_NAV_IDS: FoNavId[] = FO_NAV_ITEMS.map((item) => item.id);
+
+export type CalendarHorizon = 1 | 3 | 7 | 14 | 30;
+
+export const LIVE_HORIZONS: CalendarHorizon[] = [1, 3, 7, 14, 30];
+
+export type RackGroupBy = "none" | "floor" | "room_type";
+
+export type FoSearch = {
+  tab: FoNavId;
+  horizon?: CalendarHorizon;
+  date?: string;
+  group?: RackGroupBy;
+};
+
+export function parseCalendarHorizon(raw: unknown): CalendarHorizon | undefined {
+  const n = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : NaN;
+  if (n === 1 || n === 3 || n === 7 || n === 14 || n === 30) return n;
+  return undefined;
+}
+
+export function parseRackGroupBy(raw: unknown): RackGroupBy {
+  if (raw === "floor" || raw === "room_type") return raw;
+  return "none";
+}
+
+export function parseFocusDate(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
+  return raw;
+}
+
+/** Canonical Front Office search. Invalid tab falls back to Room Rack. */
+export function foSearchFromUnknown(search: Record<string, unknown>): FoSearch {
+  const raw = typeof search["tab"] === "string" ? search["tab"] : undefined;
+  const result: FoSearch = { tab: resolveFoNav(raw) };
+  const horizon = parseCalendarHorizon(search["horizon"]);
+  const date = parseFocusDate(search["date"]);
+  const group = parseRackGroupBy(search["group"]);
+  if (horizon) result.horizon = horizon;
+  if (date) result.date = date;
+  if (group !== "none") result.group = group;
+  return result;
+}
+
+export function foRackSearchSlice(input: {
+  horizon?: CalendarHorizon;
+  date?: string;
+  group?: RackGroupBy;
+}): Pick<FoSearch, "horizon" | "date" | "group"> {
+  const slice: Pick<FoSearch, "horizon" | "date" | "group"> = {};
+  if (input.horizon) slice.horizon = input.horizon;
+  if (input.date) slice.date = input.date;
+  if (input.group && input.group !== "none") slice.group = input.group;
+  return slice;
+}
+
+export function groupRackRooms<T extends { id: string; floor: string | null; roomTypeName: string }>(
+  rooms: T[],
+  groupBy: RackGroupBy,
+): Array<{ key: string; label: string; rooms: T[] }> {
+  if (groupBy === "none") return [{ key: "all", label: "All rooms", rooms }];
+  const groups: Array<{ key: string; label: string; rooms: T[] }> = [];
+  const index = new Map<string, number>();
+  for (const room of rooms) {
+    const label = groupBy === "floor" ? (room.floor?.trim() || "No floor") : room.roomTypeName;
+    const key = `${groupBy}:${label}`;
+    const existing = index.get(key);
+    if (existing === undefined) {
+      index.set(key, groups.length);
+      groups.push({ key, label, rooms: [room] });
+    } else {
+      groups[existing]?.rooms.push(room);
+    }
+  }
+  return groups;
+}
 
 export const FO_LANDING_NAV: FoNavId = "rack";
 
@@ -88,16 +171,17 @@ export function resolveFoNav(tab: string | undefined): FoNavId {
 
 export type ActionLane = "live" | "coming_soon";
 
+/** Live FO action registry — gated writers only. Ungated RPC wrappers must not appear here. */
 export type FoWriteName =
-  | "checkInReservation"
-  | "checkOutReservation"
+  | "completeFoCheckIn"
+  | "completeFoCheckOut"
   | "moveReservationRoom"
   | "changeStayDates"
-  | "markNoShow"
+  | "completeFoNoShow"
+  | "completeFoCancel"
   | "assignReservationRoom"
   | "createReservation"
-  | "amendReservation"
-  | "setReservationStatus";
+  | "amendReservation";
 
 export type FoActionDef = {
   id: string;
@@ -111,26 +195,92 @@ export type FoActionDef = {
 export const FO_ACTIONS: FoActionDef[] = [
   { id: "new_reservation", label: "New Reservation", lane: "live", write: "createReservation", menus: ["quick"] },
   { id: "walk_in", label: "Walk-in", lane: "live", write: "createReservation", menus: ["quick"] },
-  { id: "check_in", label: "Check-in", lane: "live", write: "checkInReservation", menus: ["quick", "bar", "sheet"] },
+  { id: "check_in", label: "Check-in", lane: "live", write: "completeFoCheckIn", menus: ["quick", "bar", "sheet"] },
   { id: "room_move", label: "Room Move", lane: "live", write: "moveReservationRoom", menus: ["quick", "bar", "sheet"] },
   { id: "extend_stay", label: "Extend Stay", lane: "live", write: "changeStayDates", menus: ["quick", "bar", "sheet"] },
-  { id: "check_out", label: "Check-out", lane: "live", write: "checkOutReservation", menus: ["quick", "bar", "sheet"] },
+  { id: "check_out", label: "Check-out", lane: "live", write: "completeFoCheckOut", menus: ["quick", "bar", "sheet"] },
   { id: "guest_search", label: "Guest Search", lane: "live", menus: ["quick"] },
   { id: "guest_request", label: "Guest Request", lane: "live", menus: ["quick"] },
   { id: "view", label: "View", lane: "live", menus: ["bar", "sheet"] },
   { id: "assign", label: "Assign Room", lane: "live", write: "assignReservationRoom", menus: ["bar", "sheet"] },
-  { id: "no_show", label: "No-show", lane: "live", write: "markNoShow", menus: ["bar", "sheet"] },
+  { id: "no_show", label: "No-show", lane: "live", write: "completeFoNoShow", menus: ["bar", "sheet"] },
   { id: "amend_notes", label: "Amend notes", lane: "live", write: "amendReservation", menus: ["sheet"] },
   { id: "upgrade_downgrade", label: "Upgrade / Downgrade", lane: "live", write: "amendReservation", menus: ["sheet"] },
   { id: "add_remove_guest", label: "Add / Remove Guest", lane: "live", write: "amendReservation", menus: ["sheet"] },
   { id: "add_service", label: "Add Service", lane: "live", menus: ["sheet"] },
   { id: "add_special_request", label: "Add Special Request", lane: "live", write: "amendReservation", menus: ["sheet"] },
-  { id: "cancel_fees", label: "Cancel policy / fees", lane: "live", menus: ["sheet"] },
+  { id: "cancel_fees", label: "Cancel policy / fees", lane: "live", write: "completeFoCancel", menus: ["sheet"] },
   { id: "view_folio", label: "View Folio", lane: "live", menus: ["sheet"] },
 ];
 
 export function actionsForMenu(menu: FoActionDef["menus"][number]): FoActionDef[] {
   return FO_ACTIONS.filter((a) => a.menus.includes(menu));
+}
+
+export type StayQuickViewMenuId =
+  | "check_in"
+  | "check_out"
+  | "assign"
+  | "room_move"
+  | "add_service"
+  | "no_show"
+  | "cancel_fees"
+  | "view_folio"
+  | "extend_stay"
+  | "upgrade_downgrade"
+  | "add_remove_guest"
+  | "amend_notes"
+  | "add_special_request";
+
+export type StayQuickViewMenuItem = { id: StayQuickViewMenuId; label: string };
+
+/** Status-aware Stay Quick View menu. Open Reservation is a header CTA, not a menu item. */
+export function stayQuickViewMenuItems(input: {
+  status: ReservationStatus;
+  assigned: boolean;
+}): StayQuickViewMenuItem[] {
+  const { status, assigned } = input;
+  if (status === "pending" || status === "confirmed") {
+    const items: StayQuickViewMenuItem[] = [];
+    items.push({ id: "check_in", label: "Check In" });
+    if (!assigned) items.push({ id: "assign", label: "Assign Room" });
+    items.push({ id: "no_show", label: "No-Show" });
+    items.push({ id: "cancel_fees", label: "Cancel Reservation" });
+    items.push({ id: "view_folio", label: "View Folio" });
+    return items;
+  }
+  if (status === "checked_in") {
+    return [
+      { id: "room_move", label: "Room Move" },
+      { id: "add_service", label: "Add Service" },
+      { id: "view_folio", label: "View Folio" },
+      { id: "check_out", label: "Check Out" },
+    ];
+  }
+  if (status === "checked_out" || status === "cancelled" || status === "no_show") {
+    return [{ id: "view_folio", label: "View Folio" }];
+  }
+  return [];
+}
+
+export function stayQuickViewCanAmend(status: ReservationStatus): boolean {
+  return status === "pending" || status === "confirmed" || status === "checked_in";
+}
+
+export function stayQuickViewAmendItems(status: ReservationStatus): StayQuickViewMenuItem[] {
+  if (!stayQuickViewCanAmend(status)) return [];
+  const items: StayQuickViewMenuItem[] = [
+    { id: "extend_stay", label: "Stay dates" },
+    { id: "upgrade_downgrade", label: "Upgrade / Downgrade" },
+    { id: "add_remove_guest", label: "Add / Remove Guest" },
+    { id: "amend_notes", label: "Notes" },
+    { id: "add_special_request", label: "Special request" },
+  ];
+  return items;
+}
+
+export function calendarHorizonLabel(days: CalendarHorizon): string {
+  return days === 1 ? "1 day" : `${days} days`;
 }
 
 export function foActionById(id: string): FoActionDef | undefined {
@@ -213,10 +363,6 @@ export function isPermissionDeniedMessage(error: unknown): boolean {
   return /permission|don't have access|do not have access|not authorized|forbidden|access denied/i.test(msg);
 }
 
-export type CalendarHorizon = 1 | 7 | 14 | 30;
-
-export const LIVE_HORIZONS: CalendarHorizon[] = [1, 7, 14, 30];
-
 export function isLiveHorizon(days: CalendarHorizon): boolean {
   return LIVE_HORIZONS.includes(days);
 }
@@ -260,6 +406,7 @@ export function stayFromReservation(
     guestPhone: row.guestPhone,
     roomTypeId: row.roomTypeId,
     roomTypeName: row.roomTypeName,
+    ...(row.roomTypeCode !== undefined ? { roomTypeCode: row.roomTypeCode } : {}),
     roomId: row.roomId,
     roomNumber: row.roomNumber,
     arrivalDate: row.arrivalDate,
@@ -305,6 +452,12 @@ export const EMPTY_RACK_FILTERS: RackFilters = {
   specialRequest: "all",
   discrepancy: "all",
 };
+
+export function isOpsStripFilterActive(filters: RackFilters, applied: Partial<RackFilters>): boolean {
+  const keys = Object.keys(applied) as Array<keyof RackFilters>;
+  if (keys.length === 0) return false;
+  return keys.every((key) => filters[key] === applied[key]);
+}
 
 export const RACK_LIVE_FILTERS = [
   { id: "group", label: "Group" },

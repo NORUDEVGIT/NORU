@@ -25,6 +25,7 @@ import {
 } from "@/shared/components/ui/select";
 import { addDays } from "@/packages/pms/components/bookings/reservation-bits";
 import { GuestRestrictionBadges, GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
+import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { guestListItems, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
@@ -43,8 +44,15 @@ import { FoNoShowStepper } from "@/packages/pms/components/frontoffice/fo-no-sho
 import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
 import type { RackDatesDraft } from "@/packages/pms/lib/fo-rack-power";
 import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
+import { isRoomReady } from "@/packages/pms/lib/fo-check-in";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { CheckInStepId } from "@/packages/pms/lib/fo-check-in";
+import {
+  assignableListUi,
+  formatRoomTypeLabel,
+} from "@/packages/pms/lib/fo-room-assignment";
+import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
+import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
 
 function useRefresh() {
   const queryClient = useQueryClient();
@@ -88,30 +96,39 @@ function RoomSelect({
           excludeReservationId: stay.id,
         },
       }),
+    retry: false,
   });
   const rooms = roomsQuery.data ?? [];
+  const listState = assignableListUi({
+    isPending: roomsQuery.isPending,
+    isError: roomsQuery.isError,
+    rooms: roomsQuery.data,
+  });
+  const roomTypeLabel = formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode);
 
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Select value={value} onValueChange={onChange}>
+      <Select value={value} onValueChange={onChange} disabled={listState.status === "loading" || listState.status === "error"}>
         <SelectTrigger>
-          <SelectValue placeholder={roomsQuery.isLoading ? "Loading rooms…" : "Select a room"} />
+          <SelectValue placeholder={listState.status === "loading" ? "Loading rooms…" : "Select a room"} />
         </SelectTrigger>
         <SelectContent>
           {rooms.map((room) => (
             <SelectItem key={room.id} value={room.id}>
               Room {room.roomNumber}
               {room.floor ? ` · Floor ${room.floor}` : ""}
+              {room.housekeepingStatus ? ` · ${room.housekeepingStatus}` : ""}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {!roomsQuery.isLoading && rooms.length === 0 ? (
-        <p className="text-xs text-destructive">
-          No eligible {stay.roomTypeName} rooms are free for these dates.
-        </p>
-      ) : null}
+      <AssignableRoomsHint
+        status={listState.status}
+        roomTypeLabel={roomTypeLabel}
+        onRetry={() => void roomsQuery.refetch()}
+        detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
+      />
     </div>
   );
 }
@@ -153,7 +170,7 @@ export function AssignRoomDialog({
         <DialogHeader>
           <DialogTitle>Assign room</DialogTitle>
           <DialogDescription>
-            {stay.confirmationNumber} · {stay.guestName} · {stay.roomTypeName}
+            {stay.confirmationNumber} · {stay.guestName} · {formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}
           </DialogDescription>
         </DialogHeader>
         <RoomSelect restaurantId={restaurantId} stay={stay} value={roomId} onChange={setRoomId} />
@@ -220,7 +237,19 @@ export function RoomMoveDialog({
   }, [open]);
 
   const mutation = useMutation({
-    mutationFn: () => move({ data: { restaurantId, reservationId: stay.id, roomId, reason: reason.trim() } }),
+    mutationFn: () =>
+      move({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          roomId,
+          reason: reason.trim(),
+          expectedRoomId: stay.roomId,
+          expectedArrival: stay.arrivalDate,
+          expectedDeparture: stay.departureDate,
+          expectedUpdatedAt: stay.updatedAt ?? null,
+        },
+      }),
     onSuccess: () => {
       toast.success("Guest moved.");
       refresh();
@@ -235,7 +264,8 @@ export function RoomMoveDialog({
         <DialogHeader>
           <DialogTitle>Room move</DialogTitle>
           <DialogDescription>
-            {stay.guestName} is in room {stay.roomNumber ?? "—"}. Moves stay within {stay.roomTypeName} in this phase.
+            {stay.guestName} is in room {stay.roomNumber ?? "—"}. Same-type moves use the canonical room-move writer.
+            A different room type is a commercial amendment — use Amend Stay → Room type change.
           </DialogDescription>
         </DialogHeader>
         <RoomSelect restaurantId={restaurantId} stay={stay} value={roomId} onChange={setRoomId} label="New room" />
@@ -358,22 +388,27 @@ export function WalkInDialog({
   onCreated?: (stay: FrontOfficeStay) => void;
 }) {
   const refresh = useRefresh();
+  const money = useMoney();
   const [guestSearch, setGuestSearch] = useState("");
   const [guest, setGuest] = useState<GuestSummary | null>(null);
+  const [createGuestOpen, setCreateGuestOpen] = useState(false);
   const [departure, setDeparture] = useState(addDays(today, 1));
   const [roomTypeId, setRoomTypeId] = useState("");
   const [roomId, setRoomId] = useState("");
   const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
   const [ratePlanId, setRatePlanId] = useState("");
 
   useEffect(() => {
     if (open) {
       setGuestSearch("");
       setGuest(null);
+      setCreateGuestOpen(false);
       setDeparture(addDays(today, 1));
       setRoomTypeId("");
       setRoomId("");
       setAdults(1);
+      setChildren(0);
       setRatePlanId("");
     }
   }, [open, today]);
@@ -409,6 +444,7 @@ export function WalkInDialog({
     queryKey: ["front-office", "walkin-rooms", restaurantId, roomTypeId, today, departure],
     queryFn: () => fetchRooms({ data: { restaurantId, roomTypeId, arrival: today, departure } }),
     enabled: open && !!roomTypeId && departure > today,
+    retry: false,
   });
 
   const quotesQuery = useQuery({
@@ -418,9 +454,23 @@ export function WalkInDialog({
     retry: false,
   });
 
-  const types = (availabilityQuery.data ?? []).filter((t) => t.available > 0);
   const rooms = roomsQuery.data ?? [];
+  const types = (availabilityQuery.data ?? []).filter((t) => t.available > 0);
   const pricedQuotes = (quotesQuery.data ?? []).filter((row) => row.quote);
+  const walkInRoomsState = assignableListUi({
+    isPending: roomsQuery.isPending,
+    isError: roomsQuery.isError,
+    rooms: roomsQuery.data,
+  });
+  const selectedWalkInType = types.find((t) => t.roomTypeId === roomTypeId);
+  const selectedQuote = pricedQuotes.find((row) => row.plan.id === ratePlanId);
+  const selectedWalkInRoom = rooms.find((room) => room.id === roomId);
+  const selectedWalkInReady = selectedWalkInRoom
+    ? isRoomReady({
+        status: "available",
+        housekeepingStatus: selectedWalkInRoom.housekeepingStatus,
+      }).ready
+    : null;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -434,9 +484,10 @@ export function WalkInDialog({
           arrival: today,
           departure,
           adults,
-          children: 0,
+          children,
           status: "confirmed" as const,
           ratePlanId: ratePlanId || null,
+          source: "walk_in" as const,
           // Section 7 TIP option 1: FO walk-in stays confirmed + rate without guarantee.
         },
       });
@@ -452,15 +503,17 @@ export function WalkInDialog({
         guestPhone: guest.phone,
         roomTypeId,
         roomTypeName: roomType?.name ?? "Room type",
+        roomTypeCode: roomType?.code ?? null,
         roomId,
         roomNumber: room?.roomNumber ?? null,
         arrivalDate: today,
         departureDate: departure,
         nights: nightsBetween(today, departure),
         adults,
-        children: 0,
+        children,
         status: "confirmed",
         specialRequests: null,
+        source: "walk_in",
         overstay: false,
         walkInIncomplete: true,
       };
@@ -476,6 +529,7 @@ export function WalkInDialog({
   });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
@@ -513,11 +567,14 @@ export function WalkInDialog({
               ))}
               {guestListItems(guestsQuery.data).length === 0 ? (
                 <li className="px-3 py-2 text-xs text-muted-foreground">
-                  No matching guest. Create the guest in Guests first.
+                  No matching guest. Create a guest with Guest Profile, or search again.
                 </li>
               ) : null}
             </ul>
           ) : null}
+          <Button type="button" variant="outline" size="sm" onClick={() => setCreateGuestOpen(true)}>
+            Create guest
+          </Button>
           {guest ? <GuestRestrictionWarn guest={guest} /> : null}
         </div>
 
@@ -548,6 +605,17 @@ export function WalkInDialog({
               onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="walkin-children">Children</Label>
+            <Input
+              id="walkin-children"
+              type="number"
+              min={0}
+              max={20}
+              value={children}
+              onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -566,7 +634,7 @@ export function WalkInDialog({
             <SelectContent>
               {types.map((t) => (
                 <SelectItem key={t.roomTypeId} value={t.roomTypeId}>
-                  {t.name} · {t.available} available
+                  {formatRoomTypeLabel(t.name, t.code)} · {t.available} available
                 </SelectItem>
               ))}
             </SelectContent>
@@ -595,22 +663,49 @@ export function WalkInDialog({
               ))}
             </SelectContent>
           </Select>
+          {selectedQuote?.quote ? (
+            <p className="text-xs text-muted-foreground">
+              {selectedQuote.quote.nights} night{selectedQuote.quote.nights === 1 ? "" : "s"} · nightly{" "}
+              {money(selectedQuote.quote.nightly[0]?.rate ?? 0)} · total {money(selectedQuote.quote.subtotal)}
+            </p>
+          ) : quotesQuery.isError ? (
+            <p className="text-xs text-destructive">Pricing unavailable for this stay.</p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
           <Label>Room</Label>
-          <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId}>
+          <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId || walkInRoomsState.status === "error"}>
             <SelectTrigger>
-              <SelectValue placeholder="Select a room" />
+              <SelectValue
+                placeholder={walkInRoomsState.status === "loading" ? "Loading rooms…" : "Select a room"}
+              />
             </SelectTrigger>
             <SelectContent>
               {rooms.map((room) => (
                 <SelectItem key={room.id} value={room.id}>
                   Room {room.roomNumber}
+                  {room.housekeepingStatus ? ` · ${room.housekeepingStatus}` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {roomTypeId ? (
+            <AssignableRoomsHint
+              status={walkInRoomsState.status}
+              roomTypeLabel={formatRoomTypeLabel(
+                selectedWalkInType?.name ?? "room type",
+                selectedWalkInType?.code,
+              )}
+              onRetry={() => void roomsQuery.refetch()}
+              detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
+            />
+          ) : null}
+          {selectedWalkInReady === false ? (
+            <p className="text-xs text-muted-foreground">Assignable, but not check-in ready yet (housekeeping).</p>
+          ) : selectedWalkInReady === true ? (
+            <p className="text-xs text-muted-foreground">Room is check-in ready under current HK rules.</p>
+          ) : null}
         </div>
 
         <DialogFooter>
@@ -626,5 +721,25 @@ export function WalkInDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <GuestFormDialog
+      restaurantId={restaurantId}
+      open={createGuestOpen}
+      onOpenChange={setCreateGuestOpen}
+      onSaved={(guestId) => {
+        setCreateGuestOpen(false);
+        void guestsQuery.refetch().then((result) => {
+          const found = guestListItems(result.data).find((item) => item.id === guestId);
+          if (found) setGuest(found);
+        });
+      }}
+      onOpenExisting={(guestId) => {
+        setCreateGuestOpen(false);
+        void guestsQuery.refetch().then((result) => {
+          const found = guestListItems(result.data).find((item) => item.id === guestId);
+          if (found) setGuest(found);
+        });
+      }}
+    />
+    </>
   );
 }

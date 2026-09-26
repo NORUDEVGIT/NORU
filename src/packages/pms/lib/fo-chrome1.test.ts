@@ -34,46 +34,38 @@ function readRel(rel: string): string {
 function readChrome(): string {
   return (
     readRel("../components/frontoffice/front-office-chrome.tsx") +
-    readRel("../components/pms-command-chrome.tsx")
+    readRel("../components/rooms/room-inventory-chrome.tsx")
   );
 }
 
 describe("FO large-screen chrome — command surface", () => {
-  it("keeps a single dark top command strip and removes the bottom Coming soon bar", () => {
+  it("reuses shared PMS module nav and keeps workspace tabs out of the dark strip", () => {
     const chrome = readChrome();
-    assert.match(chrome, /fo-top-command/);
-    assert.match(chrome, /#251605/);
-    assert.match(chrome, /#C89933/);
-    assert.match(chrome, /fo-top-nav/);
-    assert.match(chrome, /fo-top-overflow/);
-    assert.match(chrome, /fo-pms-modules-escape/);
-    assert.match(chrome, /FO_ESCAPE_MODULES/);
-    assert.match(chrome, /PMS modules/);
-    assert.match(chrome, /Exit FO → PMS/);
-    assert.match(chrome, /fo-mobile-nav/);
+    assert.match(chrome, /RoomInventoryChrome/);
+    assert.match(chrome, /activeModule="Front Office"/);
+    assert.match(chrome, /pms-module-nav/);
+    assert.match(chrome, /Front Office/);
+    assert.match(chrome, /Reservations/);
+    assert.match(chrome, /Rooms & Inventory/);
+    assert.match(chrome, /fo-workspace-nav/);
+    assert.match(chrome, /fo-nav-\$\{item\.id\}/);
+    assert.doesNotMatch(chrome, /fo-top-nav/);
+    assert.doesNotMatch(chrome, /fo-pms-modules-escape/);
+    assert.doesNotMatch(chrome, /fo-mobile-nav/);
     assert.doesNotMatch(chrome, /fo-sidebar-nav/);
     assert.doesNotMatch(chrome, /<aside/);
     assert.doesNotMatch(chrome, /<footer/);
     assert.doesNotMatch(chrome, /Guest request queue/);
     assert.doesNotMatch(chrome, /ComingSoonChip/);
-    assert.doesNotMatch(chrome, /rounded-2xl border/);
   });
 
   it("does not repeat hotel · date · Active · user · Log out identity chrome", () => {
     const chrome = readChrome();
-    assert.doesNotMatch(chrome, /propertyName/);
-    assert.doesNotMatch(chrome, /userLabel/);
-    assert.doesNotMatch(chrome, /roleLabel/);
-    assert.doesNotMatch(chrome, /businessDate/);
-    assert.doesNotMatch(chrome, /formatStayDate/);
     assert.doesNotMatch(chrome, /fo-user-menu/);
     assert.doesNotMatch(chrome, /Log out/);
     assert.match(chrome, /fo-activity/);
     assert.match(chrome, /FO activity/);
-    assert.match(chrome, /fo-guest-search/);
-    assert.match(chrome, /Guest search/);
-    assert.match(chrome, /fo-notifications/);
-    assert.match(chrome, /Quick Action/);
+    assert.match(chrome, /fo-module-search/);
     assert.match(chrome, /fo-help/);
     assert.match(chrome, /NoruLogo/);
 
@@ -88,13 +80,13 @@ describe("FO large-screen chrome — command surface", () => {
     assert.doesNotMatch(chromeOpen, /businessDate=/);
   });
 
-  it("exposes nine desktop destinations as top tabs and keeps phone select honesty", () => {
+  it("exposes nine workspace destinations below the desk title", () => {
     assert.equal(FO_NAV_ITEMS.length, 9);
     assert.equal(FO_PRIMARY_TITLE, "Room Rack + Calendar");
     const chrome = readChrome();
-    assert.match(chrome, /hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex/);
-    assert.match(chrome, /md:hidden/);
-    assert.match(chrome, /fo-mobile-nav/);
+    assert.match(chrome, /fo-workspace-nav/);
+    assert.match(chrome, /FO_DESK_TITLE/);
+    assert.match(chrome, /FO_NAV_ITEMS\.map/);
     assert.doesNotMatch(chrome, /force nine desktop tabs/);
   });
 });
