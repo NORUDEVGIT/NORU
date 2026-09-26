@@ -91,6 +91,7 @@ export type RevenueApprovalListItem = {
   reviewedBy: string | null;
   reviewedByLabel: string | null;
   reviewedAt: string | null;
+  reviewReason: string | null;
   summary: string;
   expectedVersion: string | null;
   appliedOperationId: string | null;
@@ -179,6 +180,7 @@ function mapListItem(
     reviewedBy: row.reviewed_by,
     reviewedByLabel: row.reviewed_by ? (labels.get(row.reviewed_by) ?? "Staff member") : null,
     reviewedAt: row.reviewed_at,
+    reviewReason: row.review_reason,
     summary: row.display_snapshot?.summary ?? row.action_type,
     expectedVersion: row.expected_version,
     appliedOperationId: row.applied_operation_id,
@@ -228,6 +230,62 @@ export async function countEligibleRevenueApprovers(
   });
   if (result.error) throw rateError(result.error.message);
   return Number(result.data ?? 0);
+}
+
+export type RevenueApprovalActorOption = {
+  id: string;
+  label: string;
+  role?: string;
+};
+
+export async function listRevenueApprovalActors(
+  db: DbClient,
+  restaurantId: string,
+): Promise<RevenueApprovalActorOption[]> {
+  const membersResult = await db
+    .from("restaurant_users")
+    .select("id, user_id, role")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true)
+    .in("role", ["owner", "manager"]);
+  if (membersResult.error) throw rateError(membersResult.error.message);
+  const members = (membersResult.data ?? []) as Array<{
+    id: string;
+    user_id: string;
+    role: string;
+  }>;
+
+  const historicalResult = await db
+    .from("hotel_revenue_approval_requests")
+    .select("requested_by, reviewed_by")
+    .eq("restaurant_id", restaurantId)
+    .limit(500);
+  const historicalIds = new Set<string>();
+  if (!historicalResult.error && historicalResult.data) {
+    for (const row of historicalResult.data as Array<{
+      requested_by?: string;
+      reviewed_by?: string;
+    }>) {
+      if (row.requested_by) historicalIds.add(row.requested_by);
+      if (row.reviewed_by) historicalIds.add(row.reviewed_by);
+    }
+  }
+
+  const allMembershipIds = [...new Set([...members.map((m) => m.id), ...historicalIds])];
+  const labels = await loadActorLabels(db, restaurantId, allMembershipIds);
+
+  const actorOptions: RevenueApprovalActorOption[] = allMembershipIds
+    .map((id) => {
+      const member = members.find((m) => m.id === id);
+      return {
+        id,
+        label: labels.get(id) ?? "Staff member",
+        ...(member?.role ? { role: member.role } : {}),
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return actorOptions;
 }
 
 async function insertSubmittedRequest(

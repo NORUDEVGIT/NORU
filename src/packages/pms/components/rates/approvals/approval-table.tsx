@@ -105,7 +105,7 @@ export function ApprovalTable({
                       <ApprovalStatusChip status={row.status} />
                     </td>
                     <td className="max-w-40 truncate px-2 py-1.5 text-[10px] text-muted-foreground">
-                      {revenueApprovalReasonLabel(row.requestReason)}
+                      {revenueApprovalReasonLabel(row.reviewReason ?? row.requestReason)}
                     </td>
                   </>
                 ) : mine ? (

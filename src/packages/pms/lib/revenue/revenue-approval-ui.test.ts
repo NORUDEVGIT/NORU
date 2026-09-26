@@ -27,6 +27,7 @@ import {
   RATE_SUBMITTED_TOAST,
   REJECT_REASON_REQUIRED,
   RESTRICTION_SUBMITTED_TOAST,
+  REVENUE_APPROVAL_ACTORS_QUERY_KEY,
   REVENUE_APPROVAL_QUERY_KEY,
   SELF_APPROVAL_BLOCKED_COPY,
   SUBMIT_FOR_APPROVAL_LABEL,
@@ -34,9 +35,12 @@ import {
   handleRevenueMutationResult,
   historyViewForApprovalDomain,
   parseApprovalTab,
+  revenueApprovalActorsQueryKey,
   revenueApprovalDomainLabel,
+  revenueApprovalReasonLabel,
   revenueApprovalScopeLabel,
 } from "./revenue-approval-ui.ts";
+import { serializeRevenueSearch } from "./revenue-context.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 function readRel(rel: string) {
@@ -58,7 +62,10 @@ describe("P7-STEP-03 approval UI", () => {
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /case "approvals"/);
     assert.match(workspace, /<ApprovalsView/);
-    assert.match(workspace, /approvalTab: search.approvalTab/);
+    assert.match(workspace, /approvalTab=\{search\.approvalTab\}/);
+    assert.match(workspace, /approvalRequest=\{search\.approvalRequest\}/);
+    assert.doesNotMatch(workspace, /<ApprovalsView[\s\S]*?search=\{search\}/);
+    assert.doesNotMatch(workspace, /<ApprovalsView[\s\S]*?onNavigateView=\{selectView\}/);
     assert.ok(existsSync(join(here, "../../components/rates/approvals/approvals-view.tsx")));
     assert.ok(
       existsSync(join(here, "../../components/rates/approvals/approval-detail-drawer.tsx")),
@@ -241,5 +248,75 @@ describe("P7-STEP-03 approval UI", () => {
     assert.match(server, /canReview/);
     assert.match(server, /selfApprovalBlocked/);
     assert.match(server, /canSelfApproveRevenueRequest/);
+  });
+
+  it("resolves history table reason preferring reviewReason over requestReason", () => {
+    // Approved with review note
+    const approved = { requestReason: "Increase BAR", reviewReason: "Approved for event weekend" };
+    assert.equal(
+      revenueApprovalReasonLabel(approved.reviewReason ?? approved.requestReason),
+      "Approved for event weekend",
+    );
+
+    // Rejected with rejection reason
+    const rejected = { requestReason: "Close OTA", reviewReason: "Inventory risk too high" };
+    assert.equal(
+      revenueApprovalReasonLabel(rejected.reviewReason ?? rejected.requestReason),
+      "Inventory risk too high",
+    );
+
+    // Cancelled / no review reason -> fallback to requestReason
+    const cancelled = { requestReason: "Close OTA", reviewReason: null };
+    assert.equal(
+      revenueApprovalReasonLabel(cancelled.reviewReason ?? cancelled.requestReason),
+      "Close OTA",
+    );
+
+    // No reason provided
+    const empty = { requestReason: null, reviewReason: null };
+    assert.equal(
+      revenueApprovalReasonLabel(empty.reviewReason ?? empty.requestReason),
+      "No reason provided",
+    );
+  });
+
+  it("exposes actors query key and wires actors filter in approvals-view", () => {
+    assert.equal(REVENUE_APPROVAL_ACTORS_QUERY_KEY, "revenue-approval-actors");
+    assert.deepEqual(revenueApprovalActorsQueryKey("rest-1"), [
+      "revenue-approval-actors",
+      "rest-1",
+    ]);
+    const view = readRel("../../components/rates/approvals/approvals-view.tsx");
+    assert.match(view, /listRevenueApprovalActorsFn/);
+    assert.match(view, /revenueApprovalActorsQueryKey/);
+    const table = readRel("../../components/rates/approvals/approval-table.tsx");
+    assert.match(table, /row\.reviewReason \?\? row\.requestReason/);
+  });
+
+  it("serializes approval params only when view is approvals", () => {
+    const dummyContext = {
+      fromDate: "2026-06-01",
+      toDate: "2026-06-07",
+      roomTypeId: null,
+      ratePlanId: null,
+      marketSegmentId: null,
+      commercialSourceId: null,
+      salesChannelId: null,
+    };
+    const approvalsSearch = serializeRevenueSearch("approvals", dummyContext, {
+      approvalTab: "history",
+      approvalRequest: "req-123",
+    });
+    assert.equal(approvalsSearch.view, "approvals");
+    assert.equal(approvalsSearch.approvalTab, "history");
+    assert.equal(approvalsSearch.approvalRequest, "req-123");
+
+    const rateSearch = serializeRevenueSearch("rate-calendar", dummyContext, {
+      approvalTab: "history",
+      approvalRequest: "req-123",
+    });
+    assert.equal(rateSearch.view, "rate-calendar");
+    assert.equal(rateSearch.approvalTab, undefined);
+    assert.equal(rateSearch.approvalRequest, undefined);
   });
 });

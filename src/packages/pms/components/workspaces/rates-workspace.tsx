@@ -77,7 +77,9 @@ function SectionButton({
       ].join(" ")}
     >
       {children}
-      {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" /> : null}
+      {active ? (
+        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+      ) : null}
     </button>
   );
 }
@@ -101,7 +103,9 @@ function SecondaryButton({
       ].join(" ")}
     >
       {children}
-      {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" /> : null}
+      {active ? (
+        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+      ) : null}
     </button>
   );
 }
@@ -149,7 +153,11 @@ export function RatesWorkspace({
     retry: false,
   });
 
-  const coreConfigStatus = baseQuery.isLoading ? "loading" : baseQuery.isError ? "error" : "success";
+  const coreConfigStatus = baseQuery.isLoading
+    ? "loading"
+    : baseQuery.isError
+      ? "error"
+      : "success";
   const cataloguesStatus = cataloguesQuery.isLoading
     ? "loading"
     : cataloguesQuery.isError
@@ -173,9 +181,10 @@ export function RatesWorkspace({
     catalogues: cataloguesQuery.isSuccess,
   });
 
-  const requestedView = access && !canAccessRevenueView(access, view)
-    ? firstAccessibleRevenueView(access) ?? view
-    : view;
+  const requestedView =
+    access && !canAccessRevenueView(access, view)
+      ? (firstAccessibleRevenueView(access) ?? view)
+      : view;
   const definition = revenueViewDefinition(requestedView);
   const activeSection = sectionForRevenueView(requestedView);
   const secondaryViews = viewsForRevenueSection(activeSection, access);
@@ -239,7 +248,12 @@ export function RatesWorkspace({
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
-    if (requestedView !== "commercial" && requestedView !== "promotions" && requestedView !== "commercial-history") return;
+    if (
+      requestedView !== "commercial" &&
+      requestedView !== "promotions" &&
+      requestedView !== "commercial-history"
+    )
+      return;
     if (search.from || search.to) return;
     const range = defaultControlCenterRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
@@ -377,8 +391,8 @@ export function RatesWorkspace({
             restaurantId={restaurantId}
             context={context}
             access={access!}
-            search={search}
-            onNavigateView={selectView}
+            approvalTab={search.approvalTab}
+            approvalRequest={search.approvalRequest}
           />
         );
       default:
@@ -435,9 +449,10 @@ export function RatesWorkspace({
                   >
                     {section.label}
                     <ChevronDown
-                      className={["h-3.5 w-3.5 transition-transform", moreOpen ? "rotate-180" : ""].join(
-                        " ",
-                      )}
+                      className={[
+                        "h-3.5 w-3.5 transition-transform",
+                        moreOpen ? "rotate-180" : "",
+                      ].join(" ")}
                     />
                   </SectionButton>
                   {moreOpen ? (
@@ -478,7 +493,11 @@ export function RatesWorkspace({
           {showSecondary ? (
             <div className="flex items-end gap-1 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
               {secondaryViews.map((item) => (
-                <SecondaryButton key={item} active={requestedView === item} onClick={() => selectView(item)}>
+                <SecondaryButton
+                  key={item}
+                  active={requestedView === item}
+                  onClick={() => selectView(item)}
+                >
                   {revenueViewDefinition(item).label}
                 </SecondaryButton>
               ))}

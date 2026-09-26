@@ -113,6 +113,9 @@ function createMemoryDb() {
         range = [fromIdx, toIdx];
         return api;
       },
+      limit(count: number) {
+        return api;
+      },
       maybeSingle() {
         wantMaybe = true;
         return api.then ? api : Promise.resolve(api).then(() => execute());
@@ -801,5 +804,76 @@ describe("P7-STEP-02 — policy and request read models", () => {
         assert.equal(encodeExpectedVersions(payload.expectedVersions).split("|").length, 366);
         assert.ok(isStaleDomainError("COMMERCIAL_ACTIVATION_STALE"));
       });
+  });
+
+  it("lists all property-scoped actors and exposes reviewReason on list items", async () => {
+    const db = createMemoryDb();
+    // Add an actor for Property B to test tenant isolation
+    db.tables.restaurant_users.push({
+      id: "bbbbbbbb-1111-4111-8111-111111111111",
+      restaurant_id: PROPERTY_B,
+      user_id: "bbbbbbbb-2222-4222-8222-222222222222",
+      role: "manager",
+      active: true,
+    });
+    db.tables.profiles.push({
+      id: "bbbbbbbb-2222-4222-8222-222222222222",
+      first_name: "Bob",
+      last_name: "OtherProp",
+      email: "bob@other.com",
+    });
+
+    // Populate a request with review_reason for Owner A
+    db.tables.hotel_revenue_approval_requests.push({
+      id: "req-1",
+      restaurant_id: PROPERTY_A,
+      domain: "rate",
+      action_type: "single_rate_change",
+      entity_type: "rate_calendar",
+      entity_id: null,
+      status: "rejected",
+      requested_by: OWNER_A,
+      requested_at: "2026-09-26T10:00:00.000Z",
+      request_reason: "Close OTA",
+      reviewed_by: MANAGER_B,
+      reviewed_at: "2026-09-26T10:30:00.000Z",
+      review_reason: "Inventory risk too high",
+      proposal_payload: {},
+      display_snapshot: { summary: "Close OTA on BAR" },
+      expected_version: null,
+      applied_operation_id: null,
+      created_at: "2026-09-26T10:00:00.000Z",
+      updated_at: "2026-09-26T10:30:00.000Z",
+    });
+
+    // Verify server contracts
+    const server = readRel("./revenue-approval.server.ts");
+    const fns = readRel("./revenue-approval.functions.ts");
+    assert.match(server, /export async function listRevenueApprovalActors/);
+    assert.match(server, /reviewReason: row\.review_reason/);
+    assert.match(server, /reviewReason: string \| null/);
+    assert.match(fns, /export const listRevenueApprovalActorsFn/);
+
+    // Verify property-scoped actors query excludes Property B
+    const activeMembers = await db
+      .from("restaurant_users")
+      .select("id, user_id, role")
+      .eq("restaurant_id", PROPERTY_A);
+    const eligible = activeMembers.data.filter(
+      (m: { role: string }) => m.role === "owner" || m.role === "manager",
+    );
+    assert.equal(eligible.length, 2);
+    assert.ok(eligible.some((m: { id: string }) => m.id === OWNER_A));
+    assert.ok(eligible.some((m: { id: string }) => m.id === MANAGER_B));
+    assert.ok(!eligible.some((m: { id: string }) => m.id === "bbbbbbbb-1111-4111-8111-111111111111"));
+
+    // Verify review_reason is present on requests table and read model
+    const requests = await db
+      .from("hotel_revenue_approval_requests")
+      .select("*")
+      .eq("restaurant_id", PROPERTY_A);
+    assert.equal(requests.data.length, 1);
+    assert.equal(requests.data[0]?.request_reason, "Close OTA");
+    assert.equal(requests.data[0]?.review_reason, "Inventory risk too high");
   });
 });

@@ -19,6 +19,7 @@ import {
   approveRevenueApprovalRequestFn,
   cancelRevenueApprovalRequestFn,
   getRevenueApprovalRequestDetailFn,
+  listRevenueApprovalActorsFn,
   listRevenueApprovalRequestsFn,
   rejectRevenueApprovalRequestFn,
   setRevenueApprovalPolicyFn,
@@ -37,6 +38,7 @@ import {
   invalidateApprovalAffectedDomain,
   invalidateRevenueApprovals,
   parseApprovalTab,
+  revenueApprovalActorsQueryKey,
   revenueApprovalDomainLabel,
   revenueApprovalQueryKey,
 } from "@/packages/pms/lib/revenue/revenue-approval-ui";
@@ -84,7 +86,13 @@ export function ApprovalsView({
   const rejectFn = useServerFn(rejectRevenueApprovalRequestFn);
   const cancelFn = useServerFn(cancelRevenueApprovalRequestFn);
   const setPolicyFn = useServerFn(setRevenueApprovalPolicyFn);
+  const actorsFn = useServerFn(listRevenueApprovalActorsFn);
   const policyQuery = useRevenueApprovalPolicy(restaurantId);
+
+  const actorsQuery = useQuery({
+    queryKey: revenueApprovalActorsQueryKey(restaurantId),
+    queryFn: () => actorsFn({ data: { restaurantId } }),
+  });
 
   const tab = parseApprovalTab(approvalTab);
   const [page, setPage] = useState(1);
@@ -218,13 +226,15 @@ export function ApprovalsView({
   });
 
   const actors = useMemo(() => {
+    const list = actorsQuery.data ?? [];
+    if (list.length > 0) return list;
     const map = new Map<string, string>();
     for (const row of listQuery.data?.rows ?? []) {
       map.set(row.requestedBy, row.requestedByLabel);
       if (row.reviewedBy) map.set(row.reviewedBy, row.reviewedByLabel ?? row.reviewedBy);
     }
     return [...map.entries()].map(([id, label]) => ({ id, label }));
-  }, [listQuery.data?.rows]);
+  }, [actorsQuery.data, listQuery.data?.rows]);
 
   const range = historyPaginationRange(
     listQuery.data?.page ?? page,

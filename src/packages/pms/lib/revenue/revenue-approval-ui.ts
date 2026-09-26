@@ -14,6 +14,7 @@ import type { RevenueApprovalDisplaySnapshot } from "./revenue-approval";
 
 export const REVENUE_APPROVAL_QUERY_KEY = "revenue-approvals";
 export const REVENUE_APPROVAL_POLICY_QUERY_KEY = "revenue-approval-policy";
+export const REVENUE_APPROVAL_ACTORS_QUERY_KEY = "revenue-approval-actors";
 export const REVENUE_APPROVAL_PAGE_SIZES = [10, 25, 50] as const;
 export const REVENUE_APPROVAL_DEFAULT_PAGE_SIZE = 25;
 
@@ -161,6 +162,10 @@ export function revenueApprovalQueryKey(restaurantId: string, extra?: unknown) {
   return extra === undefined
     ? [REVENUE_APPROVAL_QUERY_KEY, restaurantId]
     : [REVENUE_APPROVAL_QUERY_KEY, restaurantId, extra];
+}
+
+export function revenueApprovalActorsQueryKey(restaurantId: string) {
+  return [REVENUE_APPROVAL_ACTORS_QUERY_KEY, restaurantId];
 }
 
 export function invalidateRevenueApprovals(queryClient: QueryClient, restaurantId?: string) {
