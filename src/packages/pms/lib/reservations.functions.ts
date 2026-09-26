@@ -45,6 +45,7 @@ export interface ReservationSummary {
   guestVip: boolean;
   roomTypeId: string;
   roomTypeName: string;
+  roomTypeCode?: string | null;
   roomId: string | null;
   roomNumber: string | null;
   arrivalDate: string;
@@ -137,7 +138,7 @@ const RESERVATION_SELECT = `
   company_master_id, travel_agent_master_id, group_account_master_id,
   created_at, updated_at,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
-  room_types!hotel_reservations_type_same_property ( name ),
+  room_types!hotel_reservations_type_same_property ( name, code ),
   hotel_rooms!hotel_reservations_room_same_type ( room_number, status, housekeeping_status ),
   rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property ( name ),
   company:guest_account_masters!hotel_reservations_company_master_same_property ( name ),
@@ -145,7 +146,7 @@ const RESERVATION_SELECT = `
   group_account:guest_account_masters!hotel_reservations_group_account_master_same_property ( name )
 `;
 
-type NameRelation = { name: string } | null;
+type NameRelation = { name: string; code?: string | null } | null;
 type GuestRelation = {
   first_name: string;
   last_name: string | null;
@@ -215,6 +216,7 @@ function toDetail(row: ReservationRow): ReservationDetail {
     guestVip: guest?.vip_status ?? false,
     roomTypeId: row.room_type_id,
     roomTypeName: oneRel(row.room_types)?.name ?? "Room type",
+    roomTypeCode: oneRel(row.room_types)?.code ?? null,
     roomId: row.room_id,
     roomNumber: room?.room_number ?? null,
     arrivalDate: row.arrival_date,
@@ -413,7 +415,8 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
       .gt("departure_date", arrival);
     if (data.excludeReservationId) clashQuery = clashQuery.neq("id", data.excludeReservationId);
 
-    const { data: clashes } = await clashQuery;
+    const { data: clashes, error: clashError } = await clashQuery;
+    if (clashError) throw new Error(clashError.message);
     const taken = new Set((clashes ?? []).map((r: { room_id: string | null }) => r.room_id));
 
     const candidates = (rooms ?? []).map((r) => ({
@@ -638,6 +641,8 @@ export const createReservation = createServerFn({ method: "POST" })
         reservationType: z.enum(["individual", "corporate", "travel_agency"]).optional(),
         pmsGroupId: idSchema.nullable().optional(),
         pmsGroupBlockId: idSchema.nullable().optional(),
+        /** Channel origin on hotel_reservations.source — not commercial_booking_source. */
+        source: z.enum(["walk_in"]).optional(),
       })
       .parse(input),
   )
@@ -738,6 +743,14 @@ export const createReservation = createServerFn({ method: "POST" })
         groupId: groupLink.groupId,
         blockId: groupLink.blockId,
       });
+    }
+    if (data.source === "walk_in") {
+      const { error: sourceError } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update({ source: "walk_in" })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.id);
+      if (sourceError) throw new Error(sourceError.message);
     }
     if (data.groupAccountMasterId) {
       const { error: groupError } = await supabaseAdmin
@@ -1008,6 +1021,11 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
 
 /* ------------------------------------------------------------------ status */
 
+/**
+ * Reservation-owned pending/confirmed/cancelled only.
+ * Front Office operational cancel (fees + room clear) must use `completeFoCancel`.
+ * Do not call this from Front Office UI with status cancelled.
+ */
 export const setReservationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

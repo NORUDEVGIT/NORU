@@ -254,7 +254,7 @@ function isArrivalStatus(status: string): boolean {
   return status === "pending" || status === "confirmed";
 }
 
-function isOooOrOos(status: string): boolean {
+export function isOooOrOos(status: string): boolean {
   return status === "out_of_order" || status === "out_of_service";
 }
 

@@ -1,6 +1,9 @@
 /**
  * FO-FS1 — Check-in stepper server writes.
  *
+ * Front Office desk cancellation (fees + room clear + audit) is `completeFoCancel`.
+ * Reservation pre-arrival cancel remains `setReservationStatus` in Reservations.
+ *
  * A–D gates live here. The Live status flip is still check_in_hotel_reservation
  * via completeFoCheckIn after the gates pass.
  */
@@ -97,6 +100,10 @@ export type CheckInContext = {
   folio: CheckInFolioStrip;
   canWaive: boolean;
   actorName: string;
+  checkInTime: string | null;
+  timezone: string;
+  earlyCheckinAllowed: boolean | null;
+  earlyCheckinNeedsApproval: boolean | null;
 };
 
 type ProgressDb = {
@@ -311,7 +318,7 @@ async function loadStay(
   const { data: row, error } = await supabaseAdmin
     .from("hotel_reservations")
     .select(
-      "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, adults, children, status, special_requests, notes, rate_plan_id, room_subtotal, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, vip_status ), room_types!hotel_reservations_type_same_property ( name ), hotel_rooms!hotel_reservations_room_same_type ( room_number )",
+      "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, adults, children, status, special_requests, notes, rate_plan_id, room_subtotal, source, guarantee_method, expected_arrival_at, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ), room_types!hotel_reservations_type_same_property ( name, code ), hotel_rooms!hotel_reservations_room_same_type ( room_number )",
     )
     .eq("restaurant_id", restaurantId)
     .eq("id", reservationId)
@@ -323,6 +330,7 @@ async function loadStay(
     first_name: string;
     last_name: string | null;
     phone: string | null;
+    email: string | null;
     vip_status: boolean;
   } | null;
   const stay: FrontOfficeStay = {
@@ -332,8 +340,10 @@ async function loadStay(
     guestName: joinName(guest?.first_name ?? "", guest?.last_name ?? null) || "Guest",
     guestVip: guest?.vip_status ?? false,
     guestPhone: guest?.phone ?? null,
+    guestEmail: guest?.email ?? null,
     roomTypeId: row.room_type_id,
-    roomTypeName: (row.room_types as { name: string } | null)?.name ?? "Room type",
+    roomTypeName: (row.room_types as { name: string; code?: string | null } | null)?.name ?? "Room type",
+    roomTypeCode: (row.room_types as { name: string; code?: string | null } | null)?.code ?? null,
     roomId: row.room_id,
     roomNumber: (row.hotel_rooms as { room_number: string } | null)?.room_number ?? null,
     arrivalDate: row.arrival_date,
@@ -343,7 +353,10 @@ async function loadStay(
     children: row.children,
     status: row.status as FrontOfficeStay["status"],
     specialRequests: row.special_requests,
+    source: row.source,
+    guaranteeMethod: row.guarantee_method,
     overstay: false,
+    expectedArrivalAt: row.expected_arrival_at ?? null,
   };
   return {
     stay,
@@ -400,6 +413,11 @@ export const getCheckInContext = createServerFn({ method: "POST" })
       progress.depositWaived,
     );
     const actorName = await actorDisplayName(supabaseAdmin, me.id, data.restaurantId);
+    const { data: property } = await supabaseAdmin
+      .from("restaurants")
+      .select("timezone, check_in_time, early_checkin_allowed, early_checkin_needs_approval")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
 
     return {
       stay: { ...loaded.stay, walkInIncomplete: progress.walkInIncomplete },
@@ -423,6 +441,10 @@ export const getCheckInContext = createServerFn({ method: "POST" })
       folio,
       canWaive: (MANAGE_ROLES as readonly string[]).includes(me.role),
       actorName,
+      checkInTime: property?.check_in_time ? String(property.check_in_time) : null,
+      timezone: property?.timezone || "UTC",
+      earlyCheckinAllowed: property?.early_checkin_allowed ?? null,
+      earlyCheckinNeedsApproval: property?.early_checkin_needs_approval ?? null,
     };
   });
 
@@ -434,6 +456,13 @@ export const startWalkInCheckIn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: sourceError } = await supabaseAdmin
+      .from("hotel_reservations")
+      .update({ source: "walk_in" })
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .in("status", ["pending", "confirmed"]);
+    if (sourceError) throw new Error(sourceError.message);
     await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
       walk_in_incomplete: true,
     });

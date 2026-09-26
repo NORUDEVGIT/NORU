@@ -185,14 +185,22 @@ export function FoRackConfirmSheet({
             reservationId: draft.reservationId,
             roomId: draft.targetRoomId,
             reason: RACK_MOVE_REASON,
+            expectedRoomId: draft.currentRoomId,
+            expectedArrival: draft.arrivalDate,
+            expectedDeparture: draft.departureDate,
           },
         });
       }
+      const dates = dateDraft ?? draft;
+      if (dates.kind !== "change_dates") return;
       return change({
         data: {
           restaurantId,
           reservationId: draft.reservationId,
-          ...stayDateWriteInput(dateDraft ?? draft),
+          ...stayDateWriteInput(dates),
+          expectedRoomId: dates.currentRoomId,
+          expectedArrival: dates.arrivalDate,
+          expectedDeparture: dates.departureDate,
         },
       });
     },
