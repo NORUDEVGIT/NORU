@@ -9,6 +9,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRateManager } from "../rates.server";
 import { COMMERCIAL_ACTION_TYPES, COMMERCIAL_ENTITY_TYPES } from "./commercial-engine.ts";
 import { getCommercialOperationDetail as loadCommercialOperationDetail, listCommercialChangeHistory as loadCommercialChangeHistory } from "./commercial-history.server.ts";
+import {
+  getCommercialHistoryOperationDetail as loadCommercialHistoryOperationDetail,
+  getCommercialHistoryWorkspace as loadCommercialHistoryWorkspace,
+} from "./commercial-history-ui.server.ts";
+import { sanitizeCommercialHistorySearch } from "./commercial-history.ts";
 import { COMMERCIAL_HISTORY_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error.ts";
 
 const idSchema = z.string().uuid();
@@ -20,8 +25,22 @@ const historyQuerySchema = z.object({
   to: dateSchema.optional(),
   entityType: z.enum(COMMERCIAL_ENTITY_TYPES).optional(),
   actionType: z.enum(COMMERCIAL_ACTION_TYPES).optional(),
+  actorId: idSchema.optional(),
+  search: z.string().max(80).optional(),
   masterId: idSchema.optional(),
   entityId: idSchema.optional(),
+  page: z.number().int().min(1).optional(),
+  pageSize: z.number().int().min(1).max(100).optional(),
+});
+
+const workspaceQuerySchema = z.object({
+  restaurantId: idSchema,
+  fromDate: dateSchema.optional().nullable(),
+  toDate: dateSchema.optional().nullable(),
+  entityType: z.enum(COMMERCIAL_ENTITY_TYPES).optional(),
+  actionType: z.enum(COMMERCIAL_ACTION_TYPES).optional(),
+  actorId: idSchema.optional(),
+  search: z.string().max(80).optional(),
   page: z.number().int().min(1).optional(),
   pageSize: z.number().int().min(1).max(100).optional(),
 });
@@ -33,7 +52,10 @@ export const listCommercialChangeHistory = createServerFn({ method: "POST" })
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
-      return await loadCommercialChangeHistory(supabaseAdmin, data);
+      return await loadCommercialChangeHistory(supabaseAdmin, {
+        ...data,
+        search: sanitizeCommercialHistorySearch(data.search),
+      });
     } catch (error) {
       throw toRevenueReadError(error, COMMERCIAL_HISTORY_LOAD_ERROR);
     }
@@ -49,6 +71,34 @@ export const getCommercialOperationDetail = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCommercialOperationDetail(supabaseAdmin, data);
+    } catch (error) {
+      throw toRevenueReadError(error, COMMERCIAL_HISTORY_LOAD_ERROR);
+    }
+  });
+
+export const getCommercialHistoryWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => workspaceQuerySchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRateManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadCommercialHistoryWorkspace(supabaseAdmin, data);
+    } catch (error) {
+      throw toRevenueReadError(error, COMMERCIAL_HISTORY_LOAD_ERROR);
+    }
+  });
+
+export const getCommercialHistoryOperationDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, operationId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRateManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadCommercialHistoryOperationDetail(supabaseAdmin, data);
     } catch (error) {
       throw toRevenueReadError(error, COMMERCIAL_HISTORY_LOAD_ERROR);
     }

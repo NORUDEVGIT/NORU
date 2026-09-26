@@ -9,6 +9,7 @@ import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-se
 import {
   CARD3_DOMAINS,
   CARD3_SUBTITLE,
+  card3DomainFromSearch,
   type Card3DomainId,
 } from "@/packages/pms/lib/pms-property-setup-card3";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
@@ -45,7 +46,9 @@ export function PmsPropertySetupCard3Section({
   restaurantId: string;
   canEdit: boolean;
 }) {
-  const [activeDomain, setActiveDomain] = useState<Card3DomainId>("currency-financial-settings");
+  const [activeDomain, setActiveDomain] = useState<Card3DomainId>(
+    () => card3DomainFromSearch(typeof window === "undefined" ? "" : window.location.search) ?? "currency-financial-settings",
+  );
   const [draftSave, setDraftSave] = useState<Card3DraftSave | null>(null);
   const [continuing, setContinuing] = useState(false);
   const registerDraftSave = useCallback((value: Card3DraftSave | null) => {

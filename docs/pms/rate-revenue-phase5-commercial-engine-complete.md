@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Closeout record. Not a Functional Spec. |
 | **Branch** | `feature/guest-preferences-workspace` |
-| **Status** | **Commercial Engine V1 backend COMPLETE** |
+| **Status** | **Commercial Engine V1 backend COMPLETE · Phase 5 COMPLETE** |
 | **Migrations** | `0104` foundation · `0105` promotion persist · `0106` package persist · `0107` activation apply |
 
 `price_hotel_stay` remains the room quote in `0016`. `room_subtotal` and `nightly_rate_snapshot` remain pre-commercial.
@@ -38,7 +38,6 @@ V1 execution: percent and fixed promotions; `per_stay` packages; explicit select
 - OTA / distribution publish
 - Advanced package charge bases
 - Cashiering / folio settlement of commercial amounts
-- UI-20 activation wizard, UI-21 full history table
 - Automatic reprice of booked reservations after activation edit/deactivate
 
 ## Official surfaces
@@ -54,7 +53,9 @@ Reads: `listPromotionActivations`, `listPackageActivations`, `listCommercialChan
 | UI-17 Commercial Overview | **COMPLETE** |
 | UI-18 Promotions | **COMPLETE** |
 | UI-19 Packages | **COMPLETE** |
-| UI-20 Activation wizard | **PENDING** |
-| UI-21 Commercial History | **FOUNDATION** |
+| UI-20 Activation wizard | **COMPLETE** |
+| UI-21 Commercial History | **COMPLETE** |
 
-See [`rate-revenue-phase5-commercial-activation.md`](./rate-revenue-phase5-commercial-activation.md), [`rate-revenue-phase5-ui-commercial-overview-promotions.md`](./rate-revenue-phase5-ui-commercial-overview-promotions.md), and [`rate-revenue-phase5-ui-packages.md`](./rate-revenue-phase5-ui-packages.md).
+**Phase 5: COMPLETE.**
+
+See [`rate-revenue-phase5-complete.md`](./rate-revenue-phase5-complete.md), [`rate-revenue-phase5-ui-commercial-history.md`](./rate-revenue-phase5-ui-commercial-history.md), [`rate-revenue-phase5-commercial-activation.md`](./rate-revenue-phase5-commercial-activation.md), [`rate-revenue-phase5-ui-commercial-overview-promotions.md`](./rate-revenue-phase5-ui-commercial-overview-promotions.md), [`rate-revenue-phase5-ui-packages.md`](./rate-revenue-phase5-ui-packages.md), and [`rate-revenue-phase5-ui-commercial-activation-workflow.md`](./rate-revenue-phase5-ui-commercial-activation-workflow.md).

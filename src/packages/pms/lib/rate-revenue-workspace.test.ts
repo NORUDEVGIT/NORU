@@ -82,6 +82,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /case "commercial"/);
     assert.match(workspace, /case "promotions"/);
     assert.match(workspace, /case "packages"/);
+    assert.match(workspace, /case "commercial-history"/);
     assert.deepEqual(implementedRevenueViews(), [
       "control-center",
       "rate-plans-reference",
@@ -97,6 +98,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
       "commercial",
       "promotions",
       "packages",
+      "commercial-history",
     ]);
   });
 
@@ -116,7 +118,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.ok(foundationRevenueViews().includes("forecast-detail"));
     assert.ok(foundationRevenueViews().includes("forecast-history"));
     assert.ok(!foundationRevenueViews().includes("packages"));
-    assert.ok(foundationRevenueViews().includes("commercial-history"));
+    assert.ok(!foundationRevenueViews().includes("commercial-history"));
     assert.ok(!foundationRevenueViews().includes("commercial"));
     assert.ok(!foundationRevenueViews().includes("promotions"));
     assert.ok(!foundationRevenueViews().includes("rate-history"));

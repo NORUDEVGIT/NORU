@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { X } from "lucide-react";
 
-import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_PACKAGES_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import type { RevenueWorkspaceView } from "@/packages/pms/lib/rate-revenue-workspace";
 import { getCommercialOperationDetail, listCommercialChangeHistory } from "@/packages/pms/lib/revenue/commercial-history.functions";
 import {
   commercialHistoryActionLabel,
@@ -30,6 +31,21 @@ import { PackageStatusChip } from "./package-status-chip";
 
 type DrawerTab = "overview" | "scope" | "performance" | "activity";
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const update = () => setIsDesktop(media.matches);
+
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return isDesktop;
+}
+
 export function PackageDetailDrawer({
   restaurantId,
   row,
@@ -39,6 +55,7 @@ export function PackageDetailDrawer({
   onClose,
   onAction,
   onActivate,
+  onNavigateView,
 }: {
   restaurantId: string;
   row: PackageWorkspaceRow | null;
@@ -48,8 +65,10 @@ export function PackageDetailDrawer({
   onClose: () => void;
   onAction: (action: PackageActivationAction) => void;
   onActivate: () => void;
+  onNavigateView?: (view: RevenueWorkspaceView) => void;
 }) {
   const [tab, setTab] = useState<DrawerTab>("overview");
+  const isDesktop = useIsDesktop();
   const body = (
     <DrawerBody
       restaurantId={restaurantId}
@@ -62,6 +81,7 @@ export function PackageDetailDrawer({
       onClose={onClose}
       onAction={onAction}
       onActivate={onActivate}
+      onNavigateView={onNavigateView}
     />
   );
 
@@ -70,7 +90,7 @@ export function PackageDetailDrawer({
       <aside className="hidden min-h-[32rem] overflow-hidden rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] xl:block">
         {body}
       </aside>
-      <Sheet open={Boolean(row)} onOpenChange={(next) => !next && onClose()}>
+      <Sheet open={Boolean(row) && !isDesktop} onOpenChange={(next) => !next && onClose()}>
         <SheetContent side="right" className="w-[92vw] max-w-md p-0 xl:hidden">
           {body}
         </SheetContent>
@@ -90,6 +110,7 @@ function DrawerBody({
   onClose,
   onAction,
   onActivate,
+  onNavigateView,
 }: {
   restaurantId: string;
   row: PackageWorkspaceRow | null;
@@ -101,6 +122,7 @@ function DrawerBody({
   onClose: () => void;
   onAction: (action: PackageActivationAction) => void;
   onActivate: () => void;
+  onNavigateView?: (view: RevenueWorkspaceView) => void;
 }) {
   const fetchDetail = useServerFn(getPackageActivationDetail);
   const fetchPerformance = useServerFn(getPackagePerformanceSummary);
@@ -244,7 +266,7 @@ function DrawerBody({
                   Reactivate
                 </button>
               ) : null}
-              <a href={CARD3_HREF} className={commercialOutlineButton()}>
+              <a href={CARD3_PACKAGES_HREF} className={commercialOutlineButton()}>
                 View in Property Setup
               </a>
             </div>
@@ -305,7 +327,7 @@ function DrawerBody({
                   className="w-full rounded-lg border border-[#E8E1D7] bg-white px-3 py-2 text-left"
                   onClick={() => setOperationId(event.operationId)}
                 >
-                  <p className="text-[11px] font-medium text-[#251605]">{commercialHistoryActionLabel(event.actionType)}</p>
+                  <p className="text-[11px] font-medium text-[#251605]">{commercialHistoryActionLabel(event.actionType, event.beforeState, event.afterState)}</p>
                   <p className="text-[10px] text-muted-foreground">
                     {new Date(event.createdAt).toLocaleString()} · {commercialHistoryActorLabel(event)}
                   </p>
@@ -316,9 +338,14 @@ function DrawerBody({
             {operationId && operationQuery.data ? (
               <div className="rounded-lg border border-[#E8E1D7] bg-white p-3">
                 <p className="text-[11px] font-semibold text-[#251605]">Operation detail</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">{commercialHistoryActionLabel(operationQuery.data.actionType)}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{commercialHistoryActionLabel(operationQuery.data.actionType, operationQuery.data.events[0]?.beforeState, operationQuery.data.events[0]?.afterState)}</p>
                 <p className="text-[10px] text-muted-foreground">{operationQuery.data.reason || "No reason provided"}</p>
               </div>
+            ) : null}
+            {onNavigateView ? (
+              <button type="button" className={commercialOutlineButton()} onClick={() => onNavigateView("commercial-history")}>
+                View full history
+              </button>
             ) : null}
           </div>
         ) : null}

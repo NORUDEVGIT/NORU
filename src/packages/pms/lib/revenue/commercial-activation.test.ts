@@ -385,7 +385,7 @@ describe("P5A-04 — apply, history, snapshot, and reservation safety contracts"
     assert.equal(commercialHistoryPageSize(25), 25);
     assert.equal(commercialHistoryPageSize(100), 100);
     assert.equal(commercialHistoryActorLabel({ actorName: null, actorMembershipId: "mem-1" }), "Staff");
-    assert.equal(commercialHistoryActionLabel("promotion_activation_created"), "Promotion activation created");
+    assert.equal(commercialHistoryActionLabel("promotion_activation_created"), "Promotion Activated");
     assert.deepEqual(
       commercialHistoryChangedFields(
         { active: true, validFrom: "2026-10-01", validTo: "2026-10-10", roomTypeIds: [], ratePlanIds: [] },

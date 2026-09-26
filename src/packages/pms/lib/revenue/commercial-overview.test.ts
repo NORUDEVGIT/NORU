@@ -69,8 +69,9 @@ describe("RR-P5-UI-01 commercial overview + promotions", () => {
     assert.ok(implementedRevenueViews().includes("commercial"));
     assert.ok(implementedRevenueViews().includes("promotions"));
     assert.ok(implementedRevenueViews().includes("packages"));
+    assert.ok(implementedRevenueViews().includes("commercial-history"));
     assert.ok(!foundationRevenueViews().includes("packages"));
-    assert.ok(foundationRevenueViews().includes("commercial-history"));
+    assert.ok(!foundationRevenueViews().includes("commercial-history"));
   });
 
   it("does not add forbidden top-level commercial views", () => {
@@ -199,7 +200,7 @@ describe("RR-P5-UI-01 commercial overview + promotions", () => {
     const promotions = readRel("../../components/rates/promotions/promotions-view.tsx");
     const drawer = readRel("../../components/rates/promotions/promotion-detail-drawer.tsx");
     const actions = readRel("../../components/rates/commercial/promotion-activation-action-sheet.tsx");
-    const intent = readRel("../../components/rates/commercial/commercial-activation-intent-sheet.tsx");
+    const workflow = readRel("../../components/rates/commercial-activation/commercial-activation-workflow.tsx");
     const functions = readRel("./commercial-overview.functions.ts");
     const server = readRel("./commercial-overview.server.ts");
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
@@ -227,15 +228,18 @@ describe("RR-P5-UI-01 commercial overview + promotions", () => {
     assert.match(actions, /COMMERCIAL_STALE_COPY/);
     assert.match(actions, /Review/);
     assert.match(actions, /Confirm/);
-    assert.match(intent, /Package/);
-    assert.doesNotMatch(intent, /Coming next/);
+    assert.match(workflow, /Package/);
+    assert.match(workflow, /Promotion/);
+    assert.doesNotMatch(workflow, /Coming next/);
+    assert.match(promotions, /CommercialActivationWorkflow/);
+    assert.match(promotions, /rowKind === "master"/);
     assert.match(functions, /requireRateManager/);
     assert.doesNotMatch(server, /from\("pms_promotions"\)\s*\.update/);
     assert.doesNotMatch(server, /from\("pms_promotions"\)\s*\.insert/);
     assert.match(workspace, /case "commercial"/);
     assert.match(workspace, /case "promotions"/);
     assert.match(workspace, /case "packages"/);
-    assert.doesNotMatch(workspace, /case "commercial-history"/);
+    assert.match(workspace, /case "commercial-history"/);
   });
 
   it("compose uses batched attribution and stay overlap, not N+1 or room_subtotal", () => {
@@ -247,5 +251,7 @@ describe("RR-P5-UI-01 commercial overview + promotions", () => {
     assert.doesNotMatch(server, /from\("pms_promotions"\)[\s\S]*\.update/);
     assert.match(server, /listPackageActivations/);
     assert.match(server, /listCommercialChangeHistory/);
+    assert.match(server, /from\("pms_promotions"\)/);
+    assert.match(server, /loadPromotionMasters/);
   });
 });

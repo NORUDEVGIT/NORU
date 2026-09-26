@@ -97,6 +97,44 @@ async function attachActorNames(
   }));
 }
 
+function applyHistoryFilters(
+  request: ReturnType<DbClient["from"]>,
+  query: {
+    restaurantId: string;
+    from?: string;
+    to?: string;
+    entityType?: CommercialEntityType;
+    actionType?: CommercialActionType;
+    actorId?: string;
+    search?: string;
+    masterId?: string;
+    entityId?: string;
+  },
+) {
+  let next = request.eq("restaurant_id", query.restaurantId);
+  if (query.from) next = next.gte("created_at", `${query.from}T00:00:00.000Z`);
+  if (query.to) next = next.lte("created_at", `${query.to}T23:59:59.999Z`);
+  if (query.entityType) next = next.eq("entity_type", query.entityType);
+  if (query.actionType) next = next.eq("action_type", query.actionType);
+  if (query.actorId) next = next.eq("actor_membership_id", query.actorId);
+  if (query.masterId) next = next.eq("master_id", query.masterId);
+  if (query.entityId) next = next.eq("entity_id", query.entityId);
+  if (query.search) {
+    const term = query.search.replace(/,/g, " ").trim();
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(term);
+    const clauses = [
+      `reason.ilike.%${term}%`,
+      `after_state->>promotionCode.ilike.%${term}%`,
+      `after_state->>promotionName.ilike.%${term}%`,
+      `after_state->>packageCode.ilike.%${term}%`,
+      `after_state->>packageName.ilike.%${term}%`,
+    ];
+    if (uuid) clauses.push(`operation_id.eq.${term}`);
+    next = next.or(clauses.join(","));
+  }
+  return next;
+}
+
 export async function listCommercialChangeHistory(
   db: DbClient,
   query: {
@@ -105,6 +143,8 @@ export async function listCommercialChangeHistory(
     to?: string;
     entityType?: CommercialEntityType;
     actionType?: CommercialActionType;
+    actorId?: string;
+    search?: string;
     masterId?: string;
     entityId?: string;
     page?: number;
@@ -115,18 +155,12 @@ export async function listCommercialChangeHistory(
   const pageSize = commercialHistoryPageSize(query.pageSize);
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
-  let request = db
-    .from("hotel_commercial_change_events")
-    .select(EVENT_SELECT, { count: "exact" })
-    .eq("restaurant_id", query.restaurantId)
+  const request = applyHistoryFilters(
+    db.from("hotel_commercial_change_events").select(EVENT_SELECT, { count: "exact" }),
+    query,
+  )
     .order("created_at", { ascending: false })
     .range(from, to);
-  if (query.from) request = request.gte("created_at", `${query.from}T00:00:00.000Z`);
-  if (query.to) request = request.lte("created_at", `${query.to}T23:59:59.999Z`);
-  if (query.entityType) request = request.eq("entity_type", query.entityType);
-  if (query.actionType) request = request.eq("action_type", query.actionType);
-  if (query.masterId) request = request.eq("master_id", query.masterId);
-  if (query.entityId) request = request.eq("entity_id", query.entityId);
   const result = await request;
   if (result.error) throw new Error(result.error.message);
   return {
@@ -135,6 +169,38 @@ export async function listCommercialChangeHistory(
     pageSize,
     total: result.count ?? 0,
   };
+}
+
+export async function listCommercialHistoryActors(
+  db: DbClient,
+  query: {
+    restaurantId: string;
+    from?: string;
+    to?: string;
+    entityType?: CommercialEntityType;
+  },
+): Promise<Array<{ id: string; name: string }>> {
+  let request = db
+    .from("hotel_commercial_change_events")
+    .select("actor_membership_id")
+    .eq("restaurant_id", query.restaurantId)
+    .not("actor_membership_id", "is", null);
+  if (query.from) request = request.gte("created_at", `${query.from}T00:00:00.000Z`);
+  if (query.to) request = request.lte("created_at", `${query.to}T23:59:59.999Z`);
+  if (query.entityType) request = request.eq("entity_type", query.entityType);
+  const result = await request;
+  if (result.error) throw new Error(result.error.message);
+  const ids = [
+    ...new Set(
+      ((result.data ?? []) as Array<{ actor_membership_id: string | null }>)
+        .map((row) => row.actor_membership_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const names = await loadActorNames(db, query.restaurantId, ids);
+  return ids
+    .map((id) => ({ id, name: names.get(id) ?? "Staff" }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export async function getCommercialOperationDetail(

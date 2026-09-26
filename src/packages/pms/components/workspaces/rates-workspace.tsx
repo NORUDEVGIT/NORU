@@ -21,6 +21,7 @@ import { PickupPaceView } from "@/packages/pms/components/rates/pickup-pace/pick
 import { CommercialOverviewView } from "@/packages/pms/components/rates/commercial-overview/commercial-overview-view";
 import { PromotionsView } from "@/packages/pms/components/rates/promotions/promotions-view";
 import { PackagesView } from "@/packages/pms/components/rates/packages/packages-view";
+import { CommercialHistoryView } from "@/packages/pms/components/rates/commercial-history/commercial-history-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
 import { defaultDemandCalendarRange } from "@/packages/pms/lib/revenue/demand-calendar";
 import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
@@ -230,7 +231,7 @@ export function RatesWorkspace({
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
-    if (requestedView !== "commercial" && requestedView !== "promotions") return;
+    if (requestedView !== "commercial" && requestedView !== "promotions" && requestedView !== "commercial-history") return;
     if (search.from || search.to) return;
     const range = defaultControlCenterRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
@@ -338,6 +339,7 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            onNavigateView={selectView}
           />
         );
       case "packages":
@@ -348,6 +350,15 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            onNavigateView={selectView}
+          />
+        );
+      case "commercial-history":
+        return (
+          <CommercialHistoryView
+            restaurantId={restaurantId}
+            context={context}
+            onNavigateView={selectView}
           />
         );
       default:

@@ -32,6 +32,19 @@ export const COMMERCIAL_ACTIVATION_FOUNDATION_COPY =
   "The activation workflow comes next. Edit, deactivate, or reactivate existing activations from the row menu.";
 
 export type CommercialOperationalStatus = "active" | "upcoming" | "expired" | "inactive";
+export type PromotionDisplayStatus = CommercialOperationalStatus | "not_activated";
+
+export type PromotionWorkspaceMaster = {
+  id: string;
+  code: string;
+  name: string;
+  kind: CommercialPromoKind;
+  value: number;
+  validFrom: string;
+  validTo: string;
+  active: boolean;
+  roomTypeIds: string[];
+};
 
 export type CommercialAttentionKind =
   | "overlap"
@@ -78,6 +91,12 @@ export type CommercialPromotionRow = CommercialPromotionInput & {
   ratePlanScopeLabel: string;
 } & CommercialPerformanceTotals;
 
+export type PromotionWorkspaceRow = CommercialPromotionRow & {
+  rowKey: string;
+  rowKind: "activation" | "master";
+  displayStatus: PromotionDisplayStatus;
+};
+
 export type CommercialAttentionItem = {
   kind: CommercialAttentionKind;
   activationId: string;
@@ -117,7 +136,10 @@ export type PromotionsWorkspace = {
   fromDate: string | null;
   toDate: string | null;
   currency: string;
-  rows: CommercialPromotionRow[];
+  rows: PromotionWorkspaceRow[];
+  masters: PromotionWorkspaceMaster[];
+  hasMasters: boolean;
+  hasActivations: boolean;
 };
 
 export type PromotionPerformanceSummary = CommercialPerformanceTotals & {
@@ -128,7 +150,7 @@ export type PromotionPerformanceSummary = CommercialPerformanceTotals & {
 
 export type CommercialPromotionFilter = {
   search?: string;
-  status?: CommercialOperationalStatus | "all";
+  status?: PromotionDisplayStatus | "all";
   kind?: CommercialPromoKind | "all";
 };
 
@@ -158,7 +180,8 @@ export function commercialKindLabel(kind: CommercialPromoKind | string): string 
   return kind;
 }
 
-export function commercialStatusLabel(status: CommercialOperationalStatus): string {
+export function commercialStatusLabel(status: CommercialOperationalStatus | PromotionDisplayStatus): string {
+  if (status === "not_activated") return "Not Activated";
   if (status === "active") return "Active";
   if (status === "upcoming") return "Upcoming";
   if (status === "expired") return "Expired";
@@ -370,19 +393,77 @@ export function countOperationalStatuses(rows: CommercialPromotionRow[]) {
   };
 }
 
-export function filterPromotionRows(
-  rows: CommercialPromotionRow[],
+export function filterPromotionRows<T extends {
+  name: string;
+  code: string;
+  kind: CommercialPromoKind;
+  operationalStatus: CommercialOperationalStatus | null;
+  displayStatus?: PromotionDisplayStatus;
+}>(
+  rows: T[],
   filter: CommercialPromotionFilter,
-): CommercialPromotionRow[] {
+): T[] {
   const search = (filter.search ?? "").trim().toLowerCase();
   return rows.filter((row) => {
-    if (filter.status && filter.status !== "all" && row.operationalStatus !== filter.status) return false;
+    if (filter.status && filter.status !== "all") {
+      const status = row.displayStatus ?? row.operationalStatus;
+      if (status !== filter.status) return false;
+    }
     if (filter.kind && filter.kind !== "all" && row.kind !== filter.kind) return false;
     if (search && !row.name.toLowerCase().includes(search) && !row.code.toLowerCase().includes(search)) {
       return false;
     }
     return true;
   });
+}
+
+export function toPromotionActivationWorkspaceRow(row: CommercialPromotionRow): PromotionWorkspaceRow {
+  return {
+    ...row,
+    rowKey: `activation:${row.activationId}`,
+    rowKind: "activation",
+    displayStatus: row.operationalStatus,
+  };
+}
+
+export function buildPromotionMasterRow(
+  master: PromotionWorkspaceMaster,
+  options: {
+    roomNames: Map<string, string>;
+    planNames: Map<string, string>;
+  },
+): PromotionWorkspaceRow {
+  return {
+    rowKey: `master:${master.id}`,
+    rowKind: "master",
+    displayStatus: "not_activated",
+    activationId: "",
+    promotionId: master.id,
+    code: master.code,
+    name: master.name,
+    kind: master.kind,
+    value: master.value,
+    active: false,
+    masterActive: master.active,
+    validFrom: master.validFrom,
+    validTo: master.validTo,
+    bookingFrom: "",
+    bookingTo: "",
+    priority: 100,
+    roomTypeIds: [],
+    ratePlanIds: [],
+    masterRoomTypeIds: [...master.roomTypeIds],
+    createdAt: "",
+    updatedAt: "",
+    operationalStatus: "inactive",
+    executable: isV1ExecutablePromoKind(master.kind),
+    overlap: false,
+    overlapActivationIds: [],
+    expiringSoon: false,
+    roomScopeLabel: commercialScopeLabel(master.roomTypeIds, options.roomNames, "all"),
+    ratePlanScopeLabel: "All",
+    ...emptyCommercialPerformance(),
+  };
 }
 
 export function commercialHistoryEntityLabel(entityType: string): string {

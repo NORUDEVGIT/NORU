@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Implementation record for RR-P5-UI-02. Not a Functional Spec. |
 | **Branch** | `feature/guest-preferences-workspace` |
-| **Status** | UI-19 COMPLETE · UI-20 PENDING · UI-21 FOUNDATION |
+| **Status** | UI-19 COMPLETE · UI-20 COMPLETE · UI-21 FOUNDATION |
 
 ## Structure
 
@@ -96,7 +96,7 @@ Stale: “This package activation changed since you reviewed it. Review the late
 
 ## Activate Package
 
-Foundation hand-off for UI-20. The intent sheet lists Property Setup masters and stores `selectedPackageId`. It does not call apply CREATE.
+UI-20 overlay. Activate Package and master-row Activate open `CommercialActivationWorkflow` (`kind=package`). CREATE uses `previewPackageActivation` then `applyPackageActivation`.
 
 ## Ownership
 

@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { MoreHorizontal } from "lucide-react";
 
 import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CommercialActivationWorkflow } from "../commercial-activation/commercial-activation-workflow";
 import { getCommercialOperationDetail } from "@/packages/pms/lib/revenue/commercial-history.functions";
 import {
   commercialHistoryActionLabel,
@@ -31,7 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
-import { CommercialActivationIntentSheet } from "../commercial/commercial-activation-intent-sheet";
 import { CommercialStatusChip } from "../commercial/commercial-status-chip";
 import { PromotionActivationActionSheet, type PromotionActivationAction } from "../commercial/promotion-activation-action-sheet";
 import { commercialGoldButton, commercialOutlineButton } from "../commercial/commercial-ui";
@@ -136,7 +136,7 @@ export function CommercialOverviewView({
         <InventoryState
           state="empty"
           title={COMMERCIAL_EMPTY_COPY}
-          description="Activate a Property Setup promotion when the activation workflow is ready, or open Property Setup to configure masters."
+              description="Activate a Property Setup promotion or package, or open Property Setup to configure masters."
         />
       ) : (
         <>
@@ -248,8 +248,15 @@ export function CommercialOverviewView({
           ) : null}
 
           <section className="rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#251605]">Recent Commercial Activity</h3>
-            <p className="text-[10px] text-muted-foreground">Preview of hotel_commercial_change_events. Full history comes later.</p>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-[#251605]">Recent Commercial Activity</h3>
+                <p className="text-[10px] text-muted-foreground">Preview of hotel_commercial_change_events.</p>
+              </div>
+              <button type="button" className={commercialOutlineButton()} onClick={() => onNavigateView("commercial-history")}>
+                View full history
+              </button>
+            </div>
             {data.recentActivity.length === 0 ? (
               <p className="mt-3 text-xs text-muted-foreground">No commercial activation changes have been recorded yet.</p>
             ) : (
@@ -262,7 +269,7 @@ export function CommercialOverviewView({
                       onClick={() => setOperationId(row.operationId)}
                     >
                       <p className="text-[11px] font-medium text-[#251605]">
-                        {commercialHistoryActionLabel(row.actionType)} · {commercialHistoryEntityLabel(row.entityType)}
+                        {commercialHistoryActionLabel(row.actionType, row.beforeState, row.afterState)} · {commercialHistoryEntityLabel(row.entityType)}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         {new Date(row.createdAt).toLocaleString()} · {commercialHistoryActorLabel(row)}
@@ -293,20 +300,15 @@ export function CommercialOverviewView({
         </a>
       </section>
 
-      <CommercialActivationIntentSheet
+      <CommercialActivationWorkflow
         open={intentOpen}
-        title="Create Activation"
-        entity="chooser"
+        onOpenChange={setIntentOpen}
+        restaurantId={restaurantId}
         canManage={canManage}
-        onClose={() => setIntentOpen(false)}
-        onChoosePromotion={() => {
-          setIntentOpen(false);
-          onNavigateView("promotions");
-        }}
-        onChoosePackage={() => {
-          setIntentOpen(false);
-          onNavigateView("packages");
-        }}
+        source="overview"
+        currency={data.currency}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
       />
       {action ? (
         <PromotionActivationActionSheet

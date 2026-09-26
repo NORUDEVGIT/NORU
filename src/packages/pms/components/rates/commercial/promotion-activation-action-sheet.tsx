@@ -103,6 +103,7 @@ export function PromotionActivationActionSheet({
     void queryClient.invalidateQueries({ queryKey: ["promotion-activation-detail"] });
     void queryClient.invalidateQueries({ queryKey: ["promotion-performance"] });
     void queryClient.invalidateQueries({ queryKey: ["commercial-activation-history"] });
+    void queryClient.invalidateQueries({ queryKey: ["commercial-change-history"] });
   }
 
   function payload() {

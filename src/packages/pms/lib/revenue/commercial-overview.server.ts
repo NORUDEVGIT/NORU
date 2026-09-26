@@ -13,8 +13,10 @@ import {
   summarizePackagePerformance,
 } from "./commercial-packages-ui.ts";
 import {
+  activationMatchesScopeFilter,
   buildCommercialAttention,
   buildCommercialPromotionRows,
+  buildPromotionMasterRow,
   commercialOperationalStatus,
   commercialPerformancePeriodLabel,
   COMMERCIAL_PERFORMANCE_NOTE,
@@ -23,12 +25,15 @@ import {
   reservationStayOverlapsRange,
   stayNightsOverlappingRange,
   summarizeAttributedPerformance,
+  toPromotionActivationWorkspaceRow,
   type CommercialOverviewWorkspace,
   type CommercialPerformanceTotals,
   type CommercialPromotionInput,
+  type PromotionWorkspaceMaster,
   type PromotionsWorkspace,
   type PromotionPerformanceSummary,
 } from "./commercial-overview.ts";
+import type { CommercialPromoKind } from "./commercial-engine.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbClient = any;
@@ -186,15 +191,57 @@ async function loadPromotionInputs(db: DbClient, restaurantId: string): Promise<
     });
 }
 
+async function loadPromotionMasters(
+  db: DbClient,
+  restaurantId: string,
+): Promise<PromotionWorkspaceMaster[]> {
+  const [masters, rooms] = await Promise.all([
+    db
+      .from("pms_promotions")
+      .select("id, code, name, promo_kind, promo_value, valid_from, valid_to, active")
+      .eq("restaurant_id", restaurantId),
+    db.from("pms_promotion_room_types").select("promotion_id, room_type_id").eq("restaurant_id", restaurantId),
+  ]);
+  if (masters.error) throw new Error(masters.error.message);
+  if (rooms.error) throw new Error(rooms.error.message);
+  const roomMap = new Map<string, string[]>();
+  for (const row of (rooms.data ?? []) as Array<{ promotion_id: string; room_type_id: string }>) {
+    const current = roomMap.get(row.promotion_id) ?? [];
+    current.push(row.room_type_id);
+    roomMap.set(row.promotion_id, current);
+  }
+  return ((masters.data ?? []) as Array<{
+    id: string;
+    code: string;
+    name: string;
+    promo_kind: CommercialPromoKind;
+    promo_value: number | string;
+    valid_from: string;
+    valid_to: string;
+    active: boolean | null;
+  }>).map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    kind: row.promo_kind,
+    value: Number(row.promo_value),
+    validFrom: row.valid_from,
+    validTo: row.valid_to,
+    active: row.active !== false,
+    roomTypeIds: roomMap.get(row.id) ?? [],
+  }));
+}
+
 async function loadPromotionWorkspaceRows(db: DbClient, query: CommercialOverviewQuery) {
-  const [property, inputs, stays, names] = await Promise.all([
+  const [property, inputs, stays, names, masters] = await Promise.all([
     loadRevenueProperty(db, query.restaurantId, ""),
     loadPromotionInputs(db, query.restaurantId),
     loadAttributedStays(db, query.restaurantId),
     loadCatalogNames(db, query.restaurantId),
+    loadPromotionMasters(db, query.restaurantId),
   ]);
   const filteredStays = filterAttributedStays(stays, query);
-  const rows = buildCommercialPromotionRows(inputs, {
+  const activationRows = buildCommercialPromotionRows(inputs, {
     businessDate: property.businessDate,
     performanceByActivation: performanceByActivation(filteredStays, query),
     roomNames: names.roomNames,
@@ -202,9 +249,29 @@ async function loadPromotionWorkspaceRows(db: DbClient, query: CommercialOvervie
     roomTypeId: query.roomTypeId,
     ratePlanId: query.ratePlanId,
   });
+  const activatedIds = new Set(activationRows.map((row) => row.promotionId));
+  const masterRows = masters
+    .filter((master) => !activatedIds.has(master.id))
+    .map((master) => buildPromotionMasterRow(master, names))
+    .filter((row) =>
+      activationMatchesScopeFilter(
+        {
+          roomTypeIds: row.roomTypeIds,
+          ratePlanIds: row.ratePlanIds,
+          masterRoomTypeIds: row.masterRoomTypeIds,
+        },
+        query.roomTypeId,
+        query.ratePlanId,
+      ),
+    );
+  const rows = [...activationRows.map(toPromotionActivationWorkspaceRow), ...masterRows].sort(
+    (left, right) => left.code.localeCompare(right.code) || left.rowKey.localeCompare(right.rowKey),
+  );
   return {
     property,
     rows,
+    activationRows,
+    masters,
     filteredStays,
     names,
   };
@@ -214,7 +281,7 @@ export async function loadCommercialOverviewWorkspace(
   db: DbClient,
   query: CommercialOverviewQuery,
 ): Promise<CommercialOverviewWorkspace> {
-  const [{ property, rows, filteredStays }, packages, packageStays, history] = await Promise.all([
+  const [{ property, activationRows, filteredStays }, packages, packageStays, history] = await Promise.all([
     loadPromotionWorkspaceRows(db, query),
     listPackageActivations(db, { restaurantId: query.restaurantId }),
     loadPackageAttributedStays(db, query.restaurantId),
@@ -244,9 +311,9 @@ export async function loadCommercialOverviewWorkspace(
     toDate: query.toDate ?? null,
     currency: property.currency,
     kpis: {
-      activePromotions: rows.filter((row) => row.operationalStatus === "active").length,
-      upcomingPromotions: rows.filter((row) => row.operationalStatus === "upcoming").length,
-      expiringSoon: rows.filter((row) => row.expiringSoon).length,
+      activePromotions: activationRows.filter((row) => row.operationalStatus === "active").length,
+      upcomingPromotions: activationRows.filter((row) => row.operationalStatus === "upcoming").length,
+      expiringSoon: activationRows.filter((row) => row.expiringSoon).length,
       activePackages,
     },
     performance: {
@@ -260,10 +327,10 @@ export async function loadCommercialOverviewWorkspace(
       periodLabel: commercialPerformancePeriodLabel(query.fromDate, query.toDate),
       note: PACKAGE_PERFORMANCE_NOTE,
     },
-    activePromotions: rows.filter((row) => row.operationalStatus === "active"),
-    attention: buildCommercialAttention(rows),
+    activePromotions: activationRows.filter((row) => row.operationalStatus === "active"),
+    attention: buildCommercialAttention(activationRows),
     recentActivity: history.rows,
-    empty: rows.length === 0 && packages.length === 0,
+    empty: activationRows.length === 0 && packages.length === 0,
   };
 }
 
@@ -271,13 +338,16 @@ export async function loadPromotionsWorkspace(
   db: DbClient,
   query: CommercialOverviewQuery,
 ): Promise<PromotionsWorkspace> {
-  const { property, rows } = await loadPromotionWorkspaceRows(db, query);
+  const { property, rows, masters, activationRows } = await loadPromotionWorkspaceRows(db, query);
   return {
     businessDate: property.businessDate,
     fromDate: query.fromDate ?? null,
     toDate: query.toDate ?? null,
     currency: property.currency,
     rows,
+    masters,
+    hasMasters: masters.length > 0,
+    hasActivations: activationRows.length > 0,
   };
 }
 

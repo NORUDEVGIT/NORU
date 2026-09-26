@@ -1,5 +1,5 @@
 /**
- * P5A-04 — Commercial history display helpers for UI-21.
+ * P5A-04 / UI-21 — Commercial history display helpers.
  */
 
 import {
@@ -24,8 +24,13 @@ export {
 };
 
 export const COMMERCIAL_HISTORY_EMPTY_COPY =
-  "No commercial activation changes have been recorded since commercial history was enabled.";
+  "No commercial activation changes have been recorded yet.";
 export const COMMERCIAL_HISTORY_REASON_EMPTY = "No reason provided";
+export const COMMERCIAL_HISTORY_IMMUTABLE_COPY = "Commercial history is immutable.";
+export const COMMERCIAL_HISTORY_VALUE_NOT_SET = "Not set";
+export const COMMERCIAL_HISTORY_VALUE_ALL_ELIGIBLE = "All eligible";
+export const COMMERCIAL_HISTORY_VALUE_NONE = "None";
+export const COMMERCIAL_HISTORY_STATUS_NOT_ACTIVATED = "Not activated";
 
 export type CommercialHistoryRow = {
   id: string;
@@ -65,16 +70,74 @@ export type CommercialOperationDetail = {
   events: CommercialHistoryRow[];
 };
 
-export function commercialHistoryActionLabel(actionType: string): string {
-  if (actionType === "promotion_activation_created") return "Promotion activation created";
-  if (actionType === "promotion_activation_edited") return "Promotion activation edited";
-  if (actionType === "promotion_activation_deactivated") return "Promotion activation deactivated";
-  if (actionType === "promotion_activation_scope_changed") return "Promotion scope changed";
-  if (actionType === "package_activation_created") return "Package activation created";
-  if (actionType === "package_activation_edited") return "Package activation edited";
-  if (actionType === "package_activation_deactivated") return "Package activation deactivated";
-  if (actionType === "package_activation_scope_changed") return "Package scope changed";
+function asText(value: unknown): string | null {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text === "" ? null : text;
+}
+
+function asIdList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+export function commercialHistoryIsReactivated(
+  actionType: string,
+  before: Record<string, unknown> | null | undefined,
+  after: Record<string, unknown> | null | undefined,
+): boolean {
+  return (
+    (actionType === "promotion_activation_edited" || actionType === "package_activation_edited") &&
+    before?.active === false &&
+    after?.active === true
+  );
+}
+
+export function commercialHistoryActionLabel(
+  actionType: string,
+  before?: Record<string, unknown> | null,
+  after?: Record<string, unknown> | null,
+): string {
+  if (commercialHistoryIsReactivated(actionType, before, after)) {
+    return actionType.startsWith("package_") ? "Package Reactivated" : "Promotion Reactivated";
+  }
+  if (actionType === "promotion_activation_created") return "Promotion Activated";
+  if (actionType === "promotion_activation_edited") return "Promotion Edited";
+  if (actionType === "promotion_activation_deactivated") return "Promotion Deactivated";
+  if (actionType === "promotion_activation_scope_changed") return "Promotion Scope Changed";
+  if (actionType === "package_activation_created") return "Package Activated";
+  if (actionType === "package_activation_edited") return "Package Edited";
+  if (actionType === "package_activation_deactivated") return "Package Deactivated";
+  if (actionType === "package_activation_scope_changed") return "Package Scope Changed";
   return actionType;
+}
+
+export function commercialHistoryEntityTypeLabel(entityType: string): string {
+  if (entityType === "promotion_activation") return "Promotion Activation";
+  if (entityType === "package_activation") return "Package Activation";
+  return entityType;
+}
+
+export function commercialHistoryEntityFallback(entityType: string): string {
+  return commercialHistoryEntityTypeLabel(entityType);
+}
+
+export function commercialHistoryEntityFromState(
+  entityType: string,
+  state: Record<string, unknown> | null | undefined,
+): { name: string; code: string | null } {
+  if (entityType === "promotion_activation") {
+    const name = asText(state?.promotionName);
+    const code = asText(state?.promotionCode);
+    if (name || code) return { name: name ?? code!, code };
+    return { name: "Promotion Activation", code: null };
+  }
+  if (entityType === "package_activation") {
+    const name = asText(state?.packageName);
+    const code = asText(state?.packageCode);
+    if (name || code) return { name: name ?? code!, code };
+    return { name: "Package Activation", code: null };
+  }
+  return { name: commercialHistoryEntityFallback(entityType), code: null };
 }
 
 export function commercialHistorySourceLabel(source: string): string {
@@ -94,6 +157,67 @@ export function commercialHistoryPageSize(value: number | undefined): number {
   return Math.min(Math.max(value, 1), COMMERCIAL_HISTORY_MAX_PAGE_SIZE);
 }
 
+export function commercialHistoryFieldLabel(field: CommercialChangedField | string): string {
+  if (field === "validity") return "Stay dates";
+  if (field === "bookingWindow") return "Booking Window";
+  if (field === "priority") return "Priority";
+  if (field === "active") return "Status";
+  if (field === "reason") return "Reason";
+  if (field === "roomTypes") return "Room Types";
+  if (field === "ratePlans") return "Rate Plans";
+  if (field === "validFrom") return "Stay Valid From";
+  if (field === "validTo") return "Stay Valid To";
+  return field;
+}
+
+export function commercialHistoryChangesSummary(fields: readonly CommercialChangedField[]): string {
+  if (fields.length === 0) return "Activated";
+  const labels = fields.map((field) => {
+    if (field === "validity") return "Stay dates";
+    if (field === "roomTypes") return "room scope";
+    if (field === "ratePlans") return "rate-plan scope";
+    if (field === "bookingWindow") return "Booking window";
+    if (field === "active") return "Status";
+    if (field === "priority") return "Priority";
+    if (field === "reason") return "Reason";
+    return field;
+  });
+  return labels.join(", ");
+}
+
+export function commercialHistoryStatusLabel(
+  value: unknown,
+  empty: "not-set" | "not-activated" = "not-set",
+): string {
+  if (value === true) return "Active";
+  if (value === false) return "Inactive";
+  return empty === "not-activated" ? COMMERCIAL_HISTORY_STATUS_NOT_ACTIVATED : COMMERCIAL_HISTORY_VALUE_NOT_SET;
+}
+
+export function commercialHistoryScalarLabel(value: unknown): string {
+  const text = asText(value);
+  return text ?? COMMERCIAL_HISTORY_VALUE_NOT_SET;
+}
+
+export function commercialHistoryRangeLabel(from: unknown, to: unknown): string {
+  const start = asText(from);
+  const end = asText(to);
+  if (!start && !end) return COMMERCIAL_HISTORY_VALUE_NOT_SET;
+  if (start && end) return `${start} – ${end}`;
+  return start ?? end ?? COMMERCIAL_HISTORY_VALUE_NOT_SET;
+}
+
+export function commercialHistoryScopeNames(
+  ids: unknown,
+  names: Map<string, string>,
+): string {
+  const list = asIdList(ids);
+  if (list.length === 0) return COMMERCIAL_HISTORY_VALUE_ALL_ELIGIBLE;
+  const labels = list.map((id) => names.get(id)).filter((name): name is string => Boolean(name));
+  if (labels.length === 0) return list.length === 1 ? "1 selected" : `${list.length} selected`;
+  return labels.join(", ");
+}
+
 function asState(value: Record<string, unknown> | null): CommercialActivationState | null {
   if (!value) return null;
   return {
@@ -104,8 +228,8 @@ function asState(value: Record<string, unknown> | null): CommercialActivationSta
     bookingTo: value.bookingTo == null ? null : String(value.bookingTo),
     priority: value.priority == null ? null : Number(value.priority),
     reason: value.reason == null ? null : String(value.reason),
-    roomTypeIds: Array.isArray(value.roomTypeIds) ? value.roomTypeIds.map(String) : [],
-    ratePlanIds: Array.isArray(value.ratePlanIds) ? value.ratePlanIds.map(String) : [],
+    roomTypeIds: asIdList(value.roomTypeIds),
+    ratePlanIds: asIdList(value.ratePlanIds),
   };
 }
 
@@ -116,4 +240,10 @@ export function commercialHistoryChangedFields(
   const next = asState(after);
   if (!next) return [];
   return commercialChangedFields(asState(before), next);
+}
+
+export function sanitizeCommercialHistorySearch(value: string | undefined): string | undefined {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return undefined;
+  return trimmed.replace(/[%_(),.*]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || undefined;
 }

@@ -13,6 +13,7 @@ export const CARD3_SUBTITLE = "Configure pricing, taxes, payments & billing";
 export const CARD3_PURPOSE = "Taxes, Policies & Fees, Rates & Meal Plans, Payment Methods.";
 export const CARD3_HASH = "financial-commercial";
 export const CARD3_HREF = `${SET1_HUB_HREF}#${CARD3_HASH}`;
+export const CARD3_DOMAIN_QUERY = "card3Domain";
 export const CARD3_PROGRAMME_ID = "rates-guest-rules";
 export const CARD3_SIDEBAR_OUT =
   "Card 3 uses full-screen PMS top-nav chrome. The old Settings left sidebar is out.";
@@ -81,6 +82,20 @@ export type Card3Domain = (typeof CARD3_DOMAINS)[number];
 
 export function card3DomainById(id: string): Card3Domain | undefined {
   return CARD3_DOMAINS.find((domain) => domain.id === id);
+}
+
+export function card3DomainHref(domainId: Card3DomainId): string {
+  return `${SET1_HUB_HREF}?${CARD3_DOMAIN_QUERY}=${encodeURIComponent(domainId)}#${CARD3_HASH}`;
+}
+
+export const CARD3_PROMOTIONS_HREF = card3DomainHref("revenue-commercial-rules");
+export const CARD3_PACKAGES_HREF = card3DomainHref("meal-plans-packages");
+
+export function card3DomainFromSearch(search: string): Card3DomainId | null {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const value = new URLSearchParams(raw).get(CARD3_DOMAIN_QUERY);
+  if (!value) return null;
+  return card3DomainById(value) ? value : null;
 }
 
 export function isCard3WorkspaceHash(hash: string): boolean {

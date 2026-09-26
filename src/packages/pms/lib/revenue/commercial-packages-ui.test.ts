@@ -42,16 +42,15 @@ function master(overrides: Partial<PackageWorkspaceMaster> = {}): PackageWorkspa
 }
 
 describe("RR-P5-UI-02 packages workspace", () => {
-  it("marks packages implemented and keeps commercial-history foundation", () => {
+  it("marks packages implemented and keeps commercial-history as a later workspace", () => {
     assert.ok(implementedRevenueViews().includes("packages"));
     assert.ok(implementedRevenueViews().includes("commercial"));
     assert.ok(implementedRevenueViews().includes("promotions"));
     assert.ok(!foundationRevenueViews().includes("packages"));
-    assert.ok(foundationRevenueViews().includes("commercial-history"));
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /case "packages"/);
     assert.match(workspace, /<PackagesView/);
-    assert.doesNotMatch(workspace, /case "commercial-history"/);
+    assert.match(workspace, /case "commercial-history"/);
   });
 
   it("computes operational KPIs and honest package performance", () => {
@@ -215,6 +214,8 @@ describe("RR-P5-UI-02 packages workspace", () => {
     const overview = readRel("../../components/rates/commercial-overview/commercial-overview-view.tsx");
 
     assert.match(view, /Activate Package/);
+    assert.match(view, /CommercialActivationWorkflow/);
+    assert.match(view, /initialKind="package"/);
     assert.match(view, /Search name or code/);
     assert.match(view, /PACKAGE_EMPTY_ACTIVATIONS|PACKAGE_EMPTY_MASTERS/);
     assert.doesNotMatch(view, /Create Package/);

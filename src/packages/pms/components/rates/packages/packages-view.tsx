@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { MoreHorizontal } from "lucide-react";
 
-import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_PACKAGES_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CommercialActivationWorkflow } from "../commercial-activation/commercial-activation-workflow";
 import { PACKAGE_TYPES, PACKAGE_TYPE_LABELS } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { getPackagesWorkspace } from "@/packages/pms/lib/revenue/commercial-packages.functions";
 import {
@@ -28,9 +29,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import { CommercialActivationIntentSheet } from "../commercial/commercial-activation-intent-sheet";
 import { PackageActivationActionSheet, type PackageActivationAction } from "../commercial/package-activation-action-sheet";
 import { commercialGoldButton, commercialOutlineButton } from "../commercial/commercial-ui";
+import type { RevenueWorkspaceView } from "@/packages/pms/lib/rate-revenue-workspace";
 import { PackageDetailDrawer } from "./package-detail-drawer";
 import { PackageStatusChip } from "./package-status-chip";
 
@@ -40,12 +41,14 @@ export function PackagesView({
   access,
   roomTypes,
   ratePlans,
+  onNavigateView,
 }: {
   restaurantId: string;
   context: RevenueContext;
   access: RevenueAccess;
   roomTypes: RevenueRoomType[];
   ratePlans: RevenueRatePlan[];
+  onNavigateView?: (view: RevenueWorkspaceView) => void;
 }) {
   const canManage = access.canViewCommercial;
   const fetchPackages = useServerFn(getPackagesWorkspace);
@@ -137,7 +140,7 @@ export function PackagesView({
                   Activate Package
                 </button>
               ) : null}
-              <a href={CARD3_HREF} className={commercialOutlineButton()}>
+              <a href={CARD3_PACKAGES_HREF} className={commercialOutlineButton()}>
                 View Property Setup
               </a>
             </div>
@@ -168,7 +171,7 @@ export function PackagesView({
                 <InventoryState
                   state="empty"
                   title={PACKAGE_EMPTY_ACTIVATIONS}
-                  description="Activate a configured package from Property Setup when the activation workflow is ready."
+                  description="Activate a configured package from Property Setup using Activate Package."
                 />
               ) : null}
 
@@ -335,23 +338,26 @@ export function PackagesView({
           onClose={() => setSelectedKey(null)}
           onAction={(next) => selected?.activationId && setAction({ id: selected.activationId, action: next })}
           onActivate={() => selected && openActivate(selected.packageId)}
+          onNavigateView={onNavigateView}
         />
       </div>
 
-      <CommercialActivationIntentSheet
+      <CommercialActivationWorkflow
         open={intentOpen}
-        title="Activate Package"
-        entity="package"
-        canManage={canManage}
-        masters={data.masters}
-        currency={data.currency}
-        selectedPackageId={pendingPackageId}
-        onSelectPackage={setPendingPackageId}
-        onClose={() => {
-          setIntentOpen(false);
-          setPendingPackageId(null);
+        onOpenChange={(next) => {
+          setIntentOpen(next);
+          if (!next) setPendingPackageId(null);
         }}
-        onChoosePromotion={() => setIntentOpen(false)}
+        restaurantId={restaurantId}
+        canManage={canManage}
+        source="packages"
+        currency={data.currency}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
+        initialKind="package"
+        initialPackageId={pendingPackageId}
+        packageMasters={data.masters}
+        onActivated={(result) => setSelectedKey(`activation:${result.activationId}`)}
       />
       {action ? (
         <PackageActivationActionSheet
@@ -396,7 +402,7 @@ function PackageRowMenu({
       <DropdownMenuContent align="end" className="min-w-44">
         <DropdownMenuItem onClick={onView}>View Details</DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href={CARD3_HREF}>View in Property Setup</a>
+          <a href={CARD3_PACKAGES_HREF}>View in Property Setup</a>
         </DropdownMenuItem>
         {canManage && row.kind === "master" ? (
           <DropdownMenuItem onClick={onActivate}>Activate</DropdownMenuItem>

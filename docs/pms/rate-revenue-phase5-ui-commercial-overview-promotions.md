@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Implementation record for RR-P5-UI-01. Not a Functional Spec. |
 | **Branch** | `feature/guest-preferences-workspace` |
-| **Status** | UI-17 COMPLETE · UI-18 COMPLETE · UI-19 COMPLETE · UI-20 PENDING · UI-21 FOUNDATION |
+| **Status** | UI-17 COMPLETE · UI-18 COMPLETE · UI-19 COMPLETE · UI-20 COMPLETE · UI-21 FOUNDATION |
 
 ## Views
 

@@ -3,16 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { MoreHorizontal } from "lucide-react";
 
-import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_PROMOTIONS_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
 import { getPromotionsWorkspace } from "@/packages/pms/lib/revenue/commercial-overview.functions";
 import {
   COMMERCIAL_EMPTY_COPY,
   commercialKindLabel,
+  commercialStatusLabel,
   commercialValueLabel,
   filterPromotionRows,
-  type CommercialOperationalStatus,
-  type CommercialPromotionRow,
+  type PromotionDisplayStatus,
+  type PromotionWorkspaceRow,
 } from "@/packages/pms/lib/revenue/commercial-overview";
+import { CommercialActivationWorkflow } from "../commercial-activation/commercial-activation-workflow";
 import type { CommercialPromoKind } from "@/packages/pms/lib/revenue/commercial-engine";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
@@ -26,10 +28,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import { CommercialActivationIntentSheet } from "../commercial/commercial-activation-intent-sheet";
 import { CommercialStatusChip } from "../commercial/commercial-status-chip";
 import { PromotionActivationActionSheet, type PromotionActivationAction } from "../commercial/promotion-activation-action-sheet";
 import { commercialGoldButton, commercialOutlineButton } from "../commercial/commercial-ui";
+import type { RevenueWorkspaceView } from "@/packages/pms/lib/rate-revenue-workspace";
 import { PromotionDetailDrawer } from "./promotion-detail-drawer";
 
 export function PromotionsView({
@@ -38,12 +40,14 @@ export function PromotionsView({
   access,
   roomTypes,
   ratePlans,
+  onNavigateView,
 }: {
   restaurantId: string;
   context: RevenueContext;
   access: RevenueAccess;
   roomTypes: RevenueRoomType[];
   ratePlans: RevenueRatePlan[];
+  onNavigateView?: (view: RevenueWorkspaceView) => void;
 }) {
   const canManage = access.canViewCommercial;
   const fetchPromotions = useServerFn(getPromotionsWorkspace);
@@ -69,17 +73,26 @@ export function PromotionsView({
     retry: false,
   });
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<CommercialOperationalStatus | "all">("all");
+  const [status, setStatus] = useState<PromotionDisplayStatus | "all">("all");
   const [kind, setKind] = useState<CommercialPromoKind | "all">("all");
   const [intentOpen, setIntentOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pendingPromotionId, setPendingPromotionId] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [action, setAction] = useState<{ id: string; action: PromotionActivationAction } | null>(null);
 
   const rows = useMemo(
     () => filterPromotionRows(query.data?.rows ?? [], { search, status, kind }),
     [query.data?.rows, search, status, kind],
   );
-  const selected = rows.find((row) => row.activationId === selectedId) ?? query.data?.rows.find((row) => row.activationId === selectedId) ?? null;
+  const selected =
+    rows.find((row) => row.rowKey === selectedKey) ??
+    query.data?.rows.find((row) => row.rowKey === selectedKey) ??
+    null;
+
+  function openActivate(promotionId?: string) {
+    setPendingPromotionId(promotionId ?? null);
+    setIntentOpen(true);
+  }
 
   if (query.isLoading) {
     return (
@@ -117,11 +130,11 @@ export function PromotionsView({
             </div>
             <div className="flex flex-wrap gap-2">
               {canManage ? (
-                <button type="button" className={commercialGoldButton()} onClick={() => setIntentOpen(true)}>
+                <button type="button" className={commercialGoldButton()} onClick={() => openActivate()}>
                   Activate Promotion
                 </button>
               ) : null}
-              <a href={CARD3_HREF} className={commercialOutlineButton()}>
+              <a href={CARD3_PROMOTIONS_HREF} className={commercialOutlineButton()}>
                 View Property Setup
               </a>
             </div>
@@ -138,7 +151,7 @@ export function PromotionsView({
             />
             <select
               value={status}
-              onChange={(event) => setStatus(event.target.value as CommercialOperationalStatus | "all")}
+              onChange={(event) => setStatus(event.target.value as PromotionDisplayStatus | "all")}
               aria-label="Status"
               className="h-8 rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
             >
@@ -147,6 +160,7 @@ export function PromotionsView({
               <option value="upcoming">Upcoming</option>
               <option value="expired">Expired</option>
               <option value="inactive">Inactive</option>
+              <option value="not_activated">Not Activated</option>
             </select>
             <select
               value={kind}
@@ -165,7 +179,7 @@ export function PromotionsView({
             <InventoryState
               state="empty"
               title={COMMERCIAL_EMPTY_COPY}
-              description="Activate a configured promotion from Property Setup when the activation workflow is ready."
+              description="Activate a configured promotion from Property Setup using Activate Promotion."
             />
           ) : rows.length === 0 ? (
             <InventoryState state="empty" title="No promotions match these filters." />
@@ -185,11 +199,11 @@ export function PromotionsView({
                   <tbody>
                     {rows.map((row) => (
                       <tr
-                        key={row.activationId}
-                        className={selectedId === row.activationId ? "border-t border-[#E8E1D7] bg-[#F8F1E5]" : "border-t border-[#E8E1D7]"}
+                        key={row.rowKey}
+                        className={selectedKey === row.rowKey ? "border-t border-[#E8E1D7] bg-[#F8F1E5]" : "border-t border-[#E8E1D7]"}
                       >
                         <td className="px-2 py-1.5 text-[10px] text-[#251605]">
-                          <button type="button" className="text-left" onClick={() => setSelectedId(row.activationId)}>
+                          <button type="button" className="text-left" onClick={() => setSelectedKey(row.rowKey)}>
                             <p className="font-medium">{row.name}</p>
                             <p className="text-muted-foreground">{row.code}</p>
                           </button>
@@ -201,21 +215,36 @@ export function PromotionsView({
                           ) : null}
                         </td>
                         <td className="px-2 py-1.5 text-[10px] text-[#251605]">{commercialValueLabel(row.kind, row.value, money)}</td>
-                        <td className="px-2 py-1.5"><CommercialStatusChip status={row.operationalStatus} overlap={row.overlap} /></td>
-                        <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">{row.validFrom} – {row.validTo}</td>
-                        <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">{row.bookingFrom} – {row.bookingTo}</td>
+                        <td className="px-2 py-1.5">
+                          {row.displayStatus === "not_activated" ? (
+                            <span className="inline-flex rounded-full border border-[#DED7CD] bg-white px-2 py-0.5 text-[10px] font-medium text-[#6B4A0A]">
+                              {commercialStatusLabel(row.displayStatus)}
+                            </span>
+                          ) : (
+                            <CommercialStatusChip status={row.operationalStatus} overlap={row.overlap} />
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">
+                          {row.rowKind === "master" ? `${row.validFrom} – ${row.validTo}` : `${row.validFrom} – ${row.validTo}`}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">
+                          {row.rowKind === "master" ? "—" : `${row.bookingFrom} – ${row.bookingTo}`}
+                        </td>
                         <td className="px-2 py-1.5 text-[10px] text-[#251605]">{row.roomScopeLabel}</td>
                         <td className="px-2 py-1.5 text-[10px] text-[#251605]">{row.ratePlanScopeLabel}</td>
-                        <td className="px-2 py-1.5 text-[10px] text-[#251605]">{row.priority}</td>
+                        <td className="px-2 py-1.5 text-[10px] text-[#251605]">{row.rowKind === "master" ? "—" : row.priority}</td>
                         <td className="px-2 py-1.5 text-[10px] text-[#251605]">{row.bookings}</td>
                         <td className="px-2 py-1.5 text-[10px] text-[#251605]">{money(row.discountAmount)}</td>
-                        <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">{new Date(row.updatedAt).toLocaleString()}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">
+                          {row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "—"}
+                        </td>
                         <td className="px-2 py-1.5">
                           <PromotionRowMenu
                             row={row}
                             canManage={canManage}
-                            onView={() => setSelectedId(row.activationId)}
-                            onAction={(next) => setAction({ id: row.activationId, action: next })}
+                            onView={() => setSelectedKey(row.rowKey)}
+                            onAction={(next) => row.activationId && setAction({ id: row.activationId, action: next })}
+                            onActivate={() => openActivate(row.promotionId)}
                           />
                         </td>
                       </tr>
@@ -225,21 +254,28 @@ export function PromotionsView({
               </div>
               <div className="space-y-2 md:hidden">
                 {rows.map((row) => (
-                  <article key={row.activationId} className="rounded-xl border border-[#E8E1D7] bg-card p-3">
+                  <article key={row.rowKey} className="rounded-xl border border-[#E8E1D7] bg-card p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <button type="button" className="text-left" onClick={() => setSelectedId(row.activationId)}>
+                      <button type="button" className="text-left" onClick={() => setSelectedKey(row.rowKey)}>
                         <p className="text-sm font-semibold text-[#251605]">{row.name}</p>
                         <p className="text-[10px] text-muted-foreground">{row.code}</p>
                       </button>
                       <PromotionRowMenu
                         row={row}
                         canManage={canManage}
-                        onView={() => setSelectedId(row.activationId)}
-                        onAction={(next) => setAction({ id: row.activationId, action: next })}
+                        onView={() => setSelectedKey(row.rowKey)}
+                        onAction={(next) => row.activationId && setAction({ id: row.activationId, action: next })}
+                        onActivate={() => openActivate(row.promotionId)}
                       />
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1">
-                      <CommercialStatusChip status={row.operationalStatus} overlap={row.overlap} />
+                      {row.displayStatus === "not_activated" ? (
+                        <span className="inline-flex rounded-full border border-[#DED7CD] bg-white px-2 py-0.5 text-[10px] font-medium text-[#6B4A0A]">
+                          {commercialStatusLabel(row.displayStatus)}
+                        </span>
+                      ) : (
+                        <CommercialStatusChip status={row.operationalStatus} overlap={row.overlap} />
+                      )}
                       {!row.executable ? (
                         <span className="rounded-full border border-[#DED7CD] px-2 py-0.5 text-[10px] text-[#6B4A0A]">
                           Not available in V1
@@ -261,18 +297,29 @@ export function PromotionsView({
           context={context}
           canManage={canManage}
           currency={data.currency}
-          onClose={() => setSelectedId(null)}
-          onAction={(next) => selected && setAction({ id: selected.activationId, action: next })}
+          onClose={() => setSelectedKey(null)}
+          onAction={(next) => selected?.activationId && setAction({ id: selected.activationId, action: next })}
+          onActivate={() => selected && openActivate(selected.promotionId)}
+          onNavigateView={onNavigateView}
         />
       </div>
 
-      <CommercialActivationIntentSheet
+      <CommercialActivationWorkflow
         open={intentOpen}
-        title="Activate Promotion"
-        entity="promotion"
+        onOpenChange={(next) => {
+          setIntentOpen(next);
+          if (!next) setPendingPromotionId(null);
+        }}
+        restaurantId={restaurantId}
         canManage={canManage}
-        onClose={() => setIntentOpen(false)}
-        onChoosePromotion={() => setIntentOpen(false)}
+        source="promotions"
+        currency={data.currency}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
+        initialKind="promotion"
+        initialPromotionId={pendingPromotionId}
+        promotionMasters={data.masters}
+        onActivated={(result) => setSelectedKey(`activation:${result.activationId}`)}
       />
       {action ? (
         <PromotionActivationActionSheet
@@ -294,11 +341,13 @@ function PromotionRowMenu({
   canManage,
   onView,
   onAction,
+  onActivate,
 }: {
-  row: CommercialPromotionRow;
+  row: PromotionWorkspaceRow;
   canManage: boolean;
   onView: () => void;
   onAction: (action: PromotionActivationAction) => void;
+  onActivate: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -313,18 +362,19 @@ function PromotionRowMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
         <DropdownMenuItem onClick={onView}>View Details</DropdownMenuItem>
-        {!row.executable ? (
-          <DropdownMenuItem asChild>
-            <a href={CARD3_HREF}>View in Property Setup</a>
-          </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href={CARD3_PROMOTIONS_HREF}>View in Property Setup</a>
+        </DropdownMenuItem>
+        {canManage && row.rowKind === "master" ? (
+          <DropdownMenuItem onClick={onActivate}>Activate</DropdownMenuItem>
         ) : null}
-        {canManage && row.executable && (row.operationalStatus === "active" || row.operationalStatus === "upcoming") ? (
+        {canManage && row.rowKind === "activation" && row.executable && (row.operationalStatus === "active" || row.operationalStatus === "upcoming") ? (
           <>
             <DropdownMenuItem onClick={() => onAction("edit")}>Edit Activation</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAction("deactivate")}>Deactivate</DropdownMenuItem>
           </>
         ) : null}
-        {canManage && row.executable && row.operationalStatus === "inactive" ? (
+        {canManage && row.rowKind === "activation" && row.executable && row.operationalStatus === "inactive" ? (
           <DropdownMenuItem onClick={() => onAction("reactivate")}>Reactivate</DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

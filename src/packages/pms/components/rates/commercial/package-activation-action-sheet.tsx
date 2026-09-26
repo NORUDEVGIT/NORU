@@ -101,6 +101,7 @@ export function PackageActivationActionSheet({
     void queryClient.invalidateQueries({ queryKey: ["package-activation-detail"] });
     void queryClient.invalidateQueries({ queryKey: ["package-performance"] });
     void queryClient.invalidateQueries({ queryKey: ["commercial-activation-history"] });
+    void queryClient.invalidateQueries({ queryKey: ["commercial-change-history"] });
   }
 
   function payload() {
