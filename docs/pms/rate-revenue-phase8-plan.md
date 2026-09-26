@@ -55,6 +55,27 @@ flowchart TD
 
 ---
 
+### Step 2B: P8-STEP-02B — Backend Correctness Fixes Before UI Implementation
+*Status: COMPLETE*
+
+**Key Correctness Fixes:**
+1. **Dedicated Complete Audit Export Path (`loadUnifiedRevenueAuditForExport`):**
+   - Unified audit CSV export uses an independent, unpaginated server loader (`loadUnifiedRevenueAuditForExport`) instead of the paginated UI reader.
+   - UI pagination remains strictly clamped to `MAX_AUDIT_PAGE_SIZE = 100`.
+   - Complete CSV export streams all matching records up to `MAX_AUDIT_EXPORT_ROWS = 10,000` without intermediate pagination boundaries.
+   - If matching rows exceed 10,000, explicitly throws `AUDIT_EXPORT_TOO_LARGE` rather than silently truncating.
+2. **Room Type Breakdown Under Non-Inventory Dimension Filters:**
+   - When any non-inventory dimension filter is active (`ratePlanId`, `marketSegmentId`, `commercialSourceId`, `technicalOrigin`), Room Type breakdown rows set `availableRoomNights = null`, `occupancyPct = null`, `revpar = null`, and `inventoryMetricSupport = "NOT_MEANINGFUL"`.
+   - ADR remains valid (`bookedRoomRevenue / soldRoomNights`).
+   - When filtering solely by property or `roomTypeId`, Room Type inventory metrics remain fully supported.
+3. **Defense Against Mixed-Currency Monetary Aggregation:**
+   - Because NORU has no authoritative FX conversion engine, monetary values across differing currencies must never be summed.
+   - If any included priced reservation has a currency different from property currency, throws `REVENUE_ANALYTICS_MIXED_CURRENCY`.
+4. **Unsupported Sales Channel Filter Protection:**
+   - Because no stable `salesChannelId` linkage exists on `hotel_reservations`, passing a non-null `salesChannelId` explicitly throws `REVENUE_ANALYTICS_SALES_CHANNEL_UNSUPPORTED` instead of silently ignoring the filter.
+
+---
+
 ### Step 3: P8-STEP-03 — UI-31–40 Workspaces & Rate & Revenue Final Closeout
 *Status: PENDING*
 

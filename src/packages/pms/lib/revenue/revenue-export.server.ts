@@ -1,23 +1,21 @@
 /**
- * Revenue & Audit CSV Export Server Models (P8-STEP-02).
+ * Revenue & Audit CSV Export Server Models (P8-STEP-02 & P8-STEP-02B).
  *
  * Implements RFC-4180 compliant CSV exports with spreadsheet formula injection protection.
- * Enforces strict 10,000 row safety bounds for audit logs.
+ * Enforces strict 10,000 row safety bounds for audit logs using dedicated full-result reader.
  */
 
-import { rateError } from "../rates.server.ts";
 import type { RevenuePerformanceQuery } from "./revenue-analytics.ts";
 import {
   loadCommercialPerformance,
   loadRevenuePerformanceOverview,
 } from "./revenue-analytics.server.ts";
 import type { UnifiedRevenueAuditFilter } from "./revenue-audit.ts";
-import { loadUnifiedRevenueAudit } from "./revenue-audit.server.ts";
+import { loadUnifiedRevenueAuditForExport } from "./revenue-audit.server.ts";
 import {
   buildCommercialPerformanceCsv,
   buildRevenuePerformanceCsv,
   buildUnifiedAuditCsv,
-  MAX_AUDIT_EXPORT_ROWS,
 } from "./revenue-export.ts";
 
 export * from "./revenue-export.ts";
@@ -66,19 +64,9 @@ export async function exportUnifiedRevenueAudit(
   db: DbClient,
   filter: UnifiedRevenueAuditFilter,
 ): Promise<ExportCsvResult> {
-  // Query all matching entries with page=1, pageSize=MAX_AUDIT_EXPORT_ROWS + 1 to check limit
-  const result = await loadUnifiedRevenueAudit(db, {
-    ...filter,
-    page: 1,
-    pageSize: MAX_AUDIT_EXPORT_ROWS + 1,
-  });
-
-  if (result.total > MAX_AUDIT_EXPORT_ROWS) {
-    throw rateError("AUDIT_EXPORT_TOO_LARGE");
-  }
-
-  const csv = buildUnifiedAuditCsv(result.entries);
+  const entries = await loadUnifiedRevenueAuditForExport(db, filter);
+  const csv = buildUnifiedAuditCsv(entries);
   const timestampStr = new Date().toISOString().slice(0, 10);
   const filename = `revenue-audit-export-${timestampStr}.csv`;
-  return { filename, csv, rowCount: result.entries.length };
+  return { filename, csv, rowCount: entries.length };
 }

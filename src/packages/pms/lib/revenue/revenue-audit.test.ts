@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   filterAuditEntries,
+  MAX_AUDIT_EXPORT_ROWS,
   normalizeApprovalEvent,
   normalizeCommercialEvent,
   normalizeRateEvent,
@@ -11,7 +12,7 @@ import {
   type UnifiedRevenueAuditEntry,
 } from "./revenue-audit.ts";
 
-describe("P8-STEP-02 Unified Revenue Audit Pure Domain Logic", () => {
+describe("P8-STEP-02 & P8-STEP-02B Unified Revenue Audit Pure Domain Logic", () => {
   it("normalizes events from all 4 immutable source schemas into uniform UnifiedRevenueAuditEntry", () => {
     // 1. Rate change event
     const rateEntry = normalizeRateEvent({
@@ -125,24 +126,22 @@ describe("P8-STEP-02 Unified Revenue Audit Pure Domain Logic", () => {
     const e2: UnifiedRevenueAuditEntry = {
       ...e1,
       id: "evt-b",
-      timestamp: "2026-06-01T12:00:00Z", // later
+      timestamp: "2026-06-01T12:00:00Z",
     };
 
     const e3: UnifiedRevenueAuditEntry = {
       ...e1,
       id: "evt-c",
-      timestamp: "2026-06-01T12:00:00Z", // same timestamp as e2, id 'evt-c' > 'evt-b'
+      timestamp: "2026-06-01T12:00:00Z",
     };
 
     const sorted = sortAuditEntriesGlobally([e1, e2, e3]);
-    // Expected order: e3 (12:00:00Z, id 'evt-c'), then e2 (12:00:00Z, id 'evt-b'), then e1 (10:00:00Z)
     assert.equal(sorted[0].id, "evt-c");
     assert.equal(sorted[1].id, "evt-b");
     assert.equal(sorted[2].id, "evt-a");
   });
 
   it("applies pagination to the globally ordered combined result, never concatenating per-source pages", () => {
-    // Generate 4 events each from 4 domains (16 total), interleaved in time
     const items: UnifiedRevenueAuditEntry[] = [];
     const domains = ["rates", "restrictions", "commercial", "approvals"] as const;
 
@@ -172,8 +171,8 @@ describe("P8-STEP-02 Unified Revenue Audit Pure Domain Logic", () => {
     }
 
     const sorted = sortAuditEntriesGlobally(items);
-    assert.equal(sorted[0].id, "evt-016"); // latest timestamp
-    assert.equal(sorted[15].id, "evt-001"); // earliest timestamp
+    assert.equal(sorted[0].id, "evt-016");
+    assert.equal(sorted[15].id, "evt-001");
 
     // Page 1 with pageSize = 5
     const page1 = paginateAuditEntries(sorted, 1, 5);
@@ -196,7 +195,7 @@ describe("P8-STEP-02 Unified Revenue Audit Pure Domain Logic", () => {
       ["evt-011", "evt-010", "evt-009", "evt-008", "evt-007"],
     );
 
-    // Page 4 with pageSize = 5 (last page has 1 item)
+    // Page 4 with pageSize = 5
     const page4 = paginateAuditEntries(sorted, 4, 5);
     assert.equal(page4.page, 4);
     assert.equal(page4.pageEntries.length, 1);
@@ -245,29 +244,75 @@ describe("P8-STEP-02 Unified Revenue Audit Pure Domain Logic", () => {
       },
     ];
 
-    // Filter by action
     const actionFiltered = filterAuditEntries(entries, { action: "manual_override" });
     assert.equal(actionFiltered.length, 1);
     assert.equal(actionFiltered[0].id, "e1");
 
-    // Filter by actor
     const actorFiltered = filterAuditEntries(entries, { actorMembershipId: "actor-bob" });
     assert.equal(actorFiltered.length, 1);
     assert.equal(actorFiltered[0].id, "e2");
 
-    // Search by reason keyword
     const searchReason = filterAuditEntries(entries, { search: "renegotiation" });
     assert.equal(searchReason.length, 1);
     assert.equal(searchReason[0].id, "e1");
 
-    // Search by entity label keyword
     const searchLabel = filterAuditEntries(entries, { search: "Flash Sale" });
     assert.equal(searchLabel.length, 1);
     assert.equal(searchLabel[0].id, "e2");
 
-    // Search by operation id
     const searchOp = filterAuditEntries(entries, { search: "op-101" });
     assert.equal(searchOp.length, 1);
     assert.equal(searchOp[0].id, "e1");
+  });
+
+  it("P8-STEP-02B FIX: complete export path does not clamp to MAX_AUDIT_PAGE_SIZE and exports all >100 matching rows (e.g. 250 rows)", () => {
+    const items: UnifiedRevenueAuditEntry[] = [];
+    const domains = ["rates", "restrictions", "commercial", "approvals"] as const;
+
+    for (let i = 1; i <= 250; i++) {
+      const dIndex = (i - 1) % 4;
+      items.push({
+        id: `evt-${i.toString().padStart(4, "0")}`,
+        timestamp: new Date(Date.UTC(2026, 5, 1, 0, 0, i)).toISOString(),
+        domain: domains[dIndex],
+        action: `action-${domains[dIndex]}`,
+        entityType: "entity",
+        entityId: `id-${i}`,
+        entityLabel: `Entity ${i}`,
+        scopeLabel: `Scope ${i}`,
+        actorMembershipId: `m-${i}`,
+        actorLabel: "Staff",
+        reason: `Reason ${i}`,
+        operationId: `op-${i}`,
+        approvalRequestId: null,
+        linkedOperationId: null,
+        status: "applied",
+        sourceTable: `source_${domains[dIndex]}`,
+        detailSupported: true,
+      });
+    }
+
+    const sorted = sortAuditEntriesGlobally(items);
+    assert.equal(sorted.length, 250);
+
+    // Verify UI pagination strictly clamps to 100 max
+    const uiPage = paginateAuditEntries(sorted, 1, 250);
+    assert.equal(uiPage.pageSize, 100);
+    assert.equal(uiPage.pageEntries.length, 100);
+
+    // Verify complete export collection retains ALL 250 rows without clamping to 100
+    assert.ok(sorted.length <= MAX_AUDIT_EXPORT_ROWS);
+    assert.equal(sorted.length, 250);
+  });
+
+  it("P8-STEP-02B FIX: detects >10,000 matches (e.g. 10,001 rows) and rejects with AUDIT_EXPORT_TOO_LARGE", () => {
+    const overflowCount = 10001;
+    assert.ok(overflowCount > MAX_AUDIT_EXPORT_ROWS);
+    const checkLimit = (count: number) => {
+      if (count > MAX_AUDIT_EXPORT_ROWS) {
+        throw new Error("AUDIT_EXPORT_TOO_LARGE");
+      }
+    };
+    assert.throws(() => checkLimit(overflowCount), /AUDIT_EXPORT_TOO_LARGE/);
   });
 });

@@ -2,8 +2,10 @@
  * Revenue Performance & Commercial Analytics Pure Domain Engine (P8-STEP-02).
  *
  * Implements authoritative stay-date allocation from nightly_rate_snapshot.
- * Non-inventory dimension filters strictly disable Occupancy and RevPAR.
+ * Non-inventory dimension filters strictly disable Occupancy and RevPAR across Summary, Daily Trend, and Room Type breakdown.
  * All reservation counts reflect COUNT(DISTINCT reservation_id).
+ * Mixed currency monetary aggregation strictly blocked.
+ * Unsupported sales channel filter strictly rejected.
  * Pure functions: client/server safe, no database or server dependencies.
  */
 
@@ -54,14 +56,15 @@ export type RoomTypeBreakdownRow = {
   roomTypeId: string;
   roomTypeName: string;
   soldRoomNights: number;
-  availableRoomNights: number;
+  availableRoomNights: number | null;
   bookedRoomRevenue: number;
   pricedRoomNights: number;
   reservationCount: number;
-  occupancyPct: number;
+  occupancyPct: number | null;
   adr: number;
-  revpar: number;
+  revpar: number | null;
   shareOfRevenue: number;
+  inventoryMetricSupport: "SUPPORTED" | "NOT_MEANINGFUL";
 };
 
 export type RatePlanBreakdownRow = {
@@ -255,6 +258,12 @@ export function computeRevenuePerformanceOverview(options: {
   propertyCurrency: string;
 }): RevenuePerformanceOverview {
   const { query, reservations, activeRooms, roomTypes, ratePlans, propertyCurrency } = options;
+
+  // Reject unsupported sales channel filter
+  if (query.salesChannelId) {
+    throw new Error("REVENUE_ANALYTICS_SALES_CHANNEL_UNSUPPORTED");
+  }
+
   const { fromDate, toDate, dayCount } = validateAnalyticsRange(query.fromDate, query.toDate);
   const stayDates = eachDate(fromDate, toDate, REVENUE_ANALYTICS_MAX_RANGE_DAYS);
   const dateSet = new Set(stayDates);
@@ -280,15 +289,6 @@ export function computeRevenuePerformanceOverview(options: {
     query.technicalOrigin ||
     query.salesChannelId,
   );
-
-  // Detect currency mismatch
-  let mixedCurrencyDetected = false;
-  for (const r of reservations) {
-    if (r.currency && r.currency !== propertyCurrency) {
-      mixedCurrencyDetected = true;
-      break;
-    }
-  }
 
   // Daily stay aggregation buckets
   type DayBucket = {
@@ -331,6 +331,34 @@ export function computeRevenuePerformanceOverview(options: {
   let totalLengthOfStayNights = 0;
 
   for (const r of reservations) {
+    // Expand stay nights for this reservation: [arrival_date, departure_date)
+    const stayNightsInRange: string[] = [];
+    let cur = r.arrival_date;
+    while (cur < r.departure_date) {
+      if (dateSet.has(cur)) {
+        stayNightsInRange.push(cur);
+      }
+      cur = shiftIsoDate(cur, 1);
+    }
+
+    if (stayNightsInRange.length === 0) continue;
+
+    // Parse nightly snapshot
+    const nightlyList = parseSnapshot(r.nightly_rate_snapshot);
+    const nightlyMap = new Map<string, number>();
+    for (const item of nightlyList) {
+      nightlyMap.set(item.date, item.rate);
+    }
+
+    // Mixed Currency Defense: Check if reservation currency differs from property currency
+    // If priced stay nights exist in range with differing currency, abort monetary aggregation!
+    if (r.currency && r.currency.toUpperCase() !== propertyCurrency.toUpperCase()) {
+      const hasPricedNightInRange = stayNightsInRange.some((d) => nightlyMap.has(d));
+      if (hasPricedNightInRange) {
+        throw new Error("REVENUE_ANALYTICS_MIXED_CURRENCY");
+      }
+    }
+
     // Lead time & Length of stay
     const arrivalTime = new Date(`${r.arrival_date}T00:00:00Z`).getTime();
     const departureTime = new Date(`${r.departure_date}T00:00:00Z`).getTime();
@@ -348,26 +376,7 @@ export function computeRevenuePerformanceOverview(options: {
     }
     totalLengthOfStayNights += losNights;
 
-    // Expand stay nights for this reservation: [arrival_date, departure_date)
-    const stayNightsInRange: string[] = [];
-    let cur = r.arrival_date;
-    while (cur < r.departure_date) {
-      if (dateSet.has(cur)) {
-        stayNightsInRange.push(cur);
-      }
-      cur = shiftIsoDate(cur, 1);
-    }
-
-    if (stayNightsInRange.length === 0) continue;
-
     overallDistinctResIds.add(r.id);
-
-    // Parse snapshot
-    const nightlyList = parseSnapshot(r.nightly_rate_snapshot);
-    const nightlyMap = new Map<string, number>();
-    for (const item of nightlyList) {
-      nightlyMap.set(item.date, item.rate);
-    }
 
     const typeKey = r.room_type_id;
     const planKey = r.rate_plan_id || "unassigned";
@@ -577,19 +586,37 @@ export function computeRevenuePerformanceOverview(options: {
   // Breakdowns
   const totalRev = overallBookedRoomRevenue || 1;
 
-  // 1. Room Types Breakdown
+  // 1. Room Types Breakdown (Occupancy & RevPAR strictly null when non-inventory filter applied)
   const roomTypesBreakdown: RoomTypeBreakdownRow[] = roomTypes.map((rt) => {
     const b = typeBuckets.get(rt.id);
     const sold = b?.sold ?? 0;
     const rev = b?.revenue ?? 0;
     const priced = b?.priced ?? 0;
     const resCount = b?.resIds.size ?? 0;
+    const bAdr = sold > 0 ? round2(rev / sold) : 0;
+    const share = round2((rev / totalRev) * 100);
+
+    if (hasNonInventoryFilter) {
+      return {
+        roomTypeId: rt.id,
+        roomTypeName: rt.name,
+        soldRoomNights: sold,
+        availableRoomNights: null,
+        bookedRoomRevenue: round2(rev),
+        pricedRoomNights: priced,
+        reservationCount: resCount,
+        occupancyPct: null,
+        adr: bAdr,
+        revpar: null,
+        shareOfRevenue: share,
+        inventoryMetricSupport: "NOT_MEANINGFUL",
+      };
+    }
+
     const typeActiveRooms = roomsByType.get(rt.id) ?? 0;
     const typeAvailable = typeActiveRooms * dayCount;
     const occ = typeAvailable > 0 ? round2((sold / typeAvailable) * 100) : 0;
-    const bAdr = sold > 0 ? round2(rev / sold) : 0;
     const bRevpar = typeAvailable > 0 ? round2(rev / typeAvailable) : 0;
-    const share = round2((rev / totalRev) * 100);
 
     return {
       roomTypeId: rt.id,
@@ -603,10 +630,11 @@ export function computeRevenuePerformanceOverview(options: {
       adr: bAdr,
       revpar: bRevpar,
       shareOfRevenue: share,
+      inventoryMetricSupport: "SUPPORTED",
     };
   });
 
-  // 2. Rate Plans Breakdown
+  // 2. Rate Plans Breakdown (Occupancy/RevPAR strictly NOT_MEANINGFUL)
   const ratePlansBreakdown: RatePlanBreakdownRow[] = [...planBuckets.values()].map((b) => {
     const bAdr = b.sold > 0 ? round2(b.revenue / b.sold) : 0;
     const share = round2((b.revenue / totalRev) * 100);
@@ -714,7 +742,7 @@ export function computeRevenuePerformanceOverview(options: {
       unpricedSoldNights,
       legacyDimensionCoverage,
       availabilityIncludesOperationallyUnavailableRooms: true,
-      mixedCurrencyDetected,
+      mixedCurrencyDetected: false,
     },
   };
 }

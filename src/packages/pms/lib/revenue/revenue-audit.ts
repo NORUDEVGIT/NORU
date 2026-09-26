@@ -77,6 +77,7 @@ export type AuditOperationDetail = {
 
 export const DEFAULT_AUDIT_PAGE_SIZE = 25;
 export const MAX_AUDIT_PAGE_SIZE = 100;
+export const MAX_AUDIT_EXPORT_ROWS = 10000;
 
 export function sortAuditEntriesGlobally(
   entries: UnifiedRevenueAuditEntry[],

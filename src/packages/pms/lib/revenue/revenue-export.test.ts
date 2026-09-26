@@ -231,4 +231,37 @@ describe("P8-STEP-02 Revenue CSV Export Foundation", () => {
   it("enforces maximum audit export safety bound of 10,000 rows", () => {
     assert.equal(MAX_AUDIT_EXPORT_ROWS, 10000);
   });
+
+  it("P8-STEP-02B FIX: exports all 250 rows without clamping to visible 100-row page", () => {
+    const entries: UnifiedRevenueAuditEntry[] = [];
+    const domains = ["rates", "restrictions", "commercial", "approvals"] as const;
+
+    for (let i = 1; i <= 250; i++) {
+      entries.push({
+        id: `evt-${i.toString().padStart(4, "0")}`,
+        timestamp: `2026-06-01T12:00:${String(i % 60).padStart(2, "0")}Z`,
+        domain: domains[i % 4],
+        action: "action",
+        entityType: "entity",
+        entityId: `id-${i}`,
+        entityLabel: `Entity ${i}`,
+        scopeLabel: `Scope ${i}`,
+        actorMembershipId: `m-${i}`,
+        actorLabel: "Staff",
+        reason: `Reason ${i}`,
+        operationId: `op-${i}`,
+        approvalRequestId: null,
+        linkedOperationId: null,
+        status: "applied",
+        sourceTable: "hotel_rate_change_events",
+        detailSupported: true,
+      });
+    }
+
+    const csv = buildUnifiedAuditCsv(entries);
+    const lines = csv.split("\r\n");
+    // 1 header + 250 data rows = 251 lines
+    assert.equal(lines.length, 251);
+    assert.equal(entries.length, 250);
+  });
 });

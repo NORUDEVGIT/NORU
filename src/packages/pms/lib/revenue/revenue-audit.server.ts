@@ -1,5 +1,5 @@
 /**
- * Unified Revenue Audit Server Read Models (P8-STEP-02).
+ * Unified Revenue Audit Server Read Models (P8-STEP-02 & P8-STEP-02B).
  *
  * Implements globally ordered audit pagination across all 4 immutable source tables:
  * - hotel_rate_change_events
@@ -7,26 +7,21 @@
  * - hotel_commercial_change_events
  * - hotel_revenue_approval_events (joined with requests)
  *
- * Guarantees:
- * 1. Consistent filtering across all sources.
- * 2. Uniform normalization into UnifiedRevenueAuditEntry.
- * 3. Authoritative global ordering: timestamp DESC, id DESC.
- * 4. Exact global pagination boundaries & total counts.
- * 5. Bidirectional linking between approval requests and applied domain operations.
- *
- * Performance Tradeoff Note:
- * The bounded merge strategy retrieves filtered event candidates across active source tables,
- * normalizes them in memory, and performs global sorting and slicing. This mathematically prevents
- * page boundary anomalies, duplicates, and broken totals inherent in concatenating isolated table pages.
- * Batch resolution of actor names and approval links is performed strictly for the sliced page.
+ * Provides dedicated complete export reader loadUnifiedRevenueAuditForExport()
+ * with 10,000 row safety bounds and zero silent truncation.
  */
 
 import { rateError } from "../rates.server.ts";
 import {
-  DEFAULT_AUDIT_PAGE_SIZE,
-  MAX_AUDIT_PAGE_SIZE,
+  filterAuditEntries,
+  MAX_AUDIT_EXPORT_ROWS,
+  normalizeApprovalEvent,
+  normalizeCommercialEvent,
+  normalizeRateEvent,
+  normalizeRestrictionEvent,
+  paginateAuditEntries,
+  sortAuditEntriesGlobally,
   type AuditOperationDetail,
-  type UnifiedRevenueAuditDomain,
   type UnifiedRevenueAuditEntry,
   type UnifiedRevenueAuditFilter,
   type UnifiedRevenueAuditResult,
@@ -80,18 +75,12 @@ async function loadActorLabels(
   return names;
 }
 
-export async function loadUnifiedRevenueAudit(
+export async function fetchAndNormalizeUnifiedAudit(
   db: DbClient,
   query: UnifiedRevenueAuditFilter,
-): Promise<UnifiedRevenueAuditResult> {
+): Promise<UnifiedRevenueAuditEntry[]> {
   const restaurantId = query.restaurantId;
-  const page = Math.max(1, Number(query.page) || 1);
-  const pageSize = Math.min(
-    MAX_AUDIT_PAGE_SIZE,
-    Math.max(1, Number(query.pageSize) || DEFAULT_AUDIT_PAGE_SIZE),
-  );
   const domainFilter = query.domain ?? "all";
-
   const fromIso = query.fromDate ? `${query.fromDate}T00:00:00.000Z` : null;
   const toIso = query.toDate ? `${query.toDate}T23:59:59.999Z` : null;
 
@@ -128,47 +117,8 @@ export async function loadUnifiedRevenueAudit(
         const { data, error } = await q;
         if (error) throw rateError(error.message);
 
-        for (const row of (data ?? []) as Array<{
-          id: string;
-          created_at: string;
-          action_type: string;
-          rate_plan_id: string;
-          room_type_id: string;
-          stay_date: string;
-          previous_effective_rate: number | string;
-          new_effective_rate: number | string;
-          currency: string;
-          reason: string | null;
-          actor_membership_id: string | null;
-          operation_id: string;
-          hotel_rate_plans: { code: string; name: string } | null;
-          room_types: { name: string } | null;
-        }>) {
-          const planLabel = row.hotel_rate_plans?.name || row.hotel_rate_plans?.code || "Rate Plan";
-          const roomLabel = row.room_types?.name ? ` • ${row.room_types.name}` : "";
-          const prev = Number(row.previous_effective_rate);
-          const next = Number(row.new_effective_rate);
-          const deltaStr = prev !== next ? ` (${prev} → ${next} ${row.currency})` : "";
-
-          candidates.push({
-            id: row.id,
-            timestamp: row.created_at,
-            domain: "rates",
-            action: row.action_type,
-            entityType: "rate_plan",
-            entityId: row.rate_plan_id,
-            entityLabel: planLabel,
-            scopeLabel: `${row.stay_date}${roomLabel}${deltaStr}`,
-            actorMembershipId: row.actor_membership_id,
-            actorLabel: "Staff member",
-            reason: row.reason,
-            operationId: row.operation_id,
-            approvalRequestId: null,
-            linkedOperationId: null,
-            status: "applied",
-            sourceTable: "hotel_rate_change_events",
-            detailSupported: true,
-          });
+        for (const row of (data ?? []) as Parameters<typeof normalizeRateEvent>[0][]) {
+          candidates.push(normalizeRateEvent(row));
         }
       })(),
     );
@@ -198,42 +148,8 @@ export async function loadUnifiedRevenueAudit(
         const { data, error } = await q;
         if (error) throw rateError(error.message);
 
-        for (const row of (data ?? []) as Array<{
-          id: string;
-          created_at: string;
-          action_type: string;
-          rate_plan_id: string;
-          room_type_id: string;
-          stay_date: string;
-          reason: string | null;
-          actor_membership_id: string | null;
-          operation_id: string;
-          hotel_rate_plans: { code: string; name: string } | null;
-          room_types: { name: string } | null;
-        }>) {
-          const planLabel =
-            row.hotel_rate_plans?.name || row.hotel_rate_plans?.code || "Restriction";
-          const roomLabel = row.room_types?.name ? ` • ${row.room_types.name}` : "";
-
-          candidates.push({
-            id: row.id,
-            timestamp: row.created_at,
-            domain: "restrictions",
-            action: row.action_type,
-            entityType: "rate_restriction",
-            entityId: row.rate_plan_id,
-            entityLabel: planLabel,
-            scopeLabel: `${row.stay_date}${roomLabel}`,
-            actorMembershipId: row.actor_membership_id,
-            actorLabel: "Staff member",
-            reason: row.reason,
-            operationId: row.operation_id,
-            approvalRequestId: null,
-            linkedOperationId: null,
-            status: "applied",
-            sourceTable: "hotel_rate_restriction_change_events",
-            detailSupported: true,
-          });
+        for (const row of (data ?? []) as Parameters<typeof normalizeRestrictionEvent>[0][]) {
+          candidates.push(normalizeRestrictionEvent(row));
         }
       })(),
     );
@@ -261,39 +177,8 @@ export async function loadUnifiedRevenueAudit(
         const { data, error } = await q;
         if (error) throw rateError(error.message);
 
-        for (const row of (data ?? []) as Array<{
-          id: string;
-          created_at: string;
-          action_type: string;
-          entity_type: string;
-          entity_id: string;
-          master_id: string | null;
-          reason: string | null;
-          actor_membership_id: string | null;
-          operation_id: string;
-        }>) {
-          const entityLabel = row.master_id || row.entity_id || "Commercial item";
-          const scopeLabel = row.entity_type.replace(/_/g, " ");
-
-          candidates.push({
-            id: row.id,
-            timestamp: row.created_at,
-            domain: "commercial",
-            action: row.action_type,
-            entityType: row.entity_type,
-            entityId: row.entity_id,
-            entityLabel,
-            scopeLabel,
-            actorMembershipId: row.actor_membership_id,
-            actorLabel: "Staff member",
-            reason: row.reason,
-            operationId: row.operation_id,
-            approvalRequestId: null,
-            linkedOperationId: null,
-            status: "applied",
-            sourceTable: "hotel_commercial_change_events",
-            detailSupported: true,
-          });
+        for (const row of (data ?? []) as Parameters<typeof normalizeCommercialEvent>[0][]) {
+          candidates.push(normalizeCommercialEvent(row));
         }
       })(),
     );
@@ -324,48 +209,8 @@ export async function loadUnifiedRevenueAudit(
         const { data, error } = await q;
         if (error) throw rateError(error.message);
 
-        for (const row of (data ?? []) as Array<{
-          id: string;
-          created_at: string;
-          event_type: string;
-          actor_id: string;
-          reason: string | null;
-          approval_request_id: string;
-          hotel_revenue_approval_requests: {
-            domain: string;
-            action_type: string;
-            entity_type: string;
-            entity_id: string | null;
-            status: string;
-            request_reason: string | null;
-            review_reason: string | null;
-            display_snapshot: { summary?: string } | null;
-            applied_operation_id: string | null;
-          };
-        }>) {
-          const req = row.hotel_revenue_approval_requests;
-          const label = req?.display_snapshot?.summary || req?.action_type || "Approval Request";
-          const scopeLabel = `${req?.domain ?? "Revenue"} (${req?.status ?? "unknown"})`;
-
-          candidates.push({
-            id: row.id,
-            timestamp: row.created_at,
-            domain: "approvals",
-            action: row.event_type,
-            entityType: req?.entity_type || req?.domain || "approval_request",
-            entityId: req?.entity_id || row.approval_request_id,
-            entityLabel: label,
-            scopeLabel,
-            actorMembershipId: row.actor_id,
-            actorLabel: "Staff member",
-            reason: row.reason || req?.review_reason || req?.request_reason || null,
-            operationId: req?.applied_operation_id ?? null,
-            approvalRequestId: row.approval_request_id,
-            linkedOperationId: req?.applied_operation_id ?? null,
-            status: req?.status ?? "unknown",
-            sourceTable: "hotel_revenue_approval_events",
-            detailSupported: true,
-          });
+        for (const row of (data ?? []) as Parameters<typeof normalizeApprovalEvent>[0][]) {
+          candidates.push(normalizeApprovalEvent(row));
         }
       })(),
     );
@@ -373,75 +218,75 @@ export async function loadUnifiedRevenueAudit(
 
   await Promise.all(fetchTasks);
 
-  // Apply optional search filter across candidate items
-  let filtered = candidates;
-  if (query.search && query.search.trim()) {
-    const s = query.search.trim().toLowerCase();
-    filtered = candidates.filter((item) => {
-      return (
-        item.action.toLowerCase().includes(s) ||
-        item.entityLabel.toLowerCase().includes(s) ||
-        item.scopeLabel.toLowerCase().includes(s) ||
-        (item.reason && item.reason.toLowerCase().includes(s)) ||
-        (item.operationId && item.operationId.toLowerCase().includes(s)) ||
-        (item.approvalRequestId && item.approvalRequestId.toLowerCase().includes(s))
-      );
-    });
-  }
-
-  // Global sort: timestamp DESC, id DESC
-  filtered.sort((a, b) => {
-    const timeDiff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-    if (timeDiff !== 0) return timeDiff;
-    return b.id.localeCompare(a.id);
+  const filtered = filterAuditEntries(candidates, {
+    search: query.search,
+    action: query.action,
+    actorMembershipId: query.actorMembershipId,
   });
 
-  const total = filtered.length;
-  const totalPages = Math.ceil(total / pageSize) || 1;
-  const offset = (page - 1) * pageSize;
-  const pageEntries = filtered.slice(offset, offset + pageSize);
+  return sortAuditEntriesGlobally(filtered);
+}
 
-  // Batch resolve actor labels and approval linkage for page entries ONLY
-  if (pageEntries.length > 0) {
-    const actorIds = pageEntries.map((e) => e.actorMembershipId);
-    const operationIds = [
-      ...new Set(pageEntries.map((e) => e.operationId).filter((op): op is string => Boolean(op))),
-    ];
+export async function batchResolveAuditEntries(
+  db: DbClient,
+  restaurantId: string,
+  entries: UnifiedRevenueAuditEntry[],
+): Promise<UnifiedRevenueAuditEntry[]> {
+  if (entries.length === 0) return entries;
 
-    const [actorMap, linkedRequestsRes] = await Promise.all([
-      loadActorLabels(db, restaurantId, actorIds),
-      operationIds.length > 0
-        ? db
-            .from("hotel_revenue_approval_requests")
-            .select("id, applied_operation_id")
-            .eq("restaurant_id", restaurantId)
-            .in("applied_operation_id", operationIds)
-        : Promise.resolve({ data: [] }),
-    ]);
+  const actorIds = entries.map((e) => e.actorMembershipId);
+  const operationIds = [
+    ...new Set(entries.map((e) => e.operationId).filter((op): op is string => Boolean(op))),
+  ];
 
-    const opToApprovalMap = new Map<string, string>();
-    for (const r of (linkedRequestsRes?.data ?? []) as Array<{
-      id: string;
-      applied_operation_id: string;
-    }>) {
-      if (r.applied_operation_id) {
-        opToApprovalMap.set(r.applied_operation_id, r.id);
-      }
-    }
+  const [actorMap, linkedRequestsRes] = await Promise.all([
+    loadActorLabels(db, restaurantId, actorIds),
+    operationIds.length > 0
+      ? db
+          .from("hotel_revenue_approval_requests")
+          .select("id, applied_operation_id")
+          .eq("restaurant_id", restaurantId)
+          .in("applied_operation_id", operationIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
-    for (const entry of pageEntries) {
-      if (entry.actorMembershipId) {
-        entry.actorLabel = actorMap.get(entry.actorMembershipId) ?? "Staff member";
-      }
-      if (entry.operationId && !entry.approvalRequestId && opToApprovalMap.has(entry.operationId)) {
-        entry.approvalRequestId = opToApprovalMap.get(entry.operationId)!;
-        entry.linkedOperationId = entry.operationId;
-      }
+  const opToApprovalMap = new Map<string, string>();
+  for (const r of (linkedRequestsRes?.data ?? []) as Array<{
+    id: string;
+    applied_operation_id: string;
+  }>) {
+    if (r.applied_operation_id) {
+      opToApprovalMap.set(r.applied_operation_id, r.id);
     }
   }
 
+  for (const entry of entries) {
+    if (entry.actorMembershipId) {
+      entry.actorLabel = actorMap.get(entry.actorMembershipId) ?? "Staff member";
+    }
+    if (entry.operationId && !entry.approvalRequestId && opToApprovalMap.has(entry.operationId)) {
+      entry.approvalRequestId = opToApprovalMap.get(entry.operationId)!;
+      entry.linkedOperationId = entry.operationId;
+    }
+  }
+
+  return entries;
+}
+
+export async function loadUnifiedRevenueAudit(
+  db: DbClient,
+  query: UnifiedRevenueAuditFilter,
+): Promise<UnifiedRevenueAuditResult> {
+  const sorted = await fetchAndNormalizeUnifiedAudit(db, query);
+  const { pageEntries, total, page, pageSize, totalPages } = paginateAuditEntries(
+    sorted,
+    query.page,
+    query.pageSize,
+  );
+  await batchResolveAuditEntries(db, query.restaurantId, pageEntries);
+
   return {
-    restaurantId,
+    restaurantId: query.restaurantId,
     entries: pageEntries,
     total,
     page,
@@ -450,12 +295,24 @@ export async function loadUnifiedRevenueAudit(
     filter: {
       fromDate: query.fromDate ?? null,
       toDate: query.toDate ?? null,
-      domain: domainFilter,
+      domain: query.domain ?? "all",
       actorMembershipId: query.actorMembershipId ?? null,
       action: query.action ?? null,
       search: query.search ?? null,
     },
   };
+}
+
+export async function loadUnifiedRevenueAuditForExport(
+  db: DbClient,
+  filter: UnifiedRevenueAuditFilter,
+): Promise<UnifiedRevenueAuditEntry[]> {
+  const sorted = await fetchAndNormalizeUnifiedAudit(db, filter);
+  if (sorted.length > MAX_AUDIT_EXPORT_ROWS) {
+    throw rateError("AUDIT_EXPORT_TOO_LARGE");
+  }
+  await batchResolveAuditEntries(db, filter.restaurantId, sorted);
+  return sorted;
 }
 
 export async function loadAuditOperationDetail(
@@ -470,7 +327,6 @@ export async function loadAuditOperationDetail(
   const { restaurantId, eventId, sourceTable } = query;
 
   if (sourceTable === "hotel_rate_change_events") {
-    // 1. Rate change event detail
     const eventRes = await db
       .from("hotel_rate_change_events")
       .select(
@@ -516,7 +372,6 @@ export async function loadAuditOperationDetail(
       room_types: { name: string } | null;
     }>;
 
-    // Check approval lineage
     const approvalRes = await db
       .from("hotel_revenue_approval_requests")
       .select("id, status, requested_by, requested_at, reviewed_by, reviewed_at, review_reason")
@@ -584,7 +439,6 @@ export async function loadAuditOperationDetail(
   }
 
   if (sourceTable === "hotel_rate_restriction_change_events") {
-    // 2. Restriction change event detail
     const eventRes = await db
       .from("hotel_rate_restriction_change_events")
       .select(
@@ -718,7 +572,6 @@ export async function loadAuditOperationDetail(
   }
 
   if (sourceTable === "hotel_commercial_change_events") {
-    // 3. Commercial event detail
     const eventRes = await db
       .from("hotel_commercial_change_events")
       .select("*")
@@ -785,7 +638,6 @@ export async function loadAuditOperationDetail(
   }
 
   if (sourceTable === "hotel_revenue_approval_events") {
-    // 4. Approval event detail
     const eventRes = await db
       .from("hotel_revenue_approval_events")
       .select(

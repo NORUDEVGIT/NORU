@@ -125,11 +125,11 @@ export function buildRevenuePerformanceCsv(overview: RevenuePerformanceOverview)
   const roomRows = overview.breakdowns.roomTypes.map((row) => [
     row.roomTypeName,
     row.soldRoomNights,
-    row.availableRoomNights,
-    `${row.occupancyPct.toFixed(2)}%`,
+    row.availableRoomNights ?? "N/A",
+    row.occupancyPct !== null ? `${row.occupancyPct.toFixed(2)}%` : "N/A",
     row.bookedRoomRevenue.toFixed(2),
     row.adr.toFixed(2),
-    row.revpar.toFixed(2),
+    row.revpar !== null ? row.revpar.toFixed(2) : "N/A",
     row.reservationCount,
     `${row.shareOfRevenue.toFixed(2)}%`,
   ]);

@@ -29,7 +29,7 @@ const ratePlans = [
   { id: RATE_PLAN_2, code: "CORP", name: "Corporate Flex" },
 ];
 
-describe("P8-STEP-02 Revenue Performance Read Models", () => {
+describe("P8-STEP-02 & P8-STEP-02B Revenue Performance Read Models", () => {
   it("enforces 90-day maximum range limit", () => {
     assert.throws(
       () => validateAnalyticsRange("2026-01-01", "2026-04-15"),
@@ -169,7 +169,7 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     assert.equal(overview.summary.adr, 33.33);
   });
 
-  it("strictly disables Occupancy and RevPAR when filtered by non-inventory dimensions", () => {
+  it("strictly disables Occupancy and RevPAR across Summary, Daily Trend, AND Room Type breakdown when filtered by non-inventory dimensions", () => {
     const reservations: RawReservationInput[] = [
       {
         id: "res-1",
@@ -211,6 +211,16 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     assert.equal(ratePlanOverview.summary.inventoryMetricSupport, "NOT_MEANINGFUL");
     assert.equal(ratePlanOverview.summary.adr, 150); // ADR remains valid!
 
+    // P8-STEP-02B FIX: Room Type breakdown rows MUST also return null occupancy/revpar under ratePlan filter
+    const rtRowBAR = ratePlanOverview.breakdowns.roomTypes.find(
+      (r) => r.roomTypeId === ROOM_TYPE_1,
+    )!;
+    assert.equal(rtRowBAR.availableRoomNights, null);
+    assert.equal(rtRowBAR.occupancyPct, null);
+    assert.equal(rtRowBAR.revpar, null);
+    assert.equal(rtRowBAR.inventoryMetricSupport, "NOT_MEANINGFUL");
+    assert.equal(rtRowBAR.adr, 150); // ADR remains valid!
+
     // Test 2: Filter by marketSegmentId
     const segmentOverview = computeRevenuePerformanceOverview({
       query: {
@@ -229,6 +239,15 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     assert.equal(segmentOverview.summary.revpar, null);
     assert.equal(segmentOverview.summary.inventoryMetricSupport, "NOT_MEANINGFUL");
 
+    // P8-STEP-02B FIX: Room Type breakdown rows under segment filter
+    const rtRowSegment = segmentOverview.breakdowns.roomTypes.find(
+      (r) => r.roomTypeId === ROOM_TYPE_1,
+    )!;
+    assert.equal(rtRowSegment.availableRoomNights, null);
+    assert.equal(rtRowSegment.occupancyPct, null);
+    assert.equal(rtRowSegment.revpar, null);
+    assert.equal(rtRowSegment.inventoryMetricSupport, "NOT_MEANINGFUL");
+
     // Test 3: Filter by commercialSourceId
     const sourceOverview = computeRevenuePerformanceOverview({
       query: {
@@ -246,6 +265,8 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     assert.equal(sourceOverview.summary.occupancyPct, null);
     assert.equal(sourceOverview.summary.revpar, null);
     assert.equal(sourceOverview.summary.inventoryMetricSupport, "NOT_MEANINGFUL");
+    assert.equal(sourceOverview.breakdowns.roomTypes[0].occupancyPct, null);
+    assert.equal(sourceOverview.breakdowns.roomTypes[0].revpar, null);
 
     // Test 4: Filter by technicalOrigin
     const originOverview = computeRevenuePerformanceOverview({
@@ -264,6 +285,8 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     assert.equal(originOverview.summary.occupancyPct, null);
     assert.equal(originOverview.summary.revpar, null);
     assert.equal(originOverview.summary.inventoryMetricSupport, "NOT_MEANINGFUL");
+    assert.equal(originOverview.breakdowns.roomTypes[0].occupancyPct, null);
+    assert.equal(originOverview.breakdowns.roomTypes[0].revpar, null);
 
     // Test 5: Combination of roomTypeId + ratePlanId MUST NOT return Occupancy/RevPAR
     const comboOverview = computeRevenuePerformanceOverview({
@@ -284,8 +307,10 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     assert.equal(comboOverview.summary.occupancyPct, null);
     assert.equal(comboOverview.summary.revpar, null);
     assert.equal(comboOverview.summary.inventoryMetricSupport, "NOT_MEANINGFUL");
+    assert.equal(comboOverview.breakdowns.roomTypes[0].occupancyPct, null);
+    assert.equal(comboOverview.breakdowns.roomTypes[0].revpar, null);
 
-    // Test 6: Pure roomTypeId query DOES support Occupancy & RevPAR
+    // Test 6: Pure roomTypeId query DOES support Occupancy & RevPAR for Room Types & Summary
     const roomTypeOverview = computeRevenuePerformanceOverview({
       query: {
         restaurantId: PROPERTY_ID,
@@ -304,10 +329,93 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     assert.equal(roomTypeOverview.summary.inventoryMetricSupport, "SUPPORTED");
     assert.equal(roomTypeOverview.summary.occupancyPct, 50); // 2 sold / 4 available = 50%
     assert.equal(roomTypeOverview.summary.revpar, 75); // 300 / 4 = 75.00
+
+    const rtRowPure = roomTypeOverview.breakdowns.roomTypes.find(
+      (r) => r.roomTypeId === ROOM_TYPE_1,
+    )!;
+    assert.equal(rtRowPure.availableRoomNights, 4);
+    assert.equal(rtRowPure.occupancyPct, 50);
+    assert.equal(rtRowPure.revpar, 75);
+    assert.equal(rtRowPure.inventoryMetricSupport, "SUPPORTED");
+  });
+
+  it("blocks mixed-currency monetary aggregation and throws REVENUE_ANALYTICS_MIXED_CURRENCY", () => {
+    const reservations: RawReservationInput[] = [
+      {
+        id: "res-usd",
+        room_type_id: ROOM_TYPE_1,
+        rate_plan_id: RATE_PLAN_1,
+        market_segment: "transient",
+        commercial_booking_source: "website",
+        source: "direct_booking",
+        status: "confirmed",
+        arrival_date: "2026-06-01",
+        departure_date: "2026-06-03",
+        currency: "USD",
+        nightly_rate_snapshot: [
+          { date: "2026-06-01", rate: 100 },
+          { date: "2026-06-02", rate: 100 },
+        ],
+        created_at: "2026-05-01T00:00:00Z",
+      },
+      {
+        id: "res-etb",
+        room_type_id: ROOM_TYPE_1,
+        rate_plan_id: RATE_PLAN_1,
+        market_segment: "transient",
+        commercial_booking_source: "website",
+        source: "direct_booking",
+        status: "confirmed",
+        arrival_date: "2026-06-01",
+        departure_date: "2026-06-03",
+        currency: "ETB", // different currency from property USD!
+        nightly_rate_snapshot: [
+          { date: "2026-06-01", rate: 5000 },
+          { date: "2026-06-02", rate: 5000 },
+        ],
+        created_at: "2026-05-01T00:00:00Z",
+      },
+    ];
+
+    assert.throws(
+      () =>
+        computeRevenuePerformanceOverview({
+          query: {
+            restaurantId: PROPERTY_ID,
+            fromDate: "2026-06-01",
+            toDate: "2026-06-02",
+          },
+          reservations,
+          activeRooms,
+          roomTypes,
+          ratePlans,
+          propertyCurrency: "USD",
+        }),
+      /REVENUE_ANALYTICS_MIXED_CURRENCY/,
+    );
+  });
+
+  it("rejects non-null salesChannelId with REVENUE_ANALYTICS_SALES_CHANNEL_UNSUPPORTED rather than silently ignoring it", () => {
+    assert.throws(
+      () =>
+        computeRevenuePerformanceOverview({
+          query: {
+            restaurantId: PROPERTY_ID,
+            fromDate: "2026-06-01",
+            toDate: "2026-06-02",
+            salesChannelId: "channel-ota-expedia",
+          },
+          reservations: [],
+          activeRooms,
+          roomTypes,
+          ratePlans,
+          propertyCurrency: "USD",
+        }),
+      /REVENUE_ANALYTICS_SALES_CHANNEL_UNSUPPORTED/,
+    );
   });
 
   it("reservationCount counts distinct reservation IDs across stay dates and breakdowns", () => {
-    // 1 single reservation spanning 4 stay dates
     const reservations: RawReservationInput[] = [
       {
         id: "res-multi-night",
@@ -344,19 +452,16 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
     });
 
     assert.equal(overview.summary.soldRoomNights, 4);
-    assert.equal(overview.summary.reservationCount, 1); // exactly 1 reservation
+    assert.equal(overview.summary.reservationCount, 1);
 
-    // Check Room Type breakdown
     const roomTypeRow = overview.breakdowns.roomTypes.find((r) => r.roomTypeId === ROOM_TYPE_1)!;
     assert.equal(roomTypeRow.soldRoomNights, 4);
     assert.equal(roomTypeRow.reservationCount, 1);
 
-    // Check Rate Plan breakdown
     const ratePlanRow = overview.breakdowns.ratePlans[0];
     assert.equal(ratePlanRow.soldRoomNights, 4);
     assert.equal(ratePlanRow.reservationCount, 1);
 
-    // Each daily trend row has 1 reservation on that date
     for (const day of overview.dailyTrend) {
       assert.equal(day.soldRoomNights, 1);
       assert.equal(day.reservationCount, 1);
@@ -368,7 +473,7 @@ describe("P8-STEP-02 Revenue Performance Read Models", () => {
       {
         id: "res-promo",
         arrival_date: "2026-06-01",
-        departure_date: "2026-06-03", // 2 nights
+        departure_date: "2026-06-03",
       },
     ];
 

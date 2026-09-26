@@ -81,7 +81,8 @@ const RATE_ERRORS: Record<string, string> = {
   PROMOTION_NOT_FOUND: "That promotion is not available for this property.",
   PROMOTION_ACTIVATION_NOT_FOUND: "That promotion activation was not found.",
   PROMOTION_INACTIVE: "That promotion is not active.",
-  PROMOTION_BOOKING_WINDOW_MISMATCH: "That promotion is not bookable on the property business date.",
+  PROMOTION_BOOKING_WINDOW_MISMATCH:
+    "That promotion is not bookable on the property business date.",
   PROMOTION_STAY_WINDOW_MISMATCH: "The stay is not fully inside that promotion window.",
   PROMOTION_ROOM_TYPE_MISMATCH: "That promotion does not apply to this room type.",
   PROMOTION_RATE_PLAN_MISMATCH: "That promotion does not apply to this rate plan.",
@@ -99,16 +100,22 @@ const RATE_ERRORS: Record<string, string> = {
   PACKAGE_WRONG_PROPERTY: "That package does not belong to this property.",
   PACKAGE_DUPLICATE_SELECTION: "The same package cannot be selected twice.",
   PACKAGE_ACTIVATION_DUPLICATE: "That package is already activated for the same stay and scope.",
-  PROMOTION_ACTIVATION_DUPLICATE: "That promotion is already activated for the same stay, booking window, and scope.",
+  PROMOTION_ACTIVATION_DUPLICATE:
+    "That promotion is already activated for the same stay, booking window, and scope.",
   COMMERCIAL_DATES_INVALID: "Check the stay or booking dates for this activation.",
-  COMMERCIAL_MASTER_WINDOW_BROADEN: "The activation stay window cannot extend beyond the master validity.",
-  COMMERCIAL_SCOPE_WRONG_PROPERTY: "A selected room type or rate plan does not belong to this property.",
+  COMMERCIAL_MASTER_WINDOW_BROADEN:
+    "The activation stay window cannot extend beyond the master validity.",
+  COMMERCIAL_SCOPE_WRONG_PROPERTY:
+    "A selected room type or rate plan does not belong to this property.",
   PROMOTION_SCOPE_BROADEN: "A promotion activation cannot add room types outside the master scope.",
-  PACKAGE_SCOPE_BROADEN: "A package activation cannot add room types or rate plans outside the master scope.",
-  COMMERCIAL_ACTIVATION_STALE: "This activation was changed by someone else. Refresh and try again.",
+  PACKAGE_SCOPE_BROADEN:
+    "A package activation cannot add room types or rate plans outside the master scope.",
+  COMMERCIAL_ACTIVATION_STALE:
+    "This activation was changed by someone else. Refresh and try again.",
   COMMERCIAL_OPERATION_INVALID: "That commercial activation operation is not supported.",
   RATE_SHOPPING_OBSERVATION_IMMUTABLE: "Competitor rate observations cannot be edited.",
-  REVENUE_APPROVAL_FORBIDDEN: "You don't have access to Rate & Revenue approvals for this property.",
+  REVENUE_APPROVAL_FORBIDDEN:
+    "You don't have access to Rate & Revenue approvals for this property.",
   REVENUE_APPROVAL_DISABLED: "Approvals are not required for this property.",
   REVENUE_APPROVAL_NOT_FOUND: "That approval request was not found.",
   REVENUE_APPROVAL_NOT_PENDING: "That approval request is no longer pending.",
@@ -132,6 +139,13 @@ const RATE_ERRORS: Record<string, string> = {
   FETCH_RUN_NOT_FOUND: "That rate-shopping fetch run was not found.",
   FETCH_RUN_DATES_INVALID: "Stay from must be on or before stay to.",
   FETCH_RUN_STATUS_INVALID: "That fetch-run status is not allowed.",
+  REVENUE_ANALYTICS_RANGE_EXCEEDS_MAX: "Analytics date range cannot exceed 90 days.",
+  REVENUE_ANALYTICS_MIXED_CURRENCY:
+    "Revenue analytics cannot combine reservations in multiple currencies because no exchange-rate conversion is configured.",
+  REVENUE_ANALYTICS_SALES_CHANNEL_UNSUPPORTED:
+    "Sales channel analytics is not currently supported.",
+  AUDIT_EXPORT_TOO_LARGE:
+    "Audit export exceeds the maximum allowed limit of 10,000 records. Filter by date or domain.",
 };
 
 /** Map RAISE EXCEPTION codes from the pricing functions to user-facing text. */

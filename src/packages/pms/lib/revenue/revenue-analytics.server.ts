@@ -26,6 +26,9 @@ export async function loadRevenuePerformanceOverview(
   db: DbClient,
   query: RevenuePerformanceQuery,
 ): Promise<RevenuePerformanceOverview> {
+  if (query.salesChannelId) {
+    throw rateError("REVENUE_ANALYTICS_SALES_CHANNEL_UNSUPPORTED");
+  }
   const { fromDate, toDate } = validateAnalyticsRange(query.fromDate, query.toDate);
 
   // Property currency
