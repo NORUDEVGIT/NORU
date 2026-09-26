@@ -14,15 +14,17 @@ export const COMMERCIAL_OVERVIEW_LOAD_ERROR = "Commercial overview could not be 
 export const COMMERCIAL_PROMOTIONS_LOAD_ERROR = "Promotions could not be loaded.";
 export const COMMERCIAL_PACKAGES_LOAD_ERROR = "Packages could not be loaded.";
 export const COMPETITOR_SETUP_LOAD_ERROR = "Competitor setup could not be loaded.";
+export const REVENUE_ANALYTICS_LOAD_ERROR = "Revenue performance could not be loaded.";
+export const COMMERCIAL_PERFORMANCE_LOAD_ERROR = "Commercial performance could not be loaded.";
+export const REVENUE_AUDIT_LOAD_ERROR = "Revenue audit log could not be loaded.";
+export const REVENUE_AUDIT_DETAIL_LOAD_ERROR = "Revenue audit detail could not be loaded.";
+export const REVENUE_EXPORT_ERROR = "Revenue export could not be generated.";
 
 export function isPrivilegedDbError(message: string): boolean {
   return /permission denied|row-level security|42501/i.test(message);
 }
 
-export function toRevenueReadError(
-  error: unknown,
-  fallback = REVENUE_CONFIG_LOAD_ERROR,
-): Error {
+export function toRevenueReadError(error: unknown, fallback = REVENUE_CONFIG_LOAD_ERROR): Error {
   const message = error instanceof Error ? error.message : String(error ?? "");
   if (isPrivilegedDbError(message)) {
     console.error("[revenue-read]", message);

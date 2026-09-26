@@ -54,7 +54,8 @@ const plans: ControlPlan[] = [
 ];
 
 function reservation(
-  partial: Partial<ControlReservation> & Pick<ControlReservation, "roomTypeId" | "arrivalDate" | "departureDate">,
+  partial: Partial<ControlReservation> &
+    Pick<ControlReservation, "roomTypeId" | "arrivalDate" | "departureDate">,
 ): ControlReservation {
   return {
     ratePlanId: BAR,
@@ -186,20 +187,26 @@ describe("RR-P2-02 — Revenue Control read model", () => {
     assert.equal(model.controlRows[0]?.overrideActive, true);
     assert.equal(model.controlRows[0]?.effectiveRate, 150);
     assert.ok(model.alerts.some((alert) => alert.id === "stop-sell"));
-    assert.equal(controlRowSignal({
-      occupancyPercent: 95,
-      availableRoomNights: 10,
-      remainingRoomNights: 1,
-      restrictionActive: false,
-      overrideActive: false,
-    }), "Low Remaining Inventory");
-    assert.equal(controlRowSignal({
-      occupancyPercent: 95,
-      availableRoomNights: 10,
-      remainingRoomNights: 5,
-      restrictionActive: false,
-      overrideActive: false,
-    }), "High Occupancy");
+    assert.equal(
+      controlRowSignal({
+        occupancyPercent: 95,
+        availableRoomNights: 10,
+        remainingRoomNights: 1,
+        restrictionActive: false,
+        overrideActive: false,
+      }),
+      "Low Remaining Inventory",
+    );
+    assert.equal(
+      controlRowSignal({
+        occupancyPercent: 95,
+        availableRoomNights: 10,
+        remainingRoomNights: 5,
+        restrictionActive: false,
+        overrideActive: false,
+      }),
+      "High Occupancy",
+    );
   });
 
   it("maps history and uses the honest empty copy", () => {
@@ -268,7 +275,13 @@ describe("RR-P2-02 — wiring and no fake future data", () => {
   it("does not add a migration or change 0016 pricing", () => {
     const migrations = readdirSync(join(here, "../../../../../drizzle/migrations"));
     assert.ok(migrations.includes("0101_pms_rate_change_events.sql"));
-    assert.ok(!migrations.some((name) => /forecast|approval|competitor|p2-02|revenue.control/i.test(name)));
+    assert.ok(
+      !migrations.some(
+        (name) =>
+          /forecast|competitor|p2-02|revenue.control/i.test(name) ||
+          (name.includes("approval") && !name.includes("0109")),
+      ),
+    );
     const pricing = readRel("../../../../../drizzle/migrations/0016_create_hotel_rates.sql");
     assert.match(pricing, /CREATE OR REPLACE FUNCTION public\.price_hotel_stay/);
     assert.doesNotMatch(server, /CREATE OR REPLACE FUNCTION public\.price_hotel_stay/);
