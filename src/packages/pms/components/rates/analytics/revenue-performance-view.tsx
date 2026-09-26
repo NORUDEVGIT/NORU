@@ -57,7 +57,7 @@ export function RevenuePerformanceView({
   restaurantId: string;
   context: RevenueContext;
   access: RevenueAccess;
-  analyticsTab?: string;
+  analyticsTab?: string | undefined;
 }) {
   const navigate = useNavigate();
   const fetchOverview = useServerFn(getRevenuePerformanceOverview);
@@ -106,7 +106,7 @@ export function RevenuePerformanceView({
     retry: false,
   });
 
-  const currency = query.data?.propertyCurrency ?? "USD";
+  const currency = query.data?.currency ?? "USD";
   const formatCurrency = (val: number) => {
     try {
       return new Intl.NumberFormat(undefined, {
@@ -176,7 +176,7 @@ export function RevenuePerformanceView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Overview (UI-31)
+            Overview
           </button>
           <button
             type="button"
@@ -187,7 +187,7 @@ export function RevenuePerformanceView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            KPI Detail (UI-32)
+            KPI Detail
           </button>
           <button
             type="button"
@@ -198,7 +198,7 @@ export function RevenuePerformanceView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Segments (UI-33)
+            Segments
           </button>
           <button
             type="button"
@@ -209,7 +209,7 @@ export function RevenuePerformanceView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Sources (UI-34)
+            Sources
           </button>
           <button
             type="button"
@@ -220,7 +220,7 @@ export function RevenuePerformanceView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Trends (UI-35)
+            Trends
           </button>
           <button
             type="button"

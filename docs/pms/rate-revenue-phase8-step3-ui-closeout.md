@@ -64,6 +64,51 @@ Phase 8 Step 3 delivers the final operational user interface for the Rate & Reve
 
 ---
 
+## Phase 8 Step 3B — Final UI Acceptance Fixes
+
+### 1. Audit Deep-Link & Reload Hydration
+- Resolves `?view=audit-control&auditTab=...&auditEvent=<id>` directly without requiring the user to locate or click the row again.
+- **Hydration sequence:**
+  1. Checks if the matching entry already exists in the currently loaded page of audit results.
+  2. If absent from the active page, calls the dedicated server function `getUnifiedAuditEventById` (`loadAuditEventById`) to resolve the normalized audit entry across all 4 immutable source tables.
+  3. Hydrates `selectedEntry`, opening the detail drawer and triggering the granular operation diff query.
+- When the drawer is closed, only `auditEvent` is removed from search params, leaving `auditTab`, `auditAction`, `auditActor`, `auditSearch`, and dates intact.
+
+### 2. Complete UI-36 Audit Filter Controls
+- Added compact operational filters to the audit toolbar: `Search | Action | Actor | Rows`.
+- **Action filter:** Dropdown supporting standard operational actions (`rate_change`, `manual_override`, `revert_override`, `single_restriction_change`, `bulk_restriction_change`, `activated`, `deactivated`, `approved`, `rejected`, `applied`).
+- **Actor filter:** Dedicated dropdown populated with property staff actors from `listRevenueApprovalActorsFn`.
+- **Server-side execution:** Both filters are passed server-side (`action`, `actorMembershipId`) to `getUnifiedRevenueAudit`. Page is automatically reset to 1 whenever Action or Actor changes.
+
+### 3. Truthful Actor Search Semantics
+- Replaced ambiguous search placeholder with truthful copy:
+  `"Search action, entity, scope, reason, or reference..."`
+- Clarifies that actor filtering is authoritatively handled by the dedicated Actor dropdown filter rather than post-pagination text search claims.
+
+### 4. Audit Filter Parity in Unified Audit Export (UI-40)
+- Persists audit filter state across navigation in URL search parameters: `auditTab`, `auditAction`, `auditActor`, `auditSearch`.
+- The Unified Revenue Audit export card forwards all active audit filters (`domain`, `action`, `actorMembershipId`, `search`, `fromDate`, `toDate`) to `exportUnifiedRevenueAuditCsv`.
+- Continues to stream full, complete audit results via `loadUnifiedRevenueAuditForExport` up to the 10,000-row safety limit, without visible UI pagination truncations.
+- If visited without audit filters, defaults to `domain = "all"`.
+
+### 5. Truthful Export Scope Display
+- Unified Revenue Audit export card dynamically displays only active filters:
+  - Date Range (`fromDate → toDate`)
+  - Domain (`Rates`, `Restrictions`, `Overrides`, or `All`)
+  - Actor (displays human-readable staff label if filtered)
+  - Action (displays active action filter if selected)
+  - Search (displays search term if active)
+  - Format: CSV (12 Columns)
+
+### 6. Restrained Audit Domain Visual Polish
+- Restrained Audit domain chips from saturated blue/purple tones to subtle neutral/gold/warm tones consistent with NORU Rate & Revenue design language:
+  - Rates: `border-[#D3C7B5] bg-[#F7F4EE] text-[#4A3B2C]`
+  - Restrictions: `border-[#E5C98F] bg-[#FAF4E6] text-[#7A5418]`
+  - Commercial: `border-[#C2D8C7] bg-[#F0F6F2] text-[#2D5A3A]`
+  - Approvals: `border-[#D8CFE5] bg-[#F6F4FA] text-[#523F73]`
+
+---
+
 ## Test Verification
 
 | Test Suite | Tests | Result | Purpose |
@@ -71,10 +116,10 @@ Phase 8 Step 3 delivers the final operational user interface for the Rate & Reve
 | `revenue-analytics.test.ts` | 8 | PASS | 90-day range limit, stay-date allocation, unpriced stays, non-inventory nullification, mixed currency blocking, sales channel rejection, distinct reservation counting, commercial attribution |
 | `revenue-audit.test.ts` | 6 | PASS | 4-source normalization, global timestamp DESC ordering, tie-breaking, global pagination, complete 250-row export, 10,001-row limit rejection |
 | `revenue-export.test.ts` | 8 | PASS | RFC-4180 escaping, formula injection protection, CRLF endings, N/A formatting, complete 250-row CSV generation, 10,000-row bounds |
-| `revenue-ui.test.ts` | 5 | PASS | Search params serialization, override event discrimination, weekly/monthly non-double-counting rollup, non-inventory N/A contracts |
+| `revenue-ui.test.ts` | 12 | PASS | Search params serialization, override event discrimination, weekly/monthly non-double-counting rollup, non-inventory N/A contracts, deep-link hydration, drawer cleanup, action/actor filters, truthful search, export filter parity |
 | `rate-revenue-workspace.test.ts` | 11 | PASS | Implemented views flag check, view mounting verification, UI-01–40 screen mappings |
 
-**Total Phase 8 Tests:** 38 passed, 0 failed.
+**Total Phase 8 Tests:** 45 passed, 0 failed across Phase 8 suites (64 passed across full regression).
 
 ---
 

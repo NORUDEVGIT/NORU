@@ -95,8 +95,8 @@ export async function loadCommercialPerformance(
     restaurantId: string;
     fromDate: string;
     toDate: string;
-    roomTypeId?: string | null;
-    ratePlanId?: string | null;
+    roomTypeId?: string | null | undefined;
+    ratePlanId?: string | null | undefined;
   },
 ): Promise<CommercialPerformance> {
   const { fromDate, toDate } = validateAnalyticsRange(input.fromDate, input.toDate);

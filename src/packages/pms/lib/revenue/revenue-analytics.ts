@@ -17,12 +17,12 @@ export type RevenuePerformanceQuery = {
   restaurantId: string;
   fromDate: string;
   toDate: string;
-  roomTypeId?: string | null;
-  ratePlanId?: string | null;
-  marketSegmentId?: string | null;
-  commercialSourceId?: string | null;
-  technicalOrigin?: string | null;
-  salesChannelId?: string | null;
+  roomTypeId?: string | null | undefined;
+  ratePlanId?: string | null | undefined;
+  marketSegmentId?: string | null | undefined;
+  commercialSourceId?: string | null | undefined;
+  technicalOrigin?: string | null | undefined;
+  salesChannelId?: string | null | undefined;
 };
 
 export type RevenuePerformanceSummary = {

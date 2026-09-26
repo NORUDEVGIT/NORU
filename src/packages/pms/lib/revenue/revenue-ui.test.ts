@@ -207,3 +207,190 @@ describe("P8-STEP-03 UI-31–40 Contracts & Pure Domain Presentation Logic", () 
     assert.equal(nonInventorySummary.adr, 100);
   });
 });
+
+describe("P8-STEP-03B Acceptance Fixes & UI Contracts", () => {
+  const dummyContext: RevenueContext = {
+    fromDate: "2026-09-01",
+    toDate: "2026-09-30",
+    roomTypeId: "room-deluxe",
+    ratePlanId: "rate-bar",
+    marketSegmentId: "seg-direct",
+    commercialSourceId: "src-website",
+    salesChannelId: "chan-web",
+  };
+
+  it("A. auditEvent reload/deep-link hydration: loads event by ID and wires hydration into RevenueAuditView", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = dirname(fileURLToPath(import.meta.url));
+
+    const auditView = readFileSync(
+      join(dir, "../../components/rates/audit/revenue-audit-view.tsx"),
+      "utf8",
+    );
+    const auditFunctions = readFileSync(join(dir, "revenue-audit.functions.ts"), "utf8");
+    const auditServer = readFileSync(join(dir, "revenue-audit.server.ts"), "utf8");
+
+    // Server-backed event lookup
+    assert.match(auditFunctions, /export const getUnifiedAuditEventById/);
+    assert.match(auditServer, /export async function loadAuditEventById/);
+
+    // RevenueAuditView imports and queries getUnifiedAuditEventById
+    assert.match(auditView, /getUnifiedAuditEventById/);
+    assert.match(auditView, /eventLookupQuery/);
+    assert.match(auditView, /setSelectedEntry\(eventLookupQuery\.data\)/);
+    assert.match(auditView, /setSelectedEntry\(loadedMatch\)/);
+  });
+
+  it("B. closing drawer removes only auditEvent, preserving auditTab, action, actor, search, and context", () => {
+    // When drawer is closed, serializeRevenueSearch is called without auditEvent
+    const searchAfterClose = serializeRevenueSearch("audit-control", dummyContext, {
+      auditTab: "rates",
+      auditAction: "rate_change",
+      auditActor: "user-123",
+      auditSearch: "Seasonal",
+      // auditEvent intentionally omitted
+    });
+
+    assert.equal(searchAfterClose.view, "audit-control");
+    assert.equal(searchAfterClose.auditTab, "rates");
+    assert.equal(searchAfterClose.auditAction, "rate_change");
+    assert.equal(searchAfterClose.auditActor, "user-123");
+    assert.equal(searchAfterClose.auditSearch, "Seasonal");
+    assert.equal(searchAfterClose.auditEvent, undefined);
+    assert.equal(searchAfterClose.from, "2026-09-01");
+    assert.equal(searchAfterClose.to, "2026-09-30");
+  });
+
+  it("C. Action filter forwarded server-side and resets page", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = dirname(fileURLToPath(import.meta.url));
+
+    const auditView = readFileSync(
+      join(dir, "../../components/rates/audit/revenue-audit-view.tsx"),
+      "utf8",
+    );
+
+    // Toolbar provides Action select control
+    assert.match(auditView, /<select[\s\S]*?value=\{auditAction \|\| ""\}/);
+    assert.match(auditView, /handleActionChange/);
+    assert.match(auditView, /setPage\(1\)/);
+
+    // Forwarded server-side in query
+    assert.match(auditView, /action:\s*auditAction\s*\|\|\s*null/);
+  });
+
+  it("D. Actor filter forwarded server-side and uses dedicated operational dropdown", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = dirname(fileURLToPath(import.meta.url));
+
+    const auditView = readFileSync(
+      join(dir, "../../components/rates/audit/revenue-audit-view.tsx"),
+      "utf8",
+    );
+
+    // Loads staff actors
+    assert.match(auditView, /listRevenueApprovalActorsFn/);
+    // Dedicated Actor dropdown
+    assert.match(auditView, /<select[\s\S]*?value=\{auditActor \|\| ""\}/);
+    assert.match(auditView, /handleActorChange/);
+
+    // Forwarded server-side in query
+    assert.match(auditView, /actorMembershipId:\s*auditActor\s*\|\|\s*null/);
+  });
+
+  it("E. search placeholder does not claim unsupported actor search", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = dirname(fileURLToPath(import.meta.url));
+
+    const auditView = readFileSync(
+      join(dir, "../../components/rates/audit/revenue-audit-view.tsx"),
+      "utf8",
+    );
+
+    // Truthful placeholder
+    assert.match(
+      auditView,
+      /placeholder="Search action, entity, scope, reason, or reference\.\.\."/,
+    );
+    // Does NOT claim actor search in placeholder text
+    assert.doesNotMatch(auditView, /Search by action, reason, or actor/);
+  });
+
+  it("F. Unified Audit export receives active domain, action, actor, search, and date range", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = dirname(fileURLToPath(import.meta.url));
+
+    const exportView = readFileSync(
+      join(dir, "../../components/rates/export/revenue-export-view.tsx"),
+      "utf8",
+    );
+
+    // Receives audit filters as props
+    assert.match(exportView, /auditTab\?: string/);
+    assert.match(exportView, /auditAction\?: string/);
+    assert.match(exportView, /auditActor\?: string/);
+    assert.match(exportView, /auditSearch\?: string/);
+
+    // Forwards filters to exportAuditFn
+    assert.match(exportView, /domain:\s*auditDomain/);
+    assert.match(exportView, /action:\s*auditAction\s*\|\|\s*null/);
+    assert.match(exportView, /actorMembershipId:\s*auditActor\s*\|\|\s*null/);
+    assert.match(exportView, /search:\s*auditSearch\?\.trim\(\)\s*\|\|\s*null/);
+    assert.match(exportView, /fromDate:\s*context\.fromDate/);
+    assert.match(exportView, /toDate:\s*context\.toDate/);
+
+    // Displays active filters in Scope card
+    assert.match(exportView, /\{auditActor && <div>Actor: \{actorLabel\}<\/div>\}/);
+    assert.match(exportView, /\{auditAction && <div>Action: \{auditAction\}<\/div>\}/);
+    assert.match(exportView, /\{auditSearch && <div>Search: \{auditSearch\}<\/div>\}/);
+  });
+
+  it("G. Unified Audit export remains complete rather than page-limited", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = dirname(fileURLToPath(import.meta.url));
+
+    const exportServer = readFileSync(join(dir, "revenue-export.server.ts"), "utf8");
+    const auditServer = readFileSync(join(dir, "revenue-audit.server.ts"), "utf8");
+
+    // export calls dedicated complete reader
+    assert.match(exportServer, /loadUnifiedRevenueAuditForExport\(db, filter\)/);
+    // Complete reader has 10,000 row safety bound, not paginated page limit
+    assert.match(auditServer, /MAX_AUDIT_EXPORT_ROWS/);
+    assert.match(auditServer, /sorted\.length > MAX_AUDIT_EXPORT_ROWS/);
+    assert.match(auditServer, /export async function loadUnifiedRevenueAuditForExport/);
+  });
+
+  it("H. More dropdown renders via Radix DropdownMenu (portal) to prevent overflow clipping by overflow-x-auto container", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = dirname(fileURLToPath(import.meta.url));
+
+    const workspace = readFileSync(
+      join(dir, "../../components/workspaces/rates-workspace.tsx"),
+      "utf8",
+    );
+
+    // Uses DropdownMenu from shared UI (which portals DropdownMenuContent)
+    assert.match(workspace, /import[\s\S]*?DropdownMenu[\s\S]*?from "@/);
+    assert.match(workspace, /<DropdownMenu[\s\S]*?open=\{moreOpen\}/);
+    assert.match(workspace, /<DropdownMenuTrigger asChild>/);
+    assert.match(workspace, /<DropdownMenuContent/);
+    assert.match(workspace, /<DropdownMenuItem/);
+
+    // Does NOT render an absolute clipped div inside overflow container
+    assert.doesNotMatch(workspace, /top-\[calc\(100%\+8px\)\]/);
+  });
+});

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Download, FileSpreadsheet, Info, Loader2, ShieldCheck, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import {
   exportRevenuePerformanceCsv,
   exportUnifiedRevenueAuditCsv,
 } from "@/packages/pms/lib/revenue/revenue-export.functions";
+import { listRevenueApprovalActorsFn } from "@/packages/pms/lib/revenue/revenue-approval.functions";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 
 function downloadCsvBlob(csvContent: string, filename: string) {
@@ -25,15 +27,41 @@ function downloadCsvBlob(csvContent: string, filename: string) {
 export function RevenueExportView({
   restaurantId,
   context,
+  auditTab,
+  auditAction,
+  auditActor,
+  auditSearch,
 }: {
   restaurantId: string;
   context: RevenueContext;
+  auditTab?: string | undefined;
+  auditAction?: string | undefined;
+  auditActor?: string | undefined;
+  auditSearch?: string | undefined;
 }) {
   const exportPerfFn = useServerFn(exportRevenuePerformanceCsv);
   const exportCommFn = useServerFn(exportCommercialPerformanceCsv);
   const exportAuditFn = useServerFn(exportUnifiedRevenueAuditCsv);
+  const fetchActors = useServerFn(listRevenueApprovalActorsFn);
 
   const [pendingExport, setPendingExport] = useState<string | null>(null);
+
+  // Load actors to display human-readable actor name on the scope card
+  const actorsQuery = useQuery({
+    queryKey: ["revenue-approval-actors", restaurantId],
+    queryFn: () => fetchActors({ data: { restaurantId } }),
+    staleTime: 60_000,
+  });
+  const actorLabel = actorsQuery.data?.find((a) => a.id === auditActor)?.label || auditActor;
+
+  const auditDomain: "all" | "rates" | "restrictions" | "commercial" | "approvals" | "overrides" =
+    auditTab === "rates"
+      ? "rates"
+      : auditTab === "restrictions"
+        ? "restrictions"
+        : auditTab === "overrides"
+          ? "overrides"
+          : "all";
 
   async function handleExportPerformance() {
     if (pendingExport) return;
@@ -100,7 +128,10 @@ export function RevenueExportView({
           restaurantId,
           fromDate: context.fromDate,
           toDate: context.toDate,
-          domain: "all",
+          domain: auditDomain,
+          action: auditAction || null,
+          actorMembershipId: auditActor || null,
+          search: auditSearch?.trim() || null,
         },
       });
       downloadCsvBlob(res.csv, res.filename);
@@ -228,17 +259,31 @@ export function RevenueExportView({
         <div className="flex flex-col justify-between rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-xs">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-purple-700" />
+              <ShieldCheck className="h-4 w-4 text-[#7A5418]" />
               <h3 className="font-semibold text-sm text-foreground">Unified Revenue Audit</h3>
             </div>
             <p className="text-xs text-muted-foreground">
               Complete, unpaginated operational audit stream across Rates, Restrictions, Commercial
               changes, and Approvals (up to 10,000 rows).
             </p>
+            {/* UI-40 Truthful Scope Display */}
             <div className="pt-2 text-[11px] text-muted-foreground font-mono space-y-0.5">
               <div>
                 Date Range: {context.fromDate} → {context.toDate}
               </div>
+              <div>
+                Domain:{" "}
+                {auditTab === "rates"
+                  ? "Rates"
+                  : auditTab === "restrictions"
+                    ? "Restrictions"
+                    : auditTab === "overrides"
+                      ? "Overrides"
+                      : "All"}
+              </div>
+              {auditActor && <div>Actor: {actorLabel}</div>}
+              {auditAction && <div>Action: {auditAction}</div>}
+              {auditSearch && <div>Search: {auditSearch}</div>}
               <div>Format: CSV (12 Columns)</div>
             </div>
           </div>

@@ -1,10 +1,14 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight, Filter, Info, Search, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, Search } from "lucide-react";
 
-import { getUnifiedRevenueAudit } from "@/packages/pms/lib/revenue/revenue-audit.functions";
+import {
+  getUnifiedAuditEventById,
+  getUnifiedRevenueAudit,
+} from "@/packages/pms/lib/revenue/revenue-audit.functions";
+import { listRevenueApprovalActorsFn } from "@/packages/pms/lib/revenue/revenue-approval.functions";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import {
   serializeRevenueSearch,
@@ -42,10 +46,10 @@ function formatAuditTimestamp(iso: string): string {
 
 function DomainChip({ domain }: { domain: UnifiedRevenueAuditDomain }) {
   const styles: Record<UnifiedRevenueAuditDomain, string> = {
-    rates: "border-blue-200 bg-blue-50 text-blue-800",
-    restrictions: "border-amber-200 bg-amber-50 text-amber-800",
-    commercial: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    approvals: "border-purple-200 bg-purple-50 text-purple-800",
+    rates: "border-[#D3C7B5] bg-[#F7F4EE] text-[#4A3B2C]",
+    restrictions: "border-[#E5C98F] bg-[#FAF4E6] text-[#7A5418]",
+    commercial: "border-[#C2D8C7] bg-[#F0F6F2] text-[#2D5A3A]",
+    approvals: "border-[#D8CFE5] bg-[#F6F4FA] text-[#523F73]",
   };
 
   const labels: Record<UnifiedRevenueAuditDomain, string> = {
@@ -69,26 +73,47 @@ function DomainChip({ domain }: { domain: UnifiedRevenueAuditDomain }) {
 export function RevenueAuditView({
   restaurantId,
   context,
-  access,
+  access: _access,
   auditTab,
   auditEvent,
+  auditAction,
+  auditActor,
+  auditSearch,
 }: {
   restaurantId: string;
   context: RevenueContext;
   access: RevenueAccess;
-  auditTab?: string;
-  auditEvent?: string;
+  auditTab?: string | undefined;
+  auditEvent?: string | undefined;
+  auditAction?: string | undefined;
+  auditActor?: string | undefined;
+  auditSearch?: string | undefined;
 }) {
   const navigate = useNavigate();
   const fetchAudit = useServerFn(getUnifiedRevenueAudit);
+  const fetchEventById = useServerFn(getUnifiedAuditEventById);
+  const fetchActors = useServerFn(listRevenueApprovalActorsFn);
 
   const activeTab = parseAuditTab(auditTab);
 
-  // Pagination & filter local state
+  // Pagination & filter state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState(auditSearch || "");
   const [selectedEntry, setSelectedEntry] = useState<UnifiedRevenueAuditEntry | null>(null);
+
+  // Keep search input in sync if URL changes externally
+  useEffect(() => {
+    setSearchInput(auditSearch || "");
+  }, [auditSearch]);
+
+  // Load staff actors for dedicated Authoritative Actor filter (UI-36)
+  const actorsQuery = useQuery({
+    queryKey: ["revenue-approval-actors", restaurantId],
+    queryFn: () => fetchActors({ data: { restaurantId } }),
+    staleTime: 60_000,
+  });
+  const actors = actorsQuery.data ?? [];
 
   // Map activeTab to domain parameter for server query
   // P8-STEP-03 Amendment 1: "overrides" domain is passed directly to server for UI-39
@@ -108,11 +133,56 @@ export function RevenueAuditView({
         to: "/restaurant/pms/rates-revenue",
         search: serializeRevenueSearch("audit-control", context, {
           auditTab: tab,
+          auditAction: auditAction || undefined,
+          auditActor: auditActor || undefined,
+          auditSearch: auditSearch || undefined,
         }),
       });
     },
-    [navigate, context],
+    [navigate, context, auditAction, auditActor, auditSearch],
   );
+
+  const handleActionChange = (newAction: string) => {
+    setPage(1);
+    navigate({
+      to: "/restaurant/pms/rates-revenue",
+      search: serializeRevenueSearch("audit-control", context, {
+        auditTab: activeTab,
+        auditAction: newAction || undefined,
+        auditActor: auditActor || undefined,
+        auditSearch: auditSearch || undefined,
+        auditEvent,
+      }),
+    });
+  };
+
+  const handleActorChange = (newActor: string) => {
+    setPage(1);
+    navigate({
+      to: "/restaurant/pms/rates-revenue",
+      search: serializeRevenueSearch("audit-control", context, {
+        auditTab: activeTab,
+        auditAction: auditAction || undefined,
+        auditActor: newActor || undefined,
+        auditSearch: auditSearch || undefined,
+        auditEvent,
+      }),
+    });
+  };
+
+  const handleSearchSubmit = (val: string) => {
+    setPage(1);
+    navigate({
+      to: "/restaurant/pms/rates-revenue",
+      search: serializeRevenueSearch("audit-control", context, {
+        auditTab: activeTab,
+        auditAction: auditAction || undefined,
+        auditActor: auditActor || undefined,
+        auditSearch: val.trim() || undefined,
+        auditEvent,
+      }),
+    });
+  };
 
   const openDetail = useCallback(
     (entry: UnifiedRevenueAuditEntry) => {
@@ -121,11 +191,14 @@ export function RevenueAuditView({
         to: "/restaurant/pms/rates-revenue",
         search: serializeRevenueSearch("audit-control", context, {
           auditTab: activeTab,
+          auditAction: auditAction || undefined,
+          auditActor: auditActor || undefined,
+          auditSearch: auditSearch || undefined,
           auditEvent: entry.id,
         }),
       });
     },
-    [navigate, context, activeTab],
+    [navigate, context, activeTab, auditAction, auditActor, auditSearch],
   );
 
   const closeDetail = useCallback(() => {
@@ -134,10 +207,15 @@ export function RevenueAuditView({
       to: "/restaurant/pms/rates-revenue",
       search: serializeRevenueSearch("audit-control", context, {
         auditTab: activeTab,
+        auditAction: auditAction || undefined,
+        auditActor: auditActor || undefined,
+        auditSearch: auditSearch || undefined,
+        // auditEvent is intentionally omitted to clear drawer deep link
       }),
     });
-  }, [navigate, context, activeTab]);
+  }, [navigate, context, activeTab, auditAction, auditActor, auditSearch]);
 
+  // Main Audit stream query
   const query = useQuery({
     queryKey: [
       "unified-revenue-audit",
@@ -145,7 +223,9 @@ export function RevenueAuditView({
       context.fromDate,
       context.toDate,
       queryDomain,
-      search,
+      auditAction,
+      auditActor,
+      auditSearch,
       page,
       pageSize,
     ],
@@ -156,12 +236,42 @@ export function RevenueAuditView({
           fromDate: context.fromDate,
           toDate: context.toDate,
           domain: queryDomain,
-          search: search.trim() || null,
+          action: auditAction || null,
+          actorMembershipId: auditActor || null,
+          search: auditSearch?.trim() || null,
           page,
           pageSize,
         },
       }),
   });
+
+  // Dedicated server-backed audit-event lookup for URL deep link / reload hydration
+  const eventLookupQuery = useQuery({
+    queryKey: ["unified-revenue-audit-event", restaurantId, auditEvent],
+    queryFn: () => fetchEventById({ data: { restaurantId, eventId: auditEvent! } }),
+    enabled: Boolean(auditEvent && selectedEntry?.id !== auditEvent),
+  });
+
+  // Hydrate selectedEntry when auditEvent URL parameter exists
+  useEffect(() => {
+    if (!auditEvent) {
+      if (selectedEntry) setSelectedEntry(null);
+      return;
+    }
+    if (selectedEntry?.id === auditEvent) return;
+
+    // 1. Locate matching entry from currently loaded audit result if present
+    const loadedMatch = query.data?.entries.find((e) => e.id === auditEvent);
+    if (loadedMatch) {
+      setSelectedEntry(loadedMatch);
+      return;
+    }
+
+    // 2. Hydrate from dedicated server-backed event lookup
+    if (eventLookupQuery.data && eventLookupQuery.data.id === auditEvent) {
+      setSelectedEntry(eventLookupQuery.data);
+    }
+  }, [auditEvent, query.data?.entries, eventLookupQuery.data, selectedEntry]);
 
   return (
     <div className="space-y-4">
@@ -188,7 +298,7 @@ export function RevenueAuditView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Control History (UI-36)
+            Control History
           </button>
           <button
             type="button"
@@ -199,7 +309,7 @@ export function RevenueAuditView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Rate Audit (UI-37)
+            Rate Audit
           </button>
           <button
             type="button"
@@ -210,7 +320,7 @@ export function RevenueAuditView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Restriction Audit (UI-38)
+            Restriction Audit
           </button>
           <button
             type="button"
@@ -221,7 +331,7 @@ export function RevenueAuditView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Override Audit (UI-39)
+            Override Audit
           </button>
         </div>
       </div>
@@ -238,22 +348,66 @@ export function RevenueAuditView({
         </div>
       )}
 
-      {/* Server Filter Toolbar */}
+      {/* Compact Server Filter Toolbar (UI-36): Search | Action | Actor | Rows */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-2xs">
-        <div className="flex flex-1 items-center gap-2 min-w-[200px] max-w-sm">
-          <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Search by action, reason, or actor..."
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-          />
+        <div className="flex flex-1 flex-wrap items-center gap-2 min-w-[200px]">
+          {/* Search with truthful placeholder */}
+          <div className="flex flex-1 items-center gap-2 min-w-[240px] max-w-sm rounded border border-[#E8E1D7] bg-white px-2.5 py-1">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSearchSubmit(searchInput);
+              }}
+              onBlur={() => {
+                if (searchInput !== (auditSearch || "")) handleSearchSubmit(searchInput);
+              }}
+              placeholder="Search action, entity, scope, reason, or reference..."
+              className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </div>
+
+          {/* Action Filter */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={auditAction || ""}
+              onChange={(e) => handleActionChange(e.target.value)}
+              className="rounded border border-[#E8E1D7] bg-white px-2 py-1 text-xs text-foreground"
+            >
+              <option value="">All Actions</option>
+              <option value="rate_change">Rate Change</option>
+              <option value="manual_override">Manual Override</option>
+              <option value="revert_override">Revert Override</option>
+              <option value="single_restriction_change">Restriction Change</option>
+              <option value="bulk_restriction_change">Bulk Restriction</option>
+              <option value="activated">Commercial Activated</option>
+              <option value="deactivated">Commercial Deactivated</option>
+              <option value="approved">Approval Approved</option>
+              <option value="rejected">Approval Rejected</option>
+              <option value="applied">Approval Applied</option>
+            </select>
+          </div>
+
+          {/* Actor Filter */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={auditActor || ""}
+              onChange={(e) => handleActorChange(e.target.value)}
+              className="rounded border border-[#E8E1D7] bg-white px-2 py-1 text-xs text-foreground"
+            >
+              <option value="">All Actors</option>
+              {actors.map((actor) => (
+                <option key={actor.id} value={actor.id}>
+                  {actor.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
+        {/* Rows & Total Counter */}
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <span>Rows:</span>

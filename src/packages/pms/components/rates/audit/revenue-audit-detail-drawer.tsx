@@ -3,7 +3,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ChevronRight, Clock, FileText, Info, User, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/shared/components/ui/sheet";
 import { getAuditOperationDetail } from "@/packages/pms/lib/revenue/revenue-audit.functions";
-import type { UnifiedRevenueAuditEntry } from "@/packages/pms/lib/revenue/revenue-audit";
+import type {
+  AuditOperationDetail,
+  UnifiedRevenueAuditEntry,
+} from "@/packages/pms/lib/revenue/revenue-audit";
 
 function formatTimestamp(value?: string | null): string {
   if (!value) return "—";
@@ -32,9 +35,9 @@ export function RevenueAuditDetailDrawer({
       entry?.sourceTable,
       entry?.operationId,
     ],
-    queryFn: () => {
+    queryFn: async (): Promise<AuditOperationDetail> => {
       if (!entry) throw new Error("No entry selected");
-      return fetchDetail({
+      const result = await fetchDetail({
         data: {
           restaurantId,
           eventId: entry.id,
@@ -42,6 +45,7 @@ export function RevenueAuditDetailDrawer({
           operationId: entry.operationId,
         },
       });
+      return result as AuditOperationDetail;
     },
     enabled: Boolean(open && entry),
   });
@@ -70,7 +74,7 @@ export function RevenueAuditDetailDrawer({
           </p>
         </SheetHeader>
 
-        {query.isLoading && (
+        {(query.isLoading || (open && !entry)) && (
           <div className="space-y-3 py-6" aria-busy="true">
             <div className="h-28 animate-pulse rounded-xl border border-[#E8E1D7] bg-card" />
             <div className="h-40 animate-pulse rounded-xl border border-[#E8E1D7] bg-card" />
@@ -192,18 +196,19 @@ export function RevenueAuditDetailDrawer({
                       {detail.domain === "rates" && (
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-mono font-medium text-foreground">
-                            {String(change.stayDate || "Stay Date")}
+                            {String(change["stayDate"] || "Stay Date")}
                           </span>
                           <div className="flex items-center gap-1.5 font-mono">
                             <span className="text-muted-foreground line-through">
-                              {change.previousRate !== null && change.previousRate !== undefined
-                                ? `${change.currency ?? ""} ${change.previousRate}`
+                              {change["previousRate"] !== null &&
+                              change["previousRate"] !== undefined
+                                ? `${change["currency"] ?? ""} ${change["previousRate"]}`
                                 : "None"}
                             </span>
                             <ChevronRight className="h-3 w-3 text-muted-foreground" />
                             <span className="font-semibold text-foreground">
-                              {change.newRate !== null && change.newRate !== undefined
-                                ? `${change.currency ?? ""} ${change.newRate}`
+                              {change["newRate"] !== null && change["newRate"] !== undefined
+                                ? `${change["currency"] ?? ""} ${change["newRate"]}`
                                 : "None"}
                             </span>
                           </div>
@@ -213,12 +218,12 @@ export function RevenueAuditDetailDrawer({
                       {detail.domain === "restrictions" && (
                         <div className="space-y-1 text-xs">
                           <div className="font-mono font-medium text-foreground">
-                            {String(change.stayDate || "Stay Date")}
+                            {String(change["stayDate"] || "Stay Date")}
                           </div>
                           <div className="text-[11px] text-muted-foreground">
                             Action:{" "}
                             <span className="font-mono text-foreground">
-                              {String(change.actionType || "")}
+                              {String(change["actionType"] || "")}
                             </span>
                           </div>
                         </div>
@@ -227,12 +232,12 @@ export function RevenueAuditDetailDrawer({
                       {detail.domain === "commercial" && (
                         <div className="space-y-1 text-xs">
                           <div className="font-medium text-foreground">
-                            {String(change.entityType || "Entity")}{" "}
-                            {String(change.actionType || "")}
+                            {String(change["entityType"] || "Entity")}{" "}
+                            {String(change["actionType"] || "")}
                           </div>
-                          {change.reason && (
+                          {change["reason"] && (
                             <div className="text-[11px] text-muted-foreground italic">
-                              {String(change.reason)}
+                              {String(change["reason"])}
                             </div>
                           )}
                         </div>
@@ -241,11 +246,11 @@ export function RevenueAuditDetailDrawer({
                       {detail.domain === "approvals" && (
                         <div className="space-y-1 text-xs">
                           <div className="font-medium text-foreground">
-                            {String(change.eventType || "Event")}
+                            {String(change["eventType"] || "Event")}
                           </div>
-                          {change.reason && (
+                          {change["reason"] && (
                             <div className="text-[11px] text-muted-foreground italic">
-                              {String(change.reason)}
+                              {String(change["reason"])}
                             </div>
                           )}
                         </div>

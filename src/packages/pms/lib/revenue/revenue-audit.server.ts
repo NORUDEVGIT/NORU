@@ -22,6 +22,7 @@ import {
   normalizeRestrictionEvent,
   paginateAuditEntries,
   sortAuditEntriesGlobally,
+  type AuditJsonValue,
   type AuditOperationDetail,
   type UnifiedRevenueAuditEntry,
   type UnifiedRevenueAuditFilter,
@@ -330,7 +331,7 @@ export async function loadAuditOperationDetail(
     restaurantId: string;
     eventId: string;
     sourceTable: string;
-    operationId?: string | null;
+    operationId?: string | null | undefined;
   },
 ): Promise<AuditOperationDetail> {
   const { restaurantId, eventId, sourceTable } = query;
@@ -697,7 +698,7 @@ export async function loadAuditOperationDetail(
       summary: `Approval ${mainRow.event_type} event: ${entry.entityLabel}`,
       changes: [{ proposal: req.proposal_payload, display: req.display_snapshot }],
       beforeState: null,
-      afterState: req.display_snapshot as Record<string, unknown> | null,
+      afterState: req.display_snapshot as Record<string, AuditJsonValue> | null,
       approvalLineage: {
         requestId: mainRow.approval_request_id,
         status: req.status,
@@ -711,4 +712,108 @@ export async function loadAuditOperationDetail(
   }
 
   throw rateError("UNKNOWN_AUDIT_SOURCE_TABLE");
+}
+
+export async function loadAuditEventById(
+  db: DbClient,
+  restaurantId: string,
+  eventId: string,
+): Promise<UnifiedRevenueAuditEntry | null> {
+  // 1. Try rate change events
+  const rateRes = await db
+    .from("hotel_rate_change_events")
+    .select(
+      `
+      id, restaurant_id, operation_id, action_type, rate_plan_id, room_type_id, stay_date,
+      previous_effective_rate, new_effective_rate, currency, reason, actor_membership_id, created_at,
+      hotel_rate_plans!hotel_rate_change_events_plan_same_property ( code, name ),
+      room_types!hotel_rate_change_events_type_same_property ( name )
+    `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (rateRes.data) {
+    const entry = normalizeRateEvent(rateRes.data);
+    const actorMap = await loadActorLabels(db, restaurantId, [entry.actorMembershipId]);
+    if (entry.actorMembershipId && actorMap.has(entry.actorMembershipId)) {
+      entry.actorLabel = actorMap.get(entry.actorMembershipId)!;
+    }
+    return entry;
+  }
+
+  // 2. Try restriction change events
+  const restrRes = await db
+    .from("hotel_rate_restriction_change_events")
+    .select(
+      `
+      id, restaurant_id, operation_id, action_type, rate_plan_id, room_type_id, stay_date,
+      reason, actor_membership_id, created_at,
+      hotel_rate_plans!hotel_rate_restriction_change_events_plan_same_property ( code, name ),
+      room_types!hotel_rate_restriction_change_events_type_same_property ( name )
+    `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (restrRes.data) {
+    const entry = normalizeRestrictionEvent(restrRes.data);
+    const actorMap = await loadActorLabels(db, restaurantId, [entry.actorMembershipId]);
+    if (entry.actorMembershipId && actorMap.has(entry.actorMembershipId)) {
+      entry.actorLabel = actorMap.get(entry.actorMembershipId)!;
+    }
+    return entry;
+  }
+
+  // 3. Try commercial change events
+  const commRes = await db
+    .from("hotel_commercial_change_events")
+    .select(
+      `
+      id, restaurant_id, operation_id, entity_type, entity_id, master_id, action_type,
+      reason, actor_membership_id, created_at
+    `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (commRes.data) {
+    const entry = normalizeCommercialEvent(commRes.data);
+    const actorMap = await loadActorLabels(db, restaurantId, [entry.actorMembershipId]);
+    if (entry.actorMembershipId && actorMap.has(entry.actorMembershipId)) {
+      entry.actorLabel = actorMap.get(entry.actorMembershipId)!;
+    }
+    return entry;
+  }
+
+  // 4. Try approval events
+  const appRes = await db
+    .from("hotel_revenue_approval_events")
+    .select(
+      `
+      id, restaurant_id, approval_request_id, event_type, actor_id, reason, created_at, metadata,
+      hotel_revenue_approval_requests!inner (
+        domain, action_type, entity_type, entity_id, status, request_reason, review_reason,
+        proposal_payload, display_snapshot, applied_operation_id, requested_by, requested_at,
+        reviewed_by, reviewed_at
+      )
+    `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (appRes.data) {
+    const entry = normalizeApprovalEvent(appRes.data);
+    const actorMap = await loadActorLabels(db, restaurantId, [entry.actorMembershipId]);
+    if (entry.actorMembershipId && actorMap.has(entry.actorMembershipId)) {
+      entry.actorLabel = actorMap.get(entry.actorMembershipId)!;
+    }
+    return entry;
+  }
+
+  return null;
 }

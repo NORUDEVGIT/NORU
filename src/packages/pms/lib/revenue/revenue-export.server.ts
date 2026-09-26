@@ -49,8 +49,8 @@ export async function exportCommercialPerformance(
     restaurantId: string;
     fromDate: string;
     toDate: string;
-    roomTypeId?: string | null;
-    ratePlanId?: string | null;
+    roomTypeId?: string | null | undefined;
+    ratePlanId?: string | null | undefined;
   },
 ): Promise<ExportCsvResult> {
   const perf = await loadCommercialPerformance(db, query);

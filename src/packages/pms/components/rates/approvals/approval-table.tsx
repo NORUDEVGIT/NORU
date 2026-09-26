@@ -31,9 +31,9 @@ export function ApprovalTable({
 }: {
   rows: RevenueApprovalListItem[];
   tab: RevenueApprovalTab;
-  membershipId?: string | null;
+  membershipId?: string | null | undefined;
   onReview: (row: RevenueApprovalListItem) => void;
-  onCancel?: (row: RevenueApprovalListItem) => void;
+  onCancel?: ((row: RevenueApprovalListItem) => void) | undefined;
 }) {
   const history = tab === "history";
   const mine = tab === "mine";

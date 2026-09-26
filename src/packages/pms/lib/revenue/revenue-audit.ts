@@ -27,14 +27,14 @@ export type UnifiedRevenueAuditEntry = {
 
 export type UnifiedRevenueAuditFilter = {
   restaurantId: string;
-  fromDate?: string | null;
-  toDate?: string | null;
-  domain?: UnifiedRevenueAuditDomain | "all" | "overrides" | null;
-  action?: string | null;
-  actorMembershipId?: string | null;
-  search?: string | null;
-  page?: number | null;
-  pageSize?: number | null;
+  fromDate?: string | null | undefined;
+  toDate?: string | null | undefined;
+  domain?: UnifiedRevenueAuditDomain | "all" | "overrides" | null | undefined;
+  action?: string | null | undefined;
+  actorMembershipId?: string | null | undefined;
+  search?: string | null | undefined;
+  page?: number | null | undefined;
+  pageSize?: number | null | undefined;
 };
 
 export type UnifiedRevenueAuditResult = {
@@ -87,6 +87,16 @@ export function isOverrideAuditEvent(entry: UnifiedRevenueAuditEntry): boolean {
   return false;
 }
 
+export type AuditJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: AuditJsonValue | undefined }
+  | AuditJsonValue[];
+
+export type AuditOperationChange = Record<string, AuditJsonValue | undefined>;
+
 export type AuditOperationDetail = {
   entry: UnifiedRevenueAuditEntry;
   domain: UnifiedRevenueAuditDomain;
@@ -94,9 +104,9 @@ export type AuditOperationDetail = {
   approvalRequestId: string | null;
   batchCount: number;
   summary: string;
-  changes: Array<Record<string, unknown>>;
-  beforeState: Record<string, unknown> | null;
-  afterState: Record<string, unknown> | null;
+  changes: AuditOperationChange[];
+  beforeState: Record<string, AuditJsonValue> | null;
+  afterState: Record<string, AuditJsonValue> | null;
   approvalLineage: {
     requestId: string;
     status: string;
@@ -125,9 +135,9 @@ export function sortAuditEntriesGlobally(
 export function filterAuditEntries(
   entries: UnifiedRevenueAuditEntry[],
   criteria: {
-    search?: string | null;
-    action?: string | null;
-    actorMembershipId?: string | null;
+    search?: string | null | undefined;
+    action?: string | null | undefined;
+    actorMembershipId?: string | null | undefined;
   },
 ): UnifiedRevenueAuditEntry[] {
   let result = entries;

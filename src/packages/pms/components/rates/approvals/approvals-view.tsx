@@ -24,7 +24,10 @@ import {
   rejectRevenueApprovalRequestFn,
   setRevenueApprovalPolicyFn,
 } from "@/packages/pms/lib/revenue/revenue-approval.functions";
-import type { RevenueApprovalListItem } from "@/packages/pms/lib/revenue/revenue-approval.server";
+import type {
+  RevenueApprovalDetail,
+  RevenueApprovalListItem,
+} from "@/packages/pms/lib/revenue/revenue-approval.server";
 import {
   APPROVAL_APPLIED_TOAST,
   APPROVAL_DISABLED_EMPTY,
@@ -75,8 +78,8 @@ export function ApprovalsView({
   restaurantId: string;
   access: RevenueAccessResolution;
   context: RevenueContext;
-  approvalTab?: string;
-  approvalRequest?: string;
+  approvalTab?: string | undefined;
+  approvalRequest?: string | undefined;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -162,12 +165,14 @@ export function ApprovalsView({
     retry: false,
   });
 
-  const detailQuery = useQuery({
+  const detailQuery = useQuery<RevenueApprovalDetail>({
     queryKey: ["revenue-approval-detail", restaurantId, selectedId],
-    queryFn: () =>
-      detailFn({
+    queryFn: async (): Promise<RevenueApprovalDetail> => {
+      const res = await detailFn({
         data: { restaurantId, approvalRequestId: selectedId! },
-      }),
+      });
+      return res as RevenueApprovalDetail;
+    },
     enabled: Boolean(selectedId),
     retry: false,
   });

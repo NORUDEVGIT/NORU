@@ -108,6 +108,7 @@ describe("P8-STEP-02 Revenue CSV Export Foundation", () => {
             adr: 125,
             revpar: 50,
             shareOfRevenue: 100,
+            inventoryMetricSupport: "SUPPORTED",
           },
         ],
         ratePlans: [
@@ -240,7 +241,7 @@ describe("P8-STEP-02 Revenue CSV Export Foundation", () => {
       entries.push({
         id: `evt-${i.toString().padStart(4, "0")}`,
         timestamp: `2026-06-01T12:00:${String(i % 60).padStart(2, "0")}Z`,
-        domain: domains[i % 4],
+        domain: domains[i % 4]!,
         action: "action",
         entityType: "entity",
         entityId: `id-${i}`,

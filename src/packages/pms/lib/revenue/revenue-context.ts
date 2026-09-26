@@ -34,28 +34,34 @@ export type RevenueAnalyticsTab =
 export type RevenueAuditTab = "history" | "rates" | "restrictions" | "overrides";
 
 export type RevenueSearchParams = {
-  view?: string;
-  tab?: string;
-  from?: string;
-  to?: string;
-  roomType?: string;
-  ratePlan?: string;
-  segment?: string;
-  source?: string;
-  channel?: string;
-  approvalTab?: RevenueApprovalTab;
-  approvalRequest?: string;
-  analyticsTab?: RevenueAnalyticsTab;
-  auditTab?: RevenueAuditTab;
-  auditEvent?: string;
+  view?: string | undefined;
+  tab?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  roomType?: string | undefined;
+  ratePlan?: string | undefined;
+  segment?: string | undefined;
+  source?: string | undefined;
+  channel?: string | undefined;
+  approvalTab?: RevenueApprovalTab | undefined;
+  approvalRequest?: string | undefined;
+  analyticsTab?: RevenueAnalyticsTab | undefined;
+  auditTab?: RevenueAuditTab | undefined;
+  auditEvent?: string | undefined;
+  auditAction?: string | undefined;
+  auditActor?: string | undefined;
+  auditSearch?: string | undefined;
 };
 
 export type RevenueApprovalSearchExtras = {
-  approvalTab?: RevenueApprovalTab;
-  approvalRequest?: string;
-  analyticsTab?: RevenueAnalyticsTab;
-  auditTab?: RevenueAuditTab;
-  auditEvent?: string;
+  approvalTab?: RevenueApprovalTab | undefined;
+  approvalRequest?: string | undefined;
+  analyticsTab?: RevenueAnalyticsTab | undefined;
+  auditTab?: RevenueAuditTab | undefined;
+  auditEvent?: string | undefined;
+  auditAction?: string | undefined;
+  auditActor?: string | undefined;
+  auditSearch?: string | undefined;
 };
 
 /** Reservation-origin values. Never treat these as commercial source-code masters. */
@@ -157,8 +163,19 @@ export function serializeRevenueSearch(
     ...(view === "revenue-performance" && extras?.analyticsTab
       ? { analyticsTab: extras.analyticsTab }
       : {}),
-    ...(view === "audit-control" && extras?.auditTab ? { auditTab: extras.auditTab } : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditTab
+      ? { auditTab: extras.auditTab }
+      : {}),
     ...(view === "audit-control" && extras?.auditEvent ? { auditEvent: extras.auditEvent } : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditAction
+      ? { auditAction: extras.auditAction }
+      : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditActor
+      ? { auditActor: extras.auditActor }
+      : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditSearch
+      ? { auditSearch: extras.auditSearch }
+      : {}),
   };
 }
 

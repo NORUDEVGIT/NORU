@@ -7,7 +7,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireRateManager } from "../rates.server";
-import { loadAuditOperationDetail, loadUnifiedRevenueAudit } from "./revenue-audit.server.ts";
+import {
+  loadAuditEventById,
+  loadAuditOperationDetail,
+  loadUnifiedRevenueAudit,
+} from "./revenue-audit.server.ts";
 import {
   REVENUE_AUDIT_DETAIL_LOAD_ERROR,
   REVENUE_AUDIT_LOAD_ERROR,
@@ -39,6 +43,11 @@ const auditDetailSchema = z.object({
   operationId: z.string().optional().nullable(),
 });
 
+const auditEventByIdSchema = z.object({
+  restaurantId: idSchema,
+  eventId: z.string().min(1),
+});
+
 export const getUnifiedRevenueAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => auditFilterSchema.parse(input))
@@ -62,5 +71,18 @@ export const getAuditOperationDetail = createServerFn({ method: "POST" })
       return await loadAuditOperationDetail(supabaseAdmin, data);
     } catch (error) {
       throw toRevenueReadError(error, REVENUE_AUDIT_DETAIL_LOAD_ERROR);
+    }
+  });
+
+export const getUnifiedAuditEventById = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => auditEventByIdSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRateManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await loadAuditEventById(supabaseAdmin, data.restaurantId, data.eventId);
+    } catch (error) {
+      throw toRevenueReadError(error, REVENUE_AUDIT_LOAD_ERROR);
     }
   });

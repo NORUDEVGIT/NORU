@@ -22,8 +22,34 @@ export const Route = createFileRoute("/restaurant/pms/rates-revenue")({
     ...(optionalString(search["segment"]) ? { segment: optionalString(search["segment"]) } : {}),
     ...(optionalString(search["source"]) ? { source: optionalString(search["source"]) } : {}),
     ...(optionalString(search["channel"]) ? { channel: optionalString(search["channel"]) } : {}),
-    ...(optionalString(search["approvalTab"]) ? { approvalTab: parseApprovalTab(optionalString(search["approvalTab"])) } : {}),
-    ...(optionalString(search["approvalRequest"]) ? { approvalRequest: optionalString(search["approvalRequest"]) } : {}),
+    ...(optionalString(search["approvalTab"])
+      ? { approvalTab: parseApprovalTab(optionalString(search["approvalTab"])) }
+      : {}),
+    ...(optionalString(search["approvalRequest"])
+      ? { approvalRequest: optionalString(search["approvalRequest"]) }
+      : {}),
+    ...(optionalString(search["analyticsTab"])
+      ? {
+          analyticsTab: optionalString(
+            search["analyticsTab"],
+          ) as RevenueSearchParams["analyticsTab"],
+        }
+      : {}),
+    ...(optionalString(search["auditTab"])
+      ? { auditTab: optionalString(search["auditTab"]) as RevenueSearchParams["auditTab"] }
+      : {}),
+    ...(optionalString(search["auditEvent"])
+      ? { auditEvent: optionalString(search["auditEvent"]) }
+      : {}),
+    ...(optionalString(search["auditAction"])
+      ? { auditAction: optionalString(search["auditAction"]) }
+      : {}),
+    ...(optionalString(search["auditActor"])
+      ? { auditActor: optionalString(search["auditActor"]) }
+      : {}),
+    ...(optionalString(search["auditSearch"])
+      ? { auditSearch: optionalString(search["auditSearch"]) }
+      : {}),
   }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -39,9 +65,15 @@ export const Route = createFileRoute("/restaurant/pms/rates-revenue")({
   head: () => ({
     meta: [
       { title: "Rate & Revenue — NORU PMS" },
-      { name: "description", content: "Daily pricing, revenue control and commercial operations for your property." },
+      {
+        name: "description",
+        content: "Daily pricing, revenue control and commercial operations for your property.",
+      },
       { property: "og:title", content: "Rate & Revenue — NORU PMS" },
-      { property: "og:description", content: "Daily pricing, revenue control and commercial operations for your property." },
+      {
+        property: "og:description",
+        content: "Daily pricing, revenue control and commercial operations for your property.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },

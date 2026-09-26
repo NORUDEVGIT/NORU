@@ -1,9 +1,15 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown } from "lucide-react";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { RateRevenueChrome } from "@/packages/pms/components/rates/rate-revenue-chrome";
 import { RevenueFoundationView } from "@/packages/pms/components/rates/revenue-foundation-view";
 import { RevenueContextBar } from "@/packages/pms/components/rates/revenue-context-bar";
@@ -61,31 +67,34 @@ import {
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
-function SectionButton({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-      ].join(" ")}
-    >
-      {children}
-      {active ? (
-        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-      ) : null}
-    </button>
-  );
+interface SectionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  active?: boolean;
 }
+
+const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
+  ({ active = false, children, className, ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        className={[
+          "relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors",
+          active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        {...props}
+      >
+        {children}
+        {active ? (
+          <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+        ) : null}
+      </button>
+    );
+  },
+);
+SectionButton.displayName = "SectionButton";
 
 function SecondaryButton({
   active,
@@ -202,13 +211,16 @@ export function RatesWorkspace({
     setMoreOpen(false);
     void navigate({
       to: "/restaurant/pms/rates-revenue",
-      search: serializeRevenueSearch(
-        nextView,
-        nextContext,
-        nextView === "approvals"
-          ? { approvalTab: search.approvalTab, approvalRequest: search.approvalRequest }
-          : undefined,
-      ),
+      search: serializeRevenueSearch(nextView, nextContext, {
+        approvalTab: search.approvalTab,
+        approvalRequest: search.approvalRequest,
+        analyticsTab: search.analyticsTab,
+        auditTab: search.auditTab,
+        auditEvent: search.auditEvent,
+        auditAction: search.auditAction,
+        auditActor: search.auditActor,
+        auditSearch: search.auditSearch,
+      }),
       replace: true,
     });
   }
@@ -229,6 +241,7 @@ export function RatesWorkspace({
     const range = defaultControlCenterRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
 
   useEffect(() => {
@@ -238,6 +251,7 @@ export function RatesWorkspace({
     const range = defaultRateCalendarRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
 
   useEffect(() => {
@@ -247,6 +261,7 @@ export function RatesWorkspace({
     const range = defaultDemandRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
 
   useEffect(() => {
@@ -261,6 +276,7 @@ export function RatesWorkspace({
     const range = defaultControlCenterRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
 
   useEffect(() => {
@@ -270,6 +286,7 @@ export function RatesWorkspace({
     const range = defaultDemandCalendarRange(businessDate);
     if (context.fromDate === range.fromDate && context.toDate === range.toDate) return;
     writeState(requestedView, patchRevenueContext(context, range, contextOptions));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
 
   function selectPrimary(section: RevenuePrimarySection) {
@@ -284,7 +301,9 @@ export function RatesWorkspace({
   function renderView() {
     switch (requestedView) {
       case "control-center":
-        return <RevenueControlView restaurantId={restaurantId} context={context} access={access} />;
+        return (
+          <RevenueControlView restaurantId={restaurantId} context={context} access={access!} />
+        );
       case "rate-plans-reference":
         return <RatePlansTab restaurantId={restaurantId} roomTypeId={context.roomTypeId} />;
       case "rate-calendar":
@@ -415,10 +434,26 @@ export function RatesWorkspace({
             access={access!}
             auditTab={search.auditTab}
             auditEvent={search.auditEvent}
+            auditAction={search.auditAction}
+            auditActor={search.auditActor}
+            auditSearch={search.auditSearch}
           />
         );
       case "export":
-        return <RevenueExportView restaurantId={restaurantId} context={context} />;
+        return (
+          <RevenueExportView
+            restaurantId={restaurantId}
+            context={{
+              ...context,
+              fromDate: context.fromDate,
+              ratePlanId: context.ratePlanId,
+            }}
+            auditTab={search.auditTab}
+            auditAction={search.auditAction}
+            auditActor={search.auditActor}
+            auditSearch={search.auditSearch}
+          />
+        );
       default:
         return (
           <RevenueFoundationView
@@ -466,42 +501,42 @@ export function RatesWorkspace({
           <div className="relative mt-3 flex items-end gap-1 overflow-x-auto px-5 sm:px-6">
             {primarySections.map((section) =>
               section.id === "more" ? (
-                <div key={section.id} className="relative">
-                  <SectionButton
-                    active={activeSection === "more"}
-                    onClick={() => selectPrimary("more")}
+                <DropdownMenu key={section.id} open={moreOpen} onOpenChange={setMoreOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <SectionButton active={activeSection === "more"}>
+                      {section.label}
+                      <ChevronDown
+                        className={[
+                          "h-3.5 w-3.5 transition-transform",
+                          moreOpen ? "rotate-180" : "",
+                        ].join(" ")}
+                      />
+                    </SectionButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    sideOffset={6}
+                    className="z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl"
                   >
-                    {section.label}
-                    <ChevronDown
-                      className={[
-                        "h-3.5 w-3.5 transition-transform",
-                        moreOpen ? "rotate-180" : "",
-                      ].join(" ")}
-                    />
-                  </SectionButton>
-                  {moreOpen ? (
-                    <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl">
-                      {moreViews.map((item) => {
-                        const itemDef = revenueViewDefinition(item);
-                        return (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => selectView(item)}
-                            className={[
-                              "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                              requestedView === item
-                                ? "bg-muted font-medium text-foreground"
-                                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                            ].join(" ")}
-                          >
-                            {itemDef.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
+                    {moreViews.map((item) => {
+                      const itemDef = revenueViewDefinition(item);
+                      return (
+                        <DropdownMenuItem
+                          key={item}
+                          onSelect={() => selectView(item)}
+                          className={[
+                            "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm cursor-pointer transition-colors",
+                            requestedView === item
+                              ? "bg-muted font-medium text-foreground"
+                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                          ].join(" ")}
+                        >
+                          {itemDef.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
                 <SectionButton
                   key={section.id}

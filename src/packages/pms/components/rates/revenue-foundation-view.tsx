@@ -11,8 +11,8 @@ export function RevenueFoundationView({
 }: {
   title: string;
   description: string;
-  plannedCapability?: string;
-  sources?: readonly string[];
+  plannedCapability?: string | undefined;
+  sources?: readonly string[] | undefined;
 }) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card/40 p-6 sm:p-8">
