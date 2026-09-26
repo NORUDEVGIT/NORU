@@ -12,11 +12,11 @@ import {
   rateChangeRequestSchema,
 } from "./rate-change";
 import {
-  applyRateChanges as applyRateChangesOnServer,
   getRateChangeOperationDetail as loadRateChangeOperationDetail,
   listRateChangeHistory as loadRateChangeHistory,
   previewRateChanges as previewRateChangesOnServer,
 } from "./rate-change.server";
+import { executeOrSubmitRateChange } from "./revenue-approval.server";
 import { RATE_HISTORY_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error";
 
 export const previewRateChanges = createServerFn({ method: "POST" })
@@ -33,7 +33,7 @@ export const applyRateChanges = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return applyRateChangesOnServer(context.supabase, supabaseAdmin, data, {
+    return executeOrSubmitRateChange(context.supabase, supabaseAdmin, data, {
       membershipId: me.id,
       userId: context.userId,
     });

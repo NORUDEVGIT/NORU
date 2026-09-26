@@ -53,13 +53,16 @@ describe("Rate & Revenue Phase 1 Prompt 5 — completion locks", () => {
       "commercial",
       "promotions",
       "packages",
+      "commercial-history",
+      "competitor-setup",
+      "approvals",
     ]);
     assert.ok(!foundationRevenueViews().includes("demand-forecast"));
     assert.ok(!foundationRevenueViews().includes("pickup-pace"));
     assert.ok(!foundationRevenueViews().includes("demand-calendar"));
     assert.ok(foundationRevenueViews().includes("forecast-detail"));
     assert.ok(foundationRevenueViews().includes("forecast-history"));
-    assert.ok(foundationRevenueViews().includes("approvals"));
+    assert.ok(!foundationRevenueViews().includes("approvals"));
     const workspace = readRel("../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /Rate & Revenue/);
     assert.doesNotMatch(workspace, /Configuration · Rates/);
@@ -101,7 +104,14 @@ describe("Rate & Revenue Phase 1 Prompt 5 — completion locks", () => {
 
   it("Phase 1 added no forecast/approval/competitor migrations", () => {
     const migrations = readdirSync(join(here, "../../../../drizzle/migrations"));
-    assert.ok(!migrations.some((name) => /forecast|approval|competitor|rate.shopping|prompt.?[2-5]/i.test(name)));
+    assert.ok(
+      !migrations.some(
+        (name) =>
+          !/^0108_pms_rate_shopping/.test(name) &&
+          !/^0109_pms_revenue_approvals/.test(name) &&
+          /forecast|approval|competitor|rate.shopping|prompt.?[2-5]/i.test(name),
+      ),
+    );
     const rooms = readRel("../components/workspaces/rooms-workspace.tsx");
     assert.match(rooms, /RoomInventoryChrome/);
     assert.doesNotMatch(rooms, /getRevenueAccess|RevenueContextBar/);

@@ -8,11 +8,11 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { rateError, requireRateManager } from "../rates.server";
 import {
-  applyStoredPackageActivation,
   getPackageActivationDetail as loadPackageActivationDetail,
   listPackageActivations as loadPackageActivations,
   previewStoredPackageActivation,
 } from "./commercial-package-activation.server.ts";
+import { executeOrSubmitPackageActivation } from "./revenue-approval.server.ts";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -50,7 +50,10 @@ export const applyPackageActivation = createServerFn({ method: "POST" })
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
-      return await applyStoredPackageActivation(supabaseAdmin, data, me.id);
+      return await executeOrSubmitPackageActivation(supabaseAdmin, data, {
+        membershipId: me.id,
+        userId: context.userId,
+      });
     } catch (error) {
       throw rateError(error instanceof Error ? error.message : String(error));
     }

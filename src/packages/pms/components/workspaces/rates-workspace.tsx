@@ -22,6 +22,8 @@ import { CommercialOverviewView } from "@/packages/pms/components/rates/commerci
 import { PromotionsView } from "@/packages/pms/components/rates/promotions/promotions-view";
 import { PackagesView } from "@/packages/pms/components/rates/packages/packages-view";
 import { CommercialHistoryView } from "@/packages/pms/components/rates/commercial-history/commercial-history-view";
+import { CompetitorSetupView } from "@/packages/pms/components/rates/competitor-setup/competitor-setup-view";
+import { ApprovalsView } from "@/packages/pms/components/rates/approvals/approvals-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
 import { defaultDemandCalendarRange } from "@/packages/pms/lib/revenue/demand-calendar";
 import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
@@ -188,7 +190,13 @@ export function RatesWorkspace({
     setMoreOpen(false);
     void navigate({
       to: "/restaurant/pms/rates-revenue",
-      search: serializeRevenueSearch(nextView, nextContext),
+      search: serializeRevenueSearch(
+        nextView,
+        nextContext,
+        nextView === "approvals"
+          ? { approvalTab: search.approvalTab, approvalRequest: search.approvalRequest }
+          : undefined,
+      ),
       replace: true,
     });
   }
@@ -358,6 +366,18 @@ export function RatesWorkspace({
           <CommercialHistoryView
             restaurantId={restaurantId}
             context={context}
+            onNavigateView={selectView}
+          />
+        );
+      case "competitor-setup":
+        return <CompetitorSetupView restaurantId={restaurantId} access={access!} />;
+      case "approvals":
+        return (
+          <ApprovalsView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            search={search}
             onNavigateView={selectView}
           />
         );

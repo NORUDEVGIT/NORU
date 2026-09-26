@@ -33,6 +33,8 @@ export type RevenueContextOptions = {
   salesChannels: Array<{ id: string }>;
 };
 
+export type RevenueApprovalTab = "pending" | "mine" | "history";
+
 export type RevenueSearchParams = {
   view?: string;
   tab?: string;
@@ -43,6 +45,13 @@ export type RevenueSearchParams = {
   segment?: string;
   source?: string;
   channel?: string;
+  approvalTab?: RevenueApprovalTab;
+  approvalRequest?: string;
+};
+
+export type RevenueApprovalSearchExtras = {
+  approvalTab?: RevenueApprovalTab;
+  approvalRequest?: string;
 };
 
 /** Reservation-origin values. Never treat these as commercial source-code masters. */
@@ -120,6 +129,7 @@ export function contextFromSearch(search: RevenueSearchParams, businessDate: str
 export function serializeRevenueSearch(
   view: RevenueWorkspaceView,
   context: RevenueContext,
+  extras?: RevenueApprovalSearchExtras,
 ): RevenueSearchParams {
   return {
     view,
@@ -130,6 +140,8 @@ export function serializeRevenueSearch(
     ...(context.marketSegmentId ? { segment: context.marketSegmentId } : {}),
     ...(context.commercialSourceId ? { source: context.commercialSourceId } : {}),
     ...(context.salesChannelId ? { channel: context.salesChannelId } : {}),
+    ...(view === "approvals" && extras?.approvalTab ? { approvalTab: extras.approvalTab } : {}),
+    ...(view === "approvals" && extras?.approvalRequest ? { approvalRequest: extras.approvalRequest } : {}),
   };
 }
 

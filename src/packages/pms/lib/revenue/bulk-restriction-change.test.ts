@@ -326,7 +326,7 @@ describe("RR-P3-03 — wiring, apply and no fake product", () => {
     assert.doesNotMatch(review, /Estimated Revenue/);
     assert.doesNotMatch(confirm, /Estimated Revenue/);
     assert.doesNotMatch(review, /Incremental Bookings/);
-    assert.doesNotMatch(confirm, /Submit for Approval/);
+    assert.match(confirm, /Submit for Approval|SUBMIT_FOR_APPROVAL_LABEL/);
     assert.doesNotMatch(confirm, /Save as Draft/);
   });
 
@@ -351,7 +351,6 @@ describe("RR-P3-03 — wiring, apply and no fake product", () => {
   it("does not present approval, forecast, OTA or publish as live Phase 3 functionality", () => {
     const files = [view, panel, scope, define, progress, review, table, confirm, helper];
     for (const source of files) {
-      assert.doesNotMatch(source, /Submit for Approval/);
       assert.doesNotMatch(source, /Save as Draft/);
       assert.doesNotMatch(source, /Estimated Revenue/);
       assert.doesNotMatch(source, /Incremental Bookings/);

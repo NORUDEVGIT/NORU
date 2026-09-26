@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -29,6 +30,14 @@ import {
 } from "@/packages/pms/lib/revenue/commercial-promotion-activation";
 import type { PromotionWorkspaceMaster } from "@/packages/pms/lib/revenue/commercial-overview";
 import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenue/revenue-config.types";
+import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
+import {
+  PROMOTION_SUBMITTED_TOAST,
+  SUBMIT_FOR_APPROVAL_LABEL,
+  approvalRequestSearch,
+  handleRevenueMutationResult,
+  invalidateRevenueApprovals,
+} from "@/packages/pms/lib/revenue/revenue-approval-ui";
 import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { commercialGoldButton, commercialOutlineButton, isCommercialStaleMessage } from "../commercial/commercial-ui";
 import { CommercialActivationStepper } from "./commercial-activation-stepper";
@@ -62,6 +71,8 @@ export function PromotionActivationFlow({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const policyQuery = useRevenueApprovalPolicy(restaurantId);
   const previewFn = useServerFn(previewPromotionActivation);
   const applyFn = useServerFn(applyPromotionActivation);
   const [step, setStep] = useState<CommercialActivationStep>(initialPromotionId ? 2 : 1);
@@ -119,6 +130,24 @@ export function PromotionActivationFlow({
       return applyFn({ data: payload });
     },
     onSuccess: (result) => {
+      const handled = handleRevenueMutationResult(result);
+      if (handled.submitted) {
+        invalidateRevenueApprovals(queryClient, restaurantId);
+        toast.success(PROMOTION_SUBMITTED_TOAST, {
+          action: handled.approvalRequestId
+            ? {
+                label: "View Request",
+                onClick: () =>
+                  void navigate({
+                    to: "/restaurant/pms/rates-revenue",
+                    search: approvalRequestSearch(handled.approvalRequestId!),
+                  }),
+              }
+            : undefined,
+        });
+        onClose();
+        return;
+      }
       void queryClient.invalidateQueries({ queryKey: ["commercial-overview"] });
       void queryClient.invalidateQueries({ queryKey: ["commercial-promotions"] });
       void queryClient.invalidateQueries({ queryKey: ["promotion-activation-detail"] });
@@ -126,7 +155,7 @@ export function PromotionActivationFlow({
       void queryClient.invalidateQueries({ queryKey: ["commercial-activation-history"] });
       void queryClient.invalidateQueries({ queryKey: ["commercial-change-history"] });
       toast.success("Promotion activated");
-      onActivated?.(result.activationId);
+      if ("activationId" in result) onActivated?.(result.activationId);
       onClose();
     },
     onError: (err) => {
@@ -293,7 +322,7 @@ export function PromotionActivationFlow({
             disabled={!canManage || !canNext || applyMutation.isPending}
             onClick={() => applyMutation.mutate()}
           >
-            Activate Promotion
+            {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Activate Promotion"}
           </button>
         ) : null}
         {step < 4 ? (

@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -19,6 +21,14 @@ import type { PackageActivationPreview } from "@/packages/pms/lib/revenue/commer
 import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenue/revenue-config.types";
 import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { formatHistoryMoney } from "@/packages/pms/lib/revenue/rate-history";
+import {
+  PACKAGE_SUBMITTED_TOAST,
+  SUBMIT_FOR_APPROVAL_LABEL,
+  approvalRequestSearch,
+  handleRevenueMutationResult,
+  invalidateRevenueApprovals,
+} from "@/packages/pms/lib/revenue/revenue-approval-ui";
+import { useRevenueApprovalPolicy } from "../approvals/use-revenue-approval-policy";
 import { commercialGoldButton, commercialOutlineButton, isCommercialStaleMessage } from "./commercial-ui";
 
 export type PackageActivationAction = "edit" | "deactivate" | "reactivate";
@@ -67,6 +77,8 @@ export function PackageActivationActionSheet({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const policyQuery = useRevenueApprovalPolicy(restaurantId);
   const fetchDetail = useServerFn(getPackageActivationDetail);
   const previewFn = useServerFn(previewPackageActivation);
   const applyFn = useServerFn(applyPackageActivation);
@@ -134,7 +146,25 @@ export function PackageActivationActionSheet({
 
   const applyMutation = useMutation({
     mutationFn: () => applyFn({ data: payload() }),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      const handled = handleRevenueMutationResult(result);
+      if (handled.submitted) {
+        invalidateRevenueApprovals(queryClient, restaurantId);
+        toast.success(PACKAGE_SUBMITTED_TOAST, {
+          action: handled.approvalRequestId
+            ? {
+                label: "View Request",
+                onClick: () =>
+                  void navigate({
+                    to: "/restaurant/pms/rates-revenue",
+                    search: approvalRequestSearch(handled.approvalRequestId!),
+                  }),
+              }
+            : undefined,
+        });
+        onClose();
+        return;
+      }
       invalidate();
       onClose();
     },
@@ -288,7 +318,7 @@ export function PackageActivationActionSheet({
                 disabled={!canManage || preview.errors.length > 0 || applyMutation.isPending}
                 onClick={() => applyMutation.mutate()}
               >
-                Confirm
+                {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Confirm"}
               </button>
             )}
           </div>

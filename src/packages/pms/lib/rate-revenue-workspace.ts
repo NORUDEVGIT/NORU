@@ -26,6 +26,7 @@ export type RevenueWorkspaceView =
   | "promotions"
   | "packages"
   | "commercial-history"
+  | "competitor-setup"
   | "market-intelligence"
   | "approvals"
   | "revenue-performance"
@@ -70,6 +71,7 @@ export const REVENUE_VIEW_REQUIRED_CAPABILITY: Record<RevenueWorkspaceView, Reve
   promotions: "canViewCommercial",
   packages: "canViewCommercial",
   "commercial-history": "canViewCommercial",
+  "competitor-setup": "canViewCommercial",
   "market-intelligence": "canViewCommercial",
   approvals: "canViewApprovals",
   "revenue-performance": "canViewAnalytics",
@@ -236,6 +238,15 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     contextFields: ["dateRange"],
   },
   {
+    id: "competitor-setup",
+    label: "Competitor Setup",
+    section: "commercial",
+    description: "Configure competitor hotels and mappings for future rate shopping.",
+    implemented: true,
+    sources: ["hotel_competitors"],
+    contextFields: [],
+  },
+  {
     id: "market-intelligence",
     label: "Market Intelligence",
     section: "commercial",
@@ -250,10 +261,9 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     label: "Approvals",
     section: "commercial",
     description: "Review and approve commercial rate or restriction changes.",
-    implemented: false,
-    plannedCapability: "Approval queue for material revenue actions.",
-    sources: ["Rate Calendar", "Restrictions"],
-    contextFields: ["dateRange", "roomType", "ratePlan"],
+    implemented: true,
+    sources: ["Rate Calendar", "Restrictions", "Commercial"],
+    contextFields: [],
   },
   {
     id: "revenue-performance",
@@ -336,14 +346,14 @@ export const REVENUE_UI_SCREEN_MAP: Array<{
   { ui: "UI-20", view: null, note: "activation wizard, not primary nav" },
   { ui: "UI-21", view: "commercial-history", note: "implemented" },
   { ui: "UI-22", view: "market-intelligence" },
-  { ui: "UI-23", view: null, note: "future comparison subview/detail" },
-  { ui: "UI-24", view: null, note: "future market-position subview" },
-  { ui: "UI-25", view: null, note: "future market-history subview" },
-  { ui: "UI-26", view: "approvals" },
-  { ui: "UI-27", view: null, note: "approval detail/review flow" },
-  { ui: "UI-28", view: null, note: "approval detail/review flow" },
-  { ui: "UI-29", view: null, note: "approval detail/review flow" },
-  { ui: "UI-30", view: "approvals", note: "approval history within approvals" },
+  { ui: "UI-23", view: null, note: "future comparison subview/detail — blocked until live observations" },
+  { ui: "UI-24", view: "competitor-setup", note: "implemented — setup only, no live rates" },
+  { ui: "UI-25", view: null, note: "future market-history subview — blocked until live observations" },
+  { ui: "UI-26", view: "approvals", note: "pending queue" },
+  { ui: "UI-27", view: null, note: "shared approval detail drawer" },
+  { ui: "UI-28", view: "approvals", note: "My Requests tab" },
+  { ui: "UI-29", view: null, note: "reviewed detail in the shared drawer" },
+  { ui: "UI-30", view: "approvals", note: "History tab" },
   { ui: "UI-31", view: "revenue-performance" },
   { ui: "UI-32", view: null, note: "analytics subview/detail" },
   { ui: "UI-33", view: null, note: "analytics subview/detail" },

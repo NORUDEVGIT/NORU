@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
 import type { RateCalendarCell, RateCalendarPlan } from "@/packages/pms/lib/revenue/rate-calendar";
 import { RATE_CALENDAR_STALE_COPY } from "@/packages/pms/lib/revenue/rate-calendar";
 import {
@@ -11,6 +14,13 @@ import {
   previewRateChanges,
 } from "@/packages/pms/lib/revenue/rate-change.functions";
 import type { RateChangePreview, RateChangeRule } from "@/packages/pms/lib/revenue/rate-change";
+import {
+  RATE_SUBMITTED_TOAST,
+  SUBMIT_FOR_APPROVAL_LABEL,
+  approvalRequestSearch,
+  handleRevenueMutationResult,
+  invalidateRevenueApprovals,
+} from "@/packages/pms/lib/revenue/revenue-approval-ui";
 
 type EditAction = RateChangeRule["type"];
 
@@ -35,6 +45,8 @@ export function RateEditForm({
   money: (value: number) => string;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const policyQuery = useRevenueApprovalPolicy(restaurantId);
   const previewFn = useServerFn(previewRateChanges);
   const applyFn = useServerFn(applyRateChanges);
   const [action, setAction] = useState<EditAction>("SET_RATE");
@@ -87,8 +99,25 @@ export function RateEditForm({
 
   const applyMutation = useMutation({
     mutationFn: () => applyFn({ data: requestPayload() }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setError(null);
+      const handled = handleRevenueMutationResult(result);
+      if (handled.submitted) {
+        invalidateRevenueApprovals(queryClient, restaurantId);
+        toast.success(RATE_SUBMITTED_TOAST, {
+          action: handled.approvalRequestId
+            ? {
+                label: "View Request",
+                onClick: () =>
+                  void navigate({
+                    to: "/restaurant/pms/rates-revenue",
+                    search: approvalRequestSearch(handled.approvalRequestId!),
+                  }),
+              }
+            : undefined,
+        });
+        return;
+      }
       void queryClient.invalidateQueries({ queryKey: ["revenue-rate-calendar"] });
       void queryClient.invalidateQueries({ queryKey: ["revenue-control"] });
       void queryClient.invalidateQueries({ queryKey: ["rate-change-history"] });
@@ -200,7 +229,7 @@ export function RateEditForm({
           onClick={() => applyMutation.mutate()}
           className="inline-flex h-8 items-center rounded-md bg-[#D3A13B] px-2.5 text-[10px] font-medium text-[#251605] hover:bg-[#BE8D2D] disabled:opacity-50"
         >
-          Apply
+          {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Apply"}
         </button>
       </div>
     </div>

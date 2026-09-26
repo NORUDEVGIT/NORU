@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+
+import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
+import {
+  RESTRICTION_SUBMITTED_TOAST,
+  SUBMIT_FOR_APPROVAL_LABEL,
+  approvalRequestSearch,
+  handleRevenueMutationResult,
+  invalidateRevenueApprovals,
+} from "@/packages/pms/lib/revenue/revenue-approval-ui";
 
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -57,6 +68,8 @@ export function RestrictionEditForm({
   canEdit: boolean;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const policyQuery = useRevenueApprovalPolicy(restaurantId);
   const previewFn = useServerFn(previewRestrictionChanges);
   const applyFn = useServerFn(applyRestrictionChanges);
   const current = restrictionStateFromCell(cell.restriction);
@@ -120,8 +133,25 @@ export function RestrictionEditForm({
 
   const applyMutation = useMutation({
     mutationFn: () => applyFn({ data: requestPayload() }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setError(null);
+      const handled = handleRevenueMutationResult(result);
+      if (handled.submitted) {
+        invalidateRevenueApprovals(queryClient, restaurantId);
+        toast.success(RESTRICTION_SUBMITTED_TOAST, {
+          action: handled.approvalRequestId
+            ? {
+                label: "View Request",
+                onClick: () =>
+                  void navigate({
+                    to: "/restaurant/pms/rates-revenue",
+                    search: approvalRequestSearch(handled.approvalRequestId!),
+                  }),
+              }
+            : undefined,
+        });
+        return;
+      }
       void queryClient.invalidateQueries({ queryKey: ["revenue-rate-calendar"] });
       void queryClient.invalidateQueries({ queryKey: ["revenue-control"] });
       void queryClient.invalidateQueries({ queryKey: ["restriction-change-history"] });
@@ -258,7 +288,7 @@ export function RestrictionEditForm({
           onClick={() => applyMutation.mutate()}
           className="inline-flex h-8 items-center rounded-md bg-[#D3A13B] px-2.5 text-[10px] font-medium text-[#251605] hover:bg-[#BE8D2D] disabled:opacity-50"
         >
-          Apply
+          {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Apply"}
         </button>
         <button
           type="button"

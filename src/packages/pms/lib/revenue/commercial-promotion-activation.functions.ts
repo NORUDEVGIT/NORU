@@ -8,11 +8,11 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { rateError, requireRateManager } from "../rates.server";
 import {
-  applyStoredPromotionActivation,
   getPromotionActivationDetail as loadPromotionActivationDetail,
   listPromotionActivations as loadPromotionActivations,
   previewStoredPromotionActivation,
 } from "./commercial-promotion-activation.server.ts";
+import { executeOrSubmitPromotionActivation } from "./revenue-approval.server.ts";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -53,7 +53,10 @@ export const applyPromotionActivation = createServerFn({ method: "POST" })
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
-      return await applyStoredPromotionActivation(supabaseAdmin, data, me.id);
+      return await executeOrSubmitPromotionActivation(supabaseAdmin, data, {
+        membershipId: me.id,
+        userId: context.userId,
+      });
     } catch (error) {
       throw rateError(error instanceof Error ? error.message : String(error));
     }

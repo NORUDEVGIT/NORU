@@ -20,10 +20,16 @@ import {
   uniquePlanCurrencies,
 } from "@/packages/pms/lib/revenue/bulk-rate-change";
 import { getRevenueRateCalendar } from "@/packages/pms/lib/revenue/rate-calendar.functions";
+import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
 import { applyRateChanges, previewRateChanges } from "@/packages/pms/lib/revenue/rate-change.functions";
+import {
+  approvalRequestSearch,
+  handleRevenueMutationResult,
+  invalidateRevenueApprovals,
+} from "@/packages/pms/lib/revenue/revenue-approval-ui";
 import type { RateChangePreview, RateChangeRule } from "@/packages/pms/lib/revenue/rate-change";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
-import { serializeRevenueSearch, type RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
+import { serializeRevenueSearch, type RevenueContext, type RevenueSearchParams } from "@/packages/pms/lib/revenue/revenue-context";
 import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenue/revenue-config.types";
 import { RATE_CALENDAR_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
@@ -60,10 +66,12 @@ export function BulkRateChangeView({
 }) {
   const money = useMoney();
   const queryClient = useQueryClient();
+  const policyQuery = useRevenueApprovalPolicy(restaurantId);
   const previewFn = useServerFn(previewRateChanges);
   const applyFn = useServerFn(applyRateChanges);
   const fetchCalendar = useServerFn(getRevenueRateCalendar);
 
+  const [submittedRequest, setSubmittedRequest] = useState<RevenueSearchParams | null>(null);
   const [step, setStep] = useState<BulkWizardStep>(1);
   const [fromDate, setFromDate] = useState(context.fromDate);
   const [toDate, setToDate] = useState(context.toDate);
@@ -146,8 +154,16 @@ export function BulkRateChangeView({
     mutationFn: () => applyFn({ data: requestPayload() }),
     onSuccess: (result) => {
       setError(null);
+      const handled = handleRevenueMutationResult(result);
+      if (handled.submitted) {
+        setSubmittedRequest(handled.approvalRequestId ? approvalRequestSearch(handled.approvalRequestId) : {});
+        setSuccess(false);
+        invalidateRevenueApprovals(queryClient, restaurantId);
+        return;
+      }
+      setSubmittedRequest(null);
       setSuccess(true);
-      setAppliedCount(result.appliedCount);
+      setAppliedCount("appliedCount" in result ? result.appliedCount : null);
       void queryClient.invalidateQueries({ queryKey: ["revenue-rate-calendar"] });
       void queryClient.invalidateQueries({ queryKey: ["revenue-control"] });
       void queryClient.invalidateQueries({ queryKey: ["rate-change-history"] });
@@ -180,6 +196,7 @@ export function BulkRateChangeView({
     setError(null);
     setSuccess(false);
     setAppliedCount(null);
+    setSubmittedRequest(null);
     previewMutation.reset();
     applyMutation.reset();
   }
@@ -241,12 +258,15 @@ export function BulkRateChangeView({
         appliedCount={appliedCount}
         calendarSearch={calendarSearch}
         historySearch={historySearch}
+        requestSearch={submittedRequest ?? undefined}
+        submitted={Boolean(submittedRequest)}
+        submitForApproval={policyQuery.data?.enabled === true}
         onApply={() => applyMutation.mutate()}
       />
     );
   }
 
-  const footer = success ? null : (
+  const footer = success || submittedRequest ? null : (
     <>
       <button type="button" className={secondaryButton()} onClick={cancelWizard}>
         Cancel
@@ -341,7 +361,7 @@ export function BulkRateChangeView({
           ) : null}
         </div>
 
-        <BulkRateChangePanel step={step} progress={!success} body={body} footer={footer} />
+        <BulkRateChangePanel step={step} progress={!success && !submittedRequest} body={body} footer={footer} />
       </div>
     </div>
   );

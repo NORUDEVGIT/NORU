@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 
 import { BULK_RATE_CHANGE_SUCCESS_COPY, type BulkPreviewSummary } from "@/packages/pms/lib/revenue/bulk-rate-change";
+import {
+  BULK_RATE_SUBMITTED_TOAST,
+  SUBMIT_FOR_APPROVAL_LABEL,
+} from "@/packages/pms/lib/revenue/revenue-approval-ui";
 import type { RevenueSearchParams } from "@/packages/pms/lib/revenue/revenue-context";
 
 export function BulkConfirmApply({
@@ -13,6 +17,9 @@ export function BulkConfirmApply({
   appliedCount,
   calendarSearch,
   historySearch,
+  requestSearch,
+  submitted,
+  submitForApproval,
   onApply,
 }: {
   summary: BulkPreviewSummary | null;
@@ -24,8 +31,27 @@ export function BulkConfirmApply({
   appliedCount: number | null;
   calendarSearch: RevenueSearchParams;
   historySearch: RevenueSearchParams;
+  requestSearch?: RevenueSearchParams;
+  submitted?: boolean;
+  submitForApproval?: boolean;
   onApply: () => void;
 }) {
+  if (submitted) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[12px] font-semibold text-[#251605]">{BULK_RATE_SUBMITTED_TOAST}</p>
+        {requestSearch ? (
+          <Link
+            to="/restaurant/pms/rates-revenue"
+            search={requestSearch}
+            className="inline-flex h-8 items-center rounded-md bg-[#C89933] px-2.5 text-[10px] font-medium text-[#251605]"
+          >
+            View Request
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
   if (success) {
     return (
       <div className="space-y-3">
@@ -77,7 +103,7 @@ export function BulkConfirmApply({
         onClick={onApply}
         className="inline-flex h-8 items-center rounded-md bg-[#C89933] px-2.5 text-[10px] font-medium text-[#251605] hover:bg-[#B5882D] disabled:opacity-50"
       >
-        {applying ? "Applying…" : "Confirm & Apply"}
+        {applying ? "Applying…" : submitForApproval ? SUBMIT_FOR_APPROVAL_LABEL : "Confirm & Apply"}
       </button>
     </div>
   );

@@ -4,6 +4,7 @@ import { RatesWorkspace } from "@/packages/pms/components/workspaces/rates-works
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import type { RevenueSearchParams } from "@/packages/pms/lib/revenue/revenue-context";
+import { parseApprovalTab } from "@/packages/pms/lib/revenue/revenue-approval-ui";
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -21,6 +22,8 @@ export const Route = createFileRoute("/restaurant/pms/rates-revenue")({
     ...(optionalString(search["segment"]) ? { segment: optionalString(search["segment"]) } : {}),
     ...(optionalString(search["source"]) ? { source: optionalString(search["source"]) } : {}),
     ...(optionalString(search["channel"]) ? { channel: optionalString(search["channel"]) } : {}),
+    ...(optionalString(search["approvalTab"]) ? { approvalTab: parseApprovalTab(optionalString(search["approvalTab"])) } : {}),
+    ...(optionalString(search["approvalRequest"]) ? { approvalRequest: optionalString(search["approvalRequest"]) } : {}),
   }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();

@@ -12,11 +12,11 @@ import {
   restrictionChangeRequestSchema,
 } from "./restriction-change";
 import {
-  applyRestrictionChanges as applyRestrictionChangesOnServer,
   getRestrictionOperationDetail as loadRestrictionOperationDetail,
   listRestrictionChangeHistory as loadRestrictionChangeHistory,
   previewRestrictionChanges as previewRestrictionChangesOnServer,
 } from "./restriction-change.server";
+import { executeOrSubmitRestrictionChange } from "./revenue-approval.server";
 import { RESTRICTION_HISTORY_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error";
 
 export const previewRestrictionChanges = createServerFn({ method: "POST" })
@@ -33,7 +33,7 @@ export const applyRestrictionChanges = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return applyRestrictionChangesOnServer(context.supabase, supabaseAdmin, data, {
+    return executeOrSubmitRestrictionChange(context.supabase, supabaseAdmin, data, {
       membershipId: me.id,
       userId: context.userId,
     });

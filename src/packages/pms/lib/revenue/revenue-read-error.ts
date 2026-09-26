@@ -13,6 +13,7 @@ export const COMMERCIAL_HISTORY_LOAD_ERROR = "Commercial change history could no
 export const COMMERCIAL_OVERVIEW_LOAD_ERROR = "Commercial overview could not be loaded.";
 export const COMMERCIAL_PROMOTIONS_LOAD_ERROR = "Promotions could not be loaded.";
 export const COMMERCIAL_PACKAGES_LOAD_ERROR = "Packages could not be loaded.";
+export const COMPETITOR_SETUP_LOAD_ERROR = "Competitor setup could not be loaded.";
 
 export function isPrivilegedDbError(message: string): boolean {
   return /permission denied|row-level security|42501/i.test(message);
