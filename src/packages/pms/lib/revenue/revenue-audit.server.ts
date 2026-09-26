@@ -14,6 +14,7 @@
 import { rateError } from "../rates.server.ts";
 import {
   filterAuditEntries,
+  isOverrideAuditEvent,
   MAX_AUDIT_EXPORT_ROWS,
   normalizeApprovalEvent,
   normalizeCommercialEvent,
@@ -86,10 +87,13 @@ export async function fetchAndNormalizeUnifiedAudit(
 
   const candidates: UnifiedRevenueAuditEntry[] = [];
 
-  const shouldFetchRates = domainFilter === "all" || domainFilter === "rates";
+  const isOverrides = domainFilter === "overrides";
+  const shouldFetchRates = domainFilter === "all" || domainFilter === "rates" || isOverrides;
   const shouldFetchRestrictions = domainFilter === "all" || domainFilter === "restrictions";
-  const shouldFetchCommercial = domainFilter === "all" || domainFilter === "commercial";
-  const shouldFetchApprovals = domainFilter === "all" || domainFilter === "approvals";
+  const shouldFetchCommercial =
+    domainFilter === "all" || domainFilter === "commercial" || isOverrides;
+  const shouldFetchApprovals =
+    domainFilter === "all" || domainFilter === "approvals" || isOverrides;
 
   const fetchTasks: Promise<void>[] = [];
 
@@ -218,7 +222,12 @@ export async function fetchAndNormalizeUnifiedAudit(
 
   await Promise.all(fetchTasks);
 
-  const filtered = filterAuditEntries(candidates, {
+  let pool = candidates;
+  if (isOverrides) {
+    pool = pool.filter(isOverrideAuditEvent);
+  }
+
+  const filtered = filterAuditEntries(pool, {
     search: query.search,
     action: query.action,
     actorMembershipId: query.actorMembershipId,

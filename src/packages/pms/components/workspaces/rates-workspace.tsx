@@ -24,6 +24,9 @@ import { PackagesView } from "@/packages/pms/components/rates/packages/packages-
 import { CommercialHistoryView } from "@/packages/pms/components/rates/commercial-history/commercial-history-view";
 import { CompetitorSetupView } from "@/packages/pms/components/rates/competitor-setup/competitor-setup-view";
 import { ApprovalsView } from "@/packages/pms/components/rates/approvals/approvals-view";
+import { RevenuePerformanceView } from "@/packages/pms/components/rates/analytics/revenue-performance-view";
+import { RevenueAuditView } from "@/packages/pms/components/rates/audit/revenue-audit-view";
+import { RevenueExportView } from "@/packages/pms/components/rates/export/revenue-export-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
 import { defaultDemandCalendarRange } from "@/packages/pms/lib/revenue/demand-calendar";
 import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
@@ -395,6 +398,27 @@ export function RatesWorkspace({
             approvalRequest={search.approvalRequest}
           />
         );
+      case "revenue-performance":
+        return (
+          <RevenuePerformanceView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            analyticsTab={search.analyticsTab}
+          />
+        );
+      case "audit-control":
+        return (
+          <RevenueAuditView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            auditTab={search.auditTab}
+            auditEvent={search.auditEvent}
+          />
+        );
+      case "export":
+        return <RevenueExportView restaurantId={restaurantId} context={context} />;
       default:
         return (
           <RevenueFoundationView

@@ -34,12 +34,7 @@ export type RevenueWorkspaceView =
   | "export";
 
 export type RevenuePrimarySection =
-  | "revenue-control"
-  | "rates"
-  | "restrictions"
-  | "demand-forecast"
-  | "commercial"
-  | "more";
+  "revenue-control" | "rates" | "restrictions" | "demand-forecast" | "commercial" | "more";
 
 export interface RevenueViewDefinition {
   id: RevenueWorkspaceView;
@@ -205,7 +200,8 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     id: "commercial",
     label: "Commercial Overview",
     section: "commercial",
-    description: "Monitor active promotions, packages, commercial scope, and post-launch performance.",
+    description:
+      "Monitor active promotions, packages, commercial scope, and post-launch performance.",
     implemented: true,
     sources: ["Property Setup", "Reservations"],
     contextFields: ["dateRange", "roomType", "ratePlan"],
@@ -270,30 +266,32 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     label: "Revenue Performance",
     section: "more",
     description: "Analytics beyond the Control Center snapshot KPIs.",
-    implemented: false,
-    plannedCapability: "Deeper revenue analytics without changing Control Center formulas.",
-    sources: ["Reservations", "Reports"],
-    contextFields: ["dateRange", "roomType", "ratePlan", "segment", "source", "channel"],
+    implemented: true,
+    sources: ["Reservations", "Rooms & Inventory", "Property Setup"],
+    contextFields: ["dateRange", "roomType", "ratePlan", "segment", "source"],
   },
   {
     id: "audit-control",
     label: "Audit & Control",
     section: "more",
     description: "Operational audit of revenue actions.",
-    implemented: false,
-    plannedCapability: "Audit trail for rate, restriction and commercial actions.",
-    sources: ["Rate Calendar", "Restrictions"],
-    contextFields: ["dateRange", "roomType", "ratePlan"],
+    implemented: true,
+    sources: [
+      "hotel_rate_change_events",
+      "hotel_rate_restriction_change_events",
+      "hotel_commercial_change_events",
+      "hotel_revenue_approval_events",
+    ],
+    contextFields: ["dateRange"],
   },
   {
     id: "export",
     label: "Export",
     section: "more",
     description: "Export operational revenue views.",
-    implemented: false,
-    plannedCapability: "Controlled export of implemented revenue views.",
-    sources: ["Control Center", "Reports"],
-    contextFields: ["dateRange"],
+    implemented: true,
+    sources: ["Revenue Performance", "Commercial Performance", "Unified Revenue Audit"],
+    contextFields: ["dateRange", "roomType", "ratePlan", "segment", "source"],
   },
 ];
 
@@ -333,7 +331,11 @@ export const REVENUE_UI_SCREEN_MAP: Array<{
   { ui: "UI-07", view: "restrictions" },
   { ui: "UI-08", view: null, note: "future restriction detail drawer" },
   { ui: "UI-09", view: "apply-restriction" },
-  { ui: "UI-10", view: null, note: "review/confirmation inside apply-restriction, not primary nav" },
+  {
+    ui: "UI-10",
+    view: null,
+    note: "review/confirmation inside apply-restriction, not primary nav",
+  },
   { ui: "UI-11", view: "restriction-history" },
   { ui: "UI-12", view: "demand-forecast" },
   { ui: "UI-13", view: "pickup-pace" },
@@ -346,24 +348,60 @@ export const REVENUE_UI_SCREEN_MAP: Array<{
   { ui: "UI-20", view: null, note: "activation wizard, not primary nav" },
   { ui: "UI-21", view: "commercial-history", note: "implemented" },
   { ui: "UI-22", view: "market-intelligence" },
-  { ui: "UI-23", view: null, note: "future comparison subview/detail — blocked until live observations" },
+  {
+    ui: "UI-23",
+    view: null,
+    note: "future comparison subview/detail — blocked until live observations",
+  },
   { ui: "UI-24", view: "competitor-setup", note: "implemented — setup only, no live rates" },
-  { ui: "UI-25", view: null, note: "future market-history subview — blocked until live observations" },
+  {
+    ui: "UI-25",
+    view: null,
+    note: "future market-history subview — blocked until live observations",
+  },
   { ui: "UI-26", view: "approvals", note: "pending queue" },
   { ui: "UI-27", view: null, note: "shared approval detail drawer" },
   { ui: "UI-28", view: "approvals", note: "My Requests tab" },
   { ui: "UI-29", view: null, note: "reviewed detail in the shared drawer" },
   { ui: "UI-30", view: "approvals", note: "History tab" },
-  { ui: "UI-31", view: "revenue-performance" },
-  { ui: "UI-32", view: null, note: "analytics subview/detail" },
-  { ui: "UI-33", view: null, note: "analytics subview/detail" },
-  { ui: "UI-34", view: null, note: "analytics subview/detail" },
-  { ui: "UI-35", view: null, note: "analytics subview/detail" },
-  { ui: "UI-36", view: "audit-control" },
-  { ui: "UI-37", view: null, note: "audit subview" },
-  { ui: "UI-38", view: null, note: "audit subview" },
-  { ui: "UI-39", view: null, note: "audit subview" },
-  { ui: "UI-40", view: "export" },
+  { ui: "UI-31", view: "revenue-performance", note: "Overview (UI-31) — management workspace" },
+  {
+    ui: "UI-32",
+    view: "revenue-performance",
+    note: "Occupancy / ADR / RevPAR (UI-32) — KPI detail subview",
+  },
+  {
+    ui: "UI-33",
+    view: "revenue-performance",
+    note: "Revenue by Segment (UI-33) — breakdown subview",
+  },
+  {
+    ui: "UI-34",
+    view: "revenue-performance",
+    note: "Revenue by Source (UI-34) — breakdown subview",
+  },
+  {
+    ui: "UI-35",
+    view: "revenue-performance",
+    note: "Revenue Trends (UI-35) — time series & daily table",
+  },
+  {
+    ui: "UI-36",
+    view: "audit-control",
+    note: "Revenue Control History (UI-36) — master operational audit",
+  },
+  { ui: "UI-37", view: "audit-control", note: "Rate Audit (UI-37) — rates domain audit" },
+  {
+    ui: "UI-38",
+    view: "audit-control",
+    note: "Restriction Audit (UI-38) — restrictions domain audit",
+  },
+  {
+    ui: "UI-39",
+    view: "audit-control",
+    note: "Override Audit (UI-39) — overrides/exceptions audit",
+  },
+  { ui: "UI-40", view: "export", note: "Revenue Export (UI-40) — RFC-4180 CSV export control" },
 ];
 
 const VALID_VIEWS = new Set<RevenueWorkspaceView>(REVENUE_VIEW_DEFINITIONS.map((view) => view.id));
@@ -397,7 +435,10 @@ export function canAccessRevenueView(access: RevenueAccess, view: RevenueWorkspa
 }
 
 export function firstAccessibleRevenueView(access: RevenueAccess): RevenueWorkspaceView | null {
-  return REVENUE_VIEW_DEFINITIONS.find((definition) => canAccessRevenueView(access, definition.id))?.id ?? null;
+  return (
+    REVENUE_VIEW_DEFINITIONS.find((definition) => canAccessRevenueView(access, definition.id))
+      ?.id ?? null
+  );
 }
 
 export function sectionForRevenueView(view: RevenueWorkspaceView): RevenuePrimarySection {

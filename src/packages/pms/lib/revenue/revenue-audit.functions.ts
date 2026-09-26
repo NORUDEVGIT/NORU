@@ -21,7 +21,10 @@ const auditFilterSchema = z.object({
   restaurantId: idSchema,
   fromDate: dateSchema.optional().nullable(),
   toDate: dateSchema.optional().nullable(),
-  domain: z.enum(["all", "rates", "restrictions", "commercial", "approvals"]).optional().nullable(),
+  domain: z
+    .enum(["all", "rates", "restrictions", "commercial", "approvals", "overrides"])
+    .optional()
+    .nullable(),
   action: z.string().optional().nullable(),
   actorMembershipId: z.string().optional().nullable(),
   search: z.string().optional().nullable(),

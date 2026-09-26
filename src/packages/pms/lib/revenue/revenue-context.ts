@@ -8,12 +8,7 @@ import type { RevenueWorkspaceView } from "../rate-revenue-workspace";
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type RevenueContextField =
-  | "dateRange"
-  | "roomType"
-  | "ratePlan"
-  | "segment"
-  | "source"
-  | "channel";
+  "dateRange" | "roomType" | "ratePlan" | "segment" | "source" | "channel";
 
 export type RevenueContext = {
   fromDate: string;
@@ -34,6 +29,9 @@ export type RevenueContextOptions = {
 };
 
 export type RevenueApprovalTab = "pending" | "mine" | "history";
+export type RevenueAnalyticsTab =
+  "overview" | "kpis" | "segments" | "sources" | "trends" | "commercial";
+export type RevenueAuditTab = "history" | "rates" | "restrictions" | "overrides";
 
 export type RevenueSearchParams = {
   view?: string;
@@ -47,11 +45,17 @@ export type RevenueSearchParams = {
   channel?: string;
   approvalTab?: RevenueApprovalTab;
   approvalRequest?: string;
+  analyticsTab?: RevenueAnalyticsTab;
+  auditTab?: RevenueAuditTab;
+  auditEvent?: string;
 };
 
 export type RevenueApprovalSearchExtras = {
   approvalTab?: RevenueApprovalTab;
   approvalRequest?: string;
+  analyticsTab?: RevenueAnalyticsTab;
+  auditTab?: RevenueAuditTab;
+  auditEvent?: string;
 };
 
 /** Reservation-origin values. Never treat these as commercial source-code masters. */
@@ -73,7 +77,10 @@ export function parseIsoDate(value: string | undefined, fallback: string): strin
   return value && ISO_DATE.test(value) ? value : fallback;
 }
 
-export function normalizeDateRange(fromDate: string, toDate: string): { fromDate: string; toDate: string } {
+export function normalizeDateRange(
+  fromDate: string,
+  toDate: string,
+): { fromDate: string; toDate: string } {
   if (toDate < fromDate) return { fromDate: toDate, toDate: fromDate };
   return { fromDate, toDate };
 }
@@ -114,7 +121,10 @@ export function sanitizeRevenueContext(
   };
 }
 
-export function contextFromSearch(search: RevenueSearchParams, businessDate: string): RevenueContext {
+export function contextFromSearch(
+  search: RevenueSearchParams,
+  businessDate: string,
+): RevenueContext {
   return {
     fromDate: parseIsoDate(search.from, businessDate),
     toDate: parseIsoDate(search.to, businessDate),
@@ -141,7 +151,14 @@ export function serializeRevenueSearch(
     ...(context.commercialSourceId ? { source: context.commercialSourceId } : {}),
     ...(context.salesChannelId ? { channel: context.salesChannelId } : {}),
     ...(view === "approvals" && extras?.approvalTab ? { approvalTab: extras.approvalTab } : {}),
-    ...(view === "approvals" && extras?.approvalRequest ? { approvalRequest: extras.approvalRequest } : {}),
+    ...(view === "approvals" && extras?.approvalRequest
+      ? { approvalRequest: extras.approvalRequest }
+      : {}),
+    ...(view === "revenue-performance" && extras?.analyticsTab
+      ? { analyticsTab: extras.analyticsTab }
+      : {}),
+    ...(view === "audit-control" && extras?.auditTab ? { auditTab: extras.auditTab } : {}),
+    ...(view === "audit-control" && extras?.auditEvent ? { auditEvent: extras.auditEvent } : {}),
   };
 }
 

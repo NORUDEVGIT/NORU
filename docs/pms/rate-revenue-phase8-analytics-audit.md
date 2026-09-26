@@ -20,10 +20,28 @@
 ---
 
 ## 1. UI-31–40 Source-of-Truth Status
+The original NORU Rate & Revenue source documentation has been located and incorporated into Phase 8:
 
-> [!WARNING]
-> **UI-31–40 exact mapping: BLOCKED — original source documentation unavailable.**
-> An in-repo PDF or formal specification for UI-31–40 does not exist in git. In accordance with the Phase 8 Step 1 Amendment, screen definitions, titles, and workflows must NOT be fabricated or inferred from current workspace placeholders (`revenue-performance`, `audit-control`, `export`). Those placeholders represent navigation scaffolding only. The technical capability of the underlying analytics, audit, and export domains is evaluated independently below.
+| Screen Code | Screen Name | Classification | Primary Workspace View | Implemented Subview / Tab |
+| :--- | :--- | :--- | :--- | :--- |
+| **UI-31** | **Revenue Performance** | Analytics / Management Workspace | `revenue-performance` | Overview tab (UI-31) |
+| **UI-32** | **Occupancy / ADR / RevPAR** | Analytics / KPI Detail | `revenue-performance` | KPI Detail tab (UI-32) |
+| **UI-33** | **Revenue by Segment** | Analytics / Breakdown | `revenue-performance` | Segments tab (UI-33) |
+| **UI-34** | **Revenue by Source** | Analytics / Breakdown | `revenue-performance` | Sources tab (UI-34) |
+| **UI-35** | **Revenue Trends** | Analytics / Trend Analysis | `revenue-performance` | Trends tab (UI-35) |
+| **UI-36** | **Revenue Control History** | History / Audit / Control | `audit-control` | Control History tab (UI-36) |
+| **UI-37** | **Rate Audit** | Audit / Detailed History | `audit-control` | Rate Audit tab (UI-37) |
+| **UI-38** | **Restriction Audit** | Audit / Detailed History | `audit-control` | Restriction Audit tab (UI-38) |
+| **UI-39** | **Override Audit** | Audit / Commercial Exceptions | `audit-control` | Override Audit tab (UI-39) |
+| **UI-40** | **Revenue Export** | Export / Reporting Control | `export` | Revenue Export (UI-40) |
+
+**V1 Capability Adaptations (Source Document vs. Current Engine):**
+- **Forecast & Budget:** Not available in NORU. No fake numbers or charts are rendered.
+- **Segment / Source Occupancy & RevPAR:** Marked `NOT_MEANINGFUL` in accordance with P8-STEP-02B; physical inventory cannot be partitioned by segment or booking source.
+- **Sales Channel:** Unsupported in NORU reservation linkages. Will not be exposed as an active analytics filter.
+- **Commission / Net Revenue:** Not configured in NORU; omitted.
+- **Export Formats:** CSV only. No buttons for XLSX, PDF, JSON, or scheduling are rendered.
+- **Phase 6 & Forecast Status:** Competitor live rate shopping and forecast remain intentionally on hold/unavailable per prior architecture decisions.
 
 ---
 

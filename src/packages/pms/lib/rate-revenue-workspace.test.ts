@@ -70,6 +70,9 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /<PackagesView/);
     assert.match(workspace, /<CompetitorSetupView/);
     assert.match(workspace, /<ApprovalsView/);
+    assert.match(workspace, /<RevenuePerformanceView/);
+    assert.match(workspace, /<RevenueAuditView/);
+    assert.match(workspace, /<RevenueExportView/);
     assert.match(workspace, /case "control-center"/);
     assert.match(workspace, /case "rate-plans-reference"/);
     assert.match(workspace, /case "rate-calendar"/);
@@ -87,6 +90,9 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /case "commercial-history"/);
     assert.match(workspace, /case "competitor-setup"/);
     assert.match(workspace, /case "approvals"/);
+    assert.match(workspace, /case "revenue-performance"/);
+    assert.match(workspace, /case "audit-control"/);
+    assert.match(workspace, /case "export"/);
     assert.deepEqual(implementedRevenueViews(), [
       "control-center",
       "rate-plans-reference",
@@ -105,6 +111,9 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
       "commercial-history",
       "competitor-setup",
       "approvals",
+      "revenue-performance",
+      "audit-control",
+      "export",
     ]);
   });
 
@@ -133,6 +142,9 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.ok(!foundationRevenueViews().includes("bulk-rate-change"));
     assert.ok(!foundationRevenueViews().includes("apply-restriction"));
     assert.ok(!foundationRevenueViews().includes("restriction-history"));
+    assert.ok(!foundationRevenueViews().includes("revenue-performance"));
+    assert.ok(!foundationRevenueViews().includes("audit-control"));
+    assert.ok(!foundationRevenueViews().includes("export"));
     assert.equal(
       foundationRevenueViews().length,
       REVENUE_VIEW_DEFINITIONS.filter((view) => !view.implemented).length,

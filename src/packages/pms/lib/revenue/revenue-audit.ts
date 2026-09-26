@@ -29,7 +29,7 @@ export type UnifiedRevenueAuditFilter = {
   restaurantId: string;
   fromDate?: string | null;
   toDate?: string | null;
-  domain?: UnifiedRevenueAuditDomain | "all" | null;
+  domain?: UnifiedRevenueAuditDomain | "all" | "overrides" | null;
   action?: string | null;
   actorMembershipId?: string | null;
   search?: string | null;
@@ -47,12 +47,45 @@ export type UnifiedRevenueAuditResult = {
   filter: {
     fromDate?: string | null;
     toDate?: string | null;
-    domain: UnifiedRevenueAuditDomain | "all";
+    domain: UnifiedRevenueAuditDomain | "all" | "overrides";
     actorMembershipId?: string | null;
     action?: string | null;
     search?: string | null;
   };
 };
+
+/**
+ * P8-STEP-03 Amendment 1:
+ * UI-39 Override Audit must include only events structurally identifiable as overrides/exceptions.
+ * Does NOT treat every approval as an override.
+ */
+export function isOverrideAuditEvent(entry: UnifiedRevenueAuditEntry): boolean {
+  const actionLower = entry.action.toLowerCase();
+  const reasonLower = (entry.reason ?? "").toLowerCase();
+  const labelLower = entry.entityLabel.toLowerCase();
+
+  if (actionLower.includes("override") || actionLower === "manual_override") {
+    return true;
+  }
+  if (actionLower.includes("exception")) {
+    return true;
+  }
+  if (
+    entry.domain === "rates" &&
+    (reasonLower.includes("override") || reasonLower.includes("exception"))
+  ) {
+    return true;
+  }
+  if (
+    entry.domain === "approvals" &&
+    (actionLower.includes("override") ||
+      reasonLower.includes("override") ||
+      labelLower.includes("override"))
+  ) {
+    return true;
+  }
+  return false;
+}
 
 export type AuditOperationDetail = {
   entry: UnifiedRevenueAuditEntry;

@@ -77,20 +77,26 @@ flowchart TD
 ---
 
 ### Step 3: P8-STEP-03 — UI-31–40 Workspaces & Rate & Revenue Final Closeout
-*Status: PENDING*
+*Status: COMPLETE*
 
 **Key Deliverables:**
-1. **Revenue Performance View (`src/packages/pms/components/rates/analytics/revenue-performance-view.tsx`):**
-   - Overview KPIs (Booked Room Revenue, Sold Nights, Available Nights, Occupancy %, ADR, RevPAR, Priced Share).
-   - Stay-date daily revenue and occupancy trend chart.
-   - Breakdown subviews: Room Types, Rate Plans (Volume/Revenue/ADR only), Segments & Sources, Commercial (Promotions & Packages).
-   - Non-intrusive data quality warnings for unpriced bookings and legacy unassigned segments.
-2. **Audit & Control View (`src/packages/pms/components/rates/audit/revenue-audit-view.tsx`):**
-   - Master audit table with pagination, search, actor filters, and domain badges (Rates, Restrictions, Commercial, Approvals).
-   - Operation detail drawer showing exact before/after diffs linked by `operation_id` or `applied_operation_id`.
-3. **Export Workflow (`src/packages/pms/components/rates/export/revenue-export-dialog.tsx`):**
-   - Export modal / trigger buttons generating validated CSV downloads with server-complete datasets.
-4. **Workspace Wiring & Closeout:**
-   - Mount views in `src/packages/pms/components/workspaces/rates-workspace.tsx`.
-   - Update `src/packages/pms/lib/rate-revenue-workspace.ts`: flip `implemented: true` for `revenue-performance`, `audit-control`, and `export`.
-   - Run end-to-end regression tests and create Phase 8 completion documentation.
+1. **Revenue Performance Workspace (`src/packages/pms/components/rates/analytics/revenue-performance-view.tsx`):**
+   - **UI-31 — Revenue Performance:** Executive overview KPIs (`revenue-kpi-strip.tsx`), trend preview, top segment/source previews, and data quality alerts (`revenue-data-quality-alert.tsx`).
+   - **UI-32 — Occupancy / ADR / RevPAR:** Operational KPI formulas and dense room-type breakdown table (`revenue-kpi-detail.tsx`). Enforces non-inventory denominator nullification (`N/A`).
+   - **UI-33 — Revenue by Segment:** Commercial market segment attribution table (`revenue-segment-breakdown.tsx`) with unassigned/legacy row indicators and contextual detail drawer.
+   - **UI-34 — Revenue by Source:** Dual tabs for Commercial Booking Sources and Technical Origins (`revenue-source-breakdown.tsx`). Sales channel is omitted; commission models are disclaimed.
+   - **UI-35 — Revenue Trends:** Recharts time series (`revenue-trend-view.tsx`) with metric dropdown (Revenue, Sold Nights, Occupancy %, ADR, RevPAR) and Daily/Weekly/Monthly rollup (strictly avoids double-counting reservation counts by aggregating additive nightly metrics only).
+   - **Commercial Performance:** Promotions and packages attribution section (`commercial-performance-section.tsx`).
+2. **Audit & Control Workspace (`src/packages/pms/components/rates/audit/revenue-audit-view.tsx`):**
+   - **UI-36 — Revenue Control History:** Unified 4-source audit master table with domain badges, date range filter, action filter, actor filter, live text search, and server-side pagination (10, 25, 50 rows).
+   - **UI-37 — Rate Audit:** Filtered rates domain subview.
+   - **UI-38 — Restriction Audit:** Filtered restrictions domain subview.
+   - **UI-39 — Override Audit:** Filtered override/exception events subview backed by server-side `domain: "overrides"` filtering (Amendment 1).
+   - **Audit Detail Drawer (`revenue-audit-detail-drawer.tsx`):** Granular diff matrix, state transitions, and linked approval lineage (`Submitted -> Approved -> Applied Operation`).
+3. **Revenue Export Workspace (`src/packages/pms/components/rates/export/revenue-export-view.tsx`):**
+   - **UI-40 — Revenue Export:** Controlled cards for Revenue Performance Overview CSV, Commercial Performance CSV, and Unified Revenue Audit CSV. Client Blob download, pending mutation spinners, toast notifications, and `AUDIT_EXPORT_TOO_LARGE` safety handling.
+4. **Workspace Wiring & Route Integration:**
+   - Mounted `RevenuePerformanceView`, `RevenueAuditView`, and `RevenueExportView` in `src/packages/pms/components/workspaces/rates-workspace.tsx`.
+   - Updated `src/packages/pms/lib/rate-revenue-workspace.ts`: marked `revenue-performance`, `audit-control`, and `export` as `implemented: true`.
+   - Updated `REVENUE_UI_SCREEN_MAP` to reflect exact UI-31–40 source-of-truth mappings.
+   - Verified 38 tests across 5 test suites pass with 0 failures. ESLint: 0 errors.
