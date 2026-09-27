@@ -64,6 +64,7 @@ import {
   type TravelAgentDetailNavId,
   type GroupDetailNavId,
   type GuestProfileCreateId,
+  type GuestProfileSearch,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
 import {
@@ -84,6 +85,7 @@ export function GuestProfileWorkspace({
   profileType = "individual",
   create,
   section,
+  directorySearch,
 }: {
   membership: RestaurantMembership;
   guestId?: string | undefined;
@@ -98,6 +100,7 @@ export function GuestProfileWorkspace({
   profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   create?: GuestProfileCreateId | undefined;
   section?: GuestWorkspaceSectionId | undefined;
+  directorySearch?: GuestProfileSearch | undefined;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -139,8 +142,8 @@ export function GuestProfileWorkspace({
 
   const fetchAccess = useServerFn(getGuestWorkspaceAccess);
   const accessQuery = useQuery({
-    queryKey: ["guest-workspace-access", restaurantId, membership.role],
-    queryFn: () => fetchAccess({ data: { role: membership.role } }),
+    queryKey: ["guest-workspace-access", restaurantId],
+    queryFn: () => fetchAccess({ data: { restaurantId } }),
     staleTime: 60_000,
   });
 
@@ -294,7 +297,7 @@ export function GuestProfileWorkspace({
     GUEST_WORKSPACE_SECTIONS.find((s) => s.id === activeSection) ?? GUEST_WORKSPACE_SECTIONS[0];
   const typeConfig = configQuery.data?.types.find((t) => t.domain === sectionDef.domain);
   const isTypeInactive = typeConfig ? !typeConfig.active : false;
-  const canCreate = (accessQuery.data?.canCreate ?? true) && !isTypeInactive;
+  const canCreate = accessQuery.data?.canCreate === true && !isTypeInactive;
 
   const primaryAction =
     !guestId && !create ? (
@@ -492,6 +495,9 @@ export function GuestProfileWorkspace({
             membership={membership}
             listingType={profileType}
             returnCard={returnCard ?? emptyReturnCard}
+            directorySearch={directorySearch}
+            canCreate={canCreate}
+            isTypeInactive={isTypeInactive}
           />
         </div>
       </GuestProfileChrome>
@@ -561,6 +567,9 @@ export function GuestProfileWorkspace({
             membership={membership}
             compact
             returnCard={returnCard ?? emptyReturnCard}
+            searchParams={directorySearch}
+            canCreate={canCreate}
+            isTypeInactive={isTypeInactive}
           />
         )
       ) : (

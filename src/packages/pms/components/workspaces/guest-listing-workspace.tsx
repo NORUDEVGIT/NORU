@@ -15,6 +15,7 @@ import {
   guestProfileSearch,
   type GuestListingPlaceholderType,
   type GuestProfileCardId,
+  type GuestProfileSearch,
   type GuestProfileTypeId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import {
@@ -32,10 +33,7 @@ import {
   sectionToAccountType,
   type GuestListingSectionId,
 } from "@/packages/pms/lib/guest-profile-listing";
-import {
-  getGuestWorkspaceStats,
-  getGuestsAccess,
-} from "@/packages/pms/lib/guests.functions";
+import { getGuestWorkspaceStats, getGuestsAccess } from "@/packages/pms/lib/guests.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -46,10 +44,16 @@ export function GuestListingWorkspace({
   membership,
   listingType,
   returnCard,
+  directorySearch,
+  canCreate = true,
+  isTypeInactive = false,
 }: {
   membership: RestaurantMembership;
   listingType?: GuestProfileTypeId | GuestListingPlaceholderType;
   returnCard?: GuestProfileCardId | undefined;
+  directorySearch?: GuestProfileSearch | undefined;
+  canCreate?: boolean;
+  isTypeInactive?: boolean;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -89,10 +93,14 @@ export function GuestListingWorkspace({
     });
   }
 
-  if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading guests…</p>;
+  if (accessQuery.isLoading)
+    return <p className="text-sm text-muted-foreground">Loading guests…</p>;
   if (!canManage) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6" data-testid="guest-profile-shell">
+      <div
+        className="rounded-2xl border border-border bg-card p-6"
+        data-testid="guest-profile-shell"
+      >
         <h1 className="font-display text-2xl">Guest Profile</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners, managers and receptionists can access guest profiles for this property.
@@ -131,7 +139,12 @@ export function GuestListingWorkspace({
               />
             </div>
           ) : null}
-          <Button variant="outline" disabled title={GUEST_IMPORT_UNAVAILABLE} data-testid="import-guests">
+          <Button
+            variant="outline"
+            disabled
+            title={GUEST_IMPORT_UNAVAILABLE}
+            data-testid="import-guests"
+          >
             <Upload className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">Import Guests</span>
           </Button>
@@ -213,7 +226,10 @@ export function GuestListingWorkspace({
 
       <div className="grid gap-4 md:grid-cols-2">
         <aside className="contents">
-          <section className="rounded-2xl border border-border bg-card p-4" data-testid="guest-quick-actions">
+          <section
+            className="rounded-2xl border border-border bg-card p-4"
+            data-testid="guest-quick-actions"
+          >
             <h2 className="font-display text-lg">Quick Actions</h2>
             <div className="mt-3 grid gap-2">
               <Button
@@ -274,7 +290,10 @@ export function GuestListingWorkspace({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-4" data-testid="guest-workspace-stats">
+          <section
+            className="rounded-2xl border border-border bg-card p-4"
+            data-testid="guest-workspace-stats"
+          >
             <h2 className="font-display text-lg">Guest Statistics</h2>
             <dl className="mt-3 space-y-2 text-sm">
               <StatRow label="Total Profiles" value={stats?.totalProfiles} />
@@ -296,7 +315,10 @@ export function GuestListingWorkspace({
 
       <div className="min-w-0">
         {sectionInactive ? (
-          <p className="mb-4 text-sm text-muted-foreground" data-testid="guest-listing-inactive-copy">
+          <p
+            className="mb-4 text-sm text-muted-foreground"
+            data-testid="guest-listing-inactive-copy"
+          >
             {PROFILE_TYPE_INACTIVE_SECTION_COPY}
           </p>
         ) : null}
@@ -317,6 +339,9 @@ export function GuestListingWorkspace({
             membership={membership}
             compact
             returnCard={returnCard}
+            searchParams={directorySearch}
+            canCreate={canCreate}
+            isTypeInactive={isTypeInactive}
           />
         )}
       </div>
@@ -339,7 +364,10 @@ export function GuestListingWorkspace({
 
 function PlaceholderCard({ title, copy }: { title: string; copy: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card p-6" data-testid="guest-listing-placeholder">
+    <div
+      className="rounded-2xl border border-dashed border-border bg-card p-6"
+      data-testid="guest-listing-placeholder"
+    >
       <p className="font-display text-lg">{title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy}</p>
     </div>

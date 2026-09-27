@@ -61,18 +61,11 @@ export const getGuestWorkspaceAccess = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
-        restaurantId: idSchema.optional(),
-        role: z.string().optional(),
+        restaurantId: idSchema,
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestWorkspaceAccess> => {
-    if (data.role) {
-      return resolveGuestWorkspaceAccess(data.role);
-    }
-    if (data.restaurantId) {
-      const me = await callerMembership(context as never, data.restaurantId);
-      return resolveGuestWorkspaceAccess(me.role);
-    }
-    return resolveGuestWorkspaceAccess(null);
+    const me = await callerMembership(context as never, data.restaurantId);
+    return resolveGuestWorkspaceAccess(me.role);
   });

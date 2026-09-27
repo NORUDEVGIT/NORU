@@ -129,7 +129,9 @@ export const GUEST_PROFILE_WORKSPACE_NAV = [
 
 export type GuestProfileWorkspaceNavId = (typeof GUEST_PROFILE_WORKSPACE_NAV)[number]["id"];
 
-export function guestProfileWorkspaceNav(id: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId) {
+export function guestProfileWorkspaceNav(
+  id: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId,
+) {
   return (
     GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === id) ?? GUEST_PROFILE_WORKSPACE_NAV[0]
   );
@@ -227,6 +229,15 @@ export type GuestProfileSearch = GuestProfileCardSearch & {
   type?: GuestProfileTypeId | GuestListingPlaceholderType;
   create?: GuestProfileCreateId;
   section?: GuestWorkspaceSectionParam;
+  q?: string;
+  status?: "all" | "active" | "inactive";
+  vip?: "all" | "vip" | "non-vip";
+  lastStay?: string;
+  nationality?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+  preview?: string;
 };
 
 const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
@@ -236,7 +247,12 @@ const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
 
 export function parseGuestProfileWorkspaceNav(
   search: Record<string, unknown>,
-): GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined {
+):
+  | GuestProfileWorkspaceNavId
+  | CompanyDetailNavId
+  | TravelAgentDetailNavId
+  | GroupDetailNavId
+  | undefined {
   const raw = typeof search["nav"] === "string" ? search["nav"] : undefined;
   if (!raw) return undefined;
   const type = typeof search["type"] === "string" ? search["type"] : undefined;
@@ -294,7 +310,8 @@ export function parseGuestListingTypeSearch(
 export function parseGuestProfileSearch(search: Record<string, unknown>): GuestProfileSearch {
   const card = parseGuestProfileCardSearch(search);
   const type = parseGuestListingTypeSearch(search);
-  const rawSection = typeof search["section"] === "string" ? search["section"].trim().toLowerCase() : undefined;
+  const rawSection =
+    typeof search["section"] === "string" ? search["section"].trim().toLowerCase() : undefined;
   const section =
     rawSection === "guests" ||
     rawSection === "companies" ||
@@ -309,6 +326,44 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
     search["create"] === "travel-agent"
       ? search["create"]
       : undefined;
+
+  const rawQ = typeof search["q"] === "string" ? search["q"].trim() : undefined;
+  const q = rawQ ? rawQ : undefined;
+  const rawStatus =
+    typeof search["status"] === "string" ? search["status"].trim().toLowerCase() : undefined;
+  const status =
+    rawStatus === "active" || rawStatus === "inactive" || rawStatus === "all"
+      ? rawStatus
+      : undefined;
+  const rawVip = typeof search["vip"] === "string" ? search["vip"].trim().toLowerCase() : undefined;
+  const vip = rawVip === "vip" || rawVip === "non-vip" || rawVip === "all" ? rawVip : undefined;
+  const rawLastStay =
+    typeof search["lastStay"] === "string" ? search["lastStay"].trim() : undefined;
+  const lastStay = rawLastStay ? rawLastStay : undefined;
+  const rawNationality =
+    typeof search["nationality"] === "string" ? search["nationality"].trim() : undefined;
+  const nationality = rawNationality ? rawNationality : undefined;
+  const rawSort = typeof search["sort"] === "string" ? search["sort"].trim() : undefined;
+  const sort = rawSort ? rawSort : undefined;
+
+  const pageNum =
+    typeof search["page"] === "number"
+      ? search["page"]
+      : typeof search["page"] === "string"
+        ? parseInt(search["page"], 10)
+        : undefined;
+  const page = pageNum != null && !Number.isNaN(pageNum) && pageNum >= 0 ? pageNum : undefined;
+  const sizeNum =
+    typeof search["pageSize"] === "number"
+      ? search["pageSize"]
+      : typeof search["pageSize"] === "string"
+        ? parseInt(search["pageSize"], 10)
+        : undefined;
+  const pageSize = sizeNum === 25 || sizeNum === 50 ? sizeNum : undefined;
+
+  const rawPreview = typeof search["preview"] === "string" ? search["preview"].trim() : undefined;
+  const preview = rawPreview ? rawPreview : undefined;
+
   const next =
     create === "group"
       ? { ...card, type: "group" as const }
@@ -320,12 +375,30 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
             ? { ...card }
             : { ...card, type };
   const withSection = section ? { ...next, section } : next;
-  return create ? { ...withSection, create } : withSection;
+  const withCreate = create ? { ...withSection, create } : withSection;
+
+  return {
+    ...withCreate,
+    ...(q ? { q } : {}),
+    ...(status ? { status } : {}),
+    ...(vip ? { vip } : {}),
+    ...(lastStay ? { lastStay } : {}),
+    ...(nationality ? { nationality } : {}),
+    ...(sort ? { sort } : {}),
+    ...(page != null ? { page } : {}),
+    ...(pageSize ? { pageSize } : {}),
+    ...(preview ? { preview } : {}),
+  };
 }
 
 export function guestProfileCardSearch(
   card: GuestProfileCardId | undefined,
-  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined,
+  nav?:
+    | GuestProfileWorkspaceNavId
+    | CompanyDetailNavId
+    | TravelAgentDetailNavId
+    | GroupDetailNavId
+    | undefined,
 ): GuestProfileCardSearch {
   if (card && isGuestRequiredProfileCard(card)) {
     return nav ? { card, nav } : { card };
@@ -335,10 +408,24 @@ export function guestProfileCardSearch(
 
 export function guestProfileSearch(opts: {
   card?: GuestProfileCardId | undefined;
-  nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
+  nav?:
+    | GuestProfileWorkspaceNavId
+    | CompanyDetailNavId
+    | TravelAgentDetailNavId
+    | GroupDetailNavId
+    | undefined;
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   create?: GuestProfileCreateId | undefined;
   section?: GuestWorkspaceSectionParam | undefined;
+  q?: string | undefined;
+  status?: "all" | "active" | "inactive" | undefined;
+  vip?: "all" | "vip" | "non-vip" | undefined;
+  lastStay?: string | undefined;
+  nationality?: string | undefined;
+  sort?: string | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  preview?: string | undefined;
 }): GuestProfileSearch {
   const card = guestProfileCardSearch(opts.card, opts.nav);
   const type = opts.type && opts.type !== "individual" ? opts.type : undefined;
@@ -347,6 +434,15 @@ export function guestProfileSearch(opts: {
     ...card,
     ...(type ? { type } : {}),
     ...(section ? { section } : {}),
+    ...(opts.q ? { q: opts.q } : {}),
+    ...(opts.status && opts.status !== "all" ? { status: opts.status } : {}),
+    ...(opts.vip && opts.vip !== "all" ? { vip: opts.vip } : {}),
+    ...(opts.lastStay && opts.lastStay !== "all" ? { lastStay: opts.lastStay } : {}),
+    ...(opts.nationality && opts.nationality !== "all" ? { nationality: opts.nationality } : {}),
+    ...(opts.sort && opts.sort !== "updated_at" ? { sort: opts.sort } : {}),
+    ...(opts.page != null && opts.page > 0 ? { page: opts.page } : {}),
+    ...(opts.pageSize && opts.pageSize !== 25 ? { pageSize: opts.pageSize } : {}),
+    ...(opts.preview ? { preview: opts.preview } : {}),
   };
   return opts.create ? { ...next, create: opts.create } : next;
 }

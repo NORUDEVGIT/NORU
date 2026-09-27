@@ -39,7 +39,8 @@ export const Route = createFileRoute("/restaurant/pms/guests/")({
 });
 
 function GuestProfileDirectoryRoute() {
-  const { card, type, nav, create, section } = Route.useSearch();
+  const search = Route.useSearch();
+  const { card, type, nav, create, section } = search;
   return (
     <RestaurantShell
       active="Guests"
@@ -62,6 +63,7 @@ function GuestProfileDirectoryRoute() {
           profileType={type ?? "individual"}
           create={create}
           section={section}
+          directorySearch={search}
         />
       )}
     </RestaurantShell>
