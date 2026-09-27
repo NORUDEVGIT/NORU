@@ -239,15 +239,21 @@ export function FoCheckInStepper({
       roomNumber: listed.roomNumber,
       status: "available",
       housekeepingStatus: listed.housekeepingStatus,
+      maintenanceStatus: null,
     };
   }, [ctx?.room, roomId, roomsQuery.data]);
 
   const roomGate = isRoomReady(
     assignedRoom
-      ? { status: assignedRoom.status, housekeepingStatus: assignedRoom.housekeepingStatus }
+      ? {
+          status: assignedRoom.status,
+          housekeepingStatus: assignedRoom.housekeepingStatus,
+          maintenanceStatus: assignedRoom.maintenanceStatus ?? null,
+        }
       : roomId
         ? { status: "available", housekeepingStatus: null }
         : null,
+    ctx?.housekeepingPolicy,
   );
   const registrationDraft = {
     fullName,

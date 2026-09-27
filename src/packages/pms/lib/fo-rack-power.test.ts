@@ -139,6 +139,21 @@ describe("FO-FS5 dirty / pickup Confirm block", () => {
     assert.equal(pickup.find((c) => c.id === "housekeeping")?.state, "fail");
     assert.equal(canConfirmRackChecks(pickup), false);
 
+    const hkFeedReady = evaluateMoveChecks(
+      { ...baseMove(), targetHousekeeping: "inspected", targetReady: true },
+      { state: "ready", roomIds: ["room-2"] },
+      false,
+    );
+    assert.equal(hkFeedReady.find((c) => c.id === "housekeeping")?.state, "pass");
+
+    const hkFeedNotReady = evaluateMoveChecks(
+      { ...baseMove(), targetHousekeeping: "clean", targetReady: false },
+      { state: "ready", roomIds: ["room-2"] },
+      false,
+    );
+    assert.equal(hkFeedNotReady.find((c) => c.id === "housekeeping")?.state, "fail");
+    assert.equal(canConfirmRackChecks(hkFeedNotReady), false);
+
     const pending = evaluateMoveChecks(baseMove(), { state: "pending" }, false);
     assert.equal(pending.find((c) => c.id === "availability")?.state, "unknown");
     assert.equal(pending.find((c) => c.id === "availability")?.detail, UNAVAILABLE_TO_VERIFY);

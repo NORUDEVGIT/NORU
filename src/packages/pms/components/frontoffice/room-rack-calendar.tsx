@@ -834,6 +834,7 @@ function CalendarBoard({
       targetRoomTypeName: room.roomTypeName,
       targetStatus: room.status,
       targetHousekeeping: hk?.housekeepingStatus ?? null,
+      targetReady: hk?.ready ?? null,
       hkKnown: hkAvailable && !!hk,
       arrivalDate: stay.arrivalDate,
       departureDate: stay.departureDate,

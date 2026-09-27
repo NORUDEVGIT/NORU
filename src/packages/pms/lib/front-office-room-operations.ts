@@ -2,7 +2,7 @@
  * Front Office Phase 1 — Room Quick View / operations helpers.
  * Read-model only. No availability engine, no FO room-status writer, no FO block table.
  */
-import { evaluateRoomReadinessWithPolicy } from "./housekeeping-card2.server";
+import { evaluateRoomReadinessWithPolicy, type HousekeepingReadinessPolicy } from "./housekeeping-card2.server";
 import { isOooOrOos, type ExceptionRow, type LiveExceptionType } from "./fo-exceptions";
 import type { ReservationStatus } from "./reservation-dates";
 
@@ -123,12 +123,16 @@ export function foRoomReadiness(input: {
   physicalStatus: string;
   housekeepingStatus: string | null;
   maintenanceStatus: string | null;
+  housekeepingPolicy?: HousekeepingReadinessPolicy;
 }): { ready: boolean; reason: string | null } {
-  return evaluateRoomReadinessWithPolicy({
-    status: input.physicalStatus,
-    housekeepingStatus: input.housekeepingStatus,
-    maintenanceStatus: input.maintenanceStatus,
-  });
+  return evaluateRoomReadinessWithPolicy(
+    {
+      status: input.physicalStatus,
+      housekeepingStatus: input.housekeepingStatus,
+      maintenanceStatus: input.maintenanceStatus,
+    },
+    input.housekeepingPolicy,
+  );
 }
 
 export function foRoomActionHints(input: {

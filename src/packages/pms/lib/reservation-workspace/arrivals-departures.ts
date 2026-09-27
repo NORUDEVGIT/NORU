@@ -1,4 +1,5 @@
 import { isRoomReady } from "../fo-check-in";
+import type { HousekeepingReadinessPolicy } from "../housekeeping-card2.server";
 import { FOLIO_ZERO_EPSILON } from "../fo-check-out";
 import type { FolioSignalLane, StayMoneySignal } from "../fo-exceptions";
 import type { FrontOfficeStay } from "../frontoffice.functions";
@@ -29,6 +30,7 @@ export type StayWriteRow = {
 export type RoomInventoryState = {
   operationalStatus: string | null;
   housekeepingStatus: string | null;
+  maintenanceStatus?: string | null;
 };
 
 export function arrivalCheckInHint(input: {
@@ -58,12 +60,17 @@ export function canGrantLateCheckoutHint(status: ReservationStatus, allowed: boo
 export function stayRoomReady(
   roomId: string | null,
   room: RoomInventoryState | undefined,
+  settings?: HousekeepingReadinessPolicy,
 ): boolean {
   if (!roomId || !room) return isRoomReady(null).ready;
-  return isRoomReady({
-    status: room.operationalStatus,
-    housekeepingStatus: room.housekeepingStatus,
-  }).ready;
+  return isRoomReady(
+    {
+      status: room.operationalStatus,
+      housekeepingStatus: room.housekeepingStatus,
+      maintenanceStatus: room.maintenanceStatus ?? null,
+    },
+    settings,
+  ).ready;
 }
 
 export function financialFromSignal(
@@ -155,11 +162,12 @@ export function mapArrivalRow(params: {
   room: RoomInventoryState | undefined;
   folioLane: FolioSignalLane;
   signal: StayMoneySignal | undefined;
+  housekeepingPolicy?: HousekeepingReadinessPolicy;
 }): ArrivalRow {
   const assigned = params.stay.roomId !== null;
   const operationalStatus = params.room?.operationalStatus ?? null;
   const housekeepingStatus = params.room?.housekeepingStatus ?? null;
-  const ready = stayRoomReady(params.stay.roomId, params.room);
+  const ready = stayRoomReady(params.stay.roomId, params.room, params.housekeepingPolicy);
   const financial = financialFromSignal(params.folioLane, params.signal);
   const canOpenFolio = financial.state === "available" && financial.folioId !== null;
   const desk = deskActionHints({ status: params.stay.status, roomId: params.stay.roomId });

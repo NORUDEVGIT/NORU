@@ -152,7 +152,15 @@ describe("Card 2 housekeeping check-in policy", () => {
       true,
     );
     assert.equal(
-      evaluateRoomReadinessWithPolicy({ status: "available", housekeepingStatus: "dirty" }).ready,
+      evaluateRoomReadinessWithPolicy({ status: "available", housekeepingStatus: "pickup" }).ready,
+      false,
+    );
+    assert.equal(
+      evaluateRoomReadinessWithPolicy({ status: "out_of_order", housekeepingStatus: "inspected" }).ready,
+      false,
+    );
+    assert.equal(
+      evaluateRoomReadinessWithPolicy({ status: "out_of_service", housekeepingStatus: "clean" }).ready,
       false,
     );
   });

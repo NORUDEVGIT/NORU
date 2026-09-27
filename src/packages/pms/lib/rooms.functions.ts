@@ -1179,7 +1179,7 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       accessible: data.accessible ?? false,
       status: "available",
       housekeeping_status: defaultHousekeepingStatus,
-      maintenance_status: data.maintenanceStatus ?? "normal",
+      maintenance_status: "normal",
       sellable: data.sellable ?? true,
       room_features: [] as string[],
       active: data.active ?? true,
