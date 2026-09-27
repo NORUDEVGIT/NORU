@@ -50,6 +50,11 @@ import { GuestTravelAgentCreateWorkspace } from "@/packages/pms/components/works
 import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
 import { GuestTravelAgentDetailWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-detail-workspace";
 import { GuestGroupDetailWorkspace } from "@/packages/pms/components/workspaces/guest-group-detail-workspace";
+import { GuestIndividualDetailWorkspace } from "@/packages/pms/components/workspaces/guest-individual-detail-workspace";
+import {
+  resolveGuestDetailView,
+  legacyParamsForDetailView,
+} from "@/packages/pms/lib/guest-detail-view";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -653,6 +658,74 @@ export function GuestProfileWorkspace({
         onRefresh={handleRefresh}
       >
         <GuestGroupDetailWorkspace membership={membership} groupId={guestId} nav={returnNav} />
+      </GuestProfileChrome>
+    );
+  }
+
+  if (guestId && !isAccount) {
+    const currentDetailView = resolveGuestDetailView({
+      ...(directorySearch as Record<string, unknown> | undefined),
+      card,
+      nav: navId,
+    });
+
+    const individualDetailContent = (
+      <GuestIndividualDetailWorkspace
+        membership={membership}
+        guestId={guestId}
+        activeView={currentDetailView}
+        onViewChange={(nextView) => {
+          const legacy = legacyParamsForDetailView(nextView);
+          setCard(legacy.card);
+          if (legacy.nav) setNavId(legacy.nav);
+          void navigate({
+            to: GUEST_PROFILE_DETAIL_PATH,
+            params: { guestId },
+            search: guestProfileSearch({
+              ...(directorySearch as Record<string, unknown> | undefined),
+              view: nextView,
+              tab: nextView,
+              card: legacy.card,
+              nav: legacy.nav,
+              type: profileType,
+            }),
+          });
+        }}
+        directorySearch={directorySearch}
+        canCreate={canCreate}
+      />
+    );
+
+    return (
+      <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
+        activeSection="guests"
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        {guestQuery.data ? (
+          <GuestProfileActionsProvider
+            restaurantId={restaurantId}
+            guest={guestQuery.data.guest}
+            membershipRole={membership.role}
+            onOpenLoyalty={() => selectCard("loyalty")}
+            onOpenNotesPage={() => selectNav("notes")}
+            onOpenStaysPage={() => selectNav("bookings")}
+            onOpenReservationsPage={() => selectNav("bookings")}
+            onOpenIdentityPage={() => selectNav("identity")}
+            onMerged={() => {
+              void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
+            }}
+          >
+            {individualDetailContent}
+          </GuestProfileActionsProvider>
+        ) : (
+          individualDetailContent
+        )}
       </GuestProfileChrome>
     );
   }

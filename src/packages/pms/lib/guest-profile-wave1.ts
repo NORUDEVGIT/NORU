@@ -229,6 +229,8 @@ export type GuestProfileSearch = GuestProfileCardSearch & {
   type?: GuestProfileTypeId | GuestListingPlaceholderType;
   create?: GuestProfileCreateId;
   section?: GuestWorkspaceSectionParam;
+  tab?: string;
+  view?: string;
   q?: string;
   status?: "all" | "active" | "inactive";
   vip?: "all" | "vip" | "non-vip";
@@ -364,6 +366,11 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
   const rawPreview = typeof search["preview"] === "string" ? search["preview"].trim() : undefined;
   const preview = rawPreview ? rawPreview : undefined;
 
+  const rawTab = typeof search["tab"] === "string" ? search["tab"].trim() : undefined;
+  const tab = rawTab ? rawTab : undefined;
+  const rawView = typeof search["view"] === "string" ? search["view"].trim() : undefined;
+  const view = rawView ? rawView : undefined;
+
   const next =
     create === "group"
       ? { ...card, type: "group" as const }
@@ -379,6 +386,8 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
 
   return {
     ...withCreate,
+    ...(tab ? { tab } : {}),
+    ...(view ? { view } : {}),
     ...(q ? { q } : {}),
     ...(status ? { status } : {}),
     ...(vip ? { vip } : {}),
@@ -417,6 +426,8 @@ export function guestProfileSearch(opts: {
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   create?: GuestProfileCreateId | undefined;
   section?: GuestWorkspaceSectionParam | undefined;
+  tab?: string | undefined;
+  view?: string | undefined;
   q?: string | undefined;
   status?: "all" | "active" | "inactive" | undefined;
   vip?: "all" | "vip" | "non-vip" | undefined;
@@ -434,6 +445,8 @@ export function guestProfileSearch(opts: {
     ...card,
     ...(type ? { type } : {}),
     ...(section ? { section } : {}),
+    ...(opts.tab ? { tab: opts.tab } : {}),
+    ...(opts.view ? { view: opts.view } : {}),
     ...(opts.q ? { q: opts.q } : {}),
     ...(opts.status && opts.status !== "all" ? { status: opts.status } : {}),
     ...(opts.vip && opts.vip !== "all" ? { vip: opts.vip } : {}),
