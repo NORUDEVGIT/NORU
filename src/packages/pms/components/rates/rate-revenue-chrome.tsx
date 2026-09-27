@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { label: "Front Office", to: "/restaurant/pms/front-office" },
   { label: "Reservations", to: "/restaurant/pms/reservations" },
   { label: "Rooms & Inventory", to: "/restaurant/pms/room-inventory" },
+  { label: "Guest Profiles", to: "/restaurant/pms/guests" },
   { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
   { label: "Rates & Revenue", to: "/restaurant/pms/rates-revenue", active: true },
   { label: "F&B", to: "/restaurant/restaurant-management/dashboard" },

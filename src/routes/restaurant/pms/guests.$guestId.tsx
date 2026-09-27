@@ -39,7 +39,8 @@ export const Route = createFileRoute("/restaurant/pms/guests/$guestId")({
 
 function GuestProfileDetailRoute() {
   const { guestId } = Route.useParams();
-  const { card, type, nav, section } = Route.useSearch();
+  const search = Route.useSearch();
+  const { card, type, nav, section } = search;
   return (
     <RestaurantShell
       active="Guests"
@@ -48,6 +49,8 @@ function GuestProfileDetailRoute() {
       pmsModule="guest-profile"
       pmsLeaf="Information"
       sidebarDefaultCollapsed={GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED}
+      hidePackageRail
+      hideTopHeader
     >
       {(m) => (
         <GuestProfileWorkspace
@@ -57,6 +60,7 @@ function GuestProfileDetailRoute() {
           returnNav={nav}
           profileType={type ?? "individual"}
           section={section}
+          directorySearch={search}
         />
       )}
     </RestaurantShell>

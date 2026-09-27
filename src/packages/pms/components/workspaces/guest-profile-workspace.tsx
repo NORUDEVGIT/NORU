@@ -75,6 +75,7 @@ import {
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
 import {
+  GUEST_IMPORT_UNAVAILABLE,
   guestListingSection,
   operationalProfileType,
 } from "@/packages/pms/lib/guest-profile-listing";
@@ -323,9 +324,11 @@ export function GuestProfileWorkspace({
   const activeCreateTitle =
     sectionDef.domain === "individual"
       ? "New Guest"
-      : sectionDef.domain === "travel-agent"
-        ? "New Agency"
-        : `New ${sectionDef.title.replace(/s$/, "")}`;
+      : sectionDef.domain === "company"
+        ? "New Company"
+        : sectionDef.domain === "travel-agent"
+          ? "New Travel Agency"
+          : "New Group";
 
   const primaryAction =
     !guestId && !create ? (
@@ -478,7 +481,11 @@ export function GuestProfileWorkspace({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40 text-xs">
-              <DropdownMenuItem disabled title="Guest import is not available yet">
+              <DropdownMenuItem
+                disabled
+                title={GUEST_IMPORT_UNAVAILABLE}
+                data-testid="import-guests"
+              >
                 Import Guests
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -518,6 +525,8 @@ export function GuestProfileWorkspace({
   if (!guestId && create === "individual") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection={activeSection}
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -536,6 +545,8 @@ export function GuestProfileWorkspace({
   if (!guestId && create === "group") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection={activeSection}
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -554,6 +565,8 @@ export function GuestProfileWorkspace({
   if (!guestId && create === "company") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection={activeSection}
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -572,6 +585,8 @@ export function GuestProfileWorkspace({
   if (!guestId && create === "travel-agent") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection={activeSection}
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -590,6 +605,8 @@ export function GuestProfileWorkspace({
   if (guestId && operationalType === "company") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection="companies"
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -605,6 +622,8 @@ export function GuestProfileWorkspace({
   if (guestId && operationalType === "travel-agent") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection="travel-agencies"
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -624,6 +643,8 @@ export function GuestProfileWorkspace({
   if (guestId && operationalType === "group") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection="groups"
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -639,6 +660,8 @@ export function GuestProfileWorkspace({
   if (!guestId && card === "directory") {
     return (
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection={activeSection}
         onSelectSection={selectSection}
         config={configQuery.data}
@@ -657,6 +680,18 @@ export function GuestProfileWorkspace({
             isTypeInactive={isTypeInactive}
           />
         </div>
+        <GuestGroupTemplatesDialog
+          restaurantId={restaurantId}
+          open={headerTemplateApplyOpen}
+          onOpenChange={setHeaderTemplateApplyOpen}
+          mode="apply"
+        />
+        <GuestGroupTemplatesDialog
+          restaurantId={restaurantId}
+          open={headerTemplateManageOpen}
+          onOpenChange={setHeaderTemplateManageOpen}
+          mode="manage"
+        />
       </GuestProfileChrome>
     );
   }
@@ -941,6 +976,8 @@ export function GuestProfileWorkspace({
   const chromeWrappedShell = (
     <>
       <GuestProfileChrome
+        membership={membership}
+        directorySearch={directorySearch}
         activeSection={activeSection}
         onSelectSection={selectSection}
         config={configQuery.data}

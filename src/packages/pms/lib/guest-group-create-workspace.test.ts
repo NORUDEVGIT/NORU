@@ -139,9 +139,16 @@ describe("Group create workflow helpers", () => {
   it("names the missing field and the step that holds it", () => {
     const issues = groupCreateFieldIssues(emptyGuestGroupCreateDraft());
     assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
-    assert.match(formatCreateIssuesByStep(issues, GUEST_GROUP_CREATE_STEPS), /Group Details — Group name is required/);
+    assert.match(
+      formatCreateIssuesByStep(issues, GUEST_GROUP_CREATE_STEPS),
+      /Group Details — Group name is required/,
+    );
     assert.equal(issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "details").length, 0);
-    assert.ok(issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "stay").some((issue) => issue.key === "name"));
+    assert.ok(
+      issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "stay").some(
+        (issue) => issue.key === "name",
+      ),
+    );
   });
 
   it("restores the held step and draft without wiping later steps", () => {
@@ -219,7 +226,7 @@ describe("Group create honesty", () => {
     assert.match(shell, /create === "group"/);
     assert.match(shell, /GuestGroupCreateWorkspace/);
     assert.match(wave1, /"individual" \| "group" \| "company" \| "travel-agent"/);
-    assert.match(listing, /create: "group"/);
+    assert.match(shell, /create: "group"/);
     assert.equal(GUEST_GROUP_CREATE_START_OVER, "Start Over");
   });
 

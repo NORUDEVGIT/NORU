@@ -73,9 +73,16 @@ describe("Company create workflow helpers", () => {
   it("names the missing field and the step that holds it", () => {
     const issues = companyCreateFieldIssues(emptyGuestCompanyCreateDraft());
     assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
-    assert.match(formatCreateIssuesByStep(issues, GUEST_COMPANY_CREATE_STEPS), /Company Details — Company name is required/);
+    assert.match(
+      formatCreateIssuesByStep(issues, GUEST_COMPANY_CREATE_STEPS),
+      /Company Details — Company name is required/,
+    );
     assert.equal(issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "details").length, 0);
-    assert.ok(issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contacts").some((issue) => issue.key === "name"));
+    assert.ok(
+      issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contacts").some(
+        (issue) => issue.key === "name",
+      ),
+    );
   });
 
   it("restores the held step and draft", () => {
@@ -85,7 +92,10 @@ describe("Company create workflow helpers", () => {
     assert.equal(held?.step, "billing");
     assert.equal(held?.draft.name, "Noru Holdings");
     assert.equal(inferGuestCompanyCreateStep(draft), "billing");
-    assert.equal(guestCompanyCreateHoldKey("rest-1"), `${GUEST_COMPANY_CREATE_HOLD_KEY_PREFIX}:rest-1`);
+    assert.equal(
+      guestCompanyCreateHoldKey("rest-1"),
+      `${GUEST_COMPANY_CREATE_HOLD_KEY_PREFIX}:rest-1`,
+    );
   });
 });
 
@@ -116,12 +126,15 @@ describe("Company create honesty", () => {
     assert.match(workspace, /border-destructive/);
     assert.doesNotMatch(workspace, /disabled=\{!reachable\}/);
     assert.match(directory, /create: "company"/);
-    assert.match(listing, /create: "company"/);
+    assert.match(shell, /create: "company"/);
     assert.match(accounts, /create: "travel-agent"/);
     assert.match(shell, /create === "company"/);
     assert.match(shell, /GuestCompanyCreateWorkspace/);
     assert.match(wave1, /"company" \| "travel-agent"/);
-    assert.deepEqual(parseGuestProfileSearch({ create: "company" }), { type: "company", create: "company" });
+    assert.deepEqual(parseGuestProfileSearch({ create: "company" }), {
+      type: "company",
+      create: "company",
+    });
   });
 
   it("reuses company master, contacts, catalogues and does not invent credit or invoices", () => {

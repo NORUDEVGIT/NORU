@@ -6,15 +6,22 @@
  * action slots, and Property Setup status banners.
  */
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
-import { AlertCircle, Plus, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import {
   GUEST_WORKSPACE_SECTIONS,
   type GuestWorkspaceSectionId,
 } from "@/packages/pms/lib/guest-profile-domains";
+import {
+  GUEST_PROFILE_DIRECTORY_PATH,
+  guestProfileSearch,
+  type GuestProfileSearch,
+} from "@/packages/pms/lib/guest-profile-wave1";
 import type { GuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import type { GuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
 
@@ -29,8 +36,8 @@ const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
         ref={ref}
         type="button"
         className={cn(
-          "relative flex h-10 shrink-0 items-center gap-1.5 px-3 text-sm font-medium transition-colors",
-          active ? "text-[#251605]" : "text-[#7A6B58] hover:text-[#251605]",
+          "relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors",
+          active ? "font-semibold text-[#251605]" : "text-[#7A6B58] hover:text-[#251605]",
           className,
         )}
         {...props}
@@ -46,6 +53,9 @@ const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
 SectionButton.displayName = "SectionButton";
 
 export function GuestProfileChrome({
+  membership,
+  directorySearch,
+  onGuestSearch,
   activeSection,
   onSelectSection,
   config,
@@ -56,6 +66,9 @@ export function GuestProfileChrome({
   secondaryNav,
   children,
 }: {
+  membership?: RestaurantMembership | undefined;
+  directorySearch?: GuestProfileSearch | undefined;
+  onGuestSearch?: ((value: string) => void) | undefined;
   activeSection: GuestWorkspaceSectionId;
   onSelectSection: (section: GuestWorkspaceSectionId) => void;
   config?: GuestWorkspaceConfig | undefined;
@@ -66,12 +79,29 @@ export function GuestProfileChrome({
   secondaryNav?: ReactNode | undefined;
   children: ReactNode;
 }) {
+  const navigate = useNavigate();
   const currentSectionDef =
     GUEST_WORKSPACE_SECTIONS.find((s) => s.id === activeSection) ?? GUEST_WORKSPACE_SECTIONS[0];
   const typeConfig = config?.types.find((t) => t.domain === currentSectionDef.domain);
   const isTypeInactive = typeConfig ? !typeConfig.active : false;
 
-  return (
+  function handleCommandSearch(value: string) {
+    if (onGuestSearch) {
+      onGuestSearch(value);
+      return;
+    }
+    void navigate({
+      to: GUEST_PROFILE_DIRECTORY_PATH,
+      search: guestProfileSearch({
+        ...(directorySearch ?? {}),
+        section: activeSection,
+        q: value.trim() || undefined,
+        page: 0,
+      }),
+    });
+  }
+
+  const innerContent = (
     <div
       className="flex min-h-[calc(100vh-4rem)] flex-col space-y-4"
       data-testid="guest-profile-chrome"
@@ -180,4 +210,25 @@ export function GuestProfileChrome({
       </div>
     </div>
   );
+
+  if (membership) {
+    return (
+      <RoomInventoryChrome
+        membership={membership}
+        activeModule="Guest Profiles"
+        searchPlaceholder="Search guest profile…"
+        searchTestId="guest-command-search"
+        initialSearch={directorySearch?.q ?? ""}
+        helpLabel="Guest Profiles operational workspace"
+        shellTestId="guest-profile-command-shell"
+        onRoomSearch={handleCommandSearch}
+      >
+        <div className="min-w-0 bg-[#FAF8F5] p-3 sm:p-5" data-testid="guest-profile-workspace-root">
+          {innerContent}
+        </div>
+      </RoomInventoryChrome>
+    );
+  }
+
+  return innerContent;
 }

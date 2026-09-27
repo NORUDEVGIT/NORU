@@ -70,6 +70,41 @@ import { cn } from "@/shared/lib/utils";
 
 const ALL = "all";
 
+function KpiCard({
+  label,
+  value,
+  hint,
+  loading,
+  icon,
+  tone,
+}: {
+  label: string;
+  value?: number | null | undefined;
+  hint?: string | undefined;
+  loading?: boolean | undefined;
+  icon: React.ReactNode;
+  tone: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm">
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
+        {loading ? (
+          <Skeleton className="mt-1 h-6 w-14" />
+        ) : (
+          <p className="font-display text-xl font-semibold leading-tight tracking-tight text-[#251605]">
+            {value != null ? value.toLocaleString() : "—"}
+          </p>
+        )}
+        {hint ? <p className="truncate text-[9px] text-muted-foreground">{hint}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 export function GuestDirectoryWorkspace({
   membership,
   compact = false,
@@ -467,56 +502,45 @@ export function GuestDirectoryWorkspace({
         </div>
       ) : null}
 
-      {/* Compact Summary Band (Minimal Cells) */}
-      <div
-        className="grid grid-cols-2 gap-2 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] p-2.5 sm:grid-cols-4"
+      {/* Directory KPIs (Separated cards matching Reservation Workspace) */}
+      <section
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+        aria-label="Guest directory KPIs"
         data-testid="guest-directory-summary-band"
       >
-        <div className="flex items-center gap-2.5 px-3 py-1">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#E8E4DC] bg-white text-[#8C6D23]">
-            <Users className="size-4" />
-          </div>
-          <div>
-            <div className="font-semibold text-[#251605]">
-              {stats?.totalGuests != null ? stats.totalGuests.toLocaleString() : "—"}
-            </div>
-            <div className="text-[11px] text-[#7A6B58]">Total Guests</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5 px-3 py-1">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#E8E4DC] bg-white text-emerald-700">
-            <UserCheck className="size-4" />
-          </div>
-          <div>
-            <div className="font-semibold text-[#251605]">
-              {stats?.activeGuests != null ? stats.activeGuests.toLocaleString() : "—"}
-            </div>
-            <div className="text-[11px] text-[#7A6B58]">Active Guests</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5 px-3 py-1">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#E8E4DC] bg-white text-[#8C6D23]">
-            <Crown className="size-4 fill-[#8C6D23]" />
-          </div>
-          <div>
-            <div className="font-semibold text-[#251605]">
-              {stats?.vipGuests != null ? stats.vipGuests.toLocaleString() : "—"}
-            </div>
-            <div className="text-[11px] text-[#7A6B58]">VIP Guests</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5 px-3 py-1">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#E8E4DC] bg-white text-[#7A6B58]">
-            <RotateCcw className="size-4" />
-          </div>
-          <div>
-            <div className="font-semibold text-[#251605]">
-              {stats?.returningGuests != null ? stats.returningGuests.toLocaleString() : "—"}
-            </div>
-            <div className="text-[11px] text-[#7A6B58]">Returning Guests</div>
-          </div>
-        </div>
-      </div>
+        <KpiCard
+          label="Total Guests"
+          value={stats?.totalGuests}
+          hint="All guest profiles"
+          loading={statsQuery.isLoading}
+          icon={<Users className="size-4" />}
+          tone="bg-[#F4E9D0] text-[#8A641A]"
+        />
+        <KpiCard
+          label="Active Guests"
+          value={stats?.activeGuests}
+          hint="Active status"
+          loading={statsQuery.isLoading}
+          icon={<UserCheck className="size-4" />}
+          tone="bg-emerald-50 text-emerald-700"
+        />
+        <KpiCard
+          label="VIP Guests"
+          value={stats?.vipGuests}
+          hint="Flagged VIP"
+          loading={statsQuery.isLoading}
+          icon={<Crown className="size-4 fill-current" />}
+          tone="bg-amber-50 text-amber-700"
+        />
+        <KpiCard
+          label="Returning Guests"
+          value={stats?.returningGuests}
+          hint="Repeated stays"
+          loading={statsQuery.isLoading}
+          icon={<RotateCcw className="size-4" />}
+          tone="bg-blue-50 text-blue-700"
+        />
+      </section>
 
       {/* Directory Action Header */}
       <div className="flex items-center justify-between pt-1">

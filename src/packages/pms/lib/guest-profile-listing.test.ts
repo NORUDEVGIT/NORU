@@ -42,7 +42,10 @@ describe("Guest listing mapping", () => {
         ["group", true, false],
       ],
     );
-    assert.equal(GUEST_LISTING_SECTIONS.some((section) => section.id === "organization"), false);
+    assert.equal(
+      GUEST_LISTING_SECTIONS.some((section) => section.id === "organization"),
+      false,
+    );
     assert.equal(listingSectionFromCard4Code("ORG"), null);
     assert.equal(listingSectionFromCard4Code("IND"), "individual");
     assert.equal(listingSectionFromCard4Code("TOU"), "tour-operator");
@@ -89,6 +92,7 @@ describe("Guest listing honesty", () => {
     const functions = readRel("./guests.functions.ts");
     const accounts = readRel("./guest-accounts.functions.ts");
     const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     const config = readRel("./guest-workspace-config.functions.ts");
 
@@ -102,9 +106,8 @@ describe("Guest listing honesty", () => {
     assert.match(functions, /profile_number/);
     assert.match(accounts, /from\("guest_account_masters"\)/);
     assert.doesNotMatch(accounts, /tour_operator|contact_person/);
-    assert.match(listing, /disabled title=\{GUEST_IMPORT_UNAVAILABLE\}/);
-    assert.match(listing, /New Contact/);
-    assert.match(listing, /disabled title=\{CONTACT_PROFILE_UNAVAILABLE\}/);
+    assert.match(shell, /disabled\s+title=\{GUEST_IMPORT_UNAVAILABLE\}/);
+    assert.match(listing, /CONTACT_PROFILE_UNAVAILABLE/);
     assert.match(listing, /TOUR_OPERATOR_UNAVAILABLE/);
     assert.doesNotMatch(listing, /accountType="tour_operator"|accountType="contact"/);
     assert.match(directory, /setGuestStatus/);
@@ -121,8 +124,8 @@ describe("Guest listing honesty", () => {
     const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     assert.match(shell, /GuestListingWorkspace/);
-    assert.match(listing, /guest-listing-nav/);
-    assert.match(listing, /guest-quick-actions/);
+    assert.doesNotMatch(listing, /guest-listing-nav/);
+    assert.match(shell, /data-testid="guest-header-actions"/);
     assert.equal(GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED, true);
     assert.match(
       readRel("../../../routes/restaurant/pms/guests.index.tsx"),
@@ -132,8 +135,8 @@ describe("Guest listing honesty", () => {
       readRel("../../../routes/restaurant/pms/guests.$guestId.tsx"),
       /sidebarDefaultCollapsed=\{GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED\}/,
     );
-    assert.match(listing, /GuestListingNewGuestMenu/);
-    assert.match(listing, /import-guests/);
+    assert.doesNotMatch(listing, /GuestListingNewGuestMenu/);
+    assert.match(shell, /data-testid="import-guests"/);
     assert.doesNotMatch(listing, /guest-listing-chips/);
     assert.doesNotMatch(listing, /guest-workspace-activity/);
     assert.doesNotMatch(listing, /Organization/);
