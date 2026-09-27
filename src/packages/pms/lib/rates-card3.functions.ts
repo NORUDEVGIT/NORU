@@ -261,6 +261,7 @@ export const saveRateOverrideCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => overrideSchema.parse(input))
   .handler(async ({ data, context }) => {
+    // Duplicate calendar writer vs rates.functions saveRateOverride. Keep until Settings adapter.
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const plan = await db

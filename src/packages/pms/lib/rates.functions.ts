@@ -16,6 +16,7 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { REPORTS_ROLES } from "@/core/lib/module-access";
 import { requireReservationManager } from "./reservations.server";
+import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
 
 const idSchema = z.string().uuid();
 
@@ -382,6 +383,10 @@ export const saveRateOverride = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string }> => {
+    // Compatibility Rate Calendar writer. Official Phase 2 apply is applyRateChanges
+    // (RPC apply_hotel_rate_changes + hotel_rate_change_events). UI-03 should migrate
+    // this path after 0101 is applied. Do not loop this function for bulk apply.
+    // Card 3 also writes hotel_rate_calendar via saveRateOverrideCard3.
     const me = await requireRateManager(context as never, data.restaurantId);
     await assertPlan(context as never, data.restaurantId, data.ratePlanId);
 
@@ -455,6 +460,7 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
     );
   });
 
+/** Compatibility Restriction Calendar writer. Official Phase 3 writes use applyRestrictionChanges. */
 export const saveRateRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -589,7 +595,17 @@ export const repriceReservation = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }): Promise<{ ok: true; id: string; subtotal: number } | { ok: false; message: string }> => {
+    }): Promise<
+      | {
+          ok: true;
+          id: string;
+          subtotal: number;
+          promotionDiscount: number;
+          roomSubtotalAfterPromotion: number;
+          promotionDropped: boolean;
+        }
+      | { ok: false; message: string }
+    > => {
       const me = await requireRateManager(context as never, data.restaurantId);
 
       const { data: reservation } = await context.supabase
@@ -611,7 +627,20 @@ export const repriceReservation = createServerFn({ method: "POST" })
       if (error) return { ok: false, message: rateError(error.message).message };
 
       const row = updated as unknown as { id: string; room_subtotal: number | string };
-      return { ok: true, id: row.id, subtotal: Number(row.room_subtotal ?? 0) };
+      const { getReservationPromotionAttribution } = await import("./revenue/commercial-promotion.server");
+      const attribution = await getReservationPromotionAttribution(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        reservationId: row.id,
+      });
+      const subtotal = Number(row.room_subtotal ?? 0);
+      return {
+        ok: true,
+        id: row.id,
+        subtotal,
+        promotionDiscount: attribution?.discountAmount ?? 0,
+        roomSubtotalAfterPromotion: attribution?.roomSubtotalAfterPromotion ?? subtotal,
+        promotionDropped: !attribution,
+      };
     },
   );
 
@@ -675,18 +704,17 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     }
 
     const availableRoomNights = (sellableRooms ?? 0) * days;
-    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const metrics = computeBookedRevenueOverview({
+      soldRoomNights: soldNights,
+      availableRoomNights,
+      bookedRoomRevenue: revenue,
+      pricedNights,
+    });
 
     return {
       from,
       to,
       currency: restaurant?.currency_code ?? "USD",
-      availableRoomNights,
-      soldRoomNights: soldNights,
-      roomRevenue: round2(revenue),
-      occupancyPercent: availableRoomNights > 0 ? round2((soldNights / availableRoomNights) * 100) : 0,
-      adr: soldNights > 0 ? round2(revenue / soldNights) : 0,
-      revPar: availableRoomNights > 0 ? round2(revenue / availableRoomNights) : 0,
-      pricedShare: soldNights > 0 ? round2((pricedNights / soldNights) * 100) : 0,
+      ...metrics,
     };
   });

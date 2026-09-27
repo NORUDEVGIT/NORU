@@ -2,7 +2,8 @@
  * PMS-SET3 — Rates & meal-plan rules · Guest profile rules (Issue #68).
  *
  * Live inspect locks:
- * - Rates workspace is LIVE at /restaurant/pms/rates-revenue. No second calendar.
+ * - Rate plan masters are configured in Property Setup Card 3
+ *   (`/restaurant/settings#financial-commercial`). Rate & Revenue is operational.
  * - hotel_rate_plans has `active` only. Count active plans; do not invent extra flags.
  * - Guest Profile module is LIVE at /restaurant/pms/guests. No second CRM.
  * - Create guest today requires first name only. After Save, Settings rules
@@ -14,7 +15,8 @@
 
 import type { Set1DomainReport, Set1Readiness } from "./pms-set1-foundation.ts";
 
-export const SET3_RATES_HREF = "/restaurant/pms/rates-revenue";
+export const SET3_RATES_HREF = "/restaurant/settings#financial-commercial";
+export const SET3_RATES_REVENUE_HREF = "/restaurant/pms/rates-revenue";
 export const SET3_GUESTS_HREF = "/restaurant/pms/guests";
 export const SET3_RATES_UNAVAILABLE = "Unavailable — meal and package catalogues are not applied yet.";
 export const SET3_GUEST_RULES_UNAVAILABLE = "Unavailable — guest profile rules are not applied yet.";
