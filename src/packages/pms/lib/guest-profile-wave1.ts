@@ -218,12 +218,15 @@ export type GuestProfileCardSearch = {
 export const GUEST_LISTING_PLACEHOLDER_TYPES = ["tour-operator", "contact"] as const;
 export type GuestListingPlaceholderType = (typeof GUEST_LISTING_PLACEHOLDER_TYPES)[number];
 
+export type GuestWorkspaceSectionParam = "guests" | "companies" | "travel-agencies" | "groups";
+
 export type GuestProfileCreateId = "individual" | "group" | "company" | "travel-agent";
 
 /** Optional `?type=` for operational types plus listing placeholders. */
 export type GuestProfileSearch = GuestProfileCardSearch & {
   type?: GuestProfileTypeId | GuestListingPlaceholderType;
   create?: GuestProfileCreateId;
+  section?: GuestWorkspaceSectionParam;
 };
 
 const LEGACY_GUEST_PROFILE_NAV: Record<string, GuestProfileWorkspaceNavId> = {
@@ -291,6 +294,14 @@ export function parseGuestListingTypeSearch(
 export function parseGuestProfileSearch(search: Record<string, unknown>): GuestProfileSearch {
   const card = parseGuestProfileCardSearch(search);
   const type = parseGuestListingTypeSearch(search);
+  const rawSection = typeof search["section"] === "string" ? search["section"].trim().toLowerCase() : undefined;
+  const section =
+    rawSection === "guests" ||
+    rawSection === "companies" ||
+    rawSection === "travel-agencies" ||
+    rawSection === "groups"
+      ? (rawSection as GuestWorkspaceSectionParam)
+      : undefined;
   const create =
     search["create"] === "individual" ||
     search["create"] === "group" ||
@@ -308,7 +319,8 @@ export function parseGuestProfileSearch(search: Record<string, unknown>): GuestP
           : type === "individual"
             ? { ...card }
             : { ...card, type };
-  return create ? { ...next, create } : next;
+  const withSection = section ? { ...next, section } : next;
+  return create ? { ...withSection, create } : withSection;
 }
 
 export function guestProfileCardSearch(
@@ -326,10 +338,16 @@ export function guestProfileSearch(opts: {
   nav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
   type?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   create?: GuestProfileCreateId | undefined;
+  section?: GuestWorkspaceSectionParam | undefined;
 }): GuestProfileSearch {
   const card = guestProfileCardSearch(opts.card, opts.nav);
   const type = opts.type && opts.type !== "individual" ? opts.type : undefined;
-  const next = type ? { ...card, type } : card;
+  const section = opts.section && opts.section !== "guests" ? opts.section : undefined;
+  const next = {
+    ...card,
+    ...(type ? { type } : {}),
+    ...(section ? { section } : {}),
+  };
   return opts.create ? { ...next, create: opts.create } : next;
 }
 

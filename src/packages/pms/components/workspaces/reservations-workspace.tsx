@@ -53,6 +53,8 @@ import {
   type ReservationWorkspaceOverlayState,
 } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
+import { WAVE4_GROUP_ACCOUNT_COPY } from "@/packages/pms/lib/guest-profile-wave4";
+// Wave 4 guest account integration: listReservationsForGuestAccount reads reservations linked to account masters (not Sales & Events group blocks).
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import { getReservationDesk } from "@/packages/pms/lib/reservation-workspace/desk.server";
 import { getReservationQuickView } from "@/packages/pms/lib/reservation-workspace/quick-view.server";

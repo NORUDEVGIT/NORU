@@ -58,6 +58,7 @@ import {
   setPmsCard4BusinessTypeActive,
   setPmsCard4ContactRoleActive,
 } from "@/packages/pms/lib/company-business-card4.functions";
+import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
   emptyBusinessSettings,
   emptyBusinessTypeDraft,
@@ -224,6 +225,7 @@ export function PmsCard4CompanyBusiness({
       await queryClient.invalidateQueries({
         queryKey: ["pms-card4-required-fields", restaurantId],
       });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setEditorOpen(false);
       setDraftDirty(false);
       if (result.id) setSelectedId(result.id);
@@ -244,6 +246,7 @@ export function PmsCard4CompanyBusiness({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setSettingsDirty(false);
       toast.success("Company & Business saved.");
       onSaved(thenNextRef.current);
@@ -285,6 +288,7 @@ export function PmsCard4CompanyBusiness({
       setActive({ data: { restaurantId, ...input } }),
     onSuccess: async (_result, input) => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       toast.success(input.active ? "Business type enabled." : "Business type disabled.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -294,6 +298,7 @@ export function PmsCard4CompanyBusiness({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setPendingDelete(null);
       setSelectedId(null);
       toast.success("Business type deleted.");

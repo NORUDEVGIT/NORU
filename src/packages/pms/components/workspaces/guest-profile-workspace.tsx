@@ -1,8 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { ArrowLeft, Plus } from "lucide-react";
 
+import { Button } from "@/shared/components/ui/button";
+import { GuestProfileChrome } from "@/packages/pms/components/guests/guest-profile-chrome";
+import {
+  GUEST_WORKSPACE_SECTIONS,
+  domainFromSection,
+  normalizeGuestWorkspaceSearch,
+  sectionFromDomain,
+  resolveGuestProfileDomain,
+  type GuestWorkspaceSectionId,
+} from "@/packages/pms/lib/guest-profile-domains";
+import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
+import { getGuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
+import {
+  invalidateGuestOperationalQueries,
+  invalidateGuestWorkspaceConfigQueries,
+} from "@/packages/pms/lib/guest-workspace-invalidation";
 import { GuestAccountDetail } from "@/packages/pms/components/guests/guest-account-detail";
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
 import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
@@ -66,16 +83,24 @@ export function GuestProfileWorkspace({
   returnNav,
   profileType = "individual",
   create,
+  section,
 }: {
   membership: RestaurantMembership;
   guestId?: string | undefined;
   /** Guest-required card to reopen after Directory-back (Spec §5.15). */
   returnCard?: GuestProfileCardId | undefined;
-  returnNav?: GuestProfileWorkspaceNavId | CompanyDetailNavId | TravelAgentDetailNavId | GroupDetailNavId | undefined;
+  returnNav?:
+    | GuestProfileWorkspaceNavId
+    | CompanyDetailNavId
+    | TravelAgentDetailNavId
+    | GroupDetailNavId
+    | undefined;
   profileType?: GuestProfileTypeId | GuestListingPlaceholderType | undefined;
   create?: GuestProfileCreateId | undefined;
+  section?: GuestWorkspaceSectionId | undefined;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [card, setCard] = useState<GuestProfileCardId>(
     initialGuestProfileCard(Boolean(guestId), returnCard),
   );
@@ -95,6 +120,30 @@ export function GuestProfileWorkspace({
   const operationalType = operationalProfileType(guestListingSection(profileType));
   const accountType = profileTypeToAccountType(operationalType);
   const isAccount = accountType !== null;
+
+  const searchCanonical = normalizeGuestWorkspaceSearch({
+    section,
+    type: profileType,
+    card: returnCard,
+    nav: returnNav,
+    create,
+  });
+  const activeSection: GuestWorkspaceSectionId = searchCanonical.section ?? "guests";
+
+  const fetchConfig = useServerFn(getGuestWorkspaceConfig);
+  const configQuery = useQuery({
+    queryKey: ["guest-workspace-config", restaurantId],
+    queryFn: () => fetchConfig({ data: { restaurantId } }),
+    staleTime: 60_000,
+  });
+
+  const fetchAccess = useServerFn(getGuestWorkspaceAccess);
+  const accessQuery = useQuery({
+    queryKey: ["guest-workspace-access", restaurantId, membership.role],
+    queryFn: () => fetchAccess({ data: { role: membership.role } }),
+    staleTime: 60_000,
+  });
+
   const fetchGuest = useServerFn(getGuest);
   const fetchAccount = useServerFn(getGuestAccount);
   const guestQuery = useQuery({
@@ -116,13 +165,43 @@ export function GuestProfileWorkspace({
     retry: false,
   });
 
-  function selectType(next: GuestProfileTypeId) {
-    const live = GUEST_PROFILE_TYPES.find((type) => type.id === next)?.live;
-    if (!live) return;
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId),
+        invalidateGuestOperationalQueries(queryClient, restaurantId),
+        configQuery.refetch(),
+        accessQuery.refetch(),
+        guestQuery.refetch(),
+        accountQuery.refetch(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  function selectSection(nextSection: GuestWorkspaceSectionId) {
+    const domain = domainFromSection(nextSection);
     setCard("directory");
     void navigate({
       to: GUEST_PROFILE_DIRECTORY_PATH,
-      search: guestProfileSearch({ type: next }),
+      search: guestProfileSearch({
+        section: nextSection,
+        type: domain === "individual" ? "individual" : domain,
+      }),
+    });
+  }
+
+  function selectType(next: GuestProfileTypeId) {
+    const live = GUEST_PROFILE_TYPES.find((type) => type.id === next)?.live;
+    if (!live) return;
+    const sectionId = sectionFromDomain(resolveGuestProfileDomain(next));
+    setCard("directory");
+    void navigate({
+      to: GUEST_PROFILE_DIRECTORY_PATH,
+      search: guestProfileSearch({ type: next, section: sectionId }),
     });
   }
 
@@ -211,61 +290,211 @@ export function GuestProfileWorkspace({
     </div>
   );
 
+  const sectionDef =
+    GUEST_WORKSPACE_SECTIONS.find((s) => s.id === activeSection) ?? GUEST_WORKSPACE_SECTIONS[0];
+  const typeConfig = configQuery.data?.types.find((t) => t.domain === sectionDef.domain);
+  const isTypeInactive = typeConfig ? !typeConfig.active : false;
+  const canCreate = (accessQuery.data?.canCreate ?? true) && !isTypeInactive;
+
+  const primaryAction =
+    !guestId && !create ? (
+      <Button
+        type="button"
+        size="sm"
+        disabled={!canCreate}
+        onClick={() => {
+          void navigate({
+            to: GUEST_PROFILE_DIRECTORY_PATH,
+            search: guestProfileSearch({
+              section: activeSection,
+              type: sectionDef.domain,
+              create: sectionDef.createType,
+            }),
+          });
+        }}
+        className="h-8 gap-1.5 bg-[#251605] text-[#FBF9F5] hover:bg-[#3D2C1D] disabled:opacity-50"
+        data-testid="guest-create-action-btn"
+        title={
+          isTypeInactive
+            ? `${sectionDef.title} is inactive in Property Setup`
+            : `Create new ${sectionDef.title}`
+        }
+      >
+        <Plus className="size-3.5" />
+        <span className="text-xs font-medium">
+          New {sectionDef.domain === "individual" ? "Guest" : sectionDef.title.replace(/s$/, "")}
+        </span>
+      </Button>
+    ) : null;
+
+  const createBackBanner = (
+    <div
+      className="flex items-center justify-between rounded-lg border border-[#E8E4DC] bg-[#FAF8F5] px-4 py-2 text-xs"
+      data-testid="guest-create-back-banner"
+    >
+      <button
+        type="button"
+        onClick={() => {
+          void navigate({
+            to: GUEST_PROFILE_DIRECTORY_PATH,
+            search: guestProfileSearch({
+              section: activeSection,
+              type: sectionDef.domain,
+            }),
+          });
+        }}
+        className="flex items-center gap-1.5 font-semibold text-[#8C6D23] hover:text-[#251605]"
+        data-testid="guest-create-back-btn"
+      >
+        <ArrowLeft className="size-3.5" />
+        <span>Back to {sectionDef.title} Directory</span>
+      </button>
+      <span className="text-[#7A6B58]">
+        Creating new {sectionDef.title.replace(/s$/, "")} profile
+      </span>
+    </div>
+  );
+
   if (!guestId && create === "individual") {
-    return <GuestCreateWorkspace restaurantId={membership.restaurant.id} />;
+    return (
+      <GuestProfileChrome
+        activeSection={activeSection}
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        <div className="space-y-4">
+          {createBackBanner}
+          <GuestCreateWorkspace restaurantId={membership.restaurant.id} />
+        </div>
+      </GuestProfileChrome>
+    );
   }
 
   if (!guestId && create === "group") {
-    return <GuestGroupCreateWorkspace restaurantId={membership.restaurant.id} />;
+    return (
+      <GuestProfileChrome
+        activeSection={activeSection}
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        <div className="space-y-4">
+          {createBackBanner}
+          <GuestGroupCreateWorkspace restaurantId={membership.restaurant.id} />
+        </div>
+      </GuestProfileChrome>
+    );
   }
 
   if (!guestId && create === "company") {
-    return <GuestCompanyCreateWorkspace restaurantId={membership.restaurant.id} />;
+    return (
+      <GuestProfileChrome
+        activeSection={activeSection}
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        <div className="space-y-4">
+          {createBackBanner}
+          <GuestCompanyCreateWorkspace restaurantId={membership.restaurant.id} />
+        </div>
+      </GuestProfileChrome>
+    );
   }
 
   if (!guestId && create === "travel-agent") {
-    return <GuestTravelAgentCreateWorkspace restaurantId={membership.restaurant.id} />;
+    return (
+      <GuestProfileChrome
+        activeSection={activeSection}
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        <div className="space-y-4">
+          {createBackBanner}
+          <GuestTravelAgentCreateWorkspace restaurantId={membership.restaurant.id} />
+        </div>
+      </GuestProfileChrome>
+    );
   }
 
   if (guestId && operationalType === "company") {
     return (
-      <GuestCompanyDetailWorkspace
-        membership={membership}
-        companyId={guestId}
-        nav={returnNav}
-      />
+      <GuestProfileChrome
+        activeSection="companies"
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        <GuestCompanyDetailWorkspace membership={membership} companyId={guestId} nav={returnNav} />
+      </GuestProfileChrome>
     );
   }
 
   if (guestId && operationalType === "travel-agent") {
     return (
-      <GuestTravelAgentDetailWorkspace
-        membership={membership}
-        agencyId={guestId}
-        nav={returnNav}
-      />
+      <GuestProfileChrome
+        activeSection="travel-agencies"
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        <GuestTravelAgentDetailWorkspace
+          membership={membership}
+          agencyId={guestId}
+          nav={returnNav}
+        />
+      </GuestProfileChrome>
     );
   }
 
   if (guestId && operationalType === "group") {
     return (
-      <GuestGroupDetailWorkspace
-        membership={membership}
-        groupId={guestId}
-        nav={returnNav}
-      />
+      <GuestProfileChrome
+        activeSection="groups"
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
+        <GuestGroupDetailWorkspace membership={membership} groupId={guestId} nav={returnNav} />
+      </GuestProfileChrome>
     );
   }
 
   if (!guestId && card === "directory") {
     return (
-      <div className="space-y-6" data-testid="guest-profile-shell">
-        <GuestListingWorkspace
-          membership={membership}
-          listingType={profileType}
-          returnCard={returnCard ?? emptyReturnCard}
-        />
-      </div>
+      <GuestProfileChrome
+        activeSection={activeSection}
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        primaryAction={primaryAction}
+      >
+        <div className="space-y-6" data-testid="guest-profile-shell">
+          <GuestListingWorkspace
+            membership={membership}
+            listingType={profileType}
+            returnCard={returnCard ?? emptyReturnCard}
+          />
+        </div>
+      </GuestProfileChrome>
     );
   }
 
@@ -543,6 +772,20 @@ export function GuestProfileWorkspace({
     </div>
   );
 
+  const chromeWrappedShell = (
+    <GuestProfileChrome
+      activeSection={activeSection}
+      onSelectSection={selectSection}
+      config={configQuery.data}
+      access={accessQuery.data}
+      isRefreshing={isRefreshing}
+      onRefresh={handleRefresh}
+      primaryAction={primaryAction}
+    >
+      {shell}
+    </GuestProfileChrome>
+  );
+
   if (!isAccount && guestQuery.data) {
     return (
       <GuestProfileActionsProvider
@@ -558,12 +801,12 @@ export function GuestProfileWorkspace({
           void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
         }}
       >
-        {shell}
+        {chromeWrappedShell}
       </GuestProfileActionsProvider>
     );
   }
 
-  return shell;
+  return chromeWrappedShell;
 }
 
 function ComingCard({

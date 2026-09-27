@@ -25,6 +25,7 @@ import {
   type CommunicationChannelRecord,
   type CommunicationChannelType,
 } from "@/packages/pms/lib/communication-channels-card4.server";
+import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
   INTEGRATION_AUTH_METHOD_LABELS,
   type IntegrationAuthMethod,
@@ -169,6 +170,7 @@ export function PmsCard4CommunicationChannels({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setDirty(false);
       toast.success("Communication channel saved successfully.");
     },
@@ -181,6 +183,7 @@ export function PmsCard4CommunicationChannels({
       setActive({ data: { restaurantId, ...input } }),
     onSuccess: async (_result, input) => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       toast.success(
         input.active ? "Communication channel activated." : "Communication channel deactivated.",
       );

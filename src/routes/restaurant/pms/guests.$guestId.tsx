@@ -39,7 +39,7 @@ export const Route = createFileRoute("/restaurant/pms/guests/$guestId")({
 
 function GuestProfileDetailRoute() {
   const { guestId } = Route.useParams();
-  const { card, type, nav } = Route.useSearch();
+  const { card, type, nav, section } = Route.useSearch();
   return (
     <RestaurantShell
       active="Guests"
@@ -56,6 +56,7 @@ function GuestProfileDetailRoute() {
           returnCard={card}
           returnNav={nav}
           profileType={type ?? "individual"}
+          section={section}
         />
       )}
     </RestaurantShell>

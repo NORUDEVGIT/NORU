@@ -39,6 +39,7 @@ import {
   savePmsCard4GroupType,
   setPmsCard4GroupTypeActive,
 } from "@/packages/pms/lib/group-types-card4.functions";
+import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
   DEFAULT_GROUP_TYPES,
   emptyGroupTypeDraft,
@@ -142,6 +143,7 @@ export function PmsCard4GroupTypes({
       await queryClient.invalidateQueries({ queryKey });
       await queryClient.invalidateQueries({ queryKey: ["group-create-context", restaurantId] });
       await queryClient.invalidateQueries({ queryKey: ["group-catalogues", restaurantId] });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       if (result.type) applyRecord(result.type);
       toast.success("Group type saved successfully.");
       onSaved(thenNextRef.current);
@@ -156,6 +158,7 @@ export function PmsCard4GroupTypes({
       await queryClient.invalidateQueries({ queryKey });
       await queryClient.invalidateQueries({ queryKey: ["group-create-context", restaurantId] });
       await queryClient.invalidateQueries({ queryKey: ["group-catalogues", restaurantId] });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       if (draft.id === input.id) mark("active", input.active);
       toast.success(input.active ? "Group type activated." : "Group type deactivated.");
     },
@@ -168,6 +171,7 @@ export function PmsCard4GroupTypes({
       await queryClient.invalidateQueries({ queryKey });
       await queryClient.invalidateQueries({ queryKey: ["group-create-context", restaurantId] });
       await queryClient.invalidateQueries({ queryKey: ["group-catalogues", restaurantId] });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setPendingDelete(null);
       applyRecord(null);
       toast.success("Group type deleted.");
