@@ -3,13 +3,16 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  AlertCircle,
   CheckCircle2,
   Crown,
   ExternalLink,
   Mail,
   MapPin,
   Phone,
+  Plus,
   PlusCircle,
+  RefreshCw,
   Shield,
   X,
 } from "lucide-react";
@@ -26,6 +29,9 @@ import {
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { getGuest, listGuestDocuments, listGuestStays } from "@/packages/pms/lib/guests.functions";
 import { listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
+import { getGuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
+import { countryNameFromInput } from "@/packages/pms/lib/pms-geography";
+import { maskedDocumentNumber } from "@/packages/pms/lib/guest-identity-documents";
 import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
 
 type QuickViewTab = "overview" | "preferences" | "identity" | "relations";
@@ -53,6 +59,7 @@ export function GuestQuickViewDrawer({
   const fetchStays = useServerFn(listGuestStays);
   const fetchLinks = useServerFn(listGuestAccountLinks);
   const fetchDocs = useServerFn(listGuestDocuments);
+  const fetchAccess = useServerFn(getGuestWorkspaceAccess);
 
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, previewId],
@@ -82,11 +89,19 @@ export function GuestQuickViewDrawer({
     staleTime: 30_000,
   });
 
+  const accessQuery = useQuery({
+    queryKey: ["guest-workspace-access", restaurantId],
+    queryFn: () => fetchAccess({ data: { restaurantId } }),
+    staleTime: 60_000,
+  });
+
   const guest = guestQuery.data?.guest;
   const preferences = guestQuery.data?.preferences;
   const stays = staysQuery.data?.stays ?? [];
   const links = linksQuery.data ?? [];
-  const docs = docsQuery.data ?? [];
+  const docs = docsQuery.data?.documents ?? [];
+  const canEdit = accessQuery.data?.canEdit ?? false;
+  const hasLegacyDoc = Boolean(guest?.idDocumentNumber || guest?.idDocumentType);
 
   // Derived stay metrics
   const today = new Date().toISOString().slice(0, 10);
@@ -131,6 +146,21 @@ export function GuestQuickViewDrawer({
         preview: undefined,
         type: "individual",
         card: "information",
+      }),
+    });
+  }
+
+  function openIdentity() {
+    if (!previewId) return;
+    void navigate({
+      to: GUEST_PROFILE_DETAIL_PATH,
+      params: { guestId: previewId },
+      search: guestProfileSearch({
+        ...searchParams,
+        preview: undefined,
+        type: "individual",
+        card: "identity",
+        nav: "identity",
       }),
     });
   }
@@ -383,29 +413,62 @@ export function GuestQuickViewDrawer({
 
               {/* Identity Status */}
               <section className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
-                  Identity Status
-                </h3>
-                {primaryDoc ? (
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
+                    Identity Status
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setTab("identity")}
+                    className="text-xs font-medium text-[#8C6D23] hover:underline"
+                  >
+                    View identity
+                  </button>
+                </div>
+                {docsQuery.isLoading ? (
+                  <Skeleton className="mt-2 h-6 w-full" />
+                ) : docsQuery.isError ? (
+                  <p className="mt-2 text-xs text-amber-700">Identity status unavailable</p>
+                ) : primaryDoc ? (
                   <div className="mt-3 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <Shield className="size-3.5 text-[#8C6D23]" />
                       <span className="font-medium capitalize text-[#251605]">
-                        {primaryDoc.kind || "Document"}
+                        {primaryDoc.typeName || primaryDoc.kind || "Document"}
                       </span>
+                      {!primaryDoc.typeActive ? (
+                        <span className="rounded border border-border bg-muted px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Inactive
+                        </span>
+                      ) : null}
                       {primaryDoc.verificationStatus === "verified" ? (
                         <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                           <CheckCircle2 className="size-2.5" />
                           Verified
                         </span>
                       ) : (
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
-                          {primaryDoc.verificationStatus}
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium capitalize text-neutral-600">
+                          {primaryDoc.verificationStatus.replace("_", " ")}
                         </span>
                       )}
                     </div>
                     <span className="text-[#7A6B58]">
                       Expires {primaryDoc.expiryDate ? date(primaryDoc.expiryDate) : "—"}
+                    </span>
+                  </div>
+                ) : hasLegacyDoc ? (
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Shield className="size-3.5 text-[#8C6D23]" />
+                      <span className="font-medium capitalize text-[#251605]">
+                        {guest?.idDocumentType?.replace("_", " ") || "Document"}
+                      </span>
+                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+                        Recorded
+                      </span>
+                    </div>
+                    <span className="text-[#7A6B58]">
+                      Expires {guest?.idDocumentExpiry ? date(guest.idDocumentExpiry) : "—"}
                     </span>
                   </div>
                 ) : (
@@ -415,29 +478,44 @@ export function GuestQuickViewDrawer({
 
               {/* Relationships */}
               <section className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
-                  Relationships
-                </h3>
-                <div className="mt-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#7A6B58]">Company</span>
-                    <span className="font-medium text-[#251605]">
-                      {companyLink?.masterName || "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#7A6B58]">Travel Agency</span>
-                    <span className="font-medium text-[#251605]">
-                      {travelAgentLink?.masterName || "—"}
-                    </span>
-                  </div>
-                  {groupLink ? (
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#7A6B58]">Group</span>
-                      <span className="font-medium text-[#251605]">{groupLink.masterName}</span>
-                    </div>
-                  ) : null}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
+                    Relationships
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setTab("relations")}
+                    className="text-xs font-medium text-[#8C6D23] hover:underline"
+                  >
+                    View relations
+                  </button>
                 </div>
+                {linksQuery.isLoading ? (
+                  <Skeleton className="mt-2 h-6 w-full" />
+                ) : linksQuery.isError ? (
+                  <p className="mt-2 text-xs text-amber-700">Relationships unavailable</p>
+                ) : (
+                  <div className="mt-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#7A6B58]">Company</span>
+                      <span className="font-medium text-[#251605]">
+                        {companyLink?.masterName || "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#7A6B58]">Travel Agency</span>
+                      <span className="font-medium text-[#251605]">
+                        {travelAgentLink?.masterName || "—"}
+                      </span>
+                    </div>
+                    {groupLink ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#7A6B58]">Group</span>
+                        <span className="font-medium text-[#251605]">{groupLink.masterName}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </section>
             </div>
           ) : tab === "preferences" ? (
@@ -497,55 +575,312 @@ export function GuestQuickViewDrawer({
               </dl>
             </div>
           ) : tab === "identity" ? (
-            <div className="space-y-3">
-              {docs.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#E8E4DC] p-6 text-center text-xs text-[#7A6B58]">
-                  No identity documents uploaded yet.
+            <div className="space-y-3" data-testid="guest-quick-view-identity-content">
+              {docsQuery.isLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-32 w-full rounded-xl" />
+                  <Skeleton className="h-10 w-full rounded-xl" />
                 </div>
-              ) : (
-                docs.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-4 text-xs"
+              ) : docsQuery.isError ? (
+                <div
+                  className="rounded-xl border border-red-200 bg-red-50/50 p-6 text-center"
+                  data-testid="guest-quick-view-identity-error"
+                >
+                  <AlertCircle className="mx-auto mb-2 size-6 text-red-500" />
+                  <p className="text-xs font-semibold text-red-900">
+                    Identity information couldn't be loaded.
+                  </p>
+                  <p className="mt-1 text-[11px] text-red-700">
+                    An error occurred while fetching the guest's identity records.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => docsQuery.refetch()}
+                    className="mt-3 h-8 border-red-300 text-xs font-medium text-red-800 hover:bg-red-100"
+                    data-testid="guest-quick-view-identity-retry"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold capitalize text-[#251605]">{doc.kind}</span>
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                          doc.verificationStatus === "verified"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-neutral-100 text-neutral-600",
-                        )}
+                    <RefreshCw className="mr-1.5 size-3.5" />
+                    Try Again
+                  </Button>
+                </div>
+              ) : docs.length === 1 ? (
+                (() => {
+                  const doc = docs[0];
+                  return (
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-5 shadow-sm">
+                        <div className="flex items-center justify-between border-b border-[#F0ECE3] pb-3">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold capitalize text-[#251605]">
+                              {doc.typeName || doc.kind}
+                            </h3>
+                            {!doc.typeActive ? (
+                              <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                Inactive
+                              </span>
+                            ) : null}
+                          </div>
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                              doc.verificationStatus === "verified"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : doc.verificationStatus === "rejected"
+                                  ? "bg-red-50 text-red-700"
+                                  : "bg-amber-50 text-amber-700",
+                            )}
+                          >
+                            {doc.verificationStatus === "verified" ? (
+                              <CheckCircle2 className="size-3" />
+                            ) : null}
+                            {doc.verificationStatus === "verified"
+                              ? "Verified"
+                              : doc.verificationStatus === "rejected"
+                                ? "Rejected"
+                                : "Pending review"}
+                          </span>
+                        </div>
+
+                        <dl className="mt-4 space-y-2.5 text-xs">
+                          <div className="flex justify-between">
+                            <dt className="text-[#7A6B58]">Document No.</dt>
+                            <dd className="font-mono font-medium text-[#251605]">
+                              {doc.documentNumberMasked || "—"}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between">
+                            <dt className="text-[#7A6B58]">Status</dt>
+                            <dd className="font-medium capitalize text-[#251605]">
+                              {doc.verificationStatus === "verified"
+                                ? "Verified"
+                                : doc.verificationStatus.replace("_", " ")}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between">
+                            <dt className="text-[#7A6B58]">Issuing Country</dt>
+                            <dd className="font-medium text-[#251605]">
+                              {doc.issuingCountry ? countryNameFromInput(doc.issuingCountry) : "—"}
+                            </dd>
+                          </div>
+                          {doc.issueDate ? (
+                            <div className="flex justify-between">
+                              <dt className="text-[#7A6B58]">Issued</dt>
+                              <dd className="font-medium text-[#251605]">{date(doc.issueDate)}</dd>
+                            </div>
+                          ) : null}
+                          <div className="flex justify-between">
+                            <dt className="text-[#7A6B58]">Expires</dt>
+                            <dd className="font-medium text-[#251605]">
+                              {doc.expiryDate ? date(doc.expiryDate) : "—"}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={openIdentity}
+                        className="w-full border-[#D8D2C5] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5]"
+                        data-testid="guest-quick-view-open-identity"
                       >
-                        {doc.verificationStatus}
+                        <ExternalLink className="mr-1.5 size-3.5" />
+                        Open Identity & Documents
+                      </Button>
+                    </div>
+                  );
+                })()
+              ) : docs.length > 1 ? (
+                (() => {
+                  const [primary, ...others] = docs;
+                  return (
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-4 shadow-sm">
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+                          Primary Document
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-[#251605]">
+                              {primary.typeName || primary.kind}
+                            </span>
+                            {!primary.typeActive ? (
+                              <span className="rounded border border-border bg-muted px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                                Inactive
+                              </span>
+                            ) : null}
+                            <span className="text-[#7A6B58]">·</span>
+                            <span
+                              className={cn(
+                                "font-medium capitalize",
+                                primary.verificationStatus === "verified"
+                                  ? "text-emerald-700"
+                                  : primary.verificationStatus === "rejected"
+                                    ? "text-red-700"
+                                    : "text-amber-700",
+                              )}
+                            >
+                              {primary.verificationStatus === "verified"
+                                ? "Verified"
+                                : primary.verificationStatus.replace("_", " ")}
+                            </span>
+                            <span className="text-[#7A6B58]">·</span>
+                            <span className="text-[#7A6B58]">
+                              {primary.expiryDate
+                                ? `Expires ${date(primary.expiryDate)}`
+                                : "No expiry"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-2 font-mono text-xs text-[#251605]">
+                          {primary.documentNumberMasked || "—"}
+                        </div>
+                      </div>
+
+                      {others.length > 0 ? (
+                        <div className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-4 shadow-sm">
+                          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+                            Other Documents
+                          </div>
+                          <div className="divide-y divide-[#F0ECE3]">
+                            {others.map((other) => (
+                              <div
+                                key={other.id}
+                                className="flex items-center justify-between py-2 text-xs"
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-medium text-[#251605]">
+                                    {other.typeName || other.kind}
+                                  </span>
+                                  {!other.typeActive ? (
+                                    <span className="rounded border border-border bg-muted px-1 py-0.2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                                      Inactive
+                                    </span>
+                                  ) : null}
+                                  <span className="text-[#7A6B58]">·</span>
+                                  <span className="capitalize text-[#7A6B58]">
+                                    {other.verificationStatus === "verified"
+                                      ? "Verified"
+                                      : "Not verified"}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-[#7A6B58]">
+                                  {other.documentNumberMasked || "—"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={openIdentity}
+                        className="w-full border-[#D8D2C5] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5]"
+                        data-testid="guest-quick-view-open-identity"
+                      >
+                        <ExternalLink className="mr-1.5 size-3.5" />
+                        Open Identity & Documents
+                      </Button>
+                    </div>
+                  );
+                })()
+              ) : hasLegacyDoc ? (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-5 shadow-sm">
+                    <div className="flex items-center justify-between border-b border-[#F0ECE3] pb-3">
+                      <h3 className="text-sm font-semibold capitalize text-[#251605]">
+                        {guest?.idDocumentType?.replace("_", " ") || "Identity Document"}
+                      </h3>
+                      <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+                        Recorded
                       </span>
                     </div>
-                    <div className="mt-2 space-y-1 text-[#7A6B58]">
-                      <div>
-                        Document No:{" "}
-                        <span className="font-mono text-[#251605]">
-                          {doc.documentNumber || "—"}
-                        </span>
+                    <dl className="mt-4 space-y-2.5 text-xs">
+                      <div className="flex justify-between">
+                        <dt className="text-[#7A6B58]">Document No.</dt>
+                        <dd className="font-mono font-medium text-[#251605]">
+                          {maskedDocumentNumber(guest?.idDocumentNumber) || "—"}
+                        </dd>
                       </div>
-                      <div>
-                        Issuing Country:{" "}
-                        <span className="text-[#251605]">{doc.issuingCountry || "—"}</span>
+                      <div className="flex justify-between">
+                        <dt className="text-[#7A6B58]">Status</dt>
+                        <dd className="font-medium text-[#251605]">Recorded</dd>
                       </div>
-                      <div>
-                        Expiry:{" "}
-                        <span className="text-[#251605]">
-                          {doc.expiryDate ? date(doc.expiryDate) : "—"}
-                        </span>
+                      <div className="flex justify-between">
+                        <dt className="text-[#7A6B58]">Expires</dt>
+                        <dd className="font-medium text-[#251605]">
+                          {guest?.idDocumentExpiry ? date(guest.idDocumentExpiry) : "—"}
+                        </dd>
                       </div>
-                    </div>
+                    </dl>
                   </div>
-                ))
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={openIdentity}
+                    className="w-full border-[#D8D2C5] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5]"
+                    data-testid="guest-quick-view-open-identity"
+                  >
+                    <ExternalLink className="mr-1.5 size-3.5" />
+                    Open Identity & Documents
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className="rounded-xl border border-dashed border-[#E8E4DC] bg-white p-6 text-center text-xs"
+                  data-testid="guest-quick-view-identity-empty"
+                >
+                  <Shield className="mx-auto mb-2 size-6 text-[#A09383]" />
+                  <p className="font-medium text-[#251605]">No identity document recorded.</p>
+                  {canEdit ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={openIdentity}
+                      className="mt-3 border-[#D6D0C4] text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5]"
+                      data-testid="guest-quick-view-add-identity"
+                    >
+                      <Plus className="mr-1.5 size-3.5" />
+                      Add Identity Document
+                    </Button>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-[#7A6B58]">
+                      No identity documents have been recorded for this guest profile.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           ) : (
             <div className="space-y-3">
-              {links.length === 0 ? (
+              {linksQuery.isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                </div>
+              ) : linksQuery.isError ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-center text-xs text-amber-800">
+                  <p className="font-medium">Unable to load relationship links.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => linksQuery.refetch()}
+                    className="mt-2 h-7 border-amber-300 text-xs"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : links.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-[#E8E4DC] p-6 text-center text-xs text-[#7A6B58]">
                   No company, agency or group associations linked to this guest.
                 </div>
@@ -578,7 +913,7 @@ export function GuestQuickViewDrawer({
               type="button"
               size="sm"
               onClick={openFullProfile}
-              className="flex-1 bg-[#C89933] font-semibold text-white hover:bg-[#B38728]"
+              className="flex-1 bg-[#251605] font-semibold text-white hover:bg-[#3D2C1D] text-xs h-9"
               data-testid="guest-quick-view-open-full"
             >
               <ExternalLink className="mr-1.5 size-3.5" />
@@ -589,7 +924,7 @@ export function GuestQuickViewDrawer({
               size="sm"
               variant="outline"
               onClick={openNewReservation}
-              className="border-[#D6D0C4] text-[#251605] hover:bg-[#FAF8F5]"
+              className="border-[#D6D0C4] text-[#251605] hover:bg-[#FAF8F5] text-xs h-9"
               data-testid="guest-quick-view-new-res"
             >
               <PlusCircle className="mr-1.5 size-3.5" />
@@ -601,7 +936,7 @@ export function GuestQuickViewDrawer({
                 size="sm"
                 variant="outline"
                 onClick={() => onEditGuest(previewId)}
-                className="border-[#D6D0C4] text-[#251605] hover:bg-[#FAF8F5]"
+                className="border-[#D6D0C4] text-[#7A6B58] hover:text-[#251605] hover:bg-[#FAF8F5] text-xs h-9"
                 data-testid="guest-quick-view-edit"
               >
                 Edit Guest

@@ -2,9 +2,16 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, ChevronDown, Plus } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { GuestGroupTemplatesDialog } from "@/packages/pms/components/guests/guest-group-templates-dialog";
 import { GuestProfileChrome } from "@/packages/pms/components/guests/guest-profile-chrome";
 import {
   GUEST_WORKSPACE_SECTIONS,
@@ -299,35 +306,185 @@ export function GuestProfileWorkspace({
   const isTypeInactive = typeConfig ? !typeConfig.active : false;
   const canCreate = accessQuery.data?.canCreate === true && !isTypeInactive;
 
+  const canCreateDomain = (domain: string) => {
+    if (accessQuery.data?.canCreate !== true) return false;
+    const cfg = configQuery.data?.types.find((t) => t.domain === domain);
+    return cfg ? cfg.active : true;
+  };
+
+  const canCreateIndividual = canCreateDomain("individual");
+  const canCreateCompany = canCreateDomain("company");
+  const canCreateAgency = canCreateDomain("travel-agent");
+  const canCreateGroup = canCreateDomain("group");
+
+  const [headerTemplateApplyOpen, setHeaderTemplateApplyOpen] = useState(false);
+  const [headerTemplateManageOpen, setHeaderTemplateManageOpen] = useState(false);
+
+  const activeCreateTitle =
+    sectionDef.domain === "individual"
+      ? "New Guest"
+      : sectionDef.domain === "travel-agent"
+        ? "New Agency"
+        : `New ${sectionDef.title.replace(/s$/, "")}`;
+
   const primaryAction =
     !guestId && !create ? (
-      <Button
-        type="button"
-        size="sm"
-        disabled={!canCreate}
-        onClick={() => {
-          void navigate({
-            to: GUEST_PROFILE_DIRECTORY_PATH,
-            search: guestProfileSearch({
-              section: activeSection,
-              type: sectionDef.domain,
-              create: sectionDef.createType,
-            }),
-          });
-        }}
-        className="h-8 gap-1.5 bg-[#251605] text-[#FBF9F5] hover:bg-[#3D2C1D] disabled:opacity-50"
-        data-testid="guest-create-action-btn"
-        title={
-          isTypeInactive
-            ? `${sectionDef.title} is inactive in Property Setup`
-            : `Create new ${sectionDef.title}`
-        }
-      >
-        <Plus className="size-3.5" />
-        <span className="text-xs font-medium">
-          New {sectionDef.domain === "individual" ? "Guest" : sectionDef.title.replace(/s$/, "")}
-        </span>
-      </Button>
+      <div className="flex items-center gap-1.5" data-testid="guest-header-actions">
+        <div className="inline-flex rounded-lg shadow-sm">
+          <Button
+            type="button"
+            size="sm"
+            disabled={!canCreate}
+            onClick={() => {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({
+                  section: activeSection,
+                  type: sectionDef.domain,
+                  create: sectionDef.createType,
+                }),
+              });
+            }}
+            className="h-8 gap-1.5 rounded-r-none bg-[#251605] px-3 text-xs font-semibold text-[#FBF9F5] hover:bg-[#3D2C1D] disabled:opacity-50"
+            data-testid="guest-create-action-btn"
+            title={
+              isTypeInactive
+                ? `${sectionDef.title} is inactive in Property Setup`
+                : `Create ${activeCreateTitle}`
+            }
+          >
+            <Plus className="size-3.5" />
+            <span>{activeCreateTitle}</span>
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 rounded-l-none border-l border-white/20 bg-[#251605] px-1.5 text-[#FBF9F5] hover:bg-[#3D2C1D] disabled:opacity-50"
+                aria-label="Create profile options"
+                data-testid="guest-create-dropdown-trigger"
+              >
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 text-xs">
+              <DropdownMenuItem
+                disabled={!canCreateIndividual}
+                onSelect={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({
+                      section: "guests",
+                      type: "individual",
+                      create: "individual",
+                    }),
+                  })
+                }
+              >
+                New Guest
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!canCreateCompany}
+                onSelect={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({
+                      section: "companies",
+                      type: "company",
+                      create: "company",
+                    }),
+                  })
+                }
+              >
+                New Company
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!canCreateAgency}
+                onSelect={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({
+                      section: "travel-agencies",
+                      type: "travel-agent",
+                      create: "travel-agent",
+                    }),
+                  })
+                }
+              >
+                New Travel Agency
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!canCreateGroup}
+                onSelect={() =>
+                  void navigate({
+                    to: GUEST_PROFILE_DIRECTORY_PATH,
+                    search: guestProfileSearch({
+                      section: "groups",
+                      type: "group",
+                      create: "group",
+                    }),
+                  })
+                }
+              >
+                New Group
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {activeSection === "groups" ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 border-[#D8D2C5] bg-white text-xs font-medium text-[#251605] hover:bg-[#FAF8F5]"
+                data-testid="group-tools-menu"
+              >
+                <span>Group Tools</span>
+                <ChevronDown className="ml-1 size-3 text-[#7A6B58]" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 text-xs">
+              <DropdownMenuItem
+                disabled={!canCreateGroup}
+                onSelect={() => setHeaderTemplateApplyOpen(true)}
+              >
+                Create from Template
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!canCreateGroup}
+                onSelect={() => setHeaderTemplateManageOpen(true)}
+              >
+                Manage Templates
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 border-[#D8D2C5] bg-white text-xs font-medium text-[#251605] hover:bg-[#FAF8F5]"
+                data-testid="guest-more-actions-menu"
+              >
+                <span>More</span>
+                <ChevronDown className="ml-1 size-3 text-[#7A6B58]" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40 text-xs">
+              <DropdownMenuItem disabled title="Guest import is not available yet">
+                Import Guests
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
     ) : null;
 
   const createBackBanner = (
@@ -782,17 +939,31 @@ export function GuestProfileWorkspace({
   );
 
   const chromeWrappedShell = (
-    <GuestProfileChrome
-      activeSection={activeSection}
-      onSelectSection={selectSection}
-      config={configQuery.data}
-      access={accessQuery.data}
-      isRefreshing={isRefreshing}
-      onRefresh={handleRefresh}
-      primaryAction={primaryAction}
-    >
-      {shell}
-    </GuestProfileChrome>
+    <>
+      <GuestProfileChrome
+        activeSection={activeSection}
+        onSelectSection={selectSection}
+        config={configQuery.data}
+        access={accessQuery.data}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        primaryAction={primaryAction}
+      >
+        {shell}
+      </GuestProfileChrome>
+      <GuestGroupTemplatesDialog
+        restaurantId={restaurantId}
+        open={headerTemplateApplyOpen}
+        onOpenChange={setHeaderTemplateApplyOpen}
+        mode="apply"
+      />
+      <GuestGroupTemplatesDialog
+        restaurantId={restaurantId}
+        open={headerTemplateManageOpen}
+        onOpenChange={setHeaderTemplateManageOpen}
+        mode="manage"
+      />
+    </>
   );
 
   if (!isAccount && guestQuery.data) {

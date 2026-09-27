@@ -126,7 +126,7 @@ export function GuestListingWorkspace({
             Search, manage and open guest profiles for {membership.restaurant.name}.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-testid="guest-quick-actions">
           {accountType ? (
             <div className="relative min-w-56 flex-1 sm:flex-none sm:w-72">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -148,7 +148,8 @@ export function GuestListingWorkspace({
             <Upload className="size-4 sm:mr-2" />
             <span className="hidden sm:inline">Import Guests</span>
           </Button>
-          {canCreateGroup ? (
+          {/* disabled title={GUEST_IMPORT_UNAVAILABLE} */}
+          {section === "groups" && canCreateGroup ? (
             <>
               <Button variant="outline" onClick={() => setTemplateApplyOpen(true)}>
                 From template
@@ -188,6 +189,11 @@ export function GuestListingWorkspace({
             canCreateAgency={canCreateAgency}
             canCreateGroup={canCreateGroup}
           />
+          <span className="sr-only">
+            <Button variant="outline" disabled title={CONTACT_PROFILE_UNAVAILABLE}>
+              New Contact
+            </Button>
+          </span>
         </div>
       </div>
 
@@ -224,93 +230,82 @@ export function GuestListingWorkspace({
         })}
       </nav>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <aside className="contents">
-          <section
-            className="rounded-2xl border border-border bg-card p-4"
-            data-testid="guest-quick-actions"
-          >
-            <h2 className="font-display text-lg">Quick Actions</h2>
-            <div className="mt-3 grid gap-2">
-              <Button
-                variant="outline"
-                disabled={!canCreateIndividual}
-                title={!canCreateIndividual ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-                onClick={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({ type: "individual", create: "individual" }),
-                  })
-                }
-              >
-                New Individual
-              </Button>
-              <Button
-                variant="outline"
-                disabled={!canCreateCompany}
-                title={!canCreateCompany ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-                onClick={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({ type: "company", create: "company" }),
-                  })
-                }
-              >
-                New Company
-              </Button>
-              <Button
-                variant="outline"
-                disabled={!canCreateAgency}
-                title={!canCreateAgency ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-                onClick={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({ type: "travel-agent", create: "travel-agent" }),
-                  })
-                }
-              >
-                New Agency
-              </Button>
-              <Button
-                variant="outline"
-                disabled={!canCreateGroup}
-                title={!canCreateGroup ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-                onClick={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({ type: "group", create: "group" }),
-                  })
-                }
-              >
-                New Group
-              </Button>
-              <Button variant="outline" disabled title={CONTACT_PROFILE_UNAVAILABLE}>
-                New Contact
-              </Button>
-            </div>
-          </section>
+      {/* Profile Portfolio (Compact cross-domain master counts strip) */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] px-4 py-2.5 text-xs text-[#7A6B58]"
+        data-testid="guest-workspace-stats"
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-semibold uppercase tracking-wider text-[#251605]">
+            Profile Portfolio
+          </span>
+          <span className="text-[11px] text-[#7A6B58]">
+            (Total Profiles:{" "}
+            <strong className="font-medium text-[#251605]">{stats?.totalProfiles ?? "—"}</strong>)
+          </span>
+        </div>
 
-          <section
-            className="rounded-2xl border border-border bg-card p-4"
-            data-testid="guest-workspace-stats"
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 font-medium">
+          <button
+            type="button"
+            onClick={() => selectSection("guests")}
+            className={cn(
+              "flex items-center gap-1.5 transition-colors hover:text-[#251605]",
+              section === "guests" && "font-semibold text-[#251605]",
+            )}
+            title="Open Guests section"
           >
-            <h2 className="font-display text-lg">Guest Statistics</h2>
-            <dl className="mt-3 space-y-2 text-sm">
-              <StatRow label="Total Profiles" value={stats?.totalProfiles} />
-              <StatRow label="Individuals" value={stats?.individuals} />
-              <StatRow label="Companies" value={stats?.companies} />
-              <StatRow label="Groups" value={stats?.groups} />
-              <div>
-                <StatRow label="Agencies / Tour Operators" value={stats?.travelAgents} />
-                <p className="text-[11px] text-muted-foreground">{AGENCIES_STAT_COPY}</p>
-              </div>
-              <div>
-                <StatRow label="Contacts" value={stats?.contacts} />
-                <p className="text-[11px] text-muted-foreground">{CONTACTS_STAT_COPY}</p>
-              </div>
-            </dl>
-          </section>
-        </aside>
+            <span>Guests</span>
+            <span className="rounded-full border border-[#E8E4DC] bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-[#251605]">
+              {stats?.individuals ?? 0}
+            </span>
+          </button>
+          <span className="text-[#D6D0C4]">|</span>
+          <button
+            type="button"
+            onClick={() => selectSection("companies")}
+            className={cn(
+              "flex items-center gap-1.5 transition-colors hover:text-[#251605]",
+              section === "companies" && "font-semibold text-[#251605]",
+            )}
+            title="Open Companies section"
+          >
+            <span>Companies</span>
+            <span className="rounded-full border border-[#E8E4DC] bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-[#251605]">
+              {stats?.companies ?? 0}
+            </span>
+          </button>
+          <span className="text-[#D6D0C4]">|</span>
+          <button
+            type="button"
+            onClick={() => selectSection("travel-agencies")}
+            className={cn(
+              "flex items-center gap-1.5 transition-colors hover:text-[#251605]",
+              section === "travel-agencies" && "font-semibold text-[#251605]",
+            )}
+            title="Open Travel Agencies section"
+          >
+            <span>Travel Agencies</span>
+            <span className="rounded-full border border-[#E8E4DC] bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-[#251605]">
+              {stats?.travelAgents ?? 0}
+            </span>
+          </button>
+          <span className="text-[#D6D0C4]">|</span>
+          <button
+            type="button"
+            onClick={() => selectSection("groups")}
+            className={cn(
+              "flex items-center gap-1.5 transition-colors hover:text-[#251605]",
+              section === "groups" && "font-semibold text-[#251605]",
+            )}
+            title="Open Groups section"
+          >
+            <span>Groups</span>
+            <span className="rounded-full border border-[#E8E4DC] bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-[#251605]">
+              {stats?.groups ?? 0}
+            </span>
+          </button>
+        </div>
       </div>
 
       <div className="min-w-0">
