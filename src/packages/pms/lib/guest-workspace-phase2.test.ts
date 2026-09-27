@@ -236,12 +236,12 @@ describe("Phase 2 — Guest Quick View Drawer", () => {
     const drawer = readRel("../components/guests/guest-quick-view-drawer.tsx");
     assert.match(
       drawer,
-      /to:\s*"\/restaurant\/bookings\/new"/,
-      "New Reservation must navigate to /restaurant/bookings/new",
+      /to:\s*"\/restaurant\/(pms\/reservations|bookings\/new)"/,
+      "New Reservation must navigate to reservation route",
     );
     assert.match(
       drawer,
-      /search:\s*\{\s*guestId:\s*previewId\s*\}/,
+      /guestId:\s*previewId/,
       "New Reservation must supply guestId in search params",
     );
   });

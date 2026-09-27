@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -228,9 +228,13 @@ function KpiCard({
 export function ReservationsWorkspace({
   membership,
   initialTab,
+  initialCreate = false,
+  initialGuestId,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
+  initialCreate?: boolean | undefined;
+  initialGuestId?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -264,6 +268,14 @@ export function ReservationsWorkspace({
   const [workspaceSection, setWorkspaceSection] = useState<CalendarWorkspaceSection>(() =>
     workspaceSectionFromTab(initialTab),
   );
+
+  const hydratedCreateRef = useRef(false);
+  useEffect(() => {
+    if (initialCreate && !hydratedCreateRef.current) {
+      hydratedCreateRef.current = true;
+      setOverlay({ type: "new-reservation", initialGuestId: initialGuestId ?? null });
+    }
+  }, [initialCreate, initialGuestId]);
 
   useEffect(() => {
     setWorkspaceSection(workspaceSectionFromTab(initialTab));
@@ -1071,6 +1083,7 @@ export function ReservationsWorkspace({
           <CreateReservationPage
             membership={membership}
             embedded
+            initialGuestId={overlay.initialGuestId ?? null}
             pmsGroupId={createGroupLink?.pmsGroupId ?? null}
             pmsGroupBlockId={createGroupLink?.pmsGroupBlockId ?? null}
             onCancel={() => closeWorkspaceOverlay(false)}

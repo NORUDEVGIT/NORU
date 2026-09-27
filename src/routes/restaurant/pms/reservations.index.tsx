@@ -4,10 +4,32 @@ import { ReservationsWorkspace } from "@/packages/pms/components/workspaces/rese
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export type ReservationsRouteSearch = {
+  tab?: string;
+  create?: "new";
+  guestId?: string;
+};
+
 export const Route = createFileRoute("/restaurant/pms/reservations/")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) =>
-    typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
+  validateSearch: (search: Record<string, unknown>): ReservationsRouteSearch => {
+    const result: ReservationsRouteSearch = {};
+    if (typeof search["tab"] === "string" && search["tab"].trim()) {
+      result.tab = search["tab"].trim();
+    }
+    if (search["create"] === "new") {
+      result.create = "new";
+    }
+    if (
+      typeof search["guestId"] === "string" &&
+      UUID_REGEX.test(search["guestId"].trim())
+    ) {
+      result.guestId = search["guestId"].trim();
+    }
+    return result;
+  },
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -40,7 +62,7 @@ export const Route = createFileRoute("/restaurant/pms/reservations/")({
 });
 
 function ReservationsPmsRoute() {
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const search = Route.useSearch() as ReservationsRouteSearch;
   return (
     <RestaurantShell
       active="Reservations"
@@ -50,7 +72,14 @@ function ReservationsPmsRoute() {
       hidePackageRail
       hideTopHeader
     >
-      {(m) => <ReservationsWorkspace membership={m} initialTab={searchTab ?? "individual"} />}
+      {(m) => (
+        <ReservationsWorkspace
+          membership={m}
+          initialTab={search.tab ?? "individual"}
+          initialCreate={search.create === "new"}
+          initialGuestId={search.guestId}
+        />
+      )}
     </RestaurantShell>
   );
 }

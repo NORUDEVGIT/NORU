@@ -34,10 +34,15 @@ import { CreateReservationContext } from "@/packages/pms/components/bookings/cre
 import { CreateReservationAssociations } from "@/packages/pms/components/bookings/create-reservation-associations";
 import {
   CreateReservationGuest,
+  toPickedGuest,
   type PickedReservationGuest,
 } from "@/packages/pms/components/bookings/create-reservation-guest";
 import { CreateReservationStay } from "@/packages/pms/components/bookings/create-reservation-stay";
-import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import {
+  getGuest,
+  getGuestReservationPreferenceDefaults,
+  getGuestsAccess,
+} from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getBookingsAccess,
@@ -138,6 +143,7 @@ const CREATE_WORKFLOW_STEPS = [
 export function CreateReservationPage({
   membership,
   embedded = false,
+  initialGuestId = null,
   pmsGroupId = null,
   pmsGroupBlockId = null,
   onCancel,
@@ -147,6 +153,7 @@ export function CreateReservationPage({
 }: {
   membership: RestaurantMembership;
   embedded?: boolean;
+  initialGuestId?: string | null;
   pmsGroupId?: string | null;
   pmsGroupBlockId?: string | null;
   onCancel?: () => void;
@@ -160,6 +167,8 @@ export function CreateReservationPage({
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
+  const fetchGuest = useServerFn(getGuest);
+  const fetchGuestPrefDefaults = useServerFn(getGuestReservationPreferenceDefaults);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
   const fetchSet3 = useServerFn(getPmsSet3Snapshot);
   const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
@@ -210,6 +219,32 @@ export function CreateReservationPage({
     enabled: canManage,
     retry: false,
   });
+
+  const initialGuestQuery = useQuery({
+    queryKey: ["initial-reservation-guest", restaurantId, initialGuestId],
+    queryFn: () => fetchGuest({ data: { restaurantId, guestId: initialGuestId! } }),
+    enabled: canManage && Boolean(initialGuestId) && !guest,
+    staleTime: 60_000,
+  });
+
+  const initialPrefQuery = useQuery({
+    queryKey: ["initial-guest-preferences", restaurantId, guest?.id],
+    queryFn: () => fetchGuestPrefDefaults({ data: { restaurantId, guestId: guest!.id } }),
+    enabled: canManage && Boolean(guest?.id),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (initialGuestQuery.data?.guest && !guest) {
+      setGuest(toPickedGuest(initialGuestQuery.data.guest));
+    }
+  }, [initialGuestQuery.data, guest]);
+
+  useEffect(() => {
+    if (initialPrefQuery.data?.applyToFutureReservations && initialPrefQuery.data.specialRequests) {
+      setSpecialRequests((prev) => (prev ? prev : (initialPrefQuery.data.specialRequests ?? "")));
+    }
+  }, [initialPrefQuery.data]);
 
   const set6Query = useQuery({
     queryKey: ["pms-set6-snapshot", restaurantId, "create-reservation"],

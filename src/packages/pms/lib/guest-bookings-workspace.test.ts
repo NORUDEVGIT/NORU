@@ -168,7 +168,7 @@ describe("Guest bookings workspace honesty", () => {
     assert.doesNotMatch(history, /Waitlist|Recent Activity/);
     assert.doesNotMatch(helpers, /waitlist/);
     assert.match(history, /guestId/);
-    assert.match(history, /\/restaurant\/bookings\/new/);
+    assert.match(history, /\/restaurant\/(pms\/reservations|bookings\/new)/);
     assert.match(history, /window.print/);
     assert.match(history, /guestBookingsCsv/);
     assert.match(history, /guest-booking-quick-actions/);

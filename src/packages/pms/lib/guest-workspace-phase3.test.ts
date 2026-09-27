@@ -97,10 +97,10 @@ describe("NORU PMS — Guest Profile Phase 3 — Individual Guest Detail Workspa
     assert.match(headerCode, /company\.masterName/);
   });
 
-  it("13. Primary action button is + New Reservation linking to /restaurant/bookings/new?guestId=...", () => {
+  it("13. Primary action button is + New Reservation linking to reservations route with guestId", () => {
     assert.match(headerCode, /New Reservation/);
-    assert.match(headerCode, /\/restaurant\/bookings\/new/);
-    assert.match(headerCode, /guestId: guest\.id/);
+    assert.match(headerCode, /\/restaurant\/(pms\/reservations|bookings\/new)/);
+    assert.match(headerCode, /guestId:\s*guest\.id/);
   });
 
   it("14. Secondary action button is Edit Guest", () => {

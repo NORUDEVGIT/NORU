@@ -149,7 +149,7 @@ export function GuestStayHistoryCard({
 
   const newReservation = (
     <Button asChild>
-      <Link to="/restaurant/bookings/new" search={{ guestId }} data-testid="guest-bookings-new">
+      <Link to="/restaurant/pms/reservations" search={{ create: "new", guestId }} data-testid="guest-bookings-new">
         <CalendarPlus className="mr-2 size-4" />
         New Reservation
       </Link>

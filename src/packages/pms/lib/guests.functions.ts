@@ -236,6 +236,7 @@ export interface GuestPreferences {
   communicationPreference: string | null;
   accessibilityRequirements: string | null;
   specialRequests: string | null;
+  smokingAllowed?: boolean | null | undefined;
 }
 
 type JsonValue = string | number | boolean | null;

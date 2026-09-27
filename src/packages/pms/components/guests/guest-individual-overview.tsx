@@ -450,7 +450,7 @@ export function GuestIndividualOverview({
                   size="sm"
                   className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
                 >
-                  <Link to="/restaurant/bookings/new" search={{ guestId: guest.id }}>
+                  <Link to="/restaurant/pms/reservations" search={{ create: "new", guestId: guest.id }}>
                     <Plus className="mr-1 size-3" /> New Reservation
                   </Link>
                 </Button>

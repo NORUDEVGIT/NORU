@@ -267,7 +267,7 @@ export function GuestProfileHeader({
               size="sm"
               className="bg-[#8A641A] hover:bg-[#725215] text-white font-medium shadow-sm transition-colors"
             >
-              <Link to="/restaurant/bookings/new" search={{ guestId: guest.id }}>
+              <Link to="/restaurant/pms/reservations" search={{ create: "new", guestId: guest.id }}>
                 <Plus className="mr-1.5 size-3.5" /> New Reservation
               </Link>
             </Button>

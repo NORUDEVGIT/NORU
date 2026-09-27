@@ -737,8 +737,8 @@ export function GuestDirectoryWorkspace({
                           <DropdownMenuItem
                             onSelect={() => {
                               void navigate({
-                                to: "/restaurant/bookings/new",
-                                search: { guestId: g.id },
+                                to: "/restaurant/pms/reservations",
+                                search: { create: "new", guestId: g.id },
                               });
                             }}
                           >

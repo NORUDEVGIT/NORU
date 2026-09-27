@@ -6,13 +6,14 @@ import { GuestProfileHeader } from "@/packages/pms/components/guests/guest-profi
 import { GuestIndividualOverview } from "@/packages/pms/components/guests/guest-individual-overview";
 import { GuestPersonalContactView } from "@/packages/pms/components/guests/guest-personal-contact-view";
 import { GuestIdentityCard } from "@/packages/pms/components/guests/guest-identity-card";
-import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-preferences-card";
-import { GuestStayHistoryCard } from "@/packages/pms/components/guests/guest-stay-history-card";
-import { GuestRelationshipsCard } from "@/packages/pms/components/guests/guest-relationships-card";
-import { GuestServiceHistoryCard } from "@/packages/pms/components/guests/guest-service-history-card";
-import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
-import { GuestPrivacyCard } from "@/packages/pms/components/guests/guest-privacy-card";
-import { GuestLoyaltyCard } from "@/packages/pms/components/guests/guest-loyalty-card";
+import { GuestPreferencesView } from "@/packages/pms/components/guests/guest-preferences-view";
+import { GuestStaysReservationsView } from "@/packages/pms/components/guests/guest-stays-reservations-view";
+import { GuestRelationshipsView } from "@/packages/pms/components/guests/guest-relationships-view";
+import { GuestServicesView } from "@/packages/pms/components/guests/guest-services-view";
+import { GuestCommunicationNotesView } from "@/packages/pms/components/guests/guest-communication-notes-view";
+import { GuestPrivacyAdministrationView } from "@/packages/pms/components/guests/guest-privacy-administration-view";
+import { GuestActivityHistoryView } from "@/packages/pms/components/guests/guest-activity-history-view";
+import { GuestLoyaltyValueView } from "@/packages/pms/components/guests/guest-loyalty-value-view";
 import { useOptionalGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
 import {
   MORE_GUEST_DETAIL_VIEWS,
@@ -226,7 +227,7 @@ export function GuestIndividualDetailWorkspace({
         )}
 
         {activeView === "preferences" && (
-          <GuestPreferencesCard
+          <GuestPreferencesView
             restaurantId={restaurantId}
             guestId={guest.id}
             guest={guest}
@@ -240,7 +241,7 @@ export function GuestIndividualDetailWorkspace({
         )}
 
         {activeView === "stays" && (
-          <GuestStayHistoryCard
+          <GuestStaysReservationsView
             restaurantId={restaurantId}
             guestId={guest.id}
             guestName={guest.fullName}
@@ -251,11 +252,11 @@ export function GuestIndividualDetailWorkspace({
         )}
 
         {activeView === "relationships" && (
-          <GuestRelationshipsCard restaurantId={restaurantId} guestId={guest.id} />
+          <GuestRelationshipsView restaurantId={restaurantId} guestId={guest.id} />
         )}
 
         {activeView === "services" && (
-          <GuestServiceHistoryCard
+          <GuestServicesView
             restaurantId={restaurantId}
             guestId={guest.id}
             guestName={guest.fullName}
@@ -266,33 +267,32 @@ export function GuestIndividualDetailWorkspace({
         )}
 
         {activeView === "communication-notes" && (
-          <GuestActivityHubCard
+          <GuestCommunicationNotesView
             restaurantId={restaurantId}
             guestId={guest.id}
             partyName={guest.fullName}
-            showFilters={true}
           />
         )}
 
         {activeView === "privacy" && (
-          <GuestPrivacyCard
+          <GuestPrivacyAdministrationView
             restaurantId={restaurantId}
             guestId={guest.id}
+            guest={guest}
             partyName={guest.fullName}
           />
         )}
 
         {activeView === "activity" && (
-          <GuestActivityHubCard
+          <GuestActivityHistoryView
             restaurantId={restaurantId}
             guestId={guest.id}
             partyName={guest.fullName}
-            showFilters={true}
           />
         )}
 
         {activeView === "loyalty" && (
-          <GuestLoyaltyCard
+          <GuestLoyaltyValueView
             restaurantId={restaurantId}
             guestId={guest.id}
             partyName={guest.fullName}

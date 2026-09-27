@@ -168,8 +168,8 @@ export function GuestQuickViewDrawer({
   function openNewReservation() {
     if (!previewId) return;
     void navigate({
-      to: "/restaurant/bookings/new",
-      search: { guestId: previewId },
+      to: "/restaurant/pms/reservations",
+      search: { create: "new", guestId: previewId },
     });
   }
 
@@ -608,6 +608,7 @@ export function GuestQuickViewDrawer({
               ) : docs.length === 1 ? (
                 (() => {
                   const doc = docs[0];
+                  if (!doc) return null;
                   return (
                     <div className="space-y-4">
                       <div className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-5 shadow-sm">
@@ -695,7 +696,9 @@ export function GuestQuickViewDrawer({
                 })()
               ) : docs.length > 1 ? (
                 (() => {
-                  const [primary, ...others] = docs;
+                  const primary = docs[0];
+                  if (!primary) return null;
+                  const others = docs.slice(1);
                   return (
                     <div className="space-y-4">
                       <div className="rounded-xl border border-[#E8E4DC] bg-[#FFFFFF] p-4 shadow-sm">
