@@ -148,7 +148,7 @@ export const PMS_MODULES: PmsModule[] = [
     group: "core",
     moduleKey: "housekeeping",
     canonicalRoute: "/restaurant/pms/housekeeping",
-    legacyRoutes: ["/restaurant/housekeeping?tab=dashboard"],
+    legacyRoutes: ["/restaurant/housekeeping", "/restaurant/housekeeping?tab=dashboard"],
     domain: "pms",
     sharedDependencies: ["inventory", "procurement"],
     implementationStatus: "existing",

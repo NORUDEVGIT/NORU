@@ -1,5 +1,9 @@
 /**
- * Phase 6F — Housekeeping operations.
+ * Housekeeping operations.
+ *
+ * State freeze (workspace Phase 0): room HK is dirty|clean|inspected|pickup.
+ * Ready is derived (evaluateRoomReadinessWithPolicy / rack isRoomReady).
+ * completeHousekeepingTask must not write maintenance_status or tickets.
  *
  * Dashboard, room rack, cleaning tasks, inspections, room restrictions,
  * discrepancies and basic maintenance requests. Every handler re-derives the
@@ -20,6 +24,8 @@ import {
   requireHousekeepingAccess,
   requireHousekeepingOperator,
   requireMaintenanceAccess,
+  syncRoomMaintenanceFromTickets,
+  HK_EVENT_TYPES,
   MAINTENANCE_CATEGORIES,
   TASK_PRIORITIES,
   TASK_TYPES,
@@ -41,7 +47,31 @@ import {
   restrictionSaveBlocked,
 } from "./pms-set4-hk-inventory";
 import { loadSet4Snapshot } from "./pms-set4-hk-inventory.functions";
+import { applyGuestServiceRequestUpdate } from "./guests.server";
+import { isMissingSchemaError } from "./pms-set2-structure";
+import {
+  GUEST_SERVICE_DESCRIPTION_MAX,
+  GUEST_SERVICE_STATUSES,
+  isGuestServiceStatus,
+  type GuestServicePriority,
+  type GuestServiceStatus,
+} from "./guest-services-workspace";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
+import { evaluateRoomReadinessWithPolicy } from "./housekeeping-card2.server";
+import {
+  applyHousekeepingEventPriority,
+  EMPTY_HK_DEMAND,
+  guestServiceSpawnsCleaningTask,
+  hkDemandFromStay,
+  housekeeperMayMutateTask,
+  isHousekeepingRoutedGuestService,
+  deriveHousekeepingExceptions,
+  hkHistoryEventTypesForGroup,
+  mergeHkDemand,
+  priorityEventsForHousekeepingTask,
+  roomAwaitsInspection,
+  type HkDemandFlags,
+} from "./housekeeping-ops";
 import { setOperationalRestrictionCompat } from "./room-inventory-compat";
 
 const idSchema = z.string().uuid();
@@ -79,13 +109,26 @@ export interface RackRoom {
   occupancy: "vacant" | "occupied";
   guestName: string | null;
   housekeepingStatus: HkStatus;
+  maintenanceStatus: string | null;
   restriction: RoomRestriction;
   restrictionReason: string | null;
   restrictionExpectedReturn: string | null;
   assignedAttendant: string | null;
+  assignedMembershipId: string | null;
   openTaskId: string | null;
   openTaskStatus: TaskStatus | null;
+  openTaskType: TaskType | null;
+  openTaskPriority: TaskPriority | null;
+  openTaskNotes: string | null;
+  openTaskCreatedAt: string | null;
+  openTaskStartedAt: string | null;
   ready: boolean;
+  checkInReady: boolean;
+  readyReason: string | null;
+  stayId: string | null;
+  guestId: string | null;
+  demand: HkDemandFlags;
+  awaitingInspection: boolean;
 }
 
 export interface HousekeepingTask {
@@ -149,6 +192,7 @@ export interface HousekeepingHistoryEntry {
   previousValues: string | null;
   newValues: string | null;
   notes: string | null;
+  actorMembershipId: string | null;
   actorName: string | null;
   createdAt: string;
 }
@@ -157,6 +201,27 @@ export interface HousekeepingStaffOption {
   membershipId: string;
   name: string;
   role: string;
+}
+
+export interface HousekeepingGuestRequest {
+  id: string;
+  guestId: string;
+  guestName: string;
+  requestNumber: string | null;
+  serviceTypeId: string;
+  serviceCode: string;
+  serviceName: string;
+  status: GuestServiceStatus;
+  priority: GuestServicePriority;
+  notes: string | null;
+  requestedAt: string;
+  preferredAt: string | null;
+  reservationId: string | null;
+  confirmationNumber: string | null;
+  roomId: string | null;
+  roomNumber: string | null;
+  assignedMembershipId: string | null;
+  assignedName: string | null;
 }
 
 /* ------------------------------------------------------------------ shared */
@@ -198,6 +263,112 @@ async function occupancyMap(supabase: any, restaurantId: string) {
     map.set(row.room_id, name);
   }
   return map;
+}
+
+function nextCalendarDate(isoDate: string): string {
+  const parts = isoDate.split("-").map(Number);
+  const utc = Date.UTC(parts[0] ?? 1970, (parts[1] ?? 1) - 1, (parts[2] ?? 1) + 1);
+  return new Date(utc).toISOString().slice(0, 10);
+}
+
+function uuidFromHistory(values: Record<string, unknown> | null): string | null {
+  const id = values?.room_id;
+  return typeof id === "string" ? id : null;
+}
+
+type HkDemandOverlay = {
+  demand: HkDemandFlags;
+  stayId: string | null;
+  guestId: string | null;
+};
+
+/** FO/reservation demand for Board/QV — reads only, never copies stay rows. */
+async function loadHkDemandOverlay(
+  supabase: any,
+  restaurantId: string,
+  today: string,
+  property: { timezone: string; checkInTime: string | null },
+): Promise<Map<string, HkDemandOverlay>> {
+  const overlay = new Map<string, HkDemandOverlay>();
+
+  const [{ data: stays }, { data: moves }] = await Promise.all([
+    supabase
+      .from("hotel_reservations")
+      .select(
+        "id, room_id, guest_id, status, arrival_date, departure_date, expected_arrival_at, guest_profiles!hotel_reservations_guest_same_property ( vip_status )",
+      )
+      .eq("restaurant_id", restaurantId)
+      .in("status", ["pending", "confirmed", "checked_in"])
+      .not("room_id", "is", null)
+      .lte("arrival_date", today)
+      .gte("departure_date", today),
+    supabase
+      .from("hotel_reservation_history")
+      .select("previous_values, new_values")
+      .eq("restaurant_id", restaurantId)
+      .in("event_type", ["room_changed", "room_moved"])
+      .gte("created_at", `${today}T00:00:00`)
+      .lt("created_at", `${nextCalendarDate(today)}T00:00:00`),
+  ]);
+
+  const movedRooms = new Set<string>();
+  for (const row of (moves ?? []) as Array<{
+    previous_values: Record<string, unknown> | null;
+    new_values: Record<string, unknown> | null;
+  }>) {
+    const from = uuidFromHistory(row.previous_values);
+    const to = uuidFromHistory(row.new_values);
+    if (from) movedRooms.add(from);
+    if (to) movedRooms.add(to);
+  }
+
+  for (const row of (stays ?? []) as Array<{
+    id: string;
+    room_id: string | null;
+    guest_id: string | null;
+    status: string;
+    arrival_date: string;
+    departure_date: string;
+    expected_arrival_at: string | null;
+    guest_profiles: { vip_status: boolean } | { vip_status: boolean }[] | null;
+  }>) {
+    if (!row.room_id) continue;
+    const guest = Array.isArray(row.guest_profiles) ? row.guest_profiles[0] : row.guest_profiles;
+    const demand = hkDemandFromStay(
+      {
+        roomId: row.room_id,
+        status: row.status,
+        arrivalDate: row.arrival_date,
+        departureDate: row.departure_date,
+        expectedArrivalAt: row.expected_arrival_at,
+        guestVip: Boolean(guest?.vip_status),
+        roomChangedToday: movedRooms.has(row.room_id),
+      },
+      today,
+      { checkInTime: property.checkInTime, timezone: property.timezone },
+    );
+    const existing = overlay.get(row.room_id);
+    const preferStay = row.status === "checked_in" || !existing?.stayId;
+    overlay.set(row.room_id, {
+      demand: existing ? mergeHkDemand(existing.demand, demand) : demand,
+      stayId: preferStay ? row.id : existing?.stayId ?? null,
+      guestId: preferStay ? row.guest_id : existing?.guestId ?? null,
+    });
+  }
+
+  for (const roomId of movedRooms) {
+    const existing = overlay.get(roomId);
+    overlay.set(roomId, {
+      demand: mergeHkDemand(existing?.demand ?? EMPTY_HK_DEMAND, {
+        ...EMPTY_HK_DEMAND,
+        roomChange: true,
+      }),
+      stayId: existing?.stayId ?? null,
+      guestId: existing?.guestId ?? null,
+    });
+  }
+
+  return overlay;
 }
 
 async function staffNames(supabase: any, restaurantId: string) {
@@ -284,6 +455,8 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<HousekeepingDashboard> => {
     const me = await requireHousekeepingAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false);
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -299,19 +472,11 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
       housekeeping_status: HkStatus;
     }>;
 
-    const [pendingCleaning, pendingInspection] = await Promise.all([
-      context.supabase
-        .from("housekeeping_tasks")
-        .select("id", { count: "exact", head: true })
-        .eq("restaurant_id", data.restaurantId)
-        .in("status", ["pending", "assigned", "in_progress"]),
-      context.supabase
-        .from("hotel_rooms")
-        .select("id", { count: "exact", head: true })
-        .eq("restaurant_id", data.restaurantId)
-        .eq("active", true)
-        .eq("housekeeping_status", "clean"),
-    ]);
+    const { count: pendingCleaning } = await context.supabase
+      .from("housekeeping_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", data.restaurantId)
+      .in("status", ["pending", "assigned", "in_progress"]);
 
     const occupiedCount = list.filter((r) => occupied.has(r.id)).length;
     return {
@@ -324,8 +489,14 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
       inspected: list.filter((r) => r.housekeeping_status === "inspected").length,
       outOfOrder: list.filter((r) => r.status === "out_of_order").length,
       outOfService: list.filter((r) => r.status === "out_of_service").length,
-      pendingCleaning: pendingCleaning.count ?? 0,
-      pendingInspection: pendingInspection.count ?? 0,
+      pendingCleaning: pendingCleaning ?? 0,
+      pendingInspection: list.filter((r) =>
+        roomAwaitsInspection({
+          housekeepingStatus: r.housekeeping_status,
+          restriction: r.status,
+          inspectionRequired: housekeepingPolicy.settings.inspectionRequired,
+        }),
+      ).length,
     };
   });
 
@@ -333,12 +504,14 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
 
 export const listRoomRack = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, today: dateSchema.optional() }).parse(input),
+  )
   .handler(async ({ data, context }): Promise<RackRoom[]> => {
     const me = await requireHousekeepingAccess(context as never, data.restaurantId);
     const rackScope = housekeepingScope(me.role);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
+    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false);
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -350,14 +523,28 @@ export const listRoomRack = createServerFn({ method: "POST" })
       .order("room_number");
     if (error) throw new Error(error.message);
 
-    const [occupied, names] = await Promise.all([
+    const { data: property } = await context.supabase
+      .from("restaurants")
+      .select("timezone, check_in_time, business_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const today =
+      data.today ??
+      (typeof property?.business_date === "string" ? property.business_date.slice(0, 10) : null) ??
+      new Date().toISOString().slice(0, 10);
+
+    const [occupied, names, demandOverlay] = await Promise.all([
       occupancyMap(context.supabase, data.restaurantId),
       staffNames(context.supabase, data.restaurantId),
+      loadHkDemandOverlay(context.supabase, data.restaurantId, today, {
+        timezone: typeof property?.timezone === "string" ? property.timezone : "UTC",
+        checkInTime: typeof property?.check_in_time === "string" ? property.check_in_time : null,
+      }),
     ]);
 
     const { data: tasks } = await context.supabase
       .from("housekeeping_tasks")
-      .select("id, room_id, status, assigned_membership_id")
+      .select("id, room_id, status, task_type, priority, notes, assigned_membership_id, created_at, started_at")
       .eq("restaurant_id", data.restaurantId)
       .in("status", ["pending", "assigned", "in_progress"]);
     const openByRoom = new Map(
@@ -366,7 +553,12 @@ export const listRoomRack = createServerFn({ method: "POST" })
           id: string;
           room_id: string;
           status: TaskStatus;
+          task_type: TaskType;
+          priority: TaskPriority;
+          notes: string | null;
           assigned_membership_id: string | null;
+          created_at: string;
+          started_at: string | null;
         }>
       ).map((t) => [t.room_id, t]),
     );
@@ -380,8 +572,17 @@ export const listRoomRack = createServerFn({ method: "POST" })
       >
     ).map((room) => {
       const task = openByRoom.get(room.id);
+      const overlay = demandOverlay.get(room.id);
       const guestName = rackScope === "supervisor" ? (occupied.get(room.id) ?? null) : null;
       const isOccupied = occupied.has(room.id);
+      const checkIn = evaluateRoomReadinessWithPolicy(
+        {
+          status: room.status,
+          housekeepingStatus: room.housekeeping_status,
+          maintenanceStatus: room.maintenance_status,
+        },
+        housekeepingPolicy.settings,
+      );
       return {
         id: room.id,
         roomNumber: room.room_number,
@@ -391,14 +592,21 @@ export const listRoomRack = createServerFn({ method: "POST" })
         occupancy: isOccupied ? ("occupied" as const) : ("vacant" as const),
         guestName,
         housekeepingStatus: room.housekeeping_status,
+        maintenanceStatus: room.maintenance_status,
         restriction: room.status,
         restrictionReason: room.restriction_reason,
         restrictionExpectedReturn: room.restriction_expected_return,
         assignedAttendant: task?.assigned_membership_id
           ? (names.get(task.assigned_membership_id)?.name ?? null)
           : null,
+        assignedMembershipId: task?.assigned_membership_id ?? null,
         openTaskId: task?.id ?? null,
         openTaskStatus: task?.status ?? null,
+        openTaskType: task?.task_type ?? null,
+        openTaskPriority: task?.priority ?? null,
+        openTaskNotes: task?.notes ?? null,
+        openTaskCreatedAt: task?.created_at ?? null,
+        openTaskStartedAt: task?.started_at ?? null,
         ready: isRoomReady({
           active: room.active,
           status: room.status,
@@ -406,6 +614,16 @@ export const listRoomRack = createServerFn({ method: "POST" })
           housekeepingStatus: room.housekeeping_status,
           maintenanceStatus: room.maintenance_status,
           settings: housekeepingPolicy.settings,
+        }),
+        checkInReady: checkIn.ready,
+        readyReason: checkIn.reason,
+        stayId: rackScope === "supervisor" ? (overlay?.stayId ?? null) : null,
+        guestId: rackScope === "supervisor" ? (overlay?.guestId ?? null) : null,
+        demand: overlay?.demand ?? EMPTY_HK_DEMAND,
+        awaitingInspection: roomAwaitsInspection({
+          housekeepingStatus: room.housekeeping_status,
+          restriction: room.status,
+          inspectionRequired: housekeepingPolicy.settings.inspectionRequired,
         }),
       };
     });
@@ -494,11 +712,32 @@ export const createHousekeepingTask = createServerFn({ method: "POST" })
       throw new Error("That cleaning type is not in the saved Housekeeping rules.");
     }
 
+    const [{ data: property }, card2] = await Promise.all([
+      supabaseAdmin
+        .from("restaurants")
+        .select("timezone, check_in_time, business_date")
+        .eq("id", data.restaurantId)
+        .maybeSingle(),
+      loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false),
+    ]);
+    const today =
+      (typeof property?.business_date === "string" ? property.business_date.slice(0, 10) : null) ??
+      new Date().toISOString().slice(0, 10);
+    const overlay = await loadHkDemandOverlay(supabaseAdmin, data.restaurantId, today, {
+      timezone: typeof property?.timezone === "string" ? property.timezone : "UTC",
+      checkInTime: typeof property?.check_in_time === "string" ? property.check_in_time : null,
+    });
+    const priority = applyHousekeepingEventPriority(
+      card2.priorities,
+      priorityEventsForHousekeepingTask(data.taskType, overlay.get(data.roomId)?.demand ?? EMPTY_HK_DEMAND),
+      data.priority,
+    );
+
     const { data: taskId, error } = await supabaseAdmin.rpc("housekeeping_create_task", {
       _restaurant_id: data.restaurantId,
       _room_id: data.roomId,
       _task_type: data.taskType,
-      _priority: data.priority,
+      _priority: priority,
       _notes: blankToNull(data.notes) as unknown as string,
       _membership_id: me.id,
     });
@@ -526,7 +765,7 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
 
     const { data: task } = await supabaseAdmin
       .from("housekeeping_tasks")
-      .select("id, restaurant_id, room_id, status, assigned_membership_id")
+      .select("id, restaurant_id, room_id, status, assigned_membership_id, notes")
       .eq("id", data.taskId)
       .eq("restaurant_id", data.restaurantId)
       .maybeSingle();
@@ -536,14 +775,21 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
     }
 
     const scope = housekeepingScope(me.role);
-    if (scope !== "supervisor") {
-      if (data.action !== "start") {
-        throw new Error("You don't have permission to perform that housekeeping action.");
-      }
-      if (task.assigned_membership_id !== me.id) {
+    if (
+      !housekeeperMayMutateTask({
+        scope,
+        action: data.action,
+        assignedMembershipId: task.assigned_membership_id,
+        actorMembershipId: me.id,
+      })
+    ) {
+      if (scope === "housekeeper" && data.action === "start") {
         throw new Error("You can only work on tasks assigned to you.");
       }
+      throw new Error("You don't have permission to perform that housekeeping action.");
     }
+
+    const nextNotes = blankToNull(data.notes) ?? task.notes;
 
     if (data.action === "assign") {
       if (!data.assigneeMembershipId) throw new Error("Pick a staff member to assign.");
@@ -584,7 +830,7 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
       const nextStatus: TaskStatus = task.status === "in_progress" ? "in_progress" : "assigned";
       await supabaseAdmin
         .from("housekeeping_tasks")
-        .update({ assigned_membership_id: assignee.id, status: nextStatus })
+        .update({ assigned_membership_id: assignee.id, status: nextStatus, notes: nextNotes })
         .eq("id", task.id)
         .eq("restaurant_id", data.restaurantId);
 
@@ -606,7 +852,11 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
       if (task.status === "in_progress") return { id: task.id, status: "in_progress" };
       await supabaseAdmin
         .from("housekeeping_tasks")
-        .update({ status: "in_progress", started_at: new Date().toISOString() })
+        .update({
+          status: "in_progress",
+          started_at: new Date().toISOString(),
+          notes: nextNotes,
+        })
         .eq("id", task.id)
         .eq("restaurant_id", data.restaurantId);
       await recordHousekeepingEvent({
@@ -645,16 +895,21 @@ export const completeHousekeepingTask = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ id: string; status: TaskStatus }> => {
     const me = await requireHousekeepingOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    if (housekeepingScope(me.role) !== "supervisor") {
-      const { data: owned } = await supabaseAdmin
-        .from("housekeeping_tasks")
-        .select("id, assigned_membership_id")
-        .eq("id", data.taskId)
-        .eq("restaurant_id", data.restaurantId)
-        .maybeSingle();
-      if (!owned || owned.assigned_membership_id !== me.id) {
-        throw new Error("You can only complete tasks assigned to you.");
-      }
+    const { data: owned } = await supabaseAdmin
+      .from("housekeeping_tasks")
+      .select("id, assigned_membership_id")
+      .eq("id", data.taskId)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (
+      !housekeeperMayMutateTask({
+        scope: housekeepingScope(me.role),
+        action: "complete",
+        assignedMembershipId: owned?.assigned_membership_id ?? null,
+        actorMembershipId: me.id,
+      })
+    ) {
+      throw new Error("You can only complete tasks assigned to you.");
     }
     const { error } = await supabaseAdmin.rpc("housekeeping_complete_task", {
       _restaurant_id: data.restaurantId,
@@ -728,7 +983,13 @@ export const inspectRoom = createServerFn({ method: "POST" })
     const me = policy.settings.supervisorApprovalRequired
       ? await requireHousekeepingManager(context as never, data.restaurantId)
       : await requireHousekeepingOperator(context as never, data.restaurantId);
-    await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
+    const room = await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
+    if (room.status === "out_of_order" || room.status === "out_of_service") {
+      throw new Error("Inspectors cannot put a room out of order or inspect a restricted room. Use Inventory restrictions.");
+    }
+    if (data.result === "failed" && !blankToNull(data.notes)) {
+      throw new Error("Add notes describing why inspection failed.");
+    }
 
     const { data: inspectionId, error } = await supabaseAdmin.rpc("housekeeping_inspect_room", {
       _restaurant_id: data.restaurantId,
@@ -929,6 +1190,26 @@ export const resolveDiscrepancy = createServerFn({ method: "POST" })
     return { id: row.id };
   });
 
+export const listHousekeepingExceptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<ReturnType<typeof deriveHousekeepingExceptions>> => {
+    await requireHousekeepingManager(context as never, data.restaurantId);
+    const [rooms, inspections, discrepancies] = await Promise.all([
+      listRoomRack({ data: { restaurantId: data.restaurantId, today: data.today } }),
+      listInspections({ data: { restaurantId: data.restaurantId } }),
+      listDiscrepancies({ data: { restaurantId: data.restaurantId } }),
+    ]);
+    return deriveHousekeepingExceptions({
+      rooms,
+      inspections,
+      discrepancies,
+      nowMs: Date.now(),
+    });
+  });
+
 /* -------------------------------------------------------------- maintenance */
 
 export const listMaintenanceRequests = createServerFn({ method: "POST" })
@@ -939,7 +1220,7 @@ export const listMaintenanceRequests = createServerFn({ method: "POST" })
     const { data: rows, error } = await context.supabase
       .from("housekeeping_maintenance_requests")
       .select(
-        "id, room_id, category, priority, description, status, created_at, resolved_at, hotel_rooms!inner ( room_number )",
+        "id, room_id, category, priority, description, status, created_at, resolved_at, hotel_rooms!housekeeping_maintenance_room_same_property ( room_number )",
       )
       .eq("restaurant_id", data.restaurantId)
       .order("created_at", { ascending: false })
@@ -1011,6 +1292,12 @@ export const createMaintenanceRequest = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
+    await syncRoomMaintenanceFromTickets({
+      admin: supabaseAdmin,
+      restaurantId: data.restaurantId,
+      roomId: data.roomId,
+    });
+
     await recordHousekeepingEvent({
       restaurantId: data.restaurantId,
       roomId: data.roomId,
@@ -1057,6 +1344,12 @@ export const updateMaintenanceRequest = createServerFn({ method: "POST" })
       .eq("id", row.id)
       .eq("restaurant_id", data.restaurantId);
 
+    await syncRoomMaintenanceFromTickets({
+      admin: supabaseAdmin,
+      restaurantId: data.restaurantId,
+      roomId: row.room_id,
+    });
+
     await recordHousekeepingEvent({
       restaurantId: data.restaurantId,
       roomId: row.room_id,
@@ -1074,46 +1367,403 @@ export const updateMaintenanceRequest = createServerFn({ method: "POST" })
 export const listHousekeepingHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, roomId: idSchema.optional() }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        roomId: idSchema.optional(),
+        eventType: z.enum(HK_EVENT_TYPES).optional(),
+        eventGroup: z.enum(["cleaning", "inspection", "discrepancy", "maintenance", "restriction", "guest_request"]).optional(),
+        actorMembershipId: z.union([idSchema, z.literal("system")]).optional(),
+        dateFrom: dateSchema.optional(),
+        dateTo: dateSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingHistoryEntry[]> => {
     await requireHousekeepingManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    let query = context.supabase
+    let query = supabaseAdmin
       .from("housekeeping_history")
-      .select(
-        "id, room_id, event_type, previous_values, new_values, notes, actor_membership_id, created_at, hotel_rooms ( room_number )",
-      )
+      .select("id, room_id, event_type, previous_values, new_values, notes, actor_membership_id, created_at")
       .eq("restaurant_id", data.restaurantId)
       .order("created_at", { ascending: false })
       .limit(200);
     if (data.roomId) query = query.eq("room_id", data.roomId);
+    if (data.eventType) {
+      query = query.eq("event_type", data.eventType);
+    } else if (data.eventGroup) {
+      const types = hkHistoryEventTypesForGroup(data.eventGroup);
+      if (types && types.length > 0) query = query.in("event_type", types);
+    }
+    if (data.actorMembershipId === "system") {
+      query = query.is("actor_membership_id", null);
+    } else if (data.actorMembershipId) {
+      query = query.eq("actor_membership_id", data.actorMembershipId);
+    }
+    if (data.dateFrom) query = query.gte("created_at", `${data.dateFrom}T00:00:00.000Z`);
+    if (data.dateTo) {
+      const [year, month, day] = data.dateTo.split("-").map(Number);
+      const next = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+      query = query.lt("created_at", `${next}T00:00:00.000Z`);
+    }
 
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
 
-    const names = await staffNames(context.supabase, data.restaurantId);
-    return (
-      (rows ?? []) as unknown as Array<{
-        id: string;
-        room_id: string | null;
-        event_type: string;
-        previous_values: Record<string, unknown> | null;
-        new_values: Record<string, unknown> | null;
-        notes: string | null;
-        actor_membership_id: string | null;
-        created_at: string;
-        hotel_rooms: { room_number: string } | null;
-      }>
-    ).map((r) => ({
+    const typed = (rows ?? []) as Array<{
+      id: string;
+      room_id: string | null;
+      event_type: string;
+      previous_values: Record<string, unknown> | null;
+      new_values: Record<string, unknown> | null;
+      notes: string | null;
+      actor_membership_id: string | null;
+      created_at: string;
+    }>;
+    const roomIds = Array.from(new Set(typed.map((r) => r.room_id).filter((id): id is string => Boolean(id))));
+    const roomNumbers = new Map<string, string>();
+    if (roomIds.length > 0) {
+      const rooms = await supabaseAdmin
+        .from("hotel_rooms")
+        .select("id, room_number")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", roomIds);
+      for (const room of (rooms.data ?? []) as Array<{ id: string; room_number: string }>) {
+        roomNumbers.set(room.id, room.room_number);
+      }
+    }
+
+    const names = await staffNames(supabaseAdmin, data.restaurantId);
+    return typed.map((r) => ({
       id: r.id,
       roomId: r.room_id,
-      roomNumber: r.hotel_rooms?.room_number ?? null,
+      roomNumber: r.room_id ? (roomNumbers.get(r.room_id) ?? null) : null,
       eventType: r.event_type,
       previousValues: r.previous_values ? JSON.stringify(r.previous_values) : null,
       newValues: r.new_values ? JSON.stringify(r.new_values) : null,
       notes: r.notes,
+      actorMembershipId: r.actor_membership_id,
       actorName: r.actor_membership_id ? (names.get(r.actor_membership_id)?.name ?? null) : null,
       createdAt: r.created_at,
     }));
+  });
+
+/* ---------------------------------------------------------- guest requests */
+
+export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, roomId: idSchema.optional() }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<HousekeepingGuestRequest[]> => {
+    await requireHousekeepingAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let result = await supabaseAdmin
+      .from("guest_service_history")
+      .select(
+        "id, guest_id, service_type_id, status, requested_at, reservation_id, notes, request_number, priority, preferred_at, assigned_membership_id",
+      )
+      .eq("restaurant_id", data.restaurantId)
+      .order("requested_at", { ascending: false })
+      .limit(300);
+    if (result.error && isMissingSchemaError(result.error)) return [];
+    if (result.error) throw new Error(result.error.message);
+
+    const typesRes = await supabaseAdmin
+      .from("pms_guest_service_types")
+      .select("id, name, code, category_id")
+      .eq("restaurant_id", data.restaurantId);
+    if (typesRes.error && isMissingSchemaError(typesRes.error)) return [];
+    const categoriesRes = await supabaseAdmin
+      .from("pms_guest_service_categories")
+      .select("id, code")
+      .eq("restaurant_id", data.restaurantId);
+    const departmentsRes = await supabaseAdmin
+      .from("pms_departments")
+      .select("id, code, name")
+      .eq("restaurant_id", data.restaurantId);
+    const assignmentsRes = await supabaseAdmin
+      .from("pms_guest_service_department_assignments")
+      .select("service_type_id, department_id, active")
+      .eq("restaurant_id", data.restaurantId);
+
+    const categoryCode = new Map(
+      ((categoriesRes.data ?? []) as Array<{ id: string; code: string }>).map((row) => [row.id, row.code]),
+    );
+    const deptById = new Map(
+      ((departmentsRes.error ? [] : (departmentsRes.data ?? [])) as Array<{
+        id: string;
+        code: string;
+        name: string;
+      }>).map((row) => [row.id, row]),
+    );
+    const assignedDepts = new Map<string, Array<{ code: string; name: string }>>();
+    if (!assignmentsRes.error) {
+      for (const row of (assignmentsRes.data ?? []) as Array<{
+        service_type_id: string;
+        department_id: string;
+        active: boolean;
+      }>) {
+        if (!row.active) continue;
+        const dept = deptById.get(row.department_id);
+        if (!dept) continue;
+        const list = assignedDepts.get(row.service_type_id) ?? [];
+        list.push({ code: dept.code, name: dept.name });
+        assignedDepts.set(row.service_type_id, list);
+      }
+    }
+    const types = (
+      (typesRes.data ?? []) as Array<{ id: string; name: string; code: string; category_id: string | null }>
+    ).map((row) => ({
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      categoryCode: row.category_id ? (categoryCode.get(row.category_id) ?? null) : null,
+    }));
+    const typeById = new Map(types.map((row) => [row.id, row]));
+    const hkTypeIds = new Set(
+      types
+        .filter((row) =>
+          isHousekeepingRoutedGuestService({
+            typeCode: row.code,
+            categoryCode: row.categoryCode,
+            assignedDepartmentCodes: (assignedDepts.get(row.id) ?? []).map((dept) => dept.code),
+            assignedDepartmentNames: (assignedDepts.get(row.id) ?? []).map((dept) => dept.name),
+          }),
+        )
+        .map((row) => row.id),
+    );
+
+    const rows = (
+      (result.data ?? []) as Array<{
+        id: string;
+        guest_id: string;
+        service_type_id: string;
+        status: string;
+        requested_at: string;
+        reservation_id: string | null;
+        notes: string | null;
+        request_number: string | null;
+        priority: string | null;
+        preferred_at: string | null;
+        assigned_membership_id: string | null;
+      }>
+    ).filter((row) => hkTypeIds.has(row.service_type_id));
+
+    const reservationIds = [...new Set(rows.map((row) => row.reservation_id).filter(Boolean) as string[])];
+    const stayById = new Map<string, { confirmationNumber: string; roomId: string | null }>();
+    if (reservationIds.length > 0) {
+      const stays = await supabaseAdmin
+        .from("hotel_reservations")
+        .select("id, confirmation_number, room_id")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", reservationIds);
+      for (const stay of (stays.data ?? []) as Array<{
+        id: string;
+        confirmation_number: string;
+        room_id: string | null;
+      }>) {
+        stayById.set(stay.id, { confirmationNumber: stay.confirmation_number, roomId: stay.room_id });
+      }
+    }
+    const roomIds = [
+      ...new Set([...stayById.values()].map((stay) => stay.roomId).filter(Boolean) as string[]),
+    ];
+    const roomNumber = new Map<string, string>();
+    if (roomIds.length > 0) {
+      const rooms = await supabaseAdmin
+        .from("hotel_rooms")
+        .select("id, room_number")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", roomIds);
+      for (const room of (rooms.data ?? []) as Array<{ id: string; room_number: string }>) {
+        roomNumber.set(room.id, room.room_number);
+      }
+    }
+
+    const guestIds = [...new Set(rows.map((row) => row.guest_id))];
+    const guestName = new Map<string, string>();
+    if (guestIds.length > 0) {
+      const guests = await supabaseAdmin
+        .from("guest_profiles")
+        .select("id, first_name, last_name")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", guestIds);
+      for (const guest of (guests.data ?? []) as Array<{
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+      }>) {
+        guestName.set(guest.id, [guest.first_name, guest.last_name].filter(Boolean).join(" ").trim() || "Guest");
+      }
+    }
+
+    const names = await staffNames(supabaseAdmin, data.restaurantId);
+    return rows
+      .filter((row) => {
+        if (!data.roomId) return true;
+        const stay = row.reservation_id ? stayById.get(row.reservation_id) : null;
+        return stay?.roomId === data.roomId;
+      })
+      .map((row) => {
+        const type = typeById.get(row.service_type_id);
+        const stay = row.reservation_id ? stayById.get(row.reservation_id) : null;
+        const status = isGuestServiceStatus(row.status) ? row.status : "requested";
+        const priority: GuestServicePriority =
+          row.priority === "high" || row.priority === "urgent" ? row.priority : "normal";
+        return {
+          id: row.id,
+          guestId: row.guest_id,
+          guestName: guestName.get(row.guest_id) ?? "Guest",
+          requestNumber: row.request_number ?? null,
+          serviceTypeId: row.service_type_id,
+          serviceCode: type?.code ?? "",
+          serviceName: type?.name ?? "Guest service",
+          status,
+          priority,
+          notes: row.notes ?? null,
+          requestedAt: row.requested_at,
+          preferredAt: row.preferred_at ?? null,
+          reservationId: row.reservation_id,
+          confirmationNumber: stay?.confirmationNumber ?? null,
+          roomId: stay?.roomId ?? null,
+          roomNumber: stay?.roomId ? (roomNumber.get(stay.roomId) ?? null) : null,
+          assignedMembershipId: row.assigned_membership_id,
+          assignedName: row.assigned_membership_id
+            ? (names.get(row.assigned_membership_id)?.name ?? null)
+            : null,
+        };
+      });
+  });
+
+export const updateHousekeepingGuestRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        requestId: idSchema,
+        status: z.enum(GUEST_SERVICE_STATUSES).optional(),
+        notes: z.string().trim().max(GUEST_SERVICE_DESCRIPTION_MAX).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ id: string; spawnedTaskId: string | null }> => {
+    const me = await requireHousekeepingOperator(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const existing = await supabaseAdmin
+      .from("guest_service_history")
+      .select("id, guest_id, service_type_id, reservation_id, priority, status")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.requestId)
+      .maybeSingle();
+    if (!existing.data) throw new Error("That guest request could not be found for this property.");
+    const row = existing.data as {
+      id: string;
+      guest_id: string;
+      service_type_id: string;
+      reservation_id: string | null;
+      priority: string | null;
+      status: string;
+    };
+
+    const typeRes = await supabaseAdmin
+      .from("pms_guest_service_types")
+      .select("id, code, category_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", row.service_type_id)
+      .maybeSingle();
+    const type = typeRes.data as { id: string; code: string; category_id: string | null } | null;
+    if (!type) throw new Error("That service type is not configured for this property.");
+    const category = type.category_id
+      ? await supabaseAdmin
+          .from("pms_guest_service_categories")
+          .select("code")
+          .eq("id", type.category_id)
+          .maybeSingle()
+      : { data: null };
+    const assignments = await supabaseAdmin
+      .from("pms_guest_service_department_assignments")
+      .select("department_id, active")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("service_type_id", type.id);
+    const deptIds = ((assignments.data ?? []) as Array<{ department_id: string; active: boolean }>)
+      .filter((item) => item.active)
+      .map((item) => item.department_id);
+    const depts =
+      deptIds.length > 0
+        ? await supabaseAdmin
+            .from("pms_departments")
+            .select("code, name")
+            .eq("restaurant_id", data.restaurantId)
+            .in("id", deptIds)
+        : { data: [] };
+    const assignedDepts = ((depts.data ?? []) as Array<{ code: string; name: string }>);
+    if (
+      !isHousekeepingRoutedGuestService({
+        typeCode: type.code,
+        categoryCode: (category.data as { code: string } | null)?.code ?? null,
+        assignedDepartmentCodes: assignedDepts.map((item) => item.code),
+        assignedDepartmentNames: assignedDepts.map((item) => item.name),
+      })
+    ) {
+      throw new Error("Housekeeping can only execute Housekeeping-routed guest requests.");
+    }
+
+    const result = await applyGuestServiceRequestUpdate({
+      admin: supabaseAdmin,
+      restaurantId: data.restaurantId,
+      guestId: row.guest_id,
+      requestId: row.id,
+      actorMembershipId: me.id,
+      status: data.status,
+      notes: data.notes,
+    });
+    if (!result.ok) throw new Error(result.message);
+
+    let roomId: string | null = null;
+    if (row.reservation_id) {
+      const stay = await supabaseAdmin
+        .from("hotel_reservations")
+        .select("room_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.reservation_id)
+        .maybeSingle();
+      roomId = (stay.data as { room_id: string | null } | null)?.room_id ?? null;
+    }
+
+    let spawnedTaskId: string | null = null;
+    if (data.status === "completed" && guestServiceSpawnsCleaningTask(type.code) && roomId) {
+      const priority =
+        row.priority === "urgent" || row.priority === "high" ? row.priority : "normal";
+      const created = await supabaseAdmin.rpc("housekeeping_create_task", {
+        _restaurant_id: data.restaurantId,
+        _room_id: roomId,
+        _task_type: "touch_up",
+        _priority: priority,
+        _notes: "From guest request HK_CLEAN" as unknown as string,
+        _membership_id: me.id,
+      });
+      if (!created.error && created.data) spawnedTaskId = String(created.data);
+    }
+
+    await recordHousekeepingEvent({
+      restaurantId: data.restaurantId,
+      roomId,
+      eventType: "guest_request_updated",
+      previousValues: { status: row.status, request_id: row.id, service_code: type.code },
+      newValues: {
+        status: data.status ?? row.status,
+        request_id: row.id,
+        service_code: type.code,
+        spawned_task: Boolean(spawnedTaskId),
+      },
+      notes: blankToNull(data.notes),
+      actorMembershipId: me.id,
+    });
+
+    return { id: row.id, spawnedTaskId };
   });

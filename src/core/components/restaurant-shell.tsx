@@ -56,7 +56,6 @@ import { useAuth } from "@/core/state/auth-store";
 import { cn } from "@/shared/lib/utils";
 import { RestaurantSettingsProvider } from "@/packages/restaurant-management/state/restaurant-context";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
-import { HK_STATUS_TAB_LABEL } from "@/packages/pms/lib/housekeeping-labels";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
 import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
 
@@ -255,56 +254,49 @@ const ROOMS_NAV: NavEntry[] = [
 
 const HOUSEKEEPING_NAV: NavEntry[] = [
   {
-    to: "/restaurant/housekeeping",
-    tab: "dashboard",
-    label: "Dashboard",
+    to: "/restaurant/pms/housekeeping",
+    tab: "board",
+    label: "Board",
     icon: LayoutDashboard,
     roles: HK_ALL,
   },
   {
-    to: "/restaurant/housekeeping",
-    tab: "rack",
-    label: HK_STATUS_TAB_LABEL,
-    icon: DoorOpen,
-    roles: HK_ALL,
-  },
-  {
-    to: "/restaurant/housekeeping",
-    tab: "board",
-    label: "Cleaning Board",
+    to: "/restaurant/pms/housekeeping",
+    tab: "cleaning",
+    label: "Cleaning Tasks",
     icon: Sparkles,
     roles: HK_CLEAN,
   },
   {
-    to: "/restaurant/housekeeping",
+    to: "/restaurant/pms/housekeeping",
     tab: "inspections",
     label: "Inspections",
     icon: ClipboardCheck,
     roles: HK_SUP,
   },
   {
-    to: "/restaurant/housekeeping",
-    tab: "discrepancies",
-    label: "Discrepancies",
-    icon: AlertTriangle,
-    roles: HK_SUP,
+    to: "/restaurant/pms/housekeeping",
+    tab: "requests",
+    label: "Requests",
+    icon: DoorOpen,
+    roles: HK_CLEAN,
   },
   {
-    to: "/restaurant/housekeeping",
-    tab: "restrictions",
-    label: "Room Restrictions",
-    icon: Ban,
-    roles: HK_SUP,
-  },
-  {
-    to: "/restaurant/housekeeping",
+    to: "/restaurant/pms/maintenance",
     tab: "maintenance",
     label: "Maintenance",
     icon: Wrench,
     roles: HK_MAINT,
   },
   {
-    to: "/restaurant/housekeeping",
+    to: "/restaurant/pms/housekeeping",
+    tab: "exceptions",
+    label: "Exceptions",
+    icon: AlertTriangle,
+    roles: HK_SUP,
+  },
+  {
+    to: "/restaurant/pms/housekeeping",
     tab: "history",
     label: "History",
     icon: History,

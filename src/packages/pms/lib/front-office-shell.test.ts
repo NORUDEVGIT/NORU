@@ -195,12 +195,12 @@ describe("HK title lock", () => {
     assert.notEqual(HK_STATUS_TAB_LABEL, "Room Rack");
 
     const hk = readFileSync(new URL("../components/workspaces/housekeeping-workspace.tsx", import.meta.url), "utf8");
-    assert.match(hk, /HK_STATUS_TAB_LABEL/);
-    assert.doesNotMatch(hk, /TabsTrigger value="rack">Room Rack</);
+    assert.doesNotMatch(hk, /Room Rack/);
+    assert.match(hk, /HousekeepingBoardTab|hk-nav-board/);
 
     const shell = readFileSync(new URL("../../../core/components/restaurant-shell.tsx", import.meta.url), "utf8");
-    assert.match(shell, /HK_STATUS_TAB_LABEL/);
     assert.doesNotMatch(shell, /label: "Room Rack"/);
+    assert.match(shell, /label: "Board"/);
   });
 });
 

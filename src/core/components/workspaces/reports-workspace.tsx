@@ -49,7 +49,7 @@ const REPORT_LINKS: ReportLink[] = [
     title: "Housekeeping",
     description: "Task history, inspections and room status activity.",
     icon: Sparkles,
-    to: "/restaurant/housekeeping",
+    to: "/restaurant/pms/housekeeping",
     tab: "history",
   },
 ];

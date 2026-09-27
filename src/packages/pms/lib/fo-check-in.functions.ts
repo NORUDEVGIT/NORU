@@ -37,6 +37,7 @@ import { nightsBetween } from "./reservation-dates";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
+import type { HousekeepingReadinessPolicy } from "./housekeeping-card2.server";
 
 const idSchema = z.string().uuid();
 
@@ -45,6 +46,7 @@ export type CheckInRoomState = {
   roomNumber: string;
   status: string;
   housekeepingStatus: string | null;
+  maintenanceStatus: string | null;
 };
 
 export type CheckInProgressRow = {
@@ -104,6 +106,7 @@ export type CheckInContext = {
   timezone: string;
   earlyCheckinAllowed: boolean | null;
   earlyCheckinNeedsApproval: boolean | null;
+  housekeepingPolicy: HousekeepingReadinessPolicy;
 };
 
 type ProgressDb = {
@@ -378,11 +381,12 @@ export const getCheckInContext = createServerFn({ method: "POST" })
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
     const progress = await loadProgress(supabaseAdmin, data.restaurantId, data.reservationId);
 
+    const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false);
     let room: CheckInRoomState | null = null;
     if (loaded.stay.roomId) {
       const { data: roomRow } = await supabaseAdmin
         .from("hotel_rooms")
-        .select("id, room_number, status, housekeeping_status")
+        .select("id, room_number, status, housekeeping_status, maintenance_status")
         .eq("restaurant_id", data.restaurantId)
         .eq("id", loaded.stay.roomId)
         .maybeSingle();
@@ -392,6 +396,7 @@ export const getCheckInContext = createServerFn({ method: "POST" })
           roomNumber: roomRow.room_number,
           status: roomRow.status,
           housekeepingStatus: roomRow.housekeeping_status,
+          maintenanceStatus: roomRow.maintenance_status,
         };
       }
     }
@@ -445,6 +450,7 @@ export const getCheckInContext = createServerFn({ method: "POST" })
       timezone: property?.timezone || "UTC",
       earlyCheckinAllowed: property?.early_checkin_allowed ?? null,
       earlyCheckinNeedsApproval: property?.early_checkin_needs_approval ?? null,
+      housekeepingPolicy: housekeeping.settings,
     };
   });
 

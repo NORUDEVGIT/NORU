@@ -8,7 +8,7 @@ import {
   loadFrontOfficeDepartures,
   type FrontOfficeStay,
 } from "../frontoffice.functions";
-import { assertDateOnly, requireReservationManager } from "../reservations.server";
+import { loadCard2HousekeepingSnapshot } from "../housekeeping-card2.functions";
 import {
   dailyControlTotals,
   mapArrivalRow,
@@ -74,7 +74,7 @@ async function loadRoomInventory(
 
   const { data, error } = await supabase
     .from("hotel_rooms")
-    .select("id, status, housekeeping_status")
+    .select("id, status, housekeeping_status, maintenance_status")
     .eq("restaurant_id", restaurantId)
     .in("id", ids);
   if (error) throw new Error(error.message);
@@ -83,10 +83,12 @@ async function loadRoomInventory(
     id: string;
     status: string | null;
     housekeeping_status: string | null;
+    maintenance_status: string | null;
   }>) {
     byId.set(row.id, {
       operationalStatus: row.status,
       housekeepingStatus: row.housekeeping_status,
+      maintenanceStatus: row.maintenance_status,
     });
   }
   return byId;
@@ -155,13 +157,14 @@ export const getReservationArrivalsDepartures = createServerFn({ method: "POST" 
     const truncated = financialIds.length > FINANCIAL_SIGNAL_BATCH_CAP;
     const batchedIds = financialIds.slice(0, FINANCIAL_SIGNAL_BATCH_CAP);
 
-    const [rooms, signals] = await Promise.all([
+    const [rooms, signals, hkSnapshot] = await Promise.all([
       loadRoomInventory(supabase, data.restaurantId, [...arrivalsFiltered, ...departuresFiltered]),
       loadFoStaySignals({
         context: context as never,
         restaurantId: data.restaurantId,
         reservationIds: batchedIds,
       }),
+      loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false),
     ]);
 
     const arrivals = arrivalsFiltered.map((stay) =>
@@ -170,6 +173,7 @@ export const getReservationArrivalsDepartures = createServerFn({ method: "POST" 
         room: stay.roomId ? rooms.get(stay.roomId) : undefined,
         folioLane: signals.folioLane,
         signal: signals.byStay[stay.id],
+        housekeepingPolicy: hkSnapshot.settings,
       }),
     );
     const departures = departuresFiltered.map((stay) =>
