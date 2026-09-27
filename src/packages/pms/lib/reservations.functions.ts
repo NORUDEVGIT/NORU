@@ -641,13 +641,10 @@ export const createReservation = createServerFn({ method: "POST" })
         reservationType: z.enum(["individual", "corporate", "travel_agency"]).optional(),
         pmsGroupId: idSchema.nullable().optional(),
         pmsGroupBlockId: idSchema.nullable().optional(),
-<<<<<<< HEAD
         promotionActivationId: idSchema.optional(),
         packageActivationIds: z.array(idSchema).optional(),
-=======
         /** Channel origin on hotel_reservations.source — not commercial_booking_source. */
         source: z.enum(["walk_in"]).optional(),
->>>>>>> ff6d727a053d06a394fc725cb52ce5bebc5463e1
       })
       .parse(input),
   )
