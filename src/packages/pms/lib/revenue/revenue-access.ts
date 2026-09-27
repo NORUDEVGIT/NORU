@@ -28,6 +28,7 @@ export type RevenueCapability = Exclude<keyof RevenueAccess, never>;
 export type RevenueAccessResolution = RevenueAccess & {
   role: string;
   packageEnabled: boolean;
+  membershipId?: string | null;
 };
 
 export function deniedRevenueAccess(): RevenueAccess {
@@ -50,7 +51,7 @@ export function deniedRevenueAccess(): RevenueAccess {
 /**
  * Conservative mapping of CURRENT roles.
  * Accountant reports access stays on getRevenueOverview / reports_analytics — not here.
- * canApprove stays false: no approval product exists.
+ * canApprove is true for owner/manager. Self-approval is still enforced server-side.
  */
 export function resolveRevenueAccess(
   role: string,
@@ -67,7 +68,7 @@ export function resolveRevenueAccess(
     canViewCommercial: true,
     canViewForecast: true,
     canViewApprovals: true,
-    canApprove: false,
+    canApprove: true,
     canViewAnalytics: true,
     canViewAudit: true,
     canExport: true,

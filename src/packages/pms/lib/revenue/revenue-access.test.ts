@@ -25,7 +25,7 @@ function readRel(rel: string) {
 }
 
 describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
-  it("maps owner and manager to current operational access without inventing approve", () => {
+    it("maps owner and manager to current operational access including approve", () => {
     assert.deepEqual([...REVENUE_OPERATE_ROLES], ["owner", "manager"]);
     assert.match(readRel("../rates.server.ts"), /RATE_MANAGE_ROLES = \["owner", "manager"\]/);
     for (const role of ["owner", "manager"] as const) {
@@ -38,7 +38,7 @@ describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
       assert.equal(access.canViewCommercial, true);
       assert.equal(access.canViewForecast, true);
       assert.equal(access.canViewApprovals, true);
-      assert.equal(access.canApprove, false);
+      assert.equal(access.canApprove, true);
       assert.equal(access.canViewAnalytics, true);
       assert.equal(access.canViewAudit, true);
       assert.equal(access.canExport, true);

@@ -24,6 +24,7 @@ import {
   withOccupiedStopSell,
   type RestrictionTriStatePatch,
 } from "@/packages/pms/lib/revenue/bulk-restriction-change";
+import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
 import { getRevenueRateCalendar } from "@/packages/pms/lib/revenue/rate-calendar.functions";
 import { toRestrictionCalendar } from "@/packages/pms/lib/revenue/restriction-calendar";
 import {
@@ -32,7 +33,12 @@ import {
 } from "@/packages/pms/lib/revenue/restriction-change.functions";
 import type { RestrictionChangePreview } from "@/packages/pms/lib/revenue/restriction-change";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
-import { serializeRevenueSearch, type RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
+import {
+  approvalRequestSearch,
+  handleRevenueMutationResult,
+  invalidateRevenueApprovals,
+} from "@/packages/pms/lib/revenue/revenue-approval-ui";
+import { serializeRevenueSearch, type RevenueContext, type RevenueSearchParams } from "@/packages/pms/lib/revenue/revenue-context";
 import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenue/revenue-config.types";
 import { RATE_CALENDAR_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { BulkRestrictionDefineStep } from "./bulk-restriction-define-step";
@@ -66,9 +72,11 @@ export function BulkRestrictionView({
   canApplyRestrictions?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const policyQuery = useRevenueApprovalPolicy(restaurantId);
   const previewFn = useServerFn(previewRestrictionChanges);
   const applyFn = useServerFn(applyRestrictionChanges);
   const fetchCalendar = useServerFn(getRevenueRateCalendar);
+  const [submittedRequest, setSubmittedRequest] = useState<RevenueSearchParams | null>(null);
 
   const [step, setStep] = useState<BulkRestrictionStep>(1);
   const [fromDate, setFromDate] = useState(context.fromDate);
@@ -166,8 +174,16 @@ export function BulkRestrictionView({
     mutationFn: () => applyFn({ data: requestPayload() }),
     onSuccess: (result) => {
       setError(null);
+      const handled = handleRevenueMutationResult(result);
+      if (handled.submitted && handled.approvalRequestId) {
+        setSubmittedRequest(approvalRequestSearch(handled.approvalRequestId));
+        setSuccess(false);
+        invalidateRevenueApprovals(queryClient, restaurantId);
+        return;
+      }
+      setSubmittedRequest(null);
       setSuccess(true);
-      setAppliedCount(result.appliedCount);
+      setAppliedCount("appliedCount" in result ? result.appliedCount : null);
       void queryClient.invalidateQueries({ queryKey: ["revenue-rate-calendar"] });
       void queryClient.invalidateQueries({ queryKey: ["revenue-control"] });
       void queryClient.invalidateQueries({ queryKey: ["restriction-change-history"] });
@@ -199,7 +215,9 @@ export function BulkRestrictionView({
     setPreview(null);
     setError(null);
     setSuccess(false);
+    setSubmittedRequest(null);
     setAppliedCount(null);
+    setSubmittedRequest(null);
     previewMutation.reset();
     applyMutation.reset();
   }
@@ -263,12 +281,15 @@ export function BulkRestrictionView({
         appliedCount={appliedCount}
         restrictionsSearch={restrictionsSearch}
         historySearch={historySearch}
+        requestSearch={submittedRequest ?? undefined}
+        submitted={Boolean(submittedRequest)}
+        submitForApproval={policyQuery.data?.enabled === true}
         onApply={() => applyMutation.mutate()}
       />
     );
   }
 
-  const footer = success ? null : (
+  const footer = success || submittedRequest ? null : (
     <>
       <button type="button" className={secondaryButton()} onClick={cancelWizard}>
         Cancel

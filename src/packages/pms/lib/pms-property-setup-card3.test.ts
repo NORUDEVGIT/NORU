@@ -16,7 +16,11 @@ import {
   CARD3_DOMAINS,
   CARD3_HASH,
   CARD3_HREF,
+  CARD3_PACKAGES_HREF,
+  CARD3_PROMOTIONS_HREF,
   CARD3_PROGRAMME_ID,
+  card3DomainFromSearch,
+  card3DomainHref,
   CARD3_PROGRESS_LABEL,
   CARD3_PROGRESS_PERCENT,
   CARD3_PURPOSE,
@@ -52,6 +56,11 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.equal(CARD3_PURPOSE, "Taxes, Policies & Fees, Rates & Meal Plans, Payment Methods.");
     assert.equal(CARD3_HASH, "financial-commercial");
     assert.equal(CARD3_HREF, `${SET1_HUB_HREF}#financial-commercial`);
+    assert.equal(CARD3_PROMOTIONS_HREF, card3DomainHref("revenue-commercial-rules"));
+    assert.equal(CARD3_PACKAGES_HREF, card3DomainHref("meal-plans-packages"));
+    assert.equal(card3DomainFromSearch("?card3Domain=revenue-commercial-rules"), "revenue-commercial-rules");
+    assert.equal(card3DomainFromSearch("?card3Domain=unknown"), null);
+    assert.match(section, /card3DomainFromSearch/);
     assert.equal(CARD3_PROGRAMME_ID, "rates-guest-rules");
     assert.equal(PROPERTY_SETUP_CARDS[2]?.id, "rates-guest-rules");
     assert.equal(PROPERTY_SETUP_CARDS[2]?.title, CARD3_TITLE);

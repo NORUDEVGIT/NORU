@@ -22,7 +22,7 @@ export async function loadRevenueAccess(
   try {
     await requirePmsPackage(restaurantId);
   } catch {
-    return { role: me.role, packageEnabled: false, ...deniedRevenueAccess() };
+    return { role: me.role, packageEnabled: false, membershipId: me.id, ...deniedRevenueAccess() };
   }
-  return { role: me.role, packageEnabled: true, ...resolveRevenueAccess(me.role) };
+  return { role: me.role, packageEnabled: true, membershipId: me.id, ...resolveRevenueAccess(me.role) };
 }

@@ -319,7 +319,7 @@ describe("RR-P3-02 — wiring, ownership, and UI locks", () => {
   });
 
   it("does not present approvals, OTA, forecast, or master CRUD", () => {
-    const files = [view, grid, cell, toolbar, legend, drawer, overview, edit, history, adapter];
+    const files = [view, grid, cell, toolbar, legend, drawer, overview, history, adapter];
     for (const source of files) {
       assert.doesNotMatch(source, /Publish Restrictions/);
       assert.doesNotMatch(source, /Submit for Approval/);
@@ -330,6 +330,7 @@ describe("RR-P3-02 — wiring, ownership, and UI locks", () => {
       assert.doesNotMatch(source, /pms_commercial_restrictions/);
       assert.doesNotMatch(source, /template_id|commercial_restriction_id/);
     }
+    assert.match(edit, /SUBMIT_FOR_APPROVAL_LABEL|Submit for Approval/);
     assert.match(toolbar, /Apply Restriction/);
     assert.match(toolbar, /Restriction History/);
     assert.match(legend, /Operational restrictions, not demand/);

@@ -8,12 +8,7 @@ import type { RevenueWorkspaceView } from "../rate-revenue-workspace";
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type RevenueContextField =
-  | "dateRange"
-  | "roomType"
-  | "ratePlan"
-  | "segment"
-  | "source"
-  | "channel";
+  "dateRange" | "roomType" | "ratePlan" | "segment" | "source" | "channel";
 
 export type RevenueContext = {
   fromDate: string;
@@ -33,16 +28,40 @@ export type RevenueContextOptions = {
   salesChannels: Array<{ id: string }>;
 };
 
+export type RevenueApprovalTab = "pending" | "mine" | "history";
+export type RevenueAnalyticsTab =
+  "overview" | "kpis" | "segments" | "sources" | "trends" | "commercial";
+export type RevenueAuditTab = "history" | "rates" | "restrictions" | "overrides";
+
 export type RevenueSearchParams = {
-  view?: string;
-  tab?: string;
-  from?: string;
-  to?: string;
-  roomType?: string;
-  ratePlan?: string;
-  segment?: string;
-  source?: string;
-  channel?: string;
+  view?: string | undefined;
+  tab?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  roomType?: string | undefined;
+  ratePlan?: string | undefined;
+  segment?: string | undefined;
+  source?: string | undefined;
+  channel?: string | undefined;
+  approvalTab?: RevenueApprovalTab | undefined;
+  approvalRequest?: string | undefined;
+  analyticsTab?: RevenueAnalyticsTab | undefined;
+  auditTab?: RevenueAuditTab | undefined;
+  auditEvent?: string | undefined;
+  auditAction?: string | undefined;
+  auditActor?: string | undefined;
+  auditSearch?: string | undefined;
+};
+
+export type RevenueApprovalSearchExtras = {
+  approvalTab?: RevenueApprovalTab | undefined;
+  approvalRequest?: string | undefined;
+  analyticsTab?: RevenueAnalyticsTab | undefined;
+  auditTab?: RevenueAuditTab | undefined;
+  auditEvent?: string | undefined;
+  auditAction?: string | undefined;
+  auditActor?: string | undefined;
+  auditSearch?: string | undefined;
 };
 
 /** Reservation-origin values. Never treat these as commercial source-code masters. */
@@ -64,7 +83,10 @@ export function parseIsoDate(value: string | undefined, fallback: string): strin
   return value && ISO_DATE.test(value) ? value : fallback;
 }
 
-export function normalizeDateRange(fromDate: string, toDate: string): { fromDate: string; toDate: string } {
+export function normalizeDateRange(
+  fromDate: string,
+  toDate: string,
+): { fromDate: string; toDate: string } {
   if (toDate < fromDate) return { fromDate: toDate, toDate: fromDate };
   return { fromDate, toDate };
 }
@@ -105,7 +127,10 @@ export function sanitizeRevenueContext(
   };
 }
 
-export function contextFromSearch(search: RevenueSearchParams, businessDate: string): RevenueContext {
+export function contextFromSearch(
+  search: RevenueSearchParams,
+  businessDate: string,
+): RevenueContext {
   return {
     fromDate: parseIsoDate(search.from, businessDate),
     toDate: parseIsoDate(search.to, businessDate),
@@ -120,6 +145,7 @@ export function contextFromSearch(search: RevenueSearchParams, businessDate: str
 export function serializeRevenueSearch(
   view: RevenueWorkspaceView,
   context: RevenueContext,
+  extras?: RevenueApprovalSearchExtras,
 ): RevenueSearchParams {
   return {
     view,
@@ -130,6 +156,26 @@ export function serializeRevenueSearch(
     ...(context.marketSegmentId ? { segment: context.marketSegmentId } : {}),
     ...(context.commercialSourceId ? { source: context.commercialSourceId } : {}),
     ...(context.salesChannelId ? { channel: context.salesChannelId } : {}),
+    ...(view === "approvals" && extras?.approvalTab ? { approvalTab: extras.approvalTab } : {}),
+    ...(view === "approvals" && extras?.approvalRequest
+      ? { approvalRequest: extras.approvalRequest }
+      : {}),
+    ...(view === "revenue-performance" && extras?.analyticsTab
+      ? { analyticsTab: extras.analyticsTab }
+      : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditTab
+      ? { auditTab: extras.auditTab }
+      : {}),
+    ...(view === "audit-control" && extras?.auditEvent ? { auditEvent: extras.auditEvent } : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditAction
+      ? { auditAction: extras.auditAction }
+      : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditActor
+      ? { auditActor: extras.auditActor }
+      : {}),
+    ...((view === "audit-control" || view === "export") && extras?.auditSearch
+      ? { auditSearch: extras.auditSearch }
+      : {}),
   };
 }
 
