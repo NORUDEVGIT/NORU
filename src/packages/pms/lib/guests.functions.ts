@@ -325,7 +325,7 @@ async function syncWave2PreferencesToCard4(
     if (!type) continue;
     const stored = preferences[key];
     const text = formatPreferenceStoredValue(
-      stored,
+      typeof stored === "string" ? stored : stored ? String(stored) : null,
       Array.isArray(type.options)
         ? (type.options as Array<{ id?: string; label?: string; value?: string }>).map(
             (option) => ({
@@ -885,7 +885,7 @@ export function guestSearchOrFilter(
   // Multi-token full-name matching: e.g. "John Smith", "Abebe Kebede"
   const tokens = trimmed.split(/\s+/).filter(Boolean);
   if (tokens.length >= 2) {
-    const tFirst = tokens[0].replace(/[%,]/g, "");
+    const tFirst = (tokens[0] ?? "").replace(/[%,]/g, "");
     const tLast = tokens.slice(1).join(" ").replace(/[%,]/g, "");
     if (tFirst && tLast) {
       parts.push(`and(first_name.ilike.%${tFirst}%,last_name.ilike.%${tLast}%)`);
@@ -1507,7 +1507,7 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
         items.push({
           id: `reservation:${row.id}`,
           kind: "reservation_created",
-          label: WORKSPACE_ACTIVITY_LABELS.reservation_created,
+          label: WORKSPACE_ACTIVITY_LABELS["reservation_created"] ?? "Reservation Created",
           partyName:
             (row.guest_id && guestNames.get(row.guest_id)) ||
             row.confirmation_number ||
@@ -2264,7 +2264,16 @@ export const saveGuestPreferences = createServerFn({ method: "POST" })
         actorMembershipId: me.id,
       });
     }
-    await syncWave2PreferencesToCard4(data.restaurantId, data.guestId, p);
+    await syncWave2PreferencesToCard4(data.restaurantId, data.guestId, {
+      roomPreference: p.roomPreference ?? null,
+      bedPreference: p.bedPreference ?? null,
+      floorPreference: p.floorPreference ?? null,
+      viewPreference: p.viewPreference ?? null,
+      foodPreference: p.foodPreference ?? null,
+      communicationPreference: p.communicationPreference ?? null,
+      accessibilityRequirements: p.accessibilityRequirements ?? null,
+      specialRequests: p.specialRequests ?? null,
+    });
     return { ok: true };
   });
 
@@ -2316,8 +2325,31 @@ async function loadPreferenceWorkspaceCatalogue(
     if (isMissingSchemaError(types.error)) return { categories: [], types: [] };
     throw new Error(types.error.message);
   }
+  interface PrefCategoryRow {
+    id?: string | null;
+    name?: string | null;
+    code?: string | null;
+    description?: string | null;
+    active?: boolean | null;
+    display_order?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  interface PrefTypeRow {
+    id?: string | null;
+    category_id?: string | null;
+    name?: string | null;
+    code?: string | null;
+    value_type?: string | null;
+    options?: unknown;
+    required?: boolean | null;
+    active?: boolean | null;
+    display_order?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
   return {
-    categories: ((categories.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    categories: ((categories.data ?? []) as PrefCategoryRow[]).map((row) => ({
       id: String(row.id),
       name: String(row.name),
       code: String(row.code),
@@ -2327,7 +2359,7 @@ async function loadPreferenceWorkspaceCatalogue(
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
     })),
-    types: ((types.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    types: ((types.data ?? []) as PrefTypeRow[]).map((row) => ({
       id: String(row.id),
       categoryId: String(row.category_id),
       name: String(row.name),
@@ -2349,8 +2381,9 @@ function hydrateFromWave2(type: PreferenceTypeRecord, wave2: GuestPreferences): 
   const field = WAVE2_FIELD_BY_CARD4_CODE[type.code];
   if (!field) return [];
   const stored = wave2[field];
+  const storedStr = typeof stored === "string" ? stored : stored != null ? String(stored) : null;
   const label = formatPreferenceStoredValue(
-    stored,
+    storedStr,
     type.options.map((option) => ({ id: option.id, label: option.label })),
   );
   if (!label) return [];
@@ -2358,7 +2391,7 @@ function hydrateFromWave2(type: PreferenceTypeRecord, wave2: GuestPreferences): 
     (option) =>
       option.value.toLowerCase() === label.toLowerCase() ||
       option.label.toLowerCase() === label.toLowerCase() ||
-      option.id === stored?.replace(/^id:/, ""),
+      option.id === (typeof stored === "string" ? stored.replace(/^id:/, "") : undefined),
   );
   if (type.valueType === "multi") {
     return match ? [match.value] : [label];
@@ -2444,6 +2477,8 @@ export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
     const method = (guest.data as { preferred_contact_method?: string | null })
       .preferred_contact_method;
     const time = (guest.data as { preferred_contact_time?: string | null }).preferred_contact_time;
+    const safeMethod = method ?? "";
+    const safeTime = time ?? "";
     return {
       available: catalogue.categories.length > 0 || catalogue.types.length > 0,
       categories,
@@ -2453,8 +2488,8 @@ export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
       ),
       contactDefaults: {
         language: ((guest.data as { language?: string | null }).language ?? "") as string,
-        preferredContactMethod: isPreferredContactMethod(method ?? "") ? method : "",
-        preferredContactTime: isPreferredContactTime(time ?? "") ? time : "",
+        preferredContactMethod: isPreferredContactMethod(safeMethod) ? safeMethod : "",
+        preferredContactTime: isPreferredContactTime(safeTime) ? safeTime : "",
       },
       wave2,
     };
@@ -2572,7 +2607,7 @@ export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
     const textNotes = normalized
       .filter((item) => item.type.valueType === "text")
       .flatMap((item) => item.values);
-    if (textNotes.length > 0) wave2Patch.special_requests = textNotes.join("\n");
+    if (textNotes.length > 0) wave2Patch["special_requests"] = textNotes.join("\n");
 
     const existing = await context.supabase
       .from("guest_preferences")
@@ -3254,16 +3289,17 @@ export const updateGuestServiceRequest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return applyGuestServiceRequestUpdate({
+    const updateParams: Parameters<typeof applyGuestServiceRequestUpdate>[0] = {
       admin: supabaseAdmin,
       restaurantId: data.restaurantId,
       guestId: data.guestId,
       requestId: data.requestId,
       actorMembershipId: me.id,
-      status: data.status,
-      assignedMembershipId: data.assignedMembershipId,
-      notes: data.notes,
-    });
+    };
+    if (data.status !== undefined) updateParams.status = data.status;
+    if (data.assignedMembershipId !== undefined) updateParams.assignedMembershipId = data.assignedMembershipId;
+    if (data.notes !== undefined) updateParams.notes = data.notes;
+    return applyGuestServiceRequestUpdate(updateParams);
   });
 
 export const createGuestPhotoUpload = createServerFn({ method: "POST" })
@@ -3519,7 +3555,18 @@ async function loadIdentityDocumentTypes(
     if (isMissingSchemaError(result.error)) return [];
     throw new Error(result.error.message);
   }
-  return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+  interface IdentityDocTypeRow {
+    id?: string | null;
+    name?: string | null;
+    code?: string | null;
+    active?: boolean | null;
+    issuing_country_required?: boolean | null;
+    expiry_date_required?: boolean | null;
+    document_number_required?: boolean | null;
+    scan_image_allowed?: boolean | null;
+    valid_for_profile_type_ids?: unknown;
+  }
+  return ((result.data ?? []) as IdentityDocTypeRow[]).map((row) => ({
     id: String(row.id),
     name: String(row.name),
     code: String(row.code),
@@ -3705,7 +3752,7 @@ export const listGuestDocuments = createServerFn({ method: "POST" })
           .eq("restaurant_id", data.restaurantId)
           .eq("guest_id", data.guestId)
           .order("created_at", { ascending: false });
-        rows = legacy.data;
+        rows = legacy.data as unknown as typeof rows;
         error = legacy.error;
         if (error && isMissingSchemaError(error)) return { available: false, documents: [] };
       }

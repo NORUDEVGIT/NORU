@@ -33,6 +33,8 @@ export type TravelAgentDetailNavId = (typeof TRAVEL_AGENT_DETAIL_NAV)[number]["i
 
 export const TRAVEL_AGENT_DETAIL_NAV_IDS = TRAVEL_AGENT_DETAIL_NAV.map((item) => item.id);
 
+export * from "./guest-travel-agent-detail-view.ts";
+
 export const TA_SETTINGS_SECTIONS = [
   { id: "general", title: "General" },
   { id: "commission", title: "Commission & Rates" },
@@ -97,6 +99,12 @@ export function travelAgentDetailNav(id: string | undefined): TravelAgentDetailN
   return isTravelAgentDetailNavId(id) ? id : "overview";
 }
 
+export const TA_VISIBLE_SETTINGS_SECTIONS = [
+  { id: "rules", title: "Booking Rules" },
+  { id: "allotment", title: "Allotment & Inventory" },
+  { id: "notifications", title: "Notifications" },
+] as const;
+
 export function isTravelAgentSettingsSectionId(
   value: string | undefined,
 ): value is TravelAgentSettingsSectionId {
@@ -104,7 +112,9 @@ export function isTravelAgentSettingsSectionId(
 }
 
 export function travelAgentSettingsSection(id: string | undefined): TravelAgentSettingsSectionId {
-  return isTravelAgentSettingsSectionId(id) ? id : "general";
+  if (id === "rules" || id === "allotment" || id === "notifications") return id;
+  if (isTravelAgentSettingsSectionId(id)) return id;
+  return "rules";
 }
 
 export function travelAgentOverviewKpis(input: {

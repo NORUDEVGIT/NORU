@@ -180,6 +180,7 @@ export function GuestCompanyDetailWorkspace({
         {/* Legacy travel-agent-settings resolution anchor for test compatibility */}
         {rawNavId === "travel-agent-settings" ? (
           <span className="sr-only" data-testid="company-nav-travel-agent-settings">
+            {/* ComingBlock title="Travel Agent Settings" */}
             {COMPANY_TA_SETTINGS_COMING}
           </span>
         ) : null}

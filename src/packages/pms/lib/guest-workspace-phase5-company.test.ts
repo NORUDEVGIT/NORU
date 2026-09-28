@@ -100,7 +100,7 @@ describe("Phase 5: Company Detail View Registry & Navigation Topology", () => {
   const nav = visibleCompanyNav();
 
   assert.equal(
-    nav.some((item) => item.id === "travel-agent-settings"),
+    nav.some((item) => (item.id as string) === "travel-agent-settings"),
     false,
   );
 
@@ -590,8 +590,8 @@ describe("Phase 5: Default Travel Agency Governance", () => {
   });
 
   it("does not render a standalone Travel Agent Settings tab in canonical navigation", () => {
-    assert.equal(COMPANY_DETAIL_PRIMARY_TABS.some((v) => v.id === "travel-agent-settings"), false);
-    assert.equal(COMPANY_DETAIL_MORE_ITEMS.some((v) => v.id === "travel-agent-settings"), false);
+    assert.equal(COMPANY_DETAIL_PRIMARY_TABS.some((v) => (v.id as string) === "travel-agent-settings"), false);
+    assert.equal(COMPANY_DETAIL_MORE_ITEMS.some((v) => (v.id as string) === "travel-agent-settings"), false);
   });
 
   it("shows travel agency relation in Quick View overview tab", () => {

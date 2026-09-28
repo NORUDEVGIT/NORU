@@ -44,6 +44,7 @@ export const COMPANY_DETAIL_NAV = [
   { id: "communication-notes", title: "Communication & Notes", live: true },
   { id: "activity", title: "Activity / History", live: true },
   { id: "administration", title: "Administration", live: true },
+  // Legacy compatibility: { id: "travel-agent-settings", title: "Travel Agent Settings", live: false },
 ] as const;
 
 export type CompanyDetailNavId =

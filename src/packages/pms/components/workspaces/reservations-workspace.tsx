@@ -231,12 +231,14 @@ export function ReservationsWorkspace({
   initialCreate = false,
   initialGuestId,
   initialCompanyId,
+  initialTravelAgentId,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
   initialCreate?: boolean | undefined;
   initialGuestId?: string | undefined;
   initialCompanyId?: string | undefined;
+  initialTravelAgentId?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -279,9 +281,10 @@ export function ReservationsWorkspace({
         type: "new-reservation",
         initialGuestId: initialGuestId ?? null,
         initialCompanyMasterId: initialCompanyId ?? null,
+        initialTravelAgentMasterId: initialTravelAgentId ?? null,
       });
     }
-  }, [initialCreate, initialGuestId, initialCompanyId]);
+  }, [initialCreate, initialGuestId, initialCompanyId, initialTravelAgentId]);
 
   useEffect(() => {
     setWorkspaceSection(workspaceSectionFromTab(initialTab));
@@ -1091,6 +1094,7 @@ export function ReservationsWorkspace({
             embedded
             initialGuestId={overlay.initialGuestId ?? null}
             initialCompanyMasterId={overlay.initialCompanyMasterId ?? null}
+            initialTravelAgentMasterId={overlay.initialTravelAgentMasterId ?? null}
             pmsGroupId={createGroupLink?.pmsGroupId ?? null}
             pmsGroupBlockId={createGroupLink?.pmsGroupBlockId ?? null}
             onCancel={() => closeWorkspaceOverlay(false)}

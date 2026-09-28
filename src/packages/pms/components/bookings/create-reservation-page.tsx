@@ -145,6 +145,7 @@ export function CreateReservationPage({
   embedded = false,
   initialGuestId = null,
   initialCompanyMasterId = null,
+  initialTravelAgentMasterId = null,
   pmsGroupId = null,
   pmsGroupBlockId = null,
   onCancel,
@@ -156,6 +157,7 @@ export function CreateReservationPage({
   embedded?: boolean;
   initialGuestId?: string | null;
   initialCompanyMasterId?: string | null;
+  initialTravelAgentMasterId?: string | null;
   pmsGroupId?: string | null;
   pmsGroupBlockId?: string | null;
   onCancel?: () => void;
@@ -236,6 +238,13 @@ export function CreateReservationPage({
     staleTime: 60_000,
   });
 
+  const initialTravelAgentQuery = useQuery({
+    queryKey: ["initial-reservation-travel-agent", restaurantId, initialTravelAgentMasterId],
+    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialTravelAgentMasterId! } }),
+    enabled: canManage && Boolean(initialTravelAgentMasterId) && !travelAgentMaster && !travelAgentOverride,
+    staleTime: 60_000,
+  });
+
   const initialPrefQuery = useQuery({
     queryKey: ["initial-guest-preferences", restaurantId, guest?.id],
     queryFn: () => fetchGuestPrefDefaults({ data: { restaurantId, guestId: guest!.id } }),
@@ -270,6 +279,29 @@ export function CreateReservationPage({
     companyOverride,
     companyMaster,
     initialCompanyQuery.data,
+  ]);
+
+  useEffect(() => {
+    if (!initialTravelAgentMasterId || travelAgentOverride || travelAgentMaster) return;
+    const rawAccount = initialTravelAgentQuery.data;
+    if (!rawAccount) return;
+    const account: Omit<NonNullable<typeof rawAccount>, "accountStatus"> & {
+      accountStatus: string;
+    } = rawAccount;
+
+    const isTravelAgentType = account.accountType === "travel_agent";
+    const isNotAnonymized = !account.anonymisedAt;
+    const isOperational = account.accountStatus !== "deleted";
+
+    if (isTravelAgentType && isNotAnonymized && isOperational) {
+      setTravelAgentMaster(toPickedReservationMaster(account));
+      setReservationType((prev) => (prev === "individual" ? "travel_agency" : prev));
+    }
+  }, [
+    initialTravelAgentMasterId,
+    travelAgentOverride,
+    travelAgentMaster,
+    initialTravelAgentQuery.data,
   ]);
 
   useEffect(() => {
