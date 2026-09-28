@@ -17,6 +17,7 @@ export type ReservationWorkspaceOverlayState =
       initialGuestId?: string | null;
       initialCompanyMasterId?: string | null;
       initialTravelAgentMasterId?: string | null;
+      initialGroupMasterId?: string | null;
     }
   | { type: "reservation-detail"; reservationId: string }
   | null;

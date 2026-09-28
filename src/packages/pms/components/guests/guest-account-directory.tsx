@@ -6,6 +6,7 @@ import { Plus, Search } from "lucide-react";
 
 import { GuestCompanyDirectory } from "@/packages/pms/components/guests/guest-company-directory";
 import { GuestTravelAgentDirectory } from "@/packages/pms/components/guests/guest-travel-agent-directory";
+import { GuestGroupDirectory } from "@/packages/pms/components/guests/guest-group-directory";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
@@ -74,6 +75,9 @@ export function GuestAccountDirectory({
   }
   if (accountType === "travel_agent") {
     return <GuestTravelAgentDirectory membership={membership} returnCard={returnCard} />;
+  }
+  if (accountType === "group") {
+    return <GuestGroupDirectory membership={membership} returnCard={returnCard} />;
   }
   const title = GUEST_ACCOUNT_TYPE_LABELS[accountType];
   const profileType = accountTypeToProfileType(accountType);

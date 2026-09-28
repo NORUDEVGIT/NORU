@@ -146,6 +146,7 @@ export function CreateReservationPage({
   initialGuestId = null,
   initialCompanyMasterId = null,
   initialTravelAgentMasterId = null,
+  initialGroupMasterId = null,
   pmsGroupId = null,
   pmsGroupBlockId = null,
   onCancel,
@@ -158,6 +159,7 @@ export function CreateReservationPage({
   initialGuestId?: string | null;
   initialCompanyMasterId?: string | null;
   initialTravelAgentMasterId?: string | null;
+  initialGroupMasterId?: string | null;
   pmsGroupId?: string | null;
   pmsGroupBlockId?: string | null;
   onCancel?: () => void;
@@ -192,8 +194,10 @@ export function CreateReservationPage({
   const [guest, setGuest] = useState<PickedReservationGuest | null>(null);
   const [companyMaster, setCompanyMaster] = useState<PickedReservationMaster | null>(null);
   const [travelAgentMaster, setTravelAgentMaster] = useState<PickedReservationMaster | null>(null);
+  const [groupMaster, setGroupMaster] = useState<PickedReservationMaster | null>(null);
   const [companyOverride, setCompanyOverride] = useState(false);
   const [travelAgentOverride, setTravelAgentOverride] = useState(false);
+  const [groupOverride, setGroupOverride] = useState(false);
   const [arrival, setArrival] = useState(today);
   const [departure, setDeparture] = useState(addDays(today, 1));
   const [adults, setAdults] = useState(1);
@@ -242,6 +246,13 @@ export function CreateReservationPage({
     queryKey: ["initial-reservation-travel-agent", restaurantId, initialTravelAgentMasterId],
     queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialTravelAgentMasterId! } }),
     enabled: canManage && Boolean(initialTravelAgentMasterId) && !travelAgentMaster && !travelAgentOverride,
+    staleTime: 60_000,
+  });
+
+  const initialGroupQuery = useQuery({
+    queryKey: ["initial-reservation-group", restaurantId, initialGroupMasterId],
+    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialGroupMasterId! } }),
+    enabled: canManage && Boolean(initialGroupMasterId) && !groupMaster && !groupOverride,
     staleTime: 60_000,
   });
 
@@ -302,6 +313,28 @@ export function CreateReservationPage({
     travelAgentOverride,
     travelAgentMaster,
     initialTravelAgentQuery.data,
+  ]);
+
+  useEffect(() => {
+    if (!initialGroupMasterId || groupOverride || groupMaster) return;
+    const rawAccount = initialGroupQuery.data;
+    if (!rawAccount) return;
+    const account: Omit<NonNullable<typeof rawAccount>, "accountStatus"> & {
+      accountStatus: string;
+    } = rawAccount;
+
+    const isGroupType = account.accountType === "group";
+    const isNotAnonymized = !account.anonymisedAt;
+    const isOperational = account.accountStatus !== "deleted" && account.accountStatus !== "inactive";
+
+    if (isGroupType && isNotAnonymized && isOperational) {
+      setGroupMaster(toPickedReservationMaster(account));
+    }
+  }, [
+    initialGroupMasterId,
+    groupOverride,
+    groupMaster,
+    initialGroupQuery.data,
   ]);
 
   useEffect(() => {
@@ -517,6 +550,7 @@ export function CreateReservationPage({
           ratePlanId: ratePlanId || null,
           companyMasterId: boundMasters.companyMasterId,
           travelAgentMasterId: boundMasters.travelAgentMasterId,
+          groupAccountMasterId: groupMaster?.id ?? (initialGroupMasterId || null),
           commercialBookingSource: bookingSource.trim() || null,
           marketSegment: marketSegment.trim() || null,
           externalReference: externalReference.trim() || null,

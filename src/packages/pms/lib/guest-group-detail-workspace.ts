@@ -9,6 +9,26 @@ import type { GuestAccountStatus } from "./guest-profile-wave4.ts";
 
 export const GROUP_DETAIL_MIGRATION_FILE = "0096_pms_group_workspace.sql";
 
+import {
+  resolveCanonicalGroupNavId,
+  isMoreGroupView,
+  isPrimaryGroupView,
+  GROUP_DETAIL_CANONICAL_VIEWS,
+  GROUP_DETAIL_PRIMARY_TABS,
+  GROUP_DETAIL_MORE_ITEMS,
+  type CanonicalGroupViewId,
+} from "./guest-group-detail-view.ts";
+
+export {
+  resolveCanonicalGroupNavId,
+  isMoreGroupView,
+  isPrimaryGroupView,
+  GROUP_DETAIL_CANONICAL_VIEWS,
+  GROUP_DETAIL_PRIMARY_TABS,
+  GROUP_DETAIL_MORE_ITEMS,
+  type CanonicalGroupViewId,
+};
+
 export const GROUP_DETAIL_NAV = [
   { id: "overview", title: "Overview", live: true },
   { id: "members", title: "Members", live: true },
@@ -18,10 +38,13 @@ export const GROUP_DETAIL_NAV = [
   { id: "financial", title: "Financials", live: true },
   { id: "communication", title: "Communication", live: true },
   { id: "documents", title: "Documents", live: true },
-  { id: "history", title: "Activity", live: true },
+  { id: "history", title: "History", live: true },
 ] as const;
 
-export type GroupDetailNavId = (typeof GROUP_DETAIL_NAV)[number]["id"];
+export type GroupDetailNavId =
+  | (typeof GROUP_DETAIL_NAV)[number]["id"]
+  | "master"
+  | "activity";
 
 export const GROUP_DETAIL_NAV_IDS = GROUP_DETAIL_NAV.map((item) => item.id);
 
@@ -94,8 +117,12 @@ export function isGroupDetailNavId(value: string | undefined): value is GroupDet
   return Boolean(value && (GROUP_DETAIL_NAV_IDS as readonly string[]).includes(value));
 }
 
-export function groupDetailNav(id: string | undefined): GroupDetailNavId {
-  return isGroupDetailNavId(id) ? id : "overview";
+export function groupDetailNav(id: string | null | undefined): GroupDetailNavId {
+  if (!id) return "overview";
+  if ((GROUP_DETAIL_NAV_IDS as readonly string[]).includes(id)) {
+    return id as GroupDetailNavId;
+  }
+  return resolveCanonicalGroupNavId(id);
 }
 
 export function groupStatusLabel(status: string | null | undefined): string {
