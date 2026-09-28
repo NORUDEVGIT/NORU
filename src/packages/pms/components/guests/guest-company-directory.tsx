@@ -138,6 +138,7 @@ export function GuestCompanyDirectory({
   const changeCompanyStatus = useServerFn(setCompanyStatus);
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState<"all" | (typeof GUEST_ACCOUNT_STATUSES)[number]>("all");
   const [typeId, setTypeId] = useState("all");
   const [country, setCountry] = useState("");
@@ -162,9 +163,16 @@ export function GuestCompanyDirectory({
   } | null>(null);
 
   useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [search]);
+
+  useEffect(() => {
     setPage(0);
     setSelected([]);
-  }, [search, status, typeId, country, credit, createdFrom, createdTo, pageSize]);
+  }, [debouncedSearch, status, typeId, country, credit, createdFrom, createdTo, pageSize]);
 
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
@@ -181,7 +189,7 @@ export function GuestCompanyDirectory({
   const offset = page * pageSize;
   const filters = {
     restaurantId,
-    search: search.trim() || undefined,
+    search: debouncedSearch.trim() || undefined,
     status,
     businessTypeId: typeId === "all" ? null : typeId,
     country: country || undefined,
@@ -494,7 +502,7 @@ export function GuestCompanyDirectory({
         <CompanyKpiCard
           label="Credit Accounts"
           value={kpis.credit}
-          hint="Direct ledger enabled"
+          hint="Credit account enabled"
           loading={listQuery.isLoading}
           icon={<CreditCard className="size-4" />}
           tone="bg-amber-50 text-amber-700"
@@ -512,7 +520,7 @@ export function GuestCompanyDirectory({
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#756A5B]" />
           <Input
             className="pl-9 pr-8 border-[#DDD4C5] bg-white text-xs text-[#251605] h-9"
-            placeholder="Search name, contact, email, phone, tax ID…"
+            placeholder="Search company, trade name, code, contact, email, phone or tax ID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             data-testid="companies-search"

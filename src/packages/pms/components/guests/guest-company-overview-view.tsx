@@ -122,7 +122,8 @@ export function GuestCompanyOverviewView({
   const addNote = useServerFn(addCompanyNote);
   const sendEmail = useServerFn(sendGuestAccountMessage);
   const exportAccount = useServerFn(exportGuestAccount);
-  const [note, setNote] = useState("");
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailBody, setEmailBody] = useState("");
 
@@ -140,9 +141,10 @@ export function GuestCompanyOverviewView({
   });
 
   const noteMutation = useMutation({
-    mutationFn: () => addNote({ data: { restaurantId, companyId, note } }),
+    mutationFn: () => addNote({ data: { restaurantId, companyId, note: noteText } }),
     onSuccess: async () => {
-      setNote("");
+      setNoteText("");
+      setNoteOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["company-detail", restaurantId, companyId] });
       await queryClient.invalidateQueries({ queryKey: ["guest-account-history", restaurantId, companyId] });
       toast.success("Note added.");
@@ -182,7 +184,7 @@ export function GuestCompanyOverviewView({
 
   return (
     <div className="space-y-4" data-testid="company-overview">
-      {/* ROW 1: Compact 6-KPI Summary Strip matching Individual Overview Layout */}
+      {/* ROW 1: Compact 6-KPI Summary Strip */}
       <div
         className="grid grid-cols-2 divide-y divide-[#DDD4C5] rounded-xl border border-[#DDD4C5] bg-white p-2.5 sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6 shadow-sm"
         data-testid="company-overview-kpi-strip"
@@ -209,7 +211,7 @@ export function GuestCompanyOverviewView({
         {/* KPI 2: Business Type */}
         <div className="flex flex-col px-3 py-1.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
-            Company Type
+            Business Type
           </span>
           <span className="mt-1 text-xs font-semibold text-[#8A641A] truncate">
             {data.businessType?.name ?? "Corporate"}
@@ -236,10 +238,10 @@ export function GuestCompanyOverviewView({
           </span>
         </div>
 
-        {/* KPI 5: Total Guests */}
+        {/* KPI 5: Linked Travelers */}
         <div className="flex flex-col px-3 py-1.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
-            Total Guests
+            Linked Travelers
           </span>
           <span className="mt-1 font-mono text-sm font-bold text-[#251605]">
             {data.kpis.totalGuests}
@@ -249,7 +251,7 @@ export function GuestCompanyOverviewView({
         {/* KPI 6: Folio Revenue */}
         <div className="flex flex-col px-3 py-1.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
-            Folio Revenue
+            Folio Value
           </span>
           <span className="mt-1 font-mono text-sm font-bold text-[#251605] truncate">
             {data.folioAccess ? formatMoneyLabel(data.kpis.totalRevenue) : "—"}
@@ -257,9 +259,9 @@ export function GuestCompanyOverviewView({
         </div>
       </div>
 
-      {/* ROW 2: 3 Operational Cards (Company Information | Contact & Address | Upcoming Stays) */}
+      {/* ROW 2: Primary Summary Row (3 compact panels: Company Info, Contact & Address, Upcoming Stay) */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* Card 1: Company Information */}
+        {/* Panel 1: Company Information */}
         <SectionCard
           title="Company Information"
           icon={Building2}
@@ -283,23 +285,32 @@ export function GuestCompanyOverviewView({
             value={data.company.accountStatus === "active" ? "Active" : "Inactive"}
           />
           <InfoRow
-            label="Corporate Rate"
-            value={data.company.hasCompanyRate ? COMPANY_RATE_YES : COMPANY_RATE_NO}
+            label="Negotiated Rate Reference"
+            value={
+              data.company.negotiatedRateReference ? (
+                <span>
+                  {data.company.negotiatedRateReference}{" "}
+                  <span className="text-[10px] font-normal text-[#756A5B]">(Reference only)</span>
+                </span>
+              ) : (
+                "—"
+              )
+            }
           />
           <InfoRow
             label="Credit Account"
             value={data.company.creditAccountEnabled ? "Enabled" : "Disabled"}
           />
-          <InfoRow label="Total Guests" value={String(data.kpis.totalGuests)} />
+          <InfoRow label="Total Travelers" value={String(data.kpis.totalGuests)} />
           <InfoRow
             label="Avg Stay Length"
             value={data.kpis.averageLengthOfStay != null ? `${data.kpis.averageLengthOfStay} nts` : "—"}
           />
         </SectionCard>
 
-        {/* Card 2: Contact & Address */}
+        {/* Panel 2: Primary Contact & Address */}
         <SectionCard
-          title="Contact & Address"
+          title="Primary Contact & Address"
           icon={MapPin}
           data-testid="company-overview-contact"
           actions={
@@ -343,9 +354,9 @@ export function GuestCompanyOverviewView({
           </div>
         </SectionCard>
 
-        {/* Card 3: Corporate Stays & Upcoming */}
+        {/* Panel 3: Upcoming Reservation */}
         <SectionCard
-          title="Corporate Stays & Upcoming"
+          title="Upcoming Reservation"
           icon={Calendar}
           data-testid="company-overview-upcoming"
           actions={
@@ -355,7 +366,7 @@ export function GuestCompanyOverviewView({
               className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
               onClick={() => onNavigate("reservations")}
             >
-              View All
+              View Reservations
             </Button>
           }
         >
@@ -391,16 +402,6 @@ export function GuestCompanyOverviewView({
                       Open Reservation
                     </Link>
                   </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-                  >
-                    <Link to="/restaurant/pms/reservations" search={{ create: "new", companyId }}>
-                      <Plus className="mr-1 size-3" /> New Reservation
-                    </Link>
-                  </Button>
                 </div>
               </div>
             ) : (
@@ -422,54 +423,11 @@ export function GuestCompanyOverviewView({
         </SectionCard>
       </div>
 
-      {/* ROW 3: 3 Secondary Operational Cards (Contracts | Commercial Governance | Linked Travelers) */}
+      {/* ROW 3: Secondary Summary Row (3 compact panels: Commercial Snapshot, Linked Travelers, Recent Activity) */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* Card 4: Contracts & Agreements */}
+        {/* Panel 1: Commercial Snapshot */}
         <SectionCard
-          title="Contracts & Agreements"
-          icon={FileCheck}
-          data-testid="company-overview-contracts"
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigate("contracts")}
-            >
-              View All
-            </Button>
-          }
-        >
-          {data.agreements.length ? (
-            <div className="space-y-2">
-              {data.agreements.slice(0, 3).map((ag) => (
-                <div
-                  key={ag.id}
-                  className="rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-2.5 space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-semibold text-[#8A641A]">
-                      {ag.contractNumber}
-                    </span>
-                    <span className="rounded-full bg-white border border-[#DDD4C5] px-2 py-0.5 text-[10px] font-semibold capitalize text-[#251605]">
-                      {ag.status}
-                    </span>
-                  </div>
-                  <p className="truncate font-medium text-[#251605] text-xs">{ag.name}</p>
-                  <p className="text-[10px] text-[#756A5B]">
-                    Valid: {ag.validFrom ?? "—"} → {ag.validTo ?? "—"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="py-6 text-center text-[#756A5B]">No corporate agreements for this company.</p>
-          )}
-        </SectionCard>
-
-        {/* Card 5: Commercial Governance & Terms */}
-        <SectionCard
-          title="Commercial & Billing"
+          title="Commercial Snapshot"
           icon={DollarSign}
           data-testid="company-overview-commercial"
           actions={
@@ -479,7 +437,7 @@ export function GuestCompanyOverviewView({
               className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
               onClick={() => onNavigate("commercial-billing")}
             >
-              View All
+              View Terms
             </Button>
           }
         >
@@ -492,19 +450,34 @@ export function GuestCompanyOverviewView({
             value={data.businessType?.creditAccountAllowed ? "Allowed" : "Restricted"}
           />
           <InfoRow
-            label="Negotiated Rate Ref"
-            value={data.company.negotiatedRateReference ?? "Standard Rack"}
+            label="Negotiated Rate Reference"
+            value={
+              data.company.negotiatedRateReference ? (
+                <span>
+                  {data.company.negotiatedRateReference}{" "}
+                  <span className="text-[10px] font-normal text-[#756A5B]">(Reference only)</span>
+                </span>
+              ) : (
+                "—"
+              )
+            }
           />
           <InfoRow
-            label="Corporate Pricing"
-            value={data.company.hasCompanyRate ? "Active Negotiated Rate" : "Standard Rates"}
+            label="Active Agreements"
+            value={
+              data.agreements.length > 0 ? (
+                <span className="font-semibold text-[#8A641A]">{data.agreements.length} Active</span>
+              ) : (
+                "None"
+              )
+            }
           />
           <InfoRow
-            label="Contact Person Policy"
+            label="Contact Policy"
             value={data.businessType?.contactRequired ? "Mandatory" : "Optional"}
           />
           <div className="flex items-center justify-between pt-2 border-t border-[#DDD4C5]/60">
-            <span className="text-[#756A5B]">Folio Statement Access</span>
+            <span className="text-[#756A5B]">Folio Billing Access</span>
             {data.folioAccess ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                 <CheckCircle2 className="size-3" /> Authorized
@@ -517,7 +490,7 @@ export function GuestCompanyOverviewView({
           </div>
         </SectionCard>
 
-        {/* Card 6: Linked Corporate Travelers */}
+        {/* Panel 2: Linked Travelers */}
         <SectionCard
           title="Linked Travelers"
           icon={UserCheck}
@@ -529,7 +502,7 @@ export function GuestCompanyOverviewView({
               className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
               onClick={() => onNavigate("contacts-travelers")}
             >
-              View All
+              Manage
             </Button>
           }
         >
@@ -542,7 +515,7 @@ export function GuestCompanyOverviewView({
               {links.data!.slice(0, 3).map((link) => (
                 <div
                   key={link.id}
-                  className="flex items-center justify-between rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-2.5"
+                  className="flex items-center justify-between rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-2"
                 >
                   <div className="min-w-0">
                     <Link
@@ -554,8 +527,7 @@ export function GuestCompanyOverviewView({
                       {link.guestName}
                     </Link>
                     <p className="text-[10px] text-[#756A5B]">
-                      Role: {link.role} · Rate:{" "}
-                      {data.company.hasCompanyRate ? COMPANY_RATE_YES : COMPANY_RATE_NO}
+                      Role: {link.role}
                     </p>
                   </div>
                 </div>
@@ -563,136 +535,93 @@ export function GuestCompanyOverviewView({
             </div>
           )}
         </SectionCard>
-      </div>
 
-      {/* ROW 4: Important Notes & Quick Actions */}
-      <SectionCard
-        title="Important Notes & Quick Actions"
-        icon={ShieldAlert}
-        data-testid="company-overview-notes"
-        actions={
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigate("communication-notes")}
-            >
-              View All Notes
-            </Button>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Column 1: Company Profile Notes & Governance Actions */}
-          <div className="space-y-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#756A5B]">
-              Account Profile & Actions
-            </h3>
-            {data.company.notes?.trim() ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-[#251605]">
-                <p className="text-[11px] font-semibold text-[#8A641A]">Profile Note:</p>
-                <p className="text-xs italic text-[#756A5B] mt-0.5 whitespace-pre-wrap">
-                  {data.company.notes}
-                </p>
-              </div>
-            ) : (
-              <p className="text-[#8C827A] text-xs italic">No profile alerts or special instructions.</p>
-            )}
-
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#DDD4C5]/60">
+        {/* Panel 3: Recent Activity */}
+        <SectionCard
+          title="Recent Activity"
+          icon={ShieldAlert}
+          data-testid="company-overview-activity"
+          actions={
+            <div className="flex items-center gap-1">
               <Button
-                asChild
-                size="sm"
-                className="h-7 text-xs bg-[#8A641A] hover:bg-[#725215] text-white font-medium shadow-sm"
-              >
-                <Link to="/restaurant/pms/reservations" search={{ create: "new", companyId }}>
-                  <Plus className="mr-1 size-3" /> New Reservation
-                </Link>
-              </Button>
-              <Button
-                type="button"
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-                disabled={!emailReady}
-                onClick={() => setEmailOpen(true)}
+                onClick={() => setNoteOpen(true)}
+                data-testid="company-overview-add-note-btn"
               >
-                <Mail className="mr-1 size-3 text-[#8A641A]" /> Send Email
+                <Plus className="mr-1 size-3" /> Add Note
               </Button>
               <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-                onClick={() => reportMutation.mutate()}
-                disabled={reportMutation.isPending}
-              >
-                <Download className="mr-1 size-3 text-[#8A641A]" /> Export JSON
-              </Button>
-              <Button
-                type="button"
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-                onClick={onEdit}
+                onClick={() => onNavigate("activity")}
               >
-                <Pencil className="mr-1 size-3" /> Edit Profile
+                View All
               </Button>
             </div>
-            {!emailReady ? (
-              <p className="text-[11px] text-[#8C827A]">
-                Add a company email address before sending outgoing emails.
-              </p>
-            ) : null}
-          </div>
-
-          {/* Column 2: Recent Activity Notes & Inline Note Form */}
-          <div className="space-y-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#756A5B]">
-              Recent Activity & New Note
-            </h3>
-            {history.data?.length ? (
-              <div className="space-y-1.5">
-                {history.data.slice(0, 2).map((row) => (
-                  <div
-                    key={row.id}
-                    className="rounded-lg border border-[#DDD4C5]/80 bg-[#FAF8F5] p-2 text-xs"
-                  >
-                    <p className="font-semibold text-[#251605] capitalize">
-                      {row.eventType.replaceAll("_", " ")}
-                    </p>
-                    {row.notes ? <p className="text-[#756A5B] mt-0.5">{row.notes}</p> : null}
-                    <p className="mt-1 text-[10px] text-[#8C827A]">{row.createdAt}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[#8C827A] text-xs italic">No activity entries recorded yet.</p>
-            )}
-
-            <div className="pt-2 border-t border-[#DDD4C5]/60 space-y-2">
-              <Textarea
-                className="min-h-[56px] text-xs border-[#DDD4C5] bg-white"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="Add a quick company note…"
-              />
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  className="h-7 text-xs bg-[#8A641A] text-white hover:bg-[#725215]"
-                  type="button"
-                  disabled={!note.trim() || noteMutation.isPending}
-                  onClick={() => noteMutation.mutate()}
+          }
+        >
+          {history.isLoading ? (
+            <p className="py-6 text-center text-[#756A5B]">Loading activity…</p>
+          ) : (history.data?.length ?? 0) === 0 ? (
+            <p className="py-6 text-center text-[#756A5B]">No activity entries recorded yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {history.data!.slice(0, 3).map((row) => (
+                <div
+                  key={row.id}
+                  className="rounded-lg border border-[#DDD4C5]/80 bg-[#FAF8F5] p-2 text-xs"
                 >
-                  <Plus className="mr-1 size-3" /> Add Note
-                </Button>
-              </div>
+                  <p className="font-semibold text-[#251605] capitalize">
+                    {row.eventType.replaceAll("_", " ")}
+                  </p>
+                  {row.notes ? <p className="text-[#756A5B] mt-0.5 truncate">{row.notes}</p> : null}
+                  <p className="mt-1 text-[10px] text-[#8C827A]">{row.createdAt}</p>
+                </div>
+              ))}
             </div>
+          )}
+        </SectionCard>
+      </div>
+
+      {/* Quick Add Note Dialog */}
+      <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Note for {data.company.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Textarea
+              className="min-h-[90px] text-xs border-[#DDD4C5] bg-white"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Enter note details…"
+            />
           </div>
-        </div>
-      </SectionCard>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setNoteOpen(false);
+                setNoteText("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-[#8A641A] text-white hover:bg-[#725215]"
+              disabled={!noteText.trim() || noteMutation.isPending}
+              onClick={() => noteMutation.mutate()}
+            >
+              Save Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Email Modal Dialog */}
       <Dialog open={emailOpen} onOpenChange={setEmailOpen}>

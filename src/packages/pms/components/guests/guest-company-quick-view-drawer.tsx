@@ -124,8 +124,8 @@ export function GuestCompanyQuickViewDrawer({
                     </span>
                   ) : null}
                   {company?.creditAccountEnabled ? (
-                    <span className="inline-flex items-center rounded-full bg-[#E0F2FE] px-2 py-0.5 text-[11px] font-medium text-[#0369A1]">
-                      Credit Eligible
+                    <span className="inline-flex items-center rounded-full bg-[#F4E9D0] px-2 py-0.5 text-[11px] font-medium text-[#8A641A]">
+                      Credit Account
                     </span>
                   ) : null}
                 </div>
@@ -170,7 +170,7 @@ export function GuestCompanyQuickViewDrawer({
           </div>
 
           {/* Tab Navigation */}
-          <nav className="mt-3 flex gap-1 border-t border-[#F0EAE1] pt-3 text-xs" aria-label="Quick View Tabs">
+          <nav className="mt-3 flex gap-2 border-t border-[#F0EAE1] pt-2 text-xs" aria-label="Quick View Tabs">
             {[
               { id: "overview", label: "Overview" },
               { id: "contacts", label: "Contacts" },
@@ -183,10 +183,10 @@ export function GuestCompanyQuickViewDrawer({
                 onClick={() => setTab(item.id as CompanyQuickViewTab)}
                 data-testid={`company-quick-tab-${item.id}`}
                 className={cn(
-                  "rounded-md px-2.5 py-1.5 font-medium transition-colors",
+                  "px-2 py-1 font-medium transition-colors border-b-2 text-xs",
                   tab === item.id
-                    ? "bg-[#251605] text-white"
-                    : "text-[#756A5B] hover:bg-[#EFE8DC] hover:text-[#251605]",
+                    ? "border-[#8A641A] text-[#251605]"
+                    : "border-transparent text-[#756A5B] hover:text-[#251605]",
                 )}
               >
                 {item.label}

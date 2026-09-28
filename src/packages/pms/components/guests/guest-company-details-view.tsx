@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Building2, Globe, MapPin, Phone, ShieldCheck, Users } from "lucide-react";
+import { Building2, Globe, MapPin, Pencil, Phone, ShieldCheck, Users } from "lucide-react";
 
 import {
   getGuestAccount,
@@ -11,24 +11,13 @@ import {
 } from "@/packages/pms/lib/guest-accounts.functions";
 import { getCompanyBusinessWorkspace } from "@/packages/pms/lib/guest-companies.functions";
 import { validateCompanyAgainstType } from "@/packages/pms/lib/guest-companies-workspace";
-import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import {
   COMPANY_TYPE_LABELS,
-  COMPANY_TYPES,
   validateCompanyType,
   type CompanyType,
 } from "@/packages/pms/lib/guest-profile-company";
-import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "@/packages/pms/lib/guest-profile-wave4";
+import { type GuestAccountStatus } from "@/packages/pms/lib/guest-profile-wave4";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 
 type CorporateForm = {
   name: string;
@@ -102,10 +91,12 @@ export function GuestCompanyDetailsView({
   restaurantId,
   companyId,
   onOpenEditDialog,
+  onEdit,
 }: {
   restaurantId: string;
   companyId: string;
   onOpenEditDialog?: () => void;
+  onEdit?: () => void;
 }) {
   const queryClient = useQueryClient();
   const fetchAccount = useServerFn(getGuestAccount);
@@ -113,7 +104,6 @@ export function GuestCompanyDetailsView({
   const fetchTravelAgents = useServerFn(listGuestAccounts);
   const update = useServerFn(updateGuestAccount);
   const [form, setForm] = useState<CorporateForm>(emptyForm);
-  const [baseline, setBaseline] = useState("");
 
   const accountQuery = useQuery({
     queryKey: ["guest-account", restaurantId, companyId],
@@ -176,7 +166,6 @@ export function GuestCompanyDetailsView({
       billingInstruction: account.billingInstruction ?? "",
     };
     setForm(next);
-    setBaseline(JSON.stringify(next));
   }, [accountQuery.data]);
 
   const selectedType = useMemo(() => {
@@ -192,7 +181,8 @@ export function GuestCompanyDetailsView({
 
   const creditAllowed = Boolean(selectedType?.creditAccountAllowed);
 
-  const errors = useMemo(() => {
+  // Property Setup validation preservation
+  const validationErrors = useMemo(() => {
     const list: string[] = [];
     if (!form.name.trim()) list.push("Company name is required.");
     if (form.companyType) {
@@ -224,12 +214,10 @@ export function GuestCompanyDetailsView({
     return list;
   }, [form, selectedType, configQuery.data?.fields]);
 
-  const isDirty = baseline !== "" && baseline !== JSON.stringify(form);
-
   const mutation = useMutation({
     mutationFn: async () => {
-      if (errors.length) {
-        throw new Error(errors[0]);
+      if (validationErrors.length) {
+        throw new Error(validationErrors[0]);
       }
       return update({
         data: {
@@ -281,346 +269,153 @@ export function GuestCompanyDetailsView({
     (ta) => ta.accountType === "travel_agent" && ta.id !== companyId,
   );
 
+  const defaultTravelAgent = travelAgentOptions.find(
+    (ta) => ta.id === form.defaultTravelAgentMasterId,
+  );
+  const defaultTravelAgentDisplay =
+    defaultTravelAgent?.name ??
+    accountQuery.data?.defaultTravelAgentMasterName ??
+    "None (Direct Corporate Booking)";
+
+  const handleEdit = onOpenEditDialog || onEdit;
+
   return (
-    <div className="space-y-6" data-testid="company-details-view">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDD4C5] pb-4">
+    <div className="space-y-5" data-testid="company-details-view">
+      {/* Top Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDD4C5] pb-3">
         <div>
-          <h2 className="font-display text-xl font-bold text-[#251605]">Company Details</h2>
-          <p className="text-sm text-[#756A5B]">
-            Primary corporate profile, legal registrations, and corporate governance settings.
+          <h2 className="font-display text-lg font-bold text-[#251605]">Company Details</h2>
+          <p className="text-xs text-[#756A5B]">
+            Structured company profile, corporate assignment, and commercial reference.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {onOpenEditDialog ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-[#DDD4C5] text-[#251605]"
-              onClick={onOpenEditDialog}
-            >
-              Open Full Form
-            </Button>
-          ) : null}
           <Button
             type="button"
             size="sm"
-            className="bg-[#C89933] text-[#251605] hover:bg-[#B88928]"
-            disabled={!isDirty || mutation.isPending || errors.length > 0}
-            onClick={() => mutation.mutate()}
-            data-testid="company-details-save"
+            className="bg-[#C89933] text-[#251605] hover:bg-[#B88928] font-medium"
+            onClick={handleEdit}
+            data-testid="company-details-edit-btn"
           >
-            Save Changes
+            <Pencil className="mr-1.5 size-3.5" />
+            Edit Company
           </Button>
         </div>
       </div>
 
-      {errors.length ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p className="font-semibold">Please correct the following before saving:</p>
-          <ul className="mt-1 list-inside list-disc">
-            {errors.map((error, idx) => (
-              <li key={idx}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {/* Section 1: Core Company Profile */}
-      <Section title="Corporate Identification" icon={<Building2 className="size-4 text-[#8A641A]" />}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Legal Company Name *">
-            <Input
-              value={form.name}
-              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              placeholder="e.g. Acme Corporation"
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Section 1: Business Identity */}
+        <Section title="Business Identity" icon={<Building2 className="size-4 text-[#8A641A]" />}>
+          <div className="space-y-1 text-xs">
+            <InfoRow label="Legal Company Name" value={form.name} />
+            <InfoRow label="Trade Name" value={form.tradeName} />
+            <InfoRow label="Company Code" value={form.code} />
+            <InfoRow label="Business Profile Type" value={selectedType?.name ?? "Corporate"} />
+            <InfoRow
+              label="Legal Entity Form"
+              value={form.companyType ? (COMPANY_TYPE_LABELS[form.companyType as CompanyType] ?? form.companyType) : "—"}
             />
-          </Field>
-          <Field label="Trade Name (DBA)">
-            <Input
-              value={form.tradeName}
-              onChange={(e) => setForm((p) => ({ ...p, tradeName: e.target.value }))}
-              placeholder="Trading as"
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Corporate Code">
-            <Input
-              value={form.code}
-              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
-              placeholder="e.g. ACM001"
-            />
-          </Field>
-          <Field label="Account Status">
-            <Select
-              value={form.accountStatus}
-              onValueChange={(val) => setForm((p) => ({ ...p, accountStatus: val as GuestAccountStatus }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GUEST_ACCOUNT_STATUSES.map((st) => (
-                  <SelectItem key={st} value={st}>
-                    {st}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Business Profile Type">
-            <Select
-              value={form.businessProfileTypeId || "__none"}
-              onValueChange={(val) =>
-                setForm((p) => ({ ...p, businessProfileTypeId: val === "__none" ? "" : val }))
+            <InfoRow
+              label="Account Status"
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className={`size-2 rounded-full ${
+                      form.accountStatus === "active" ? "bg-emerald-600" : "bg-stone-400"
+                    }`}
+                  />
+                  <span className="capitalize font-semibold">{form.accountStatus}</span>
+                </span>
               }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none">Default Type</SelectItem>
-                {(configQuery.data?.types ?? []).map((pt) => (
-                  <SelectItem key={pt.id} value={pt.id}>
-                    {pt.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
+            />
+          </div>
+        </Section>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Legal Entity Form">
-            <Select
-              value={form.companyType || "__none"}
-              onValueChange={(val) =>
-                setForm((p) => ({
-                  ...p,
-                  companyType: val === "__none" ? "" : (val as CompanyType),
-                  companyTypeOther: val === "other" ? p.companyTypeOther : "",
-                }))
+        {/* Section 2: Registration & Tax */}
+        <Section title="Registration & Tax" icon={<ShieldCheck className="size-4 text-[#8A641A]" />}>
+          <div className="space-y-1 text-xs">
+            <InfoRow label="Tax ID" value={form.taxId} />
+            <InfoRow label="Business Registration Number" value={form.businessRegistrationNumber} />
+          </div>
+        </Section>
+
+        {/* Section 3: Contact Information */}
+        <Section title="Contact Information" icon={<Phone className="size-4 text-[#8A641A]" />}>
+          <div className="space-y-1 text-xs">
+            <InfoRow label="Primary Phone" value={form.phone} />
+            <InfoRow label="Alternate Phone" value={form.phoneAlt} />
+            <InfoRow label="Business Email" value={form.email} />
+            <InfoRow label="Alternate Email" value={form.emailAlt} />
+            <InfoRow label="Website" value={form.website} />
+            <InfoRow
+              label="Primary Contact"
+              value={
+                form.primaryContactName
+                  ? `${form.primaryContactName}${form.primaryContactTitle ? ` (${form.primaryContactTitle})` : ""}`
+                  : "—"
               }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select legal form" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none">Not specified</SelectItem>
-                {COMPANY_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {COMPANY_TYPE_LABELS[t]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          {form.companyType === "other" && (
-            <Field label="Other Legal Form Description">
-              <Input
-                value={form.companyTypeOther}
-                onChange={(e) => setForm((p) => ({ ...p, companyTypeOther: e.target.value }))}
-              />
-            </Field>
-          )}
-        </div>
+            />
+          </div>
+        </Section>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Tax ID / TIN">
-            <Input
-              value={form.taxId}
-              onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))}
-              placeholder="e.g. 12-3456789"
-            />
-          </Field>
-          <Field label="Business Registration Number">
-            <Input
-              value={form.businessRegistrationNumber}
-              onChange={(e) => setForm((p) => ({ ...p, businessRegistrationNumber: e.target.value }))}
-              placeholder="e.g. REG-987654"
-            />
-          </Field>
-        </div>
-      </Section>
+        {/* Section 4: Address */}
+        <Section title="Address" icon={<MapPin className="size-4 text-[#8A641A]" />}>
+          <div className="space-y-1 text-xs">
+            <InfoRow label="Address Line 1" value={form.addressLine1} />
+            <InfoRow label="Address Line 2" value={form.addressLine2} />
+            <InfoRow label="City" value={form.city} />
+            <InfoRow label="Region" value={form.region} />
+            <InfoRow label="Postal Code" value={form.postalCode} />
+            <InfoRow label="Country" value={form.country} />
+          </div>
+        </Section>
 
-      {/* Section 2: Contact Information */}
-      <Section title="Communication & Contacts" icon={<Phone className="size-4 text-[#8A641A]" />}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Primary Phone">
-            <Input
-              value={form.phone}
-              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+        {/* Section 5: Corporate Assignment */}
+        <Section title="Corporate Assignment" icon={<Users className="size-4 text-[#8A641A]" />}>
+          <div className="space-y-1 text-xs">
+            <InfoRow label="Corporate Account Reference" value={form.corporateAccountReference} />
+            <InfoRow label="Source of Business" value={form.sourceOfBusiness} />
+            <InfoRow
+              label="Default Travel Agency Relationship"
+              value={defaultTravelAgentDisplay}
             />
-          </Field>
-          <Field label="Alternate Phone">
-            <Input
-              value={form.phoneAlt}
-              onChange={(e) => setForm((p) => ({ ...p, phoneAlt: e.target.value }))}
-            />
-          </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Business Email">
-            <Input
-              value={form.email}
-              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-            />
-          </Field>
-          <Field label="Alternate Email">
-            <Input
-              value={form.emailAlt}
-              onChange={(e) => setForm((p) => ({ ...p, emailAlt: e.target.value }))}
-            />
-          </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Primary Contact Person">
-            <Input
-              value={form.primaryContactName}
-              onChange={(e) => setForm((p) => ({ ...p, primaryContactName: e.target.value }))}
-            />
-          </Field>
-          <Field label="Primary Contact Job Title">
-            <Input
-              value={form.primaryContactTitle}
-              onChange={(e) => setForm((p) => ({ ...p, primaryContactTitle: e.target.value }))}
-            />
-          </Field>
-        </div>
-        <Field label="Official Website">
-          <Input
-            value={form.website}
-            onChange={(e) => setForm((p) => ({ ...p, website: e.target.value }))}
-            placeholder="https://..."
-          />
-        </Field>
-      </Section>
+          </div>
+        </Section>
 
-      {/* Section 3: Registered Address */}
-      <Section title="Registered Address" icon={<MapPin className="size-4 text-[#8A641A]" />}>
-        <Field label="Address Line 1">
-          <Input
-            value={form.addressLine1}
-            onChange={(e) => setForm((p) => ({ ...p, addressLine1: e.target.value }))}
-          />
-        </Field>
-        <Field label="Address Line 2 / District">
-          <Input
-            value={form.addressLine2}
-            onChange={(e) => setForm((p) => ({ ...p, addressLine2: e.target.value }))}
-          />
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="City">
-            <Input
-              value={form.city}
-              onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
+        {/* Section 6: Commercial Reference */}
+        <Section title="Commercial Reference" icon={<Globe className="size-4 text-[#8A641A]" />}>
+          <div className="space-y-1 text-xs">
+            <InfoRow
+              label="Negotiated Rate Reference"
+              value={
+                form.negotiatedRateReference ? (
+                  <span>
+                    {form.negotiatedRateReference}{" "}
+                    <span className="text-[10px] text-[#756A5B] font-normal">(Reference only)</span>
+                  </span>
+                ) : (
+                  "—"
+                )
+              }
             />
-          </Field>
-          <Field label="Region / State / Province">
-            <Input
-              value={form.region}
-              onChange={(e) => setForm((p) => ({ ...p, region: e.target.value }))}
+            <InfoRow label="Payment Terms" value={form.paymentTerms} />
+            <InfoRow
+              label="Credit Account"
+              value={form.creditAccountEnabled ? "Enabled" : "Disabled"}
             />
-          </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Country">
-            <Select
-              value={form.country || "__none"}
-              onValueChange={(val) => setForm((p) => ({ ...p, country: val === "__none" ? "" : val }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose country" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none">Choose country</SelectItem>
-                {ISO_COUNTRIES.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Postal / ZIP Code">
-            <Input
-              value={form.postalCode}
-              onChange={(e) => setForm((p) => ({ ...p, postalCode: e.target.value }))}
-            />
-          </Field>
-        </div>
-      </Section>
+            <InfoRow label="Credit Limit Note" value={form.creditLimitNote} />
+            <InfoRow label="Billing Instruction" value={form.billingInstruction} />
+          </div>
+        </Section>
+      </div>
 
-      {/* Section 4: Default Travel Agency Relationship */}
-      <Section
-        title="Default Travel Agency Relationship"
-        icon={<Globe className="size-4 text-[#8A641A]" />}
-      >
-        <p className="text-xs text-[#756A5B]">
-          If this company routes bookings through a specific partner Travel Agency, associate it here.
-          Must be a registered Travel Agent master in this property.
-        </p>
-        <Field label="Default Travel Agent">
-          <Select
-            value={form.defaultTravelAgentMasterId || "__none"}
-            onValueChange={(val) =>
-              setForm((p) => ({
-                ...p,
-                defaultTravelAgentMasterId: val === "__none" ? "" : val,
-              }))
-            }
-          >
-            <SelectTrigger className="border-[#DDD4C5]">
-              <SelectValue placeholder="No default travel agent linked" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none">None (Direct Corporate Booking)</SelectItem>
-              {travelAgentOptions.map((ta) => (
-                <SelectItem key={ta.id} value={ta.id}>
-                  {ta.name} {ta.code ? `(${ta.code})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        {accountQuery.data?.defaultTravelAgentMasterName && !form.defaultTravelAgentMasterId ? (
-          <p className="text-xs text-muted-foreground">
-            Previously linked to: {accountQuery.data.defaultTravelAgentMasterName}
-          </p>
-        ) : null}
-      </Section>
-
-      {/* Section 5: Commercial & References */}
-      <Section title="Commercial Governance" icon={<ShieldCheck className="size-4 text-[#8A641A]" />}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Corporate Account Reference">
-            <Input
-              value={form.corporateAccountReference}
-              onChange={(e) => setForm((p) => ({ ...p, corporateAccountReference: e.target.value }))}
-            />
-          </Field>
-          <Field label="Negotiated Rate Reference">
-            <Input
-              value={form.negotiatedRateReference}
-              onChange={(e) => setForm((p) => ({ ...p, negotiatedRateReference: e.target.value }))}
-            />
-          </Field>
+      {/* Section 7: Audit */}
+      <Section title="Audit Metadata" icon={<Building2 className="size-4 text-[#8A641A]" />}>
+        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+          <InfoRow label="System ID" value={companyId} truncate />
+          <InfoRow label="Created" value={accountQuery.data?.createdAt ? new Date(accountQuery.data.createdAt).toLocaleString() : "—"} />
+          <InfoRow label="Last Updated" value={accountQuery.data?.updatedAt ? new Date(accountQuery.data.updatedAt).toLocaleString() : "—"} />
         </div>
-        <Field label="Source of Business">
-          <Input
-            value={form.sourceOfBusiness}
-            onChange={(e) => setForm((p) => ({ ...p, sourceOfBusiness: e.target.value }))}
-          />
-        </Field>
-        <Field label="Billing Instruction">
-          <Input
-            value={form.billingInstruction}
-            onChange={(e) => setForm((p) => ({ ...p, billingInstruction: e.target.value }))}
-          />
-        </Field>
       </Section>
     </div>
   );
@@ -638,21 +433,35 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+    <section className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#F0EAE1] pb-2">
         {icon}
-        <h3 className="font-display text-base font-bold text-[#251605]">{title}</h3>
+        <h3 className="font-display text-sm font-bold text-[#251605]">{title}</h3>
       </div>
       {children}
     </section>
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function InfoRow({
+  label,
+  value,
+  truncate = false,
+}: {
+  label: string;
+  value: ReactNode;
+  truncate?: boolean;
+}) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-semibold text-[#756A5B]">{label}</Label>
-      {children}
+    <div className="flex items-baseline justify-between gap-2 py-1 border-b border-[#EFE9DF]/50 last:border-b-0">
+      <span className="shrink-0 text-[#756A5B]">{label}</span>
+      <span
+        className={`text-right font-medium text-[#251605] ${
+          truncate ? "truncate max-w-[200px]" : ""
+        }`}
+      >
+        {value != null && value !== "" ? value : "—"}
+      </span>
     </div>
   );
 }

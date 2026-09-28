@@ -30,20 +30,20 @@ export function GuestCompanyContactsTravelersView({
 
   return (
     <div className="space-y-6" data-testid="company-contacts-travelers-view">
-      {/* Subtab Segmented Switcher */}
-      <div className="flex items-center gap-2 border-b border-[#DDD4C5] pb-3">
+      {/* Subtab Navigation */}
+      <div className="flex items-center gap-6 border-b border-[#DDD4C5] pb-0">
         <button
           type="button"
           onClick={() => setSubTab("contacts")}
           data-testid="company-subtab-contacts"
           className={cn(
-            "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+            "inline-flex items-center gap-2 pb-2.5 text-sm font-medium border-b-2 transition-colors",
             subTab === "contacts"
-              ? "bg-[#251605] text-white shadow-sm"
-              : "bg-[#F7F4EE] text-[#756A5B] hover:bg-[#EFE8DC] hover:text-[#251605]",
+              ? "border-[#8A641A] text-[#251605] font-semibold"
+              : "border-transparent text-[#756A5B] hover:text-[#251605]",
           )}
         >
-          <Users className="size-4" />
+          <Users className="size-4 text-[#8A641A]" />
           <span>Contact Persons</span>
         </button>
 
@@ -52,13 +52,13 @@ export function GuestCompanyContactsTravelersView({
           onClick={() => setSubTab("travelers")}
           data-testid="company-subtab-travelers"
           className={cn(
-            "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+            "inline-flex items-center gap-2 pb-2.5 text-sm font-medium border-b-2 transition-colors",
             subTab === "travelers"
-              ? "bg-[#251605] text-white shadow-sm"
-              : "bg-[#F7F4EE] text-[#756A5B] hover:bg-[#EFE8DC] hover:text-[#251605]",
+              ? "border-[#8A641A] text-[#251605] font-semibold"
+              : "border-transparent text-[#756A5B] hover:text-[#251605]",
           )}
         >
-          <UserCheck className="size-4" />
+          <UserCheck className="size-4 text-[#8A641A]" />
           <span>Linked Travelers</span>
         </button>
       </div>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { ExternalLink, MoreHorizontal, Plus, User, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -22,13 +23,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/shared/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { GuestCompanyGuestLinks } from "@/packages/pms/components/guests/guest-company-guest-links";
 import { listCompanyTravelers } from "@/packages/pms/lib/guest-company-detail.functions";
 import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { listGuestDocuments } from "@/packages/pms/lib/guests.functions";
-import { COMPANY_RATE_NO, COMPANY_RATE_YES, COMPANY_TRAVELERS_COPY, COMPANY_TRAVELERS_TITLE } from "@/packages/pms/lib/guest-company-detail-workspace";
-import { GUEST_PROFILE_DETAIL_PATH, guestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
+import {
+  COMPANY_RATE_NO,
+  COMPANY_RATE_YES,
+  COMPANY_TRAVELERS_COPY,
+  COMPANY_TRAVELERS_TITLE,
+} from "@/packages/pms/lib/guest-company-detail-workspace";
+import {
+  GUEST_PROFILE_DETAIL_PATH,
+  guestProfileSearch,
+} from "@/packages/pms/lib/guest-profile-wave1";
 
 export function GuestCompanyTravelers({
   restaurantId,
@@ -46,6 +67,7 @@ export function GuestCompanyTravelers({
   const [vip, setVip] = useState<"all" | "yes" | "no">("all");
   const [groupLeader, setGroupLeader] = useState<"all" | "yes" | "no">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [tab, setTab] = useState<"history" | "reservations" | "notes" | "documents">("history");
@@ -55,7 +77,8 @@ export function GuestCompanyTravelers({
     queryFn: () => load({ data: { restaurantId, companyId, q, status, vip, groupLeader } }),
   });
   const items = query.data?.items ?? [];
-  const selected = items.find((row) => row.id === selectedId) ?? items[0] ?? null;
+  const selected = items.find((row) => row.id === selectedId) ?? (items.length > 0 ? items[0] : null);
+
   const docs = useQuery({
     queryKey: ["guest-documents", restaurantId, selected?.id],
     queryFn: () => loadDocs({ data: { restaurantId, guestId: selected!.id } }),
@@ -75,23 +98,93 @@ export function GuestCompanyTravelers({
 
   return (
     <div className="space-y-4" data-testid="company-travelers">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      {/* View Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDD4C5] pb-3">
         <div>
-          <h2 className="font-display text-xl">{COMPANY_TRAVELERS_TITLE}</h2>
-          <p className="text-sm text-muted-foreground">{COMPANY_TRAVELERS_COPY}</p>
+          <h2 className="font-display text-lg font-bold text-[#251605]">{COMPANY_TRAVELERS_TITLE}</h2>
+          <p className="text-xs text-[#756A5B]">{COMPANY_TRAVELERS_COPY}</p>
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={() => setLinkOpen((open) => !open)}>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
+            onClick={() => setLinkOpen((open) => !open)}
+          >
             Link Existing Guest
           </Button>
-          <Button type="button" onClick={() => setCreateOpen(true)}>Register New Traveler</Button>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-[#C89933] text-[#251605] hover:bg-[#B88928] font-medium"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="mr-1.5 size-3.5" />
+            Register New Traveler
+          </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search name, email, phone, passport" />
+      {/* Compact Summary Band */}
+      <div
+        className="grid grid-cols-2 divide-y divide-[#DDD4C5] rounded-xl border border-[#DDD4C5] bg-white p-2.5 sm:grid-cols-5 sm:divide-y-0 sm:divide-x shadow-sm"
+        data-testid="company-travelers-kpis"
+      >
+        <div className="flex flex-col px-3 py-1.5 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+            Total Travelers
+          </span>
+          <span className="mt-1 font-mono text-sm font-bold text-[#251605]">
+            {query.data?.kpis.total ?? 0}
+          </span>
+        </div>
+        <div className="flex flex-col px-3 py-1.5 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+            Active Travelers
+          </span>
+          <span className="mt-1 font-mono text-sm font-bold text-emerald-700">
+            {query.data?.kpis.active ?? 0}
+          </span>
+        </div>
+        <div className="flex flex-col px-3 py-1.5 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+            VIP Travelers
+          </span>
+          <span className="mt-1 font-mono text-sm font-bold text-[#8A641A]">
+            {query.data?.kpis.vip ?? 0}
+          </span>
+        </div>
+        <div className="flex flex-col px-3 py-1.5 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+            Group Leaders
+          </span>
+          <span className="mt-1 font-mono text-sm font-bold text-[#251605]">
+            {query.data?.kpis.groupLeaders ?? 0}
+          </span>
+        </div>
+        <div className="flex flex-col px-3 py-1.5 min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+            Upcoming Trips
+          </span>
+          <span className="mt-1 font-mono text-sm font-bold text-[#8A641A]">
+            {query.data?.kpis.upcomingTrips ?? 0}
+          </span>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          className="h-8 text-xs border-[#DDD4C5] bg-white min-w-48 flex-1"
+          value={q}
+          onChange={(event) => setQ(event.target.value)}
+          placeholder="Search traveler name, email, phone, passport…"
+        />
         <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white w-32">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="active">Active</SelectItem>
@@ -99,7 +192,9 @@ export function GuestCompanyTravelers({
           </SelectContent>
         </Select>
         <Select value={vip} onValueChange={(value) => setVip(value as typeof vip)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white w-28">
+            <SelectValue placeholder="VIP" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All VIP</SelectItem>
             <SelectItem value="yes">VIP</SelectItem>
@@ -107,127 +202,226 @@ export function GuestCompanyTravelers({
           </SelectContent>
         </Select>
         <Select value={groupLeader} onValueChange={(value) => setGroupLeader(value as typeof groupLeader)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white w-36">
+            <SelectValue placeholder="Group Leader" />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All group leaders</SelectItem>
+            <SelectItem value="all">All leaders</SelectItem>
             <SelectItem value="yes">Group leaders</SelectItem>
             <SelectItem value="no">Not group leaders</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        <Kpi label="Total Travelers" value={String(query.data?.kpis.total ?? 0)} />
-        <Kpi label="Active Travelers" value={String(query.data?.kpis.active ?? 0)} />
-        <Kpi label="VIP Travelers" value={String(query.data?.kpis.vip ?? 0)} />
-        <Kpi label="Group Leaders" value={String(query.data?.kpis.groupLeaders ?? 0)} />
-        <Kpi label="Upcoming Trips" value={String(query.data?.kpis.upcomingTrips ?? 0)} />
-      </div>
+      {linkOpen ? (
+        <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+          <GuestCompanyGuestLinks restaurantId={restaurantId} accountId={companyId} />
+        </div>
+      ) : null}
 
-      {linkOpen ? <GuestCompanyGuestLinks restaurantId={restaurantId} accountId={companyId} /> : null}
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
-        <section className="rounded-2xl border border-border bg-card p-4">
-          {query.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading travelers…</p>
-          ) : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {q || status !== "all" || vip !== "all" || groupLeader !== "all"
-                ? "No travelers match these filters."
-                : "No guests are linked to this company yet."}
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Nationality</TableHead>
-                  <TableHead>Passport</TableHead>
-                  <TableHead>Traveler Type</TableHead>
-                  <TableHead>Last Stay</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((row, index) => (
-                  <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell>{row.nationality ?? "—"}</TableCell>
-                    <TableCell>{row.passportMasked ?? "—"}</TableCell>
-                    <TableCell>{row.travelerType}</TableCell>
-                    <TableCell>{row.lastStay ?? "—"}</TableCell>
-                    <TableCell><Badge variant={row.guestStatus === "active" ? "default" : "secondary"}>{row.guestStatus}</Badge></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </section>
-
-        <aside className="rounded-2xl border border-border bg-card p-4 space-y-3">
-          {selected ? (
-            <>
-              {selected.photoUrl ? <img src={selected.photoUrl} alt="" className="h-16 w-16 rounded-xl object-cover" /> : null}
-              <p className="font-display text-lg">{selected.name}</p>
-              <p className="text-sm">{selected.travelerType} · {selected.guestStatus}</p>
-              <p className="text-sm">{selected.email ?? "No email"} · {selected.phone ?? "No phone"}</p>
-              <p className="text-sm">Nationality: {selected.nationality ?? "—"}</p>
-              <p className="text-sm">Passport: {selected.passportMasked ?? "—"}</p>
-              <p className="text-sm">Date of birth: {selected.dateOfBirth ?? "—"}</p>
-              <p className="text-sm">Gender: {selected.gender ?? "—"}</p>
-              <p className="text-sm">Company rate: {selected.hasCompanyRate ? COMPANY_RATE_YES : COMPANY_RATE_NO}</p>
-              <div className="flex flex-wrap gap-2 text-xs">
-                {(["history", "reservations", "notes", "documents"] as const).map((id) => (
-                  <Button key={id} type="button" size="sm" variant={tab === id ? "default" : "outline"} onClick={() => setTab(id)}>
-                    {id === "history" ? "Travel History" : id[0]!.toUpperCase() + id.slice(1)}
-                  </Button>
-                ))}
-              </div>
-              {tab === "notes" ? (
-                <p className="whitespace-pre-wrap text-sm">{selected.notes || "No guest notes."}</p>
-              ) : tab === "documents" ? (
-                <ul className="text-sm">
-                  {(docs.data?.documents ?? []).length ? (
-                    docs.data!.documents.map((doc) => (
-                      <li key={doc.id}>{doc.typeName} {doc.documentNumberMasked}</li>
-                    ))
-                  ) : (
-                    <p className="text-muted-foreground">Identity documents stay on the Guest Profile.</p>
-                  )}
-                </ul>
-              ) : selected.stays.length ? (
-                <ul className="space-y-1 text-sm">
-                  {selected.stays
-                    .filter((stay) => tab === "reservations" || tab === "history")
-                    .slice(0, 8)
-                    .map((stay, index) => (
-                      <li key={`${stay.arrival}-${stay.departure}-${index}`}>
-                        {stay.arrival} – {stay.departure} · {stay.status}
-                      </li>
-                    ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {selected.lastStay ? `Last stay ${selected.lastStay}.` : "No stays yet."} {selected.upcomingTrips} upcoming trip(s).
-                </p>
-              )}
-              <Button asChild>
-                <Link
-                  to={GUEST_PROFILE_DETAIL_PATH}
-                  params={{ guestId: selected.id }}
-                  search={guestProfileSearch({ type: "individual", nav: "overview" })}
+      {/* Dense Full-Width Table */}
+      <div className="rounded-xl border border-[#DDD4C5] bg-white overflow-hidden shadow-sm">
+        {query.isLoading ? (
+          <p className="p-6 text-center text-xs text-[#756A5B]">Loading linked travelers…</p>
+        ) : items.length === 0 ? (
+          <p className="p-6 text-center text-xs text-[#756A5B]">
+            {q || status !== "all" || vip !== "all" || groupLeader !== "all"
+              ? "No travelers match these filters."
+              : "No travelers linked to this company yet."}
+          </p>
+        ) : (
+          <Table>
+            <TableHeader className="bg-[#FAF8F5]">
+              <TableRow className="border-b border-[#DDD4C5]">
+                <TableHead className="w-12 text-xs font-semibold text-[#251605]">#</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Guest</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Nationality</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Passport</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Relationship / Role</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Upcoming</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Last Stay</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Status</TableHead>
+                <TableHead className="text-right text-xs font-semibold text-[#251605]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-[#EFE9DF]/60 text-xs">
+              {items.map((row, index) => (
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer hover:bg-[#FAF8F5] transition-colors"
+                  onClick={() => {
+                    setSelectedId(row.id);
+                    setDrawerOpen(true);
+                  }}
                 >
-                  View Full Guest Profile
-                </Link>
-              </Button>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a traveler to see details.</p>
-          )}
-        </aside>
+                  <TableCell className="py-2.5 text-[#756A5B] font-mono">{index + 1}</TableCell>
+                  <TableCell className="py-2.5 font-medium text-[#251605]">
+                    <div className="flex items-center gap-2">
+                      {row.photoUrl ? (
+                        <img src={row.photoUrl} alt="" className="size-7 rounded-full object-cover ring-1 ring-[#DDD4C5]" />
+                      ) : (
+                        <div className="flex size-7 items-center justify-center rounded-full bg-[#F4E9D0] text-[10px] font-bold text-[#8A641A]">
+                          {row.name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <span>{row.name}</span>
+                        {row.isVip && (
+                          <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-700 border border-amber-200">
+                            VIP
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-2.5 text-[#756A5B]">{row.nationality ?? "—"}</TableCell>
+                  <TableCell className="py-2.5 font-mono text-[#756A5B]">{row.passportMasked ?? "—"}</TableCell>
+                  <TableCell className="py-2.5 text-[#756A5B]">{row.travelerType}</TableCell>
+                  <TableCell className="py-2.5 font-mono text-[#8A641A] font-semibold">{row.upcomingTrips}</TableCell>
+                  <TableCell className="py-2.5 text-[#756A5B]">{row.lastStay ?? "—"}</TableCell>
+                  <TableCell className="py-2.5">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        row.guestStatus === "active"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-stone-100 text-stone-600 border border-stone-200"
+                      }`}
+                    >
+                      {row.guestStatus}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" className="size-7 text-[#756A5B] hover:text-[#251605]" aria-label={`Actions for ${row.name}`}>
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => { setSelectedId(row.id); setDrawerOpen(true); }}>
+                          Quick View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            to={GUEST_PROFILE_DETAIL_PATH}
+                            params={{ guestId: row.id }}
+                            search={guestProfileSearch({ type: "individual", nav: "overview" })}
+                          >
+                            Full Guest Profile
+                          </Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
+
+      {/* Right-Side Traveler Quick View Drawer */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col bg-white">
+          <SheetHeader className="border-b border-[#DDD4C5] p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {selected?.photoUrl ? (
+                  <img src={selected.photoUrl} alt="" className="size-12 rounded-xl object-cover ring-2 ring-[#E5DECE]" />
+                ) : (
+                  <div className="flex size-12 items-center justify-center rounded-xl bg-[#F4E9D0] text-lg font-bold text-[#8A641A] ring-2 ring-[#E5DECE]">
+                    {selected?.name ? selected.name.slice(0, 2).toUpperCase() : <User className="size-6" />}
+                  </div>
+                )}
+                <div>
+                  <SheetTitle className="font-display text-lg font-bold text-[#251605]">
+                    {selected?.name ?? "Traveler"}
+                  </SheetTitle>
+                  <p className="text-xs text-[#756A5B]">{selected?.travelerType} · {selected?.guestStatus}</p>
+                </div>
+              </div>
+              {selected && (
+                <Button asChild size="sm" className="bg-[#8A641A] text-white hover:bg-[#725215] text-xs h-7">
+                  <Link
+                    to={GUEST_PROFILE_DETAIL_PATH}
+                    params={{ guestId: selected.id }}
+                    search={guestProfileSearch({ type: "individual", nav: "overview" })}
+                  >
+                    <ExternalLink className="mr-1 size-3" /> Profile
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+            {selected ? (
+              <>
+                <div className="space-y-2 rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Company Role</span>
+                    <span className="font-medium text-[#251605]">{selected.travelerType}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Negotiated Rate</span>
+                    <span className="font-medium text-[#251605]">
+                      {selected.hasCompanyRate ? COMPANY_RATE_YES : COMPANY_RATE_NO}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">VIP Status</span>
+                    <span className="font-medium text-[#251605]">{selected.isVip ? "VIP Guest" : "Standard"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Nationality</span>
+                    <span className="font-medium text-[#251605]">{selected.nationality ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Passport (Masked)</span>
+                    <span className="font-mono text-[#251605]">{selected.passportMasked ?? "—"}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-[#DDD4C5] bg-white p-3">
+                  <h4 className="font-display text-xs font-semibold text-[#251605]">Contact Information</h4>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Phone</span>
+                    <span className="font-medium text-[#251605]">{selected.phone || "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Email</span>
+                    <span className="font-medium text-[#251605]">{selected.email || "—"}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-[#DDD4C5] bg-white p-3">
+                  <h4 className="font-display text-xs font-semibold text-[#251605]">Stay History & Trips</h4>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Last Stay</span>
+                    <span className="font-medium text-[#251605]">{selected.lastStay ?? "No previous stays"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Upcoming Trips</span>
+                    <span className="font-bold text-[#8A641A]">{selected.upcomingTrips}</span>
+                  </div>
+                  {selected.stays.length > 0 ? (
+                    <ul className="mt-2 space-y-1 border-t border-[#EFE9DF]/60 pt-2 text-[11px]">
+                      {selected.stays.slice(0, 4).map((stay, idx) => (
+                        <li key={idx} className="flex justify-between text-[#756A5B]">
+                          <span>{stay.arrival} → {stay.departure}</span>
+                          <span className="capitalize">{stay.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <p className="text-center text-[#756A5B] italic">No traveler selected.</p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <GuestFormDialog
         restaurantId={restaurantId}
@@ -238,15 +432,6 @@ export function GuestCompanyTravelers({
           linkCreated.mutate(guestId);
         }}
       />
-    </div>
-  );
-}
-
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-semibold">{value}</p>
     </div>
   );
 }

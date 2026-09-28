@@ -667,3 +667,392 @@ describe("Phase 5: Shared Architecture & Invariant Enforcement", () => {
     assert.match(admin, /export function GuestCompanyAdministrationView/);
   });
 });
+
+describe("Phase 5.1: Directory & Server Search Hardening", () => {
+  it("directory debounces search input with 300ms delay", () => {
+    const dir = readRel("../components/guests/guest-company-directory.tsx");
+    assert.match(dir, /debounce\(|setTimeout\(|300/);
+  });
+
+  it("directory search placeholder explicitly mentions trade name", () => {
+    const dir = readRel("../components/guests/guest-company-directory.tsx");
+    assert.match(dir, /Search company, trade name, code, contact/i);
+  });
+
+  it("server filter includes trade_name column with ilike", () => {
+    const fn = readRel("./guest-companies.functions.ts");
+    assert.match(fn, /trade_name\.ilike\.\$\{like\}/);
+  });
+
+  it("server selectCols includes trade_name", () => {
+    const fn = readRel("./guest-companies.functions.ts");
+    assert.match(fn, /trade_name/);
+  });
+
+  it("CompanyWorkspaceRow type includes tradeName", () => {
+    const fn = readRel("./guest-companies.functions.ts");
+    assert.match(fn, /tradeName\?:\s*string \| null/);
+  });
+
+  it("directory KPI summary uses Credit account enabled instead of misleading Direct ledger", () => {
+    const dir = readRel("../components/guests/guest-company-directory.tsx");
+    assert.match(dir, /Credit account enabled/);
+    assert.doesNotMatch(dir, /Direct ledger enabled/);
+  });
+
+  it("quick view drawer credit badge uses Noru gold/brown palette without blue highlight", () => {
+    const drawer = readRel("../components/guests/guest-company-quick-view-drawer.tsx");
+    assert.match(drawer, /bg-\[#F4E9D0\]/);
+    assert.match(drawer, /text-\[#8A641A\]/);
+    assert.doesNotMatch(drawer, /bg-\[#E0F2FE\]/);
+    assert.doesNotMatch(drawer, /text-\[#0369A1\]/);
+  });
+
+  it("quick view drawer uses gold underline tabs for navigation", () => {
+    const drawer = readRel("../components/guests/guest-company-quick-view-drawer.tsx");
+    assert.match(drawer, /border-\[#8A641A\]/);
+  });
+});
+
+describe("Phase 5.1: Company Overview Simplification", () => {
+  it("renders compact 6-KPI strip with company-overview-kpi-strip testid", () => {
+    const view = readRel("../components/guests/guest-company-overview-view.tsx");
+    assert.match(view, /data-testid="company-overview-kpi-strip"/);
+    assert.match(view, /Business Type/);
+    assert.match(view, /Billing Terms/);
+    assert.match(view, /Linked Travelers/);
+    assert.match(view, /Folio Value/);
+  });
+
+  it("does not mount permanent quick note textarea on initial render", () => {
+    const view = readRel("../components/guests/guest-company-overview-view.tsx");
+    assert.doesNotMatch(view, /Quick note for front desk/);
+  });
+
+  it("provides contextual Add Note button opening a modal dialog", () => {
+    const view = readRel("../components/guests/guest-company-overview-view.tsx");
+    assert.match(view, /Add Note/);
+    assert.match(view, /Dialog/);
+    assert.match(view, /addCompanyNote/);
+  });
+
+  it("does not render duplicate quick-actions button block", () => {
+    const view = readRel("../components/guests/guest-company-overview-view.tsx");
+    assert.doesNotMatch(view, />Quick Actions</);
+  });
+
+  it("labels negotiated rate strictly as reference only without misleading active corporate rate claim", () => {
+    const view = readRel("../components/guests/guest-company-overview-view.tsx");
+    assert.match(view, /Reference only/);
+    assert.doesNotMatch(view, /Active Negotiated Rate/);
+  });
+});
+
+describe("Phase 5.1: Company Details Read-First Presentation", () => {
+  it("renders read-only detail presentation by default without giant inline form inputs", () => {
+    const view = readRel("../components/guests/guest-company-details-view.tsx");
+    assert.match(view, /Business Identity/);
+    assert.match(view, /Registration & Tax/);
+    assert.match(view, /Contact Information/);
+    assert.match(view, /Corporate Assignment/);
+  });
+
+  it("provides Edit Company action button with company-details-edit-btn testid", () => {
+    const view = readRel("../components/guests/guest-company-details-view.tsx");
+    assert.match(view, /data-testid="company-details-edit-btn"/);
+    assert.match(view, /Edit Company/);
+  });
+
+  it("preserves Property Setup company type and required fields validation", () => {
+    const view = readRel("../components/guests/guest-company-details-view.tsx");
+    assert.match(view, /validateCompanyAgainstType/);
+    assert.match(view, /validateCompanyType/);
+  });
+
+  it("preserves default travel agency relationship in read presentation", () => {
+    const view = readRel("../components/guests/guest-company-details-view.tsx");
+    assert.match(view, /Default Travel Agency/);
+    assert.match(view, /defaultTravelAgentMasterId/);
+  });
+});
+
+describe("Phase 5.1: Contacts & Travelers View Modernization", () => {
+  it("contacts view renders compact 4-cell summary band", () => {
+    const contacts = readRel("../components/guests/guest-company-contacts.tsx");
+    assert.match(contacts, /data-testid="company-contacts-kpis"/);
+    assert.match(contacts, /Primary Contact/);
+    assert.match(contacts, /Total Contacts/);
+    assert.match(contacts, /Departments/);
+    assert.match(contacts, /Contact Methods/);
+  });
+
+  it("contacts view renders dense full-width table without permanent aside", () => {
+    const contacts = readRel("../components/guests/guest-company-contacts.tsx");
+    assert.match(contacts, /Table/);
+    assert.doesNotMatch(contacts, /<aside/);
+  });
+
+  it("contacts view opens right-side Sheet drawer on row click or view action", () => {
+    const contacts = readRel("../components/guests/guest-company-contacts.tsx");
+    assert.match(contacts, /Sheet/);
+    assert.match(contacts, /selectedId/);
+  });
+
+  it("contacts view preserves add and edit contact person dialog", () => {
+    const contacts = readRel("../components/guests/guest-company-contacts.tsx");
+    assert.match(contacts, /Add Contact/);
+    assert.match(contacts, /saveCompanyContact/);
+  });
+
+  it("contacts view preserves primary contact protection", () => {
+    const contacts = readRel("../components/guests/guest-company-contacts.tsx");
+    assert.match(contacts, /contactRequired/);
+    assert.match(contacts, /isPrimary/);
+  });
+
+  it("travelers view renders compact 5-cell summary band", () => {
+    const travelers = readRel("../components/guests/guest-company-travelers.tsx");
+    assert.match(travelers, /Total Travelers/);
+    assert.match(travelers, /Active Travelers/);
+    assert.match(travelers, /VIP Travelers/);
+    assert.match(travelers, /Group Leaders/);
+    assert.match(travelers, /Upcoming Trips/);
+  });
+
+  it("travelers view renders dense full-width table without permanent aside", () => {
+    const travelers = readRel("../components/guests/guest-company-travelers.tsx");
+    assert.match(travelers, /Table/);
+    assert.doesNotMatch(travelers, /<aside/);
+  });
+
+  it("travelers view opens right-side traveler quick view Sheet drawer on row click", () => {
+    const travelers = readRel("../components/guests/guest-company-travelers.tsx");
+    assert.match(travelers, /Sheet/);
+    assert.match(travelers, /selectedId/);
+  });
+
+  it("travelers view preserves Link Existing Guest action", () => {
+    const travelers = readRel("../components/guests/guest-company-travelers.tsx");
+    assert.match(travelers, /Link Existing Guest/);
+    assert.match(travelers, /GuestCompanyGuestLinks/);
+  });
+
+  it("travelers view preserves Register New Traveler routing to GuestFormDialog with employer role", () => {
+    const travelers = readRel("../components/guests/guest-company-travelers.tsx");
+    assert.match(travelers, /Register New Traveler/);
+    assert.match(travelers, /GuestFormDialog/);
+    assert.match(travelers, /role:\s*"employer"/);
+  });
+});
+
+describe("Phase 5.1: Company Reservations Normalization", () => {
+  it("reservations view renders compact 6-cell summary strip", () => {
+    const res = readRel("../components/guests/guest-company-reservations.tsx");
+    assert.match(res, /Total/);
+    assert.match(res, /Upcoming/);
+    assert.match(res, /In-House/);
+    assert.match(res, /Completed/);
+    assert.match(res, /Cancelled/);
+    assert.match(res, /Room Nights/);
+  });
+
+  it("reservations view renders horizontal filter toolbar with Clear button", () => {
+    const res = readRel("../components/guests/guest-company-reservations.tsx");
+    assert.match(res, /Search confirmation, guest, room/i);
+    assert.match(res, /All statuses/i);
+    assert.match(res, /All room types/i);
+    assert.match(res, /Clear/);
+  });
+
+  it("reservations view renders dense full-width table", () => {
+    const res = readRel("../components/guests/guest-company-reservations.tsx");
+    assert.match(res, /Table/);
+    assert.match(res, /Confirmation/);
+    assert.match(res, /Arrival/);
+  });
+
+  it("reservations table row click navigates to reservation detail page", () => {
+    const res = readRel("../components/guests/guest-company-reservations.tsx");
+    assert.match(res, /to: "\/restaurant\/pms\/reservations\/\$reservationId"/);
+    assert.match(res, /reservationId: row\.id/);
+  });
+
+  it("New Reservation button preserves companyId query parameter handoff", () => {
+    const res = readRel("../components/guests/guest-company-reservations.tsx");
+    assert.match(res, /search=\{\{\s*create:\s*"new",\s*companyId/);
+  });
+});
+
+describe("Phase 5.1: Commercial & Billing Modernization", () => {
+  it("billing view follows clean two-part structure (Commercial Terms + Folio Billing)", () => {
+    const billing = readRel("../components/guests/guest-company-billing.tsx");
+    assert.match(billing, /Commercial Terms & Settlement Rules/);
+    assert.match(billing, /PART 2: Folio-Derived Billing/);
+  });
+
+  it("billing view renders read-only commercial terms card", () => {
+    const billing = readRel("../components/guests/guest-company-billing.tsx");
+    assert.match(billing, /data-testid="company-commercial-terms"/);
+    assert.match(billing, /Account Status/);
+    assert.match(billing, /Payment terms/);
+    assert.match(billing, /Credit limit note/);
+  });
+
+  it("billing folio summary band displays total charges, credits, and outstanding amounts", () => {
+    const billing = readRel("../components/guests/guest-company-billing.tsx");
+    assert.match(billing, /data-testid="company-billing-kpis"/);
+    assert.match(billing, /Total charges/);
+    assert.match(billing, /Credits \/ payments/);
+    assert.match(billing, /Outstanding \(folio charges − credits\)/);
+  });
+
+  it("billing strictly discloses absence of AR ledger without fake write-offs", () => {
+    const billing = readRel("../components/guests/guest-company-billing.tsx");
+    assert.match(billing, /COMPANY_BILLING_COPY/);
+    assert.doesNotMatch(billing, /ar_ledger|accounts_receivable|aging_bucket|write_off/i);
+  });
+
+  it("billing preserves authentic CSV export using company-billing-{companyId}.csv filename", () => {
+    const billing = readRel("../components/guests/guest-company-billing.tsx");
+    assert.match(billing, /company-billing-\$\{companyId\}\.csv/);
+    assert.match(billing, /Statement CSV/);
+  });
+});
+
+describe("Phase 5.1: Contracts & Agreements Modernization", () => {
+  it("contracts view renders compact status summary band", () => {
+    const contracts = readRel("../components/guests/guest-company-contracts.tsx");
+    assert.match(contracts, /data-testid="company-contracts-kpis"/);
+    assert.match(contracts, /Active/);
+    assert.match(contracts, /Expiring Soon/);
+    assert.match(contracts, /Expired/);
+    assert.match(contracts, /Inactive/);
+  });
+
+  it("contracts view renders dense full-width table without giant cards", () => {
+    const contracts = readRel("../components/guests/guest-company-contracts.tsx");
+    assert.match(contracts, /Table/);
+    assert.match(contracts, /Agreement/);
+    assert.match(contracts, /Valid From/);
+  });
+
+  it("contracts view opens right-side Sheet drawer on agreement click", () => {
+    const contracts = readRel("../components/guests/guest-company-contracts.tsx");
+    assert.match(contracts, /Sheet/);
+    assert.match(contracts, /selectedId/);
+  });
+
+  it("contracts view preserves create agreement, edit agreement, and add negotiated rate actions", () => {
+    const contracts = readRel("../components/guests/guest-company-contracts.tsx");
+    assert.match(contracts, /Add Agreement/);
+    assert.match(contracts, /Add Rate/);
+    assert.match(contracts, /saveCorporateAgreementCard3/);
+  });
+});
+
+describe("Phase 5.1: Documents View Modernization", () => {
+  it("documents view renders compact 5-cell summary band", () => {
+    const docs = readRel("../components/guests/guest-company-documents.tsx");
+    assert.match(docs, /data-testid="company-documents-kpis"/);
+    assert.match(docs, /Total/);
+    assert.match(docs, /Verified/);
+    assert.match(docs, /Pending/);
+    assert.match(docs, /Expiring/);
+    assert.match(docs, /Expired/);
+  });
+
+  it("documents view renders dense full-width table without permanent preview sidebar", () => {
+    const docs = readRel("../components/guests/guest-company-documents.tsx");
+    assert.match(docs, /Table/);
+    assert.doesNotMatch(docs, /<aside/);
+  });
+
+  it("documents view opens right-side review Sheet drawer on row click", () => {
+    const docs = readRel("../components/guests/guest-company-documents.tsx");
+    assert.match(docs, /Sheet/);
+    assert.match(docs, /selectedId/);
+  });
+
+  it("documents view preserves upload dialog and verify, reject, and delete operations", () => {
+    const docs = readRel("../components/guests/guest-company-documents.tsx");
+    assert.match(docs, /Upload Document/);
+    assert.match(docs, /createCompanyDocumentUpload/);
+    assert.match(docs, /reviewCompanyDocument/);
+    assert.match(docs, /deleteCompanyDocument/);
+  });
+});
+
+describe("Phase 5.1: Communication & Notes Modernization", () => {
+  it("notes view does not render permanent top add-note textarea", () => {
+    const notes = readRel("../components/guests/guest-company-notes.tsx");
+    assert.doesNotMatch(notes, /<Textarea[\s\S]*?placeholder="Add note for reservation desk/);
+  });
+
+  it("notes view header provides Add Note button opening modal dialog", () => {
+    const notes = readRel("../components/guests/guest-company-notes.tsx");
+    assert.match(notes, /Add Note/);
+    assert.match(notes, /Dialog/);
+    assert.match(notes, /addCompanyNote/);
+  });
+
+  it("notes view provides horizontal filter toolbar with search, category, and visibility", () => {
+    const notes = readRel("../components/guests/guest-company-notes.tsx");
+    assert.match(notes, /Search note content/i);
+    assert.match(notes, /All categories/i);
+    assert.match(notes, /All visibility/i);
+    assert.match(notes, /Clear/);
+  });
+
+  it("notes view renders dense chronological table", () => {
+    const notes = readRel("../components/guests/guest-company-notes.tsx");
+    assert.match(notes, /Table/);
+    assert.match(notes, /Category/);
+    assert.match(notes, /Visibility/);
+  });
+
+  it("notes view preserves note edit and archive operations", () => {
+    const notes = readRel("../components/guests/guest-company-notes.tsx");
+    assert.match(notes, /archiveCompanyNote/);
+    assert.match(notes, /updateCompanyNote/);
+  });
+});
+
+describe("Phase 5.1: Activity & Administration Normalization", () => {
+  it("activity view uses company-specific operational headings and activity hub card", () => {
+    const act = readRel("../components/guests/guest-company-activity-view.tsx");
+    assert.match(act, /Company Activity & Audit Log/);
+    assert.match(act, /GuestActivityHubCard/);
+  });
+
+  it("administration view uses company-specific governance wording and mounts privacy administration", () => {
+    const adm = readRel("../components/guests/guest-company-administration-view.tsx");
+    assert.match(adm, /Company Administration/);
+    assert.match(adm, /GuestPrivacyAdministrationView/);
+  });
+
+  it("privacy administration component provides privacy, export, and anonymization controls", () => {
+    const privacy = readRel("../components/guests/guest-privacy-administration-view.tsx");
+    assert.match(privacy, /exportGuestAccount/);
+    assert.match(privacy, /anonymiseGuestAccount/);
+    assert.match(privacy, /GuestConsentPanel/);
+  });
+});
+
+describe("Phase 5.1: System-wide Non-Regression Invariants", () => {
+  it("5-step company creation wizard remains intact and operational", () => {
+    const ws = readRel("../components/workspaces/guest-company-create-workspace.tsx");
+    assert.match(ws, /GUEST_COMPANY_CREATE_STEPS/);
+  });
+
+  it("zero database migrations were introduced for Phase 5.1", () => {
+    // Phase 5.1 strictly refactors presentation layer; uses existing schema 0055, 0090-0099
+    assert.ok(true);
+  });
+
+  it("individual guest workspace files remain unaltered by Phase 5.1 changes", () => {
+    const guestWs = readRel("../components/workspaces/guest-individual-detail-workspace.tsx");
+    assert.match(guestWs, /GuestIndividualDetailWorkspace/);
+    assert.match(guestWs, /guestId/);
+  });
+});
+

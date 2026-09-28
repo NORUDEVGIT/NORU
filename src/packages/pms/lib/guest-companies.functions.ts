@@ -47,6 +47,7 @@ function admin(client: { from: (table: string) => unknown }) {
 export type CompanyWorkspaceRow = {
   id: string;
   name: string;
+  tradeName?: string | null;
   code: string | null;
   phone: string | null;
   email: string | null;
@@ -215,6 +216,7 @@ function applyCompanyFilters(query: any, data: z.infer<typeof listInput>, term: 
     next = next.or(
       [
         `name.ilike.${like}`,
+        `trade_name.ilike.${like}`,
         `code.ilike.${like}`,
         `email.ilike.${like}`,
         `phone.ilike.${like}`,
@@ -240,7 +242,7 @@ export const listCompanyWorkspace = createServerFn({ method: "POST" })
     const snapshot = await loadBusinessSnapshot(data.restaurantId);
     const typeById = new Map((snapshot?.types ?? []).map((type) => [type.id, type]));
     const selectCols =
-      "id, name, code, email, phone, account_status, created_at, updated_at, primary_contact_name, primary_contact_title, country, city, tax_id, business_registration_number, business_profile_type_id, credit_account_enabled, logo_storage_path";
+      "id, name, trade_name, code, email, phone, account_status, created_at, updated_at, primary_contact_name, primary_contact_title, country, city, tax_id, business_registration_number, business_profile_type_id, credit_account_enabled, logo_storage_path";
     let result = await applyCompanyFilters(
       db.from("guest_account_masters").select(selectCols, { count: "exact" }).eq("restaurant_id", data.restaurantId),
       data,
@@ -298,6 +300,7 @@ export const listCompanyWorkspace = createServerFn({ method: "POST" })
         return {
           id: row.id as string,
           name: row.name as string,
+          tradeName: (row.trade_name as string | null) ?? null,
           code: (row.code as string | null) ?? null,
           phone: (row.phone as string | null) ?? null,
           email: (row.email as string | null) ?? null,
