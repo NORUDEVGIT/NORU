@@ -33,16 +33,16 @@ The modernized Company Detail Workspace (`src/packages/pms/components/workspaces
 
 | # | View ID | Label | Placement | Canonical Component | Description |
 |---|---|---|---|---|---|
-| 1 | `overview` | Overview | Primary | `GuestCompanyOverviewView` | High-level company KPIs, recent stays, key contacts, contract summary, quick actions. |
-| 2 | `details` | Company Details | Primary | `GuestCompanyDetailsView` | Corporate identity, legal names, registration/tax numbers, default travel agency relationship. |
-| 3 | `contacts-travelers` | Contacts & Travelers | Primary | `GuestCompanyContactsTravelersView` | Segmented switcher for Company Contact Persons and Linked Corporate Travelers. |
-| 4 | `contracts` | Contracts & Rates | Primary | `GuestCompanyContractsView` | Corporate negotiated rates, room rate links, contract dates, auto-renew rules. |
-| 5 | `reservations` | Reservations | Primary | `GuestCompanyReservationsView` | Active, upcoming, and historical bookings linked to the corporate master. |
-| 6 | `communication-notes` | Notes & Logs | More Dropdown | `GuestCompanyCommunicationNotesView` | Internal staff communication, pinned operational notes, call logs. |
-| 7 | `documents` | Documents | More Dropdown | `GuestCompanyDocumentsView` | Corporate contracts, tax exemption certificates, NDAs, uploaded files. |
-| 8 | `commercial-billing` | Commercial & Billing | More Dropdown | `GuestCompanyCommercialBillingView` | Honest billing statements and folio transaction summaries. |
-| 9 | `activity` | Activity Log | More Dropdown | `GuestCompanyActivityView` | Audit trail of updates, status changes, contact edits, and account events. |
-| 10 | `administration` | Administration | More Dropdown | `GuestCompanyAdministrationView` | Account status governance, activation/deactivation, JSON profile export. |
+| 1 | `overview` | Overview | Primary | `GuestCompanyOverviewView` | Compact company identity, operational summary, upcoming reservation, commercial snapshot, linked travelers, and recent activity. |
+| 2 | `details` | Company Details | Primary | `GuestCompanyDetailsView` | Read-first corporate identity, registration, tax, contact, address, corporate assignment, and commercial references. |
+| 3 | `contacts-travelers` | Contacts & Travelers | Primary | `GuestCompanyContactsTravelersView` | Contact Persons and Linked Travelers operational workspace. |
+| 4 | `reservations` | Reservations | Primary | `GuestCompanyReservationsView` | Active, upcoming, and historical reservations linked to the company master. |
+| 5 | `commercial-billing` | Commercial & Billing | Primary | `GuestCompanyCommercialBillingView` | Commercial terms and folio-derived billing information without a separate AR ledger. |
+| 6 | `contracts` | Contracts & Agreements | More Dropdown | `GuestCompanyContractsView` | Corporate agreements, validity dates, status, and negotiated-rate references. |
+| 7 | `documents` | Documents | More Dropdown | `GuestCompanyDocumentsView` | Company documents, verification, expiry, and review. |
+| 8 | `communication-notes` | Communication & Notes | More Dropdown | `GuestCompanyCommunicationNotesView` | Structured company notes and internal communication records. |
+| 9 | `activity` | Activity / History | More Dropdown | `GuestCompanyActivityView` | Audit trail and Company account activity. |
+| 10 | `administration` | Administration | More Dropdown | `GuestCompanyAdministrationView` | Account governance, privacy/admin actions, and export. |
 
 #### Legacy Nav Resolution Mapping
 ```typescript

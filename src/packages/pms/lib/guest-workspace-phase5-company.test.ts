@@ -96,12 +96,19 @@ describe("Phase 5: Company Detail View Registry & Navigation Topology", () => {
     assert.match(ws, /company-nav-more/);
   });
 
-  it("preserves visibleCompanyNav helper for travel agency business type gating", () => {
-    const standard = visibleCompanyNav({ creditAccountAllowed: true, travelAgency: false });
-    assert.equal(standard.some((i) => i.id === "travel-agent-settings"), false);
-    const ta = visibleCompanyNav({ creditAccountAllowed: true, travelAgency: true });
-    assert.equal(ta.some((i) => i.id === "travel-agent-settings"), true);
-  });
+ it("never exposes legacy travel-agent-settings in visible Company navigation", () => {
+  const nav = visibleCompanyNav();
+
+  assert.equal(
+    nav.some((item) => item.id === "travel-agent-settings"),
+    false,
+  );
+
+  assert.equal(
+    resolveCanonicalCompanyNavId("travel-agent-settings"),
+    "details",
+  );
+});
 
   it("mounts all 10 canonical view components in detail workspace", () => {
     const ws = readRel("../components/workspaces/guest-company-detail-workspace.tsx");

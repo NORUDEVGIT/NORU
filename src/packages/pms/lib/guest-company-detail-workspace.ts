@@ -44,7 +44,6 @@ export const COMPANY_DETAIL_NAV = [
   { id: "communication-notes", title: "Communication & Notes", live: true },
   { id: "activity", title: "Activity / History", live: true },
   { id: "administration", title: "Administration", live: true },
-  { id: "travel-agent-settings", title: "Travel Agent Settings", live: true, requiresTravelAgent: true },
 ] as const;
 
 export type CompanyDetailNavId =
@@ -113,14 +112,11 @@ export function companyHasCompanyRate(negotiatedRateReference: string | null | u
   return Boolean(negotiatedRateReference?.trim());
 }
 
-export function visibleCompanyNav(options: {
-  creditAccountAllowed: boolean;
-  travelAgency: boolean;
+export function visibleCompanyNav(_options?: {
+  creditAccountAllowed?: boolean;
+  travelAgency?: boolean;
 }): Array<(typeof COMPANY_DETAIL_NAV)[number]> {
-  return COMPANY_DETAIL_NAV.filter((item) => {
-    if ("requiresTravelAgent" in item && item.requiresTravelAgent && !options.travelAgency) return false;
-    return true;
-  });
+  return [...COMPANY_DETAIL_NAV];
 }
 
 export function roleAssignableForNew(role: { active: boolean }, assigned: boolean): boolean {
