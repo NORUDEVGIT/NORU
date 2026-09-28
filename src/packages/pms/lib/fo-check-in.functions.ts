@@ -342,7 +342,8 @@ async function loadStay(
     guestPhone: guest?.phone ?? null,
     guestEmail: guest?.email ?? null,
     roomTypeId: row.room_type_id,
-    roomTypeName: (row.room_types as { name: string; code?: string | null } | null)?.name ?? "Room type",
+    roomTypeName:
+      (row.room_types as { name: string; code?: string | null } | null)?.name ?? "Room type",
     roomTypeCode: (row.room_types as { name: string; code?: string | null } | null)?.code ?? null,
     roomId: row.room_id,
     roomNumber: (row.hotel_rooms as { room_number: string } | null)?.room_number ?? null,
@@ -360,7 +361,8 @@ async function loadStay(
   };
   return {
     stay,
-    rateMissing: row.rate_plan_id == null && (row.room_subtotal == null || Number(row.room_subtotal) === 0),
+    rateMissing:
+      row.rate_plan_id == null && (row.room_subtotal == null || Number(row.room_subtotal) === 0),
     guestId: row.guest_id,
     roomTypeId: row.room_type_id,
     notes: row.notes,
@@ -649,7 +651,12 @@ export const ensureCheckInFolio = createServerFn({ method: "POST" })
     });
     if (error) throw cashierError(error.message);
     const progress = await loadProgress(supabaseAdmin, data.restaurantId, data.reservationId);
-    return loadFolioStrip(supabaseAdmin, data.restaurantId, data.reservationId, progress.depositWaived);
+    return loadFolioStrip(
+      supabaseAdmin,
+      data.restaurantId,
+      data.reservationId,
+      progress.depositWaived,
+    );
   });
 
 export const postCheckInDeposit = createServerFn({ method: "POST" })
@@ -718,7 +725,12 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
       actorMembershipId: me.id,
     });
     const progress = await loadProgress(supabaseAdmin, data.restaurantId, data.reservationId);
-    return loadFolioStrip(supabaseAdmin, data.restaurantId, data.reservationId, progress.depositWaived);
+    return loadFolioStrip(
+      supabaseAdmin,
+      data.restaurantId,
+      data.reservationId,
+      progress.depositWaived,
+    );
   });
 
 export const waiveCheckInDeposit = createServerFn({ method: "POST" })
@@ -838,6 +850,59 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
     }
     if (!loaded.stay.roomId) throw new Error("Assign a room before completing check-in.");
 
+    const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
+    const { validateGuestCheckInRequirements, resolveIndividualProfileType } =
+      await import("./guest-field-rules");
+    const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
+    const individualType = resolveIndividualProfileType(workspaceConfig);
+
+    const { data: guestProfile } = await supabaseAdmin
+      .from("guest_profiles")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", loaded.guestId)
+      .maybeSingle();
+
+    const { data: guestDocuments } = await supabaseAdmin
+      .from("guest_documents")
+      .select("id, id_type_id, kind, document_number, issuing_country, expiry_date, file_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", loaded.guestId);
+
+    const checkInDocs = (guestDocuments ?? []).map(
+      (doc: {
+        id: string;
+        id_type_id: string;
+        kind: string;
+        document_number: string | null;
+        issuing_country: string | null;
+        expiry_date: string | null;
+        file_path: string | null;
+      }) => ({
+        id: doc.id,
+        typeId: doc.id_type_id,
+        kind: doc.kind,
+        documentNumberMasked: doc.document_number,
+        issuingCountry: doc.issuing_country,
+        expiryDate: doc.expiry_date,
+        status: "valid" as const,
+        hasImage: Boolean(doc.file_path),
+        filePath: doc.file_path,
+      }),
+    );
+
+    const checkInValidation = validateGuestCheckInRequirements({
+      guest: guestProfile,
+      documents: checkInDocs,
+      config: workspaceConfig,
+      profileType: individualType,
+    });
+    if (!checkInValidation.valid) {
+      throw new Error(
+        `Check-in blocked by guest requirements: ${checkInValidation.errors.join("; ")}`,
+      );
+    }
+
     const { data: roomRow } = await supabaseAdmin
       .from("hotel_rooms")
       .select("id, room_number, status, housekeeping_status, maintenance_status")
@@ -873,7 +938,13 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
     );
     const snap = progress.registrationSnapshot;
     const registrationOk = canContinueRegistration(
-      snap ?? { fullName: "", phone: null, email: null, idDocumentType: null, idDocumentNumber: null },
+      snap ?? {
+        fullName: "",
+        phone: null,
+        email: null,
+        idDocumentType: null,
+        idDocumentNumber: null,
+      },
       progress.registrationWaived,
     );
     const depositOk = isDepositSatisfied({
@@ -904,5 +975,8 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       walk_in_incomplete: false,
       completed_at: new Date().toISOString(),
     });
-    return { id: data.reservationId, roomNumber: readinessRoom?.room_number ?? loaded.stay.roomNumber };
+    return {
+      id: data.reservationId,
+      roomNumber: readinessRoom?.room_number ?? loaded.stay.roomNumber,
+    };
   });

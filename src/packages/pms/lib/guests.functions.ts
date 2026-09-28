@@ -1746,12 +1746,25 @@ export const createGuest = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
-    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+    const { assertListingCreateAllowed, loadGuestWorkspaceConfig } =
+      await import("./guest-workspace-config.functions");
     await assertListingCreateAllowed(data.restaurantId, "individual");
+    const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
+    const { resolveIndividualProfileType, resolveGuestFieldRules, validateGuestFields } =
+      await import("./guest-field-rules");
+    const individualType = resolveIndividualProfileType(workspaceConfig);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rules = await loadGuestProfileRules(supabaseAdmin, data.restaurantId);
-    const blocked = guestCreateBlocked(rules, data.guest);
-    if (blocked) throw new Error(blocked);
+    const fieldRules = resolveGuestFieldRules(workspaceConfig, individualType, "profile_create");
+    const fieldValidation = validateGuestFields(
+      data.guest as unknown as Record<string, unknown>,
+      fieldRules,
+      "profile_create",
+      rules,
+    );
+    if (!fieldValidation.valid) {
+      throw new Error(fieldValidation.errors[0] || "Guest creation requirements not met.");
+    }
     const columns = toColumns(data.guest);
     const restrictionOn = columns.restricted || columns.blacklisted;
     const identity = await allocateGuestIdentity(data.restaurantId);
@@ -3617,7 +3630,7 @@ function mapGuestDocumentRow(
   };
 }
 
-function validateDocumentFields(
+export function validateDocumentFields(
   type: GuestIdentityDocumentTypeOption,
   input: {
     documentNumber: string | null;
@@ -3930,7 +3943,14 @@ export const saveGuestDocument = createServerFn({ method: "POST" })
       }
 
       if (!data.documentId || existingTypeId !== data.idTypeId) {
-        if (!typeAllowedForNewDocument(type, profileTypeId)) {
+        const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
+        const { isDocumentTypeAllowedForProfileType } = await import("./guest-field-rules");
+        const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
+        const profileType = workspaceConfig.types.find((t) => t.id === profileTypeId) ?? null;
+        if (
+          !typeAllowedForNewDocument(type, profileTypeId) ||
+          !isDocumentTypeAllowedForProfileType(type, profileType)
+        ) {
           return {
             ok: false as const,
             message: type.active

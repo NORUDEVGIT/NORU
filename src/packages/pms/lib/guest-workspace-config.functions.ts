@@ -24,6 +24,7 @@ import {
   domainFromCard4Code,
   type SupportedGuestProfileDomain,
 } from "./guest-profile-domains";
+import { normalizeFieldOptions } from "./guest-field-rules";
 
 const idSchema = z.string().uuid();
 
@@ -337,7 +338,7 @@ export async function loadGuestWorkspaceConfig(
     reservation: Boolean(row.reservation),
     active: Boolean(row.active),
     displayOrder: Number(row.display_order ?? 0),
-    options: Array.isArray(row.options) ? (row.options as string[]) : [],
+    options: normalizeFieldOptions(row.options),
     documentTypeIds: Array.isArray(row.document_type_ids)
       ? (row.document_type_ids as string[])
       : [],
