@@ -33,7 +33,7 @@ import {
   sendGuestAccountMessage,
   sendGuestMessage,
 } from "@/packages/pms/lib/guest-privacy.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 const EVENT_LABEL: Record<string, string> = {
   created: "Created",

@@ -23,7 +23,7 @@ import {
   type NaWorkspaceStatus,
 } from "@/packages/pms/lib/na1";
 import type { NightAuditRunRow } from "@/packages/pms/lib/nightaudit.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 const STATE_LABEL: Record<NaBlockerState, string> = {
   pass: "Pass",

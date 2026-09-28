@@ -3,10 +3,15 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   TRANSACTION_TYPES,
+  assertIdempotencyKey,
   blankToNull,
+  callPostFolioTransaction,
   canManageCashiering,
   cashierError,
   categoryForType,
+  CORRECTION_AUTHORIZER,
+  correctionThresholdNotice,
+  remainingOnPaymentSource,
   requireCashierManager,
   requireCashierOperator,
   requireCashieringAccess,
@@ -15,8 +20,10 @@ import {
   type TransactionType,
 } from "./cashiering.server";
 import { callerMembership } from "@/core/lib/workforce.server";
-import { allowCashieringTender, normalizeTenderCode } from "./pms-polish1-payment-admin";
-import { loadActivePaymentMethodCodes } from "./pms-polish1-payment-admin.functions";
+import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
+import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
+import { isMissingSchemaError } from "./pms-set2-structure";
+import { formatDepositPolicyResult, type DepositPolicyType } from "./payments-card3.server";
 
 const idSchema = z.string().uuid();
 
@@ -37,6 +44,12 @@ export interface FolioRow {
   charges: number;
   credits: number;
   balance: number;
+  unsettledCheckout: boolean;
+  roomNumber: string | null;
+  roomTypeName: string | null;
+  reservationStatus: string | null;
+  arrivalDate: string | null;
+  departureDate: string | null;
 }
 
 export interface FolioTransactionRow {
@@ -47,6 +60,10 @@ export interface FolioTransactionRow {
   amount: number;
   postedAt: string;
   referenceType: string | null;
+  paymentMethod: string | null;
+  postedBy: string | null;
+  originalTransactionId: string | null;
+  sourceDescription: string | null;
 }
 
 export interface FolioDetail extends FolioRow {
@@ -68,6 +85,11 @@ export interface CashierShiftRow {
   closedAt: string | null;
   openingCash: number | null;
   closingCash: number | null;
+  cashIn: number;
+  cashOut: number;
+  hotelCash: number;
+  expected: number;
+  variance: number | null;
   notes: string | null;
 }
 
@@ -86,6 +108,115 @@ export interface CashieringDashboard {
 }
 
 /* ------------------------------------------------------------------ access */
+
+export const getDefaultDepositPolicy = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .handler(async ({ data, context }): Promise<{ summary: string | null }> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: restaurant }, policies] = await Promise.all([
+      supabaseAdmin
+        .from("restaurants")
+        .select("currency_code")
+        .eq("id", data.restaurantId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("pms_deposit_policies")
+        .select("name, required, deposit_type, deposit_value, is_default, active")
+        .eq("restaurant_id", data.restaurantId),
+    ]);
+    if (policies.error) {
+      if (isMissingSchemaError(policies.error)) return { summary: null };
+      throw cashierError(policies.error.message);
+    }
+    const rows = (policies.data ?? []) as Array<{
+      name: string;
+      required: boolean | null;
+      deposit_type: string | null;
+      deposit_value: number | string | null;
+      is_default: boolean | null;
+      active: boolean | null;
+    }>;
+    const policy = rows.find((row) => row.active !== false && row.is_default === true);
+    const depositType = (["none", "percent", "fixed", "first_night"] as const).includes(
+      policy?.deposit_type as DepositPolicyType,
+    )
+      ? (policy?.deposit_type as DepositPolicyType)
+      : "none";
+    return {
+      summary: formatDepositPolicyResult(
+        policy
+          ? {
+              name: policy.name,
+              required: policy.required === true,
+              depositType,
+              depositValue: Number(policy.deposit_value ?? 0),
+            }
+          : null,
+        String((restaurant as { currency_code?: string } | null)?.currency_code ?? ""),
+      ),
+    };
+  });
+
+export const getCashieringCorrectionNotice = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      authorizer: string;
+      adjustmentThreshold: string | null;
+      discountThreshold: string | null;
+    }> => {
+      await requireCashieringAccess(context as never, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      return {
+        authorizer: CORRECTION_AUTHORIZER,
+        adjustmentThreshold: await readThresholdNotice(
+          supabaseAdmin,
+          data.restaurantId,
+          "cashiering.adjustment.post",
+        ),
+        discountThreshold: await readThresholdNotice(
+          supabaseAdmin,
+          data.restaurantId,
+          "cashiering.discount.post",
+        ),
+      };
+    },
+  );
+
+async function readThresholdNotice(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  code: string,
+): Promise<string | null> {
+  const permission = await supabaseAdmin
+    .from("pms_permissions")
+    .select("id")
+    .eq("code", code)
+    .maybeSingle();
+  if (permission.error || !permission.data?.id) return null;
+  const rule = await supabaseAdmin
+    .from("pms_approval_rules")
+    .select("threshold_amount, threshold_unit, active")
+    .eq("restaurant_id", restaurantId)
+    .eq("permission_id", permission.data.id)
+    .eq("active", true)
+    .maybeSingle();
+  if (rule.error || !rule.data) return null;
+  const unit =
+    rule.data.threshold_unit === "percent" || rule.data.threshold_unit === "amount"
+      ? rule.data.threshold_unit
+      : null;
+  return correctionThresholdNotice(
+    rule.data.threshold_amount == null ? null : Number(rule.data.threshold_amount),
+    unit,
+  );
+}
 
 export const getCashieringAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -111,6 +242,9 @@ type TxnRow = {
   amount: number | string;
   posted_at: string;
   reference_type: string | null;
+  payment_method?: string | null;
+  posted_by_membership_id?: string | null;
+  original_transaction_id?: string | null;
 };
 
 function totals(rows: { amount: number }[]): { charges: number; credits: number; balance: number } {
@@ -130,6 +264,49 @@ function round2(n: number): number {
 function guestName(g: { first_name?: string | null; last_name?: string | null } | null): string {
   if (!g) return "Guest";
   return [g.first_name, g.last_name].filter(Boolean).join(" ").trim() || "Guest";
+}
+
+type SupabaseAdmin = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
+
+async function staffNames(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  membershipIds: Array<string | null | undefined>,
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const ids = [...new Set(membershipIds.filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0) return names;
+  const { data: members } = await supabaseAdmin
+    .from("restaurant_users")
+    .select("id, user_id")
+    .eq("restaurant_id", restaurantId)
+    .in("id", ids);
+  const memberRows = (members ?? []) as Array<{ id: string; user_id: string }>;
+  const { data: profiles } = memberRows.length
+    ? await supabaseAdmin
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .in(
+          "id",
+          memberRows.map((m) => m.user_id),
+        )
+    : {
+        data: [] as Array<{
+          id: string;
+          first_name: string | null;
+          last_name: string | null;
+          email: string | null;
+        }>,
+      };
+  const byUser = new Map(
+    (profiles ?? []).map((p) => [
+      p.id,
+      [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Staff member",
+    ]),
+  );
+  for (const member of memberRows)
+    names.set(member.id, byUser.get(member.user_id) ?? "Staff member");
+  return names;
 }
 
 /* ------------------------------------------------------------------- reads */
@@ -152,9 +329,9 @@ export const listFolios = createServerFn({ method: "GET" })
     let query = supabaseAdmin
       .from("guest_folios")
       .select(
-        "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, " +
+        "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
           "guest_profiles!guest_folios_guest_same_property(first_name, last_name), " +
-          "hotel_reservations!guest_folios_reservation_same_property(confirmation_number)",
+          "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, status, arrival_date, departure_date, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name))",
       )
       .eq("restaurant_id", data.restaurantId)
       .order("opened_at", { ascending: false })
@@ -174,8 +351,16 @@ export const listFolios = createServerFn({ method: "GET" })
       closed_at: string | null;
       reservation_id: string | null;
       guest_id: string;
+      settlement_exception: string | null;
       guest_profiles: { first_name: string | null; last_name: string | null } | null;
-      hotel_reservations: { confirmation_number: string } | null;
+      hotel_reservations: {
+        confirmation_number: string;
+        status: string;
+        arrival_date: string;
+        departure_date: string;
+        hotel_rooms: { room_number: string } | null;
+        room_types: { name: string } | null;
+      } | null;
     }>;
 
     const ids = list.map((f) => f.id);
@@ -208,6 +393,12 @@ export const listFolios = createServerFn({ method: "GET" })
           confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
           openedAt: f.opened_at,
           closedAt: f.closed_at,
+          unsettledCheckout: f.settlement_exception === "unsettled_checkout" && f.status === "open",
+          roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
+          roomTypeName: f.hotel_reservations?.room_types?.name ?? null,
+          reservationStatus: f.hotel_reservations?.status ?? null,
+          arrivalDate: f.hotel_reservations?.arrival_date ?? null,
+          departureDate: f.hotel_reservations?.departure_date ?? null,
           ...sums,
         };
       })
@@ -216,7 +407,8 @@ export const listFolios = createServerFn({ method: "GET" })
           term === "" ||
           f.folioNumber.toLowerCase().includes(term) ||
           f.guestName.toLowerCase().includes(term) ||
-          (f.confirmationNumber ?? "").toLowerCase().includes(term),
+          (f.confirmationNumber ?? "").toLowerCase().includes(term) ||
+          (f.roomNumber ?? "").toLowerCase().includes(term),
       );
   });
 
@@ -232,9 +424,9 @@ export const getFolio = createServerFn({ method: "GET" })
     const { data: row, error } = await supabaseAdmin
       .from("guest_folios")
       .select(
-        "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, " +
+        "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
           "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone), " +
-          "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status)",
+          "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name))",
       )
       .eq("id", data.folioId)
       .eq("restaurant_id", data.restaurantId)
@@ -251,6 +443,7 @@ export const getFolio = createServerFn({ method: "GET" })
       closed_at: string | null;
       reservation_id: string | null;
       guest_id: string;
+      settlement_exception: string | null;
       guest_profiles: {
         first_name: string | null;
         last_name: string | null;
@@ -262,19 +455,28 @@ export const getFolio = createServerFn({ method: "GET" })
         arrival_date: string;
         departure_date: string;
         status: string;
+        hotel_rooms: { room_number: string } | null;
+        room_types: { name: string } | null;
       } | null;
     };
 
     const { data: txns } = await supabaseAdmin
       .from("folio_transactions")
       .select(
-        "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type",
+        "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, payment_method, posted_by_membership_id, original_transaction_id",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("folio_id", f.id)
       .order("posted_at", { ascending: true });
 
-    const transactions: FolioTransactionRow[] = ((txns ?? []) as TxnRow[]).map((t) => ({
+    const txnRows = (txns ?? []) as TxnRow[];
+    const names = await staffNames(
+      supabaseAdmin,
+      data.restaurantId,
+      txnRows.map((t) => t.posted_by_membership_id),
+    );
+    const descriptions = new Map(txnRows.map((t) => [t.id, t.description]));
+    const transactions: FolioTransactionRow[] = txnRows.map((t) => ({
       id: t.id,
       type: t.transaction_type as TransactionType,
       category: t.category,
@@ -282,6 +484,12 @@ export const getFolio = createServerFn({ method: "GET" })
       amount: Number(t.amount),
       postedAt: t.posted_at,
       referenceType: t.reference_type,
+      paymentMethod: t.payment_method ?? null,
+      postedBy: t.posted_by_membership_id ? (names.get(t.posted_by_membership_id) ?? null) : null,
+      originalTransactionId: t.original_transaction_id ?? null,
+      sourceDescription: t.original_transaction_id
+        ? (descriptions.get(t.original_transaction_id) ?? null)
+        : null,
     }));
 
     return {
@@ -300,6 +508,9 @@ export const getFolio = createServerFn({ method: "GET" })
       reservationStatus: f.hotel_reservations?.status ?? null,
       openedAt: f.opened_at,
       closedAt: f.closed_at,
+      unsettledCheckout: f.settlement_exception === "unsettled_checkout" && f.status === "open",
+      roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
+      roomTypeName: f.hotel_reservations?.room_types?.name ?? null,
       transactions,
       ...totals(transactions.map((t) => ({ amount: t.amount }))),
     };
@@ -396,12 +607,12 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       if (t.transaction_type === "charge") todayCharges += amount;
     }
 
-    const { data: shifts } = await supabaseAdmin
-      .from("cashier_shifts")
-      .select("id, membership_id, status")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("status", "open");
-    const openShiftRows = (shifts ?? []) as { id: string; membership_id: string }[];
+    const { data: drawerRows } = await supabaseAdmin.rpc("list_hotel_drawers", {
+      _restaurant_id: data.restaurantId,
+    });
+    const openShiftRows = (Array.isArray(drawerRows) ? drawerRows : []).filter(
+      (row) => (row as { status?: string }).status === "open",
+    ) as { id: string; membership_id: string }[];
 
     return {
       currency: (restaurant as { currency_code: string } | null)?.currency_code ?? "GBP",
@@ -456,6 +667,8 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       amount: number;
       description: string;
       method?: string;
+      idempotencyKey: string;
+      originalTransactionId?: string;
     }) =>
       z
         .object({
@@ -465,6 +678,8 @@ export const postFolioEntry = createServerFn({ method: "POST" })
           amount: z.number().finite(),
           description: z.string().min(1).max(200),
           method: z.string().max(60).optional(),
+          idempotencyKey: z.string().min(8).max(80),
+          originalTransactionId: idSchema.optional(),
         })
         .parse(d),
   )
@@ -482,43 +697,101 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       return { ok: false, message: "Enter a non-zero adjustment." };
     }
 
-    const method = blankToNull(data.method ?? null);
-    const description = method ? `${data.description.trim()} (${method})` : data.description.trim();
-
-    const { data: txn, error } = await supabaseAdmin.rpc("post_folio_transaction", {
-      _restaurant_id: data.restaurantId,
-      _folio_id: data.folioId,
-      _type: data.type,
-      _category: categoryForType(data.type),
-      _description: description,
-      _amount: Math.round(data.amount * 100) / 100,
-      _reference_type: null as unknown as string,
-      _reference_id: null as unknown as string,
-      _membership_id: me.id,
-    });
-    if (error) return { ok: false, message: cashierError(error.message).message };
-
-    // Night audit rolls payments up by method, so store the catalogue code alongside the ledger row.
-    const normalized = method ? normalizeTenderCode(method) : null;
-    if (normalized && ["payment", "deposit", "refund"].includes(data.type)) {
-      const activeCodes = await loadActivePaymentMethodCodes(supabaseAdmin, data.restaurantId);
-      if (activeCodes && activeCodes.length === 0) {
-        return { ok: false, message: "No active payment methods. Configure them in Settings → Payment methods." };
-      }
-      if (activeCodes && !allowCashieringTender(normalized, activeCodes)) {
-        return { ok: false, message: "That payment method is not active." };
-      }
-      const stored =
-        activeCodes?.find((code) => normalizeTenderCode(code) === normalized) ??
-        (allowCashieringTender(normalized, activeCodes) ? normalized : "other");
-      await supabaseAdmin
-        .from("folio_transactions")
-        .update({ payment_method: stored })
-        .eq("id", (txn as { id: string }).id)
-        .eq("restaurant_id", data.restaurantId);
+    let idempotencyKey: string;
+    try {
+      idempotencyKey = assertIdempotencyKey(data.idempotencyKey);
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
     }
 
-    return { ok: true, id: (txn as { id: string }).id };
+    const method = blankToNull(data.method ?? null);
+    const needsTender =
+      data.type === "payment" || data.type === "deposit" || data.type === "refund";
+    let paymentMethod: string | null = null;
+    if (needsTender) {
+      if (!method) return { ok: false, message: "Choose a payment method." };
+      const snapshot = await loadPolish1Snapshot(supabaseAdmin, data.restaurantId);
+      const tender = folioTenderFromCatalogue(
+        method,
+        snapshot.paymentMethodsAvailable ? snapshot.paymentMethods : null,
+      );
+      if (!tender.ok) return { ok: false, message: tender.message };
+      paymentMethod = tender.stored;
+    }
+
+    const description = method ? `${data.description.trim()} (${method})` : data.description.trim();
+    const correction =
+      data.type === "refund" || data.type === "adjustment" || data.type === "discount";
+    let originalTransactionId: string | null = null;
+    if (correction && !data.originalTransactionId) {
+      return { ok: false, message: "Choose the folio line this corrects." };
+    }
+    if (data.originalTransactionId) {
+      if (!correction) {
+        return {
+          ok: false,
+          message: "A source line can only be stored on a refund, adjustment, or discount.",
+        };
+      }
+      const { data: source } = await supabaseAdmin
+        .from("folio_transactions")
+        .select("id, amount, transaction_type")
+        .eq("id", data.originalTransactionId)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("folio_id", data.folioId)
+        .maybeSingle();
+      if (!source) return { ok: false, message: "Choose a source line from this folio." };
+      const sourceType = (source as { transaction_type: string }).transaction_type;
+      const sourceAmount = Number((source as { amount: number | string }).amount);
+      if (data.type === "refund" && sourceType !== "payment" && sourceType !== "deposit") {
+        return { ok: false, message: "A refund must name a payment or deposit on this folio." };
+      }
+      if (data.type === "discount" && sourceType !== "charge") {
+        return { ok: false, message: "A discount must name a charge on this folio." };
+      }
+      if (data.type === "refund") {
+        const { data: linked } = await supabaseAdmin
+          .from("folio_transactions")
+          .select("amount")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("folio_id", data.folioId)
+          .eq("original_transaction_id", data.originalTransactionId)
+          .eq("transaction_type", "refund");
+        const remaining = remainingOnPaymentSource(
+          { id: data.originalTransactionId, type: sourceType, amount: sourceAmount },
+          ((linked ?? []) as Array<{ amount: number | string }>).map((row) => ({
+            type: "refund",
+            amount: Number(row.amount),
+            originalTransactionId: data.originalTransactionId ?? null,
+          })),
+        );
+        if (remaining == null || Math.round(data.amount * 100) / 100 > remaining + 0.001) {
+          return {
+            ok: false,
+            message: "A refund can't exceed the remaining amount on that payment.",
+          };
+        }
+      }
+      originalTransactionId = data.originalTransactionId;
+    }
+
+    try {
+      const txn = await callPostFolioTransaction({
+        restaurantId: data.restaurantId,
+        folioId: data.folioId,
+        type: data.type,
+        category: categoryForType(data.type),
+        description,
+        amount: Math.round(data.amount * 100) / 100,
+        membershipId: me.id,
+        paymentMethod,
+        idempotencyKey,
+        originalTransactionId,
+      });
+      return { ok: true, id: txn.id };
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
   });
 
 export const closeFolio = createServerFn({ method: "POST" })
@@ -547,22 +820,24 @@ export const listCashierShifts = createServerFn({ method: "GET" })
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: rows, error } = await supabaseAdmin
-      .from("cashier_shifts")
-      .select("id, membership_id, status, opened_at, closed_at, opening_cash, closing_cash, notes")
-      .eq("restaurant_id", data.restaurantId)
-      .order("opened_at", { ascending: false })
-      .limit(100);
+    const { data: rows, error } = await supabaseAdmin.rpc("list_hotel_drawers", {
+      _restaurant_id: data.restaurantId,
+    });
     if (error) throw cashierError(error.message);
 
-    const list = (rows ?? []) as Array<{
+    const list = (Array.isArray(rows) ? rows : []) as Array<{
       id: string;
       membership_id: string;
       status: "open" | "closed";
       opened_at: string;
       closed_at: string | null;
-      opening_cash: number | string | null;
-      closing_cash: number | string | null;
+      opening: number | string | null;
+      closing_count: number | string | null;
+      cash_in: number | string | null;
+      cash_out: number | string | null;
+      hotel_cash: number | string | null;
+      expected: number | string | null;
+      variance: number | string | null;
       notes: string | null;
     }>;
 
@@ -606,8 +881,13 @@ export const listCashierShifts = createServerFn({ method: "GET" })
       status: s.status,
       openedAt: s.opened_at,
       closedAt: s.closed_at,
-      openingCash: s.opening_cash === null ? null : Number(s.opening_cash),
-      closingCash: s.closing_cash === null ? null : Number(s.closing_cash),
+      openingCash: s.opening === null ? null : Number(s.opening),
+      closingCash: s.closing_count === null ? null : Number(s.closing_count),
+      cashIn: Number(s.cash_in ?? 0),
+      cashOut: Number(s.cash_out ?? 0),
+      hotelCash: Number(s.hotel_cash ?? 0),
+      expected: Number(s.expected ?? 0),
+      variance: s.variance === null || s.variance === undefined ? null : Number(s.variance),
       notes: s.notes,
     }));
   });
@@ -626,14 +906,14 @@ export const openCashierShift = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<CashierResult> => {
     const me = await requireCashierOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: shift, error } = await supabaseAdmin.rpc("open_cashier_shift", {
+    const { data: shift, error } = await supabaseAdmin.rpc("open_hotel_cashier_shift", {
       _restaurant_id: data.restaurantId,
       _membership_id: me.id,
       _opening_cash: data.openingCash,
       _notes: blankToNull(data.notes ?? null) as unknown as string,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
-    return { ok: true, id: (shift as { id: string }).id };
+    return { ok: true, id: (shift as { shift_id: string }).shift_id };
   });
 
 export const closeCashierShift = createServerFn({ method: "POST" })
@@ -655,26 +935,76 @@ export const closeCashierShift = createServerFn({ method: "POST" })
 
     // A cashier may only close their own drawer; owners/managers may close any.
     if (!canManageCashiering(me.role)) {
-      const { data: owned } = await supabaseAdmin
-        .from("cashier_shifts")
-        .select("id, membership_id")
-        .eq("id", data.shiftId)
-        .eq("restaurant_id", data.restaurantId)
-        .maybeSingle();
+      const { data: drawers } = await supabaseAdmin.rpc("list_hotel_drawers", {
+        _restaurant_id: data.restaurantId,
+      });
+      const owned = (Array.isArray(drawers) ? drawers : []).find(
+        (row) => (row as { id?: string }).id === data.shiftId,
+      ) as { membership_id?: string } | undefined;
       if (!owned || owned.membership_id !== me.id) {
         return { ok: false, message: "You can only close your own cashier shift." };
       }
     }
 
-    const { data: shift, error } = await supabaseAdmin.rpc("close_cashier_shift", {
+    const { data: shift, error } = await supabaseAdmin.rpc("close_hotel_cashier_shift", {
       _restaurant_id: data.restaurantId,
       _shift_id: data.shiftId,
-      _closing_cash: data.closingCash,
+      _closing_count: data.closingCash,
       _notes: blankToNull(data.notes ?? null) as unknown as string,
       _membership_id: me.id,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
-    return { ok: true, id: (shift as { id: string }).id };
+    return { ok: true, id: (shift as { shift_id: string }).shift_id };
+  });
+
+export const postHotelDrawerMovement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      shiftId: string;
+      movementType: "cash_in" | "cash_out";
+      amount: number;
+      notes?: string;
+      idempotencyKey: string;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          shiftId: idSchema,
+          movementType: z.enum(["cash_in", "cash_out"]),
+          amount: z.number().positive(),
+          notes: z.string().max(300).optional(),
+          idempotencyKey: z.string().min(8).max(80),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<CashierResult> => {
+    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: drawers } = await supabaseAdmin.rpc("list_hotel_drawers", {
+      _restaurant_id: data.restaurantId,
+    });
+    const owned = (Array.isArray(drawers) ? drawers : []).find(
+      (row) => (row as { id?: string }).id === data.shiftId,
+    ) as { membership_id?: string; status?: string } | undefined;
+    if (!owned || owned.status !== "open") {
+      return { ok: false, message: "That cashier shift is already closed." };
+    }
+    if (!canManageCashiering(me.role) && owned.membership_id !== me.id) {
+      return { ok: false, message: "You can only record movements on your own cashier shift." };
+    }
+    const { data: figures, error } = await supabaseAdmin.rpc("post_hotel_drawer_movement", {
+      _restaurant_id: data.restaurantId,
+      _shift_id: data.shiftId,
+      _movement_type: data.movementType,
+      _amount: data.amount,
+      _notes: blankToNull(data.notes ?? null) as unknown as string,
+      _membership_id: me.id,
+      _idempotency_key: data.idempotencyKey,
+    });
+    if (error) return { ok: false, message: cashierError(error.message).message };
+    return { ok: true, id: (figures as { shift_id: string }).shift_id };
   });
 
 /** Cash movement recorded while a shift was open, for the closing count. */
@@ -741,6 +1071,9 @@ export interface LedgerEntryRow {
   amount: number;
   paymentMethod: string | null;
   postedAt: string;
+  postedBy: string | null;
+  roomNumber: string | null;
+  referenceType: string | null;
 }
 
 /**
@@ -766,7 +1099,9 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
 
     const { data: txns, error } = await supabaseAdmin
       .from("folio_transactions")
-      .select("id, folio_id, transaction_type, category, description, amount, payment_method, posted_at")
+      .select(
+        "id, folio_id, transaction_type, category, description, amount, payment_method, posted_at, posted_by_membership_id, reference_type",
+      )
       .eq("restaurant_id", data.restaurantId)
       .in("transaction_type", data.types)
       .order("posted_at", { ascending: false })
@@ -782,12 +1117,19 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
       amount: number | string;
       payment_method: string | null;
       posted_at: string;
+      posted_by_membership_id: string | null;
+      reference_type: string | null;
     }[];
 
     const folioIds = [...new Set(rows.map((r) => r.folio_id))];
     const folioMeta = new Map<
       string,
-      { folioNumber: string; guestName: string; confirmationNumber: string | null }
+      {
+        folioNumber: string;
+        guestName: string;
+        confirmationNumber: string | null;
+        roomNumber: string | null;
+      }
     >();
 
     if (folioIds.length > 0) {
@@ -795,7 +1137,7 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
         .from("guest_folios")
         .select(
           "id, folio_number, guest_profiles!guest_folios_guest_same_property(first_name, last_name), " +
-            "hotel_reservations!guest_folios_reservation_same_property(confirmation_number)",
+            "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, hotel_rooms!hotel_reservations_room_same_type(room_number))",
         )
         .eq("restaurant_id", data.restaurantId)
         .in("id", folioIds);
@@ -804,14 +1146,56 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
         id: string;
         folio_number: string;
         guest_profiles: { first_name: string | null; last_name: string | null } | null;
-        hotel_reservations: { confirmation_number: string } | null;
+        hotel_reservations: {
+          confirmation_number: string;
+          hotel_rooms: { room_number: string } | null;
+        } | null;
       }[]) {
         folioMeta.set(f.id, {
           folioNumber: f.folio_number,
           guestName: guestName(f.guest_profiles),
           confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
+          roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
         });
       }
+    }
+
+    const names = new Map<string, string>();
+    const membershipIds = [
+      ...new Set(
+        rows.map((r) => r.posted_by_membership_id).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (membershipIds.length > 0) {
+      const { data: members } = await supabaseAdmin
+        .from("restaurant_users")
+        .select("id, user_id")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", membershipIds);
+      const memberRows = (members ?? []) as Array<{ id: string; user_id: string }>;
+      const { data: profiles } = memberRows.length
+        ? await supabaseAdmin
+            .from("profiles")
+            .select("id, first_name, last_name, email")
+            .in(
+              "id",
+              memberRows.map((m) => m.user_id),
+            )
+        : {
+            data: [] as Array<{
+              id: string;
+              first_name: string | null;
+              last_name: string | null;
+              email: string | null;
+            }>,
+          };
+      const byUser = new Map(
+        (profiles ?? []).map((p) => [
+          p.id,
+          [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Staff member",
+        ]),
+      );
+      for (const m of memberRows) names.set(m.id, byUser.get(m.user_id) ?? "Staff member");
     }
 
     const term = (data.search ?? "").trim().toLowerCase();
@@ -831,6 +1215,11 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
           amount: Math.abs(Number(r.amount)),
           paymentMethod: r.payment_method,
           postedAt: r.posted_at,
+          postedBy: r.posted_by_membership_id
+            ? (names.get(r.posted_by_membership_id) ?? null)
+            : null,
+          roomNumber: meta?.roomNumber ?? null,
+          referenceType: r.reference_type,
         };
       })
       .filter(
@@ -838,6 +1227,8 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
           term === "" ||
           r.folioNumber.toLowerCase().includes(term) ||
           r.guestName.toLowerCase().includes(term) ||
-          (r.confirmationNumber ?? "").toLowerCase().includes(term),
+          (r.confirmationNumber ?? "").toLowerCase().includes(term) ||
+          (r.roomNumber ?? "").toLowerCase().includes(term) ||
+          r.id.toLowerCase().includes(term),
       );
   });

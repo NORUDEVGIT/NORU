@@ -18,7 +18,7 @@ import { StayMoneyStrip } from "@/packages/pms/components/frontoffice/fo-stay-mo
 import { listFoStaySignals } from "@/packages/pms/lib/fo-exceptions.functions";
 import { listDepartures, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
-import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/property-format";
 
 function ConfirmationLink({ stay }: { stay: FrontOfficeStay }) {
   return (

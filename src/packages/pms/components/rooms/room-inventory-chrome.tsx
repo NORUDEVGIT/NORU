@@ -5,6 +5,7 @@ import { CalendarDays, ChevronDown, HelpCircle, MoreHorizontal, Search } from "l
 import { NoruLogo } from "@/core/components/noru-logo";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
+import { PMS_MODULE_NAV, type PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import {
   DropdownMenu,
@@ -14,19 +15,10 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 
-const NAV_ITEMS = [
-  { label: "Front Office", to: "/restaurant/pms/front-office" },
-  { label: "Reservations", to: "/restaurant/pms/reservations" },
-  { label: "Rooms & Inventory", to: "/restaurant/pms/room-inventory" },
-  { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
-  { label: "F&B", to: "/restaurant/restaurant-management/dashboard" },
-  { label: "Reports", to: "/restaurant/pms/reports" },
-  { label: "Settings", to: "/restaurant/settings" },
-] as const;
-
 export function RoomInventoryChrome({
   membership,
   onRoomSearch,
+  onSearchChange,
   activeModule = "Rooms & Inventory",
   searchPlaceholder = "Search room…",
   searchTestId,
@@ -38,7 +30,9 @@ export function RoomInventoryChrome({
 }: {
   membership: RestaurantMembership;
   onRoomSearch: (value: string) => void;
-  activeModule?: (typeof NAV_ITEMS)[number]["label"];
+  onSearchChange?: (value: string) => void;
+  /** Null leaves every module unselected. Omitted keeps the Rooms & Inventory default. */
+  activeModule?: PmsModuleNavLabel | null;
   searchPlaceholder?: string;
   searchTestId?: string;
   helpLabel?: string;
@@ -83,7 +77,7 @@ export function RoomInventoryChrome({
             aria-label="PMS modules"
             data-testid="pms-module-nav"
           >
-            {NAV_ITEMS.map((item) => (
+            {PMS_MODULE_NAV.map((item) => (
               <Link
                 key={item.label}
                 to={item.to}
@@ -104,11 +98,11 @@ export function RoomInventoryChrome({
         <div className="border-b border-border bg-card px-3 py-2 lg:hidden">
           <select
             aria-label="PMS module"
-            value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
+            value={PMS_MODULE_NAV.find((item) => item.label === activeModule)?.to ?? ""}
             onChange={(event) => window.location.assign(event.target.value)}
             className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
-            {NAV_ITEMS.map((item) => (
+            {PMS_MODULE_NAV.map((item) => (
               <option key={item.label} value={item.to}>
                 {item.label}
               </option>
@@ -140,7 +134,10 @@ export function RoomInventoryChrome({
               <input
                 data-testid={searchTestId}
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  onSearchChange?.(event.target.value);
+                }}
                 placeholder={searchPlaceholder}
                 aria-label={searchPlaceholder}
                 className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
@@ -179,11 +176,6 @@ export function RoomInventoryChrome({
               ))}
               <DropdownMenuItem onSelect={() => void navigate({ to: "/restaurant/pms" })}>
                 PMS home
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => void navigate({ to: "/restaurant/pms/night-audit" })}
-              >
-                Night Audit
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -2,6 +2,7 @@
  * Settings dashboard presentation only.
  * Does not change stored Property Setup status semantics.
  */
+import { PMS_MODULE_NAV } from "./pms-module-nav.ts";
 import {
   CARD1_PMS_NAV,
   PROPERTY_SETUP_CARDS,
@@ -16,7 +17,12 @@ export const SETTINGS_DASHBOARD_STATUS_WEIGHTS = {
   not_started: 0,
 } as const;
 
-export const SETTINGS_DASHBOARD_NAV = CARD1_PMS_NAV;
+/** Hub bar. Card workspaces do not render this list. */
+export const SETTINGS_DASHBOARD_NAV = PMS_MODULE_NAV.map((item) => ({
+  id: item.id,
+  label: item.label,
+  href: item.to,
+}));
 
 export type SettingsDashboardProgress = {
   overallPercent: number;
@@ -67,4 +73,12 @@ export function settingsDashboardNavHrefs(): string[] {
 
 export function card1PmsNavIsUnchanged(): boolean {
   return CARD1_PMS_NAV.length === 7 && CARD1_PMS_NAV[6]?.href === SET1_HUB_HREF;
+}
+
+export function settingsDashboardUsesModuleNav(): boolean {
+  return (
+    SETTINGS_DASHBOARD_NAV.length === PMS_MODULE_NAV.length &&
+    SETTINGS_DASHBOARD_NAV.every((item, index) => item.href === PMS_MODULE_NAV[index]?.to) &&
+    SETTINGS_DASHBOARD_NAV.some((item) => item.href === SET1_HUB_HREF)
+  );
 }

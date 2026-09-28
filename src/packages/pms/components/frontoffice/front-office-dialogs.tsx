@@ -52,7 +52,7 @@ import {
   formatRoomTypeLabel,
 } from "@/packages/pms/lib/fo-room-assignment";
 import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 
 function useRefresh() {
   const queryClient = useQueryClient();

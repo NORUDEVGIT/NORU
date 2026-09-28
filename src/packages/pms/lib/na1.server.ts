@@ -11,7 +11,13 @@ import {
   type ExceptionStayLike,
   type StayMoneySignal,
 } from "./fo-exceptions.ts";
-import { buildNa1Blockers, type NaBlockerRow, type NaFolioLane } from "./na1.ts";
+import {
+  buildNa1Blockers,
+  emptyIntegrityCounts,
+  type NaBlockerRow,
+  type NaFolioLane,
+  type NaIntegrityCounts,
+} from "./na1.ts";
 
 function emptySignal(): StayMoneySignal {
   return {
@@ -46,7 +52,11 @@ function toStay(
   return {
     id: row.id,
     confirmationNumber: row.confirmation_number,
-    guestName: [row.guest_profiles?.first_name, row.guest_profiles?.last_name].filter(Boolean).join(" ").trim() || "Guest",
+    guestName:
+      [row.guest_profiles?.first_name, row.guest_profiles?.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || "Guest",
     roomId: row.room_id,
     roomNumber: row.hotel_rooms?.room_number ?? null,
     arrivalDate: row.arrival_date,
@@ -93,8 +103,14 @@ async function loadUnpaidCount(
       .eq("restaurant_id", restaurantId)
       .eq("event_type", "amended")
       .in("reservation_id", ids);
-    for (const row of (historyRows ?? []) as Array<{ reservation_id: string; new_values: unknown }>) {
-      const values = row.new_values as { checkout_override?: unknown; deposit_waived?: unknown } | null;
+    for (const row of (historyRows ?? []) as Array<{
+      reservation_id: string;
+      new_values: unknown;
+    }>) {
+      const values = row.new_values as {
+        checkout_override?: unknown;
+        deposit_waived?: unknown;
+      } | null;
       if (!values || typeof values !== "object") continue;
       const signal = ensure(row.reservation_id);
       if (values.checkout_override === true) signal.checkoutOverride = true;
@@ -166,13 +182,14 @@ async function loadUnpaidCount(
   return rows.filter((row) => row.type === "payment_issue").length;
 }
 
-/** Evaluate the six NA-1 board rows from Live sources only. */
+/** Evaluate the close board. Integrity counts come from the same audit evaluation that is persisted. */
 export async function evaluateNa1Blockers(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
   restaurantId: string,
   businessDate: string,
   folioLane: NaFolioLane,
+  integrity: NaIntegrityCounts = emptyIntegrityCounts(),
 ): Promise<NaBlockerRow[]> {
   const { data: reservationRows } = await admin
     .from("hotel_reservations")
@@ -183,28 +200,33 @@ export async function evaluateNa1Blockers(
     .in("status", ["pending", "confirmed", "checked_in"])
     .limit(1000);
 
-  const reservations = ((reservationRows ?? []) as Array<{
-    id: string;
-    confirmation_number: string;
-    status: string;
-    arrival_date: string;
-    departure_date: string;
-    room_id: string | null;
-    guest_profiles: { first_name: string | null; last_name: string | null } | null;
-    hotel_rooms: { room_number: string } | null;
-  }>).map((row) => toStay(row, businessDate));
+  const reservations = (
+    (reservationRows ?? []) as Array<{
+      id: string;
+      confirmation_number: string;
+      status: string;
+      arrival_date: string;
+      departure_date: string;
+      room_id: string | null;
+      guest_profiles: { first_name: string | null; last_name: string | null } | null;
+      hotel_rooms: { room_number: string } | null;
+    }>
+  ).map((row) => toStay(row, businessDate));
 
   const arrivalsPendingCount = reservations.filter(
-    (stay) => (stay.status === "pending" || stay.status === "confirmed") && stay.arrivalDate <= businessDate,
+    (stay) =>
+      (stay.status === "pending" || stay.status === "confirmed") &&
+      stay.arrivalDate <= businessDate,
   ).length;
   const overstayCount = reservations.filter((stay) => stay.overstay).length;
 
-  const { data: shiftRows } = await admin
-    .from("cashier_shifts")
-    .select("id, status")
-    .eq("restaurant_id", restaurantId)
-    .limit(200);
-  const shifts = (shiftRows ?? []) as Array<{ id: string; status: string }>;
+  const { data: drawerRows } = await admin.rpc("list_hotel_drawers", {
+    _restaurant_id: restaurantId,
+  });
+  const shifts = (Array.isArray(drawerRows) ? drawerRows : []) as Array<{
+    id: string;
+    status: string;
+  }>;
   const tillUsed = shifts.length > 0;
   const openCount = shifts.filter((shift) => shift.status === "open").length;
 
@@ -255,5 +277,6 @@ export async function evaluateNa1Blockers(
     unpaidFolios: { lane: unpaidLane, count: unpaidCount },
     openShift: { tillUsed, openCount },
     hkConflict: { discrepancyLane, discrepancyCount, roomUnavailableCount },
+    integrity,
   });
 }

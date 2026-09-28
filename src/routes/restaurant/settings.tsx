@@ -57,7 +57,7 @@ function RestaurantSettings() {
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   return (
-    <RestaurantShell active="Settings" hidePackageRail>
+    <RestaurantShell active="Settings" hidePackageRail hideTopHeader>
       {(m) => <PropertySettingsPage membership={m} />}
     </RestaurantShell>
   );

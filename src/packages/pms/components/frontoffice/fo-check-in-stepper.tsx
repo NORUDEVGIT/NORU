@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -40,11 +40,16 @@ import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
 import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import {
+  POLISH1_PAYMENT_METHODS_HREF,
+  cashieringTenderOptions,
+  emptyPolish1Snapshot,
+} from "@/packages/pms/lib/pms-polish1-payment-admin";
 import {
   CHECK_IN_STEPS,
   CHECK_IN_STEP_META,
-  DEPOSIT_METHOD_CHIPS,
   DEPOSIT_REQUIRED_BANNER,
   ID_DOCUMENT_LABELS,
   ID_DOCUMENT_TYPES,
@@ -98,6 +103,15 @@ export function FoCheckInStepper({
 }) {
   const queryClient = useQueryClient();
   const money = useMoney();
+  const set1 = usePmsSet1Foundation(restaurantId);
+  const tenders = cashieringTenderOptions({
+    available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
+    methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
+  });
+  useEffect(() => {
+    if (!tenders.some((row) => row.code === depositMethod))
+      setDepositMethod(tenders[0]?.code ?? "");
+  }, [depositMethod, tenders]);
   const [step, setStep] = useState<CheckInStepId>(initialStep);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -118,8 +132,9 @@ export function FoCheckInStepper({
   const [children, setChildren] = useState(stay.children);
   const [regReason, setRegReason] = useState("");
 
+  const depositKey = useRef(crypto.randomUUID());
   const [depositAmount, setDepositAmount] = useState("");
-  const [depositMethod, setDepositMethod] = useState<DepositMethodChipId>("cash");
+  const [depositMethod, setDepositMethod] = useState("cash");
   const [depositRef, setDepositRef] = useState("");
   const [depositReason, setDepositReason] = useState("");
 
@@ -376,9 +391,11 @@ export function FoCheckInStepper({
           amount: Number(depositAmount),
           method: depositMethod,
           reference: depositRef,
+          idempotencyKey: depositKey.current,
         },
       }),
     onSuccess: async () => {
+      depositKey.current = crypto.randomUUID();
       setDirty(false);
       setDepositAmount("");
       setDepositRef("");
@@ -564,7 +581,9 @@ export function FoCheckInStepper({
                       >
                         <SelectTrigger>
                           <SelectValue
-                            placeholder={roomsState.status === "loading" ? "Loading rooms…" : "Select a room"}
+                            placeholder={
+                              roomsState.status === "loading" ? "Loading rooms…" : "Select a room"
+                            }
                           />
                         </SelectTrigger>
                         <SelectContent>
@@ -660,7 +679,9 @@ export function FoCheckInStepper({
                         />
                       </Field>
                     </div>
-                    <p className="text-xs text-muted-foreground">Phone or email is required, plus ID type and number.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Phone or email is required, plus ID type and number.
+                    </p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>
@@ -779,16 +800,16 @@ export function FoCheckInStepper({
                       </p>
                     ) : null}
                     {ctx?.progress.registrationWaived ? null : (
-                    <FoAuthorizationCard
-                      requirement={checkInAuth}
-                      guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
-                      reason={regReason}
-                      onReasonChange={setRegReason}
-                      pending={waiveRegMut.isPending}
-                      confirmLabel="Waive registration"
-                      onAuthorize={() => waiveRegMut.mutate()}
-                      reasonId="reg-waiver"
-                    />
+                      <FoAuthorizationCard
+                        requirement={checkInAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={regReason}
+                        onReasonChange={setRegReason}
+                        pending={waiveRegMut.isPending}
+                        confirmLabel="Waive registration"
+                        onAuthorize={() => waiveRegMut.mutate()}
+                        reasonId="reg-waiver"
+                      />
                     )}
                   </div>
                 ) : null}
@@ -828,23 +849,33 @@ export function FoCheckInStepper({
                             }}
                           />
                         </Field>
-                        <div className="flex flex-wrap gap-2">
-                          {DEPOSIT_METHOD_CHIPS.map((chip) => (
-                            <button
-                              key={chip.id}
-                              type="button"
-                              className={cn(
-                                "rounded-full border px-3 py-1.5 text-sm",
-                                depositMethod === chip.id
-                                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                                  : "border-[#CCCCCC] text-muted-foreground",
-                              )}
-                              onClick={() => setDepositMethod(chip.id)}
-                            >
-                              {chip.label}
-                            </button>
-                          ))}
-                        </div>
+                        {tenders.length === 0 ? (
+                          <p className="text-sm text-[#C89933]">
+                            No active payment methods. Configure them in{" "}
+                            <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
+                              Payment methods
+                            </a>
+                            .
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {tenders.map((tender) => (
+                              <button
+                                key={tender.code}
+                                type="button"
+                                className={cn(
+                                  "rounded-full border px-3 py-1.5 text-sm",
+                                  depositMethod === tender.code
+                                    ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
+                                    : "border-[#CCCCCC] text-muted-foreground",
+                                )}
+                                onClick={() => setDepositMethod(tender.code)}
+                              >
+                                {tender.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <Field label="Reference">
                           <Input
                             value={depositRef}
@@ -854,7 +885,9 @@ export function FoCheckInStepper({
                         <Button
                           type="button"
                           className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                          disabled={!Number(depositAmount) || postDepMut.isPending}
+                          disabled={
+                            !Number(depositAmount) || !depositMethod || postDepMut.isPending
+                          }
                           onClick={() => postDepMut.mutate()}
                         >
                           {postDepMut.isPending ? "Posting…" : "Post deposit"}
@@ -862,16 +895,16 @@ export function FoCheckInStepper({
                       </>
                     )}
                     {ctx?.progress.depositWaived ? null : (
-                    <FoAuthorizationCard
-                      requirement={checkInAuth}
-                      guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
-                      reason={depositReason}
-                      onReasonChange={setDepositReason}
-                      pending={waiveDepMut.isPending}
-                      confirmLabel="Waive deposit"
-                      onAuthorize={() => waiveDepMut.mutate()}
-                      reasonId="dep-waiver"
-                    />
+                      <FoAuthorizationCard
+                        requirement={checkInAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={depositReason}
+                        onReasonChange={setDepositReason}
+                        pending={waiveDepMut.isPending}
+                        confirmLabel="Waive deposit"
+                        onAuthorize={() => waiveDepMut.mutate()}
+                        reasonId="dep-waiver"
+                      />
                     )}
                   </div>
                 ) : null}
@@ -930,16 +963,16 @@ export function FoCheckInStepper({
                       {ctx?.actorName ? ` · ${ctx.actorName}` : ""}
                     </p>
                     {ctx?.progress.keyWaived ? null : (
-                    <FoAuthorizationCard
-                      requirement={checkInAuth}
-                      guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
-                      reason={keyReason}
-                      onReasonChange={setKeyReason}
-                      pending={waiveKeyMut.isPending}
-                      confirmLabel="Keys later"
-                      onAuthorize={() => waiveKeyMut.mutate()}
-                      reasonId="key-waiver"
-                    />
+                      <FoAuthorizationCard
+                        requirement={checkInAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={keyReason}
+                        onReasonChange={setKeyReason}
+                        pending={waiveKeyMut.isPending}
+                        confirmLabel="Keys later"
+                        onAuthorize={() => waiveKeyMut.mutate()}
+                        reasonId="key-waiver"
+                      />
                     )}
                   </div>
                 ) : null}
@@ -1055,7 +1088,15 @@ export function FoCheckInStepper({
   );
 }
 
-function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+function Field({
+  label,
+  children,
+  required,
+}: {
+  label: string;
+  children: React.ReactNode;
+  required?: boolean;
+}) {
   return (
     <div className="space-y-2">
       <Label>

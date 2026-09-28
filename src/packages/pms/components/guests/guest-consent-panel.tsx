@@ -19,7 +19,7 @@ import {
   type GuestConsentState,
 } from "@/packages/pms/lib/guest-profile-wave2";
 import { saveGuestConsent, type GuestConsent } from "@/packages/pms/lib/guests.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 export function GuestConsentPanel({
   restaurantId,

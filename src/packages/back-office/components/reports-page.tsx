@@ -33,7 +33,7 @@ import {
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { getBackOfficePosSummary } from "@/integrations/cross-package/back-office-pos.functions";
 import { getRestaurantDashboard } from "@/packages/restaurant-management/lib/dashboard.functions";
-import { getFrontOfficeDashboard } from "@/packages/pms/lib/frontoffice.functions";
+import { getFrontOfficeDashboard } from "@/integrations/cross-package/front-office-dashboard.functions";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
 import { localDateInZone } from "@/shared/lib/property-time";

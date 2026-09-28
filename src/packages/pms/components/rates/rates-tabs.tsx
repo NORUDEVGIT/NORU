@@ -20,7 +20,7 @@ import {
   saveRateRestriction,
 } from "@/packages/pms/lib/rates.functions";
 import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 
 function PropertySetupRatesLink({ className }: { className?: string }) {
   return (

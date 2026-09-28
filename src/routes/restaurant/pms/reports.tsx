@@ -7,6 +7,11 @@ import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-l
 
 export const Route = createFileRoute("/restaurant/pms/reports")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
+    ...(typeof search.report === "string" ? { report: search.report } : {}),
+    ...(typeof search.category === "string" ? { category: search.category } : {}),
+  }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -33,12 +38,27 @@ export const Route = createFileRoute("/restaurant/pms/reports")({
 });
 
 function ReportsPmsRoute() {
+  const search = Route.useSearch() as { tab?: string; report?: string; category?: string };
   return (
-    <RestaurantShell active="Reports" module="reports" pms pmsModule="reports">
-      {(m) => <div className="space-y-8">
-          <PmsReportsWorkspace membership={m} />
+    <RestaurantShell
+      active="Reports"
+      module="reports"
+      pms
+      pmsModule="reports"
+      hidePackageRail
+      hideTopHeader
+    >
+      {(m) => (
+        <div className="space-y-8">
+          <PmsReportsWorkspace
+            membership={m}
+            initialTab={search.tab}
+            initialReport={search.report}
+            initialCategory={search.category}
+          />
           <SharedModuleLinks restaurantId={m.restaurantId} modules={["reports_analytics"]} />
-        </div>}
+        </div>
+      )}
     </RestaurantShell>
   );
 }

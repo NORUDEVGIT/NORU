@@ -43,7 +43,7 @@ import type { FoControlAction, FrontOfficeExceptionItem } from "@/packages/pms/l
 import { HK_HREF, INVENTORY_HREF, MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
 import { GUEST_PROFILE_DETAIL_PATH, guestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
-import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 type LiveDialog = "assign" | "checkin" | "move" | "stay" | "checkout" | "noshow";

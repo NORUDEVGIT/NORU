@@ -11,7 +11,7 @@ import { formatFoDateTime, WALK_IN_COMPLETE_BADGE, WALK_IN_INCOMPLETE_BADGE, WAL
 import { listWalkInsHistory } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
-import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/property-format";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";

@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import type { DemandCalendarCell } from "@/packages/pms/lib/revenue/demand-calendar";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { DemandDetailOverview } from "./demand-detail-overview";
 import { DemandDetailPickup } from "./demand-detail-pickup";
 import { DemandDetailRates } from "./demand-detail-rates";
