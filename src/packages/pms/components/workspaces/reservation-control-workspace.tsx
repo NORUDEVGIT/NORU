@@ -487,7 +487,7 @@ function ExceptionDrawer({
         ) : null}
         {item.guest.id ? (
           <Button size="sm" variant="outline" asChild>
-            <Link to="/restaurant/pms/reservations/guests/$guestId" params={{ guestId: item.guest.id }}>
+            <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: item.guest.id }}>
               Guest Profile
             </Link>
           </Button>

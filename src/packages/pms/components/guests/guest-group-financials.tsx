@@ -174,7 +174,10 @@ export function GuestGroupFinancials({
                       <TableCell>
                         {row.folioId ? (
                           <Button asChild size="sm" variant="outline">
-                            <Link to="/restaurant/cashiering/folios/$folioId" params={{ folioId: row.folioId }}>
+                            <Link
+                              to="/restaurant/pms/cashiering/folios/$folioId"
+                              params={{ folioId: row.folioId }}
+                            >
                               Open folio
                             </Link>
                           </Button>

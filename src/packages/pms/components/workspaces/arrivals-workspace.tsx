@@ -27,7 +27,7 @@ import {
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import type { ArrivalRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
-import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
 import { cn } from "@/shared/lib/utils";

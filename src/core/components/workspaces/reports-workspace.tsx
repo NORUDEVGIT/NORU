@@ -42,8 +42,8 @@ const REPORT_LINKS: ReportLink[] = [
     title: "Financial",
     description: "Folio balances, payments and cashier shift totals.",
     icon: Wallet,
-    to: "/restaurant/cashiering",
-    tab: "dashboard",
+    to: "/restaurant/pms/cashiering",
+    tab: "overview",
   },
   {
     title: "Housekeeping",

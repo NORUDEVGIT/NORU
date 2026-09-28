@@ -38,7 +38,7 @@ import {
 } from "@/packages/pms/lib/front-office-shell";
 import { liveStayBadges, onRackDrop } from "@/packages/pms/lib/fo-rack-power";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { COMPANIONS_UNAVAILABLE, SPECIAL_REQUEST_CATEGORY_LABELS, stayGuestLine } from "@/packages/pms/lib/fo-amendments";
 import { getAmendContext, setGuestRequestStatus } from "@/packages/pms/lib/fo-amendments.functions";
 import { isStayCancellable } from "@/packages/pms/lib/fo-cancel-noshow";

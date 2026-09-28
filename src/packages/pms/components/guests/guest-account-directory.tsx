@@ -48,7 +48,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 const ALL = "all";
 

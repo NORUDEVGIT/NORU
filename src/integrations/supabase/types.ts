@@ -793,6 +793,9 @@ export type Database = {
           description: string
           folio_id: string
           id: string
+          hotel_cashier_shift_id: string | null
+          idempotency_key: string | null
+          original_transaction_id: string | null
           payment_method: string | null
           posted_at: string
           posted_by_membership_id: string | null
@@ -812,6 +815,9 @@ export type Database = {
           description: string
           folio_id: string
           id?: string
+          hotel_cashier_shift_id?: string | null
+          idempotency_key?: string | null
+          original_transaction_id?: string | null
           payment_method?: string | null
           posted_at?: string
           posted_by_membership_id?: string | null
@@ -831,6 +837,8 @@ export type Database = {
           description?: string
           folio_id?: string
           id?: string
+          hotel_cashier_shift_id?: string | null
+          original_transaction_id?: string | null
           payment_method?: string | null
           posted_at?: string
           posted_by_membership_id?: string | null
@@ -1794,6 +1802,11 @@ export type Database = {
           opened_at: string
           reservation_id: string | null
           restaurant_id: string
+          settlement_exception: string | null
+          settlement_exception_amount: number | null
+          settlement_exception_at: string | null
+          settlement_exception_kind: string | null
+          settlement_exception_reason: string | null
           status: string
           updated_at: string
         }
@@ -1808,6 +1821,11 @@ export type Database = {
           opened_at?: string
           reservation_id?: string | null
           restaurant_id: string
+          settlement_exception?: string | null
+          settlement_exception_amount?: number | null
+          settlement_exception_at?: string | null
+          settlement_exception_kind?: string | null
+          settlement_exception_reason?: string | null
           status?: string
           updated_at?: string
         }
@@ -1822,6 +1840,11 @@ export type Database = {
           opened_at?: string
           reservation_id?: string | null
           restaurant_id?: string
+          settlement_exception?: string | null
+          settlement_exception_amount?: number | null
+          settlement_exception_at?: string | null
+          settlement_exception_kind?: string | null
+          settlement_exception_reason?: string | null
           status?: string
           updated_at?: string
         }
@@ -14694,6 +14717,41 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      close_hotel_cashier_shift: {
+        Args: {
+          _closing_count: number
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+          _shift_id: string
+        }
+        Returns: Json
+      }
+      list_hotel_drawers: {
+        Args: { _restaurant_id: string }
+        Returns: Json
+      }
+      open_hotel_cashier_shift: {
+        Args: {
+          _membership_id: string
+          _notes: string
+          _opening_cash: number
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      post_hotel_drawer_movement: {
+        Args: {
+          _amount: number
+          _idempotency_key: string
+          _membership_id: string
+          _movement_type: string
+          _notes: string
+          _restaurant_id: string
+          _shift_id: string
+        }
+        Returns: Json
+      }
       close_cashier_shift: {
         Args: {
           _closing_cash: number
@@ -15466,7 +15524,10 @@ export type Database = {
           _category: string
           _description: string
           _folio_id: string
+          _idempotency_key?: string
+          _original_transaction_id?: string
           _membership_id: string
+          _payment_method?: string
           _reference_id: string
           _reference_type: string
           _restaurant_id: string
@@ -15479,6 +15540,8 @@ export type Database = {
           description: string
           folio_id: string
           id: string
+          idempotency_key: string | null
+          original_transaction_id: string | null
           payment_method: string | null
           posted_at: string
           posted_by_membership_id: string | null

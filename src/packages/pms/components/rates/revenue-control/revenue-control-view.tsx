@@ -8,7 +8,7 @@ import { REVENUE_CONTROL_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/r
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { serializeRevenueSearch } from "@/packages/pms/lib/revenue/revenue-context";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { RateInventoryControl } from "./rate-inventory-control";
 import { RecentRateActivity } from "./recent-rate-activity";
 import { RestrictionAttention } from "./restriction-attention";

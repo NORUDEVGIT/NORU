@@ -16,7 +16,7 @@ import {
 } from "@/packages/pms/lib/revenue/demand-overview";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { DEMAND_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { BookedRevenueChart } from "./booked-revenue-chart";
 import { DemandAttentionTable } from "./demand-attention-table";
 import { DemandOverviewKpis } from "./demand-overview-kpis";

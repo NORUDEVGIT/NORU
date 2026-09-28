@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -14,48 +14,59 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import { closeFolio, postFolioEntry } from "@/packages/pms/lib/cashiering.functions";
-import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import {
+  remainingOnPaymentSource,
+  type TransactionType,
+} from "@/packages/pms/lib/cashiering.server";
+import { useMoney } from "@/core/state/property-format";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
-import { SET1_TAX_HONESTY } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   POLISH1_PAYMENT_METHODS_HREF,
   cashieringTenderOptions,
   emptyPolish1Snapshot,
 } from "@/packages/pms/lib/pms-polish1-payment-admin";
 
+const LEDGER_LINE = "This records a ledger line on the guest folio.";
+
 const COPY: Record<TransactionType, { title: string; description: string; cta: string }> = {
   charge: {
     title: "Post a charge",
-    description: "Add an extra charge to this folio, such as laundry or minibar.",
+    description: `${LEDGER_LINE} No tax amount is added.`,
     cta: "Post charge",
   },
   payment: {
     title: "Receive a payment",
-    description: "Record money received from the guest against this folio.",
+    description: `${LEDGER_LINE} Partial payments are additional payment lines.`,
     cta: "Receive payment",
   },
   deposit: {
-    title: "Add a deposit",
-    description: "Record a prepayment or security deposit held against this folio.",
-    cta: "Add deposit",
+    title: "Add a deposit credit",
+    description: `${LEDGER_LINE} A deposit is a folio credit.`,
+    cta: "Add deposit credit",
   },
   refund: {
     title: "Post a refund",
-    description: "Return money to the guest. A refund can't exceed what has been paid.",
+    description: `${LEDGER_LINE} A refund cannot exceed the remaining amount on the selected payment.`,
     cta: "Post refund",
   },
   adjustment: {
     title: "Post an adjustment",
-    description: "Correct the folio. Use a negative amount to reduce the balance.",
+    description: `${LEDGER_LINE} Use a negative amount to reduce the balance.`,
     cta: "Post adjustment",
   },
   discount: {
-    title: "Apply a discount",
-    description: "Reduce what the guest owes on this folio.",
-    cta: "Apply discount",
+    title: "Post a discount",
+    description: `${LEDGER_LINE} A discount reduces what the guest owes.`,
+    cta: "Post discount",
   },
 };
 
@@ -64,6 +75,10 @@ export function FolioEntryDialog({
   folioId,
   type,
   open,
+  sources,
+  depositPolicySummary,
+  authorizerNote,
+  thresholdNote,
   onClose,
   onDone,
 }: {
@@ -71,12 +86,25 @@ export function FolioEntryDialog({
   folioId: string;
   type: TransactionType | null;
   open: boolean;
+  sources: Array<{
+    id: string;
+    type: string;
+    description: string;
+    amount: number;
+    originalTransactionId: string | null;
+  }>;
+  depositPolicySummary?: string | null;
+  authorizerNote?: string | null;
+  thresholdNote?: string | null;
   onClose: () => void;
   onDone: () => void;
 }) {
+  const money = useMoney();
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [method, setMethod] = useState("");
+  const [sourceId, setSourceId] = useState("none");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const set1 = usePmsSet1Foundation(restaurantId);
   const tenders = cashieringTenderOptions({
     available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
@@ -89,17 +117,45 @@ export function FolioEntryDialog({
     }
   }, [tenders, method]);
 
+  useEffect(() => {
+    if (open) {
+      setIdempotencyKey(crypto.randomUUID());
+      setSourceId("none");
+    }
+  }, [open, type]);
+
   const post = useServerFn(postFolioEntry);
   const copy = type ? COPY[type] : null;
   const needsMethod = type === "payment" || type === "deposit" || type === "refund";
+  const needsSource = type === "refund" || type === "adjustment" || type === "discount";
+  const sourceChoices = useMemo(() => {
+    if (type === "refund")
+      return sources.filter((line) => line.type === "payment" || line.type === "deposit");
+    if (type === "discount") return sources.filter((line) => line.type === "charge");
+    return sources;
+  }, [sources, type]);
+  const selectedSource = sourceChoices.find((line) => line.id === sourceId) ?? null;
+  const refundRemaining =
+    type === "refund" && selectedSource ? remainingOnPaymentSource(selectedSource, sources) : null;
+
+  useEffect(() => {
+    if (!needsSource) return;
+    if (sourceChoices.some((line) => line.id === sourceId)) return;
+    setSourceId(sourceChoices[0]?.id ?? "none");
+  }, [needsSource, sourceChoices, sourceId]);
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!type) throw new Error("Pick a transaction type.");
       const value = Number(amount);
       if (!Number.isFinite(value) || value === 0) throw new Error("Enter an amount.");
-      if (type !== "adjustment" && value <= 0) throw new Error("Enter an amount greater than zero.");
-      if (description.trim() === "") throw new Error("Enter a description.");
+      if (type !== "adjustment" && value <= 0)
+        throw new Error("Enter an amount greater than zero.");
+      if (description.trim() === "")
+        throw new Error(needsSource ? "Enter a reason." : "Enter a description.");
+      if (needsSource && !sourceChoices.some((line) => line.id === sourceId)) {
+        throw new Error("Choose the folio line this corrects.");
+      }
       return post({
         data: {
           restaurantId,
@@ -107,7 +163,9 @@ export function FolioEntryDialog({
           type,
           amount: value,
           description: description.trim(),
+          idempotencyKey,
           ...(needsMethod ? { method } : {}),
+          ...(needsSource && sourceId !== "none" ? { originalTransactionId: sourceId } : {}),
         },
       });
     },
@@ -133,6 +191,9 @@ export function FolioEntryDialog({
           <DialogDescription>{copy?.description}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          {type === "deposit" && depositPolicySummary ? (
+            <p className="text-sm text-muted-foreground">{depositPolicySummary}</p>
+          ) : null}
           <div>
             <Label htmlFor="entry-amount">Amount</Label>
             <Input
@@ -144,20 +205,20 @@ export function FolioEntryDialog({
             />
           </div>
           <div>
-            <Label htmlFor="entry-description">Description</Label>
+            <Label htmlFor="entry-description">{needsSource ? "Reason" : "Description"}</Label>
             <Input
               id="entry-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={type === "charge" ? "Laundry service" : "Reference or note"}
+              placeholder={
+                needsSource
+                  ? "Why this correction is posted"
+                  : type === "charge"
+                    ? "Laundry service"
+                    : "Reference or note"
+              }
             />
           </div>
-          {type === "charge" && set1.data ? (
-            <p className="text-xs text-muted-foreground">
-              New charges follow {set1.data.snapshot.taxes.taxName || "the property tax"}{" "}
-              {set1.data.snapshot.taxes.taxRate}% {set1.data.snapshot.taxes.taxInclusive ? "inclusive" : "exclusive"}. {SET1_TAX_HONESTY}
-            </p>
-          ) : null}
           {needsMethod ? (
             <div>
               <Label htmlFor="entry-method">Method</Label>
@@ -185,12 +246,59 @@ export function FolioEntryDialog({
               )}
             </div>
           ) : null}
+          {needsSource ? (
+            <div>
+              <Label htmlFor="entry-source">Source line</Label>
+              <Select value={sourceId} onValueChange={setSourceId}>
+                <SelectTrigger id="entry-source">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sourceChoices.map((line) => (
+                    <SelectItem key={line.id} value={line.id}>
+                      {labelTransactionType(line.type)} · {line.description} · {money(line.amount)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {sourceChoices.length === 0 ? (
+                <p className="mt-1 text-sm text-destructive">
+                  This folio has no line that can be corrected this way.
+                </p>
+              ) : null}
+              {selectedSource ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Original line: {labelTransactionType(selectedSource.type)} ·{" "}
+                  {selectedSource.description} · {money(selectedSource.amount)}. The original line
+                  amount stays as posted.
+                </p>
+              ) : null}
+              {refundRemaining != null ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Remaining on this payment: {money(refundRemaining)}.
+                </p>
+              ) : null}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {authorizerNote ?? "Only an owner or manager can post this correction."}
+                {thresholdNote
+                  ? ` ${thresholdNote}`
+                  : " Approval thresholds are not enforced on this post."}
+              </p>
+            </div>
+          ) : null}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || (needsMethod && !method)}>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={
+              mutation.isPending ||
+              (needsMethod && !method) ||
+              (needsSource && (!selectedSource || description.trim() === ""))
+            }
+          >
             {copy?.cta}
           </Button>
         </DialogFooter>
@@ -238,7 +346,8 @@ export function CloseFolioDialog({
         <DialogHeader>
           <DialogTitle>Close folio</DialogTitle>
           <DialogDescription>
-            A folio can only be closed once its balance is settled. Nothing can be posted afterwards.
+            Close records the folio close only when the balance is zero. A non-zero balance stays
+            open.
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm">

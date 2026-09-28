@@ -12,7 +12,7 @@ import {
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { RATE_CALENDAR_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { RateDetailDrawer, type DrawerTab } from "../rate-detail/rate-detail-drawer";
 import { RateCalendarGrid } from "./rate-calendar-grid";
 import { RateCalendarLegend } from "./rate-calendar-legend";

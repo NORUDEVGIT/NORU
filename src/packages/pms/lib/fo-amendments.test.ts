@@ -146,16 +146,18 @@ describe("FO-FS4 service post honesty", () => {
 
   it("service wrapper posts charge when amount > 0 and skips the RPC when amount is 0", () => {
     const fns = readFileSync(new URL("./fo-amendments.functions.ts", import.meta.url), "utf8");
-    assert.match(fns, /post_folio_transaction/);
-    assert.match(fns, /_type: "charge"/);
-    assert.match(fns, /_category: "manual"/);
+    assert.match(fns, /callPostFolioTransaction/);
+    assert.match(fns, /type: "charge"/);
+    assert.match(fns, /requireCashierManager/);
+    assert.match(fns, /category: "manual"/);
     assert.match(fns, /open_folio_for_reservation/);
     assert.match(fns, /servicePostsToFolio/);
     assert.doesNotMatch(fns, /menu_items/);
     assert.doesNotMatch(fns, /_type: "refund"/);
     assert.doesNotMatch(fns, /yield|reprice|repric/i);
     const addService = fns.slice(fns.indexOf("export const addStayService"));
-    assert.ok(addService.indexOf("servicePostsToFolio") < addService.indexOf("post_folio_transaction"));
+    assert.ok(addService.indexOf("servicePostsToFolio") < addService.indexOf("callPostFolioTransaction"));
+    assert.match(addService, /requireCashierManager/);
   });
 });
 

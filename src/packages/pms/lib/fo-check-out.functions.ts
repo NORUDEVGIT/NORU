@@ -16,7 +16,14 @@ import {
   requireReservationManager,
   reservationError,
 } from "./reservations.server";
-import { cashierError, requireCashierOperator } from "./cashiering.server";
+import {
+  callPostFolioTransaction,
+  cashierError,
+  folioReportsSettled,
+  requireCashierOperator,
+} from "./cashiering.server";
+import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
+import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import {
   canCompleteCheckOut,
   canContinueClose,
@@ -26,7 +33,6 @@ import {
   checkoutDocumentSubject,
   isFolioSettled,
   mapCashierShiftError,
-  mapSettlementMethod,
   overrideKindForBalance,
   paymentAmountAllowed,
   platformEmailConfigured,
@@ -123,7 +129,11 @@ function totals(rows: { amount: number }[]): { charges: number; credits: number;
     if (r.amount >= 0) charges += r.amount;
     else credits += -r.amount;
   }
-  return { charges: roundMoney(charges), credits: roundMoney(credits), balance: roundMoney(charges - credits) };
+  return {
+    charges: roundMoney(charges),
+    credits: roundMoney(credits),
+    balance: roundMoney(charges - credits),
+  };
 }
 
 async function actorDisplayName(
@@ -197,7 +207,8 @@ async function loadStay(
   };
   return {
     stay,
-    rateMissing: row.rate_plan_id == null && (row.room_subtotal == null || Number(row.room_subtotal) === 0),
+    rateMissing:
+      row.rate_plan_id == null && (row.room_subtotal == null || Number(row.room_subtotal) === 0),
     guestId: row.guest_id,
     guestEmail: guest?.email ?? null,
   };
@@ -210,7 +221,9 @@ async function loadFolioState(
 ): Promise<CheckOutFolioState> {
   const { data: folio } = await supabaseAdmin
     .from("guest_folios")
-    .select("id, folio_number, status, currency")
+    .select(
+      "id, folio_number, status, currency, settlement_exception, settlement_exception_kind, settlement_exception_reason",
+    )
     .eq("restaurant_id", restaurantId)
     .eq("reservation_id", reservationId)
     .maybeSingle();
@@ -254,6 +267,26 @@ async function loadOverride(
   restaurantId: string,
   reservationId: string,
 ): Promise<CheckOutOverrideState> {
+  const { data: folio } = await supabaseAdmin
+    .from("guest_folios")
+    .select("status, settlement_exception, settlement_exception_kind, settlement_exception_reason")
+    .eq("restaurant_id", restaurantId)
+    .eq("reservation_id", reservationId)
+    .maybeSingle();
+  const marker = folio as {
+    status?: string;
+    settlement_exception?: string | null;
+    settlement_exception_kind?: "unpaid" | "credit" | null;
+    settlement_exception_reason?: string | null;
+  } | null;
+  if (marker?.settlement_exception === "unsettled_checkout" && marker.status === "open") {
+    return {
+      recorded: true,
+      kind: marker.settlement_exception_kind ?? null,
+      reason: marker.settlement_exception_reason ?? null,
+    };
+  }
+
   const { data } = await supabaseAdmin
     .from("hotel_reservation_history")
     .select("new_values, notes")
@@ -279,7 +312,11 @@ async function loadPropertyName(
   supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
 ): Promise<string> {
-  const { data } = await supabaseAdmin.from("restaurants").select("name").eq("id", restaurantId).maybeSingle();
+  const { data } = await supabaseAdmin
+    .from("restaurants")
+    .select("name")
+    .eq("id", restaurantId)
+    .maybeSingle();
   return (data as { name?: string } | null)?.name ?? "Property";
 }
 
@@ -370,8 +407,9 @@ export const postCheckOutPayment = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         reservationId: idSchema,
         amount: z.number().positive(),
-        method: z.enum(["cash", "card", "transfer", "other"]),
+        method: z.string().trim().min(1).max(40),
         reference: z.string().max(80).optional().nullable(),
+        idempotencyKey: z.string().min(8).max(80),
       })
       .parse(input),
   )
@@ -393,39 +431,42 @@ export const postCheckOutPayment = createServerFn({ method: "POST" })
       throw new Error("Enter an amount no greater than the remaining balance.");
     }
 
-    const ledgerMethod = mapSettlementMethod(data.method);
+    const snapshot = await loadPolish1Snapshot(supabaseAdmin, data.restaurantId);
+    const tender = folioTenderFromCatalogue(
+      data.method,
+      snapshot.paymentMethodsAvailable ? snapshot.paymentMethods : null,
+    );
+    if (!tender.ok) throw new Error(tender.message);
+
     const reference = blankToNull(data.reference);
     const description = reference
-      ? `Check-out payment (${ledgerMethod}) · ${reference}`
-      : `Check-out payment (${ledgerMethod})`;
+      ? `Check-out payment (${tender.stored}) · ${reference}`
+      : `Check-out payment (${tender.stored})`;
 
     // Same live path as postFolioEntry({ type: "payment" }) — do not invent a second ledger.
-    const posted = await supabaseAdmin.rpc("post_folio_transaction", {
-      _restaurant_id: data.restaurantId,
-      _folio_id: folioId,
-      _type: "payment",
-      _category: "payment",
-      _description: description,
-      _amount: amount,
-      _reference_type: null as unknown as string,
-      _reference_id: null as unknown as string,
-      _membership_id: me.id,
-    });
-    if (posted.error) {
-      throw new Error(mapCashierShiftError(cashierError(posted.error.message).message));
+    let txnId: string;
+    try {
+      const posted = await callPostFolioTransaction({
+        restaurantId: data.restaurantId,
+        folioId,
+        type: "payment",
+        category: "payment",
+        description,
+        amount,
+        membershipId: me.id,
+        paymentMethod: tender.stored,
+        idempotencyKey: data.idempotencyKey,
+      });
+      txnId = posted.id;
+    } catch (error) {
+      throw new Error(mapCashierShiftError((error as Error).message));
     }
-    const txnId = (posted.data as { id: string }).id;
-    await supabaseAdmin
-      .from("folio_transactions")
-      .update({ payment_method: ledgerMethod })
-      .eq("id", txnId)
-      .eq("restaurant_id", data.restaurantId);
 
     await recordReservationEvent({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       eventType: "amended",
-      newValues: { checkout_payment_id: txnId, amount, method: ledgerMethod },
+      newValues: { checkout_payment_id: txnId, amount, method: tender.stored },
       notes: "Check-out payment posted to folio.",
       actorMembershipId: me.id,
     });
@@ -450,6 +491,36 @@ export const overrideCheckOutSettlement = createServerFn({ method: "POST" })
     const folio = await loadFolioState(supabaseAdmin, data.restaurantId, data.reservationId);
     const kind = overrideKindForBalance(folio.balance);
     if (!kind) throw new Error("The folio is already settled. An override is not needed.");
+    if (!folio.folioId) throw new Error("Open the folio before overriding settlement.");
+
+    const { error: markerError } = await supabaseAdmin
+      .from("guest_folios")
+      .update({
+        settlement_exception: "unsettled_checkout",
+        settlement_exception_kind: kind,
+        settlement_exception_reason: data.reason,
+        settlement_exception_at: new Date().toISOString(),
+        settlement_exception_amount: folio.balance,
+      })
+      .eq("id", folio.folioId)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "open");
+    if (markerError) throw new Error(markerError.message);
+
+    await supabaseAdmin.from("folio_history").insert({
+      restaurant_id: data.restaurantId,
+      folio_id: folio.folioId,
+      event_type: "checkout_unsettled_exception",
+      new_values: {
+        settlement_exception: "unsettled_checkout",
+        kind,
+        reason: data.reason,
+        amount: folio.balance,
+        folio_status: "open",
+      },
+      notes: "Checkout settlement overridden — folio left open and unsettled.",
+      actor_membership_id: me.id,
+    });
 
     await recordReservationEvent({
       restaurantId: data.restaurantId,
@@ -487,9 +558,17 @@ export const closeFolioAtCheckout = createServerFn({ method: "POST" })
     if (!folio.folioId) throw new Error("Open the folio before closing it.");
     const override = await loadOverride(supabaseAdmin, data.restaurantId, data.reservationId);
     if (override.recorded) {
-      throw new Error("Override leaves the folio open. Do not close a non-zero or overridden folio.");
+      throw new Error(
+        "Override leaves the folio open. Do not close a non-zero or overridden folio.",
+      );
     }
-    if (!shouldCloseFolioAtCheckout({ balance: folio.balance, override: false, folioStatus: folio.status })) {
+    if (
+      !shouldCloseFolioAtCheckout({
+        balance: folio.balance,
+        override: false,
+        folioStatus: folio.status,
+      })
+    ) {
       if (!isFolioSettled(folio.balance)) {
         throw new Error("Settle the outstanding balance before closing this folio.");
       }
@@ -555,7 +634,11 @@ export const sendCheckOutDocumentEmail = createServerFn({ method: "POST" })
       if (!response.ok) {
         const body = await response.text();
         console.error("[sendCheckOutDocumentEmail]", response.status, body);
-        return { ok: false, message: "The guest document could not be sent. Try again.", configured: true };
+        return {
+          ok: false,
+          message: "The guest document could not be sent. Try again.",
+          configured: true,
+        };
       }
       return { ok: true };
     },
@@ -595,5 +678,15 @@ export const completeFoCheckOut = createServerFn({ method: "POST" })
       _membership_id: me.id,
     });
     if (error) throw reservationError(error.message);
-    return { id: data.reservationId, roomNumber: loaded.stay.roomNumber };
+    const after = await loadFolioState(supabaseAdmin, data.restaurantId, data.reservationId);
+    const unsettled = await loadOverride(supabaseAdmin, data.restaurantId, data.reservationId);
+    return {
+      id: data.reservationId,
+      roomNumber: loaded.stay.roomNumber,
+      folioSettled: folioReportsSettled({
+        status: after.status,
+        balance: after.balance,
+        unsettledCheckout: unsettled.recorded,
+      }),
+    };
   });

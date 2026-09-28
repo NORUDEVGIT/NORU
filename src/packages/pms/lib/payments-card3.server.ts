@@ -106,3 +106,21 @@ export function evaluatePaymentsCard3Readiness(
   if (blockers.length === 0) return { ready: true, status: "complete", blockers };
   return { ready: false, status: "in_progress", blockers };
 }
+
+/** Readable default-policy result. Does not calculate or post an amount. */
+export function formatDepositPolicyResult(
+  policy: Pick<DepositPolicyCard3Row, "name" | "required" | "depositType" | "depositValue"> | null,
+  currencyCode: string,
+): string | null {
+  if (!policy) return null;
+  const posture = policy.required ? "Required by policy" : "Not required by policy";
+  let rule = "no set amount";
+  if (policy.depositType === "percent") rule = `${policy.depositValue}% of the stay`;
+  else if (policy.depositType === "fixed") {
+    const currency = currencyCode.trim();
+    rule = currency
+      ? `a fixed ${currency} ${policy.depositValue}`
+      : `a fixed ${policy.depositValue}`;
+  } else if (policy.depositType === "first_night") rule = "the first night";
+  return `${policy.name}: ${rule}. ${posture}. Enter the deposit amount. The policy amount is not posted automatically.`;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -30,7 +30,7 @@ import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
 import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import {
   CANCEL_NOSHOW_STEPS,
   CANCEL_STEP_META,
@@ -86,6 +86,7 @@ export function FoCancelNoShowStepper({
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [denyMessage, setDenyMessage] = useState<string | null>(null);
+  const feeKey = useRef(crypto.randomUUID());
   const [reason, setReason] = useState("");
   const [feeAmount, setFeeAmount] = useState("");
   const [waiveReason, setWaiveReason] = useState("");
@@ -201,9 +202,11 @@ export function FoCancelNoShowStepper({
           reservationId: stay.id,
           kind,
           amount: Number(feeAmount),
+          idempotencyKey: feeKey.current,
         },
       }),
     onSuccess: async () => {
+      feeKey.current = crypto.randomUUID();
       setDirty(false);
       await contextQuery.refetch();
     },

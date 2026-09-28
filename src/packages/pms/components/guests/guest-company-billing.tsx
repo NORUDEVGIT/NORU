@@ -173,7 +173,11 @@ export function GuestCompanyBilling({
                   <TableCell>
                     {data.summary.canOperate ? (
                       <Button asChild size="sm" variant="outline">
-                        <Link to="/restaurant/cashiering/folios/$folioId" params={{ folioId: row.folioId }}>
+                        <Link
+                          to="/restaurant/pms/cashiering/folios/$folioId"
+                          params={{ folioId: row.folioId }}
+                          search={{ action: "payment" }}
+                        >
                           Record payment
                         </Link>
                       </Button>

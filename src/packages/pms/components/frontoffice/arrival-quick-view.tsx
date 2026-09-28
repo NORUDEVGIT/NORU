@@ -9,7 +9,7 @@ import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell
 import { getFrontOfficeArrivalQuickView, type FoArrivalQuickView } from "@/packages/pms/lib/fo-arrival.functions";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
 import {
   Sheet,

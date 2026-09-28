@@ -13,7 +13,7 @@ import {
 } from "@/packages/pms/lib/fo-inhouse.functions";
 import { inHouseMenuItems } from "@/packages/pms/lib/fo-inhouse";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,

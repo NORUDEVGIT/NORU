@@ -14,7 +14,7 @@ import {
   requireReservationManager,
   reservationError,
 } from "./reservations.server";
-import { cashierError, requireCashierOperator } from "./cashiering.server";
+import { callPostFolioTransaction, cashierError, requireCashierManager } from "./cashiering.server";
 import { parseSnapshot } from "./rates.server";
 import { nightsBetween } from "./reservation-dates";
 import type { FrontOfficeStay } from "./frontoffice.functions";
@@ -846,6 +846,7 @@ export const addStayService = createServerFn({ method: "POST" })
         amount: z.number().finite().min(0),
         quantity: z.number().int().min(1).max(99).optional(),
         reason: z.string().trim().min(3).max(500),
+        idempotencyKey: z.string().min(8).max(80).optional(),
       })
       .parse(input),
   )
@@ -859,7 +860,8 @@ export const addStayService = createServerFn({ method: "POST" })
     let posted = false;
     let transactionId: string | null = null;
     if (servicePostsToFolio(lineTotal)) {
-      const cashier = await requireCashierOperator(context as never, data.restaurantId);
+      if (!data.idempotencyKey) throw new Error("The posting key is invalid. Try the action again.");
+      const cashier = await requireCashierManager(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
         _restaurant_id: data.restaurantId,
@@ -868,22 +870,24 @@ export const addStayService = createServerFn({ method: "POST" })
       });
       if (opened.error) throw cashierError(opened.error.message);
       const folioId = (opened.data as { id: string }).id;
-      const postedTxn = await supabaseAdmin.rpc("post_folio_transaction", {
-        _restaurant_id: data.restaurantId,
-        _folio_id: folioId,
-        _type: "charge",
-        _category: "manual",
-        _description: description,
-        _amount: lineTotal,
-        _reference_type: null as unknown as string,
-        _reference_id: null as unknown as string,
-        _membership_id: cashier.id,
-      });
-      if (postedTxn.error) {
-        throw new Error(mapCashierShiftError(cashierError(postedTxn.error.message).message));
+      let postedTxnId: string;
+      try {
+        const postedTxn = await callPostFolioTransaction({
+          restaurantId: data.restaurantId,
+          folioId,
+          type: "charge",
+          category: "manual",
+          description,
+          amount: lineTotal,
+          membershipId: cashier.id,
+          idempotencyKey: data.idempotencyKey,
+        });
+        postedTxnId = postedTxn.id;
+      } catch (error) {
+        throw new Error(mapCashierShiftError((error as Error).message));
       }
       posted = true;
-      transactionId = (postedTxn.data as { id: string }).id;
+      transactionId = postedTxnId;
     }
 
     await recordReservationEvent({

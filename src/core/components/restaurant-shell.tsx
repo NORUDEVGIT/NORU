@@ -48,13 +48,13 @@ import { getMyRestaurants, type RestaurantMembership } from "@/core/lib/restaura
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { clearRoutePackageCache } from "@/core/lib/route-package-guard";
-import { PMS_NAV_GROUPS, getPmsModule } from "@/packages/pms/lib/pms-modules";
+import { getPmsModule, pmsLauncherModules } from "@/packages/pms/lib/pms-modules";
 import { RM_GROUPS, RM_MODULES } from "@/packages/restaurant-management/lib/restaurant-management-modules";
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/packages/back-office/lib/back-office-modules";
 import { POS_MODULES, getPosModule } from "@/packages/standalone-pos/lib/standalone-pos-modules";
 import { useAuth } from "@/core/state/auth-store";
 import { cn } from "@/shared/lib/utils";
-import { RestaurantSettingsProvider } from "@/packages/restaurant-management/state/restaurant-context";
+import { RestaurantSettingsProvider } from "@/core/state/property-format";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
 import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
@@ -306,30 +306,30 @@ const HOUSEKEEPING_NAV: NavEntry[] = [
 
 const CASHIERING_NAV: NavEntry[] = [
   {
-    to: "/restaurant/cashiering",
-    tab: "dashboard",
-    label: "Dashboard",
+    to: "/restaurant/pms/cashiering",
+    tab: "overview",
+    label: "Overview",
     icon: LayoutDashboard,
     roles: CASH,
   },
   {
-    to: "/restaurant/cashiering",
+    to: "/restaurant/pms/cashiering",
     tab: "folios",
     label: "Folios",
     icon: ReceiptText,
     roles: CASH,
   },
   {
-    to: "/restaurant/cashiering",
+    to: "/restaurant/pms/cashiering",
     tab: "payments",
     label: "Payments",
     icon: Wallet,
     roles: CASH,
   },
   {
-    to: "/restaurant/cashiering",
-    tab: "shifts",
-    label: "Cashier Shifts",
+    to: "/restaurant/pms/cashiering",
+    tab: "cashier-shift",
+    label: "Cashier Shift",
     icon: ClipboardCheck,
     roles: CASH,
   },
@@ -611,35 +611,26 @@ export function RestaurantShell({
 
   const pmsSidebarNav = (
     <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="PMS navigation">
-      {PMS_NAV_GROUPS.map((group) => {
-        const groupItems = group.modules.filter((m) => allowedModules.includes(m.moduleKey));
-        if (groupItems.length === 0) return null;
-        return (
-          <div key={group.key} className="pb-2">
-            <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-              {group.title}
-            </p>
-            <ul className="space-y-1">
-              {groupItems.map((m) => (
-                <li key={m.key}>
-                  <Link
-                    to={m.canonicalRoute}
-                    onClick={() => setNavOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                      m.key === pmsMod?.key
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    )}
-                  >
-                    <m.icon className="size-4 shrink-0" /> {m.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+      <ul className="space-y-1 px-1 pt-3">
+        {pmsLauncherModules()
+          .filter((m) => allowedModules.includes(m.moduleKey))
+          .map((m) => (
+            <li key={m.key}>
+              <Link
+                to={m.canonicalRoute}
+                onClick={() => setNavOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                  m.key === pmsMod?.key
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                )}
+              >
+                <m.icon className="size-4 shrink-0" /> {m.key === "property-setup" ? "Settings" : m.title}
+              </Link>
+            </li>
+          ))}
+      </ul>
     </nav>
   );
 

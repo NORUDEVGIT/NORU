@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -29,7 +29,13 @@ import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
 import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import {
+  POLISH1_PAYMENT_METHODS_HREF,
+  cashieringTenderOptions,
+  emptyPolish1Snapshot,
+} from "@/packages/pms/lib/pms-polish1-payment-admin";
 import { stepRailState } from "@/packages/pms/lib/fo-check-in";
 import {
   CHECK_OUT_STEPS,
@@ -40,7 +46,6 @@ import {
   FOLIO_LEFT_OPEN_CHIP,
   REFUND_IN_CASHIERING_CTA,
   SETTLE_REQUIRED_BANNER,
-  SETTLEMENT_METHOD_CHIPS,
   STAY_NOT_IN_HOUSE_MESSAGE,
   canCompleteCheckOut,
   canContinueClose,
@@ -95,8 +100,9 @@ export function FoCheckOutStepper({
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
 
+  const payKey = useRef(crypto.randomUUID());
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<SettlementMethodChipId>("cash");
+  const [payMethod, setPayMethod] = useState("cash");
   const [payRef, setPayRef] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [emailTo, setEmailTo] = useState("");
@@ -223,9 +229,11 @@ export function FoCheckOutStepper({
           amount: Number(payAmount),
           method: payMethod,
           reference: payRef,
+          idempotencyKey: payKey.current,
         },
       }),
     onSuccess: async () => {
+      payKey.current = crypto.randomUUID();
       setDirty(false);
       setPayRef("");
       await contextQuery.refetch();
@@ -310,7 +318,15 @@ export function FoCheckOutStepper({
 
   const remaining = outstandingAmount(balance);
   const payValue = Number(payAmount);
-  const canPostPay = paymentAmountAllowed(payValue, remaining);
+  const set1 = usePmsSet1Foundation(restaurantId);
+  const tenders = cashieringTenderOptions({
+    available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
+    methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
+  });
+  useEffect(() => {
+    if (!tenders.some((row) => row.code === payMethod)) setPayMethod(tenders[0]?.code ?? "");
+  }, [payMethod, tenders]);
+  const canPostPay = paymentAmountAllowed(payValue, remaining) && Boolean(payMethod);
   const overrideKind = overrideKindForBalance(balance);
   const continueDisabled =
     (step === "stay" && !stayOk) ||
@@ -571,23 +587,33 @@ export function FoCheckOutStepper({
                         <p className="text-xs text-muted-foreground">
                           Outstanding {money(remaining)}.
                         </p>
-                        <div className="flex flex-wrap gap-2">
-                          {SETTLEMENT_METHOD_CHIPS.map((chip) => (
-                            <button
-                              key={chip.id}
-                              type="button"
-                              className={cn(
-                                "rounded-full border px-3 py-1.5 text-sm",
-                                payMethod === chip.id
-                                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                                  : "border-[#CCCCCC] text-muted-foreground",
-                              )}
-                              onClick={() => setPayMethod(chip.id)}
-                            >
-                              {chip.label}
-                            </button>
-                          ))}
-                        </div>
+                        {tenders.length === 0 ? (
+                          <p className="text-sm text-[#C89933]">
+                            No active payment methods. Configure them in{" "}
+                            <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
+                              Payment methods
+                            </a>
+                            .
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {tenders.map((tender) => (
+                              <button
+                                key={tender.code}
+                                type="button"
+                                className={cn(
+                                  "rounded-full border px-3 py-1.5 text-sm",
+                                  payMethod === tender.code
+                                    ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
+                                    : "border-[#CCCCCC] text-muted-foreground",
+                                )}
+                                onClick={() => setPayMethod(tender.code)}
+                              >
+                                {tender.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <Field label="Reference">
                           <Input value={payRef} onChange={(e) => setPayRef(e.target.value)} />
                         </Field>
@@ -698,7 +724,11 @@ export function FoCheckOutStepper({
 
                 {step === "complete" ? (
                   <div className="space-y-3 text-sm">
-                    <SummaryRow label="Guest" value={ctx?.stay.guestName ?? stay.guestName} ok={stayOk} />
+                    <SummaryRow
+                      label="Guest"
+                      value={ctx?.stay.guestName ?? stay.guestName}
+                      ok={stayOk}
+                    />
                     <SummaryRow label="Reservation" value={stay.confirmationNumber} ok={stayOk} />
                     <SummaryRow
                       label="Room"
@@ -712,15 +742,15 @@ export function FoCheckOutStepper({
                     />
                     <SummaryRow
                       label="Late checkout"
-                      value={stay.lateCheckoutGranted ? stay.lateCheckoutUntil ?? "Granted" : "Not set"}
+                      value={
+                        stay.lateCheckoutGranted ? (stay.lateCheckoutUntil ?? "Granted") : "Not set"
+                      }
                       ok
                     />
                     <SummaryRow
                       label="Folio"
                       value={
-                        folio?.folioNumber
-                          ? `${folio.folioNumber} · ${money(balance)}`
-                          : "required"
+                        folio?.folioNumber ? `${folio.folioNumber} · ${money(balance)}` : "required"
                       }
                       ok={folioOk}
                     />

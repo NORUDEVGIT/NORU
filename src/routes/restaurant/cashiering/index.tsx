@@ -1,43 +1,33 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { CashieringWorkspace } from "@/packages/pms/components/workspaces/cashiering-workspace";
-import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import { resolveCashieringTab } from "@/packages/pms/lib/cashiering-shell";
 
+/**
+ * Legacy URL kept for backward compatibility.
+ * The canonical address is /restaurant/pms/cashiering; the tab query is mapped onto the desk.
+ */
 export const Route = createFileRoute("/restaurant/cashiering/")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) =>
-    typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
-  beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
-      throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/cashiering" } });
-    }
-
-    await requireRoutePackage("pms");
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
+    ...(typeof search["folio"] === "string" ? { folio: search["folio"] as string } : {}),
+  }),
+  beforeLoad: ({ search }) => {
+    const tab = resolveCashieringTab(typeof search.tab === "string" ? search.tab : undefined);
+    throw redirect({
+      to: "/restaurant/pms/cashiering",
+      search: {
+        tab,
+        ...(typeof search.folio === "string" ? { folio: search.folio } : {}),
+      },
+      replace: true,
+    });
   },
   head: () => ({
     meta: [
-      { title: "Cashiering & Folios — NORU" },
-      {
-        name: "description",
-        content: "Guest folios, charges, payments, refunds and cashier shifts for your NORU property.",
-      },
-      { property: "og:title", content: "Cashiering & Folios — NORU" },
-      { property: "og:description", content: "Guest folios, payments and cashier shifts in NORU." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { title: "Redirecting — NORU PMS" },
+      { name: "description", content: "This page has moved into the NORU PMS workspace." },
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: CashieringRoute,
+  component: () => null,
 });
-
-function CashieringRoute() {
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
-  return (
-    <RestaurantShell active="Cashiering">
-      {(m) => <CashieringWorkspace membership={m} initialTab={searchTab ?? undefined} />}
-    </RestaurantShell>
-  );
-}

@@ -113,7 +113,9 @@ export const FALLBACK_CASHIERING_TENDERS = [
   { code: "other", name: "Other" },
 ] as const;
 
-export function emptyPolish1Activate(partial?: Partial<Polish1ActivateInput>): Polish1ActivateInput {
+export function emptyPolish1Activate(
+  partial?: Partial<Polish1ActivateInput>,
+): Polish1ActivateInput {
   return {
     paymentMethodsAvailable: false,
     activePaymentMethodCount: 0,
@@ -123,7 +125,9 @@ export function emptyPolish1Activate(partial?: Partial<Polish1ActivateInput>): P
   };
 }
 
-export function completePolish1Activate(partial?: Partial<Polish1ActivateInput>): Polish1ActivateInput {
+export function completePolish1Activate(
+  partial?: Partial<Polish1ActivateInput>,
+): Polish1ActivateInput {
   return emptyPolish1Activate({
     paymentMethodsAvailable: true,
     activePaymentMethodCount: 1,
@@ -152,8 +156,16 @@ export function activateInputFromPolish1Snapshot(snapshot: Polish1Snapshot): Pol
   };
 }
 
-function domain(id: Set1DomainReport["id"], missing: string[], warnings: string[]): Set1DomainReport {
-  const readiness: Set1Readiness = missing.length ? "incomplete" : warnings.length ? "warning" : "complete";
+function domain(
+  id: Set1DomainReport["id"],
+  missing: string[],
+  warnings: string[],
+): Set1DomainReport {
+  const readiness: Set1Readiness = missing.length
+    ? "incomplete"
+    : warnings.length
+      ? "warning"
+      : "complete";
   return { id, readiness, missing, warnings };
 }
 
@@ -210,28 +222,42 @@ export function customFeePresetBlocked(
   return !Number.isFinite(parsed) || parsed < 0;
 }
 
-export function feePresetSaveBlocked(cancel: {
-  preset: FeePresetId;
-  basis: "" | CustomFeeBasis;
-  value: string;
-}, noshow: {
-  preset: FeePresetId;
-  basis: "" | CustomFeeBasis;
-  value: string;
-}): string | null {
-  if (customFeePresetBlocked(cancel.preset, cancel.basis, cancel.value)) return POLISH1_CUSTOM_FEE_BLANK;
-  if (customFeePresetBlocked(noshow.preset, noshow.basis, noshow.value)) return POLISH1_CUSTOM_FEE_BLANK;
+export function feePresetSaveBlocked(
+  cancel: {
+    preset: FeePresetId;
+    basis: "" | CustomFeeBasis;
+    value: string;
+  },
+  noshow: {
+    preset: FeePresetId;
+    basis: "" | CustomFeeBasis;
+    value: string;
+  },
+): string | null {
+  if (customFeePresetBlocked(cancel.preset, cancel.basis, cancel.value))
+    return POLISH1_CUSTOM_FEE_BLANK;
+  if (customFeePresetBlocked(noshow.preset, noshow.basis, noshow.value))
+    return POLISH1_CUSTOM_FEE_BLANK;
   return null;
+}
+
+export function isCityLedgerTender(method: { code: string; typeClass?: string | null }): boolean {
+  return (
+    normalizeTenderCode(method.code) === "city_ledger" ||
+    normalizeTenderCode(method.typeClass ?? "") === "city_ledger"
+  );
 }
 
 export function cashieringTenderOptions(input: {
   available: boolean;
-  methods: Array<{ code: string; name: string; active: boolean }>;
+  methods: Array<{ code: string; name: string; active: boolean; typeClass?: string | null }>;
 }): Array<{ code: string; name: string }> {
   if (!input.available) {
     return FALLBACK_CASHIERING_TENDERS.map((row) => ({ code: row.code, name: row.name }));
   }
-  return input.methods.filter((row) => row.active).map((row) => ({ code: row.code, name: row.name }));
+  return input.methods
+    .filter((row) => row.active && !isCityLedgerTender(row))
+    .map((row) => ({ code: row.code, name: row.name }));
 }
 
 export function normalizeTenderCode(value: string): string {
@@ -241,9 +267,67 @@ export function normalizeTenderCode(value: string): string {
 export function allowCashieringTender(code: string, activeCodes: string[] | null): boolean {
   const normalized = normalizeTenderCode(code);
   if (activeCodes === null) {
-    return (FALLBACK_CASHIERING_TENDERS as readonly { code: string }[]).some((row) => row.code === normalized);
+    return (FALLBACK_CASHIERING_TENDERS as readonly { code: string }[]).some(
+      (row) => row.code === normalized,
+    );
   }
   return activeCodes.some((row) => row === code || normalizeTenderCode(row) === normalized);
+}
+
+/** Values allowed by folio_transactions.payment_method. Not a provider status. */
+export const LEDGER_PAYMENT_METHODS = [
+  "cash",
+  "card",
+  "bank_transfer",
+  "mobile_money",
+  "other",
+] as const;
+
+export const TENDER_NONE_ACTIVE =
+  "No active payment methods. Configure them in Settings → Payment methods.";
+export const TENDER_NOT_ACTIVE = "That payment method is not active.";
+export const TENDER_NOT_FOLIO = "That payment method cannot be posted on a guest folio.";
+
+/**
+ * Resolve a tender before any ledger insert. Catalogue codes outside the
+ * ledger CHECK are stored as `other` so the insert cannot fail after this check.
+ */
+export function resolveStoredTender(
+  method: string,
+  activeCodes: string[] | null,
+): { ok: true; stored: string } | { ok: false; message: string } {
+  const normalized = normalizeTenderCode(method);
+  if (!normalized) return { ok: false, message: "Choose a payment method." };
+  if (activeCodes && activeCodes.length === 0) return { ok: false, message: TENDER_NONE_ACTIVE };
+  if (!allowCashieringTender(normalized, activeCodes))
+    return { ok: false, message: TENDER_NOT_ACTIVE };
+  const catalogueCode =
+    activeCodes?.find((code) => normalizeTenderCode(code) === normalized) ?? normalized;
+  const ledger = normalizeTenderCode(catalogueCode);
+  if (ledger === "city_ledger") return { ok: false, message: TENDER_NOT_FOLIO };
+  if (ledger === "transfer") return { ok: true, stored: "bank_transfer" };
+  if ((LEDGER_PAYMENT_METHODS as readonly string[]).includes(ledger))
+    return { ok: true, stored: ledger };
+  return { ok: true, stored: "other" };
+}
+
+/** Active catalogue tender for a folio line. City ledger is not a guest-folio method. */
+export function folioTenderFromCatalogue(
+  method: string,
+  catalogue: Array<{ code: string; typeClass?: string | null; active: boolean }> | null,
+): { ok: true; stored: string } | { ok: false; message: string } {
+  if (catalogue) {
+    const normalized = normalizeTenderCode(method);
+    const match = catalogue.find(
+      (row) => row.active && (row.code === method || normalizeTenderCode(row.code) === normalized),
+    );
+    if (match && isCityLedgerTender(match)) return { ok: false, message: TENDER_NOT_FOLIO };
+    return resolveStoredTender(
+      method,
+      catalogue.filter((row) => row.active && !isCityLedgerTender(row)).map((row) => row.code),
+    );
+  }
+  return resolveStoredTender(method, null);
 }
 
 export function paymentsStayOffAdministration(copy: string): boolean {
