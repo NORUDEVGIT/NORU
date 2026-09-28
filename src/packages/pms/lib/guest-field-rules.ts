@@ -467,14 +467,34 @@ export function validateReservationGuestRequirements(
 
 /**
  * Validates Front Office check-in requirements:
+export type CheckInDocumentCandidate = {
+  id?: string;
+  typeId?: string | null;
+  kind?: string | null;
+  documentNumberMasked?: string | null;
+  documentNumber?: string | null;
+  issuingCountry?: string | null;
+  expiryDate?: string | null;
+  [key: string]: unknown;
+};
+
+/**
+ * Validates Front Office check-in requirements:
  * 1. Checks check_in field requirements on the guest.
  * 2. Checks identity document requirements (if any active doc type has requiredAtCheckIn).
+ *    Enforces:
+ *    - matching active requiredAtCheckIn type
+ *    - type allowed for Individual profile type
+ *    - documentNumberRequired, issuingCountryRequired, expiryDateRequired
+ *    - unexpired document (doc.expiryDate >= today)
+ *    - property-date-safe comparison
  */
 export function validateGuestCheckInRequirements(params: {
   guest: GuestProfile | GuestSummary | null | undefined;
-  documents: GuestDocument[];
+  documents: CheckInDocumentCandidate[];
   config: GuestWorkspaceConfig | null | undefined;
   profileType?: GuestWorkspaceTypeConfig | null;
+  today?: string;
 }): ValidationResult {
   const { guest, documents, config } = params;
   if (!guest) {
@@ -489,6 +509,9 @@ export function validateGuestCheckInRequirements(params: {
   const errors = [...fieldValidation.errors];
   const missingFieldCodes = [...fieldValidation.missingFieldCodes];
 
+  // Property date in YYYY-MM-DD form
+  const today = params.today ?? new Date().toISOString().slice(0, 10);
+
   // Identity document check-in requirement
   const checkInDocTypes = (
     config?.identityDocumentTypes ??
@@ -500,17 +523,78 @@ export function validateGuestCheckInRequirements(params: {
   );
 
   if (checkInDocTypes.length > 0) {
-    // Check if guest has at least one valid, unexpired document of a matching check-in type
-    const hasValidDoc = documents.some((doc) => {
-      const typeConfig = checkInDocTypes.find((t) => t.id === doc.typeId || t.code === doc.kind);
-      if (!typeConfig) return false;
-      if (typeConfig.documentNumberRequired && !doc.documentNumberMasked) return false;
-      return true;
-    });
+    const matchingDocs = documents.filter((doc) =>
+      checkInDocTypes.some((t) => t.id === doc.typeId || t.code === doc.kind),
+    );
 
-    if (!hasValidDoc) {
+    if (matchingDocs.length === 0) {
       missingFieldCodes.push("IDENTITY_DOCUMENT");
       errors.push("An identity document is required for check-in.");
+    } else {
+      let hasValidDoc = false;
+      const failureReasons: Array<
+        "expired" | "missing_expiry" | "missing_country" | "missing_number"
+      > = [];
+
+      for (const doc of matchingDocs) {
+        const typeConfig = checkInDocTypes.find((t) => t.id === doc.typeId || t.code === doc.kind)!;
+        const hasNumber = Boolean(
+          (
+            doc.documentNumberMasked ??
+            doc.documentNumber ??
+            ((doc as Record<string, unknown>)["document_number"] as string | null)
+          )?.trim(),
+        );
+        const hasCountry = Boolean(
+          (
+            doc.issuingCountry ??
+            ((doc as Record<string, unknown>)["issuing_country"] as string | null)
+          )?.trim(),
+        );
+        const rawExpiry =
+          doc.expiryDate ?? ((doc as Record<string, unknown>)["expiry_date"] as string | null);
+        const expiry = typeof rawExpiry === "string" ? rawExpiry.trim() || null : null;
+
+        if (typeConfig.documentNumberRequired && !hasNumber) {
+          failureReasons.push("missing_number");
+          continue;
+        }
+        if (typeConfig.issuingCountryRequired && !hasCountry) {
+          failureReasons.push("missing_country");
+          continue;
+        }
+        if (typeConfig.expiryDateRequired && !expiry) {
+          failureReasons.push("missing_expiry");
+          continue;
+        }
+        if (expiry && expiry < today) {
+          failureReasons.push("expired");
+          continue;
+        }
+
+        hasValidDoc = true;
+        break;
+      }
+
+      if (!hasValidDoc) {
+        missingFieldCodes.push("IDENTITY_DOCUMENT");
+        if (
+          failureReasons.includes("expired") &&
+          !failureReasons.some((r) => r.startsWith("missing_"))
+        ) {
+          errors.push("An unexpired identity document is required for check-in.");
+        } else if (failureReasons.includes("missing_number")) {
+          errors.push("Identity document number is required for check-in.");
+        } else if (failureReasons.includes("missing_country")) {
+          errors.push("Identity document issuing country is required for check-in.");
+        } else if (failureReasons.includes("missing_expiry")) {
+          errors.push("Identity document expiry date is required for check-in.");
+        } else if (failureReasons.includes("expired")) {
+          errors.push("An unexpired identity document is required for check-in.");
+        } else {
+          errors.push("An identity document is required for check-in.");
+        }
+      }
     }
   }
 

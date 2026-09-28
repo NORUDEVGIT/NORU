@@ -682,6 +682,8 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
           typeId: "doc-pas-1",
           kind: "passport" as const,
           documentNumberMasked: "PASS123",
+          issuingCountry: "US",
+          expiryDate: "2030-01-01",
           status: "valid" as const,
           hasImage: true,
           filePath: "/docs/p.jpg",
@@ -710,6 +712,8 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
           typeId: "doc-pas-1",
           kind: "passport" as const,
           documentNumberMasked: null,
+          issuingCountry: "US",
+          expiryDate: "2030-01-01",
           status: "valid" as const,
           hasImage: false,
           filePath: null,
@@ -1100,6 +1104,296 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
       // Confirms canonical key mapping only references existing guest model columns
       assert.doesNotMatch(guestFieldRulesFile, /custom_fields_jsonb/);
       assert.doesNotMatch(guestFieldRulesFile, /CREATE TABLE.*custom_guest_values/);
+    });
+
+    it("75. requiredAtCheckIn document with future expiry satisfies check-in", () => {
+      const config = makeConfig();
+      const guest = {
+        id: "g-1",
+        firstName: "Alice",
+        lastName: "Smith",
+        phone: "+123456",
+        dateOfBirth: "1990-01-01",
+      } as unknown as GuestProfile;
+      const docs = [
+        {
+          id: "d-1",
+          typeId: "doc-pas-1",
+          kind: "passport" as const,
+          documentNumberMasked: "P12345678",
+          issuingCountry: "US",
+          expiryDate: "2030-12-31",
+          status: "valid" as const,
+          hasImage: true,
+          filePath: "/docs/passport.jpg",
+        },
+      ];
+      const res = validateGuestCheckInRequirements({
+        guest,
+        documents: docs,
+        config,
+        today: "2026-09-28",
+      });
+      assert.equal(res.valid, true);
+      assert.equal(res.errors.length, 0);
+    });
+
+    it("76. expired requiredAtCheckIn document does not satisfy check-in", () => {
+      const config = makeConfig();
+      const guest = {
+        id: "g-1",
+        firstName: "Alice",
+        lastName: "Smith",
+        phone: "+123456",
+        dateOfBirth: "1990-01-01",
+      } as unknown as GuestProfile;
+      const docs = [
+        {
+          id: "d-1",
+          typeId: "doc-pas-1",
+          kind: "passport" as const,
+          documentNumberMasked: "P12345678",
+          issuingCountry: "US",
+          expiryDate: "2025-05-01",
+          status: "valid" as const,
+          hasImage: true,
+          filePath: "/docs/passport.jpg",
+        },
+      ];
+      const res = validateGuestCheckInRequirements({
+        guest,
+        documents: docs,
+        config,
+        today: "2026-09-28",
+      });
+      assert.equal(res.valid, false);
+      assert.ok(res.missingFieldCodes.includes("IDENTITY_DOCUMENT"));
+      assert.ok(res.errors.includes("An unexpired identity document is required for check-in."));
+    });
+
+    it("77. expiryDateRequired document without expiry does not satisfy check-in", () => {
+      const config = makeConfig();
+      const guest = {
+        id: "g-1",
+        firstName: "Alice",
+        lastName: "Smith",
+        phone: "+123456",
+        dateOfBirth: "1990-01-01",
+      } as unknown as GuestProfile;
+      const docs = [
+        {
+          id: "d-1",
+          typeId: "doc-pas-1",
+          kind: "passport" as const,
+          documentNumberMasked: "P12345678",
+          issuingCountry: "US",
+          expiryDate: null,
+          status: "valid" as const,
+          hasImage: true,
+          filePath: "/docs/passport.jpg",
+        },
+      ];
+      const res = validateGuestCheckInRequirements({
+        guest,
+        documents: docs,
+        config,
+        today: "2026-09-28",
+      });
+      assert.equal(res.valid, false);
+      assert.ok(res.missingFieldCodes.includes("IDENTITY_DOCUMENT"));
+      assert.ok(res.errors.includes("Identity document expiry date is required for check-in."));
+    });
+
+    it("78. document type without expiry requirement may satisfy without expiry", () => {
+      const config = makeConfig({
+        identityDocumentTypes: [
+          {
+            id: "doc-nid-checkin",
+            name: "National ID",
+            code: "NATIONAL_ID",
+            description: null,
+            issuingCountryRequired: false,
+            expiryDateRequired: false,
+            documentNumberRequired: true,
+            scanImageAllowed: true,
+            requiredAtCheckIn: true,
+            active: true,
+            validForProfileTypeIds: ["type-indiv-1"],
+            displayOrder: 1,
+          },
+        ],
+      });
+      const guest = {
+        id: "g-1",
+        firstName: "Alice",
+        lastName: "Smith",
+        phone: "+123456",
+        dateOfBirth: "1990-01-01",
+      } as unknown as GuestProfile;
+      const docs = [
+        {
+          id: "d-1",
+          typeId: "doc-nid-checkin",
+          kind: "national_id" as const,
+          documentNumberMasked: "NID-99999",
+          issuingCountry: null,
+          expiryDate: null,
+          status: "valid" as const,
+          hasImage: false,
+          filePath: null,
+        },
+      ];
+      const res = validateGuestCheckInRequirements({
+        guest,
+        documents: docs,
+        config,
+        today: "2026-09-28",
+      });
+      assert.equal(res.valid, true);
+      assert.equal(res.errors.length, 0);
+    });
+
+    it("79. missing issuing country fails when issuingCountryRequired is true", () => {
+      const config = makeConfig();
+      const guest = {
+        id: "g-1",
+        firstName: "Alice",
+        lastName: "Smith",
+        phone: "+123456",
+        dateOfBirth: "1990-01-01",
+      } as unknown as GuestProfile;
+      const docs = [
+        {
+          id: "d-1",
+          typeId: "doc-pas-1",
+          kind: "passport" as const,
+          documentNumberMasked: "P12345678",
+          issuingCountry: null,
+          expiryDate: "2030-01-01",
+          status: "valid" as const,
+          hasImage: true,
+          filePath: "/docs/passport.jpg",
+        },
+      ];
+      const res = validateGuestCheckInRequirements({
+        guest,
+        documents: docs,
+        config,
+        today: "2026-09-28",
+      });
+      assert.equal(res.valid, false);
+      assert.ok(res.missingFieldCodes.includes("IDENTITY_DOCUMENT"));
+      assert.ok(res.errors.includes("Identity document issuing country is required for check-in."));
+    });
+
+    it("80. missing document number fails when documentNumberRequired is true", () => {
+      const config = makeConfig();
+      const guest = {
+        id: "g-1",
+        firstName: "Alice",
+        lastName: "Smith",
+        phone: "+123456",
+        dateOfBirth: "1990-01-01",
+      } as unknown as GuestProfile;
+      const docs = [
+        {
+          id: "d-1",
+          typeId: "doc-pas-1",
+          kind: "passport" as const,
+          documentNumberMasked: "",
+          issuingCountry: "US",
+          expiryDate: "2030-01-01",
+          status: "valid" as const,
+          hasImage: true,
+          filePath: "/docs/passport.jpg",
+        },
+      ];
+      const res = validateGuestCheckInRequirements({
+        guest,
+        documents: docs,
+        config,
+        today: "2026-09-28",
+      });
+      assert.equal(res.valid, false);
+      assert.ok(res.missingFieldCodes.includes("IDENTITY_DOCUMENT"));
+      assert.ok(res.errors.includes("Identity document number is required for check-in."));
+    });
+
+    it("81. expired historical document remains readable", () => {
+      // Expired documents must remain visible in Guest Profile history and never be deleted or hidden.
+      const rawDbDocuments = [
+        {
+          id: "doc-hist-1",
+          id_type_id: "doc-pas-1",
+          kind: "passport",
+          document_number: "P-EXPIRED-99",
+          issuing_country: "US",
+          expiry_date: "2020-01-01",
+          file_path: "/docs/old.pdf",
+        },
+      ];
+
+      // Verifies document history reader maps expired rows without hiding or dropping them
+      const mapped = rawDbDocuments.map((doc) => ({
+        id: doc.id,
+        typeId: doc.id_type_id,
+        kind: doc.kind,
+        documentNumberMasked: doc.document_number,
+        issuingCountry: doc.issuing_country,
+        expiryDate: doc.expiry_date,
+        status: "valid" as const,
+        hasImage: Boolean(doc.file_path),
+        filePath: doc.file_path,
+      }));
+
+      assert.equal(mapped.length, 1);
+      assert.equal(mapped[0].expiryDate, "2020-01-01");
+      assert.equal(mapped[0].documentNumberMasked, "P-EXPIRED-99");
+
+      // Verify that fo-check-in queries documents without filtering out expired ones
+      const foFile = readFileSync(resolve(__dirname, "./fo-check-in.functions.ts"), "utf8");
+      assert.match(foFile, /from\("guest_documents"\)/);
+      assert.doesNotMatch(foFile, /filter.*expiry_date.*>=/);
+    });
+
+    it("82. completeFoCheckIn cannot bypass expired-document rule", () => {
+      const foFile = readFileSync(resolve(__dirname, "./fo-check-in.functions.ts"), "utf8");
+      assert.match(foFile, /validateGuestCheckInRequirements/);
+      assert.match(foFile, /today,/);
+      assert.match(foFile, /Check-in blocked by guest requirements:/);
+
+      // Directly verify that check-in validation blocks check-in with expired document
+      const config = makeConfig();
+      const guest = {
+        id: "g-1",
+        firstName: "Alice",
+        lastName: "Smith",
+        phone: "+123456",
+        dateOfBirth: "1990-01-01",
+      } as unknown as GuestProfile;
+      const expiredDoc = {
+        id: "d-expired",
+        typeId: "doc-pas-1",
+        kind: "passport" as const,
+        documentNumberMasked: "PASS123",
+        issuingCountry: "US",
+        expiryDate: "2024-01-01",
+        status: "valid" as const,
+        hasImage: true,
+        filePath: "/docs/p.jpg",
+      };
+
+      const checkInRes = validateGuestCheckInRequirements({
+        guest,
+        documents: [expiredDoc],
+        config,
+        today: "2026-09-28",
+      });
+
+      assert.equal(checkInRes.valid, false);
+      assert.ok(
+        checkInRes.errors.includes("An unexpired identity document is required for check-in."),
+      );
     });
   });
 });

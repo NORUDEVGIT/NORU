@@ -891,11 +891,23 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       }),
     );
 
+    const { data: propRow } = await supabaseAdmin
+      .from("restaurants")
+      .select("timezone, business_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const { resolvePropertyBusinessDate } = await import("./reservation-workspace/business-date");
+    const today = resolvePropertyBusinessDate(
+      (propRow as { business_date?: string | null } | null)?.business_date ?? null,
+      (propRow as { timezone?: string } | null)?.timezone ?? "UTC",
+    );
+
     const checkInValidation = validateGuestCheckInRequirements({
       guest: guestProfile,
       documents: checkInDocs,
       config: workspaceConfig,
       profileType: individualType,
+      today,
     });
     if (!checkInValidation.valid) {
       throw new Error(
