@@ -144,6 +144,7 @@ export function CreateReservationPage({
   membership,
   embedded = false,
   initialGuestId = null,
+  initialCompanyMasterId = null,
   pmsGroupId = null,
   pmsGroupBlockId = null,
   onCancel,
@@ -154,6 +155,7 @@ export function CreateReservationPage({
   membership: RestaurantMembership;
   embedded?: boolean;
   initialGuestId?: string | null;
+  initialCompanyMasterId?: string | null;
   pmsGroupId?: string | null;
   pmsGroupBlockId?: string | null;
   onCancel?: () => void;
@@ -227,6 +229,13 @@ export function CreateReservationPage({
     staleTime: 60_000,
   });
 
+  const initialCompanyQuery = useQuery({
+    queryKey: ["initial-reservation-company", restaurantId, initialCompanyMasterId],
+    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialCompanyMasterId! } }),
+    enabled: canManage && Boolean(initialCompanyMasterId) && !companyMaster && !companyOverride,
+    staleTime: 60_000,
+  });
+
   const initialPrefQuery = useQuery({
     queryKey: ["initial-guest-preferences", restaurantId, guest?.id],
     queryFn: () => fetchGuestPrefDefaults({ data: { restaurantId, guestId: guest!.id } }),
@@ -239,6 +248,29 @@ export function CreateReservationPage({
       setGuest(toPickedGuest(initialGuestQuery.data.guest));
     }
   }, [initialGuestQuery.data, guest]);
+
+  useEffect(() => {
+    if (!initialCompanyMasterId || companyOverride || companyMaster) return;
+    const rawAccount = initialCompanyQuery.data;
+    if (!rawAccount) return;
+    const account: Omit<NonNullable<typeof rawAccount>, "accountStatus"> & {
+      accountStatus: string;
+    } = rawAccount;
+
+    const isCompanyType = account.accountType === "company";
+    const isNotAnonymized = !account.anonymisedAt;
+    const isOperational = account.accountStatus !== "deleted";
+
+    if (isCompanyType && isNotAnonymized && isOperational) {
+      setCompanyMaster(toPickedReservationMaster(account));
+      setReservationType((prev) => (prev === "individual" ? "corporate" : prev));
+    }
+  }, [
+    initialCompanyMasterId,
+    companyOverride,
+    companyMaster,
+    initialCompanyQuery.data,
+  ]);
 
   useEffect(() => {
     if (initialPrefQuery.data?.applyToFutureReservations && initialPrefQuery.data.specialRequests) {

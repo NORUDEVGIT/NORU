@@ -12,7 +12,11 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/comp
 import { cn } from "@/shared/lib/utils";
 
 export type ReservationWorkspaceOverlayState =
-  | { type: "new-reservation"; initialGuestId?: string | null }
+  | {
+      type: "new-reservation";
+      initialGuestId?: string | null;
+      initialCompanyMasterId?: string | null;
+    }
   | { type: "reservation-detail"; reservationId: string }
   | null;
 

@@ -230,11 +230,13 @@ export function ReservationsWorkspace({
   initialTab,
   initialCreate = false,
   initialGuestId,
+  initialCompanyId,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
   initialCreate?: boolean | undefined;
   initialGuestId?: string | undefined;
+  initialCompanyId?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -273,9 +275,13 @@ export function ReservationsWorkspace({
   useEffect(() => {
     if (initialCreate && !hydratedCreateRef.current) {
       hydratedCreateRef.current = true;
-      setOverlay({ type: "new-reservation", initialGuestId: initialGuestId ?? null });
+      setOverlay({
+        type: "new-reservation",
+        initialGuestId: initialGuestId ?? null,
+        initialCompanyMasterId: initialCompanyId ?? null,
+      });
     }
-  }, [initialCreate, initialGuestId]);
+  }, [initialCreate, initialGuestId, initialCompanyId]);
 
   useEffect(() => {
     setWorkspaceSection(workspaceSectionFromTab(initialTab));
@@ -1084,6 +1090,7 @@ export function ReservationsWorkspace({
             membership={membership}
             embedded
             initialGuestId={overlay.initialGuestId ?? null}
+            initialCompanyMasterId={overlay.initialCompanyMasterId ?? null}
             pmsGroupId={createGroupLink?.pmsGroupId ?? null}
             pmsGroupBlockId={createGroupLink?.pmsGroupBlockId ?? null}
             onCancel={() => closeWorkspaceOverlay(false)}

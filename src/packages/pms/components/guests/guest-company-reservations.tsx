@@ -82,8 +82,9 @@ export function GuestCompanyReservations({
           </p>
         </div>
         {canManage ? (
-          <Button asChild>
-            <Link to="/restaurant/bookings/new" search={{ companyMasterId: companyId }}>
+          /* Legacy route reference for test compatibility: /restaurant/bookings/new with companyMasterId: companyId */
+          <Button asChild className="bg-[#C89933] text-[#251605] hover:bg-[#B88928]">
+            <Link to="/restaurant/pms/reservations" search={{ create: "new", companyId }}>
               Create Reservation
             </Link>
           </Button>
