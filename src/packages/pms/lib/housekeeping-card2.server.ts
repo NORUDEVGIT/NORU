@@ -238,16 +238,31 @@ export function mergeCard2HousekeepingStatus(
   };
 }
 
+/** Product "Ready" is derived. Never a `hotel_rooms.housekeeping_status` value. */
+export const FORBIDDEN_HOUSEKEEPING_ROOM_STATUSES = [
+  "ready",
+  "assigned",
+  "cleaning",
+  "cleaning_in_progress",
+  "occupied",
+] as const;
+
+export type HousekeepingReadinessPolicy = Pick<
+  HousekeepingCard2Settings,
+  "enabled" | "cleanRequired" | "inspectionRequired" | "maintenanceClearRequired"
+>;
+
+/**
+ * Canonical "is this room ready?" calculation for FO, Reservations, and HK.
+ * Call sites must use this (or `isRoomReady` wrappers). Do not special-case dirty/pickup.
+ */
 export function evaluateRoomReadinessWithPolicy(
   room: {
     status: string | null;
     housekeepingStatus: string | null;
     maintenanceStatus?: string | null;
   } | null,
-  settings?: Pick<
-    HousekeepingCard2Settings,
-    "enabled" | "cleanRequired" | "inspectionRequired" | "maintenanceClearRequired"
-  >,
+  settings?: HousekeepingReadinessPolicy,
 ): { ready: boolean; reason: string | null } {
   if (!room?.status) return { ready: false, reason: "Assign a room before continuing." };
   if (room.status === "out_of_order") {

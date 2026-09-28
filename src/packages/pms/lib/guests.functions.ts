@@ -13,6 +13,7 @@ import {
   normalizeEmail,
   normalizePhone,
   recordGuestEvent,
+  applyGuestServiceRequestUpdate,
   requireGuestManager,
   canManageGuestPrivacy,
   type GuestEventType,
@@ -70,7 +71,6 @@ import {
   GUEST_SERVICE_DESCRIPTION_MAX,
   GUEST_SERVICE_PRIORITIES,
   GUEST_SERVICE_STATUSES,
-  canTransitionGuestService,
   isGuestServiceStatus,
   type GuestServicePriority,
   type GuestServiceStatus,
@@ -3254,69 +3254,16 @@ export const updateGuestServiceRequest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const existing = await supabaseAdmin
-      .from("guest_service_history")
-      .select("id, status, assigned_membership_id, notes")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("guest_id", data.guestId)
-      .eq("id", data.requestId)
-      .maybeSingle();
-    if (!existing.data) return { ok: false, message: "That service request could not be found." };
-    const current = existing.data as {
-      status: string;
-      assigned_membership_id: string | null;
-      notes: string | null;
-    };
-    const currentStatus = isGuestServiceStatus(current.status)
-      ? (current.status as GuestServiceStatus)
-      : "requested";
-    const patch: Record<string, unknown> = {};
-    if (data.status && data.status !== currentStatus) {
-      if (!canTransitionGuestService(currentStatus, data.status)) {
-        return { ok: false, message: "That status change is not allowed." };
-      }
-      patch.status = data.status;
-      if (data.status === "completed") patch.completed_at = new Date().toISOString();
-      if (data.status === "cancelled") patch.cancelled_at = new Date().toISOString();
-    }
-    if (data.assignedMembershipId !== undefined) {
-      if (data.assignedMembershipId) {
-        const assigned = await supabaseAdmin
-          .from("restaurant_users")
-          .select("id")
-          .eq("restaurant_id", data.restaurantId)
-          .eq("id", data.assignedMembershipId)
-          .maybeSingle();
-        if (!assigned.data)
-          return { ok: false, message: "That staff member is not on this property." };
-      }
-      patch.assigned_membership_id = data.assignedMembershipId;
-    }
-    if (data.notes !== undefined) patch.notes = data.notes;
-    if (Object.keys(patch).length === 0) return { ok: true };
-    const updated = await supabaseAdmin
-      .from("guest_service_history")
-      .update(patch)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("guest_id", data.guestId)
-      .eq("id", data.requestId);
-    if (updated.error) return { ok: false, message: updated.error.message };
-    try {
-      await recordGuestEvent({
-        restaurantId: data.restaurantId,
-        guestId: data.guestId,
-        eventType: "service_request_updated",
-        previousValues: {
-          status: current.status,
-          assigned_membership_id: current.assigned_membership_id,
-        },
-        newValues: patch,
-        actorMembershipId: me.id,
-      });
-    } catch {
-      /* History event types land with 0089; the request row is the source of truth. */
-    }
-    return { ok: true };
+    return applyGuestServiceRequestUpdate({
+      admin: supabaseAdmin,
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      requestId: data.requestId,
+      actorMembershipId: me.id,
+      status: data.status,
+      assignedMembershipId: data.assignedMembershipId,
+      notes: data.notes,
+    });
   });
 
 export const createGuestPhotoUpload = createServerFn({ method: "POST" })

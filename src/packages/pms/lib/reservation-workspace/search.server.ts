@@ -97,7 +97,7 @@ export const OPERATIONAL_RESERVATION_SELECT = `
     first_name, last_name, phone, email, vip_status
   ),
   room_types!hotel_reservations_type_same_property ( name ),
-  hotel_rooms!hotel_reservations_room_same_type ( room_number, status, housekeeping_status ),
+  hotel_rooms!hotel_reservations_room_same_type ( room_number, status, housekeeping_status, maintenance_status ),
   rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property ( name ),
   company:guest_account_masters!hotel_reservations_company_master_same_property ( name ),
   travel_agent:guest_account_masters!hotel_reservations_travel_agent_master_same_property ( name ),
@@ -142,8 +142,18 @@ export type OperationalReservationRow = {
   guest_profiles: GuestRelation | GuestRelation[] | null;
   room_types: NameRelation | NameRelation[];
   hotel_rooms:
-    | { room_number: string; status?: string | null; housekeeping_status?: string | null }
-    | Array<{ room_number: string; status?: string | null; housekeeping_status?: string | null }>
+    | {
+        room_number: string;
+        status?: string | null;
+        housekeeping_status?: string | null;
+        maintenance_status?: string | null;
+      }
+    | Array<{
+        room_number: string;
+        status?: string | null;
+        housekeeping_status?: string | null;
+        maintenance_status?: string | null;
+      }>
     | null;
   rate_plan: NameRelation | NameRelation[];
   company: NameRelation | NameRelation[];
@@ -158,11 +168,13 @@ function one<T>(value: T | T[] | null): T | null {
 export function operationalRoomState(row: OperationalReservationRow): {
   operationalStatus: string | null;
   housekeepingStatus: string | null;
+  maintenanceStatus: string | null;
 } {
   const room = one(row.hotel_rooms);
   return {
     operationalStatus: room?.status ?? null,
     housekeepingStatus: room?.housekeeping_status ?? null,
+    maintenanceStatus: room?.maintenance_status ?? null,
   };
 }
 

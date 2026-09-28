@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isRoomReady } from "../fo-check-in";
+import { loadCard2HousekeepingSnapshot } from "../housekeeping-card2.functions";
+import type { HousekeepingReadinessPolicy } from "../housekeeping-card2.server";
 import {
   deriveExceptionRows,
   type ExceptionRow,
@@ -49,6 +51,7 @@ type RoomState = {
   id: string;
   status: string;
   housekeepingStatus: string;
+  maintenanceStatus: string | null;
   active: boolean;
   roomNumber: string;
   roomTypeId: string;
@@ -166,16 +169,21 @@ export function deriveRoomNotReadyItems(
   arrivals: FrontOfficeStay[],
   rooms: Map<string, RoomState>,
   detectedAt: string,
+  housekeepingPolicy?: HousekeepingReadinessPolicy,
 ): ReservationExceptionItem[] {
   const items: ReservationExceptionItem[] = [];
   for (const stay of arrivals) {
     if (!stay.roomId) continue;
     const room = rooms.get(stay.roomId);
     if (!room) continue;
-    const ready = isRoomReady({
-      status: room.status,
-      housekeepingStatus: room.housekeepingStatus,
-    }).ready;
+    const ready = isRoomReady(
+      {
+        status: room.status,
+        housekeepingStatus: room.housekeepingStatus,
+        maintenanceStatus: room.maintenanceStatus,
+      },
+      housekeepingPolicy,
+    ).ready;
     if (ready) continue;
     if (room.status === "out_of_order" || room.status === "out_of_service" || !room.active) {
       continue;
@@ -557,7 +565,7 @@ async function loadRooms(
 ): Promise<Map<string, RoomState>> {
   const { data, error } = await supabase
     .from("hotel_rooms")
-    .select("id, status, housekeeping_status, active, room_number, room_type_id")
+    .select("id, status, housekeeping_status, maintenance_status, active, room_number, room_type_id")
     .eq("restaurant_id", restaurantId);
   if (error) throw new Error(error.message);
   const map = new Map<string, RoomState>();
@@ -565,6 +573,7 @@ async function loadRooms(
     id: string;
     status: string;
     housekeeping_status: string;
+    maintenance_status: string | null;
     active: boolean;
     room_number: string;
     room_type_id: string;
@@ -573,6 +582,7 @@ async function loadRooms(
       id: row.id,
       status: row.status,
       housekeepingStatus: row.housekeeping_status,
+      maintenanceStatus: row.maintenance_status,
       active: row.active,
       roomNumber: row.room_number,
       roomTypeId: row.room_type_id,
@@ -699,7 +709,7 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
     const businessDate = resolvePropertyBusinessDate(property.business_date, property.timezone);
     const blockRangeEnd = addDays(businessDate, 7);
 
-    const [arrivals, inHouse, departures, rooms, feeds, blockResult] = await Promise.all([
+    const [arrivals, inHouse, departures, rooms, feeds, blockResult, hkSnapshot] = await Promise.all([
       loadFrontOfficeArrivals(supabase, { restaurantId: data.restaurantId, date: businessDate }),
       loadFrontOfficeInHouse(supabase, { restaurantId: data.restaurantId, today: businessDate }),
       loadFrontOfficeDepartures(supabase, { restaurantId: data.restaurantId, date: businessDate }),
@@ -711,6 +721,7 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
         canResolveDiscrepancy: canManageHousekeeping(me.role),
       }),
       loadActiveBlocks(supabase, data.restaurantId, businessDate, blockRangeEnd),
+      loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false),
     ]);
 
     const scoped = uniqueStays([arrivals, inHouse, departures]);
@@ -756,7 +767,7 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
       mapFoExceptionRow(row, stayById.get(row.stayId ?? "") ?? undefined, generatedAt),
     );
     const extra = [
-      ...deriveRoomNotReadyItems(arrivals, rooms, generatedAt),
+      ...deriveRoomNotReadyItems(arrivals, rooms, generatedAt, hkSnapshot.settings),
       ...deriveOperationalBlockItems(scoped, blockResult.blocks, generatedAt),
       ...deriveInactiveUnavailableItems(scoped, rooms, generatedAt),
       ...deriveMissingRateItems(scoped, pricing, generatedAt),

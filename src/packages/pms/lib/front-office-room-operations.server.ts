@@ -3,6 +3,7 @@
  * Joins existing tables only. No new writers.
  */
 import { canManageHousekeeping } from "./housekeeping.server";
+import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 import { deriveExceptionRows, isOooOrOos } from "./fo-exceptions";
 import { loadFoExceptionFeeds } from "./fo-exceptions.functions";
 import {
@@ -134,10 +135,13 @@ export async function loadFrontOfficeRoomQuickView(params: {
     stays.find((s) => s.arrival_date > businessDate && s.id !== currentStay?.id && s.id !== assignedArrival?.id) ?? null;
 
   const occupancy: "vacant" | "occupied" = currentStay ? "occupied" : "vacant";
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const hkSnapshot = await loadCard2HousekeepingSnapshot(supabaseAdmin, restaurantId, false);
   const readiness = foRoomReadiness({
     physicalStatus: roomRow.status,
     housekeepingStatus: roomRow.housekeeping_status,
     maintenanceStatus: roomRow.maintenance_status,
+    housekeepingPolicy: hkSnapshot.settings,
   });
 
   const { data: blockRows } = await supabase
@@ -319,7 +323,8 @@ export async function loadFrontOfficeRoomOpsQueue(params: {
     canResolveDiscrepancy: canManageHousekeeping(membership.role),
   });
 
-  const [{ data: arrivalRows }, { data: inHouseRows }, { data: depRows }, { data: roomRows }] = await Promise.all([
+  const [{ data: arrivalRows }, { data: inHouseRows }, { data: depRows }, { data: roomRows }, hkSnapshot] =
+    await Promise.all([
     supabase
       .from("hotel_reservations")
       .select(STAY_SELECT)
@@ -334,6 +339,9 @@ export async function loadFrontOfficeRoomOpsQueue(params: {
       .eq("departure_date", businessDate)
       .in("status", ["checked_in", "confirmed"]),
     supabase.from("hotel_rooms").select("id, status, room_number, room_type_id, housekeeping_status, maintenance_status, room_types!inner ( name )").eq("restaurant_id", restaurantId).eq("active", true),
+    import("@/integrations/supabase/client.server").then(({ supabaseAdmin }) =>
+      loadCard2HousekeepingSnapshot(supabaseAdmin, restaurantId, false),
+    ),
   ]);
 
   const toStayLike = (row: StayRow) => ({
@@ -391,6 +399,7 @@ export async function loadFrontOfficeRoomOpsQueue(params: {
       physicalStatus: room.status,
       housekeepingStatus: room.housekeepingStatus,
       maintenanceStatus: room.maintenanceStatus,
+      housekeepingPolicy: hkSnapshot.settings,
     });
     if (readiness.ready) continue;
     if (isOooOrOos(room.status)) continue;

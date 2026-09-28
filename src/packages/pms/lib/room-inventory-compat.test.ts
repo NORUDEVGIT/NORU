@@ -266,6 +266,7 @@ describe("Room & Inventory compatibility wrappers", () => {
         room_number: "101",
         floor_id: "44444444-4444-4444-8444-444444444444",
         status: "out_of_order",
+        maintenance_status: "maintenance_required",
         restriction_reason: "Leak",
         restriction_expected_return: "2026-10-02",
         restriction_maintenance_request_id: "55555555-5555-4555-8555-555555555555",
@@ -288,7 +289,7 @@ describe("Room & Inventory compatibility wrappers", () => {
       "create",
     );
 
-    assert.deepEqual(result, { room_number: "102", active: true, status: "available" });
+    assert.deepEqual(result, { room_number: "102", active: true, status: "available", maintenance_status: "normal" });
   });
 
   it("routes saveRoom updates and creates through the protected payload builder", () => {

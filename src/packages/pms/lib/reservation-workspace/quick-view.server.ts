@@ -4,7 +4,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireCashieringAccess } from "../cashiering.server";
 import { isPermissionDeniedMessage } from "../front-office-shell";
-import { requireReservationManager } from "../reservations.server";
+import { isRoomReady } from "../fo-check-in";
+import { loadCard2HousekeepingSnapshot } from "../housekeeping-card2.functions";
+import type { HousekeepingReadinessPolicy } from "../housekeeping-card2.server";
 import { deskActionHints } from "./desk.server";
 import { resolvePropertyBusinessDate } from "./business-date";
 import {
@@ -41,11 +43,13 @@ export function quickViewExceptionKeys(input: {
   roomId: string | null;
   operationalStatus: string | null;
   housekeepingStatus: string | null;
+  maintenanceStatus?: string | null;
   ratePlanId: string | null;
   roomSubtotal: number | null;
   arrivalDate: string;
   departureDate: string;
   businessDate: string;
+  housekeepingPolicy?: HousekeepingReadinessPolicy;
 }): QuickViewExceptionKey[] {
   const keys: QuickViewExceptionKey[] = [];
   const pendingOrConfirmed = input.status === "pending" || input.status === "confirmed";
@@ -56,11 +60,16 @@ export function quickViewExceptionKeys(input: {
   ) {
     keys.push("room_unavailable");
   }
-  if (
-    input.roomId &&
-    (input.housekeepingStatus === "dirty" || input.housekeepingStatus === "pickup")
-  ) {
-    keys.push("room_not_ready");
+  if (input.roomId && input.operationalStatus !== "out_of_order" && input.operationalStatus !== "out_of_service") {
+    const ready = isRoomReady(
+      {
+        status: input.operationalStatus,
+        housekeepingStatus: input.housekeepingStatus,
+        maintenanceStatus: input.maintenanceStatus ?? null,
+      },
+      input.housekeepingPolicy,
+    ).ready;
+    if (!ready) keys.push("room_not_ready");
   }
   if (input.status === "confirmed" && (input.ratePlanId === null || input.roomSubtotal === null)) {
     keys.push("missing_rate_snapshot");
@@ -138,7 +147,7 @@ export const getReservationQuickView = createServerFn({ method: "POST" })
     const supabase: WorkspaceClient = context.supabase;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [propertyResult, reservationResult, historyResult, financial] = await Promise.all([
+    const [propertyResult, reservationResult, historyResult, financial, hkSnapshot] = await Promise.all([
       supabaseAdmin
         .from("restaurants")
         .select("business_date, timezone")
@@ -158,6 +167,7 @@ export const getReservationQuickView = createServerFn({ method: "POST" })
         .order("created_at", { ascending: false })
         .limit(1),
       loadQuickViewFinancial(context as never, data.restaurantId, data.reservationId),
+      loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false),
     ]);
 
     if (propertyResult.error) throw new Error(propertyResult.error.message);
@@ -229,11 +239,13 @@ export const getReservationQuickView = createServerFn({ method: "POST" })
           roomId: summary.roomId,
           operationalStatus: roomState.operationalStatus,
           housekeepingStatus: roomState.housekeepingStatus,
+          maintenanceStatus: roomState.maintenanceStatus,
           ratePlanId: summary.ratePlanId,
           roomSubtotal: summary.roomSubtotal,
           arrivalDate: summary.arrivalDate,
           departureDate: summary.departureDate,
           businessDate,
+          housekeepingPolicy: hkSnapshot.settings,
         }),
         lastHistoryEvent: last
           ? { eventType: last.event_type, createdAt: last.created_at, notes: last.notes }

@@ -325,6 +325,7 @@ const OPERATIONAL_ROOM_FIELDS = new Set([
   "restriction_placed_at",
   "restriction_placed_by_membership_id",
   "restriction_approved_by_membership_id",
+  "maintenance_status",
 ]);
 
 export function roomPersistencePayload(
@@ -334,6 +335,9 @@ export function roomPersistencePayload(
   const output = Object.fromEntries(
     Object.entries(input).filter(([key]) => !OPERATIONAL_ROOM_FIELDS.has(key)),
   );
-  if (mode === "create") output["status"] = "available";
+  if (mode === "create") {
+    output["status"] = "available";
+    output["maintenance_status"] = "normal";
+  }
   return output;
 }

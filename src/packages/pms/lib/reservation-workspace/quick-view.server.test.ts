@@ -91,6 +91,7 @@ describe("DB-04I-03 Reservation Quick View read model", () => {
     assert.deepEqual(operationalRoomState({ hotel_rooms: null } as never), {
       operationalStatus: null,
       housekeepingStatus: null,
+      maintenanceStatus: null,
     });
   });
 
@@ -125,7 +126,7 @@ describe("DB-04I-03 Reservation Quick View read model", () => {
       operationalRoomState({
         hotel_rooms: { room_number: "404", status: "out_of_order", housekeeping_status: "dirty" },
       } as never),
-      { operationalStatus: "out_of_order", housekeepingStatus: "dirty" },
+      { operationalStatus: "out_of_order", housekeepingStatus: "dirty", maintenanceStatus: null },
     );
     assert.match(qv, /operationalRoomState\(row\)/);
   });
