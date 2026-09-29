@@ -74,8 +74,6 @@ function GroupKpiCard({
   loading,
   icon,
   tone,
-  active,
-  onClick,
 }: {
   label: string;
   value?: number | null | undefined;
@@ -83,17 +81,10 @@ function GroupKpiCard({
   loading?: boolean | undefined;
   icon: React.ReactNode;
   tone: string;
-  active?: boolean;
-  onClick?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm text-left transition-all hover:border-[#8A641A]/50",
-        active && "ring-2 ring-[#8A641A] border-[#8A641A]/60 shadow-md",
-      )}
+    <div
+      className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm text-left"
     >
       <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
         {icon}
@@ -111,7 +102,7 @@ function GroupKpiCard({
         )}
         {hint ? <p className="truncate text-[9px] text-[#8C827A]">{hint}</p> : null}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -306,8 +297,6 @@ export function GuestGroupDirectory({
           loading={kpiQuery.isLoading}
           icon={<Users className="size-4 text-[#8A641A]" />}
           tone="bg-[#F7F4EE]"
-          active={status === ALL}
-          onClick={() => setStatus(ALL)}
         />
         <GroupKpiCard
           label="Draft"
@@ -315,8 +304,6 @@ export function GuestGroupDirectory({
           loading={kpiQuery.isLoading}
           icon={<Users className="size-4 text-amber-700" />}
           tone="bg-amber-50"
-          active={status === "pending"}
-          onClick={() => setStatus("pending")}
         />
         <GroupKpiCard
           label="Confirmed"
@@ -324,8 +311,6 @@ export function GuestGroupDirectory({
           loading={kpiQuery.isLoading}
           icon={<CheckCircle2 className="size-4 text-emerald-700" />}
           tone="bg-emerald-50"
-          active={status === "active"}
-          onClick={() => setStatus("active")}
         />
         <GroupKpiCard
           label="Cancelled"
@@ -333,8 +318,6 @@ export function GuestGroupDirectory({
           loading={kpiQuery.isLoading}
           icon={<X className="size-4 text-red-700" />}
           tone="bg-red-50"
-          active={status === "inactive"}
-          onClick={() => setStatus("inactive")}
         />
       </div>
 

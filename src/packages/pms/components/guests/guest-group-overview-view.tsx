@@ -94,10 +94,8 @@ export function GuestGroupOverviewView({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onNavigate("members")}
-          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm transition-colors hover:border-[#8A641A]/50"
+        <div
+          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm"
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">Members</span>
           <p className="mt-1 font-display text-lg font-bold text-[#251605]">
@@ -106,35 +104,29 @@ export function GuestGroupOverviewView({
               <span className="text-xs font-normal text-[#756A5B]"> / {group.expectedPax} exp</span>
             ) : null}
           </p>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => onNavigate("reservations")}
-          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm transition-colors hover:border-[#8A641A]/50"
+        <div
+          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm"
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">Reservations</span>
           <p className="mt-1 font-display text-lg font-bold text-[#251605]">
             {data.kpis.reservations}
           </p>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => onNavigate("rooming")}
-          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm transition-colors hover:border-[#8A641A]/50"
+        <div
+          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm"
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">Assigned Rooms</span>
           <p className="mt-1 font-display text-lg font-bold text-emerald-700">
             {data.kpis.assignedRooms}
             <span className="text-xs font-normal text-[#756A5B]"> / {data.kpis.reservations}</span>
           </p>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => onNavigate("financial")}
-          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm transition-colors hover:border-[#8A641A]/50"
+        <div
+          className="rounded-xl border border-[#DDD4C5] bg-white p-3 text-left shadow-sm"
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
             {data.folioAccess ? "Outstanding" : "Expected Rooms"}
@@ -152,7 +144,7 @@ export function GuestGroupOverviewView({
               {group.expectedRooms ?? "—"}
             </p>
           )}
-        </button>
+        </div>
       </div>
 
       {/* L2. Primary Row (3 Panels) */}
