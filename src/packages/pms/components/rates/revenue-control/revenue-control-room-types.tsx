@@ -3,42 +3,72 @@ import type { RevenueControlRoomTypeRow } from "@/packages/pms/lib/revenue/reven
 export function RevenueControlRoomTypes({
   rows,
   money,
+  embedded = false,
 }: {
   rows: RevenueControlRoomTypeRow[];
   money: (value: number) => string;
+  embedded?: boolean;
 }) {
-  return (
-    <section className="rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-sm">
-      <h2 className="text-sm font-semibold text-[#251605]">Top Room Type Performance</h2>
-      <p className="text-[10px] text-muted-foreground">
-        Booked occupancy and snapshot revenue. Available nights still count active rooms × days.
+  const visibleRows = rows.slice(0, 5);
+
+  const content =
+    visibleRows.length === 0 ? (
+      <p className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F5] px-3.5 py-3 text-center text-sm font-medium text-[#5A4833]">
+        No room type performance is available for this range.
       </p>
-      {rows.length === 0 ? (
-        <p className="mt-4 text-xs text-muted-foreground">No room types or sold nights in this range.</p>
-      ) : (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[420px] text-left text-[10px]">
-            <thead className="border-b border-[#E8E1D7] bg-[#F8F5F0] text-[9px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-2 py-2 font-semibold">Room type</th>
-                <th className="px-2 py-2 font-semibold">Occupancy</th>
-                <th className="px-2 py-2 font-semibold">ADR</th>
-                <th className="px-2 py-2 font-semibold">Booked revenue</th>
+    ) : (
+      <div className="w-full overflow-hidden rounded-lg border border-[#EFECE6]">
+        <table className="w-full table-fixed text-left text-sm">
+          <thead className="border-b border-[#DDD4C5] bg-[#FAF6F0] text-xs font-bold text-[#5A4833]">
+            <tr>
+              <th className="h-9 w-[38%] px-3">Room Type</th>
+              <th className="h-9 w-[18%] px-2.5 text-right">Occupancy</th>
+              <th className="h-9 w-[22%] px-2.5 text-right">ADR</th>
+              <th className="h-9 w-[22%] px-3 text-right">Revenue</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#EFECE6]">
+            {visibleRows.map((row) => (
+              <tr key={row.roomTypeId} className="transition-colors hover:bg-[#FAF6F0]/60">
+                <td
+                  className="h-10 truncate px-3 font-semibold text-[#251605]"
+                  title={row.roomTypeName}
+                >
+                  {row.roomTypeName}
+                </td>
+                <td className="h-10 px-2.5 text-right font-semibold text-[#251605]">
+                  {row.occupancyPercent}%
+                </td>
+                <td className="h-10 px-2.5 text-right font-medium text-[#251605]">
+                  {money(row.adr)}
+                </td>
+                <td className="h-10 px-3 text-right font-semibold text-[#251605]">
+                  {money(row.bookedRoomRevenue)}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.roomTypeId} className="border-b border-[#E8E1D7]/80">
-                  <td className="px-2 py-2 font-medium text-[#251605]">{row.roomTypeName}</td>
-                  <td className="px-2 py-2">{row.occupancyPercent}%</td>
-                  <td className="px-2 py-2">{money(row.adr)}</td>
-                  <td className="px-2 py-2">{money(row.bookedRoomRevenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+  if (embedded) {
+    return <div className="mt-3">{content}</div>;
+  }
+
+  return (
+    <section className="flex flex-col rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-display text-base font-bold text-[#251605]">
+          Top Room Type Performance
+        </h2>
+        {visibleRows.length > 0 ? (
+          <span className="rounded-full bg-[#FAF6F0] px-2.5 py-0.5 text-xs font-bold text-[#5A4833]">
+            Top {visibleRows.length}
+          </span>
+        ) : null}
+      </div>
+      {content}
     </section>
   );
 }

@@ -1,8 +1,8 @@
 import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown } from "lucide-react";
+import { CalendarDays, ChevronDown, History, ShieldAlert, SlidersHorizontal } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -78,8 +78,8 @@ const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
         ref={ref}
         type="button"
         className={[
-          "relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors",
-          active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          "relative flex h-11 shrink-0 items-center gap-2 px-4 text-sm font-semibold transition-colors",
+          active ? "text-[#251605]" : "text-[#756A5B] hover:text-[#251605]",
           className,
         ]
           .filter(Boolean)
@@ -88,7 +88,7 @@ const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
       >
         {children}
         {active ? (
-          <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+          <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
         ) : null}
       </button>
     );
@@ -110,13 +110,13 @@ function SecondaryButton({
       type="button"
       onClick={onClick}
       className={[
-        "relative flex h-9 shrink-0 items-center px-2.5 text-xs font-medium transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        "relative flex h-10 shrink-0 items-center px-3.5 text-sm font-semibold transition-colors",
+        active ? "text-[#251605]" : "text-[#756A5B] hover:text-[#251605]",
       ].join(" ")}
     >
       {children}
       {active ? (
-        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+        <span className="absolute inset-x-2.5 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
       ) : null}
     </button>
   );
@@ -486,19 +486,89 @@ export function RatesWorkspace({
       <div className="min-w-0 bg-[#F7F4EE]">
         <div className="border-b border-border bg-background">
           <div className="px-5 pt-4 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Operations
-            </p>
-            <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-              Rate & Revenue
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Commercial and revenue operations for {membership.restaurant.name}.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{definition.description}</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Operations
+                </p>
+                <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-[#251605]">
+                  Rate & Revenue
+                </h1>
+                <p className="mt-1 text-sm text-[#756A5B]">
+                  Operational pricing, occupancy and revenue control.
+                </p>
+              </div>
+
+              {access.canViewRates || access.canViewRestrictions ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-10 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-4 text-sm font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#FAF6F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#251605]"
+                    >
+                      <SlidersHorizontal className="size-4 text-[#8A641A]" />
+                      <span>Rate & Restriction Actions</span>
+                      <ChevronDown className="size-4 text-[#756A5B]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={6}
+                    className="z-50 w-60 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-xl"
+                  >
+                    {access.canViewRates ? (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            to="/restaurant/pms/rates-revenue"
+                            search={serializeRevenueSearch("rate-calendar", context)}
+                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
+                          >
+                            <CalendarDays className="size-4 text-[#8A641A]" />
+                            <span>Open Rate Calendar</span>
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            to="/restaurant/pms/rates-revenue"
+                            search={serializeRevenueSearch("bulk-rate-change", context)}
+                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
+                          >
+                            <SlidersHorizontal className="size-4 text-[#8A641A]" />
+                            <span>Bulk Rate Change</span>
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            to="/restaurant/pms/rates-revenue"
+                            search={serializeRevenueSearch("rate-history", context)}
+                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
+                          >
+                            <History className="size-4 text-[#8A641A]" />
+                            <span>View Rate History</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                    {access.canViewRestrictions ? (
+                      <DropdownMenuItem asChild>
+                        <Link
+                          to="/restaurant/pms/rates-revenue"
+                          search={serializeRevenueSearch("restrictions", context)}
+                          className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
+                        >
+                          <ShieldAlert className="size-4 text-amber-700" />
+                          <span>View Restrictions</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </div>
           </div>
 
-          <div className="relative mt-3 flex items-end gap-1 overflow-x-auto px-5 sm:px-6">
+          <div className="relative mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6">
             {primarySections.map((section) =>
               section.id === "more" ? (
                 <DropdownMenu key={section.id} open={moreOpen} onOpenChange={setMoreOpen}>
@@ -507,7 +577,7 @@ export function RatesWorkspace({
                       {section.label}
                       <ChevronDown
                         className={[
-                          "h-3.5 w-3.5 transition-transform",
+                          "h-4 w-4 transition-transform",
                           moreOpen ? "rotate-180" : "",
                         ].join(" ")}
                       />
@@ -527,7 +597,7 @@ export function RatesWorkspace({
                           className={[
                             "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm cursor-pointer transition-colors",
                             requestedView === item
-                              ? "bg-muted font-medium text-foreground"
+                              ? "bg-muted font-semibold text-foreground"
                               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                           ].join(" ")}
                         >
@@ -550,7 +620,7 @@ export function RatesWorkspace({
           </div>
 
           {showSecondary ? (
-            <div className="flex items-end gap-1 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
+            <div className="flex items-end gap-3 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
               {secondaryViews.map((item) => (
                 <SecondaryButton
                   key={item}
@@ -562,7 +632,9 @@ export function RatesWorkspace({
               ))}
             </div>
           ) : null}
+        </div>
 
+        <main className="space-y-4 p-4 sm:p-5 lg:p-6">
           <RevenueContextBar
             fields={contextFieldsForView(requestedView)}
             context={context}
@@ -580,9 +652,8 @@ export function RatesWorkspace({
             coreConfigStatus={coreConfigStatus}
             cataloguesStatus={cataloguesStatus}
           />
-        </div>
-
-        <main className="p-3 sm:p-4">{renderView()}</main>
+          {renderView()}
+        </main>
       </div>
     </RateRevenueChrome>
   );
