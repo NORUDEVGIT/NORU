@@ -590,47 +590,15 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
     }
 
     if (data.customFields && Object.keys(data.customFields).length > 0) {
-      const { loadRequiredFieldsCard4Snapshot } = await import("./required-fields-card4.functions");
-      const { normalizeCustomFieldValue } = await import("./guest-custom-fields.server");
-      const { CANONICAL_FIELD_CODE_MAP } = await import("./guest-field-rules");
-      const snapshot = await loadRequiredFieldsCard4Snapshot(supabaseAdmin, data.restaurantId, context.userId);
-      const fields = snapshot.fields;
-      const fieldMap = new Map(fields.map((f) => [f.id, f]));
-      const fieldByCode = new Map(fields.map((f) => [f.code.toUpperCase(), f]));
-
-      for (const [key, rawValue] of Object.entries(data.customFields)) {
-        const field = fieldMap.get(key) ?? fieldByCode.get(key.toUpperCase());
-        if (!field) continue;
-        const codeUpper = field.code.toUpperCase();
-        if (CANONICAL_FIELD_CODE_MAP[codeUpper] || field.fieldType === "document" || field.fieldType === "lookup") {
-          continue;
-        }
-        const normalized = normalizeCustomFieldValue(field, rawValue);
-        const isBlank = normalized === null || normalized === "" || (Array.isArray(normalized) && normalized.length === 0);
-        if (isBlank) {
-          await supabaseAdmin
-            .from("guest_custom_field_values")
-            .delete()
-            .eq("restaurant_id", data.restaurantId)
-            .eq("guest_id", loaded.guestId)
-            .eq("field_id", field.id);
-        } else {
-          await supabaseAdmin
-            .from("guest_custom_field_values")
-            .upsert(
-              {
-                restaurant_id: data.restaurantId,
-                guest_id: loaded.guestId,
-                field_id: field.id,
-                value_text: typeof normalized === "string" ? normalized : null,
-                value_number: typeof normalized === "number" ? normalized : null,
-                value_date: typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null,
-                value_json: normalized as Json,
-              },
-              { onConflict: "restaurant_id,guest_id,field_id" },
-            );
-        }
-      }
+      const { persistGuestCustomFieldValues } = await import("./guest-custom-fields.functions");
+      await persistGuestCustomFieldValues(
+        supabaseAdmin,
+        data.restaurantId,
+        loaded.guestId,
+        context.userId,
+        data.customFields,
+        me.id,
+      );
     }
 
     if (data.adults !== loaded.stay.adults || data.children !== loaded.stay.children) {

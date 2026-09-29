@@ -19,7 +19,7 @@ import { cn } from "@/shared/lib/utils";
 import { PREFERENCE_TEXT_MAX } from "@/packages/pms/lib/guest-preferences-workspace";
 import { PREFERENCE_SETUP_HREF } from "@/packages/pms/lib/guest-profile-wave2";
 import {
-  listGuestPreferenceWorkspace,
+  listGuestPreferenceRegistrationCatalogue,
   type GuestPreferenceWorkspaceType,
 } from "@/packages/pms/lib/guests.functions";
 
@@ -171,14 +171,14 @@ export function GuestRegistrationPreferences({
   preferenceTypeIds,
   disabled = false,
 }: GuestRegistrationPreferencesProps) {
-  const loadFn = useServerFn(listGuestPreferenceWorkspace);
+  const loadFn = useServerFn(listGuestPreferenceRegistrationCatalogue);
   const query = useQuery({
     queryKey: ["guest-preferences-catalogue", restaurantId],
     queryFn: () => loadFn({ data: { restaurantId } }),
     staleTime: 5 * 60 * 1000,
   });
 
-  const categories = query.data?.categories ?? [];
+  const categories = useMemo(() => query.data?.categories ?? [], [query.data?.categories]);
 
   // Filter for active preference types applicable to the individual profile type
   const activeTypes = useMemo(() => {

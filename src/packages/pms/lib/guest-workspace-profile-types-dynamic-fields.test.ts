@@ -89,6 +89,10 @@ const guestPersonalViewSrc = readFileSync(
   join(repoRoot, "src/packages/pms/components/guests/guest-personal-contact-view.tsx"),
   "utf8",
 );
+const guestRegistrationPreferencesSrc = readFileSync(
+  join(repoRoot, "src/packages/pms/components/guests/guest-registration-preferences.tsx"),
+  "utf8",
+);
 
 describe("Card 4 Hardening — Part A: Profile Types (Fixed Operational Domains)", () => {
   it("1. Default canonical codes: IND, COM, TRA, GRP", () => {
@@ -273,10 +277,15 @@ describe("Card 4 Hardening — Part B: Dynamic Guest Fields (Hardening)", () => 
     assert.equal(shoeRule.category, "custom_value");
   });
 
-  it("28. Custom field values table exists with tenant-safe FKs", () => {
+  it("28. Custom field values table exists with value_json and tenant-safe FKs", () => {
+    assert.match(migration0117Supabase, /value_json jsonb/);
+    assert.doesNotMatch(migration0117Supabase, /value_text/);
+    assert.doesNotMatch(migration0117Supabase, /value_number/);
+    assert.doesNotMatch(migration0117Supabase, /value_date/);
     assert.match(migration0117Supabase, /ON DELETE CASCADE/);
     assert.match(migration0117Supabase, /ON DELETE RESTRICT/);
-    assert.match(migration0117Drizzle, /ON DELETE CASCADE/);
+    assert.match(migration0117Drizzle, /value_json/);
+    assert.doesNotMatch(migration0117Drizzle, /value_text/);
   });
 
   it("29. Custom field values table has unique constraint on guest_id + field_id", () => {
@@ -293,22 +302,22 @@ describe("Card 4 Hardening — Part B: Dynamic Guest Fields (Hardening)", () => 
     assert.match(migration0117Supabase, /manager/);
   });
 
-  it("31. Custom text value stored in value_text and value_json", () => {
+  it("31. Custom text value normalized for value_json", () => {
     const norm = normalizeCustomFieldValue("text", "  Golden Member  ");
     assert.equal(norm, "Golden Member");
   });
 
-  it("32. Custom number value stored in value_number and value_json", () => {
+  it("32. Custom number value normalized for value_json", () => {
     const norm = normalizeCustomFieldValue("number", "42.5");
     assert.equal(norm, 42.5);
   });
 
-  it("33. Custom date value stored in value_date and value_json", () => {
+  it("33. Custom date value normalized for value_json", () => {
     const norm = normalizeCustomFieldValue("date", "2026-05-15");
     assert.equal(norm, "2026-05-15");
   });
 
-  it("34. Custom select value stored in value_text and value_json", () => {
+  it("34. Custom select value normalized for value_json", () => {
     const norm = normalizeCustomFieldValue("select", "gold");
     assert.equal(norm, "gold");
     const field = {
@@ -322,7 +331,7 @@ describe("Card 4 Hardening — Part B: Dynamic Guest Fields (Hardening)", () => 
     assert.notEqual(validateCustomFieldValue(field, "silver", true), null);
   });
 
-  it("35. Custom multi_select value stored in value_json", () => {
+  it("35. Custom multi_select value normalized for value_json", () => {
     const norm = normalizeCustomFieldValue("multi_select", ["vegan", "halal"]);
     assert.deepEqual(norm, ["vegan", "halal"]);
     const field = {
@@ -616,11 +625,15 @@ describe("Card 4 Hardening — Part B: Dynamic Guest Fields (Hardening)", () => 
   it("61. Dynamic preferences rendered in New Guest registration", () => {
     assert.match(guestFormDialogSrc, /GuestRegistrationPreferences/);
     assert.match(guestFormDialogSrc, /id="preferences"/);
+    assert.match(guestRegistrationPreferencesSrc, /listGuestPreferenceRegistrationCatalogue/);
+    assert.doesNotMatch(guestRegistrationPreferencesSrc, /listGuestPreferenceWorkspace/);
   });
 
-  it("62. Focused preference saving to guest_preference_values", () => {
+  it("62. Focused preference saving to guest_preference_values with typeId payload", () => {
     assert.match(guestsFnSrc, /saveGuestPreferenceAnswers/);
     assert.match(guestsFnSrc, /guest_preference_values/);
+    assert.match(guestsFnSrc, /typeId:\s*idSchema/);
+    assert.match(guestFormDialogSrc, /typeId,\s*values/);
   });
 
   it("63. Focused preference saving does not overwrite contact defaults", () => {
@@ -652,10 +665,14 @@ describe("Card 4 Hardening — Part B: Dynamic Guest Fields (Hardening)", () => 
     assert.match(privacyFnSrc, /pms_guest_fields\(id, code, name, field_type\)/);
   });
 
-  it("68. Held data export formats custom values properly", () => {
+  it("68. Held data export reads value_json only without typed columns", () => {
     const exportSlice = privacyFnSrc.slice(privacyFnSrc.indexOf("exportGuestProfile"));
     assert.match(exportSlice, /customFields/);
-    assert.match(exportSlice, /row\.value_json \?\? row\.value_text/);
+    assert.match(exportSlice, /select\("field_id, value_json, pms_guest_fields\(id, code, name, field_type\)"\)/);
+    assert.match(exportSlice, /value:\s*row\.value_json/);
+    assert.doesNotMatch(exportSlice, /value_text/);
+    assert.doesNotMatch(exportSlice, /value_number/);
+    assert.doesNotMatch(exportSlice, /value_date/);
   });
 
   it("69. Guest merge copies non-conflicting custom field values to survivor", () => {
@@ -667,9 +684,14 @@ describe("Card 4 Hardening — Part B: Dynamic Guest Fields (Hardening)", () => 
     assert.match(guestsFnSrc, /customFieldConflicts/);
   });
 
-  it("71. Guest merge conflict: retired value preserved in audit/ledger", () => {
-    assert.match(guestsFnSrc, /customFieldConflicts: customFieldConflicts\.length > 0/);
-    assert.match(guestsFnSrc, /custom_field_conflicts/);
+  it("71. Guest merge reads and writes value_json only", () => {
+    const mergeSlice = guestsFnSrc.slice(guestsFnSrc.indexOf("mergeGuests"));
+    assert.match(mergeSlice, /retiredVal = retiredRow\.value_json/);
+    assert.match(mergeSlice, /survivorVal = survivorRow\.value_json/);
+    assert.match(mergeSlice, /value_json:\s*retiredRow\.value_json/);
+    assert.doesNotMatch(mergeSlice, /value_text/);
+    assert.doesNotMatch(mergeSlice, /value_number/);
+    assert.doesNotMatch(mergeSlice, /value_date/);
   });
 
   it("72. Guest merge conflict does not silently discard retired value", () => {
@@ -686,13 +708,52 @@ describe("Card 4 Hardening — Part B: Dynamic Guest Fields (Hardening)", () => 
     assert.match(foCheckInFnSrc, /customFieldValues: customValues/);
   });
 
-  it("75. Front office check-in saves custom fields in registration step", () => {
+  it("75. Front office check-in validates and saves custom fields with unique conflict target", () => {
     assert.match(foCheckInFnSrc, /data\.customFields/);
-    assert.match(foCheckInFnSrc, /guest_custom_field_values/);
+    assert.match(foCheckInFnSrc, /persistGuestCustomFieldValues/);
+    assert.match(customFieldsFnSrc, /onConflict:\s*"guest_id,field_id"/);
+    assert.doesNotMatch(foCheckInFnSrc, /restaurant_id,guest_id,field_id/);
+    assert.doesNotMatch(customFieldsFnSrc, /restaurant_id,guest_id,field_id/);
   });
 
   it("76. Reservation confirmation blocked when reservation custom field missing", () => {
     assert.match(reservationsFnSrc, /guest_custom_field_values/);
     assert.match(reservationsFnSrc, /validateReservationGuestRequirements\(/);
+  });
+
+  it("77. New Guest preference catalogue does not require guestId", () => {
+    assert.match(guestsFnSrc, /export const listGuestPreferenceRegistrationCatalogue/);
+    const catSlice = guestsFnSrc.slice(guestsFnSrc.indexOf("listGuestPreferenceRegistrationCatalogue"));
+    const validatorSlice = catSlice.slice(0, 400);
+    assert.doesNotMatch(validatorSlice, /guestId/);
+  });
+
+  it("78. Required preference blocks guest creation before createGuest", () => {
+    assert.match(guestFormDialogSrc, /validatePreferenceAnswer/);
+    const submitSlice = guestFormDialogSrc.slice(guestFormDialogSrc.indexOf("const submit = useMutation"));
+    assert.match(submitSlice, /validatePreferenceAnswer\(t, answers\)/);
+  });
+
+  it("79. Custom-field save failure does not report full success and tracks partial failure", () => {
+    const saveSlice = guestFormDialogSrc.slice(guestFormDialogSrc.indexOf("const save = useMutation"));
+    assert.match(saveSlice, /customFieldsSuccess = false/);
+    assert.match(saveSlice, /complete = customFieldsSuccess && preferencesSuccess && followupsComplete/);
+    assert.match(saveSlice, /if \(!result\.complete\) \{/);
+  });
+
+  it("80. Preference save failure does not report full success and tracks partial failure", () => {
+    const saveSlice = guestFormDialogSrc.slice(guestFormDialogSrc.indexOf("const save = useMutation"));
+    assert.match(saveSlice, /preferencesSuccess = false/);
+    assert.match(saveSlice, /complete = customFieldsSuccess && preferencesSuccess && followupsComplete/);
+  });
+
+  it("81. GuestFormDialog uses item.value, not item.effectiveValue", () => {
+    assert.match(guestFormDialogSrc, /initial\[item\.fieldId\] = item\.value/);
+    assert.doesNotMatch(guestFormDialogSrc, /effectiveValue/);
+  });
+
+  it("82. All custom-field upserts use matching unique constraint target onConflict: guest_id,field_id", () => {
+    assert.doesNotMatch(customFieldsFnSrc, /onConflict:\s*"restaurant_id,guest_id,field_id"/);
+    assert.match(customFieldsFnSrc, /onConflict:\s*"guest_id,field_id"/);
   });
 });

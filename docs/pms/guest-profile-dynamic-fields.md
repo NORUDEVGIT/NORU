@@ -32,13 +32,10 @@ Operational workflows across reservations, folios, billing, housekeeping, and fr
 - **Core Attributes**: Known fields (`FIRST_NAME`, `LAST_NAME`, `PHONE`, `EMAIL`, `NATIONALITY`, `ADDRESS_LINE1`, etc.) map to primary columns on `guest_profiles`.
 - **Custom Field Values**: Dynamic/unmapped fields persist in `guest_custom_field_values`:
   - `id` (UUID PK)
+  - `restaurant_id` (Tenant isolation)
   - `guest_id` (FK to `guest_profiles.id`, `ON DELETE CASCADE`)
   - `field_id` (FK to `pms_guest_fields.id`, `ON DELETE RESTRICT`)
-  - `restaurant_id` (Tenant isolation)
-  - `value_text` (String representation for text/select)
-  - `value_number` (Numeric value for number)
-  - `value_date` (Date representation for date)
-  - `value_json` (Full normalized payload including multi-select arrays)
+  - `value_json` (JSONB: single canonical custom-value payload column storing normalized string, number, or string array)
   - `created_at`, `updated_at`, `updated_by`
   - Unique constraint on `(guest_id, field_id)`.
   - Row Level Security (RLS) policies matching existing `guest_profiles` operational access.

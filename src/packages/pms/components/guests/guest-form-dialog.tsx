@@ -35,12 +35,14 @@ import {
   createGuest,
   createGuestDocumentUpload,
   findGuestDuplicates,
+  listGuestPreferenceRegistrationCatalogue,
   registerGuestDocument,
   saveGuestPreferenceAnswers,
   updateGuest,
   type GuestProfile,
   type GuestSummary,
 } from "@/packages/pms/lib/guests.functions";
+import { validatePreferenceAnswer } from "@/packages/pms/lib/guest-preferences-workspace";
 import {
   listGuestCustomFieldValues,
   saveGuestCustomFieldValues,
@@ -354,6 +356,13 @@ export function GuestFormDialog({
 
   const saveCustomValues = useServerFn(saveGuestCustomFieldValues);
   const savePreferences = useServerFn(saveGuestPreferenceAnswers);
+  const loadPrefCatalogue = useServerFn(listGuestPreferenceRegistrationCatalogue);
+  const prefCatalogueQuery = useQuery({
+    queryKey: ["guest-preferences-catalogue", restaurantId],
+    queryFn: () => loadPrefCatalogue({ data: { restaurantId } }),
+    enabled: open && !guest,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (open) {
@@ -374,7 +383,7 @@ export function GuestFormDialog({
     if (open && guest && customValuesQuery.data) {
       const initial: Record<string, unknown> = {};
       for (const item of customValuesQuery.data) {
-        initial[item.fieldId] = item.effectiveValue;
+        initial[item.fieldId] = item.value;
       }
       setCustomValues(initial);
     }
@@ -482,6 +491,10 @@ export function GuestFormDialog({
         setCreatedGuestId(activeGuestId);
       }
 
+      const errors: string[] = [];
+      let customFieldsSuccess = true;
+      let preferencesSuccess = true;
+
       // Save custom field values
       if (Object.keys(customValues).length > 0) {
         try {
@@ -489,26 +502,35 @@ export function GuestFormDialog({
             data: { restaurantId, guestId: activeGuestId, values: customValues },
           });
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to save some additional fields");
+          customFieldsSuccess = false;
+          const msg = err instanceof Error ? err.message : "Failed to save some additional fields";
+          errors.push(msg);
         }
       }
 
       // Save preference answers (at registration)
       const prefEntries = Object.entries(preferenceAnswers)
         .filter(([_, vals]) => vals && vals.length > 0)
-        .map(([preferenceTypeId, values]) => ({ preferenceTypeId, values }));
+        .map(([typeId, values]) => ({ typeId, values }));
       if (prefEntries.length > 0) {
         try {
-          await savePreferences({
+          const res = await savePreferences({
             data: { restaurantId, guestId: activeGuestId, answers: prefEntries },
           });
+          if (res && !res.ok) {
+            preferencesSuccess = false;
+            errors.push(res.message);
+          }
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to save some preferences");
+          preferencesSuccess = false;
+          const msg = err instanceof Error ? err.message : "Failed to save some preferences";
+          errors.push(msg);
         }
       }
 
-      const complete = guest ? true : await applyStagedFollowups(activeGuestId);
-      return { id: activeGuestId, complete };
+      const followupsComplete = guest ? true : await applyStagedFollowups(activeGuestId);
+      const complete = customFieldsSuccess && preferencesSuccess && followupsComplete;
+      return { id: activeGuestId, complete, errors };
     },
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
@@ -518,7 +540,8 @@ export function GuestFormDialog({
       void queryClient.invalidateQueries({ queryKey: ["guest-custom-fields", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-preference-workspace", restaurantId] });
       if (!result.complete) {
-        toast.error(INDIVIDUAL_PARTIAL_CREATE_COPY);
+        const errorDetail = result.errors.length > 0 ? result.errors.join("; ") : null;
+        toast.error(errorDetail ? `${INDIVIDUAL_PARTIAL_CREATE_COPY} ${errorDetail}` : INDIVIDUAL_PARTIAL_CREATE_COPY);
         return;
       }
       toast.success(guest ? "Guest updated." : "Guest created.");
@@ -553,6 +576,24 @@ export function GuestFormDialog({
       );
       if (!fieldValidation.valid) {
         throw new Error(fieldValidation.errors[0]);
+      }
+
+      // Validate required preferences for Individual profile before guest creation
+      if (!guest && prefCatalogueQuery.data?.categories) {
+        const allowedSet =
+          individualType?.preferenceTypeIds && individualType.preferenceTypeIds.length > 0
+            ? new Set(individualType.preferenceTypeIds)
+            : null;
+        for (const cat of prefCatalogueQuery.data.categories) {
+          if (!cat.active) continue;
+          for (const t of cat.types) {
+            if (!t.active) continue;
+            if (allowedSet && !allowedSet.has(t.id)) continue;
+            const answers = preferenceAnswers[t.id] ?? [];
+            const error = validatePreferenceAnswer(t, answers);
+            if (error) throw new Error(error);
+          }
+        }
       }
 
       const matches = await checkDuplicates({

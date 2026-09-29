@@ -37,6 +37,7 @@ import {
 const idSchema = z.string().uuid();
 
 function db(client: { from: (table: string) => unknown }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return client as unknown as { from: (table: string) => any };
 }
 
@@ -588,17 +589,22 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
         .eq("guest_id", data.guestId),
       supabaseAdmin
         .from("guest_custom_field_values")
-        .select("field_id, value_text, value_number, value_date, value_json, pms_guest_fields(id, code, name, field_type)")
+        .select("field_id, value_json, pms_guest_fields(id, code, name, field_type)")
         .eq("restaurant_id", data.restaurantId)
         .eq("guest_id", data.guestId),
     ]);
 
-    const customFields = ((customRows?.data ?? []) as any[]).map((row: any) => ({
+    type CustomRowExport = {
+      field_id: string;
+      value_json: unknown;
+      pms_guest_fields?: { id: string; code: string; name: string; field_type: string } | null;
+    };
+    const customFields = ((customRows?.data ?? []) as CustomRowExport[]).map((row) => ({
       fieldId: row.field_id,
       code: row.pms_guest_fields?.code ?? null,
       label: row.pms_guest_fields?.name ?? null,
       fieldType: row.pms_guest_fields?.field_type ?? null,
-      value: row.value_json ?? row.value_text ?? row.value_number ?? row.value_date,
+      value: row.value_json,
     }));
 
     const json = {

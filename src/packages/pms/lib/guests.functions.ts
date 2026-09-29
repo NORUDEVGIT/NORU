@@ -2495,6 +2495,32 @@ export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
     };
   });
 
+export type GuestPreferenceRegistrationCatalogue = {
+  available: boolean;
+  categories: Array<PreferenceCategoryRecord & { types: GuestPreferenceWorkspaceType[] }>;
+};
+
+export const listGuestPreferenceRegistrationCatalogue = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data }): Promise<GuestPreferenceRegistrationCatalogue> => {
+    const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
+    const categories = catalogue.categories
+      .map((category) => {
+        const types = catalogue.types
+          .filter((type) => type.categoryId === category.id)
+          .map((type) => ({ ...type, values: [] }))
+          .filter((type) => type.active);
+        return { ...category, types };
+      })
+      .filter((category) => category.active && category.types.length > 0);
+
+    return {
+      available: categories.length > 0,
+      categories,
+    };
+  });
+
 export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -4605,7 +4631,7 @@ export const mergeGuests = createServerFn({ method: "POST" })
 
     for (const retiredRow of (retiredCustomRows ?? []) as any[]) {
       const survivorRow = survivorCustomMap.get(retiredRow.field_id);
-      const retiredVal = retiredRow.value_json ?? retiredRow.value_text ?? retiredRow.value_number ?? retiredRow.value_date;
+      const retiredVal = retiredRow.value_json;
       const retiredHasVal = retiredVal !== null && retiredVal !== undefined && retiredVal !== "" && !(Array.isArray(retiredVal) && retiredVal.length === 0);
 
       if (!retiredHasVal) continue;
@@ -4618,14 +4644,11 @@ export const mergeGuests = createServerFn({ method: "POST" })
             restaurant_id: data.restaurantId,
             guest_id: data.survivorId,
             field_id: retiredRow.field_id,
-            value_text: retiredRow.value_text,
-            value_number: retiredRow.value_number,
-            value_date: retiredRow.value_date,
             value_json: retiredRow.value_json,
           });
         copiedCustomFieldIds.push(retiredRow.field_id);
       } else {
-        const survivorVal = survivorRow.value_json ?? survivorRow.value_text ?? survivorRow.value_number ?? survivorRow.value_date;
+        const survivorVal = survivorRow.value_json;
         const survivorHasVal = survivorVal !== null && survivorVal !== undefined && survivorVal !== "" && !(Array.isArray(survivorVal) && survivorVal.length === 0);
 
         if (!survivorHasVal) {
@@ -4633,9 +4656,6 @@ export const mergeGuests = createServerFn({ method: "POST" })
           await supabaseAdmin
             .from("guest_custom_field_values")
             .update({
-              value_text: retiredRow.value_text,
-              value_number: retiredRow.value_number,
-              value_date: retiredRow.value_date,
               value_json: retiredRow.value_json,
             })
             .eq("restaurant_id", data.restaurantId)
