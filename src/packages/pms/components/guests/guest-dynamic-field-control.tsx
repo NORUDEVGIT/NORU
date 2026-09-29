@@ -39,6 +39,9 @@ export function GuestDynamicFieldControl({
   const inputId = `dynamic-field-${field.id}`;
 
   const renderControl = () => {
+    const inputClass =
+      "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70";
+
     switch (field.fieldType) {
       case "text":
       case "address": {
@@ -50,7 +53,7 @@ export function GuestDynamicFieldControl({
             disabled={disabled}
             placeholder={`Enter ${field.label.toLowerCase()}`}
             onChange={(e) => onChange(e.target.value)}
-            className="bg-white border-[#DDD4C5] focus-visible:ring-[#C89933]"
+            className={inputClass}
           />
         );
       }
@@ -64,7 +67,7 @@ export function GuestDynamicFieldControl({
             disabled={disabled}
             placeholder="+1 555 000 0000"
             onChange={(e) => onChange(e.target.value)}
-            className="bg-white border-[#DDD4C5] focus-visible:ring-[#C89933]"
+            className={inputClass}
           />
         );
       }
@@ -78,7 +81,7 @@ export function GuestDynamicFieldControl({
             disabled={disabled}
             placeholder="guest@example.com"
             onChange={(e) => onChange(e.target.value)}
-            className="bg-white border-[#DDD4C5] focus-visible:ring-[#C89933]"
+            className={inputClass}
           />
         );
       }
@@ -97,7 +100,7 @@ export function GuestDynamicFieldControl({
               const val = e.target.value;
               onChange(val === "" ? null : Number(val));
             }}
-            className="bg-white border-[#DDD4C5] focus-visible:ring-[#C89933]"
+            className={inputClass}
           />
         );
       }
@@ -110,7 +113,7 @@ export function GuestDynamicFieldControl({
             value={dateVal}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value || null)}
-            className="bg-white border-[#DDD4C5] focus-visible:ring-[#C89933]"
+            className={inputClass}
           />
         );
       }
@@ -124,7 +127,7 @@ export function GuestDynamicFieldControl({
           >
             <SelectTrigger
               id={inputId}
-              className="bg-white border-[#DDD4C5] focus:ring-[#C89933]"
+              className="h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] justify-between"
             >
               <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
             </SelectTrigger>
@@ -164,10 +167,10 @@ export function GuestDynamicFieldControl({
                     variant={isSelected ? "default" : "outline"}
                     onClick={() => toggleOption(opt.value)}
                     className={cn(
-                      "cursor-pointer select-none text-xs transition-colors",
+                      "cursor-pointer select-none rounded-[4px] text-xs transition-colors",
                       isSelected
                         ? "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 border-transparent font-medium"
-                        : "bg-white text-[#554A3D] hover:bg-[#F7F4EE] border-[#DDD4C5]",
+                        : "bg-white text-[#554A3D] hover:bg-[#F7F4EE] border-[#CCCCCC]",
                       disabled && "cursor-not-allowed opacity-60",
                     )}
                   >

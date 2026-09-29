@@ -49,6 +49,7 @@ import {
 } from "@/packages/pms/lib/guest-custom-fields.functions";
 import { GuestDynamicFieldsSection } from "@/packages/pms/components/guests/guest-dynamic-fields-section";
 import { GuestRegistrationPreferences } from "@/packages/pms/components/guests/guest-registration-preferences";
+import { GuestCreateModal } from "./guest-create-modal";
 import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { guestCreateBlocked } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
@@ -270,7 +271,33 @@ function Section({
   );
 }
 
-export function GuestFormDialog({
+export function GuestFormDialog(props: {
+  restaurantId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Present when editing an existing guest. */
+  guest?: GuestProfile | null;
+  onSaved?: (guestId: string) => void;
+  /** Called when staff choose an existing duplicate instead of creating a new guest. */
+  onOpenExisting?: (guestId: string) => void;
+  /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
+  onMergeRequested?: (duplicateId: string) => void;
+}) {
+  if (!props.guest) {
+    return (
+      <GuestCreateModal
+        restaurantId={props.restaurantId}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        onCreated={(id) => props.onSaved?.(id)}
+        onCancel={() => props.onOpenChange(false)}
+      />
+    );
+  }
+  return <GuestEditFormDialog {...props} guest={props.guest} />;
+}
+
+function GuestEditFormDialog({
   restaurantId,
   open,
   onOpenChange,
@@ -282,12 +309,9 @@ export function GuestFormDialog({
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Present when editing an existing guest. */
-  guest?: GuestProfile | null;
+  guest: GuestProfile;
   onSaved?: (guestId: string) => void;
-  /** Called when staff choose an existing duplicate instead of creating a new guest. */
   onOpenExisting?: (guestId: string) => void;
-  /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
   onMergeRequested?: (duplicateId: string) => void;
 }) {
   const queryClient = useQueryClient();

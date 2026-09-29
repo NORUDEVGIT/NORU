@@ -16,6 +16,7 @@ export function SearchableSelect({
   emptyText = "No matches.",
   error,
   onChange,
+  className,
 }: {
   id: string;
   value: string;
@@ -26,6 +27,7 @@ export function SearchableSelect({
   emptyText?: string;
   error?: string | undefined;
   onChange: (value: string) => void;
+  className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const selected = options.find((row) => row.value === value);
@@ -40,7 +42,7 @@ export function SearchableSelect({
           aria-expanded={open}
           aria-invalid={Boolean(error)}
           disabled={disabled}
-          className={cn("h-11 w-full justify-between font-normal", error ? "border-red-500" : "")}
+          className={cn("h-11 w-full justify-between font-normal", error ? "border-red-500" : "", className)}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>{selected?.label ?? placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
