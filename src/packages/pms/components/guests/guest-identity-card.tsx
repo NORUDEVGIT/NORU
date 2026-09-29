@@ -42,7 +42,7 @@ import {
 import { ISO_COUNTRIES, countryNameFromInput } from "@/packages/pms/lib/pms-geography";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { supabase } from "@/integrations/supabase/client";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,

@@ -122,7 +122,7 @@ import {
 import {
   useMoney,
   useRestaurantTimezone,
-} from "@/packages/restaurant-management/state/restaurant-context";
+} from "@/core/state/property-format";
 import { cn } from "@/shared/lib/utils";
 
 const UNASSIGNED = "unassigned";

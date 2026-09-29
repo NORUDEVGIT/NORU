@@ -65,7 +65,7 @@ import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.func
 import {
   useMoney,
   useRestaurantTime,
-} from "@/packages/restaurant-management/state/restaurant-context";
+} from "@/core/state/property-format";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { ReservationGuestMastersCard } from "@/packages/pms/components/guests/reservation-guest-masters";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
@@ -730,7 +730,7 @@ export function ReservationDetailWorkspace({
           {embedded ? null : (
             <Button asChild variant="outline" size="sm" className="mt-4">
               <Link
-                to="/restaurant/pms/reservations/guests/$guestId"
+                to="/restaurant/pms/guests/$guestId"
                 params={{ guestId: reservation.guestId }}
               >
                 Open guest profile

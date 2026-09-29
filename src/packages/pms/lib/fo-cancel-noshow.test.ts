@@ -89,7 +89,9 @@ describe("FO-FS3 charge-before-status", () => {
     assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf("cancellation_reason"));
     assert.ok(noShowSrc.indexOf("canCompleteNoShow") < noShowSrc.indexOf("mark_hotel_reservation_no_show"));
     assert.match(fns, /postCancelOrNoShowFee/);
-    assert.match(fns, /_type: "charge"/);
+    assert.match(fns, /callPostFolioTransaction/);
+    assert.match(fns, /type: "charge"/);
+    assert.match(fns, /requireCashierManager/);
     assert.match(fns, /CANCEL_FEE_DESCRIPTION|Cancel fee/);
     assert.match(fns, /NOSHOW_FEE_DESCRIPTION|No-show charge/);
     assert.doesNotMatch(fns, /_type: "refund"/);

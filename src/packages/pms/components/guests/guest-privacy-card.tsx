@@ -33,7 +33,7 @@ import {
   listGuestUnmergeCandidates,
   unmergeGuests,
 } from "@/packages/pms/lib/guest-privacy.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 function downloadJson(filename: string, jsonText: string) {
   const blob = new Blob([jsonText], { type: "application/json" });

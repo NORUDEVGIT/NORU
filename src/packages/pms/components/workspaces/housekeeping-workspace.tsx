@@ -22,7 +22,7 @@ import {
   type HkAreaId,
   type HkResolvableAreaId,
 } from "@/packages/pms/lib/housekeeping-shell";
-import { useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/property-format";
 import { localDateInZone } from "@/shared/lib/property-time";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";

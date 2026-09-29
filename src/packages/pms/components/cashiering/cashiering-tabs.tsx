@@ -16,7 +16,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { StatCard } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   closeCashierShift,
@@ -28,7 +34,10 @@ import {
   type FolioRow,
   type LedgerEntryRow,
 } from "@/packages/pms/lib/cashiering.functions";
-import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import {
+  useMoney,
+  useRestaurantTime,
+} from "@/core/state/property-format";
 import { FolioStatusBadge } from "./folio-bits";
 
 /* -------------------------------------------------------------- dashboard */
@@ -49,7 +58,8 @@ export function CashieringDashboardTab({
   });
 
   if (query.isLoading) return <p className="text-sm text-muted-foreground">Loading cashiering…</p>;
-  if (query.isError) return <p className="text-sm text-destructive">{(query.error as Error).message}</p>;
+  if (query.isError)
+    return <p className="text-sm text-destructive">{(query.error as Error).message}</p>;
   const d = query.data;
   if (!d) return null;
 
@@ -57,14 +67,23 @@ export function CashieringDashboardTab({
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard label="Open folios" value={d.openFolios} />
-        <StatCard label="Outstanding balance" value={money(d.outstandingBalance)} hint="Across open folios" />
-        <StatCard label="Payments today" value={money(d.todayPayments)} hint="Payments and deposits" />
+        <StatCard
+          label="Outstanding balance"
+          value={money(d.outstandingBalance)}
+          hint="Across open folios"
+        />
+        <StatCard
+          label="Payments today"
+          value={money(d.todayPayments)}
+          hint="Payments and deposits"
+        />
         <StatCard label="Charges today" value={money(d.todayCharges)} />
         <StatCard label="Open cashier shifts" value={d.openShifts} />
         <StatCard label="My shift" value={d.myOpenShiftId ? "Open" : "Closed"} />
       </div>
       <p className="text-xs text-muted-foreground">
-        Folios open automatically at check-in for priced reservations, with the room charge posted once.
+        Folios open automatically at check-in for priced reservations, with the room charge posted
+        once.
       </p>
     </div>
   );
@@ -109,7 +128,10 @@ export function FoliosTab({
         </div>
         <div>
           <Label htmlFor="folio-status">Status</Label>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
+          >
             <SelectTrigger id="folio-status" className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -127,7 +149,9 @@ export function FoliosTab({
       ) : query.isError ? (
         <p className="text-sm text-destructive">{(query.error as Error).message}</p>
       ) : folios.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No folios yet. Check a guest in to open one.</p>
+        <p className="text-sm text-muted-foreground">
+          No folios yet. Check a guest in to open one.
+        </p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border">
           <table className="w-full text-sm">
@@ -156,10 +180,13 @@ export function FoliosTab({
                   <td className="p-3 text-right font-medium">{money(f.balance)}</td>
                   <td className="p-3">
                     <FolioStatusBadge status={f.status} />
+                    {f.unsettledCheckout ? (
+                      <p className="mt-1 text-xs text-destructive">Unsettled checkout</p>
+                    ) : null}
                   </td>
                   <td className="p-3 text-right">
                     <Button asChild size="sm" variant="outline">
-                      <Link to="/restaurant/cashiering/folios/$folioId" params={{ folioId: f.id }}>
+                      <Link to="/restaurant/pms/cashiering" search={{ tab: "folios", folio: f.id }}>
                         Open
                       </Link>
                     </Button>
@@ -221,9 +248,15 @@ export function CashierShiftsTab({ restaurantId }: { restaurantId: string }) {
                 <tr key={s.id} className="border-t border-border">
                   <td className="p-3">{s.staffName}</td>
                   <td className="p-3 text-muted-foreground">{dateTime(s.openedAt)}</td>
-                  <td className="p-3 text-muted-foreground">{s.closedAt ? dateTime(s.closedAt) : "—"}</td>
-                  <td className="p-3 text-right">{s.openingCash === null ? "—" : money(s.openingCash)}</td>
-                  <td className="p-3 text-right">{s.closingCash === null ? "—" : money(s.closingCash)}</td>
+                  <td className="p-3 text-muted-foreground">
+                    {s.closedAt ? dateTime(s.closedAt) : "—"}
+                  </td>
+                  <td className="p-3 text-right">
+                    {s.openingCash === null ? "—" : money(s.openingCash)}
+                  </td>
+                  <td className="p-3 text-right">
+                    {s.closingCash === null ? "—" : money(s.closingCash)}
+                  </td>
                   <td className="p-3 capitalize">{s.status}</td>
                   <td className="p-3 text-right">
                     {s.status === "open" ? (
@@ -264,7 +297,7 @@ export function CashierShiftsTab({ restaurantId }: { restaurantId: string }) {
   );
 }
 
-function ShiftDialog({
+export function ShiftDialog({
   restaurantId,
   mode,
   shiftId,
@@ -311,16 +344,18 @@ function ShiftDialog({
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "open" ? "Open cashier shift" : "Close cashier shift"}</DialogTitle>
+          <DialogTitle>
+            {mode === "open" ? "Open cashier shift" : "Close cashier shift"}
+          </DialogTitle>
           <DialogDescription>
             {mode === "open"
-              ? "Record the cash float you are starting with."
-              : "Record the counted cash at the end of this shift."}
+              ? "Record the hotel drawer float you are starting with. Restaurant sales are not included."
+              : "Record the hotel drawer cash counted at close. Restaurant sales are not included."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label htmlFor="shift-cash">{mode === "open" ? "Opening cash" : "Closing cash"}</Label>
+            <Label htmlFor="shift-cash">{mode === "open" ? "Opening cash" : "Closing count"}</Label>
             <Input
               id="shift-cash"
               type="number"
@@ -370,7 +405,9 @@ export function LedgerTab({
   const query = useQuery({
     queryKey: ["cashiering-ledger", restaurantId, types.join(","), search],
     queryFn: () =>
-      fetchEntries({ data: { restaurantId, types, ...(search.trim() ? { search: search.trim() } : {}) } }),
+      fetchEntries({
+        data: { restaurantId, types, ...(search.trim() ? { search: search.trim() } : {}) },
+      }),
     retry: false,
   });
 
@@ -399,8 +436,8 @@ export function LedgerTab({
                 <div>
                   <div className="flex items-center gap-2">
                     <Link
-                      to="/restaurant/cashiering/folios/$folioId"
-                      params={{ folioId: row.folioId }}
+                      to="/restaurant/pms/cashiering"
+                      search={{ tab: "folios", folio: row.folioId }}
                       className="font-medium underline-offset-4 hover:underline"
                     >
                       {row.folioNumber}

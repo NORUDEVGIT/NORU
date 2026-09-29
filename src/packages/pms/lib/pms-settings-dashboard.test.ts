@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { PROPERTY_SETUP_CARDS } from "./pms-property-setup-card1.ts";
 import {
   card1PmsNavIsUnchanged,
+  settingsDashboardUsesModuleNav,
   evaluateSettingsDashboardProgress,
   settingsDashboardStatusLabel,
   settingsDashboardStatusWeight,
@@ -70,7 +71,7 @@ describe("Settings dashboard presentation", () => {
   });
 
   it("reuses command chrome instead of duplicating FO navbar JSX", () => {
-    assert.match(foChrome, /PmsCommandChrome/);
+    assert.match(foChrome, /RoomInventoryChrome/);
     assert.match(foChrome, /FO_NAV_ITEMS/);
     assert.match(chrome, /fo-top-command/);
     assert.match(dashboard, /PmsCommandChrome/);
@@ -84,7 +85,10 @@ describe("Settings dashboard presentation", () => {
     assert.match(styles, /h1,\s*h2,\s*h3 \{[\s\S]*font-family: var\(--font-sans\)/);
   });
 
-  it("keeps CARD1 PMS nav hrefs unchanged", () => {
+  it("keeps CARD1 PMS nav hrefs unchanged and points the hub at the ten-item bar", () => {
     assert.equal(card1PmsNavIsUnchanged(), true);
+    assert.equal(settingsDashboardUsesModuleNav(), true);
+    assert.match(dashboard, /border-\[#C89933\]/);
+    assert.doesNotMatch(dashboard, /restaurant-management\/dashboard/);
   });
 });

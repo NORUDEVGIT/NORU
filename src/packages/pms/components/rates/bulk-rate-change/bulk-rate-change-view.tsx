@@ -32,7 +32,7 @@ import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import { serializeRevenueSearch, type RevenueContext, type RevenueSearchParams } from "@/packages/pms/lib/revenue/revenue-context";
 import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenue/revenue-config.types";
 import { RATE_CALENDAR_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { BulkDefineStep } from "./bulk-define-step";
 import { BulkRateChangePanel } from "./bulk-rate-change-panel";
 import { BulkScopeStep } from "./bulk-scope-step";

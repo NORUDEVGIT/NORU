@@ -19,7 +19,7 @@ import {
   listOccupancy,
   moveReservationRoom,
 } from "@/packages/pms/lib/frontoffice.functions";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import {
   RACK_CONFIRM_WIDTH_PX,
   RACK_MOVE_REASON,

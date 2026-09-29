@@ -22,6 +22,10 @@ export const NON_IGNORABLE_TYPES = new Set([
   "closed_folio_post_activity",
   "open_cashier_shift",
   "arrival_not_processed",
+  "pending_arrival",
+  "overstay",
+  "unpaid_folio",
+  "hk_conflict",
 ]);
 
 export interface DerivedException {
@@ -92,6 +96,9 @@ export interface AuditEvaluation {
 const NIGHT_AUDIT_ERRORS: Record<string, string> = {
   AUDIT_RUN_NOT_FOUND: "Night audit run not found for this property.",
   BLOCKING_EXCEPTIONS_OPEN: "Resolve every blocking exception before closing the business date.",
+  STALE_BUSINESS_DATE:
+    "This run is not the current business date. Refresh Night Audit and close the current date.",
+  AUDIT_RUN_NOT_CLOSABLE: "This night audit run cannot be closed.",
 };
 
 export function nightAuditError(message: string): Error {
@@ -101,7 +108,9 @@ export function nightAuditError(message: string): Error {
   return new Error(message);
 }
 
-function name(g: { first_name?: string | null; last_name?: string | null } | null | undefined): string {
+function name(
+  g: { first_name?: string | null; last_name?: string | null } | null | undefined,
+): string {
   return [g?.first_name, g?.last_name].filter(Boolean).join(" ").trim() || "Guest";
 }
 
@@ -249,7 +258,10 @@ export async function evaluateAudit(
       continue;
     }
     byRoom.set(r.room_id, [...(byRoom.get(r.room_id) ?? []), r]);
-    if (r.hotel_rooms && (r.hotel_rooms.status === "out_of_order" || r.hotel_rooms.status === "out_of_service")) {
+    if (
+      r.hotel_rooms &&
+      (r.hotel_rooms.status === "out_of_order" || r.hotel_rooms.status === "out_of_service")
+    ) {
       roomExceptions.push({
         exceptionType: "occupied_restricted_room",
         severity: "warning",
@@ -283,7 +295,8 @@ export async function evaluateAudit(
   checks.push({
     area: "Departures",
     status: overstays.length > 0 ? "blocking" : "pass",
-    detail: overstays.length > 0 ? `${overstays.length} overstay(s) past departure.` : "No overstays.",
+    detail:
+      overstays.length > 0 ? `${overstays.length} overstay(s) past departure.` : "No overstays.",
   });
 
   /* ------------------------------------------------------------ housekeeping */
@@ -309,12 +322,18 @@ export async function evaluateAudit(
     .eq("restaurant_id", restaurantId)
     .in("status", ["pending", "in_progress", "assigned"])
     .limit(500);
-  const openTaskRooms = new Set(((taskRows ?? []) as Array<{ room_id: string }>).map((t) => t.room_id));
+  const openTaskRooms = new Set(
+    ((taskRows ?? []) as Array<{ room_id: string }>).map((t) => t.room_id),
+  );
 
   const hkExceptions: DerivedException[] = [];
   const occupiedRoomIds = new Set(byRoom.keys());
   for (const room of rooms) {
-    if (room.housekeeping_status === "dirty" && !occupiedRoomIds.has(room.id) && !openTaskRooms.has(room.id)) {
+    if (
+      room.housekeeping_status === "dirty" &&
+      !occupiedRoomIds.has(room.id) &&
+      !openTaskRooms.has(room.id)
+    ) {
       hkExceptions.push({
         exceptionType: "dirty_room_without_task",
         severity: "warning",
@@ -323,7 +342,10 @@ export async function evaluateAudit(
         message: `Room ${room.room_number} is vacant and dirty with no open cleaning task.`,
       });
     }
-    if ((room.status === "out_of_order" || room.status === "out_of_service") && !room.restriction_reason) {
+    if (
+      (room.status === "out_of_order" || room.status === "out_of_service") &&
+      !room.restriction_reason
+    ) {
       hkExceptions.push({
         exceptionType: "restriction_without_reason",
         severity: "warning",
@@ -367,7 +389,9 @@ export async function evaluateAudit(
 
   const { data: txnRows } = await admin
     .from("folio_transactions")
-    .select("id, folio_id, transaction_type, category, amount, posted_at, payment_method, reference_type, reference_id")
+    .select(
+      "id, folio_id, transaction_type, category, amount, posted_at, payment_method, reference_type, reference_id",
+    )
     .eq("restaurant_id", restaurantId)
     .limit(5000);
   type TxnRow = {
@@ -407,7 +431,9 @@ export async function evaluateAudit(
       });
     }
     if (f.status === "closed" && f.closed_at) {
-      const after = transactions.filter((t) => t.folio_id === f.id && t.posted_at > (f.closed_at as string));
+      const after = transactions.filter(
+        (t) => t.folio_id === f.id && t.posted_at > (f.closed_at as string),
+      );
       if (after.length > 0) {
         folioExceptions.push({
           exceptionType: "closed_folio_post_activity",
@@ -443,7 +469,11 @@ export async function evaluateAudit(
 
   for (const r of reservations) {
     const priced = num(r.room_subtotal) > 0;
-    if (priced && (r.status === "checked_in" || r.status === "checked_out") && !folioByReservation.has(r.id)) {
+    if (
+      priced &&
+      (r.status === "checked_in" || r.status === "checked_out") &&
+      !folioByReservation.has(r.id)
+    ) {
       folioExceptions.push({
         exceptionType: "missing_folio",
         severity: "warning",
@@ -534,12 +564,9 @@ export async function evaluateAudit(
 
   /* ----------------------------------------------------------- cashier shifts */
 
-  const { data: shiftRows } = await admin
-    .from("cashier_shifts")
-    .select("id, membership_id, status, opened_at, closed_at")
-    .eq("restaurant_id", restaurantId)
-    .order("opened_at", { ascending: false })
-    .limit(200);
+  const { data: shiftRows } = await admin.rpc("list_hotel_drawers", {
+    _restaurant_id: restaurantId,
+  });
   type ShiftRow = {
     id: string;
     membership_id: string;
@@ -547,7 +574,7 @@ export async function evaluateAudit(
     opened_at: string;
     closed_at: string | null;
   };
-  const allShifts = (shiftRows ?? []) as ShiftRow[];
+  const allShifts = (Array.isArray(shiftRows) ? shiftRows : []) as ShiftRow[];
   const dayShifts = allShifts.filter(
     (s) => s.status === "open" || (s.opened_at >= dayStart && s.opened_at < dayEnd),
   );
@@ -564,7 +591,10 @@ export async function evaluateAudit(
       const { data: profiles } = await admin
         .from("profiles")
         .select("id, first_name, last_name, email")
-        .in("id", memberRows.map((m) => m.user_id));
+        .in(
+          "id",
+          memberRows.map((m) => m.user_id),
+        );
       const profileRows = (profiles ?? []) as Array<{
         id: string;
         first_name: string | null;
@@ -600,7 +630,7 @@ export async function evaluateAudit(
         severity: "blocking",
         referenceType: "cashier_shift",
         referenceId: s.id,
-        message: `${names.get(s.membership_id) ?? "A cashier"} still has an open cashier shift. Close it before the day close.`,
+        message: `${names.get(s.membership_id) ?? "A cashier"} still has an open hotel cashier drawer. Close it before the day close.`,
       });
     }
     return {
@@ -612,7 +642,7 @@ export async function evaluateAudit(
       cashPayments: round2(cashPayments),
       refunds: round2(refunds),
       deposits: round2(deposits),
-      expectedCash: round2(cashPayments - refunds),
+      expectedCash: round2(Number((s as { expected?: number | string }).expected ?? 0)),
     };
   });
 

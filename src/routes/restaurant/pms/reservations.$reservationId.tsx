@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -34,8 +35,27 @@ export const Route = createFileRoute("/restaurant/pms/reservations/$reservationI
 function ReservationDetailPmsRoute() {
   const { reservationId } = Route.useParams();
   return (
-    <RestaurantShell active="Reservations" module="rooms" pms pmsModule="reservations" pmsLeaf="Reservation">
-      {(m) => <ReservationDetailWorkspace membership={m} reservationId={reservationId} />}
+    <RestaurantShell
+      active="Reservations"
+      module="rooms"
+      pms
+      pmsModule="reservations"
+      pmsLeaf="Reservation"
+      hidePackageRail
+      hideTopHeader
+    >
+      {(m) => (
+        <RoomInventoryChrome
+          membership={m}
+          activeModule="Reservations"
+          onRoomSearch={() => undefined}
+          searchPlaceholder="Search reservations…"
+          helpLabel="Reservation detail"
+          shellTestId="reservation-detail-command-shell"
+        >
+          <ReservationDetailWorkspace membership={m} reservationId={reservationId} />
+        </RoomInventoryChrome>
+      )}
     </RestaurantShell>
   );
 }

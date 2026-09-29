@@ -931,7 +931,7 @@ function ArrivalQuickView({
         ) : null}
         {row.hints.canViewGuest ? (
           <Button asChild size="sm" variant="outline">
-            <Link to="/restaurant/pms/reservations/guests/$guestId" params={{ guestId: row.guest.id }}>
+            <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: row.guest.id }}>
               View Guest
             </Link>
           </Button>

@@ -13,7 +13,7 @@ import {
 } from "@/packages/pms/lib/fo-departure.functions";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
 import { departureMenuItems } from "@/packages/pms/lib/fo-departure";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,

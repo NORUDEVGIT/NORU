@@ -6,45 +6,18 @@ import {
   type RmBillTotals,
   type RmTaxSettings,
 } from "@/packages/restaurant-management/lib/rm-tax";
-import {
-  DEFAULT_CURRENCY,
-  DEFAULT_TIMEZONE,
-  formatClockInZone,
-  formatDateInZone,
-  formatDateTimeInZone,
-  formatMoney,
-} from "@/shared/lib/property-time";
+import { RestaurantSettingsProvider } from "@/core/state/property-format";
+
+export type { RestaurantSettings } from "@/core/state/property-format";
+export {
+  RestaurantSettingsProvider,
+  useMoney,
+  useRestaurantSettings,
+  useRestaurantTime,
+  useRestaurantTimezone,
+} from "@/core/state/property-format";
 
 const RestaurantContext = createContext<PublicRestaurant | null>(null);
-
-export interface RestaurantSettings {
-  timezone: string;
-  currencyCode: string;
-}
-
-/**
- * Locale settings for whichever restaurant the current screen belongs to.
- * Customer routes fill it from the tenant in the URL; restaurant staff routes
- * fill it from the signed-in membership. Everything money/time formats through
- * it so one restaurant is never rendered with another's conventions.
- */
-const RestaurantSettingsContext = createContext<RestaurantSettings>({
-  timezone: DEFAULT_TIMEZONE,
-  currencyCode: DEFAULT_CURRENCY,
-});
-
-export function RestaurantSettingsProvider({
-  timezone,
-  currencyCode,
-  children,
-}: {
-  timezone: string;
-  currencyCode: string;
-  children: ReactNode;
-}) {
-  const value = useMemo(() => ({ timezone, currencyCode }), [timezone, currencyCode]);
-  return <RestaurantSettingsContext.Provider value={value}>{children}</RestaurantSettingsContext.Provider>;
-}
 
 export function RestaurantProvider({
   restaurant,
@@ -82,39 +55,5 @@ export function useLiveRmBill(merchandiseSubtotal: number, settings?: RmTaxSetti
   return useMemo(
     () => computeRmBill(merchandiseSubtotal, resolved),
     [merchandiseSubtotal, resolved.taxRate, resolved.taxInclusive, resolved.serviceEnabled, resolved.serviceRate],
-  );
-}
-
-export function useRestaurantSettings(): RestaurantSettings {
-  return useContext(RestaurantSettingsContext);
-}
-
-/** The active restaurant's timezone, falling back to the platform default. */
-export function useRestaurantTimezone(): string {
-  return useContext(RestaurantSettingsContext).timezone;
-}
-
-/** A money formatter bound to the active restaurant's currency. */
-export function useMoney(): (value: number) => string {
-  const { currencyCode } = useContext(RestaurantSettingsContext);
-  return useMemo(() => (value: number) => formatMoney(value, currencyCode), [currencyCode]);
-}
-
-/** Clock/date formatters bound to the active restaurant's timezone. */
-export function useRestaurantTime(): {
-  time: (iso: string | null | undefined) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  date: (iso: string | null | undefined) => string;
-  timezone: string;
-} {
-  const { timezone } = useContext(RestaurantSettingsContext);
-  return useMemo(
-    () => ({
-      time: (iso) => formatClockInZone(iso, timezone),
-      dateTime: (iso) => formatDateTimeInZone(iso, timezone),
-      date: (iso) => formatDateInZone(iso, timezone),
-      timezone,
-    }),
-    [timezone],
   );
 }

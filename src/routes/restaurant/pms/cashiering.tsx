@@ -3,7 +3,6 @@ import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { CashieringWorkspace } from "@/packages/pms/components/workspaces/cashiering-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-links";
 
 export const Route = createFileRoute("/restaurant/pms/cashiering")({
   ssr: false,
@@ -25,9 +24,15 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
   head: () => ({
     meta: [
       { title: "Cashiering — NORU PMS" },
-      { name: "description", content: "Guest folios, charges, payments and cashier shifts for your property." },
+      {
+        name: "description",
+        content: "Manage guest folios, recorded payments and settlement activity.",
+      },
       { property: "og:title", content: "Cashiering — NORU PMS" },
-      { property: "og:description", content: "Guest folios, charges, payments and cashier shifts for your property." },
+      {
+        property: "og:description",
+        content: "Manage guest folios, recorded payments and settlement activity.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -39,15 +44,21 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
 function CashieringPmsRoute() {
   const search = Route.useSearch() as { tab?: string; folio?: string };
   return (
-    <RestaurantShell active="Cashiering" module="cashiering" pms pmsModule="cashiering">
-      {(m) => <div className="space-y-8">
-          <CashieringWorkspace
-            membership={m}
-            initialTab={search.tab ?? "dashboard"}
-            {...(search.folio ? { initialFolioSearch: search.folio } : {})}
-          />
-          <SharedModuleLinks restaurantId={m.restaurantId} modules={["accounting_finance"]} />
-        </div>}
+    <RestaurantShell
+      active="Cashiering"
+      module="cashiering"
+      pms
+      pmsModule="cashiering"
+      hidePackageRail
+      hideTopHeader
+    >
+      {(m) => (
+        <CashieringWorkspace
+          membership={m}
+          initialTab={search.tab}
+          {...(search.folio ? { initialFolioSearch: search.folio } : {})}
+        />
+      )}
     </RestaurantShell>
   );
 }

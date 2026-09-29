@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import { guestListItems, listGuests, type GuestSummary } from "@/packages/pms/li
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
 import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
@@ -816,6 +816,7 @@ export function FoAmendServiceSheet({
 }) {
   const queryClient = useQueryClient();
   const money = useMoney();
+  const serviceKey = useRef(crypto.randomUUID());
   const fetchContext = useServerFn(getAmendContext);
   const add = useServerFn(addStayService);
   const [name, setName] = useState("");
@@ -869,9 +870,11 @@ export function FoAmendServiceSheet({
           amount: amountNumber,
           quantity: qtyNumber,
           reason: reason.trim(),
+          idempotencyKey: serviceKey.current,
         },
       }),
     onSuccess: (result) => {
+      serviceKey.current = crypto.randomUUID();
       toast.success(
         result.posted ? "Service posted to the folio." : "Service recorded on the stay.",
       );

@@ -20,6 +20,7 @@ import {
   buildNa1Blockers,
   canConfirmNightAudit,
   canEnableConfirm,
+  emptyIntegrityCounts,
   liveCountFromSnapshot,
   nextBusinessDate,
   remainingBlockerCount,
@@ -41,6 +42,7 @@ function clearBoard(): NaBlockerRow[] {
     unpaidFolios: { lane: "live", count: 0 },
     openShift: { tillUsed: true, openCount: 0 },
     hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
+    integrity: emptyIntegrityCounts(),
   });
 }
 
@@ -65,6 +67,7 @@ describe("NA-1 confirm enablement", () => {
       unpaidFolios: { lane: "live", count: 0 },
       openShift: { tillUsed: true, openCount: 0 },
       hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
+      integrity: emptyIntegrityCounts(),
     });
     assert.equal(blocked.find((row) => row.id === "arrivals_pending")?.state, "block");
     assert.equal(remainingBlockerCount(blocked), 1);
@@ -84,6 +87,7 @@ describe("NA-1 confirm enablement", () => {
       unpaidFolios: { lane: "live", count: 0 },
       openShift: { tillUsed: false, openCount: 0 },
       hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
+      integrity: emptyIntegrityCounts(),
     });
     assert.equal(tillUnused.find((row) => row.id === "open_shift")?.state, "na");
     assert.equal(canEnableConfirm(tillUnused), true);
@@ -96,6 +100,7 @@ describe("NA-1 confirm enablement", () => {
       unpaidFolios: { lane: "unavailable", count: 99 },
       openShift: { tillUsed: false, openCount: 0 },
       hkConflict: { discrepancyLane: "unavailable", discrepancyCount: 4, roomUnavailableCount: 0 },
+      integrity: emptyIntegrityCounts(),
     });
     const unpaid = rows.find((row) => row.id === "unpaid_folios");
     const cancel = rows.find((row) => row.id === "cancel_noshow_pending");
@@ -154,14 +159,19 @@ describe("NA-1 waive off", () => {
     assert.doesNotMatch(contract, /action:\s*"ignore"|updateException|markNoShow/);
 
     const workspace = readRel("../components/workspaces/night-audit-workspace.tsx");
+    const desk = readRel("../components/nightaudit/night-audit-desk.tsx");
     assert.doesNotMatch(workspace, /updateException/);
     assert.doesNotMatch(workspace, /markNoShow/);
     assert.doesNotMatch(workspace, /RevenuePanel/);
     assert.doesNotMatch(workspace, /ChecklistPanel/);
-    assert.doesNotMatch(workspace, />Ignore</);
-    assert.match(workspace, /NaBlockerBoard/);
-    assert.match(workspace, /NaClosePanel/);
-    assert.match(workspace, /NaCloseSummary/);
+    assert.doesNotMatch(workspace, /night-audit-panels/);
+    assert.doesNotMatch(desk, />Ignore</);
+    assert.doesNotMatch(desk, /updateException/);
+    assert.match(workspace, /getNightAuditRun/);
+    assert.match(workspace, /runNightAudit/);
+    assert.match(desk, /NaClosePanel/);
+    assert.match(desk, /NaCloseSummary/);
+    assert.match(workspace, /NightAuditChrome/);
 
     const panels = readRel("../components/nightaudit/na1-panels.tsx");
     assert.equal(NA1_PHONE_CLOSE_COPY, "Use desktop to close");
@@ -186,9 +196,10 @@ describe("NA-1 FO-FS0 title lock", () => {
     assert.match(modules, /key: "night-audit"/);
     assert.match(modules, /title: "Night Audit"/);
 
-    const workspace = readRel("../components/workspaces/night-audit-workspace.tsx");
-    assert.match(workspace, /fallback=\{NA1_TITLE\}/);
-    assert.doesNotMatch(workspace, /FO Exceptions/);
+    const chrome = readRel("../components/nightaudit/night-audit-chrome.tsx");
+    assert.match(chrome, /activeModule="Night Audit"/);
+    assert.match(chrome, /NIGHT_AUDIT_DESK_TITLE/);
+    assert.doesNotMatch(chrome, /FO Exceptions/);
   });
 });
 

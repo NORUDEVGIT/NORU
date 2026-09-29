@@ -34,7 +34,8 @@ function readRel(rel: string): string {
 function readChrome(): string {
   return (
     readRel("../components/frontoffice/front-office-chrome.tsx") +
-    readRel("../components/rooms/room-inventory-chrome.tsx")
+    readRel("../components/rooms/room-inventory-chrome.tsx") +
+    readRel("./pms-module-nav.ts")
   );
 }
 

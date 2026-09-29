@@ -42,7 +42,17 @@ export function GuestCompanyBilling({
 
   function exportCsv() {
     const rows = query.data?.items ?? [];
-    const header = ["Date", "Reference", "Guest", "Reservation", "Description", "Debit", "Credit", "Balance", "Status"];
+    const header = [
+      "Date",
+      "Reference",
+      "Guest",
+      "Reservation",
+      "Description",
+      "Debit",
+      "Credit",
+      "Balance",
+      "Status",
+    ];
     const body = rows.map((row) =>
       [
         row.date,
@@ -66,12 +76,19 @@ export function GuestCompanyBilling({
   }
 
   if (query.isLoading) {
-    return <p className="p-6 text-center text-xs text-[#756A5B]">Loading billing & commercial terms…</p>;
+    return (
+      <p className="p-6 text-center text-xs text-[#756A5B]">Loading billing & commercial terms…</p>
+    );
   }
   if (query.error) {
     return (
-      <div className="rounded-xl border border-dashed border-[#DDD4C5] p-6 text-center" data-testid="company-billing-error">
-        <p className="font-display text-base font-bold text-[#251605]">Billing information unavailable</p>
+      <div
+        className="rounded-xl border border-dashed border-[#DDD4C5] p-6 text-center"
+        data-testid="company-billing-error"
+      >
+        <p className="font-display text-base font-bold text-[#251605]">
+          Billing information unavailable
+        </p>
         <p className="mt-1 text-xs text-[#756A5B]">{(query.error as Error).message}</p>
       </div>
     );
@@ -107,22 +124,33 @@ export function GuestCompanyBilling({
       </div>
 
       {/* PART 1: Commercial Terms */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm space-y-3" data-testid="company-commercial-terms">
+      <section
+        className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm space-y-3"
+        data-testid="company-commercial-terms"
+      >
         <div className="flex items-center gap-2 border-b border-[#F0EAE1] pb-2">
           <FileText className="size-4 text-[#8A641A]" />
-          <h3 className="font-display text-sm font-bold text-[#251605]">Commercial Terms & Settlement Rules</h3>
+          <h3 className="font-display text-sm font-bold text-[#251605]">
+            Commercial Terms & Settlement Rules
+          </h3>
         </div>
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
           <InfoRow label="Account Status" value={data.summary.accountStatus} />
           <InfoRow label="Payment terms" value={data.summary.paymentTerms ?? "—"} />
-          <InfoRow label="Credit Account" value={data.summary.creditAccountEnabled ? "Enabled" : "Off"} />
+          <InfoRow
+            label="Credit Account"
+            value={data.summary.creditAccountEnabled ? "Enabled" : "Off"}
+          />
           <InfoRow label="Billing Contact" value={data.summary.billingContact ?? "—"} />
           <InfoRow label="Credit limit note" value={data.summary.creditLimitNote ?? "—"} />
           <InfoRow
             label="Numeric credit ledger"
             value={
               <span>
-                — <span className="text-[10px] text-[#756A5B] font-normal">(Not stored. This is not an AR balance.)</span>
+                —{" "}
+                <span className="text-[10px] text-[#756A5B] font-normal">
+                  (Not stored. This is not an AR balance.)
+                </span>
               </span>
             }
           />
@@ -172,7 +200,8 @@ export function GuestCompanyBilling({
           </div>
         ) : (
           <div className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-3 text-xs text-[#756A5B]">
-            Folio amounts stay hidden for roles without cashiering access. Authorized managers can read reservation folios here.
+            Folio amounts stay hidden for roles without cashiering access. Authorized managers can
+            read reservation folios here.
           </div>
         )}
 
@@ -199,9 +228,13 @@ export function GuestCompanyBilling({
         {/* Dense Full-Width Table */}
         <div className="rounded-xl border border-[#DDD4C5] bg-white overflow-hidden shadow-sm">
           {!money ? (
-            <p className="p-6 text-center text-xs text-[#756A5B]">Transaction rows require cashiering access.</p>
+            <p className="p-6 text-center text-xs text-[#756A5B]">
+              Transaction rows require cashiering access.
+            </p>
           ) : data.items.length === 0 ? (
-            <p className="p-6 text-center text-xs text-[#756A5B]">No folio transactions for this company’s reservations.</p>
+            <p className="p-6 text-center text-xs text-[#756A5B]">
+              No folio transactions for this company’s reservations.
+            </p>
           ) : (
             <Table>
               <TableHeader className="bg-[#FAF8F5]">
@@ -209,22 +242,38 @@ export function GuestCompanyBilling({
                   <TableHead className="text-xs font-semibold text-[#251605]">Date</TableHead>
                   <TableHead className="text-xs font-semibold text-[#251605]">Reference</TableHead>
                   <TableHead className="text-xs font-semibold text-[#251605]">Guest</TableHead>
-                  <TableHead className="text-xs font-semibold text-[#251605]">Reservation</TableHead>
-                  <TableHead className="text-xs font-semibold text-[#251605]">Description</TableHead>
-                  <TableHead className="text-right text-xs font-semibold text-[#251605]">Debit</TableHead>
-                  <TableHead className="text-right text-xs font-semibold text-[#251605]">Credit</TableHead>
-                  <TableHead className="text-right text-xs font-semibold text-[#251605]">Balance</TableHead>
+                  <TableHead className="text-xs font-semibold text-[#251605]">
+                    Reservation
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold text-[#251605]">
+                    Description
+                  </TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Debit
+                  </TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Credit
+                  </TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Balance
+                  </TableHead>
                   <TableHead className="text-xs font-semibold text-[#251605]">Status</TableHead>
-                  <TableHead className="text-right text-xs font-semibold text-[#251605]">Action</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-[#EFE9DF]/60 text-xs">
                 {data.items.map((row) => (
                   <TableRow key={row.id} className="hover:bg-[#FAF8F5] transition-colors">
                     <TableCell className="py-2.5 text-[#756A5B]">{row.date}</TableCell>
-                    <TableCell className="py-2.5 font-mono text-[#8A641A] font-medium">{row.reference}</TableCell>
+                    <TableCell className="py-2.5 font-mono text-[#8A641A] font-medium">
+                      {row.reference}
+                    </TableCell>
                     <TableCell className="py-2.5 text-[#251605]">{row.guestName}</TableCell>
-                    <TableCell className="py-2.5 font-mono text-[#756A5B]">{row.confirmationNumber ?? "—"}</TableCell>
+                    <TableCell className="py-2.5 font-mono text-[#756A5B]">
+                      {row.confirmationNumber ?? "—"}
+                    </TableCell>
                     <TableCell className="py-2.5 text-[#251605]">{row.description}</TableCell>
                     <TableCell className="py-2.5 text-right font-mono text-[#251605]">
                       {row.debit ? row.debit.toFixed(2) : "—"}
@@ -246,11 +295,35 @@ export function GuestCompanyBilling({
                         {row.status}
                       </span>
                     </TableCell>
-                    <TableCell className="py-2.5 text-right">
+                    <TableCell className="py-2.5 text-right space-x-1">
                       {row.reservationId ? (
-                        <Button asChild size="sm" variant="ghost" className="h-6 text-xs text-[#8A641A] hover:bg-[#F7F4EE]">
-                          <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: row.reservationId }}>
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-xs text-[#8A641A] hover:bg-[#F7F4EE]"
+                        >
+                          <Link
+                            to="/restaurant/pms/reservations/$reservationId"
+                            params={{ reservationId: row.reservationId }}
+                          >
                             Folio
+                          </Link>
+                        </Button>
+                      ) : null}
+                      {data.summary.canOperate && row.folioId ? (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
+                        >
+                          <Link
+                            to="/restaurant/pms/cashiering/folios/$folioId"
+                            params={{ folioId: row.folioId }}
+                            search={{ action: "payment" }}
+                          >
+                            Record payment
                           </Link>
                         </Button>
                       ) : null}
@@ -266,13 +339,7 @@ export function GuestCompanyBilling({
   );
 }
 
-function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-2 py-1 border-b border-[#EFE9DF]/50 last:border-b-0">
       <span className="shrink-0 text-[#756A5B]">{label}</span>

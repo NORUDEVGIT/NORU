@@ -17,7 +17,13 @@ import {
   requireReservationManager,
   reservationError,
 } from "./reservations.server";
-import { requireCashierOperator, cashierError } from "./cashiering.server";
+import {
+  callPostFolioTransaction,
+  cashierError,
+  requireCashierOperator,
+} from "./cashiering.server";
+import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
+import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { diffFields, recordGuestEvent } from "./guests.server";
 import {
   ID_DOCUMENT_TYPES,
@@ -28,7 +34,6 @@ import {
   isDepositSatisfied,
   isRoomReady,
   mapCashierShiftError,
-  mapDepositMethod,
   type IdDocumentType,
   type RegistrationDraft,
 } from "./fo-check-in";
@@ -383,7 +388,11 @@ export const getCheckInContext = createServerFn({ method: "POST" })
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
     const progress = await loadProgress(supabaseAdmin, data.restaurantId, data.reservationId);
 
-    const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false);
+    const housekeeping = await loadCard2HousekeepingSnapshot(
+      supabaseAdmin,
+      data.restaurantId,
+      false,
+    );
     let room: CheckInRoomState | null = null;
     if (loaded.stay.roomId) {
       const { data: roomRow } = await supabaseAdmin
@@ -673,8 +682,9 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         reservationId: idSchema,
         amount: z.number().positive(),
-        method: z.enum(["cash", "card", "transfer", "other"]),
+        method: z.string().trim().min(1).max(40),
         reference: z.string().max(80).optional().nullable(),
+        idempotencyKey: z.string().min(8).max(80),
       })
       .parse(input),
   )
@@ -690,32 +700,34 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
     });
     if (opened.error) throw cashierError(opened.error.message);
     const folioId = (opened.data as { id: string }).id;
-    const ledgerMethod = mapDepositMethod(data.method);
+    const snapshot = await loadPolish1Snapshot(supabaseAdmin, data.restaurantId);
+    const tender = folioTenderFromCatalogue(
+      data.method,
+      snapshot.paymentMethodsAvailable ? snapshot.paymentMethods : null,
+    );
+    if (!tender.ok) throw new Error(tender.message);
     const reference = blankToNull(data.reference);
     const description = reference
-      ? `Check-in deposit (${ledgerMethod}) · ${reference}`
-      : `Check-in deposit (${ledgerMethod})`;
+      ? `Check-in deposit (${tender.stored}) · ${reference}`
+      : `Check-in deposit (${tender.stored})`;
 
-    const posted = await supabaseAdmin.rpc("post_folio_transaction", {
-      _restaurant_id: data.restaurantId,
-      _folio_id: folioId,
-      _type: "deposit",
-      _category: "deposit",
-      _description: description,
-      _amount: Math.round(data.amount * 100) / 100,
-      _reference_type: null as unknown as string,
-      _reference_id: null as unknown as string,
-      _membership_id: me.id,
-    });
-    if (posted.error) {
-      throw new Error(mapCashierShiftError(cashierError(posted.error.message).message));
+    let txnId: string;
+    try {
+      const posted = await callPostFolioTransaction({
+        restaurantId: data.restaurantId,
+        folioId,
+        type: "deposit",
+        category: "deposit",
+        description,
+        amount: Math.round(data.amount * 100) / 100,
+        membershipId: me.id,
+        paymentMethod: tender.stored,
+        idempotencyKey: data.idempotencyKey,
+      });
+      txnId = posted.id;
+    } catch (error) {
+      throw new Error(mapCashierShiftError((error as Error).message));
     }
-    const txnId = (posted.data as { id: string }).id;
-    await supabaseAdmin
-      .from("folio_transactions")
-      .update({ payment_method: ledgerMethod })
-      .eq("id", txnId)
-      .eq("restaurant_id", data.restaurantId);
 
     await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
       deposit_transaction_id: txnId,

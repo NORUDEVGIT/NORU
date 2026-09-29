@@ -19,7 +19,7 @@ import {
   reservationError,
   type ReservationEventType,
 } from "./reservations.server";
-import { cashierError, requireCashierOperator } from "./cashiering.server";
+import { callPostFolioTransaction, cashierError, requireCashierManager, requireCashierOperator } from "./cashiering.server";
 import { parseSnapshot } from "./rates.server";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import { nightsBetween } from "./reservation-dates";
@@ -388,9 +388,7 @@ export const ensureCancelNoShowFolio = createServerFn({ method: "POST" })
 
 /**
  * Thin charge wrapper. Still calls post_folio_transaction type `charge`.
- * Gated FO requireReservationManager + cashier-operator, before status flip.
- * The RPC itself is not manager-only today. If it later rejects non-managers,
- * surface the error — do not rewrite the RPC.
+ * Same manager gate as Cashiering postFolioEntry for charges.
  */
 export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -401,12 +399,13 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
         reservationId: idSchema,
         kind: z.enum(["cancel", "noshow"]),
         amount: z.number().positive(),
+        idempotencyKey: z.string().min(8).max(80),
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CancelNoShowFolioState> => {
     await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requireCashierManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
@@ -425,19 +424,21 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
     if (!feeAmountAllowed(amount)) throw new Error("Enter an amount greater than zero.");
 
     const description = data.kind === "cancel" ? "Cancel fee" : "No-show charge";
-    const posted = await supabaseAdmin.rpc("post_folio_transaction", {
-      _restaurant_id: data.restaurantId,
-      _folio_id: folioId,
-      _type: "charge",
-      _category: "manual",
-      _description: description,
-      _amount: amount,
-      _reference_type: null as unknown as string,
-      _reference_id: null as unknown as string,
-      _membership_id: me.id,
-    });
-    if (posted.error) {
-      throw new Error(mapCashierShiftError(cashierError(posted.error.message).message));
+    let postedId: string;
+    try {
+      const posted = await callPostFolioTransaction({
+        restaurantId: data.restaurantId,
+        folioId,
+        type: "charge",
+        category: "manual",
+        description,
+        amount,
+        membershipId: me.id,
+        idempotencyKey: data.idempotencyKey,
+      });
+      postedId = posted.id;
+    } catch (error) {
+      throw new Error(mapCashierShiftError((error as Error).message));
     }
 
     await recordReservationEvent({
@@ -448,7 +449,7 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
         fee_kind: data.kind,
         amount,
         description,
-        transaction_id: (posted.data as { id: string }).id,
+        transaction_id: postedId,
       },
       notes: `${description} posted to folio.`,
       actorMembershipId: me.id,

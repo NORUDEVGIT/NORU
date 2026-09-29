@@ -7,7 +7,7 @@ import { PICKUP_DEFAULT_WINDOW_DAYS, type PickupWindowDays } from "@/packages/pm
 import { getRevenuePickupPace } from "@/packages/pms/lib/revenue/pickup-pace.functions";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { PICKUP_PACE_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { PickupByDateTable } from "./pickup-by-date-table";
 import { PickupByRoomTypeTable } from "./pickup-by-room-type-table";
 import { PickupHistoryStatus } from "./pickup-history-status";

@@ -42,7 +42,7 @@ import {
   type CompanyNoteCategory,
   type CompanyNoteVisibility,
 } from "@/packages/pms/lib/guest-company-detail-workspace";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 export function GuestTravelAgentNotes({
   restaurantId,

@@ -8,14 +8,16 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
+import { CASHIER_MANAGE_ROLES, canManageCashiering } from "@/core/lib/cashiering-roles";
 import { withPmsPackage } from "./pms-package.server";
+
+export { CASHIER_MANAGE_ROLES, canManageCashiering };
 
 /** Roles that may open Accounting & Finance and run day-to-day cashiering. */
 export const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
 /** Roles allowed to operate a cash drawer / post payments. */
 export const CASHIER_OPERATE_ROLES = ["owner", "manager", "cashier"] as const;
 /** Sensitive corrections: refunds, adjustments, discounts, folio close, audit. */
-export const CASHIER_MANAGE_ROLES = ["owner", "manager"] as const;
 
 export const TRANSACTION_TYPES = [
   "charge",
@@ -41,10 +43,6 @@ export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number];
 
 export const FOLIO_STATUSES = ["open", "closed"] as const;
 export type FolioStatus = (typeof FOLIO_STATUSES)[number];
-
-export function canManageCashiering(role: string): boolean {
-  return (CASHIER_MANAGE_ROLES as readonly string[]).includes(role);
-}
 
 const NO_ACCESS = "You don't have access to Accounting & Finance for this property.";
 const NO_PERMISSION = "You don't have permission to perform that finance action.";
@@ -109,9 +107,23 @@ const CASHIER_ERRORS: Record<string, string> = {
   INVALID_TRANSACTION_TYPE: "That transaction type isn't supported.",
   DESCRIPTION_REQUIRED: "A description is required.",
   REFUND_EXCEEDS_SETTLED: "A refund can't exceed what has been paid on this folio.",
+  SOURCE_NOT_ON_FOLIO: "Choose a source line from this folio.",
+  SOURCE_NOT_ALLOWED: "A source line can only be stored on a refund, adjustment, or discount.",
+  SOURCE_REQUIRED: "Choose the folio line this corrects.",
+  SOURCE_NOT_A_PAYMENT: "A refund must name a payment or deposit on this folio.",
+  SOURCE_NOT_A_CHARGE: "A discount must name a charge on this folio.",
+  REFUND_EXCEEDS_SOURCE: "A refund can't exceed the remaining amount on that payment.",
+  FOLIO_TRANSACTION_IMMUTABLE: "A posted folio line cannot be changed. Post a correction instead.",
+  INVALID_PAYMENT_METHOD: "That payment method cannot be stored on the folio.",
+  PAYMENT_METHOD_REQUIRED: "Choose a payment method.",
+  INVALID_IDEMPOTENCY_KEY: "The posting key is invalid. Try the action again.",
+  IDEMPOTENCY_KEY_REUSED: "That posting was already used for a different folio line.",
   SHIFT_NOT_FOUND: "Cashier shift not found for this property.",
   SHIFT_ALREADY_OPEN: "You already have an open cashier shift.",
   SHIFT_ALREADY_CLOSED: "That cashier shift is already closed.",
+  INVALID_CLOSING_CASH: "Enter the cash counted at close.",
+  INVALID_MOVEMENT: "That drawer movement is not supported.",
+  HOTEL_DRAWER_MOVEMENT_IMMUTABLE: "A drawer movement cannot be changed. Post another movement.",
 };
 
 /** Map RAISE EXCEPTION codes from the cashiering functions to user-facing text. */
@@ -140,6 +152,68 @@ export function isCreditType(type: TransactionType): boolean {
   return type === "payment" || type === "deposit" || type === "discount";
 }
 
+export const CORRECTION_AUTHORIZER = "Only an owner or manager can post this correction.";
+
+/** Settings threshold text. The number is not a live posting limit. */
+export function correctionThresholdNotice(
+  amount: number | null,
+  unit: "amount" | "percent" | null,
+): string | null {
+  if (amount == null || !Number.isFinite(amount) || !unit) return null;
+  if (unit === "percent") {
+    return `Configured threshold ${amount}% is setup only and is not enforced on this post.`;
+  }
+  return `Configured threshold ${amount} is setup only and is not enforced on this post.`;
+}
+
+/** Paid amount on a payment or deposit, minus refunds already linked to that line. */
+/** Hotel drawer expected cash. Restaurant till totals are not an input. */
+export function hotelDrawerExpected(input: {
+  opening: number;
+  cashIn: number;
+  cashOut: number;
+  hotelCash: number;
+}): number {
+  return Math.round((input.opening + input.cashIn - input.cashOut + input.hotelCash) * 100) / 100;
+}
+
+export function hotelDrawerVariance(closingCount: number, expected: number): number {
+  return Math.round((closingCount - expected) * 100) / 100;
+}
+
+export function remainingOnPaymentSource(
+  source: { id: string; type: string; amount: number },
+  lines: Array<{ type: string; amount: number; originalTransactionId: string | null }>,
+): number | null {
+  if (source.type !== "payment" && source.type !== "deposit") return null;
+  const paid = Math.round(-source.amount * 100) / 100;
+  const prior = lines
+    .filter((line) => line.type === "refund" && line.originalTransactionId === source.id)
+    .reduce((sum, line) => sum + line.amount, 0);
+  return Math.round((paid - prior) * 100) / 100;
+}
+
+export const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,80}$/;
+
+export function assertIdempotencyKey(key: string): string {
+  const trimmed = key.trim();
+  if (!IDEMPOTENCY_KEY_PATTERN.test(trimmed)) {
+    throw new Error("The posting key is invalid. Try the action again.");
+  }
+  return trimmed;
+}
+
+/** Checkout is settled only when the folio is closed at ~0 and has no open exception. */
+export function folioReportsSettled(input: {
+  status: string | null;
+  balance: number;
+  unsettledCheckout: boolean;
+}): boolean {
+  if (input.unsettledCheckout) return false;
+  if (input.status !== "closed") return false;
+  return Math.abs(input.balance) < 0.01;
+}
+
 export function categoryForType(type: TransactionType): TransactionCategory {
   switch (type) {
     case "charge":
@@ -155,6 +229,41 @@ export function categoryForType(type: TransactionType): TransactionCategory {
     default:
       return "adjustment";
   }
+}
+
+export async function callPostFolioTransaction(input: {
+  restaurantId: string;
+  folioId: string;
+  type: TransactionType;
+  category: string;
+  description: string;
+  amount: number;
+  referenceType?: string | null;
+  referenceId?: string | null;
+  membershipId: string;
+  paymentMethod?: string | null;
+  idempotencyKey: string;
+  originalTransactionId?: string | null;
+}): Promise<{ id: string }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("post_folio_transaction", {
+    _restaurant_id: input.restaurantId,
+    _folio_id: input.folioId,
+    _type: input.type,
+    _category: input.category,
+    _description: input.description,
+    _amount: input.amount,
+    _reference_type: (input.referenceType ?? null) as unknown as string,
+    _reference_id: (input.referenceId ?? null) as unknown as string,
+    _membership_id: input.membershipId,
+    _payment_method: input.paymentMethod ?? undefined,
+    _idempotency_key: assertIdempotencyKey(input.idempotencyKey),
+    ...(input.originalTransactionId
+      ? { _original_transaction_id: input.originalTransactionId }
+      : {}),
+  });
+  if (error) throw cashierError(error.message);
+  return { id: (data as { id: string }).id };
 }
 
 /** Append-only folio audit write; runs with the service role inside a handler. */

@@ -9,7 +9,10 @@ import type {
   NightAuditState,
 } from "@/packages/pms/lib/nightaudit.functions";
 import type { AreaCheck } from "@/packages/pms/lib/nightaudit.server";
-import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import {
+  useMoney,
+  useRestaurantTime,
+} from "@/core/state/property-format";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 
 export function CheckBadge({ status }: { status: AreaCheck["status"] }) {
@@ -20,7 +23,13 @@ export function CheckBadge({ status }: { status: AreaCheck["status"] }) {
 
 export function RunStatusBadge({ status }: { status: NightAuditRunRow["status"] }) {
   const variant =
-    status === "closed" ? "secondary" : status === "ready" ? "default" : status === "failed" ? "destructive" : "outline";
+    status === "closed"
+      ? "secondary"
+      : status === "ready"
+        ? "default"
+        : status === "failed"
+          ? "destructive"
+          : "outline";
   return (
     <Badge variant={variant} className="capitalize">
       {status}
@@ -65,7 +74,9 @@ export function ExceptionsPanel({
     <section className="rounded-2xl border border-border bg-card p-5">
       <h2 className="font-display text-lg">Exceptions</h2>
       {open.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">No open exceptions for this business date.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          No open exceptions for this business date.
+        </p>
       ) : (
         <ul className="mt-3 space-y-2">
           {open.map((e) => (
@@ -76,18 +87,30 @@ export function ExceptionsPanel({
                     <Badge variant={e.severity === "blocking" ? "destructive" : "secondary"}>
                       {e.severity === "blocking" ? "Blocking" : "Warning"}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">{e.exceptionType.replace(/_/g, " ")}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {e.exceptionType.replace(/_/g, " ")}
+                    </span>
                   </div>
                   <p className="mt-1 text-sm">{e.message}</p>
                 </div>
                 <div className="flex gap-2">
                   {readOnly ? null : e.canIgnore ? (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => onUpdate(e.id, "ignore")}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => onUpdate(e.id, "ignore")}
+                    >
                       Ignore
                     </Button>
                   ) : null}
                   {!readOnly && e.severity === "warning" ? (
-                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => onUpdate(e.id, "resolve")}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => onUpdate(e.id, "resolve")}
+                    >
                       Resolve
                     </Button>
                   ) : null}
@@ -132,11 +155,16 @@ export function NoShowPanel({
     <section className="rounded-2xl border border-border bg-card p-5">
       <h2 className="font-display text-lg">Unprocessed arrivals</h2>
       {state.noShows.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">Every arrival for this business date is processed.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Every arrival for this business date is processed.
+        </p>
       ) : (
         <ul className="mt-3 space-y-2">
           {state.noShows.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3">
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3"
+            >
               <div>
                 <p className="text-sm font-medium">
                   {r.confirmationNumber} — {r.guestName}
@@ -166,7 +194,10 @@ export function NoShowPanel({
           <h3 className="text-sm font-medium">Overstays</h3>
           <ul className="mt-2 space-y-2">
             {state.overstays.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3">
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3"
+              >
                 <div>
                   <p className="text-sm font-medium">
                     {s.confirmationNumber} — {s.guestName}
@@ -196,13 +227,15 @@ export function ShiftsPanel({ state }: { state: NightAuditState }) {
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg">Cashier shifts</h2>
         <Button asChild size="sm" variant="outline">
-          <Link to="/restaurant/cashiering" search={{ tab: "shifts" }}>
+          <Link to="/restaurant/pms/cashiering" search={{ tab: "cashier-shift" }}>
             Open shifts
           </Link>
         </Button>
       </div>
       {state.shifts.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">No cashier shifts for this business date.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          No cashier shifts for this business date.
+        </p>
       ) : (
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-sm">
@@ -215,7 +248,7 @@ export function ShiftsPanel({ state }: { state: NightAuditState }) {
                 <th className="text-right">Cash</th>
                 <th className="text-right">Refunds</th>
                 <th className="text-right">Deposits</th>
-                <th className="text-right">Expected cash</th>
+                <th className="text-right">Hotel drawer expected</th>
               </tr>
             </thead>
             <tbody>

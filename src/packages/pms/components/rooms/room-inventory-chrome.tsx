@@ -5,6 +5,7 @@ import { CalendarDays, ChevronDown, HelpCircle, MoreHorizontal, Search } from "l
 import { NoruLogo } from "@/core/components/noru-logo";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
+import { PMS_MODULE_NAV, type PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import {
   DropdownMenu,
@@ -28,10 +29,10 @@ export const PMS_MODULE_NAV_ITEMS = [
 export type PmsModuleName = (typeof PMS_MODULE_NAV_ITEMS)[number]["label"];
 
 const NAV_ITEMS = PMS_MODULE_NAV_ITEMS;
-
 export function RoomInventoryChrome({
   membership,
   onRoomSearch,
+  onSearchChange,
   activeModule = "Rooms & Inventory",
   searchPlaceholder = "Search room…",
   searchTestId,
@@ -44,7 +45,9 @@ export function RoomInventoryChrome({
 }: {
   membership: RestaurantMembership;
   onRoomSearch: (value: string) => void;
-  activeModule?: (typeof NAV_ITEMS)[number]["label"];
+  onSearchChange?: (value: string) => void;
+  /** Null leaves every module unselected. Omitted keeps the Rooms & Inventory default. */
+  activeModule?: PmsModuleNavLabel | null;
   searchPlaceholder?: string;
   searchTestId?: string;
   initialSearch?: string;
@@ -94,7 +97,7 @@ export function RoomInventoryChrome({
             aria-label="PMS modules"
             data-testid="pms-module-nav"
           >
-            {NAV_ITEMS.map((item) => (
+            {PMS_MODULE_NAV.map((item) => (
               <Link
                 key={item.label}
                 to={item.to}
@@ -151,7 +154,10 @@ export function RoomInventoryChrome({
               <input
                 data-testid={searchTestId}
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  onSearchChange?.(event.target.value);
+                }}
                 placeholder={searchPlaceholder}
                 aria-label={searchPlaceholder}
                 className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
@@ -194,11 +200,6 @@ export function RoomInventoryChrome({
               ))}
               <DropdownMenuItem onSelect={() => void navigate({ to: "/restaurant/pms" })}>
                 PMS home
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => void navigate({ to: "/restaurant/pms/night-audit" })}
-              >
-                Night Audit
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

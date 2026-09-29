@@ -141,8 +141,8 @@ const BACK_OFFICE_LINKS: {
     moduleKey: "accounting_finance",
     title: "Accounting & Finance",
     note: "Property-wide folios, payments and night audit.",
-    to: "/restaurant/cashiering",
-    tab: "dashboard",
+    to: "/restaurant/pms/cashiering",
+    tab: "overview",
     icon: Wallet,
   },
   {
