@@ -268,6 +268,16 @@ describe("NORU PMS — Guest Profile: New Guest Wide Modal Modernization (6-Step
     assert.match(modalCode, /COMPANY_NAME/);
     assert.match(modalCode, /sm:grid-cols-2 lg:grid-cols-4/);
   });
+
+  it("34. Business and Relationship step controls in guest-form-staged-links.tsx use square styling", () => {
+    const stagedCode = readRel("./guest-form-staged-links.tsx");
+    assert.match(stagedCode, /rounded-\[6px\]/);
+    assert.match(stagedCode, /border-\[#CCCCCC\]/);
+    assert.match(stagedCode, /SQUARE_TRIGGER_CLASS/);
+    assert.match(stagedCode, /data-testid="individual-link-role"/);
+    assert.match(stagedCode, /data-testid="individual-link-master-target"/);
+  });
 });
+
 
 

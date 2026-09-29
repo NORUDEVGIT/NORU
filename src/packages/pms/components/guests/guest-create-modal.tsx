@@ -837,7 +837,7 @@ export function GuestCreateModal({
                   {fieldError("COMPANY", "business") ? (
                     <p className="text-xs text-destructive">{fieldError("COMPANY", "business")}</p>
                   ) : null}
-                  <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-3 text-xs text-muted-foreground">
+                  <div className="rounded-[6px] border border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-3 text-xs text-muted-foreground">
                     {GUEST_CREATE_LOYALTY_UNAVAILABLE}
                   </div>
                 </div>
