@@ -305,7 +305,23 @@ export function RatesWorkspace({
           <RevenueControlView restaurantId={restaurantId} context={context} access={access!} />
         );
       case "rate-plans-reference":
-        return <RatePlansTab restaurantId={restaurantId} roomTypeId={context.roomTypeId} />;
+        return (
+          <RatePlansTab
+            restaurantId={restaurantId}
+            roomTypeId={context.roomTypeId}
+            onRoomTypeChange={(roomTypeId) => updateContext({ roomTypeId })}
+            onOpenCalendar={(ratePlanId, planRoomTypeId) =>
+              writeState(
+                "rate-calendar",
+                patchRevenueContext(
+                  context,
+                  { ratePlanId, roomTypeId: planRoomTypeId },
+                  contextOptions,
+                ),
+              )
+            }
+          />
+        );
       case "rate-calendar":
         return (
           <RateCalendarView
@@ -635,23 +651,25 @@ export function RatesWorkspace({
         </div>
 
         <main className="space-y-4 p-4 sm:p-5 lg:p-6">
-          <RevenueContextBar
-            fields={contextFieldsForView(requestedView)}
-            context={context}
-            onChange={updateContext}
-            roomTypes={roomTypes}
-            ratePlans={ratePlans}
-            marketSegments={marketSegments}
-            bookingSources={bookingSources}
-            salesChannels={salesChannels}
-            cataloguesError={
-              cataloguesQuery.isError
-                ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")
-                : null
-            }
-            coreConfigStatus={coreConfigStatus}
-            cataloguesStatus={cataloguesStatus}
-          />
+          {requestedView !== "rate-plans-reference" && requestedView !== "bulk-rate-change" ? (
+            <RevenueContextBar
+              fields={contextFieldsForView(requestedView)}
+              context={context}
+              onChange={updateContext}
+              roomTypes={roomTypes}
+              ratePlans={ratePlans}
+              marketSegments={marketSegments}
+              bookingSources={bookingSources}
+              salesChannels={salesChannels}
+              cataloguesError={
+                cataloguesQuery.isError
+                  ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")
+                  : null
+              }
+              coreConfigStatus={coreConfigStatus}
+              cataloguesStatus={cataloguesStatus}
+            />
+          ) : null}
           {renderView()}
         </main>
       </div>

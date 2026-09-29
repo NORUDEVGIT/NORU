@@ -11,7 +11,10 @@ import {
 } from "@/packages/pms/lib/revenue/rate-calendar";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
-import { RATE_CALENDAR_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
+import {
+  RATE_CALENDAR_LOAD_ERROR,
+  revenueUiError,
+} from "@/packages/pms/lib/revenue/revenue-read-error";
 import { useMoney } from "@/core/state/property-format";
 import { RateDetailDrawer, type DrawerTab } from "../rate-detail/rate-detail-drawer";
 import { RateCalendarGrid } from "./rate-calendar-grid";
@@ -78,7 +81,10 @@ export function RateCalendarView({
 
   const paged = useMemo(() => {
     if (!query.data) return null;
-    const maxPage = Math.max(0, Math.ceil(query.data.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE) - 1);
+    const maxPage = Math.max(
+      0,
+      Math.ceil(query.data.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE) - 1,
+    );
     return pageGroups(query.data, Math.min(page, maxPage));
   }, [query.data, page]);
 
@@ -91,7 +97,9 @@ export function RateCalendarView({
     return { plan: null, roomType: null };
   }, [selected, query.data]);
 
-  const pageCount = query.data ? Math.max(1, Math.ceil(query.data.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE)) : 1;
+  const pageCount = query.data
+    ? Math.max(1, Math.ceil(query.data.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE))
+    : 1;
 
   return (
     <div className="space-y-3">
@@ -121,42 +129,40 @@ export function RateCalendarView({
           description="Configure room types and rate plans in Property Setup."
         />
       ) : paged ? (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="min-w-0 space-y-2">
+        <div className="min-w-0 space-y-3">
           <RateCalendarLegend />
-            <RateCalendarGrid
-              data={paged}
-              selected={selected}
-              onSelect={(cell) => {
-                setSelected(cell);
-                setTab("overview");
-              }}
-            />
-            {pageCount > 1 ? (
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <button
-                  type="button"
-                  disabled={page <= 0}
-                  onClick={() => setPage((current) => Math.max(0, current - 1))}
-                  className="rounded-md border border-[#DED7CD] bg-white px-2 py-1 disabled:opacity-50"
-                >
-                  Previous room types
-                </button>
-                <span>
-                  {page + 1} / {pageCount}
-                </span>
-                <button
-                  type="button"
-                  disabled={page + 1 >= pageCount}
-                  onClick={() => setPage((current) => current + 1)}
-                  className="rounded-md border border-[#DED7CD] bg-white px-2 py-1 disabled:opacity-50"
-                >
-                  Next room types
-                </button>
-              </div>
-            ) : null}
-            
-          </div>
+          <RateCalendarGrid
+            data={paged}
+            selected={selected}
+            onSelect={(cell) => {
+              setSelected(cell);
+              setTab("overview");
+            }}
+          />
+          {pageCount > 1 ? (
+            <div className="flex items-center justify-between rounded-xl border border-[#DDD4C5] bg-white px-4 py-2.5 text-xs font-medium text-[#5A4833] shadow-sm">
+              <button
+                type="button"
+                disabled={page <= 0}
+                onClick={() => setPage((current) => Math.max(0, current - 1))}
+                className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#F8F1E5] disabled:opacity-50"
+              >
+                Previous room types
+              </button>
+              <span>
+                Page {page + 1} of {pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={page + 1 >= pageCount}
+                onClick={() => setPage((current) => current + 1)}
+                className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#F8F1E5] disabled:opacity-50"
+              >
+                Next room types
+              </button>
+            </div>
+          ) : null}
+
           <RateDetailDrawer
             restaurantId={restaurantId}
             cell={selected}

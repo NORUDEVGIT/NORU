@@ -80,7 +80,9 @@ export function RateEditForm({
       targets: [{ ratePlanId: cell.ratePlanId, date: cell.date }],
       rule: buildRule(),
       reason: reason.trim() || null,
-      expectedVersions: [{ ratePlanId: cell.ratePlanId, date: cell.date, expectedVersion: cell.expectedVersion }],
+      expectedVersions: [
+        { ratePlanId: cell.ratePlanId, date: cell.date, expectedVersion: cell.expectedVersion },
+      ],
       source: "rate_calendar" as const,
     };
   }
@@ -89,7 +91,11 @@ export function RateEditForm({
     mutationFn: () => previewFn({ data: requestPayload() }),
     onSuccess: (data) => {
       setPreview(data);
-      setError(data.valid ? null : staleMessage(data.items[0]?.validationMessages[0] ?? "Preview is not valid."));
+      setError(
+        data.valid
+          ? null
+          : staleMessage(data.items[0]?.validationMessages[0] ?? "Preview is not valid."),
+      );
     },
     onError: (err: Error) => {
       setPreview(null);
@@ -153,7 +159,9 @@ export function RateEditForm({
 
       {action === "SET_RATE" || action === "PERCENT_INCREASE" || action === "PERCENT_DECREASE" ? (
         <div>
-          <Label htmlFor="rate-edit-value">{action === "SET_RATE" ? "Nightly rate" : "Percent"}</Label>
+          <Label htmlFor="rate-edit-value">
+            {action === "SET_RATE" ? "Nightly rate" : "Percent"}
+          </Label>
           <Input
             id="rate-edit-value"
             type="number"
@@ -184,8 +192,9 @@ export function RateEditForm({
       ) : null}
 
       {action === "RESET_OVERRIDE" ? (
-        <p className="text-[10px] text-muted-foreground">
-          Reset to Base Rate deletes the override. It does not write the base rate into the calendar.
+        <p className="text-xs text-[#756A5B]">
+          Reset to Base Rate deletes the override. It does not write the base rate into the
+          calendar.
         </p>
       ) : null}
 
@@ -201,35 +210,55 @@ export function RateEditForm({
       </div>
 
       {item ? (
-        <div className="rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] p-3 text-xs">
-          <p>Current effective: {item.currentEffectiveRate == null ? "—" : money(item.currentEffectiveRate)}</p>
-          <p>Proposed effective: {item.proposedEffectiveRate == null ? "—" : money(item.proposedEffectiveRate)}</p>
-          <p>Delta: {item.absoluteDelta == null ? "—" : money(item.absoluteDelta)}</p>
-          <p>Percent delta: {item.percentageDelta == null ? "—" : `${item.percentageDelta}%`}</p>
-          <p className="text-muted-foreground">
+        <div className="space-y-1.5 rounded-xl border border-[#DDD4C5] bg-white p-3.5 text-xs text-[#251605]">
+          <p className="flex justify-between">
+            <span className="text-[#756A5B]">Current effective:</span>
+            <span className="font-semibold">
+              {item.currentEffectiveRate == null ? "—" : money(item.currentEffectiveRate)}
+            </span>
+          </p>
+          <p className="flex justify-between">
+            <span className="text-[#756A5B]">Proposed effective:</span>
+            <span className="font-semibold">
+              {item.proposedEffectiveRate == null ? "—" : money(item.proposedEffectiveRate)}
+            </span>
+          </p>
+          <p className="flex justify-between">
+            <span className="text-[#756A5B]">Delta:</span>
+            <span className="font-semibold">
+              {item.absoluteDelta == null ? "—" : money(item.absoluteDelta)}
+            </span>
+          </p>
+          <p className="flex justify-between">
+            <span className="text-[#756A5B]">Percent delta:</span>
+            <span className="font-semibold">
+              {item.percentageDelta == null ? "—" : `${item.percentageDelta}%`}
+            </span>
+          </p>
+          <p className="pt-1 text-xs text-[#756A5B]">
             Restrictions remain as currently applied. No revenue-impact forecast.
           </p>
         </div>
       ) : null}
 
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 pt-1">
         <button
           type="button"
           disabled={readOnly || previewMutation.isPending}
           onClick={() => previewMutation.mutate()}
-          className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-[10px] text-[#251605] hover:bg-[#F8F1E5] disabled:opacity-50"
+          className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#FAF6F0] disabled:opacity-50"
         >
-          Preview
+          Preview Rate Change
         </button>
         <button
           type="button"
           disabled={readOnly || !preview?.valid || applyMutation.isPending}
           onClick={() => applyMutation.mutate()}
-          className="inline-flex h-8 items-center rounded-md bg-[#D3A13B] px-2.5 text-[10px] font-medium text-[#251605] hover:bg-[#BE8D2D] disabled:opacity-50"
+          className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#B5882D] disabled:opacity-50"
         >
-          {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Apply"}
+          {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Apply Rate Change"}
         </button>
       </div>
     </div>

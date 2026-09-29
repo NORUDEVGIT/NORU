@@ -1,4 +1,9 @@
-import { RATE_CHANGE_ACTION_TYPES, type RateChangeActionType } from "@/packages/pms/lib/revenue/rate-change";
+import { Info } from "lucide-react";
+
+import {
+  RATE_CHANGE_ACTION_TYPES,
+  type RateChangeActionType,
+} from "@/packages/pms/lib/revenue/rate-change";
 import { rateHistoryActionLabel } from "@/packages/pms/lib/revenue/rate-history";
 
 export function RateHistoryFilters({
@@ -9,16 +14,16 @@ export function RateHistoryFilters({
   onActionTypeChange: (value: RateChangeActionType | "") => void;
 }) {
   return (
-    <div className="flex flex-wrap items-end gap-2 rounded-xl border border-[#E8E1D7] bg-card px-3 py-2">
-      <div className="min-w-40">
-        <label htmlFor="rate-history-action" className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Action type
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDD4C5] bg-white px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="rate-history-action" className="text-xs font-semibold text-[#5A4833]">
+          Action Type
         </label>
         <select
           id="rate-history-action"
           value={actionType}
           onChange={(event) => onActionTypeChange(event.target.value as RateChangeActionType | "")}
-          className="mt-1 flex h-8 w-full rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
+          className="flex h-9 w-52 rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605]"
         >
           <option value="">All actions</option>
           {RATE_CHANGE_ACTION_TYPES.map((value) => (
@@ -28,9 +33,13 @@ export function RateHistoryFilters({
           ))}
         </select>
       </div>
-      <p className="pb-1 text-[10px] text-muted-foreground">
-        The date range above is <span className="font-medium text-[#251605]">Changed Between</span> (when the
-        change was recorded), not stay date.
+
+      <p className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E1D7] bg-[#FAF6F0] px-3 py-1.5 text-xs text-[#5A4833]">
+        <Info className="size-3.5 shrink-0 text-[#8A641A]" />
+        <span>
+          Date range filters <span className="font-semibold text-[#251605]">Changed Between</span>{" "}
+          (when the change was recorded), not stay date.
+        </span>
       </p>
     </div>
   );

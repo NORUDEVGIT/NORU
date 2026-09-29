@@ -84,7 +84,8 @@ function baseInput(overrides: Partial<RateCalendarBuildInput> = {}): RateCalenda
 describe("RR-P2-03 — Rate Calendar read model", () => {
   it("builds a base-only cell with absent version", () => {
     const model = buildRateCalendarModel(baseInput());
-    const cell = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)?.cells[0];
+    const cell = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)
+      ?.cells[0];
     assert.ok(cell);
     assert.equal(cell.baseRate, 100);
     assert.equal(cell.overrideRate, null);
@@ -96,10 +97,18 @@ describe("RR-P2-03 — Rate Calendar read model", () => {
   it("applies an override to effective rate and version", () => {
     const model = buildRateCalendarModel(
       baseInput({
-        overrides: [{ ratePlanId: BAR, date: "2026-09-24", nightlyRate: 125, updatedAt: "2026-09-20T10:00:00Z" }],
+        overrides: [
+          {
+            ratePlanId: BAR,
+            date: "2026-09-24",
+            nightlyRate: 125,
+            updatedAt: "2026-09-20T10:00:00Z",
+          },
+        ],
       }),
     );
-    const cell = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)?.cells[0];
+    const cell = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)
+      ?.cells[0];
     assert.equal(cell?.overrideRate, 125);
     assert.equal(cell?.effectiveRate, 125);
     assert.equal(cell?.expectedVersion, "2026-09-20T10:00:00Z");
@@ -121,7 +130,8 @@ describe("RR-P2-03 — Rate Calendar read model", () => {
         ],
       }),
     );
-    const cell = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)?.cells[0];
+    const cell = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)
+      ?.cells[0];
     assert.equal(cell?.restriction.stopSell, true);
     assert.equal(cell?.restriction.closedToArrival, true);
     assert.match(cell?.restrictionLabel ?? "", /Stop Sell/);
@@ -131,11 +141,15 @@ describe("RR-P2-03 — Rate Calendar read model", () => {
   it("composes inventory from matching room-type occupancy", () => {
     const model = buildRateCalendarModel(
       baseInput({
-        reservations: [{ roomTypeId: DELUXE, arrivalDate: "2026-09-24", departureDate: "2026-09-25" }],
+        reservations: [
+          { roomTypeId: DELUXE, arrivalDate: "2026-09-24", departureDate: "2026-09-25" },
+        ],
       }),
     );
-    const deluxe = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)?.cells[0];
-    const standard = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === CORP)?.cells[0];
+    const deluxe = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === BAR)
+      ?.cells[0];
+    const standard = model.groups.flatMap((group) => group.rows).find((row) => row.plan.id === CORP)
+      ?.cells[0];
     assert.equal(deluxe?.inventory.roomsSold, 1);
     assert.equal(deluxe?.inventory.roomsAvailable, 2);
     assert.equal(deluxe?.inventory.occupancyPercent, 50);
@@ -202,9 +216,12 @@ describe("RR-P2-03 — wiring, drawer and no fake product", () => {
     assert.doesNotMatch(functions, /loadRevenueRateCalendar\(context\.supabase/);
   });
 
-  it("opens a selected cell in the Rate Detail drawer", () => {
+  it("opens a selected cell in the on-demand Rate Detail drawer and keeps calendar full-width when closed", () => {
     assert.match(view, /RateDetailDrawer/);
     assert.match(view, /setSelected\(cell\)/);
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
+    assert.doesNotMatch(drawer, /<aside/);
+    assert.match(drawer, /<Sheet open=\{ready\}/);
     assert.match(drawer, /Rate Detail & Edit/);
     assert.match(drawer, /Overview/);
     assert.match(drawer, /Edit Rate/);
@@ -226,7 +243,10 @@ describe("RR-P2-03 — wiring, drawer and no fake product", () => {
     assert.match(edit, /COPY_FROM_DATE/);
     assert.match(edit, /expectedVersion/);
     assert.match(edit, /RATE_CALENDAR_STALE_COPY/);
-    assert.equal(RATE_CALENDAR_STALE_COPY, "The rate changed after this preview. Refresh and review again.");
+    assert.equal(
+      RATE_CALENDAR_STALE_COPY,
+      "The rate changed after this preview. Refresh and review again.",
+    );
     assert.doesNotMatch(edit, /saveRateOverride/);
     assert.match(changeFunctions, /export const applyRateChanges/);
     assert.match(changeServer, /stay_date/);
@@ -247,7 +267,10 @@ describe("RR-P2-03 — wiring, drawer and no fake product", () => {
     assert.match(toolbar, /Bulk Rate Change/);
     assert.match(workspace, /RateCalendarView/);
     assert.doesNotMatch(workspace, /<RateCalendarTab/);
-    assert.match(workspace, /requestedView !== "rate-calendar" && requestedView !== "restrictions"/);
+    assert.match(
+      workspace,
+      /requestedView !== "rate-calendar" && requestedView !== "restrictions"/,
+    );
   });
 
   it("does not add a migration or change 0016 pricing", () => {

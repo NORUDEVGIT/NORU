@@ -20,35 +20,41 @@ export function RateDetailRestrictions({
   });
 
   return (
-    <div className="space-y-3">
-      <dl className="space-y-2 text-sm">
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Min stay</dt>
-          <dd className="font-medium text-[#251605]">{cell.restriction.minStay ?? "—"}</dd>
+    <div className="space-y-4">
+      <dl className="divide-y divide-[#E8E1D7] rounded-xl border border-[#DDD4C5] bg-white px-4 py-1 text-sm">
+        <div className="flex justify-between gap-3 py-2.5">
+          <dt className="text-xs font-medium text-[#756A5B]">Min stay</dt>
+          <dd className="font-semibold text-[#251605]">{cell.restriction.minStay ?? "—"}</dd>
         </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Max stay</dt>
-          <dd className="font-medium text-[#251605]">{cell.restriction.maxStay ?? "—"}</dd>
+        <div className="flex justify-between gap-3 py-2.5">
+          <dt className="text-xs font-medium text-[#756A5B]">Max stay</dt>
+          <dd className="font-semibold text-[#251605]">{cell.restriction.maxStay ?? "—"}</dd>
         </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">CTA</dt>
-          <dd className="font-medium text-[#251605]">{cell.restriction.closedToArrival ? "Yes" : "No"}</dd>
+        <div className="flex justify-between gap-3 py-2.5">
+          <dt className="text-xs font-medium text-[#756A5B]">CTA</dt>
+          <dd className="font-semibold text-[#251605]">
+            {cell.restriction.closedToArrival ? "Yes" : "No"}
+          </dd>
         </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">CTD</dt>
-          <dd className="font-medium text-[#251605]">{cell.restriction.closedToDeparture ? "Yes" : "No"}</dd>
+        <div className="flex justify-between gap-3 py-2.5">
+          <dt className="text-xs font-medium text-[#756A5B]">CTD</dt>
+          <dd className="font-semibold text-[#251605]">
+            {cell.restriction.closedToDeparture ? "Yes" : "No"}
+          </dd>
         </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Stop sell</dt>
-          <dd className="font-medium text-[#251605]">{cell.restriction.stopSell ? "Yes" : "No"}</dd>
+        <div className="flex justify-between gap-3 py-2.5">
+          <dt className="text-xs font-medium text-[#756A5B]">Stop sell</dt>
+          <dd className="font-semibold text-[#251605]">
+            {cell.restriction.stopSell ? "Yes" : "No"}
+          </dd>
         </div>
       </dl>
       <Link
         to="/restaurant/pms/rates-revenue"
         search={search}
-        className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-[10px] text-[#251605] hover:bg-[#F8F1E5]"
+        className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#FAF6F0]"
       >
-        Open Restrictions
+        View Restrictions
       </Link>
     </div>
   );

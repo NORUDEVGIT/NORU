@@ -2,7 +2,10 @@ import type { RateCalendarCell as RateCalendarCellModel } from "@/packages/pms/l
 import { inventoryBandLabel } from "@/packages/pms/lib/revenue/rate-calendar";
 
 function formatRate(value: number) {
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 const BAND_CLASS: Record<RateCalendarCellModel["inventory"]["band"], string> = {
@@ -45,24 +48,28 @@ export function RateCalendarCell({
       title={title}
       onClick={onSelect}
       className={[
-        "relative flex h-14 min-w-[4.5rem] flex-col items-start justify-center rounded-md border px-1.5 text-left transition-colors",
+        "relative flex h-16 w-full min-w-[5.75rem] flex-col items-start justify-center rounded-lg border px-2.5 py-1.5 text-left transition-colors",
         BAND_CLASS[cell.inventory.band],
-        selected ? "z-10 border-[#C89933] ring-2 ring-[#C89933]" : "border-[#E8E1D7] hover:border-[#C89933]/70",
+        selected
+          ? "z-10 border-[#C89933] ring-2 ring-[#C89933]"
+          : "border-[#E8E1D7] hover:border-[#C89933]/70",
         !cell.planActive || cell.outsideValidity ? "opacity-70" : "",
       ].join(" ")}
     >
-      <span className="flex items-center gap-1 text-sm font-semibold leading-none text-[#251605]">
+      <span className="flex items-center gap-1.5 text-sm font-semibold leading-tight tabular-nums text-[#251605]">
         {formatRate(cell.effectiveRate)}
         {cell.overrideActive ? (
-          <span className="h-1.5 w-1.5 rounded-full bg-[#C89933]" aria-label="Override" />
+          <span className="h-2 w-2 rounded-full bg-[#C89933]" aria-label="Override" />
         ) : null}
       </span>
       {marks.length > 0 ? (
-        <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-[#6B4A0A]">
-          {marks.join(" ")}
+        <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#6B4A0A]">
+          {marks.join(" · ")}
         </span>
       ) : (
-        <span className="mt-1 text-[9px] text-muted-foreground">{cell.inventory.occupancyPercent}% occ</span>
+        <span className="mt-1 text-xs font-medium text-[#5A4833]">
+          {cell.inventory.occupancyPercent}% occ
+        </span>
       )}
     </button>
   );

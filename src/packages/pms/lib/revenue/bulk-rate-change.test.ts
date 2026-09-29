@@ -72,11 +72,18 @@ function previewItem(overrides: Partial<RateChangePreviewItem> = {}): RateChange
 
 describe("RR-P2-04 — target expansion", () => {
   it("expands a single plan across dates", () => {
-    const result = expandBulkTargets({ planIds: [BAR], fromDate: "2026-09-24", toDate: "2026-09-26" });
+    const result = expandBulkTargets({
+      planIds: [BAR],
+      fromDate: "2026-09-24",
+      toDate: "2026-09-26",
+    });
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(result.targetCount, 3);
-    assert.deepEqual(result.targets.map((row) => row.date), ["2026-09-24", "2026-09-25", "2026-09-26"]);
+    assert.deepEqual(
+      result.targets.map((row) => row.date),
+      ["2026-09-24", "2026-09-25", "2026-09-26"],
+    );
     assert.ok(result.targets.every((row) => row.ratePlanId === BAR));
   });
 
@@ -97,9 +104,15 @@ describe("RR-P2-04 — target expansion", () => {
 
   it("supports multiple room types only through their real plans", () => {
     const visible = plansForSelectedRoomTypes(plans, [DELUXE, STANDARD]);
-    assert.deepEqual(visible.map((plan) => plan.id), [BAR, CORP]);
+    assert.deepEqual(
+      visible.map((plan) => plan.id),
+      [BAR, CORP],
+    );
     const deluxeOnly = plansForSelectedRoomTypes(plans, [DELUXE]);
-    assert.deepEqual(deluxeOnly.map((plan) => plan.id), [BAR]);
+    assert.deepEqual(
+      deluxeOnly.map((plan) => plan.id),
+      [BAR],
+    );
     const pruned = prunePlanIdsForRoomTypes([BAR, CORP], plans, [DELUXE]);
     assert.deepEqual(pruned, [BAR]);
   });
@@ -131,8 +144,14 @@ describe("RR-P2-04 — target expansion", () => {
   });
 
   it("rejects empty or inverted selections", () => {
-    assert.equal(expandBulkTargets({ planIds: [], fromDate: "2026-09-24", toDate: "2026-09-25" }).ok, false);
-    assert.equal(expandBulkTargets({ planIds: [BAR], fromDate: "2026-09-26", toDate: "2026-09-24" }).ok, false);
+    assert.equal(
+      expandBulkTargets({ planIds: [], fromDate: "2026-09-24", toDate: "2026-09-25" }).ok,
+      false,
+    );
+    assert.equal(
+      expandBulkTargets({ planIds: [BAR], fromDate: "2026-09-26", toDate: "2026-09-24" }).ok,
+      false,
+    );
     const empty = expandBulkTargets({ planIds: [], fromDate: "2026-09-24", toDate: "2026-09-25" });
     if (empty.ok) return;
     assert.equal(empty.code, "empty");
@@ -204,10 +223,16 @@ describe("RR-P2-04 — review composition", () => {
     assert.equal(summary.averageAbsoluteDelta, 10);
     assert.deepEqual(restrictionMarks(items[0]!), ["CTA", "Min 2"]);
     assert.equal(humanizeRateChangeValidation("RATE_PLAN_INACTIVE"), "This rate plan is inactive.");
-    assert.equal(humanizeRateChangeValidation("RATE_PLAN_OUT_OF_RANGE"), "This date is outside the rate plan validity window.");
+    assert.equal(
+      humanizeRateChangeValidation("RATE_PLAN_OUT_OF_RANGE"),
+      "This date is outside the rate plan validity window.",
+    );
     assert.equal(humanizeRateChangeValidation("RATE_CHANGE_STALE"), BULK_RATE_CHANGE_STALE_COPY);
     assert.equal(uniquePlanCurrencies(plans).length, 2);
-    assert.deepEqual(expectedVersionsFromPreview(items)[0]?.expectedVersion, "2026-09-20T10:00:00Z");
+    assert.deepEqual(
+      expectedVersionsFromPreview(items)[0]?.expectedVersion,
+      "2026-09-20T10:00:00Z",
+    );
   });
 });
 
@@ -252,7 +277,9 @@ describe("RR-P2-04 — wiring, apply and no fake product", () => {
     assert.match(view, /joinPreviewInventory/);
     assert.match(view, /buildInventoryLookup/);
     assert.equal(
-      BULK_RATE_CHANGE_IMPACT_COPY.includes("Existing reservation pricing snapshots are not changed"),
+      BULK_RATE_CHANGE_IMPACT_COPY.includes(
+        "Existing reservation pricing snapshots are not changed",
+      ),
       true,
     );
     assert.doesNotMatch(review, /Estimated Revenue/);
@@ -271,7 +298,10 @@ describe("RR-P2-04 — wiring, apply and no fake product", () => {
     assert.match(view, /if \(isBulkStaleMessage\(err\.message\)\) setStep\(3\)/);
     assert.match(view, /BULK_RATE_CHANGE_STALE_COPY/);
     assert.equal(isBulkStaleMessage("RATE_CHANGE_STALE"), true);
-    assert.equal(BULK_RATE_CHANGE_STALE_COPY.includes("Refresh and review the changes again"), true);
+    assert.equal(
+      BULK_RATE_CHANGE_STALE_COPY.includes("Refresh and review the changes again"),
+      true,
+    );
     assert.match(confirm, /Confirm & Apply/);
     assert.match(confirm, /Nothing will be applied until every target is valid/);
     assert.match(confirm, /BULK_RATE_CHANGE_SUCCESS_COPY/);
@@ -289,6 +319,11 @@ describe("RR-P2-04 — wiring, apply and no fake product", () => {
     }
     assert.match(confirm, /canEdit/);
     assert.match(view, /canEditDailyRates/);
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
+    assert.doesNotMatch(panel, /<aside/);
+    assert.match(panel, /<Sheet open=\{open\}/);
+    assert.match(view, /Review Bulk Change/);
+    assert.match(view, /Back to Selection/);
     assert.match(scope, /BULK_RATE_CHANGE_OVER_MAX_COPY/);
     assert.match(BULK_RATE_CHANGE_OVER_MAX_COPY, /366/);
     assert.match(workspace, /<BulkRateChangeView/);

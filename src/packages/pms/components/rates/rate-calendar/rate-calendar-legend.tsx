@@ -9,16 +9,14 @@ const ITEMS = [
 
 export function RateCalendarLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-[#E8E1D7] bg-white px-4 py-3 text-[10px] text-muted-foreground shadow-sm">
-    {ITEMS.map((item) => (
-      <span key={item.label} className="inline-flex items-center gap-2">
-        <span
-          className={`h-3 w-3 rounded border border-[#E8E1D7] ${item.swatch}`}
-        />
-        {item.label}
-      </span>
-    ))}
-      <span className="ml-auto text-[9px]">Inventory bands, not demand.</span>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-[#DDD4C5] bg-white px-4 py-2.5 text-xs font-medium text-[#5A4833] shadow-sm">
+      {ITEMS.map((item) => (
+        <span key={item.label} className="inline-flex items-center gap-2">
+          <span className={`h-3.5 w-3.5 rounded border border-[#DDD4C5] ${item.swatch}`} />
+          {item.label}
+        </span>
+      ))}
+      <span className="ml-auto text-xs text-[#756A5B]">Inventory bands, not demand.</span>
     </div>
   );
 }

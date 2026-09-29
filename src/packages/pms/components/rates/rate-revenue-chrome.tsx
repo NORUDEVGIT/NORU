@@ -7,18 +7,6 @@ import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-invent
  * Rate & Revenue uses the shared PMS module bar.
  * Revenue desks and server logic stay in this module.
  */
-const NAV_ITEMS = [
-  { label: "Front Office", to: "/restaurant/pms/front-office" },
-  { label: "Reservations", to: "/restaurant/pms/reservations" },
-  { label: "Rooms & Inventory", to: "/restaurant/pms/room-inventory" },
-  { label: "Guest Profiles", to: "/restaurant/pms/guests" },
-  { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
-  { label: "Rates & Revenue", to: "/restaurant/pms/rates-revenue", active: true },
-  { label: "F&B", to: "/restaurant/restaurant-management/dashboard" },
-  { label: "Reports", to: "/restaurant/pms/reports" },
-  { label: "Settings", to: "/restaurant/settings" },
-] as const;
-
 export function RateRevenueChrome({
   membership,
   children,

@@ -16,27 +16,27 @@ export function RateCalendarGrid({
   onSelect: (cell: RateCalendarCellModel) => void;
 }) {
   return (
-    <div className="overflow-auto rounded-xl border border-[#E8E1D7] bg-card">
-      <table className="min-w-max border-collapse text-sm">
+    <div className="overflow-auto rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+      <table className="min-w-max w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-[#E8E1D7] bg-[#F7F4EE]">
-            <th className="sticky left-0 z-20 min-w-28 border-r border-[#E8E1D7] bg-[#F7F4EE] px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Room type
+            <th className="sticky left-0 z-20 min-w-36 border-r border-[#E8E1D7] bg-[#F7F4EE] px-3.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[#5A4833]">
+              Room Type
             </th>
-            <th className="sticky left-28 z-20 min-w-36 border-r border-[#E8E1D7] bg-[#F7F4EE] px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Rate plan
+            <th className="sticky left-36 z-20 min-w-44 border-r border-[#E8E1D7] bg-[#F7F4EE] px-3.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[#5A4833]">
+              Rate Plan
             </th>
             {data.dates.map((date) => (
               <th
                 key={date}
-                className="sticky top-0 z-10 min-w-[4.75rem] px-1 py-2 text-left text-[10px] font-medium text-[#251605]"
+                className="sticky top-0 z-10 min-w-[6rem] px-2 py-2.5 text-left text-xs font-semibold text-[#251605]"
               >
                 {formatStayDate(date)}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-[#EFE9DF]">
           {data.groups.map((group) => (
             <GroupRows
               key={group.roomType.id}
@@ -70,23 +70,23 @@ function GroupRows({
           {index === 0 ? (
             <td
               rowSpan={group.rows.length}
-              className="sticky left-0 z-10 border-r border-[#E8E1D7] bg-[#F7F4EE] px-2 py-2 align-top text-xs font-semibold text-[#251605]"
+              className="sticky left-0 z-10 border-r border-[#E8E1D7] bg-[#FAF6F0] px-3.5 py-3 align-top text-sm font-semibold text-[#251605]"
             >
               {group.roomType.name}
             </td>
           ) : null}
-          <td className="sticky left-28 z-10 border-r border-[#E8E1D7] bg-card px-2 py-1.5 align-middle">
-            <div className="text-xs font-medium text-[#251605]">
+          <td className="sticky left-36 z-10 border-r border-[#E8E1D7] bg-white px-3.5 py-2.5 align-middle">
+            <div className="text-sm font-semibold text-[#251605]">
               {row.plan.code}
               {row.plan.active ? "" : " (inactive)"}
             </div>
-            <div className="text-[10px] text-muted-foreground">
+            <div className="text-xs text-[#756A5B]">
               {row.plan.name}
               {mixedCurrency && row.plan.currency ? ` · ${row.plan.currency}` : ""}
             </div>
           </td>
           {row.cells.map((cell) => (
-            <td key={cell.date} className="px-1 py-1">
+            <td key={cell.date} className="p-1.5">
               <RateCalendarCell
                 cell={cell}
                 selected={

@@ -17,6 +17,9 @@ function actionLabel(actionType: string): string {
   return "Rate Change";
 }
 
+/**
+ * Renders recent rate change events backed by `hotel_rate_change_events`.
+ */
 export function RecentRateActivity({
   activity,
   error,

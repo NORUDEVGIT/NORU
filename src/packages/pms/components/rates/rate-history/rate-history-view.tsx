@@ -8,14 +8,20 @@ import {
   getRateChangeOperationDetail,
   listRateChangeHistory,
 } from "@/packages/pms/lib/revenue/rate-change.functions";
-import type { RateChangeActionType, RateChangeHistoryRow } from "@/packages/pms/lib/revenue/rate-change";
+import type {
+  RateChangeActionType,
+  RateChangeHistoryRow,
+} from "@/packages/pms/lib/revenue/rate-change";
 import {
   RATE_HISTORY_DEFAULT_PAGE_SIZE,
   RATE_HISTORY_PAGE_SIZES,
   historyPaginationRange,
 } from "@/packages/pms/lib/revenue/rate-history";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
-import { RATE_HISTORY_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
+import {
+  RATE_HISTORY_LOAD_ERROR,
+  revenueUiError,
+} from "@/packages/pms/lib/revenue/revenue-read-error";
 import { RateHistoryDetailDrawer } from "./rate-history-detail-drawer";
 import { RateHistoryEmptyState } from "./rate-history-empty-state";
 import { RateHistoryFilters } from "./rate-history-filters";
@@ -23,7 +29,10 @@ import { RateHistoryTable } from "./rate-history-table";
 
 function TableSkeleton() {
   return (
-    <div className="h-64 animate-pulse rounded-xl border border-[#E8E1D7] bg-card" aria-busy="true" />
+    <div
+      className="h-64 animate-pulse rounded-xl border border-[#E8E1D7] bg-card"
+      aria-busy="true"
+    />
   );
 }
 
@@ -43,7 +52,14 @@ export function RateHistoryView({
 
   useEffect(() => {
     setPage(1);
-  }, [context.fromDate, context.toDate, context.roomTypeId, context.ratePlanId, actionType, pageSize]);
+  }, [
+    context.fromDate,
+    context.toDate,
+    context.roomTypeId,
+    context.ratePlanId,
+    actionType,
+    pageSize,
+  ]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -83,77 +99,79 @@ export function RateHistoryView({
     retry: false,
   });
 
-  const range = historyPaginationRange(listQuery.data?.page ?? page, pageSize, listQuery.data?.total ?? 0);
+  const range = historyPaginationRange(
+    listQuery.data?.page ?? page,
+    pageSize,
+    listQuery.data?.total ?? 0,
+  );
 
   return (
-    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="min-w-0 space-y-2">
-        <RateHistoryFilters
-          actionType={actionType}
-          onActionTypeChange={(value) => {
-            setActionType(value);
-            setSelected(null);
-          }}
-        />
+    <div className="min-w-0 space-y-3">
+      <RateHistoryFilters
+        actionType={actionType}
+        onActionTypeChange={(value) => {
+          setActionType(value);
+          setSelected(null);
+        }}
+      />
 
-        {listQuery.isLoading ? (
-          <TableSkeleton />
-        ) : listQuery.isError ? (
-          <InventoryState
-            state="error"
-            title={RATE_HISTORY_LOAD_ERROR}
-            description={revenueUiError(listQuery.error, RATE_HISTORY_LOAD_ERROR)}
-            onRetry={() => void listQuery.refetch()}
-          />
-        ) : listQuery.data && listQuery.data.rows.length === 0 ? (
-          <RateHistoryEmptyState />
-        ) : listQuery.data ? (
-          <>
-            <RateHistoryTable rows={listQuery.data.rows} onViewDetails={setSelected} />
-            <footer className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E8E1D7] bg-card px-3 py-2">
-              <p className="text-[9px] text-muted-foreground">
-                Showing {range.start}–{range.end} of {range.total}
-              </p>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="inline-flex h-7 items-center rounded-md border border-[#DED7CD] bg-white px-2 text-[9px] text-[#251605] disabled:opacity-50"
-                >
-                  <ChevronLeft className="mr-1 size-3" />
-                  Previous
-                </button>
-                <span className="grid size-7 place-items-center rounded bg-[#C89933] text-[9px] font-semibold text-[#251605]">
-                  {page}
-                </span>
-                <span className="px-1 text-[9px] text-muted-foreground">of {range.pageCount}</span>
-                <button
-                  type="button"
-                  disabled={page >= range.pageCount}
-                  onClick={() => setPage((current) => current + 1)}
-                  className="inline-flex h-7 items-center rounded-md border border-[#DED7CD] bg-white px-2 text-[9px] text-[#251605] disabled:opacity-50"
-                >
-                  Next
-                  <ChevronRight className="ml-1 size-3" />
-                </button>
-                <select
-                  value={pageSize}
-                  onChange={(event) => setPageSize(Number(event.target.value))}
-                  className="ml-2 h-7 rounded border border-[#DED7CD] bg-white px-2 text-[9px]"
-                  aria-label="Rows per page"
-                >
-                  {RATE_HISTORY_PAGE_SIZES.map((size) => (
-                    <option key={size} value={size}>
-                      {size} / page
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </footer>
-          </>
-        ) : null}
-      </div>
+      {listQuery.isLoading ? (
+        <TableSkeleton />
+      ) : listQuery.isError ? (
+        <InventoryState
+          state="error"
+          title={RATE_HISTORY_LOAD_ERROR}
+          description={revenueUiError(listQuery.error, RATE_HISTORY_LOAD_ERROR)}
+          onRetry={() => void listQuery.refetch()}
+        />
+      ) : listQuery.data && listQuery.data.rows.length === 0 ? (
+        <RateHistoryEmptyState />
+      ) : listQuery.data ? (
+        <>
+          <RateHistoryTable rows={listQuery.data.rows} onViewDetails={setSelected} />
+          <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDD4C5] bg-white px-4 py-2.5 text-xs text-[#5A4833] shadow-sm">
+            <p className="text-xs font-medium text-[#5A4833]">
+              Showing {range.start}–{range.end} of {range.total}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605] hover:bg-[#FAF6F0] disabled:opacity-50"
+              >
+                <ChevronLeft className="mr-1 size-3.5" />
+                Previous
+              </button>
+              <span className="grid h-8 min-w-8 place-items-center rounded-md bg-[#C89933] px-2 text-xs font-semibold text-[#251605]">
+                {page}
+              </span>
+              <span className="px-1 text-xs text-[#756A5B]">of {range.pageCount}</span>
+              <button
+                type="button"
+                disabled={page >= range.pageCount}
+                onClick={() => setPage((current) => current + 1)}
+                className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605] hover:bg-[#FAF6F0] disabled:opacity-50"
+              >
+                Next
+                <ChevronRight className="ml-1 size-3.5" />
+              </button>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                className="ml-2 h-8 rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605]"
+                aria-label="Rows per page"
+              >
+                {RATE_HISTORY_PAGE_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size} / page
+                  </option>
+                ))}
+              </select>
+            </div>
+          </footer>
+        </>
+      ) : null}
 
       <RateHistoryDetailDrawer
         open={Boolean(selected)}
@@ -162,6 +180,7 @@ export function RateHistoryView({
         error={
           detailQuery.isError ? revenueUiError(detailQuery.error, RATE_HISTORY_LOAD_ERROR) : null
         }
+        context={context}
         onClose={() => setSelected(null)}
       />
     </div>

@@ -14,13 +14,19 @@ function readRel(rel: string) {
 }
 
 describe("Rate & Revenue Phase 1 Prompt 2 — responsibility split", () => {
-  it("A. Rate & Revenue plans UI is a read-only operational reference", () => {
+  it("A. Rate & Revenue plans UI is a read-only operational reference with compact toolbar, validity and pagination", () => {
     const tabs = readRel("../components/rates/rates-tabs.tsx");
     const plansStart = tabs.indexOf("export function RatePlansTab");
     const plansEnd = tabs.indexOf("function usePlanPicker");
     const plans = tabs.slice(plansStart, plansEnd);
     assert.match(plans, /Rate plan masters are configured in/);
     assert.match(plans, /CARD3_HREF|PropertySetupRatesLink/);
+    assert.match(plans, /Configure in Property Setup/);
+    assert.match(plans, /Search rate plans\.\.\./);
+    assert.match(plans, /formatRatePlanValidity/);
+    assert.match(plans, /Always/);
+    assert.match(plans, /Showing \{showingFrom\}–\{showingTo\} of \{filteredPlans\.length\}/);
+    assert.doesNotMatch(plans, /\{money\(plan\.baseRate\)\}\s*<span[^>]*>\{plan\.currency\}/);
     assert.doesNotMatch(plans, /Add rate plan/);
     assert.doesNotMatch(plans, /Add category/);
     assert.doesNotMatch(plans, /Edit rate plan/);
