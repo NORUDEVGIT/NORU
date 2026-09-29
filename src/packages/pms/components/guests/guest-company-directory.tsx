@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -12,7 +12,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Upload,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,11 +37,9 @@ import {
   defaultBusinessTypeId,
 } from "@/packages/pms/lib/guest-companies-workspace";
 import {
-  confirmCompanyImport,
   exportCompaniesCsv,
   getCompanyBusinessWorkspace,
   listCompanyWorkspace,
-  previewCompanyImport,
   setCompanyStatus,
   type CompanyWorkspaceRow,
 } from "@/packages/pms/lib/guest-companies.functions";
@@ -86,9 +83,7 @@ function CompanyKpiCard({
   tone: string;
 }) {
   return (
-    <div
-      className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm text-left"
-    >
+    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm text-left">
       <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
         {icon}
       </span>
@@ -119,13 +114,10 @@ export function GuestCompanyDirectory({
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const fetchAccess = useServerFn(getGuestsAccess);
   const fetchConfig = useServerFn(getCompanyBusinessWorkspace);
   const fetchList = useServerFn(listCompanyWorkspace);
   const exportCsv = useServerFn(exportCompaniesCsv);
-  const previewImport = useServerFn(previewCompanyImport);
-  const confirmImport = useServerFn(confirmCompanyImport);
   const changeCompanyStatus = useServerFn(setCompanyStatus);
 
   const [search, setSearch] = useState("");
@@ -137,21 +129,13 @@ export function GuestCompanyDirectory({
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState<(typeof COMPANY_PAGE_SIZES)[number]>(
-    COMPANY_DEFAULT_PAGE_SIZE,
-  );
+  const [pageSize, setPageSize] =
+    useState<(typeof COMPANY_PAGE_SIZES)[number]>(COMPANY_DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | undefined>();
   const [creditFocus, setCreditFocus] = useState(false);
   const [previewCompanyId, setPreviewCompanyId] = useState<string | null>(null);
-  const [importPreview, setImportPreview] = useState<string | null>(null);
-  const [pendingImport, setPendingImport] = useState<{
-    filename: string;
-    csv: string;
-    valid: number;
-    invalid: number;
-  } | null>(null);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -257,41 +241,6 @@ export function GuestCompanyDirectory({
     }
   }
 
-  async function onImportFile(file: File) {
-    try {
-      const csv = await file.text();
-      const preview = await previewImport({ data: { restaurantId, filename: file.name, csv } });
-      setPendingImport({
-        filename: file.name,
-        csv,
-        valid: preview.valid.length,
-        invalid: preview.invalid.length,
-      });
-      setImportPreview(
-        `${preview.valid.length} valid row(s), ${preview.invalid.length} invalid. Confirm to persist.`,
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Import failed.");
-    }
-  }
-
-  async function confirmPendingImport() {
-    if (!pendingImport) return;
-    try {
-      const confirmed = await confirmImport({
-        data: { restaurantId, filename: pendingImport.filename, csv: pendingImport.csv },
-      });
-      setImportPreview(
-        `Imported ${confirmed.created}. Skipped ${confirmed.skipped}. Invalid ${confirmed.invalid}.`,
-      );
-      setPendingImport(null);
-      toast.success(`Imported ${confirmed.created} companies.`);
-      invalidate();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Import failed.");
-    }
-  }
-
   // Active filter chips calculation
   const activeChips: Array<{ key: string; label: string; onRemove: () => void }> = [];
   if (search.trim()) {
@@ -388,28 +337,6 @@ export function GuestCompanyDirectory({
           <p className="mt-0.5 text-xs text-[#756A5B]">{COMPANIES_COPY}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void onImportFile(file);
-              event.target.value = "";
-            }}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!createGate.ok}
-            onClick={() => fileRef.current?.click()}
-            className="h-8 gap-1.5 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm text-xs font-medium"
-            data-testid="companies-import"
-          >
-            <Upload className="size-3.5 text-[#8A641A]" />
-            Import
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -510,7 +437,10 @@ export function GuestCompanyDirectory({
 
         {/* Company Type Filter */}
         <Select value={typeId} onValueChange={setTypeId}>
-          <SelectTrigger className="w-40 border-[#DDD4C5] bg-white text-xs h-9" data-testid="companies-type">
+          <SelectTrigger
+            className="w-40 border-[#DDD4C5] bg-white text-xs h-9"
+            data-testid="companies-type"
+          >
             <SelectValue placeholder="Company Type" />
           </SelectTrigger>
           <SelectContent>
@@ -526,7 +456,10 @@ export function GuestCompanyDirectory({
 
         {/* Status Filter */}
         <Select value={status} onValueChange={(val) => setStatus(val as typeof status)}>
-          <SelectTrigger className="w-32 border-[#DDD4C5] bg-white text-xs h-9" data-testid="companies-status">
+          <SelectTrigger
+            className="w-32 border-[#DDD4C5] bg-white text-xs h-9"
+            data-testid="companies-status"
+          >
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -840,23 +773,6 @@ export function GuestCompanyDirectory({
         </div>
       </div>
 
-      {importPreview ? (
-        <div className="rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-3 text-xs text-[#251605]">
-          <p>{importPreview}</p>
-        </div>
-      ) : null}
-
-      {pendingImport ? (
-        <Button
-          size="sm"
-          className="bg-[#8A641A] text-white hover:bg-[#725215]"
-          onClick={() => void confirmPendingImport()}
-          data-testid="companies-import-confirm"
-        >
-          Confirm Import
-        </Button>
-      ) : null}
-
       <GuestCompanyFormDialog
         restaurantId={restaurantId}
         open={formOpen}
@@ -931,9 +847,7 @@ function CompanyRow({
         )}
       </td>
       <td className="px-3 py-2.5">
-        <span
-          className="font-semibold text-[#251605] hover:text-[#8A641A] hover:underline block truncate max-w-[200px]"
-        >
+        <span className="font-semibold text-[#251605] hover:text-[#8A641A] hover:underline block truncate max-w-[200px]">
           {row.name}
         </span>
         {row.code ? (
@@ -951,16 +865,16 @@ function CompanyRow({
         ) : null}
       </td>
       <td className="px-3 py-2.5">
-        <span className="font-medium text-[#251605] block">
-          {row.primaryContactName || "—"}
-        </span>
+        <span className="font-medium text-[#251605] block">{row.primaryContactName || "—"}</span>
         {row.primaryContactTitle ? (
           <span className="text-[10px] text-[#756A5B] block">{row.primaryContactTitle}</span>
         ) : null}
       </td>
       <td className="px-3 py-2.5">
         <div className="space-y-0.5">
-          {row.phone ? <span className="block text-[#251605] font-mono text-[11px]">{row.phone}</span> : null}
+          {row.phone ? (
+            <span className="block text-[#251605] font-mono text-[11px]">{row.phone}</span>
+          ) : null}
           {row.email ? (
             <span className="block text-[#756A5B] truncate max-w-[150px]">{row.email}</span>
           ) : null}
