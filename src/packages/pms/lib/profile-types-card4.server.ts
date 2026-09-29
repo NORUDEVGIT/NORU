@@ -64,6 +64,13 @@ export const PROFILE_TYPE_COMMUNICATION = [
   { id: "in_app", label: "In-app" },
 ] as const;
 
+export const CANONICAL_PROFILE_TYPE_CODES = ["IND", "COM", "TRA", "GRP"] as const;
+export type CanonicalProfileTypeCode = (typeof CANONICAL_PROFILE_TYPE_CODES)[number];
+
+export function isCanonicalProfileTypeCode(code: string): code is CanonicalProfileTypeCode {
+  return (CANONICAL_PROFILE_TYPE_CODES as readonly string[]).includes(normalizeProfileTypeCode(code));
+}
+
 export const DEFAULT_PROFILE_TYPES = [
   {
     name: "Individual Guest",
@@ -82,24 +89,6 @@ export const DEFAULT_PROFILE_TYPES = [
     code: "TRA",
     description: "Travel agency booking on behalf of guests.",
     icon: "briefcase" as const,
-  },
-  {
-    name: "Tour Operator",
-    code: "TOU",
-    description: "Tour operator or package organiser.",
-    icon: "plane" as const,
-  },
-  {
-    name: "Organization",
-    code: "ORG",
-    description: "Organisation, embassy or institution.",
-    icon: "landmark" as const,
-  },
-  {
-    name: "Contact Person",
-    code: "CON",
-    description: "Contact person linked to another profile.",
-    icon: "contact" as const,
   },
   {
     name: "Group",
@@ -196,13 +185,26 @@ export function validateProfileTypeDraft(
   existing: readonly { id: string; name: string; code: string }[],
 ): ProfileTypeFieldError[] {
   const errors: ProfileTypeFieldError[] = [];
+  if (!draft.id) {
+    errors.push({
+      field: "code",
+      message: "Arbitrary profile type creation is not supported. NORU supports exactly four fixed profile types.",
+    });
+  }
   const name = normalizeProfileTypeName(draft.name);
   const code = normalizeProfileTypeCode(draft.code);
   if (!name) errors.push({ field: "name", message: "Profile type name is required." });
   else if (name.length > 80) errors.push({ field: "name", message: "Name is too long." });
   if (!code) errors.push({ field: "code", message: "Code is required." });
-  else if (!/^[A-Z][A-Z0-9]{1,11}$/.test(code)) {
-    errors.push({ field: "code", message: "Use 2–12 letters or numbers, starting with a letter." });
+  else if (!isCanonicalProfileTypeCode(code)) {
+    errors.push({
+      field: "code",
+      message: `Profile type code must be one of the four canonical types: ${CANONICAL_PROFILE_TYPE_CODES.join(", ")}.`,
+    });
+  }
+  const currentRecord = existing.find((row) => row.id === draft.id);
+  if (currentRecord && normalizeProfileTypeCode(currentRecord.code) !== code) {
+    errors.push({ field: "code", message: "Canonical profile type code cannot be changed." });
   }
   const clash = existing.find((row) => {
     if (draft.id && row.id === draft.id) return false;

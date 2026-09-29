@@ -256,8 +256,8 @@ export function PmsCard4RequiredFields({
         <div>
           <h2 className="font-display text-2xl text-[#251605]">Required Fields</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Select which fields will be mandatory in the guest profile. Configure separately for
-            check-in and reservation.
+            Configure the guest information fields available to the property. Fields can be required
+            during guest registration, reservation confirmation, or check-in.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
         </div>

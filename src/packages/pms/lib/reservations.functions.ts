@@ -678,8 +678,24 @@ export const createReservation = createServerFn({ method: "POST" })
           .eq("id", data.guestId)
           .maybeSingle();
         if (!guestProfile) throw new Error("Guest profile not found.");
+        const { data: customFieldRows } = await context.supabase
+          .from("guest_custom_field_values")
+          .select("field_id, value_json")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("guest_id", data.guestId);
+        const customValues: Record<string, unknown> = {};
+        if (customFieldRows) {
+          for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
+            customValues[row.field_id] = row.value_json;
+          }
+        }
         const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
-        const resValidation = validateReservationGuestRequirements(guestProfile, workspaceConfig);
+        const resValidation = validateReservationGuestRequirements(
+          guestProfile,
+          workspaceConfig,
+          null,
+          customValues,
+        );
         if (!resValidation.valid) {
           throw new Error(`Reservation confirmation blocked: ${resValidation.errors.join("; ")}`);
         }
@@ -1130,15 +1146,32 @@ export const setReservationStatus = createServerFn({ method: "POST" })
     if (data.status === "confirmed") {
       const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
       const { validateReservationGuestRequirements } = await import("./guest-field-rules");
+      const targetGuestId = (existing as { guest_id: string }).guest_id;
       const { data: guestProfile } = await context.supabase
         .from("guest_profiles")
         .select("*")
         .eq("restaurant_id", data.restaurantId)
-        .eq("id", (existing as { guest_id: string }).guest_id)
+        .eq("id", targetGuestId)
         .maybeSingle();
       if (!guestProfile) throw new Error("Guest profile not found.");
+      const { data: customFieldRows } = await context.supabase
+        .from("guest_custom_field_values")
+        .select("field_id, value_json")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", targetGuestId);
+      const customValues: Record<string, unknown> = {};
+      if (customFieldRows) {
+        for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
+          customValues[row.field_id] = row.value_json;
+        }
+      }
       const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
-      const resValidation = validateReservationGuestRequirements(guestProfile, workspaceConfig);
+      const resValidation = validateReservationGuestRequirements(
+        guestProfile,
+        workspaceConfig,
+        null,
+        customValues,
+      );
       if (!resValidation.valid) {
         throw new Error(`Reservation confirmation blocked: ${resValidation.errors.join("; ")}`);
       }

@@ -557,7 +557,7 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
     if (guest.error) throw wave5Error(guest.error);
     if (!guest.data) throw new Error("That guest could not be found.");
 
-    const [prefs, history, documents, links, emergency] = await Promise.all([
+    const [prefs, history, documents, links, emergency, customRows] = await Promise.all([
       supabaseAdmin
         .from("guest_preferences")
         .select("*")
@@ -586,13 +586,27 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
         .select("id, name, relationship, phone, email, sort_order")
         .eq("restaurant_id", data.restaurantId)
         .eq("guest_id", data.guestId),
+      supabaseAdmin
+        .from("guest_custom_field_values")
+        .select("field_id, value_text, value_number, value_date, value_json, pms_guest_fields(id, code, name, field_type)")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("guest_id", data.guestId),
     ]);
+
+    const customFields = ((customRows?.data ?? []) as any[]).map((row: any) => ({
+      fieldId: row.field_id,
+      code: row.pms_guest_fields?.code ?? null,
+      label: row.pms_guest_fields?.name ?? null,
+      fieldType: row.pms_guest_fields?.field_type ?? null,
+      value: row.value_json ?? row.value_text ?? row.value_number ?? row.value_date,
+    }));
 
     const json = {
       exportedAt: new Date().toISOString(),
       restaurantId: data.restaurantId,
       guestId: data.guestId,
       profile: guest.data,
+      customFields,
       preferences: prefs.data ?? null,
       history: history.data ?? [],
       documents: documents.data ?? [],
@@ -748,6 +762,12 @@ export const anonymiseGuest = createServerFn({ method: "POST" })
 
     await supabaseAdmin
       .from("guest_preference_values")
+      .delete()
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId);
+
+    await supabaseAdmin
+      .from("guest_custom_field_values")
       .delete()
       .eq("restaurant_id", data.restaurantId)
       .eq("guest_id", data.guestId);

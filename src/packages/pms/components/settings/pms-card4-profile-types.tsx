@@ -199,18 +199,6 @@ export function PmsCard4ProfileTypes({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey });
-      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
-      setPendingDelete(null);
-      applyRecord(null);
-      toast.success("Profile type deleted.");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
   const canSave = canEdit && errors.length === 0 && !saveMutation.isPending;
   useEffect(() => {
     onSavingChange(saveMutation.isPending, canSave);
@@ -227,16 +215,6 @@ export function PmsCard4ProfileTypes({
     saveMutation.mutate();
   }, [saveRequest, canEdit, errors, saveMutation]);
 
-  function startCreate() {
-    if (dirty) {
-      setPendingSwitch("__new__");
-      return;
-    }
-    setSelectedId(null);
-    setDraft(emptyProfileTypeDraft());
-    setDirty(true);
-  }
-
   const configuredCount = types.length;
   const lastUpdated = query.data?.lastUpdatedAt
     ? new Date(query.data.lastUpdatedAt).toLocaleString()
@@ -248,19 +226,10 @@ export function PmsCard4ProfileTypes({
         <div>
           <h2 className="font-display text-2xl text-[#251605]">Profile Types</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Configure which guest profile types this property uses. This does not change live guest
-            records.
+            Profile types are system-defined. Configure which supported profile types are active and
+            which fields, documents, preferences, and defaults apply to each.
           </p>
         </div>
-        {canEdit ? (
-          <Button
-            type="button"
-            onClick={startCreate}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-          >
-            <Plus className="mr-1 size-4" /> Add Profile Type
-          </Button>
-        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
@@ -338,11 +307,6 @@ export function PmsCard4ProfileTypes({
                         <DropdownMenuItem onSelect={() => requestSelect(row.id)}>
                           Edit
                         </DropdownMenuItem>
-                        {canEdit ? (
-                          <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
-                            Delete
-                          </DropdownMenuItem>
-                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -362,17 +326,16 @@ export function PmsCard4ProfileTypes({
           <div className="space-y-1.5">
             <Label>Profile Type</Label>
             <Select
-              value={draft.id ?? "new"}
-              onValueChange={(value) => requestSelect(value === "new" ? null : value)}
+              value={draft.id ?? (types[0]?.id ?? "")}
+              onValueChange={(value) => requestSelect(value)}
             >
               <SelectTrigger className="w-[16rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {!draft.id ? <SelectItem value="new">New profile type</SelectItem> : null}
                 {types.map((row) => (
                   <SelectItem key={row.id} value={row.id}>
-                    {row.name}
+                    {row.name} ({row.code})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -407,12 +370,10 @@ export function PmsCard4ProfileTypes({
                 <Input
                   id="pt-code"
                   value={draft.code}
-                  disabled={!canEdit}
-                  onChange={(event) => mark("code", normalizeProfileTypeCode(event.target.value))}
+                  disabled={true}
+                  className="bg-muted text-muted-foreground"
                 />
-                {errorFor("code") ? (
-                  <p className="text-xs text-destructive">{errorFor("code")}</p>
-                ) : null}
+                <p className="text-xs text-muted-foreground">Canonical system code cannot be changed.</p>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -576,31 +537,8 @@ export function PmsCard4ProfileTypes({
       </section>
 
       <p className="sr-only">
-        Profile Types {configuredCount} of {Math.max(configuredCount, 6)} configured
+        Profile Types {configuredCount} of {Math.max(configuredCount, 4)} configured
       </p>
-
-      <AlertDialog
-        open={Boolean(pendingDelete)}
-        onOpenChange={(open) => !open && setPendingDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Profile Type?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This profile type may be referenced by guest profile configuration. Guest operational
-              records are not deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog
         open={pendingSwitch !== null}
@@ -617,14 +555,8 @@ export function PmsCard4ProfileTypes({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingSwitch === "__new__") {
-                  setSelectedId(null);
-                  setDraft(emptyProfileTypeDraft());
-                  setDirty(true);
-                } else {
-                  const row = types.find((item) => item.id === pendingSwitch) ?? null;
-                  applyRecord(row);
-                }
+                const row = types.find((item) => item.id === pendingSwitch) ?? null;
+                applyRecord(row);
                 setPendingSwitch(null);
               }}
             >
@@ -675,7 +607,7 @@ function DefaultSelect({
 }
 
 export function Card4ProfileTypesGuide({ count }: { count: number }) {
-  const target = Math.max(count, 7);
+  const target = Math.max(count, 4);
   return (
     <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>

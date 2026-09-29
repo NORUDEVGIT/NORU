@@ -2648,6 +2648,76 @@ export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const saveGuestPreferenceAnswers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        answers: z.array(
+          z.object({
+            typeId: idSchema,
+            values: z.array(z.string().max(PREFERENCE_TEXT_MAX)).max(40),
+          }),
+        ),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
+    const typeById = new Map(catalogue.types.map((type) => [type.id, type]));
+    const normalized: Array<{ type: PreferenceTypeRecord; values: string[] }> = [];
+
+    for (const answer of data.answers) {
+      const type = typeById.get(answer.typeId);
+      if (!type) continue;
+      const values = normalizePreferenceAnswers(type.valueType, answer.values);
+      const error = validatePreferenceAnswer(type, values);
+      if (error) return { ok: false, message: error };
+      if (!type.active && values.length === 0) continue;
+      normalized.push({ type, values });
+    }
+
+    const { data: guest } = await context.supabase
+      .from("guest_profiles")
+      .select("id, anonymised_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+
+    if (!guest) return { ok: false, message: "That guest could not be found." };
+    if ((guest as { anonymised_at?: string | null }).anonymised_at) {
+      return { ok: false, message: "This profile has been anonymised and cannot be changed." };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    for (const item of normalized) {
+      if (item.values.length === 0) {
+        await supabaseAdmin
+          .from("guest_preference_values")
+          .delete()
+          .eq("restaurant_id", data.restaurantId)
+          .eq("guest_id", data.guestId)
+          .eq("preference_type_id", item.type.id);
+      } else {
+        const { error } = await supabaseAdmin.from("guest_preference_values").upsert(
+          {
+            restaurant_id: data.restaurantId,
+            guest_id: data.guestId,
+            preference_type_id: item.type.id,
+            value_json: item.values,
+          } as never,
+          { onConflict: "guest_id,preference_type_id" },
+        );
+        if (error) return { ok: false, message: error.message };
+      }
+    }
+
+    return { ok: true };
+  });
+
 export const getGuestReservationPreferenceDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -4512,6 +4582,84 @@ export const mergeGuests = createServerFn({ method: "POST" })
       }
     }
 
+    // Merge custom field values
+    const { data: survivorCustomRows } = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.survivorId);
+    const survivorCustomMap = new Map(((survivorCustomRows ?? []) as any[]).map((r) => [r.field_id, r]));
+
+    const { data: retiredCustomRows } = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.retiredId);
+
+    const customFieldConflicts: Array<{
+      fieldId: string;
+      survivorValue: unknown;
+      retiredValue: unknown;
+    }> = [];
+    const copiedCustomFieldIds: string[] = [];
+
+    for (const retiredRow of (retiredCustomRows ?? []) as any[]) {
+      const survivorRow = survivorCustomMap.get(retiredRow.field_id);
+      const retiredVal = retiredRow.value_json ?? retiredRow.value_text ?? retiredRow.value_number ?? retiredRow.value_date;
+      const retiredHasVal = retiredVal !== null && retiredVal !== undefined && retiredVal !== "" && !(Array.isArray(retiredVal) && retiredVal.length === 0);
+
+      if (!retiredHasVal) continue;
+
+      if (!survivorRow) {
+        // Survivor does not have this custom field: copy retired over to survivor
+        await supabaseAdmin
+          .from("guest_custom_field_values")
+          .insert({
+            restaurant_id: data.restaurantId,
+            guest_id: data.survivorId,
+            field_id: retiredRow.field_id,
+            value_text: retiredRow.value_text,
+            value_number: retiredRow.value_number,
+            value_date: retiredRow.value_date,
+            value_json: retiredRow.value_json,
+          });
+        copiedCustomFieldIds.push(retiredRow.field_id);
+      } else {
+        const survivorVal = survivorRow.value_json ?? survivorRow.value_text ?? survivorRow.value_number ?? survivorRow.value_date;
+        const survivorHasVal = survivorVal !== null && survivorVal !== undefined && survivorVal !== "" && !(Array.isArray(survivorVal) && survivorVal.length === 0);
+
+        if (!survivorHasVal) {
+          // Survivor has empty/null value: update with retired value
+          await supabaseAdmin
+            .from("guest_custom_field_values")
+            .update({
+              value_text: retiredRow.value_text,
+              value_number: retiredRow.value_number,
+              value_date: retiredRow.value_date,
+              value_json: retiredRow.value_json,
+            })
+            .eq("restaurant_id", data.restaurantId)
+            .eq("guest_id", data.survivorId)
+            .eq("field_id", retiredRow.field_id);
+          copiedCustomFieldIds.push(retiredRow.field_id);
+        } else if (JSON.stringify(survivorVal) !== JSON.stringify(retiredVal)) {
+          // Both have non-empty different values: conflict! Survivor keeps operational value; record conflict
+          customFieldConflicts.push({
+            fieldId: retiredRow.field_id,
+            survivorValue: survivorVal,
+            retiredValue: retiredVal,
+          });
+        }
+      }
+    }
+
+    // Scrub retired guest's custom field values so no orphaned active values remain attached to inactive profile
+    await supabaseAdmin
+      .from("guest_custom_field_values")
+      .delete()
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.retiredId);
+
     const { error: retireError } = await supabaseAdmin
       .from("guest_profiles")
       .update({
@@ -4533,6 +4681,7 @@ export const mergeGuests = createServerFn({ method: "POST" })
         survivor_id: data.survivorId,
         retired_id: data.retiredId,
         retired_name: fullName(retired.first_name, retired.last_name),
+        custom_field_conflicts: customFieldConflicts.length > 0 ? customFieldConflicts : undefined,
       },
       notes: `Merged from ${fullName(retired.first_name, retired.last_name)}`,
       actorMembershipId: me.id,
@@ -4563,6 +4712,8 @@ export const mergeGuests = createServerFn({ method: "POST" })
       movedLinkIds,
       deletedLinkIds,
       retiredStatus: retired.guest_status,
+      customFieldConflicts: customFieldConflicts.length > 0 ? customFieldConflicts : undefined,
+      copiedCustomFieldIds: copiedCustomFieldIds.length > 0 ? copiedCustomFieldIds : undefined,
     };
     const ledger = await (supabaseAdmin as unknown as { from: (table: string) => any })
       .from("guest_merge_ledger")

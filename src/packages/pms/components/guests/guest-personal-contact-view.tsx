@@ -23,7 +23,9 @@ import {
   isPreferredContactTime,
 } from "@/packages/pms/lib/guest-profile-overview";
 import { listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
+import { listGuestCustomFieldValues } from "@/packages/pms/lib/guest-custom-fields.functions";
 import type { GuestProfile } from "@/packages/pms/lib/guests.functions";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 
 function calculateAge(dob: string): number | null {
@@ -102,6 +104,14 @@ export function GuestPersonalContactView({
     queryFn: () => fetchLinks({ data: { restaurantId, guestId: guest.id } }),
     retry: false,
   });
+
+  const fetchCustomFields = useServerFn(listGuestCustomFieldValues);
+  const customFieldsQuery = useQuery({
+    queryKey: ["guest-custom-fields", restaurantId, guest.id],
+    queryFn: () => fetchCustomFields({ data: { restaurantId, guestId: guest.id } }),
+    retry: false,
+  });
+  const customFields = customFieldsQuery.data ?? [];
 
   const method =
     guest.preferredContactMethod && isPreferredContactMethod(guest.preferredContactMethod)
@@ -240,6 +250,41 @@ export function GuestPersonalContactView({
                 ))}
               </ul>
             </div>
+          )}
+        </SectionPanel>
+
+        {/* Panel 5: Additional Information */}
+        <SectionPanel
+          title="Additional Information"
+          icon={User}
+          data-testid="additional-info-panel"
+        >
+          {customFields.length === 0 ? (
+            <p className="text-[#8C827A] text-xs py-2">
+              No additional property-specific information recorded.
+            </p>
+          ) : (
+            customFields.map((field) => (
+              <div
+                key={field.fieldId}
+                className="flex items-baseline justify-between gap-4 py-1.5 border-b border-[#EFE9DF]/70 last:border-b-0"
+              >
+                <div className="flex items-center gap-1.5 shrink-0 text-[#756A5B]">
+                  <span>{field.name}</span>
+                  {!field.active && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-muted-foreground py-0 px-1 font-normal"
+                    >
+                      Inactive
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-right font-medium text-[#251605]">
+                  {field.formattedValue || "—"}
+                </span>
+              </div>
+            ))
           )}
         </SectionPanel>
       </div>

@@ -249,6 +249,12 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
     if (errors.length > 0)
       throw new Error(errors[0]?.message ?? "Fix the profile type before saving.");
 
+    if (!data.id) {
+      throw new Error(
+        "Arbitrary profile type creation is not supported. NORU supports exactly four fixed profile types.",
+      );
+    }
+
     const payload = {
       restaurant_id: data.restaurantId,
       name,
@@ -263,30 +269,17 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
       updated_by: context.userId,
     };
 
-    let id = data.id;
-    if (data.id) {
-      const result = await db
-        .from("pms_guest_profile_types")
-        .update(payload)
-        .eq("id", data.id)
-        .eq("restaurant_id", data.restaurantId)
-        .select("id")
-        .maybeSingle();
-      if (result.error?.code === "23505")
-        throw new Error("A profile type with this name or code already exists.");
-      if (result.error) unavailable(result.error);
-      id = result.data?.id;
-    } else {
-      const result = await db
-        .from("pms_guest_profile_types")
-        .insert(payload)
-        .select("id")
-        .maybeSingle();
-      if (result.error?.code === "23505")
-        throw new Error("A profile type with this name or code already exists.");
-      if (result.error) unavailable(result.error);
-      id = result.data?.id;
-    }
+    const result = await db
+      .from("pms_guest_profile_types")
+      .update(payload)
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .select("id")
+      .maybeSingle();
+    if (result.error?.code === "23505")
+      throw new Error("A profile type with this name or code already exists.");
+    if (result.error) unavailable(result.error);
+    const id = result.data?.id;
     if (!id) throw new Error("Could not save the profile type.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_profile_type_saved", {
       id,
@@ -338,20 +331,16 @@ export const deletePmsCard4ProfileType = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const result = await supabaseAdmin
+    const existing = await supabaseAdmin
       .from("pms_guest_profile_types")
-      .delete()
+      .select("id, code")
       .eq("id", data.id)
-      .eq("restaurant_id", data.restaurantId);
-    if (result.error) unavailable(result.error);
-    await writeAudit(
-      supabaseAdmin,
-      data.restaurantId,
-      context.userId,
-      "pms_card4_profile_type_deleted",
-      {
-        id: data.id,
-      },
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (existing.error) unavailable(existing.error);
+    if (!existing.data) throw new Error("That profile type no longer exists.");
+    // Deletion of system types is prohibited.
+    throw new Error(
+      "System profile types cannot be deleted. Deactivate the profile type instead by setting Active = false.",
     );
-    return { ok: true as const };
   });

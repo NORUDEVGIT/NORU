@@ -10,6 +10,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 import { MANAGE_ROLES } from "@/core/lib/workforce.server";
 import {
   blankToNull,
@@ -501,6 +502,7 @@ const registrationSchema = z.object({
   country: z.string().max(120).optional().nullable(),
   adults: z.number().int().min(1).max(20),
   children: z.number().int().min(0).max(20),
+  customFields: z.record(z.unknown()).optional(),
 });
 
 export const saveCheckInRegistration = createServerFn({ method: "POST" })
@@ -585,6 +587,50 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
         newValues: profileDiff.next,
         actorMembershipId: me.id,
       });
+    }
+
+    if (data.customFields && Object.keys(data.customFields).length > 0) {
+      const { loadRequiredFieldsCard4Snapshot } = await import("./required-fields-card4.functions");
+      const { normalizeCustomFieldValue } = await import("./guest-custom-fields.server");
+      const { CANONICAL_FIELD_CODE_MAP } = await import("./guest-field-rules");
+      const snapshot = await loadRequiredFieldsCard4Snapshot(supabaseAdmin, data.restaurantId, context.userId);
+      const fields = snapshot.fields;
+      const fieldMap = new Map(fields.map((f) => [f.id, f]));
+      const fieldByCode = new Map(fields.map((f) => [f.code.toUpperCase(), f]));
+
+      for (const [key, rawValue] of Object.entries(data.customFields)) {
+        const field = fieldMap.get(key) ?? fieldByCode.get(key.toUpperCase());
+        if (!field) continue;
+        const codeUpper = field.code.toUpperCase();
+        if (CANONICAL_FIELD_CODE_MAP[codeUpper] || field.fieldType === "document" || field.fieldType === "lookup") {
+          continue;
+        }
+        const normalized = normalizeCustomFieldValue(field, rawValue);
+        const isBlank = normalized === null || normalized === "" || (Array.isArray(normalized) && normalized.length === 0);
+        if (isBlank) {
+          await supabaseAdmin
+            .from("guest_custom_field_values")
+            .delete()
+            .eq("restaurant_id", data.restaurantId)
+            .eq("guest_id", loaded.guestId)
+            .eq("field_id", field.id);
+        } else {
+          await supabaseAdmin
+            .from("guest_custom_field_values")
+            .upsert(
+              {
+                restaurant_id: data.restaurantId,
+                guest_id: loaded.guestId,
+                field_id: field.id,
+                value_text: typeof normalized === "string" ? normalized : null,
+                value_number: typeof normalized === "number" ? normalized : null,
+                value_date: typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null,
+                value_json: normalized as Json,
+              },
+              { onConflict: "restaurant_id,guest_id,field_id" },
+            );
+        }
+      }
     }
 
     if (data.adults !== loaded.stay.adults || data.children !== loaded.stay.children) {
@@ -920,12 +966,25 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       (propRow as { timezone?: string } | null)?.timezone ?? "UTC",
     );
 
+    const { data: customFieldRows } = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("field_id, value_json")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", loaded.guestId);
+    const customValues: Record<string, unknown> = {};
+    if (customFieldRows) {
+      for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
+        customValues[row.field_id] = row.value_json;
+      }
+    }
+
     const checkInValidation = validateGuestCheckInRequirements({
       guest: guestProfile,
       documents: checkInDocs,
       config: workspaceConfig,
       profileType: individualType,
       today,
+      customFieldValues: customValues,
     });
     if (!checkInValidation.valid) {
       throw new Error(
