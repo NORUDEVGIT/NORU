@@ -192,8 +192,8 @@ export function GuestProfileChrome({
             </span>
           </div>
           <Link
-            to="/restaurant/pms/setup"
-            search={{ card: "guest-services", step: "profile-types" }}
+            to="/restaurant/settings"
+            hash="guest-services"
             className="ml-4 font-semibold text-[#8C6D23] underline hover:text-[#251605]"
           >
             Review Setup Rules
