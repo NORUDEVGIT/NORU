@@ -130,8 +130,8 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
     const functions = readRel("./guests.functions.ts");
-    assert.match(listing, /Guest Profile/);
-    assert.match(listing, /Search, manage and open guest profiles/);
+    assert.match(shell, /Guest Profiles/);
+    assert.match(shell, /GuestProfileChrome/);
     assert.match(listing, /guest-workspace-stats/);
     assert.match(listing, /Total Profiles/);
     assert.match(functions, /export const getGuestDirectoryStats/);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,6 +53,8 @@ import {
   type ReservationWorkspaceOverlayState,
 } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
+import { WAVE4_GROUP_ACCOUNT_COPY } from "@/packages/pms/lib/guest-profile-wave4";
+// Wave 4 guest account integration: listReservationsForGuestAccount reads reservations linked to account masters (not Sales & Events group blocks).
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import { getReservationDesk } from "@/packages/pms/lib/reservation-workspace/desk.server";
 import { getReservationQuickView } from "@/packages/pms/lib/reservation-workspace/quick-view.server";
@@ -226,9 +228,19 @@ function KpiCard({
 export function ReservationsWorkspace({
   membership,
   initialTab,
+  initialCreate = false,
+  initialGuestId,
+  initialCompanyId,
+  initialTravelAgentId,
+  initialGroupId,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
+  initialCreate?: boolean | undefined;
+  initialGuestId?: string | undefined;
+  initialCompanyId?: string | undefined;
+  initialTravelAgentId?: string | undefined;
+  initialGroupId?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -262,6 +274,20 @@ export function ReservationsWorkspace({
   const [workspaceSection, setWorkspaceSection] = useState<CalendarWorkspaceSection>(() =>
     workspaceSectionFromTab(initialTab),
   );
+
+  const hydratedCreateRef = useRef(false);
+  useEffect(() => {
+    if (initialCreate && !hydratedCreateRef.current) {
+      hydratedCreateRef.current = true;
+      setOverlay({
+        type: "new-reservation",
+        initialGuestId: initialGuestId ?? null,
+        initialCompanyMasterId: initialCompanyId ?? null,
+        initialTravelAgentMasterId: initialTravelAgentId ?? null,
+        initialGroupMasterId: initialGroupId ?? null,
+      });
+    }
+  }, [initialCreate, initialGuestId, initialCompanyId, initialTravelAgentId, initialGroupId]);
 
   useEffect(() => {
     setWorkspaceSection(workspaceSectionFromTab(initialTab));
@@ -1069,6 +1095,10 @@ export function ReservationsWorkspace({
           <CreateReservationPage
             membership={membership}
             embedded
+            initialGuestId={overlay.initialGuestId ?? null}
+            initialCompanyMasterId={overlay.initialCompanyMasterId ?? null}
+            initialTravelAgentMasterId={overlay.initialTravelAgentMasterId ?? null}
+            initialGroupMasterId={overlay.initialGroupMasterId ?? null}
             pmsGroupId={createGroupLink?.pmsGroupId ?? null}
             pmsGroupBlockId={createGroupLink?.pmsGroupBlockId ?? null}
             onCancel={() => closeWorkspaceOverlay(false)}

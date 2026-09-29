@@ -59,6 +59,7 @@ import {
   type IdentityDocumentTypeDraft,
   type IdentityDocumentTypeRecord,
 } from "@/packages/pms/lib/identity-documents-card4.server";
+import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 
 const PAGE_SIZE = 8;
 
@@ -136,6 +137,7 @@ export function PmsCard4IdentityDocuments({
       queryClient.invalidateQueries({ queryKey }),
       queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] }),
       queryClient.invalidateQueries({ queryKey: ["pms-card4-required-fields", restaurantId] }),
+      invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId),
     ]);
   };
 

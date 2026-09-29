@@ -22,16 +22,24 @@ export const TRAVEL_AGENT_DETAIL_NAV = [
   { id: "bookings", title: "Bookings", live: true },
   { id: "commission", title: "Commission", live: true },
   { id: "agreements", title: "Agreements", live: true },
-  { id: "payment", title: "Payment & Invoices", live: true },
+  { id: "payment", title: "Payment", live: true },
   { id: "documents", title: "Documents", live: true },
   { id: "notes", title: "Notes", live: true },
-  { id: "history", title: "Activity Log", live: true },
-  { id: "settings", title: "Agency Settings", live: true },
+  { id: "history", title: "History", live: true },
+  { id: "settings", title: "Settings", live: true },
 ] as const;
 
-export type TravelAgentDetailNavId = (typeof TRAVEL_AGENT_DETAIL_NAV)[number]["id"];
+export type TravelAgentDetailNavId =
+  | (typeof TRAVEL_AGENT_DETAIL_NAV)[number]["id"]
+  | "details"
+  | "contacts-travelers"
+  | "commercial-commission"
+  | "communication-notes"
+  | "activity";
 
 export const TRAVEL_AGENT_DETAIL_NAV_IDS = TRAVEL_AGENT_DETAIL_NAV.map((item) => item.id);
+
+export * from "./guest-travel-agent-detail-view.ts";
 
 export const TA_SETTINGS_SECTIONS = [
   { id: "general", title: "General" },
@@ -77,7 +85,7 @@ export const TA_ALLOTMENT_COPY =
   "Agency booking limit. Rooms stay in the property's general inventory.";
 
 export const TA_COMMISSION_EMPTY_COPY =
-  "No commission plan is configured for this agency. Configure one in Agency Settings.";
+  "No commission plan is configured for this agency. Configure one in Commercial & Commission.";
 
 export const TA_CONTACTS_COPY = "People who represent this travel agency.";
 export const TA_TRAVELERS_COPY =
@@ -87,8 +95,7 @@ export const TA_DOCUMENTS_COPY =
 export const COMPANY_TA_SETTINGS_COPY =
   "Travel Agency operations live on standalone Travel Agency profiles (Guests → Travel Agencies). This company business type (TRA) is a classification only.";
 export const TA_FORM_OPERATIONAL_COPY =
-  "Commission, agreements, payment terms, and allotment are managed in Agency Settings. Existing reference values stay stored.";
-
+  "Commission and payment terms are managed in Commercial & Commission. Agreements are managed in Agreements. Booking rules, allotments, and notifications are managed in Agency Settings. Existing reference values remain stored.";
 export function isTravelAgentDetailNavId(value: string | undefined): value is TravelAgentDetailNavId {
   return Boolean(value && (TRAVEL_AGENT_DETAIL_NAV_IDS as readonly string[]).includes(value));
 }
@@ -97,6 +104,12 @@ export function travelAgentDetailNav(id: string | undefined): TravelAgentDetailN
   return isTravelAgentDetailNavId(id) ? id : "overview";
 }
 
+export const TA_VISIBLE_SETTINGS_SECTIONS = [
+  { id: "rules", title: "Booking Rules" },
+  { id: "allotment", title: "Allotment & Inventory" },
+  { id: "notifications", title: "Notifications" },
+] as const;
+
 export function isTravelAgentSettingsSectionId(
   value: string | undefined,
 ): value is TravelAgentSettingsSectionId {
@@ -104,7 +117,9 @@ export function isTravelAgentSettingsSectionId(
 }
 
 export function travelAgentSettingsSection(id: string | undefined): TravelAgentSettingsSectionId {
-  return isTravelAgentSettingsSectionId(id) ? id : "general";
+  if (id === "rules" || id === "allotment" || id === "notifications") return id;
+  if (isTravelAgentSettingsSectionId(id)) return id;
+  return "rules";
 }
 
 export function travelAgentOverviewKpis(input: {

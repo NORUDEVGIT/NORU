@@ -1,6 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { GuestProfileChrome } from "@/packages/pms/components/guests/guest-profile-chrome";
 import { GuestProfileWorkspace } from "@/packages/pms/components/workspaces/guest-profile-workspace";
 import { parseGuestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
 import { GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED } from "@/packages/pms/lib/guest-profile-listing";
@@ -40,7 +39,8 @@ export const Route = createFileRoute("/restaurant/pms/guests/")({
 });
 
 function GuestProfileDirectoryRoute() {
-  const { card, type, nav, create } = Route.useSearch();
+  const search = Route.useSearch();
+  const { card, type, nav, create, section } = search;
   return (
     <RestaurantShell
       active="Guests"
@@ -52,15 +52,15 @@ function GuestProfileDirectoryRoute() {
       hideTopHeader
     >
       {(m) => (
-        <GuestProfileChrome membership={m}>
-          <GuestProfileWorkspace
-            membership={m}
-            returnCard={card}
-            returnNav={nav}
-            profileType={type ?? "individual"}
-            create={create}
-          />
-        </GuestProfileChrome>
+        <GuestProfileWorkspace
+          membership={m}
+          returnCard={card}
+          returnNav={nav}
+          profileType={type ?? "individual"}
+          create={create}
+          section={section}
+          directorySearch={search}
+        />
       )}
     </RestaurantShell>
   );

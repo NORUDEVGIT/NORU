@@ -868,6 +868,71 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
     }
     if (!loaded.stay.roomId) throw new Error("Assign a room before completing check-in.");
 
+    const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
+    const { validateGuestCheckInRequirements, resolveIndividualProfileType } =
+      await import("./guest-field-rules");
+    const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
+    const individualType = resolveIndividualProfileType(workspaceConfig);
+
+    const { data: guestProfile } = await supabaseAdmin
+      .from("guest_profiles")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", loaded.guestId)
+      .maybeSingle();
+
+    const { data: guestDocuments } = await supabaseAdmin
+      .from("guest_documents")
+      .select("id, id_type_id, kind, document_number, issuing_country, expiry_date, file_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", loaded.guestId);
+
+    const checkInDocs = (guestDocuments ?? []).map(
+      (doc: {
+        id: string;
+        id_type_id: string;
+        kind: string;
+        document_number: string | null;
+        issuing_country: string | null;
+        expiry_date: string | null;
+        file_path: string | null;
+      }) => ({
+        id: doc.id,
+        typeId: doc.id_type_id,
+        kind: doc.kind,
+        documentNumberMasked: doc.document_number,
+        issuingCountry: doc.issuing_country,
+        expiryDate: doc.expiry_date,
+        status: "valid" as const,
+        hasImage: Boolean(doc.file_path),
+        filePath: doc.file_path,
+      }),
+    );
+
+    const { data: propRow } = await supabaseAdmin
+      .from("restaurants")
+      .select("timezone, business_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const { resolvePropertyBusinessDate } = await import("./reservation-workspace/business-date");
+    const today = resolvePropertyBusinessDate(
+      (propRow as { business_date?: string | null } | null)?.business_date ?? null,
+      (propRow as { timezone?: string } | null)?.timezone ?? "UTC",
+    );
+
+    const checkInValidation = validateGuestCheckInRequirements({
+      guest: guestProfile,
+      documents: checkInDocs,
+      config: workspaceConfig,
+      profileType: individualType,
+      today,
+    });
+    if (!checkInValidation.valid) {
+      throw new Error(
+        `Check-in blocked by guest requirements: ${checkInValidation.errors.join("; ")}`,
+      );
+    }
+
     const { data: roomRow } = await supabaseAdmin
       .from("hotel_rooms")
       .select("id, room_number, status, housekeeping_status, maintenance_status")

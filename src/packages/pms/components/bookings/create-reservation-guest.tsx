@@ -25,7 +25,7 @@ import {
 
 export type PickedReservationGuest = GuestSummary & { restrictionReason?: string | null };
 
-function toPickedGuest(guest: GuestProfile | GuestSummary): PickedReservationGuest {
+export function toPickedGuest(guest: GuestProfile | GuestSummary): PickedReservationGuest {
   const picked: PickedReservationGuest = { ...guest };
   if ("restrictionReason" in guest && guest.restrictionReason != null) {
     picked.restrictionReason = guest.restrictionReason;

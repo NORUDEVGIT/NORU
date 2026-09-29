@@ -947,11 +947,11 @@ export const listTravelAgentNotes = createServerFn({ method: "POST" })
       created_at: string;
     }>).map((row) => ({
       id: row.id,
-      noteId: String(row.new_values?.noteId ?? row.id),
+      noteId: String(row.new_values?.["noteId"] ?? row.id),
       content: row.notes ?? "",
-      category: String(row.new_values?.category ?? "general"),
-      visibility: String(row.new_values?.visibility ?? "internal"),
-      archived: row.event_type === "note_archived" || row.new_values?.archived === true,
+      category: String(row.new_values?.["category"] ?? "general"),
+      visibility: String(row.new_values?.["visibility"] ?? "internal"),
+      archived: row.event_type === "note_archived" || row.new_values?.["archived"] === true,
       authorName: row.actor_membership_id ? actors.get(row.actor_membership_id) ?? "Staff" : "Staff",
       createdAt: row.created_at,
     }));
@@ -1321,7 +1321,21 @@ export const listTravelAgentAgreements = createServerFn({ method: "POST" })
         );
       if (!seeded.error) agreements = seeded;
     }
-    const items = ((agreements.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    interface AgreementRow {
+      id?: string | null;
+      code?: string | null;
+      name?: string | null;
+      contract_number?: string | null;
+      valid_from?: string | null;
+      valid_to?: string | null;
+      currency_code?: string | null;
+      description?: string | null;
+      active?: boolean | null;
+      signed_at?: string | null;
+      signed_by?: string | null;
+      file_storage_path?: string | null;
+    }
+    const items = ((agreements.data ?? []) as AgreementRow[]).map((row) => {
       const status = agreementStatus(
         { active: row.active !== false, validFrom: String(row.valid_from ?? ""), validTo: String(row.valid_to ?? "") },
         today,
@@ -1674,15 +1688,15 @@ export const updateTravelAgentSettings = createServerFn({ method: "POST" })
       .eq("id", data.agencyId)
       .eq("account_type", "travel_agent");
     if (updated.error && (updated.error.code === "42703" || updated.error.code === "PGRST204")) {
-      const fallback = { ...cleaned };
-      delete fallback.preferred_currency;
-      delete fallback.market_segment_id;
-      delete fallback.booking_access;
-      delete fallback.max_advance_booking_days;
-      delete fallback.min_stay_nights;
-      delete fallback.max_stay_nights;
-      delete fallback.group_bookings_allowed;
-      delete fallback.credit_limit_amount;
+      const fallback: Record<string, unknown> = { ...cleaned };
+      delete fallback["preferred_currency"];
+      delete fallback["market_segment_id"];
+      delete fallback["booking_access"];
+      delete fallback["max_advance_booking_days"];
+      delete fallback["min_stay_nights"];
+      delete fallback["max_stay_nights"];
+      delete fallback["group_bookings_allowed"];
+      delete fallback["credit_limit_amount"];
       const retry = await db
         .from("guest_account_masters")
         .update(fallback)
@@ -1770,9 +1784,20 @@ export const listTravelAgentCommissionPlans = createServerFn({ method: "POST" })
       .order("effective_on", { ascending: false });
     if (unavailable(plans.error)) return { items: [], available: false };
     if (plans.error) throw new Error(plans.error.message);
+    interface CommissionPlanRow {
+      id?: string | null;
+      commission_type?: string | null;
+      rate_value?: number | string | null;
+      currency?: string | null;
+      effective_on?: string | null;
+      expires_on?: string | null;
+      agreement_id?: string | null;
+      active?: boolean | null;
+      notes?: string | null;
+    }
     return {
       available: true,
-      items: ((plans.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      items: ((plans.data ?? []) as CommissionPlanRow[]).map((row) => ({
         id: String(row.id),
         commissionType: String(row.commission_type),
         rateValue: Number(row.rate_value),
@@ -1994,9 +2019,19 @@ export const listTravelAgentAllotments = createServerFn({ method: "POST" })
       ? await db.from("room_types").select("id, name").eq("restaurant_id", data.restaurantId).in("id", typeIds)
       : { data: [] };
     const names = new Map(((types.data ?? []) as Array<{ id: string; name: string }>).map((row) => [row.id, row.name]));
+    interface AllotmentRow {
+      id?: string | null;
+      room_type_id?: string | null;
+      allocated_qty?: number | string | null;
+      start_date?: string | null;
+      end_date?: string | null;
+      release_days?: number | string | null;
+      status?: string | null;
+      notes?: string | null;
+    }
     return {
       available: true,
-      items: ((rows.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      items: ((rows.data ?? []) as AllotmentRow[]).map((row) => ({
         id: String(row.id),
         roomTypeId: String(row.room_type_id),
         roomTypeName: names.get(String(row.room_type_id)) ?? "Room type",
@@ -2164,3 +2199,43 @@ export async function notifyTravelAgentBookingEvent(options: {
     return { sent: false };
   }
 }
+
+export const getTravelAgentWorkspaceSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+
+    const totalRes = await db
+      .from("guest_account_masters")
+      .select("id, account_status", { count: "exact" })
+      .eq("restaurant_id", data.restaurantId)
+      .eq("account_type", "travel_agent");
+
+    const rows = (totalRes.data ?? []) as Array<{ id: string; account_status: string }>;
+    const total = totalRes.count ?? rows.length;
+    const active = rows.filter((r) => r.account_status === "active").length;
+    const inactive = rows.filter((r) => r.account_status === "inactive").length;
+
+    // Derived strictly from real active pms_agency_commission_plans (Phase 6 Amendment 4)
+    const plansRes = await db
+      .from("pms_agency_commission_plans")
+      .select("agency_master_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("active", true);
+
+    const agencyIdsWithActivePlans = new Set(
+      ((plansRes.data ?? []) as Array<{ agency_master_id: string }>).map((p) => p.agency_master_id),
+    );
+    const commissionConfigured = rows.filter((r) => agencyIdsWithActivePlans.has(r.id)).length;
+
+    return {
+      total,
+      active,
+      inactive,
+      commissionConfigured,
+      agencyIdsWithActivePlans: Array.from(agencyIdsWithActivePlans),
+    };
+  });

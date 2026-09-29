@@ -12,7 +12,15 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/comp
 import { cn } from "@/shared/lib/utils";
 
 export type ReservationWorkspaceOverlayState =
-  { type: "new-reservation" } | { type: "reservation-detail"; reservationId: string } | null;
+  | {
+      type: "new-reservation";
+      initialGuestId?: string | null;
+      initialCompanyMasterId?: string | null;
+      initialTravelAgentMasterId?: string | null;
+      initialGroupMasterId?: string | null;
+    }
+  | { type: "reservation-detail"; reservationId: string }
+  | null;
 
 const WORKSPACE_OVERLAY_TEST_ID = "reservation-workspace-overlay";
 
@@ -21,7 +29,7 @@ export function hasNestedReservationLayer() {
   const nodes = document.querySelectorAll<HTMLElement>(
     '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
   );
-  return [...nodes].some((node) => node.dataset.testid !== WORKSPACE_OVERLAY_TEST_ID);
+  return [...nodes].some((node) => node.dataset["testid"] !== WORKSPACE_OVERLAY_TEST_ID);
 }
 
 function nestedLayerFromTarget(target: EventTarget | null | undefined) {
@@ -30,12 +38,23 @@ function nestedLayerFromTarget(target: EventTarget | null | undefined) {
   return Boolean(layer && layer.getAttribute("data-testid") !== WORKSPACE_OVERLAY_TEST_ID);
 }
 
-function blockParentDismiss(event: {
+function blockEscapeDismiss(event: KeyboardEvent) {
+  if (hasNestedReservationLayer()) {
+    event.preventDefault();
+  }
+}
+
+function blockPointerDismiss(event: {
   preventDefault: () => void;
   target?: EventTarget | null;
-  detail?: { originalEvent?: { target?: EventTarget | null } };
+  detail?: unknown;
 }) {
-  const target = event.target ?? event.detail?.originalEvent?.target ?? null;
+  const custom = event as {
+    preventDefault: () => void;
+    target?: EventTarget | null;
+    detail?: { originalEvent?: { target?: EventTarget | null } };
+  };
+  const target = custom.target ?? custom.detail?.originalEvent?.target ?? null;
   if (nestedLayerFromTarget(target) || hasNestedReservationLayer()) {
     event.preventDefault();
   }
@@ -129,9 +148,9 @@ export function ReservationWorkspaceOverlay({
   );
 
   const dismissGuards = {
-    onEscapeKeyDown: blockParentDismiss,
-    onPointerDownOutside: blockParentDismiss,
-    onInteractOutside: blockParentDismiss,
+    onEscapeKeyDown: blockEscapeDismiss,
+    onPointerDownOutside: blockPointerDismiss,
+    onInteractOutside: blockPointerDismiss,
   };
 
   const handleOpenChange = (next: boolean) => {

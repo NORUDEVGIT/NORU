@@ -436,8 +436,17 @@ async function assertCompanyWorkspace(
     snapshot.fields,
     mode,
   );
-  if (error) throw new Error(error);
-  const duplicates = await findCompanyDuplicateRows(restaurantId, input, excludeId);
+  const duplicates = await findCompanyDuplicateRows(
+    restaurantId,
+    {
+      name: input.name,
+      taxId: input.taxId ?? null,
+      businessRegistrationNumber: input.businessRegistrationNumber ?? null,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+    },
+    excludeId,
+  );
   const blocking = duplicates.find((row) => row.blocking);
   if (blocking) {
     throw new Error(`A company already exists with the same ${blocking.match.replaceAll("_", " ")}.`);
@@ -504,7 +513,17 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
       }
       if (term) {
         const parts = includeTrade
-          ? [`name.ilike.${like}`, `code.ilike.${like}`, `email.ilike.${like}`, `phone.ilike.${like}`, `trade_name.ilike.${like}`]
+          ? [
+              `name.ilike.${like}`,
+              `code.ilike.${like}`,
+              `email.ilike.${like}`,
+              `phone.ilike.${like}`,
+              `trade_name.ilike.${like}`,
+              `primary_contact_name.ilike.${like}`,
+              `iata_license_number.ilike.${like}`,
+              `tax_id.ilike.${like}`,
+              `business_registration_number.ilike.${like}`,
+            ]
           : [`name.ilike.${like}`, `code.ilike.${like}`, `email.ilike.${like}`, `phone.ilike.${like}`];
         if (isUuid(term)) parts.push(`id.eq.${term}`);
         const segment = uuidFirstSegment(term);

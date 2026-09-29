@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Download, FileText, Info } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Badge } from "@/shared/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -42,7 +42,17 @@ export function GuestCompanyBilling({
 
   function exportCsv() {
     const rows = query.data?.items ?? [];
-    const header = ["Date", "Reference", "Guest", "Reservation", "Description", "Debit", "Credit", "Balance", "Status"];
+    const header = [
+      "Date",
+      "Reference",
+      "Guest",
+      "Reservation",
+      "Description",
+      "Debit",
+      "Credit",
+      "Balance",
+      "Status",
+    ];
     const body = rows.map((row) =>
       [
         row.date,
@@ -65,12 +75,21 @@ export function GuestCompanyBilling({
     URL.revokeObjectURL(url);
   }
 
-  if (query.isLoading) return <p className="text-sm text-muted-foreground">Loading billing…</p>;
+  if (query.isLoading) {
+    return (
+      <p className="p-6 text-center text-xs text-[#756A5B]">Loading billing & commercial terms…</p>
+    );
+  }
   if (query.error) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-6" data-testid="company-billing-error">
-        <p className="font-display text-lg">Billing unavailable</p>
-        <p className="mt-2 text-sm text-muted-foreground">{(query.error as Error).message}</p>
+      <div
+        className="rounded-xl border border-dashed border-[#DDD4C5] p-6 text-center"
+        data-testid="company-billing-error"
+      >
+        <p className="font-display text-base font-bold text-[#251605]">
+          Billing information unavailable
+        </p>
+        <p className="mt-1 text-xs text-[#756A5B]">{(query.error as Error).message}</p>
       </div>
     );
   }
@@ -80,134 +99,251 @@ export function GuestCompanyBilling({
   const money = Boolean(data.summary.moneyAvailable);
 
   return (
-    <div className="space-y-4" data-testid="company-billing">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-5" data-testid="company-billing">
+      {/* View Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDD4C5] pb-3">
         <div>
-          <h2 className="font-display text-xl">Billing</h2>
-          <p className="text-sm text-muted-foreground">{COMPANY_BILLING_COPY}</p>
+          <h2 className="font-display text-lg font-bold text-[#251605]">Commercial & Billing</h2>
+          <p className="text-xs text-[#756A5B] max-w-2xl">{COMPANY_BILLING_COPY}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {money ? (
-            <Button type="button" variant="outline" onClick={exportCsv} disabled={!data.items.length}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
+              onClick={exportCsv}
+              disabled={!data.items.length}
+            >
+              <Download className="mr-1.5 size-3.5" />
               Statement CSV
             </Button>
           ) : null}
         </div>
       </div>
 
-      <section className="grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-2">
-        <Info label="Account status" value={data.summary.accountStatus} />
-        <Info label="Payment terms" value={data.summary.paymentTerms ?? "—"} />
-        <Info label="Credit account" value={data.summary.creditAccountEnabled ? "Enabled" : "Off"} />
-        <Info label="Billing contact" value={data.summary.billingContact ?? "—"} />
-        <Info label="Credit limit note" value={data.summary.creditLimitNote ?? "—"} />
-        <Info label="Numeric credit ledger" value="—" hint="Not stored. This is not an AR balance." />
-      </section>
-
-      {money && data.kpis ? (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <Kpi label="Outstanding (folio charges − credits)" value={data.kpis.outstanding.toFixed(2)} />
-          <Kpi label="Total charges" value={data.kpis.totalRevenue.toFixed(2)} />
-          <Kpi label="Credits / payments" value={data.kpis.paid.toFixed(2)} />
-          <Kpi label="Open folio lines" value={String(data.kpis.pending)} />
+      {/* PART 1: Commercial Terms */}
+      <section
+        className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm space-y-3"
+        data-testid="company-commercial-terms"
+      >
+        <div className="flex items-center gap-2 border-b border-[#F0EAE1] pb-2">
+          <FileText className="size-4 text-[#8A641A]" />
+          <h3 className="font-display text-sm font-bold text-[#251605]">
+            Commercial Terms & Settlement Rules
+          </h3>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Folio amounts stay hidden for roles without folio access. Owners and managers can read reservation folios here.
-        </p>
-      )}
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search reference, guest, reservation" />
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All folio statuses</SelectItem>
-            <SelectItem value="open">Open</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <section className="rounded-2xl border border-border bg-card p-4">
-        {!money ? (
-          <p className="text-sm text-muted-foreground">Transaction rows require cashiering access.</p>
-        ) : data.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No folio transactions for this company’s reservations.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Reference</TableHead>
-                <TableHead>Guest</TableHead>
-                <TableHead>Reservation</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Debit</TableHead>
-                <TableHead>Credit</TableHead>
-                <TableHead>Balance</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.date.slice(0, 10)}</TableCell>
-                  <TableCell>{row.reference}</TableCell>
-                  <TableCell>{row.guestName}</TableCell>
-                  <TableCell>
-                    {row.reservationId ? (
-                      <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: row.reservationId }} className="underline">
-                        {row.confirmationNumber ?? row.reservationId}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>{row.description}</TableCell>
-                  <TableCell>{row.debit ? row.debit.toFixed(2) : "—"}</TableCell>
-                  <TableCell>{row.credit ? row.credit.toFixed(2) : "—"}</TableCell>
-                  <TableCell>{row.balance.toFixed(2)}</TableCell>
-                  <TableCell><Badge variant="outline">{row.status}</Badge></TableCell>
-                  <TableCell>
-                    {data.summary.canOperate ? (
-                      <Button asChild size="sm" variant="outline">
-                        <Link
-                          to="/restaurant/pms/cashiering/folios/$folioId"
-                          params={{ folioId: row.folioId }}
-                          search={{ action: "payment" }}
-                        >
-                          Record payment
-                        </Link>
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+        <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
+          <InfoRow label="Account Status" value={data.summary.accountStatus} />
+          <InfoRow label="Payment terms" value={data.summary.paymentTerms ?? "—"} />
+          <InfoRow
+            label="Credit Account"
+            value={data.summary.creditAccountEnabled ? "Enabled" : "Off"}
+          />
+          <InfoRow label="Billing Contact" value={data.summary.billingContact ?? "—"} />
+          <InfoRow label="Credit limit note" value={data.summary.creditLimitNote ?? "—"} />
+          <InfoRow
+            label="Numeric credit ledger"
+            value={
+              <span>
+                —{" "}
+                <span className="text-[10px] text-[#756A5B] font-normal">
+                  (Not stored. This is not an AR balance.)
+                </span>
+              </span>
+            }
+          />
+        </div>
       </section>
+
+      {/* PART 2: Folio-Derived Billing */}
+      <div className="space-y-4">
+        {/* Folio Summary Band */}
+        {money && data.kpis ? (
+          <div
+            className="grid grid-cols-2 divide-y divide-[#DDD4C5] rounded-xl border border-[#DDD4C5] bg-white p-2.5 sm:grid-cols-4 sm:divide-y-0 sm:divide-x shadow-sm"
+            data-testid="company-billing-kpis"
+          >
+            <div className="flex flex-col px-3 py-1.5 min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+                Total charges
+              </span>
+              <span className="mt-1 font-mono text-sm font-bold text-[#251605]">
+                {data.kpis.totalRevenue.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex flex-col px-3 py-1.5 min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+                Credits / payments
+              </span>
+              <span className="mt-1 font-mono text-sm font-bold text-emerald-700">
+                {data.kpis.paid.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex flex-col px-3 py-1.5 min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+                Outstanding (folio charges − credits)
+              </span>
+              <span className="mt-1 font-mono text-sm font-bold text-[#8A641A]">
+                {data.kpis.outstanding.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex flex-col px-3 py-1.5 min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
+                Open Folio Lines
+              </span>
+              <span className="mt-1 font-mono text-sm font-bold text-[#251605]">
+                {data.kpis.pending}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-3 text-xs text-[#756A5B]">
+            Folio amounts stay hidden for roles without cashiering access. Authorized managers can
+            read reservation folios here.
+          </div>
+        )}
+
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            className="h-8 text-xs border-[#DDD4C5] bg-white min-w-48 flex-1"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+            placeholder="Search reference, guest, reservation…"
+          />
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white w-36">
+              <SelectValue placeholder="Folio status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All folio statuses</SelectItem>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Dense Full-Width Table */}
+        <div className="rounded-xl border border-[#DDD4C5] bg-white overflow-hidden shadow-sm">
+          {!money ? (
+            <p className="p-6 text-center text-xs text-[#756A5B]">
+              Transaction rows require cashiering access.
+            </p>
+          ) : data.items.length === 0 ? (
+            <p className="p-6 text-center text-xs text-[#756A5B]">
+              No folio transactions for this company’s reservations.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader className="bg-[#FAF8F5]">
+                <TableRow className="border-b border-[#DDD4C5]">
+                  <TableHead className="text-xs font-semibold text-[#251605]">Date</TableHead>
+                  <TableHead className="text-xs font-semibold text-[#251605]">Reference</TableHead>
+                  <TableHead className="text-xs font-semibold text-[#251605]">Guest</TableHead>
+                  <TableHead className="text-xs font-semibold text-[#251605]">
+                    Reservation
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold text-[#251605]">
+                    Description
+                  </TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Debit
+                  </TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Credit
+                  </TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Balance
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold text-[#251605]">Status</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#251605]">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-[#EFE9DF]/60 text-xs">
+                {data.items.map((row) => (
+                  <TableRow key={row.id} className="hover:bg-[#FAF8F5] transition-colors">
+                    <TableCell className="py-2.5 text-[#756A5B]">{row.date}</TableCell>
+                    <TableCell className="py-2.5 font-mono text-[#8A641A] font-medium">
+                      {row.reference}
+                    </TableCell>
+                    <TableCell className="py-2.5 text-[#251605]">{row.guestName}</TableCell>
+                    <TableCell className="py-2.5 font-mono text-[#756A5B]">
+                      {row.confirmationNumber ?? "—"}
+                    </TableCell>
+                    <TableCell className="py-2.5 text-[#251605]">{row.description}</TableCell>
+                    <TableCell className="py-2.5 text-right font-mono text-[#251605]">
+                      {row.debit ? row.debit.toFixed(2) : "—"}
+                    </TableCell>
+                    <TableCell className="py-2.5 text-right font-mono text-emerald-700">
+                      {row.credit ? row.credit.toFixed(2) : "—"}
+                    </TableCell>
+                    <TableCell className="py-2.5 text-right font-mono font-bold text-[#251605]">
+                      {row.balance.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+                          row.status === "closed"
+                            ? "bg-stone-100 text-stone-600 border border-stone-200"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-2.5 text-right space-x-1">
+                      {row.reservationId ? (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-xs text-[#8A641A] hover:bg-[#F7F4EE]"
+                        >
+                          <Link
+                            to="/restaurant/pms/reservations/$reservationId"
+                            params={{ reservationId: row.reservationId }}
+                          >
+                            Folio
+                          </Link>
+                        </Button>
+                      ) : null}
+                      {data.summary.canOperate && row.folioId ? (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
+                        >
+                          <Link
+                            to="/restaurant/pms/cashiering/folios/$folioId"
+                            params={{ folioId: row.folioId }}
+                            search={{ action: "payment" }}
+                          >
+                            Record payment
+                          </Link>
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function Info({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-medium">{value}</p>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-    </div>
-  );
-}
-
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-semibold">{value}</p>
+    <div className="flex items-baseline justify-between gap-2 py-1 border-b border-[#EFE9DF]/50 last:border-b-0">
+      <span className="shrink-0 text-[#756A5B]">{label}</span>
+      <span className="text-right font-medium text-[#251605]">{value ?? "—"}</span>
     </div>
   );
 }

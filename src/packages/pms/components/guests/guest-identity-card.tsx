@@ -5,7 +5,10 @@ import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { GuestRestrictionBadges } from "@/packages/pms/components/guests/guest-bits";
-import { IDENTITY_UPLOAD_ACCEPT, IDENTITY_UPLOAD_MAX_BYTES } from "@/packages/pms/components/guests/guest-form-identity-upload";
+import {
+  IDENTITY_UPLOAD_ACCEPT,
+  IDENTITY_UPLOAD_MAX_BYTES,
+} from "@/packages/pms/components/guests/guest-form-identity-upload";
 import {
   DOCUMENT_EXPIRY_STATUS_LABELS,
   IDENTITY_DOCUMENTS_COPY,
@@ -16,6 +19,7 @@ import {
   nextSelectedDocumentId,
   typeAllowedForNewDocument,
 } from "@/packages/pms/lib/guest-identity-documents";
+import { isDocumentTypeAllowedForProfileType } from "@/packages/pms/lib/guest-field-rules";
 import {
   GUEST_DOCUMENT_STATUS_LABELS,
   PREFERENCE_SETUP_HREF,
@@ -100,7 +104,9 @@ async function uploadDocumentFile(params: {
       size: number;
     };
   }) => Promise<{ ok: true; path: string; token: string } | { ok: false; message: string }>;
-}): Promise<{ ok: true; path: string; mimeType: string; size: number } | { ok: false; message: string }> {
+}): Promise<
+  { ok: true; path: string; mimeType: string; size: number } | { ok: false; message: string }
+> {
   const { restaurantId, guestId, file, startUpload } = params;
   if (!(IDENTITY_UPLOAD_ACCEPT as readonly string[]).includes(file.type)) {
     return { ok: false, message: `${file.name}: only JPG, PNG, WebP or PDF.` };
@@ -172,7 +178,12 @@ export function GuestIdentityCard({
   const types = typesQuery.data?.types ?? [];
   const selected = documents.find((item) => item.id === selectedId) ?? null;
   const profileTypeId = guest.profileType?.id ?? null;
-  const creatableTypes = types.filter((type) => typeAllowedForNewDocument(type, profileTypeId));
+  const creatableTypes = types.filter((type) =>
+    isDocumentTypeAllowedForProfileType(
+      type,
+      guest.profileType ?? (profileTypeId ? { id: profileTypeId } : null),
+    ),
+  );
 
   useEffect(() => {
     if (mode === "create") return;
@@ -231,7 +242,12 @@ export function GuestIdentityCard({
       ["back", pending.pendingBack],
     ] as const) {
       if (!file) continue;
-      const uploaded = await uploadDocumentFile({ restaurantId, guestId: guest.id, file, startUpload });
+      const uploaded = await uploadDocumentFile({
+        restaurantId,
+        guestId: guest.id,
+        file,
+        startUpload,
+      });
       if (!uploaded.ok) return uploaded;
       const saved = await persistImage({
         data: {
@@ -300,7 +316,12 @@ export function GuestIdentityCard({
       }));
       return;
     }
-    const uploaded = await uploadDocumentFile({ restaurantId, guestId: guest.id, file, startUpload });
+    const uploaded = await uploadDocumentFile({
+      restaurantId,
+      guestId: guest.id,
+      file,
+      startUpload,
+    });
     if (!uploaded.ok) {
       toast.error(uploaded.message);
       return;
@@ -404,18 +425,17 @@ export function GuestIdentityCard({
   const previewUrl =
     mode === "create" ? null : previewSide === "back" ? selected?.backUrl : selected?.url;
   const previewPending =
-    mode === "create"
-      ? previewSide === "back"
-        ? form.pendingBack
-        : form.pendingFront
-      : null;
+    mode === "create" ? (previewSide === "back" ? form.pendingBack : form.pendingFront) : null;
   const expiry = selected ? documentExpiryStatus(selected.expiryDate, today) : "none";
   const imagesAllowed = selectedType?.scanImageAllowed !== false;
   const available = documentsQuery.data?.available !== false;
 
   if (documentsQuery.isLoading || typesQuery.isLoading) {
     return (
-      <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-identity">
+      <section
+        className="rounded-2xl border border-border bg-card p-5"
+        data-testid="guest-identity"
+      >
         <p className="text-sm text-muted-foreground">Loading identity documents…</p>
       </section>
     );
@@ -423,7 +443,10 @@ export function GuestIdentityCard({
 
   if (documentsQuery.isError || typesQuery.isError) {
     return (
-      <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-identity">
+      <section
+        className="rounded-2xl border border-border bg-card p-5"
+        data-testid="guest-identity"
+      >
         <p className="text-sm text-destructive">Could not load identity documents.</p>
       </section>
     );
@@ -431,7 +454,10 @@ export function GuestIdentityCard({
 
   if (!available) {
     return (
-      <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-identity">
+      <section
+        className="rounded-2xl border border-border bg-card p-5"
+        data-testid="guest-identity"
+      >
         <h3 className="font-display text-lg">Identity Documents</h3>
         <p className="mt-2 text-sm text-muted-foreground">{WAVE2_MIGRATION_UNAVAILABLE}</p>
       </section>
@@ -450,7 +476,12 @@ export function GuestIdentityCard({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2" data-testid="guest-identity-quick-actions">
-          <Button type="button" size="sm" onClick={startCreate} disabled={creatableTypes.length === 0}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={startCreate}
+            disabled={creatableTypes.length === 0}
+          >
             Upload New Document
           </Button>
           <Button
@@ -461,7 +492,13 @@ export function GuestIdentityCard({
           >
             View All Documents
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={printSelected} disabled={!selected}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={printSelected}
+            disabled={!selected}
+          >
             Print Selected
           </Button>
           <Button
@@ -525,22 +562,35 @@ export function GuestIdentityCard({
                             {doc.typeName}
                           </button>
                           {!doc.typeActive ? (
-                            <span className="ml-2 text-xs text-muted-foreground">Inactive type</span>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              Inactive type
+                            </span>
                           ) : null}
                         </td>
-                        <td className="py-2 pr-3 font-mono text-xs">{doc.documentNumberMasked ?? "—"}</td>
+                        <td className="py-2 pr-3 font-mono text-xs">
+                          {doc.documentNumberMasked ?? "—"}
+                        </td>
                         <td className="py-2 pr-3">
                           {doc.issuingCountry ? countryNameFromInput(doc.issuingCountry) : "—"}
                         </td>
                         <td className={`py-2 pr-3 ${expiryClass(status)}`}>
                           {doc.expiryDate ? formatStayDate(doc.expiryDate) : "—"}
-                          <span className="ml-1 text-xs">({DOCUMENT_EXPIRY_STATUS_LABELS[status]})</span>
+                          <span className="ml-1 text-xs">
+                            ({DOCUMENT_EXPIRY_STATUS_LABELS[status]})
+                          </span>
                         </td>
-                        <td className="py-2 pr-3">{GUEST_DOCUMENT_STATUS_LABELS[doc.verificationStatus]}</td>
+                        <td className="py-2 pr-3">
+                          {GUEST_DOCUMENT_STATUS_LABELS[doc.verificationStatus]}
+                        </td>
                         <td className="py-2" onClick={(event) => event.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button type="button" size="sm" variant="ghost" aria-label="Document actions">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                aria-label="Document actions"
+                              >
                                 <MoreHorizontal className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -554,19 +604,29 @@ export function GuestIdentityCard({
                               >
                                 View
                               </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => void startEdit(doc)}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => void startEdit(doc)}>
+                                Edit
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={() => {
                                   setSelectedId(doc.id);
                                   setMode("view");
                                   if (doc.verificationStatus === "verified") {
-                                    reviewMutation.mutate({ documentId: doc.id, status: "verified" });
+                                    reviewMutation.mutate({
+                                      documentId: doc.id,
+                                      status: "verified",
+                                    });
                                   } else {
-                                    reviewMutation.mutate({ documentId: doc.id, status: "verified" });
+                                    reviewMutation.mutate({
+                                      documentId: doc.id,
+                                      status: "verified",
+                                    });
                                   }
                                 }}
                               >
-                                {doc.verificationStatus === "verified" ? "Re-verify" : "Staff verify"}
+                                {doc.verificationStatus === "verified"
+                                  ? "Re-verify"
+                                  : "Staff verify"}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={() => {
@@ -598,7 +658,10 @@ export function GuestIdentityCard({
         </section>
 
         <div className="space-y-4">
-          <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-identity-preview">
+          <section
+            className="rounded-2xl border border-border bg-card p-5"
+            data-testid="guest-identity-preview"
+          >
             <div className="flex items-center justify-between gap-2">
               <h4 className="font-medium">Preview</h4>
               {selected ? (
@@ -627,11 +690,20 @@ export function GuestIdentityCard({
                 <p className="text-sm">{previewPending.name} (pending save)</p>
               ) : previewUrl ? (
                 selected?.mimeType === "application/pdf" && previewSide === "front" ? (
-                  <a className="text-sm underline" href={previewUrl} target="_blank" rel="noreferrer">
+                  <a
+                    className="text-sm underline"
+                    href={previewUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Open PDF
                   </a>
                 ) : (
-                  <img src={previewUrl} alt="" className="max-h-64 w-full rounded-lg object-contain" />
+                  <img
+                    src={previewUrl}
+                    alt=""
+                    className="max-h-64 w-full rounded-lg object-contain"
+                  />
                 )
               ) : (
                 <p className="text-sm text-muted-foreground">{IDENTITY_DOCUMENTS_NO_IMAGE}</p>
@@ -639,7 +711,10 @@ export function GuestIdentityCard({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-identity-verification">
+          <section
+            className="rounded-2xl border border-border bg-card p-5"
+            data-testid="guest-identity-verification"
+          >
             <h4 className="font-medium">Verification Details</h4>
             {selected && mode !== "create" ? (
               <div className="mt-3 space-y-1 text-sm">
@@ -679,20 +754,30 @@ export function GuestIdentityCard({
                   >
                     {selected.verificationStatus === "verified" ? "Re-verify" : "Staff verify"}
                   </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setRejectOpen(true)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRejectOpen(true)}
+                  >
                     Reject
                   </Button>
                 </div>
               </div>
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">Select a document to review verification.</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Select a document to review verification.
+              </p>
             )}
           </section>
         </div>
       </div>
 
       {mode !== "view" ? (
-        <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-identity-form">
+        <section
+          className="rounded-2xl border border-border bg-card p-5"
+          data-testid="guest-identity-form"
+        >
           <h4 className="font-medium">{mode === "create" ? "Add Document" : "Edit Document"}</h4>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -722,7 +807,9 @@ export function GuestIdentityCard({
                 id="identity-number"
                 className="mt-1"
                 value={form.documentNumber}
-                onChange={(event) => setForm((current) => ({ ...current, documentNumber: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, documentNumber: event.target.value }))
+                }
               />
             </div>
             <div>
@@ -732,7 +819,10 @@ export function GuestIdentityCard({
               <Select
                 value={form.issuingCountry || "__none"}
                 onValueChange={(value) =>
-                  setForm((current) => ({ ...current, issuingCountry: value === "__none" ? "" : value }))
+                  setForm((current) => ({
+                    ...current,
+                    issuingCountry: value === "__none" ? "" : value,
+                  }))
                 }
               >
                 <SelectTrigger id="identity-country" className="mt-1">
@@ -755,7 +845,9 @@ export function GuestIdentityCard({
                 type="date"
                 className="mt-1"
                 value={form.issueDate}
-                onChange={(event) => setForm((current) => ({ ...current, issueDate: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, issueDate: event.target.value }))
+                }
               />
             </div>
             <div>
@@ -767,7 +859,9 @@ export function GuestIdentityCard({
                 type="date"
                 className="mt-1"
                 value={form.expiryDate}
-                onChange={(event) => setForm((current) => ({ ...current, expiryDate: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, expiryDate: event.target.value }))
+                }
               />
             </div>
             <div className="sm:col-span-2">
@@ -776,7 +870,9 @@ export function GuestIdentityCard({
                 id="identity-authority"
                 className="mt-1"
                 value={form.issuingAuthority}
-                onChange={(event) => setForm((current) => ({ ...current, issuingAuthority: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, issuingAuthority: event.target.value }))
+                }
               />
             </div>
             <div className="sm:col-span-2">
@@ -785,7 +881,9 @@ export function GuestIdentityCard({
                 id="identity-notes"
                 className="mt-1"
                 value={form.notes}
-                onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, notes: event.target.value }))
+                }
               />
             </div>
           </div>
@@ -810,11 +908,21 @@ export function GuestIdentityCard({
                   }}
                 />
                 <div className="mt-2 flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => frontRef.current?.click()}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => frontRef.current?.click()}
+                  >
                     {selected?.url || form.pendingFront ? "Replace front" : "Upload front"}
                   </Button>
                   {(selected?.url || form.pendingFront) && (
-                    <Button type="button" size="sm" variant="ghost" onClick={() => void onClearImage("front")}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void onClearImage("front")}
+                    >
                       Clear front
                     </Button>
                   )}
@@ -838,11 +946,21 @@ export function GuestIdentityCard({
                   }}
                 />
                 <div className="mt-2 flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => backRef.current?.click()}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => backRef.current?.click()}
+                  >
                     {selected?.backUrl || form.pendingBack ? "Replace back" : "Upload back"}
                   </Button>
                   {(selected?.backUrl || form.pendingBack) && (
-                    <Button type="button" size="sm" variant="ghost" onClick={() => void onClearImage("back")}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void onClearImage("back")}
+                    >
                       Clear back
                     </Button>
                   )}
@@ -903,7 +1021,10 @@ export function GuestIdentityCard({
       ) : null}
 
       {confirmDelete && selected ? (
-        <section className="rounded-2xl border border-destructive/40 bg-card p-5" data-testid="guest-identity-delete">
+        <section
+          className="rounded-2xl border border-destructive/40 bg-card p-5"
+          data-testid="guest-identity-delete"
+        >
           <p className="text-sm">Delete {selected.typeName}? The file is removed from storage.</p>
           <div className="mt-3 flex gap-2">
             <Button type="button" variant="destructive" onClick={() => void onDelete()}>
@@ -918,7 +1039,10 @@ export function GuestIdentityCard({
 
       {selected ? (
         <>
-          <article className="guest-identity-print hidden print:block" data-testid="guest-identity-print">
+          <article
+            className="guest-identity-print hidden print:block"
+            data-testid="guest-identity-print"
+          >
             <h1>
               {guest.fullName} — {selected.typeName}
             </h1>
@@ -926,7 +1050,9 @@ export function GuestIdentityCard({
               <dt>Document number</dt>
               <dd>{selected.documentNumberMasked ?? "—"}</dd>
               <dt>Issuing country</dt>
-              <dd>{selected.issuingCountry ? countryNameFromInput(selected.issuingCountry) : "—"}</dd>
+              <dd>
+                {selected.issuingCountry ? countryNameFromInput(selected.issuingCountry) : "—"}
+              </dd>
               <dt>Issue date</dt>
               <dd>{selected.issueDate ? formatStayDate(selected.issueDate) : "—"}</dd>
               <dt>Expiry date</dt>

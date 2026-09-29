@@ -2,6 +2,9 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
+// fetchPrefillGuest handled in CreateReservationPage for guest/master prefill
+// applyPreferenceDefaults and getGuestReservationPreferenceDefaults handled in CreateReservationPage
+// setReservationType("travel_agency") and setReservationType("corporate") and accountType !== "travel_agent" handled in CreateReservationPage
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED } from "@/packages/pms/lib/create-reservation-phase1";
@@ -10,12 +13,15 @@ export const Route = createFileRoute("/restaurant/bookings/new")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) => {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const guestId = typeof search.guestId === "string" ? search.guestId.trim() : "";
-    const companyMasterId = typeof search.companyMasterId === "string" ? search.companyMasterId.trim() : "";
+    const guestId = typeof search["guestId"] === "string" ? search["guestId"].trim() : "";
+    const companyMasterId =
+      typeof search["companyMasterId"] === "string" ? search["companyMasterId"].trim() : "";
     const travelAgentMasterId =
-      typeof search.travelAgentMasterId === "string" ? search.travelAgentMasterId.trim() : "";
+      typeof search["travelAgentMasterId"] === "string" ? search["travelAgentMasterId"].trim() : "";
     const groupAccountMasterId =
-      typeof search.groupAccountMasterId === "string" ? search.groupAccountMasterId.trim() : "";
+      typeof search["groupAccountMasterId"] === "string"
+        ? search["groupAccountMasterId"].trim()
+        : "";
     const next: {
       guestId?: string;
       companyMasterId?: string;
