@@ -26,7 +26,9 @@ export function RateCalendarToolbar({
   currency,
   mixedCurrency,
   canViewRates,
+  selectedCount = 0,
   onRangeChange,
+  onBulkTrigger,
 }: {
   context: RevenueContext;
   businessDate: string;
@@ -34,7 +36,9 @@ export function RateCalendarToolbar({
   currency: string;
   mixedCurrency: boolean;
   canViewRates: boolean;
+  selectedCount?: number;
   onRangeChange: (fromDate: string, toDate: string) => void;
+  onBulkTrigger?: () => void;
 }) {
   const week = RATE_CALENDAR_DEFAULT_DAYS;
   const bulkSearch = serializeRevenueSearch("bulk-rate-change", context);
@@ -128,14 +132,25 @@ export function RateCalendarToolbar({
               <History className="size-3.5 text-[#8A641A]" />
               <span>View Rate History</span>
             </Link>
-            <Link
-              to="/restaurant/pms/rates-revenue"
-              search={bulkSearch}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
-            >
-              <SlidersHorizontal className="size-3.5" />
-              <span>Bulk Rate Change</span>
-            </Link>
+            {onBulkTrigger ? (
+              <button
+                type="button"
+                onClick={onBulkTrigger}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
+              >
+                <SlidersHorizontal className="size-3.5" />
+                <span>Bulk Rate Change{selectedCount > 0 ? ` (${selectedCount})` : ""}</span>
+              </button>
+            ) : (
+              <Link
+                to="/restaurant/pms/rates-revenue"
+                search={bulkSearch}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
+              >
+                <SlidersHorizontal className="size-3.5" />
+                <span>Bulk Rate Change</span>
+              </Link>
+            )}
           </>
         ) : null}
       </div>

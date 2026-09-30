@@ -1,8 +1,11 @@
+import { useEffect, useState } from "react";
+import { Filter } from "lucide-react";
+
+import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
   BULK_RATE_CHANGE_OVER_MAX_COPY,
-  plansForSelectedRoomTypes,
   type BulkTargetExpansion,
 } from "@/packages/pms/lib/revenue/bulk-rate-change";
 import type {
@@ -34,156 +37,111 @@ export function BulkScopeStep({
     planIds?: string[];
   }) => void;
 }) {
-  const visiblePlans = plansForSelectedRoomTypes(ratePlans, roomTypeIds);
+  const [draftFrom, setDraftFrom] = useState(fromDate);
+  const [draftTo, setDraftTo] = useState(toDate);
 
-  function toggle(list: string[], id: string) {
-    return list.includes(id) ? list.filter((value) => value !== id) : [...list, id];
-  }
+  useEffect(() => {
+    setDraftFrom(fromDate);
+    setDraftTo(toDate);
+  }, [fromDate, toDate]);
+
+  const allPlanIds = ratePlans.map((plan) => plan.id);
+  const allChecked = allPlanIds.length > 0 && allPlanIds.every((id) => planIds.includes(id));
 
   return (
-    <section className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-      <div className="grid gap-4 lg:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.3fr)] lg:items-start">
-        <div>
-          <Label htmlFor="bulk-from" className="text-xs font-semibold text-[#5A4833]">
-            From
-          </Label>
-          <Input
-            id="bulk-from"
-            type="date"
-            value={fromDate}
-            onChange={(event) => onChange({ fromDate: event.target.value })}
-            className="mt-1.5 h-9 w-40 text-sm font-medium text-[#251605]"
-          />
-        </div>
-        <div>
-          <Label htmlFor="bulk-to" className="text-xs font-semibold text-[#5A4833]">
-            To
-          </Label>
-          <Input
-            id="bulk-to"
-            type="date"
-            value={toDate}
-            onChange={(event) => onChange({ toDate: event.target.value })}
-            className="mt-1.5 h-9 w-40 text-sm font-medium text-[#251605]"
-          />
+    <section className="space-y-2.5 rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <Label htmlFor="bulk-from" className="text-xs font-semibold text-[#5A4833]">
+              From
+            </Label>
+            <Input
+              id="bulk-from"
+              type="date"
+              value={draftFrom}
+              onChange={(event) => {
+                setDraftFrom(event.target.value);
+                onChange({ fromDate: event.target.value });
+              }}
+              className="mt-1.5 h-9 w-40 text-sm font-medium text-[#251605]"
+            />
+          </div>
+          <div>
+            <Label htmlFor="bulk-to" className="text-xs font-semibold text-[#5A4833]">
+              To
+            </Label>
+            <Input
+              id="bulk-to"
+              type="date"
+              value={draftTo}
+              onChange={(event) => {
+                setDraftTo(event.target.value);
+                onChange({ toDate: event.target.value });
+              }}
+              className="mt-1.5 h-9 w-40 text-sm font-medium text-[#251605]"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 px-2.5 text-xs font-semibold text-[#5A4833] hover:text-[#251605]"
+              onClick={() => onChange({ roomTypeIds: [], planIds: [] })}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 bg-[#D5A62B] px-3 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
+              onClick={() => onChange({ fromDate: draftFrom, toDate: draftTo })}
+            >
+              <Filter className="mr-1.5 size-3.5" />
+              Filter
+            </Button>
+          </div>
         </div>
 
-        <fieldset className="min-w-0 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <legend className="text-xs font-semibold text-[#5A4833]">Room Types</legend>
-            {roomTypeIds.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => onChange({ roomTypeIds: [] })}
-                className="text-xs font-semibold text-[#8A641A] hover:underline"
-              >
-                All room types
-              </button>
-            ) : null}
-          </div>
-          {roomTypes.length === 0 ? (
-            <p className="text-xs text-[#756A5B]">
-              No room types are configured in Property Setup.
-            </p>
-          ) : (
-            <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-[#E8E1D7] bg-[#FAF6F0]/60 p-2">
-              {roomTypes.map((type) => {
-                const checked = roomTypeIds.includes(type.id);
-                return (
-                  <label
-                    key={type.id}
-                    className={[
-                      "inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-                      checked
-                        ? "border-[#C89933] bg-white font-semibold text-[#251605] shadow-sm"
-                        : "border-[#DED7CD] bg-white/80 text-[#5A4833] hover:text-[#251605]",
-                    ].join(" ")}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onChange({ roomTypeIds: toggle(roomTypeIds, type.id) })}
-                      className="size-3.5 accent-[#C89933]"
-                    />
-                    <span>{type.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
-
-        <fieldset className="min-w-0 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <legend className="text-xs font-semibold text-[#5A4833]">Rate Plans</legend>
-            {visiblePlans.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onChange({ planIds: visiblePlans.map((plan) => plan.id) })}
-                  className="text-xs font-semibold text-[#8A641A] hover:underline"
-                >
-                  Select all
-                </button>
-                {planIds.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => onChange({ planIds: [] })}
-                    className="text-xs font-medium text-[#756A5B] hover:text-[#251605]"
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          {visiblePlans.length === 0 ? (
-            <p className="text-xs text-[#756A5B]">
-              {ratePlans.length === 0
-                ? "No rate plans are configured in Property Setup."
-                : "No rate plans match the selected room types."}
-            </p>
-          ) : (
-            <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-[#E8E1D7] bg-[#FAF6F0]/60 p-2">
-              {visiblePlans.map((plan) => {
-                const checked = planIds.includes(plan.id);
-                return (
-                  <label
-                    key={plan.id}
-                    className={[
-                      "inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-                      checked
-                        ? "border-[#C89933] bg-white font-semibold text-[#251605] shadow-sm"
-                        : "border-[#DED7CD] bg-white/80 text-[#5A4833] hover:text-[#251605]",
-                    ].join(" ")}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onChange({ planIds: toggle(planIds, plan.id) })}
-                      className="size-3.5 accent-[#C89933]"
-                    />
-                    <span>
-                      {plan.code} · {plan.roomTypeName}
-                      {plan.active ? "" : " (inactive)"}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
+        <div className="flex flex-wrap items-center gap-2">
+          {ratePlans.length > 0 ? (
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#DED7CD] bg-[#FAF6F0] px-3 py-1.5 text-xs font-semibold text-[#251605] transition-colors hover:border-[#C89933]/60 focus-within:ring-2 focus-within:ring-[#C89933]/40">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={() =>
+                  onChange({
+                    roomTypeIds: allChecked ? [] : roomTypes.map((rt) => rt.id),
+                    planIds: allChecked ? [] : allPlanIds,
+                  })
+                }
+                className="size-4 shrink-0 cursor-pointer accent-[#C89933]"
+              />
+              <span>Select all plans in grid ({ratePlans.length})</span>
+            </label>
+          ) : null}
+          {planIds.length > 0 ? (
+            <span className="inline-flex items-center rounded-lg border border-[#E8D5A7] bg-[#FBF6EA] px-2.5 py-1.5 text-xs font-semibold text-[#6B4A0A]">
+              {roomTypeIds.length ||
+                new Set(ratePlans.filter((p) => planIds.includes(p.id)).map((p) => p.roomTypeId))
+                  .size}{" "}
+              room type(s) · {planIds.length} rate plan(s) checked
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {!expansion.ok ? (
-        <div className="border-t border-[#EFE9DF] pt-2.5">
+        <div className="border-t border-[#EFE9DF] pt-2">
           {expansion.code === "over_max" ? (
             <p className="text-xs font-medium text-[#6B4A0A]">{BULK_RATE_CHANGE_OVER_MAX_COPY}</p>
           ) : expansion.code === "invalid_range" ? (
             <p className="text-xs font-medium text-[#6B4A0A]">Choose a valid date range.</p>
           ) : (
             <p className="text-xs text-[#756A5B]">
-              Select at least one rate plan and a valid date range to configure a bulk rate change.
+              Check one or more Room Types or Rate Plans directly in the calendar grid below to
+              configure a bulk rate change, or click any cell/row.
             </p>
           )}
         </div>

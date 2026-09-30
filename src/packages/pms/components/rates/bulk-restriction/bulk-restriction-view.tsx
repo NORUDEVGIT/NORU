@@ -120,8 +120,8 @@ export function BulkRestrictionView({
     () => expandBulkTargets({ planIds, fromDate, toDate }),
     [planIds, fromDate, toDate],
   );
-  const calendarFilter = roomTypeIds.length === 1 ? roomTypeIds[0] : null;
-  const planFilter = planIds.length === 1 ? planIds[0] : null;
+  const calendarFilter = null;
+  const planFilter = null;
 
   const calendarQuery = useQuery({
     queryKey: ["revenue-rate-calendar", restaurantId, fromDate, toDate, calendarFilter, planFilter],
@@ -447,9 +447,7 @@ export function BulkRestrictionView({
             </span>
             <span className="text-[#756A5B]">·</span>
             <span className="text-[#8A641A]">
-              {expansion.ok
-                ? `${expansion.targetCount} planned changes`
-                : "0 planned changes"}
+              {expansion.ok ? `${expansion.targetCount} planned changes` : "0 planned changes"}
             </span>
           </div>
           {plansForSelectedRoomTypes(ratePlans, roomTypeIds).length === 0 &&
@@ -501,6 +499,56 @@ export function BulkRestrictionView({
             data={calendar}
             selected={selectedCell}
             selectedRowPlanId={selectedRowPlanId}
+            selectedPlanIds={planIds}
+            onTogglePlan={(planId) => {
+              const nextPlans = planIds.includes(planId)
+                ? planIds.filter((id) => id !== planId)
+                : [...planIds, planId];
+              const nextRoomTypes = Array.from(
+                new Set(
+                  ratePlans
+                    .filter((plan) => nextPlans.includes(plan.id))
+                    .map((plan) => plan.roomTypeId),
+                ),
+              );
+              setPlanIds(nextPlans);
+              setRoomTypeIds(nextRoomTypes);
+              setSelectedCell(null);
+              setSelectedRowPlanId(null);
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+            }}
+            onToggleRoomType={(roomTypeId, planIdsInGroup) => {
+              const allGroupChecked =
+                planIdsInGroup.length > 0 && planIdsInGroup.every((id) => planIds.includes(id));
+              const nextPlans = allGroupChecked
+                ? planIds.filter((id) => !planIdsInGroup.includes(id))
+                : Array.from(new Set([...planIds, ...planIdsInGroup]));
+              const nextRoomTypes = allGroupChecked
+                ? roomTypeIds.filter((id) => id !== roomTypeId)
+                : Array.from(new Set([...roomTypeIds, roomTypeId]));
+              setPlanIds(nextPlans);
+              setRoomTypeIds(nextRoomTypes);
+              setSelectedCell(null);
+              setSelectedRowPlanId(null);
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+            }}
+            onToggleAllPlans={(allPlanIds) => {
+              const allChecked =
+                allPlanIds.length > 0 && allPlanIds.every((id) => planIds.includes(id));
+              const nextPlans = allChecked ? [] : allPlanIds;
+              const nextRoomTypes = allChecked ? [] : roomTypes.map((rt) => rt.id);
+              setPlanIds(nextPlans);
+              setRoomTypeIds(nextRoomTypes);
+              setSelectedCell(null);
+              setSelectedRowPlanId(null);
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+            }}
             onSelect={(cell) => {
               setSelectedCell(cell);
               setSelectedRowPlanId(null);

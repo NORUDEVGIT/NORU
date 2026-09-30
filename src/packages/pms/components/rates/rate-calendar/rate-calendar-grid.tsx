@@ -12,24 +12,50 @@ export function RateCalendarGrid({
   data,
   selected,
   selectedRowPlanId = null,
+  selectedPlanIds,
   onSelect,
   onSelectRow,
+  onTogglePlan,
+  onToggleRoomType,
+  onToggleAllPlans,
 }: {
   data: RateCalendarWorkspace;
   selected: RateCalendarCellModel | null;
   selectedRowPlanId?: string | null;
+  selectedPlanIds?: string[];
   onSelect: (cell: RateCalendarCellModel) => void;
   onSelectRow?: (row: RateCalendarRow, roomType: RateCalendarRoomType) => void;
+  onTogglePlan?: (planId: string, roomTypeId: string) => void;
+  onToggleRoomType?: (roomTypeId: string, planIdsInGroup: string[]) => void;
+  onToggleAllPlans?: (allPlanIds: string[]) => void;
 }) {
+  const allPlanIds = data.groups.flatMap((group) => group.rows.map((row) => row.plan.id));
+  const showCheckboxes = Boolean(onTogglePlan || onToggleRoomType);
+  const allChecked =
+    showCheckboxes &&
+    allPlanIds.length > 0 &&
+    allPlanIds.every((id) => selectedPlanIds?.includes(id));
+
   return (
     <div className="overflow-auto rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
       <table className="min-w-max w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-[#E8E1D7] bg-[#F7F4EE]">
-            <th className="sticky left-0 z-20 min-w-36 border-r border-[#E8E1D7] bg-[#F7F4EE] px-3.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[#5A4833]">
-              Room Type
+            <th className="sticky left-0 z-20 min-w-44 border-r border-[#E8E1D7] bg-[#F7F4EE] px-3.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[#5A4833]">
+              <div className="flex items-center gap-2">
+                {showCheckboxes && onToggleAllPlans ? (
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    onChange={() => onToggleAllPlans(allPlanIds)}
+                    title="Select or clear all visible room types and rate plans"
+                    className="size-4 shrink-0 cursor-pointer accent-[#C89933]"
+                  />
+                ) : null}
+                <span>Room Type</span>
+              </div>
             </th>
-            <th className="sticky left-36 z-20 min-w-48 border-r border-[#E8E1D7] bg-[#F7F4EE] px-3.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[#5A4833]">
+            <th className="sticky left-44 z-20 min-w-56 border-r border-[#E8E1D7] bg-[#F7F4EE] px-3.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[#5A4833]">
               Rate Plan
             </th>
             {data.dates.map((date) => (
@@ -50,8 +76,11 @@ export function RateCalendarGrid({
               mixedCurrency={data.mixedCurrency}
               selected={selected}
               selectedRowPlanId={selectedRowPlanId}
+              selectedPlanIds={selectedPlanIds}
               onSelect={onSelect}
               onSelectRow={onSelectRow}
+              onTogglePlan={onTogglePlan}
+              onToggleRoomType={onToggleRoomType}
             />
           ))}
         </tbody>
@@ -65,20 +94,33 @@ function GroupRows({
   mixedCurrency,
   selected,
   selectedRowPlanId,
+  selectedPlanIds,
   onSelect,
   onSelectRow,
+  onTogglePlan,
+  onToggleRoomType,
 }: {
   group: RateCalendarGroup;
   mixedCurrency: boolean;
   selected: RateCalendarCellModel | null;
   selectedRowPlanId: string | null;
+  selectedPlanIds?: string[];
   onSelect: (cell: RateCalendarCellModel) => void;
   onSelectRow?: (row: RateCalendarRow, roomType: RateCalendarRoomType) => void;
+  onTogglePlan?: (planId: string, roomTypeId: string) => void;
+  onToggleRoomType?: (roomTypeId: string, planIdsInGroup: string[]) => void;
 }) {
+  const groupPlanIds = group.rows.map((row) => row.plan.id);
+  const selectedInGroup = groupPlanIds.filter((id) => selectedPlanIds?.includes(id));
+  const isGroupChecked = groupPlanIds.length > 0 && selectedInGroup.length === groupPlanIds.length;
+  const isGroupIndeterminate =
+    selectedInGroup.length > 0 && selectedInGroup.length < groupPlanIds.length;
+
   return (
     <>
       {group.rows.map((row, index) => {
-        const isRowSelected = selectedRowPlanId === row.plan.id;
+        const isPlanChecked = Boolean(selectedPlanIds?.includes(row.plan.id));
+        const isRowSelected = selectedRowPlanId === row.plan.id || isPlanChecked;
         return (
           <tr
             key={row.plan.id}
@@ -92,47 +134,97 @@ function GroupRows({
             {index === 0 ? (
               <td
                 rowSpan={group.rows.length}
-                className="sticky left-0 z-10 border-r border-[#E8E1D7] bg-[#FAF6F0] px-3.5 py-3 align-top text-sm font-semibold text-[#251605]"
+                className="sticky left-0 z-10 min-w-44 border-r border-[#E8E1D7] bg-[#FAF6F0] px-3.5 py-3 align-top text-sm font-semibold text-[#251605]"
               >
-                {group.roomType.name}
+                {onToggleRoomType ? (
+                  <label className="flex cursor-pointer items-start gap-2.5 select-none">
+                    <input
+                      type="checkbox"
+                      checked={isGroupChecked}
+                      ref={(el) => {
+                        if (el) el.indeterminate = isGroupIndeterminate;
+                      }}
+                      onChange={() => onToggleRoomType(group.roomType.id, groupPlanIds)}
+                      className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[#C89933]"
+                    />
+                    <div>
+                      <div className="text-sm font-semibold text-[#251605]">
+                        {group.roomType.name}
+                      </div>
+                      <div className="mt-0.5 text-[11px] font-medium text-[#756A5B]">
+                        {selectedInGroup.length > 0
+                          ? `${selectedInGroup.length}/${groupPlanIds.length} selected`
+                          : `${groupPlanIds.length} plan${groupPlanIds.length === 1 ? "" : "s"}`}
+                      </div>
+                    </div>
+                  </label>
+                ) : (
+                  group.roomType.name
+                )}
               </td>
             ) : null}
             <td
               className={[
-                "sticky left-36 z-10 border-r border-[#E8E1D7] px-3.5 py-2.5 align-middle transition-colors",
+                "sticky left-44 z-10 min-w-56 border-r border-[#E8E1D7] px-3.5 py-2.5 align-middle transition-colors",
                 isRowSelected ? "bg-[#FDF7EB]" : "bg-white",
-                onSelectRow ? "cursor-pointer hover:bg-[#FAF6F0]" : "",
+                onSelectRow || onTogglePlan ? "cursor-pointer hover:bg-[#FAF6F0]" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
-              onClick={() => onSelectRow?.(row, group.roomType)}
+              onClick={() => {
+                if (onTogglePlan) {
+                  onTogglePlan(row.plan.id, group.roomType.id);
+                } else {
+                  onSelectRow?.(row, group.roomType);
+                }
+              }}
               title={
-                onSelectRow
-                  ? "Click to update this entire row for the selected date range"
-                  : undefined
+                onTogglePlan
+                  ? "Check to include this rate plan in bulk rate change, or click Edit Row for single-row date range update"
+                  : onSelectRow
+                    ? "Click to update this entire row for the selected date range"
+                    : undefined
               }
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold text-[#251605]">
-                  {row.plan.code}
-                  {row.plan.active ? "" : " (inactive)"}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  {onTogglePlan ? (
+                    <input
+                      type="checkbox"
+                      checked={isPlanChecked}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={() => onTogglePlan(row.plan.id, group.roomType.id)}
+                      className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[#C89933]"
+                    />
+                  ) : null}
+                  <div>
+                    <div className="text-sm font-semibold text-[#251605]">
+                      {row.plan.code}
+                      {row.plan.active ? "" : " (inactive)"}
+                    </div>
+                    <div className="text-xs text-[#756A5B]">
+                      {row.plan.name}
+                      {mixedCurrency && row.plan.currency ? ` · ${row.plan.currency}` : ""}
+                    </div>
+                  </div>
                 </div>
                 {onSelectRow ? (
-                  <span
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectRow(row, group.roomType);
+                    }}
                     className={[
                       "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors",
-                      isRowSelected
+                      selectedRowPlanId === row.plan.id
                         ? "bg-[#C89933] text-[#251605]"
-                        : "border border-[#DDD4C5] bg-[#FAF6F0] text-[#5A4833]",
+                        : "border border-[#DDD4C5] bg-[#FAF6F0] text-[#5A4833] hover:border-[#C89933]",
                     ].join(" ")}
                   >
-                    {isRowSelected ? "Row Selected" : "Edit Row"}
-                  </span>
+                    {selectedRowPlanId === row.plan.id ? "Row Selected" : "Edit Row"}
+                  </button>
                 ) : null}
-              </div>
-              <div className="text-xs text-[#756A5B]">
-                {row.plan.name}
-                {mixedCurrency && row.plan.currency ? ` · ${row.plan.currency}` : ""}
               </div>
             </td>
             {row.cells.map((cell) => (

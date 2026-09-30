@@ -105,6 +105,7 @@ export function RevenueContextBar({
   cataloguesError,
   coreConfigStatus = "success",
   cataloguesStatus = "success",
+  hidePlanSelectors = false,
 }: {
   fields: readonly RevenueContextField[];
   context: RevenueContext;
@@ -117,6 +118,7 @@ export function RevenueContextBar({
   cataloguesError?: string | null;
   coreConfigStatus?: "loading" | "error" | "success";
   cataloguesStatus?: "loading" | "error" | "success";
+  hidePlanSelectors?: boolean;
 }) {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
@@ -203,7 +205,7 @@ export function RevenueContextBar({
           </>
         ) : null}
 
-        {fields.includes("roomType") ? (
+        {!hidePlanSelectors && fields.includes("roomType") ? (
           <FilterSelect
             label="Room type"
             value={context.roomTypeId}
@@ -219,7 +221,7 @@ export function RevenueContextBar({
           />
         ) : null}
 
-        {fields.includes("ratePlan") ? (
+        {!hidePlanSelectors && fields.includes("ratePlan") ? (
           <FilterSelect
             label="Rate plan"
             value={context.ratePlanId}

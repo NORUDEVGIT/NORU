@@ -645,15 +645,19 @@ export function RatesWorkspace({
 
           {showSecondary ? (
             <div className="flex items-end gap-3 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
-              {secondaryViews.map((item) => (
-                <SecondaryButton
-                  key={item}
-                  active={requestedView === item}
-                  onClick={() => selectView(item)}
-                >
-                  {revenueViewDefinition(item).label}
-                </SecondaryButton>
-              ))}
+              {secondaryViews
+                .filter(
+                  (item) => item !== "bulk-rate-change" || requestedView === "bulk-rate-change",
+                )
+                .map((item) => (
+                  <SecondaryButton
+                    key={item}
+                    active={requestedView === item}
+                    onClick={() => selectView(item)}
+                  >
+                    {revenueViewDefinition(item).label}
+                  </SecondaryButton>
+                ))}
             </div>
           ) : null}
         </div>
@@ -672,6 +676,9 @@ export function RatesWorkspace({
               marketSegments={marketSegments}
               bookingSources={bookingSources}
               salesChannels={salesChannels}
+              hidePlanSelectors={
+                requestedView === "rate-calendar" || requestedView === "restrictions"
+              }
               cataloguesError={
                 cataloguesQuery.isError
                   ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")

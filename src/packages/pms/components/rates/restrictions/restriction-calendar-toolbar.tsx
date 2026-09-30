@@ -1,12 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  CalendarRange,
-  ChevronLeft,
-  ChevronRight,
-  History,
-  Info,
-  ShieldAlert,
-} from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, History, Info, ShieldAlert } from "lucide-react";
 
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { serializeRevenueSearch } from "@/packages/pms/lib/revenue/revenue-context";
@@ -24,13 +17,17 @@ export function RestrictionCalendarToolbar({
   businessDate,
   rangeClamped,
   canViewRestrictions,
+  selectedCount = 0,
   onRangeChange,
+  onBulkTrigger,
 }: {
   context: RevenueContext;
   businessDate: string;
   rangeClamped: boolean;
   canViewRestrictions: boolean;
+  selectedCount?: number;
   onRangeChange: (fromDate: string, toDate: string) => void;
+  onBulkTrigger?: () => void;
 }) {
   const week = RATE_CALENDAR_DEFAULT_DAYS;
   const applySearch = serializeRevenueSearch("apply-restriction", context);
@@ -123,14 +120,25 @@ export function RestrictionCalendarToolbar({
               <History className="size-3.5 text-[#8A641A]" />
               <span>View Restriction History</span>
             </Link>
-            <Link
-              to="/restaurant/pms/rates-revenue"
-              search={applySearch}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
-            >
-              <ShieldAlert className="size-3.5" />
-              <span>Apply Restriction</span>
-            </Link>
+            {onBulkTrigger ? (
+              <button
+                type="button"
+                onClick={onBulkTrigger}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
+              >
+                <ShieldAlert className="size-3.5" />
+                <span>Apply Restriction{selectedCount > 0 ? ` (${selectedCount})` : ""}</span>
+              </button>
+            ) : (
+              <Link
+                to="/restaurant/pms/rates-revenue"
+                search={applySearch}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
+              >
+                <ShieldAlert className="size-3.5" />
+                <span>Apply Restriction</span>
+              </Link>
+            )}
           </>
         ) : null}
       </div>

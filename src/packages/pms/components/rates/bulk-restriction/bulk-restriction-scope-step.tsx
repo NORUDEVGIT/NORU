@@ -6,7 +6,6 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
   BULK_RESTRICTION_OVER_MAX_COPY,
-  plansForSelectedRoomTypes,
   type BulkTargetExpansion,
 } from "@/packages/pms/lib/revenue/bulk-restriction-change";
 import type {
@@ -46,19 +45,19 @@ export function BulkRestrictionScopeStep({
     setDraftTo(toDate);
   }, [fromDate, toDate]);
 
-  const visiblePlans = plansForSelectedRoomTypes(ratePlans, roomTypeIds);
-
-  function toggle(list: string[], id: string) {
-    return list.includes(id) ? list.filter((value) => value !== id) : [...list, id];
-  }
+  const allPlanIds = ratePlans.map((plan) => plan.id);
+  const allChecked = allPlanIds.length > 0 && allPlanIds.every((id) => planIds.includes(id));
 
   return (
-    <section className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-      <div className="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1.3fr)] lg:items-start">
-        <div className="space-y-2.5">
+    <section className="space-y-2.5 rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-2">
           <div className="flex flex-wrap items-end gap-2.5">
             <div>
-              <Label htmlFor="bulk-restriction-from" className="text-xs font-semibold text-[#5A4833]">
+              <Label
+                htmlFor="bulk-restriction-from"
+                className="text-xs font-semibold text-[#5A4833]"
+              >
                 From
               </Label>
               <Input
@@ -114,117 +113,35 @@ export function BulkRestrictionScopeStep({
           </p>
         </div>
 
-        <fieldset className="min-w-0 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <legend className="text-xs font-semibold text-[#5A4833]">Room Types</legend>
-            {roomTypeIds.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => onChange({ roomTypeIds: [] })}
-                className="text-xs font-semibold text-[#8A641A] hover:underline"
-              >
-                All room types
-              </button>
-            ) : null}
-          </div>
-          {roomTypes.length === 0 ? (
-            <p className="text-xs text-[#756A5B]">
-              No room types are configured in Property Setup.
-            </p>
-          ) : (
-            <div className="max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-[#E8E1D7] bg-[#FAF6F0]/60 p-2">
-              {roomTypes.map((type) => {
-                const checked = roomTypeIds.includes(type.id);
-                return (
-                  <label
-                    key={type.id}
-                    className={[
-                      "flex w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-within:ring-2 focus-within:ring-[#C89933]/40",
-                      checked
-                        ? "border-[#C89933] bg-white font-semibold text-[#251605] shadow-sm"
-                        : "border-[#DED7CD] bg-white/90 text-[#251605] hover:border-[#C89933]/60 hover:bg-white",
-                    ].join(" ")}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onChange({ roomTypeIds: toggle(roomTypeIds, type.id) })}
-                      className="size-4 shrink-0 accent-[#C89933]"
-                    />
-                    <span className="flex-1 select-none">{type.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-          <p className="text-xs text-[#756A5B]">
-            Leave unchecked to include plans from every room type.
-          </p>
-        </fieldset>
-
-        <fieldset className="min-w-0 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <legend className="text-xs font-semibold text-[#5A4833]">Rate Plans</legend>
-            {visiblePlans.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onChange({ planIds: visiblePlans.map((plan) => plan.id) })}
-                  className="text-xs font-semibold text-[#8A641A] hover:underline"
-                >
-                  Select all
-                </button>
-                {planIds.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => onChange({ planIds: [] })}
-                    className="text-xs font-medium text-[#756A5B] hover:text-[#251605]"
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          {visiblePlans.length === 0 ? (
-            <p className="text-xs text-[#756A5B]">
-              {ratePlans.length === 0
-                ? "No rate plans are configured in Property Setup."
-                : "No rate plans match the selected room types."}
-            </p>
-          ) : (
-            <div className="max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-[#E8E1D7] bg-[#FAF6F0]/60 p-2">
-              {visiblePlans.map((plan) => {
-                const checked = planIds.includes(plan.id);
-                return (
-                  <label
-                    key={plan.id}
-                    className={[
-                      "flex w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-within:ring-2 focus-within:ring-[#C89933]/40",
-                      checked
-                        ? "border-[#C89933] bg-white font-semibold text-[#251605] shadow-sm"
-                        : "border-[#DED7CD] bg-white/90 text-[#251605] hover:border-[#C89933]/60 hover:bg-white",
-                    ].join(" ")}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onChange({ planIds: toggle(planIds, plan.id) })}
-                      className="size-4 shrink-0 accent-[#C89933]"
-                    />
-                    <span className="flex-1 select-none">
-                      {plan.code} · {plan.roomTypeName}
-                      {plan.active ? "" : " (inactive)"}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
+        <div className="flex flex-wrap items-center gap-2">
+          {ratePlans.length > 0 ? (
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#DED7CD] bg-[#FAF6F0] px-3 py-1.5 text-xs font-semibold text-[#251605] transition-colors hover:border-[#C89933]/60 focus-within:ring-2 focus-within:ring-[#C89933]/40">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={() =>
+                  onChange({
+                    roomTypeIds: allChecked ? [] : roomTypes.map((rt) => rt.id),
+                    planIds: allChecked ? [] : allPlanIds,
+                  })
+                }
+                className="size-4 shrink-0 cursor-pointer accent-[#C89933]"
+              />
+              <span>Select all plans in grid ({ratePlans.length})</span>
+            </label>
+          ) : null}
+          {planIds.length > 0 ? (
+            <span className="inline-flex items-center rounded-lg border border-[#E8D5A7] bg-[#FBF6EA] px-2.5 py-1.5 text-xs font-semibold text-[#6B4A0A]">
+              {roomTypeIds.length ||
+                new Set(ratePlans.filter((p) => planIds.includes(p.id)).map((p) => p.roomTypeId))
+                  .size}{" "}
+              room type(s) · {planIds.length} rate plan(s) checked
+            </span>
+          ) : null}
+        </div>
       </div>
 
-      <div className="border-t border-[#EFE9DF] pt-2.5">
+      <div className="border-t border-[#EFE9DF] pt-2">
         {expansion.ok ? (
           <p className="text-xs font-medium text-[#251605]">
             {expansion.targetCount} change{expansion.targetCount === 1 ? "" : "s"} across{" "}
@@ -236,8 +153,8 @@ export function BulkRestrictionScopeStep({
           <p className="text-xs font-medium text-[#6B4A0A]">Choose a valid date range.</p>
         ) : (
           <p className="text-xs text-[#756A5B]">
-            Select at least one rate plan and a date range, or click any cell or row in the
-            Restriction Calendar below.
+            Check one or more Room Types or Rate Plans directly in the Restriction Calendar grid
+            below, or click any cell/row.
           </p>
         )}
       </div>
