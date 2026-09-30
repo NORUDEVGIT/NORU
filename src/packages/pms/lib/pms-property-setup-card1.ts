@@ -564,12 +564,19 @@ export type Card1StructureRules = {
 export type Card1StepStatusMap = Partial<Record<Card1StepId, PropertySetupCardStatus>>;
 export type Card2StepStatusMap = Partial<Record<Card2StepId, PropertySetupCardStatus>>;
 
+export type CustomAmenityCategoryStatus = {
+  name: string;
+  icon?: string | null;
+  iconType?: "upload" | "url" | "preset" | "fallback";
+};
+
 export type PropertySetupStatus = {
   cards: Partial<Record<PropertySetupCardId, PropertySetupCardStatus>>;
   card1Steps: Card1StepStatusMap;
   card2Steps?: Card2StepStatusMap;
   customRoomCategories?: string[];
   customRoomClasses?: string[];
+  customAmenityCategories?: CustomAmenityCategoryStatus[];
 };
 
 export type Card1DerivedCapacity = {
@@ -1383,12 +1390,40 @@ export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
       )
     : [];
 
+  const customAmenityCategories: CustomAmenityCategoryStatus[] = [];
+  if (Array.isArray(rec.customAmenityCategories)) {
+    const seen = new Set<string>();
+    for (const item of rec.customAmenityCategories) {
+      if (!item) continue;
+      const name =
+        typeof item === "string"
+          ? item.trim()
+          : typeof item === "object" && "name" in item
+            ? String((item as Record<string, unknown>).name ?? "").trim()
+            : "";
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const icon =
+        typeof item === "object" && "icon" in item && (item as Record<string, unknown>).icon
+          ? String((item as Record<string, unknown>).icon).trim()
+          : null;
+      const iconType =
+        typeof item === "object" && "iconType" in item
+          ? ((item as Record<string, unknown>).iconType as CustomAmenityCategoryStatus["iconType"])
+          : undefined;
+      customAmenityCategories.push({ name, icon, iconType });
+    }
+  }
+
   return {
     cards,
     card1Steps,
     card2Steps,
     customRoomCategories,
     customRoomClasses,
+    customAmenityCategories,
   };
 }
 
