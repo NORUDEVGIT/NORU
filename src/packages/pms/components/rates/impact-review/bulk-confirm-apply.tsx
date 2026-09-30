@@ -36,11 +36,11 @@ export function BulkConfirmApply({
   appliedCount: number | null;
   calendarSearch: RevenueSearchParams;
   historySearch: RevenueSearchParams;
-  requestSearch?: RevenueSearchParams;
-  submitted?: boolean;
-  submitForApproval?: boolean;
+  requestSearch?: RevenueSearchParams | undefined;
+  submitted?: boolean | undefined;
+  submitForApproval?: boolean | undefined;
   onApply: () => void;
-  onApproveImmediate?: () => void;
+  onApproveImmediate?: (() => void) | undefined;
 }) {
   if (submitted) {
     return (

@@ -22,11 +22,11 @@ export function RestrictionHistoryFilters({
   onContextChange,
   onActionTypeChange,
 }: {
-  context?: RevenueContext;
-  roomTypes?: RevenueRoomType[];
-  ratePlans?: RevenueRatePlan[];
+  context?: RevenueContext | undefined;
+  roomTypes?: RevenueRoomType[] | undefined;
+  ratePlans?: RevenueRatePlan[] | undefined;
   actionType: RestrictionActionType | "";
-  onContextChange?: (patch: Partial<RevenueContext>) => void;
+  onContextChange?: ((patch: Partial<RevenueContext>) => void) | undefined;
   onActionTypeChange: (value: RestrictionActionType | "") => void;
 }) {
   const [draftFrom, setDraftFrom] = useState(context?.fromDate ?? "");

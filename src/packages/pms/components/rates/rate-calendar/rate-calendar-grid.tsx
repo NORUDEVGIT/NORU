@@ -21,13 +21,13 @@ export function RateCalendarGrid({
 }: {
   data: RateCalendarWorkspace;
   selected: RateCalendarCellModel | null;
-  selectedRowPlanId?: string | null;
-  selectedPlanIds?: string[];
+  selectedRowPlanId?: string | null | undefined;
+  selectedPlanIds?: string[] | undefined;
   onSelect: (cell: RateCalendarCellModel) => void;
-  onSelectRow?: (row: RateCalendarRow, roomType: RateCalendarRoomType) => void;
-  onTogglePlan?: (planId: string, roomTypeId: string) => void;
-  onToggleRoomType?: (roomTypeId: string, planIdsInGroup: string[]) => void;
-  onToggleAllPlans?: (allPlanIds: string[]) => void;
+  onSelectRow?: ((row: RateCalendarRow, roomType: RateCalendarRoomType) => void) | undefined;
+  onTogglePlan?: ((planId: string, roomTypeId: string) => void) | undefined;
+  onToggleRoomType?: ((roomTypeId: string, planIdsInGroup: string[]) => void) | undefined;
+  onToggleAllPlans?: ((allPlanIds: string[]) => void) | undefined;
 }) {
   const allPlanIds = data.groups.flatMap((group) => group.rows.map((row) => row.plan.id));
   const showCheckboxes = Boolean(onTogglePlan || onToggleRoomType);
@@ -104,11 +104,11 @@ function GroupRows({
   mixedCurrency: boolean;
   selected: RateCalendarCellModel | null;
   selectedRowPlanId: string | null;
-  selectedPlanIds?: string[];
+  selectedPlanIds?: string[] | undefined;
   onSelect: (cell: RateCalendarCellModel) => void;
-  onSelectRow?: (row: RateCalendarRow, roomType: RateCalendarRoomType) => void;
-  onTogglePlan?: (planId: string, roomTypeId: string) => void;
-  onToggleRoomType?: (roomTypeId: string, planIdsInGroup: string[]) => void;
+  onSelectRow?: ((row: RateCalendarRow, roomType: RateCalendarRoomType) => void) | undefined;
+  onTogglePlan?: ((planId: string, roomTypeId: string) => void) | undefined;
+  onToggleRoomType?: ((roomTypeId: string, planIdsInGroup: string[]) => void) | undefined;
 }) {
   const groupPlanIds = group.rows.map((row) => row.plan.id);
   const selectedInGroup = groupPlanIds.filter((id) => selectedPlanIds?.includes(id));

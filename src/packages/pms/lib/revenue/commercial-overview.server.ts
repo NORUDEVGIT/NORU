@@ -40,10 +40,10 @@ type DbClient = any;
 
 export type CommercialOverviewQuery = {
   restaurantId: string;
-  fromDate?: string | null;
-  toDate?: string | null;
-  roomTypeId?: string | null;
-  ratePlanId?: string | null;
+  fromDate?: string | null | undefined;
+  toDate?: string | null | undefined;
+  roomTypeId?: string | null | undefined;
+  ratePlanId?: string | null | undefined;
 };
 
 type AttributionStay = {
@@ -353,7 +353,7 @@ export async function loadPromotionsWorkspace(
 
 export async function loadPromotionPerformanceSummary(
   db: DbClient,
-  query: CommercialOverviewQuery & { activationId?: string },
+  query: CommercialOverviewQuery & { activationId?: string | undefined },
 ): Promise<PromotionPerformanceSummary> {
   const stays = filterAttributedStays(await loadAttributedStays(db, query.restaurantId), query).filter(
     (row) => !query.activationId || row.activationId === query.activationId,

@@ -146,17 +146,17 @@ export function toCommercialHistoryWorkspaceRow(
 
 function bookingLabel(state: Record<string, unknown> | null | undefined): string {
   if (!state) return COMMERCIAL_HISTORY_VALUE_NOT_SET;
-  return commercialHistoryRangeLabel(state.bookingFrom, state.bookingTo);
+  return commercialHistoryRangeLabel(state["bookingFrom"], state["bookingTo"]);
 }
 
 function priorityLabel(state: Record<string, unknown> | null | undefined): string {
-  if (!state || state.priority == null || state.priority === "") return COMMERCIAL_HISTORY_VALUE_NOT_SET;
-  return String(state.priority);
+  if (!state || state["priority"] == null || state["priority"] === "") return COMMERCIAL_HISTORY_VALUE_NOT_SET;
+  return String(state["priority"]);
 }
 
 function reasonValue(state: Record<string, unknown> | null | undefined): string {
   if (!state) return COMMERCIAL_HISTORY_VALUE_NONE;
-  const text = typeof state.reason === "string" ? state.reason.trim() : "";
+  const text = typeof state["reason"] === "string" ? state["reason"].trim() : "";
   return text || COMMERCIAL_HISTORY_VALUE_NONE;
 }
 
@@ -170,14 +170,14 @@ export function commercialHistoryFieldChanges(
     {
       key: "validFrom",
       label: commercialHistoryFieldLabel("validFrom"),
-      before: created ? COMMERCIAL_HISTORY_VALUE_NOT_SET : commercialHistoryScalarLabel(before.validFrom),
-      after: commercialHistoryScalarLabel(after?.validFrom),
+      before: created ? COMMERCIAL_HISTORY_VALUE_NOT_SET : commercialHistoryScalarLabel(before["validFrom"]),
+      after: commercialHistoryScalarLabel(after?.["validFrom"]),
     },
     {
       key: "validTo",
       label: commercialHistoryFieldLabel("validTo"),
-      before: created ? COMMERCIAL_HISTORY_VALUE_NOT_SET : commercialHistoryScalarLabel(before.validTo),
-      after: commercialHistoryScalarLabel(after?.validTo),
+      before: created ? COMMERCIAL_HISTORY_VALUE_NOT_SET : commercialHistoryScalarLabel(before["validTo"]),
+      after: commercialHistoryScalarLabel(after?.["validTo"]),
     },
     {
       key: "bookingWindow",
@@ -194,20 +194,20 @@ export function commercialHistoryFieldChanges(
     {
       key: "active",
       label: commercialHistoryFieldLabel("active"),
-      before: created ? COMMERCIAL_HISTORY_STATUS_NOT_ACTIVATED : commercialHistoryStatusLabel(before.active),
-      after: commercialHistoryStatusLabel(after?.active),
+      before: created ? COMMERCIAL_HISTORY_STATUS_NOT_ACTIVATED : commercialHistoryStatusLabel(before["active"]),
+      after: commercialHistoryStatusLabel(after?.["active"]),
     },
     {
       key: "roomTypes",
       label: commercialHistoryFieldLabel("roomTypes"),
-      before: created ? COMMERCIAL_HISTORY_VALUE_ALL_ELIGIBLE : commercialHistoryScopeNames(before.roomTypeIds, names.roomNames),
-      after: commercialHistoryScopeNames(after?.roomTypeIds, names.roomNames),
+      before: created ? COMMERCIAL_HISTORY_VALUE_ALL_ELIGIBLE : commercialHistoryScopeNames(before["roomTypeIds"], names.roomNames),
+      after: commercialHistoryScopeNames(after?.["roomTypeIds"], names.roomNames),
     },
     {
       key: "ratePlans",
       label: commercialHistoryFieldLabel("ratePlans"),
-      before: created ? COMMERCIAL_HISTORY_VALUE_ALL_ELIGIBLE : commercialHistoryScopeNames(before.ratePlanIds, names.planNames),
-      after: commercialHistoryScopeNames(after?.ratePlanIds, names.planNames),
+      before: created ? COMMERCIAL_HISTORY_VALUE_ALL_ELIGIBLE : commercialHistoryScopeNames(before["ratePlanIds"], names.planNames),
+      after: commercialHistoryScopeNames(after?.["ratePlanIds"], names.planNames),
     },
     {
       key: "reason",
@@ -226,32 +226,32 @@ export function commercialHistorySnapshotFields(
 ): CommercialHistorySnapshotField[] {
   if (!state) return [];
   const entity = commercialHistoryEntityFromState(entityType, state);
-  const stay = commercialHistoryRangeLabel(state.validFrom, state.validTo);
-  const rooms = commercialHistoryScopeNames(state.roomTypeIds, names.roomNames);
-  const plans = commercialHistoryScopeNames(state.ratePlanIds, names.planNames);
+  const stay = commercialHistoryRangeLabel(state["validFrom"], state["validTo"]);
+  const rooms = commercialHistoryScopeNames(state["roomTypeIds"], names.roomNames);
+  const plans = commercialHistoryScopeNames(state["ratePlanIds"], names.planNames);
   if (entityType === "package_activation") {
     return [
       { label: "Name", value: entity.name },
       { label: "Code", value: entity.code ?? COMMERCIAL_HISTORY_VALUE_NOT_SET },
-      { label: "Type", value: commercialHistoryScalarLabel(state.chargeBasis) },
-      { label: "Configured Price", value: commercialHistoryScalarLabel(state.packagePrice) },
+      { label: "Type", value: commercialHistoryScalarLabel(state["chargeBasis"]) },
+      { label: "Configured Price", value: commercialHistoryScalarLabel(state["packagePrice"]) },
       { label: "Stay Window", value: stay },
       { label: "Room Scope", value: rooms },
       { label: "Rate Plan Scope", value: plans },
-      { label: "Active", value: commercialHistoryStatusLabel(state.active) },
+      { label: "Active", value: commercialHistoryStatusLabel(state["active"]) },
     ];
   }
   return [
     { label: "Name", value: entity.name },
     { label: "Code", value: entity.code ?? COMMERCIAL_HISTORY_VALUE_NOT_SET },
-    { label: "Kind", value: commercialHistoryScalarLabel(state.promoKind) },
-    { label: "Value", value: commercialHistoryScalarLabel(state.promoValue) },
+    { label: "Kind", value: commercialHistoryScalarLabel(state["promoKind"]) },
+    { label: "Value", value: commercialHistoryScalarLabel(state["promoValue"]) },
     { label: "Stay Window", value: stay },
     { label: "Booking Window", value: bookingLabel(state) },
     { label: "Room Scope", value: rooms },
     { label: "Rate Plan Scope", value: plans },
     { label: "Priority", value: priorityLabel(state) },
-    { label: "Active", value: commercialHistoryStatusLabel(state.active) },
+    { label: "Active", value: commercialHistoryStatusLabel(state["active"]) },
   ];
 }
 

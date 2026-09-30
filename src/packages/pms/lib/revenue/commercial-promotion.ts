@@ -53,7 +53,7 @@ export type PromotionEligibilityInput = {
   roomTypeId: string;
   ratePlanId: string;
   baseRoomSubtotal: number;
-  reservationId?: string;
+  reservationId?: string | undefined;
 };
 
 export type PromotionMasterRecord = {

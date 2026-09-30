@@ -116,11 +116,11 @@ export function RevenueContextBar({
   marketSegments: RevenueMarketSegment[];
   bookingSources: RevenueBookingSource[];
   salesChannels: RevenueSalesChannel[];
-  cataloguesError?: string | null;
-  coreConfigStatus?: "loading" | "error" | "success";
-  cataloguesStatus?: "loading" | "error" | "success";
-  searchQuery?: string;
-  onSearchChange?: (next: string) => void;
+  cataloguesError?: string | null | undefined;
+  coreConfigStatus?: "loading" | "error" | "success" | undefined;
+  cataloguesStatus?: "loading" | "error" | "success" | undefined;
+  searchQuery?: string | undefined;
+  onSearchChange?: ((next: string) => void) | undefined;
 }) {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [draftFrom, setDraftFrom] = useState(context.fromDate);

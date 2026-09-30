@@ -45,14 +45,14 @@ export type PackageActivationReasonCode = (typeof PACKAGE_ACTIVATION_REASON_CODE
 export type PackageActivationPreviewInput = {
   restaurantId: string;
   operation: CommercialActivationOperation;
-  packageId?: string;
-  activationId?: string;
-  validFrom?: string;
-  validTo?: string;
-  roomTypeIds?: string[];
-  ratePlanIds?: string[];
-  reason?: string | null;
-  expectedVersion?: string;
+  packageId?: string | undefined;
+  activationId?: string | undefined;
+  validFrom?: string | undefined;
+  validTo?: string | undefined;
+  roomTypeIds?: string[] | undefined;
+  ratePlanIds?: string[] | undefined;
+  reason?: string | null | undefined;
+  expectedVersion?: string | undefined;
 };
 
 export type PackageMasterPreview = {

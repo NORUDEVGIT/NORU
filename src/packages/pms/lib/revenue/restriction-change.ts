@@ -65,11 +65,11 @@ export type RestrictionChangeTarget = {
 };
 
 export type RestrictionChangeFields = {
-  minStay?: number | null;
-  maxStay?: number | null;
-  closedToArrival?: boolean;
-  closedToDeparture?: boolean;
-  stopSell?: boolean;
+  minStay?: number | null | undefined;
+  maxStay?: number | null | undefined;
+  closedToArrival?: boolean | undefined;
+  closedToDeparture?: boolean | undefined;
+  stopSell?: boolean | undefined;
 };
 
 export type RestrictionChangeOperation =
@@ -86,10 +86,10 @@ export type RestrictionChangeRequest = {
   restaurantId: string;
   targets: RestrictionChangeTarget[];
   operation: RestrictionChangeOperation;
-  expectedVersions?: RestrictionChangeExpectedVersion[];
-  reason?: string | null;
-  source?: RestrictionChangeSource;
-  applyImmediately?: boolean;
+  expectedVersions?: RestrictionChangeExpectedVersion[] | undefined;
+  reason?: string | null | undefined;
+  source?: RestrictionChangeSource | undefined;
+  applyImmediately?: boolean | undefined;
 };
 
 export type RestrictionPlanSnapshot = {
@@ -166,15 +166,15 @@ export type RestrictionHistoryPage = {
 
 export type RestrictionHistoryQuery = {
   restaurantId: string;
-  from?: string | null;
-  to?: string | null;
-  stayDate?: string | null;
-  ratePlanId?: string | null;
-  roomTypeId?: string | null;
-  actionType?: RestrictionActionType | null;
-  actorMembershipId?: string | null;
-  page?: number;
-  pageSize?: number;
+  from?: string | null | undefined;
+  to?: string | null | undefined;
+  stayDate?: string | null | undefined;
+  ratePlanId?: string | null | undefined;
+  roomTypeId?: string | null | undefined;
+  actionType?: RestrictionActionType | null | undefined;
+  actorMembershipId?: string | null | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
 };
 
 export type RestrictionOperationDetail = {
@@ -390,11 +390,11 @@ export function buildRestrictionChangePreview(input: {
   restaurantId: string;
   targets: RestrictionChangeTarget[];
   operation: RestrictionChangeOperation;
-  reason?: string | null;
-  source?: RestrictionChangeSource;
+  reason?: string | null | undefined;
+  source?: RestrictionChangeSource | undefined;
   plans: Map<string, RestrictionPlanSnapshot>;
   current: Map<string, RestrictionRowSnapshot>;
-  expectedVersions?: Map<string, string>;
+  expectedVersions?: Map<string, string> | undefined;
 }): RestrictionChangePreview {
   const requestError = validateRestrictionChangeRequest({
     restaurantId: input.restaurantId,
@@ -479,7 +479,10 @@ export function decideAtomicRestrictionApply(
   };
 }
 
-export function restrictionHistoryPageBounds(query: { page?: number; pageSize?: number }): {
+export function restrictionHistoryPageBounds(query: {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+}): {
   page: number;
   pageSize: number;
 } {

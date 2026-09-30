@@ -84,6 +84,8 @@ export type RateCalendarPlanRow = {
   cells: RateCalendarCell[];
 };
 
+export type RateCalendarRow = RateCalendarPlanRow;
+
 export type RateCalendarGroup = {
   roomType: RateCalendarRoomType;
   rows: RateCalendarPlanRow[];

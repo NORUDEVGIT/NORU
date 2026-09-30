@@ -10,10 +10,10 @@ function PanelChrome({
   footer,
   onClose,
 }: {
-  subtitle?: string;
+  subtitle?: string | undefined;
   children: ReactNode;
   footer: ReactNode;
-  onClose?: () => void;
+  onClose?: (() => void) | undefined;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#F7F4EE]">
@@ -61,7 +61,7 @@ export function BulkRestrictionPanel({
 }: {
   open: boolean;
   step: BulkRestrictionStep;
-  subtitle?: string;
+  subtitle?: string | undefined;
   progress: boolean;
   body: ReactNode;
   footer: ReactNode;

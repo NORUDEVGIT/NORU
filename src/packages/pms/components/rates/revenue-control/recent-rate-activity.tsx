@@ -28,11 +28,11 @@ export function RecentRateActivity({
 }: {
   activity: RevenueControlActivity;
   error: string | null;
-  context?: RevenueContext;
-  embedded?: boolean;
+  context?: RevenueContext | undefined;
+  embedded?: boolean | undefined;
 }) {
   const visibleRows = (activity.rows ?? []).slice(0, 4);
-  const historySearch = context ? serializeRevenueSearch("rate-history", context) : undefined;
+  const historySearch = context ? serializeRevenueSearch("rate-history", context) : { view: "rate-history" as const };
 
   const content = error ? (
     <p className="text-sm text-destructive">{error}</p>

@@ -2,7 +2,14 @@ import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type ReactN
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarDays, ChevronDown, History, ShieldAlert, SlidersHorizontal } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  Clock,
+  History,
+  ShieldAlert,
+  SlidersHorizontal,
+} from "lucide-react";
 
 import {
   DropdownMenu,
@@ -54,11 +61,13 @@ import {
 import {
   type RevenuePrimarySection,
   type RevenueWorkspaceView,
+  REVENUE_DEFAULT_VIEW,
   REVENUE_PRIMARY_SECTIONS,
   REVENUE_SECTION_DEFAULTS,
   canAccessRevenueView,
   contextFieldsForView,
   firstAccessibleRevenueView,
+  isDemotedDemandView,
   normalizeRevenueView,
   revenueViewDefinition,
   sectionForRevenueView,
@@ -194,25 +203,29 @@ export function RatesWorkspace({
     catalogues: cataloguesQuery.isSuccess,
   });
 
+  const safeView = isDemotedDemandView(view) ? REVENUE_DEFAULT_VIEW : view;
   const requestedView =
-    access && !canAccessRevenueView(access, view)
-      ? (firstAccessibleRevenueView(access) ?? view)
-      : view;
+    access && !canAccessRevenueView(access, safeView)
+      ? (firstAccessibleRevenueView(access) ?? REVENUE_DEFAULT_VIEW)
+      : safeView;
   const definition = revenueViewDefinition(requestedView);
   const activeSection = sectionForRevenueView(requestedView);
   const secondaryViews = viewsForRevenueSection(activeSection, access);
   const showSecondary = activeSection !== "revenue-control" && activeSection !== "more";
-  const moreViews = viewsForRevenueSection("more", access);
+  const moreViews = viewsForRevenueSection("more", access).filter(
+    (item) => revenueViewDefinition(item).implemented,
+  );
   const primarySections = REVENUE_PRIMARY_SECTIONS.filter(
     (section) => viewsForRevenueSection(section.id, access).length > 0,
   );
 
   function writeState(nextView: RevenueWorkspaceView, nextContext: RevenueContext) {
-    setView(nextView);
+    const targetView = isDemotedDemandView(nextView) ? REVENUE_DEFAULT_VIEW : nextView;
+    setView(targetView);
     setMoreOpen(false);
     void navigate({
       to: "/restaurant/pms/rates-revenue",
-      search: serializeRevenueSearch(nextView, nextContext, {
+      search: serializeRevenueSearch(targetView, nextContext, {
         approvalTab: search.approvalTab,
         approvalRequest: search.approvalRequest,
         analyticsTab: search.analyticsTab,
@@ -227,6 +240,7 @@ export function RatesWorkspace({
   }
 
   function selectView(nextView: RevenueWorkspaceView) {
+    if (isDemotedDemandView(nextView)) return;
     if (access && !canAccessRevenueView(access, nextView)) return;
     writeState(nextView, context);
   }
@@ -234,6 +248,13 @@ export function RatesWorkspace({
   function updateContext(patch: Partial<RevenueContext>) {
     writeState(requestedView, patchRevenueContext(context, patch, contextOptions));
   }
+
+  useEffect(() => {
+    const rawView = search.view ?? search.tab;
+    if (!isDemotedDemandView(rawView)) return;
+    writeState(REVENUE_DEFAULT_VIEW, context);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.view, search.tab]);
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
@@ -410,6 +431,7 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
@@ -421,6 +443,7 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
@@ -429,6 +452,7 @@ export function RatesWorkspace({
           <CommercialHistoryView
             restaurantId={restaurantId}
             context={context}
+            onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
@@ -603,7 +627,7 @@ export function RatesWorkspace({
                   <DropdownMenuContent
                     align="start"
                     sideOffset={6}
-                    className="z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl"
+                    className="z-50 w-72 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl"
                   >
                     {moreViews.map((item) => {
                       const itemDef = revenueViewDefinition(item);
@@ -622,6 +646,26 @@ export function RatesWorkspace({
                         </DropdownMenuItem>
                       );
                     })}
+                    <div className="my-1 border-t border-border/60" />
+                    <DropdownMenuItem
+                      disabled
+                      aria-disabled="true"
+                      onSelect={(event) => event.preventDefault()}
+                      className="pointer-events-none flex w-full flex-col items-start gap-1 rounded-lg border border-dashed border-[#E8E1D7] bg-[#FAF6F0]/80 px-3 py-2.5 text-left opacity-65 select-none"
+                    >
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5A4833]">
+                          <Clock className="size-3.5 text-[#8A641A]" />
+                          Demand & Forecast
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-[#E5D3A8] bg-[#F8F1E5] px-2 py-0.5 text-[11px] font-semibold text-[#8A641A]">
+                          Coming later
+                        </span>
+                      </div>
+                      <span className="text-xs text-[#756A5B]">
+                        Forecast occupancy and booking pace
+                      </span>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -661,7 +705,10 @@ export function RatesWorkspace({
           {requestedView !== "rate-plans-reference" &&
           requestedView !== "bulk-rate-change" &&
           requestedView !== "apply-restriction" &&
-          requestedView !== "restriction-history" ? (
+          requestedView !== "restriction-history" &&
+          requestedView !== "promotions" &&
+          requestedView !== "packages" &&
+          requestedView !== "commercial-history" ? (
             <RevenueContextBar
               fields={contextFieldsForView(requestedView)}
               context={context}
@@ -672,7 +719,11 @@ export function RatesWorkspace({
               bookingSources={bookingSources}
               salesChannels={salesChannels}
               searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
+              onSearchChange={
+                requestedView === "rate-calendar" || requestedView === "restrictions"
+                  ? setSearchQuery
+                  : undefined
+              }
               cataloguesError={
                 cataloguesQuery.isError
                   ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")

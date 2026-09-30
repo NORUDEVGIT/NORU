@@ -49,9 +49,9 @@ export function RestrictionHistoryView({
 }: {
   restaurantId: string;
   context: RevenueContext;
-  roomTypes?: RevenueRoomType[];
-  ratePlans?: RevenueRatePlan[];
-  onContextChange?: (patch: Partial<RevenueContext>) => void;
+  roomTypes?: RevenueRoomType[] | undefined;
+  ratePlans?: RevenueRatePlan[] | undefined;
+  onContextChange?: ((patch: Partial<RevenueContext>) => void) | undefined;
 }) {
   const listFn = useServerFn(listRestrictionChangeHistory);
   const detailFn = useServerFn(getRestrictionOperationDetail);
@@ -103,7 +103,7 @@ export function RestrictionHistoryView({
     queryKey: ["restriction-operation", restaurantId, selected?.operationId ?? null],
     queryFn: () =>
       detailFn({
-        data: { restaurantId, operationId: selected?.operationId },
+        data: { restaurantId, operationId: selected!.operationId },
       }),
     enabled: Boolean(selected?.operationId),
     retry: false,

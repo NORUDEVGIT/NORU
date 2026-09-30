@@ -96,11 +96,11 @@ export async function loadRevenueRoomTypes(
     .order("code");
   if (result.error) throw new Error(result.error.message);
   return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    id: String(row.id),
-    code: String(row.code ?? ""),
-    name: String(row.name ?? ""),
-    active: row.active !== false,
-    sellable: row.sellable !== false,
+    id: String(row["id"]),
+    code: String(row["code"] ?? ""),
+    name: String(row["name"] ?? ""),
+    active: row["active"] !== false,
+    sellable: row["sellable"] !== false,
   }));
 }
 
@@ -112,11 +112,11 @@ export async function loadRevenueRateCategories(db: DbClient, restaurantId: stri
     .order("code");
   if (result.error) throw new Error(result.error.message);
   return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    id: String(row.id),
-    code: String(row.code ?? ""),
-    name: String(row.name ?? ""),
-    description: (row.description as string | null) ?? null,
-    active: row.active !== false,
+    id: String(row["id"]),
+    code: String(row["code"] ?? ""),
+    name: String(row["name"] ?? ""),
+    description: (row["description"] as string | null) ?? null,
+    active: row["active"] !== false,
   }));
 }
 
@@ -149,21 +149,21 @@ export async function loadRevenueRatePlans(
   const result = await query.order("code");
   if (result.error) throw new Error(result.error.message);
   return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => {
-    const category = row.hotel_rate_categories as { name?: string } | null;
-    const roomType = row.room_types as { name?: string } | null;
+    const category = row["hotel_rate_categories"] as { name?: string } | null;
+    const roomType = row["room_types"] as { name?: string } | null;
     return {
-      id: String(row.id),
-      code: String(row.code ?? ""),
-      name: String(row.name ?? ""),
-      categoryId: String(row.rate_category_id ?? ""),
+      id: String(row["id"]),
+      code: String(row["code"] ?? ""),
+      name: String(row["name"] ?? ""),
+      categoryId: String(row["rate_category_id"] ?? ""),
       categoryName: category?.name ?? "Category",
-      roomTypeId: String(row.room_type_id ?? ""),
+      roomTypeId: String(row["room_type_id"] ?? ""),
       roomTypeName: roomType?.name ?? "Room type",
-      currency: String(row.currency ?? ""),
-      baseRate: Number(row.base_rate ?? 0),
-      validFrom: (row.valid_from as string | null) ?? null,
-      validTo: (row.valid_to as string | null) ?? null,
-      active: row.active !== false,
+      currency: String(row["currency"] ?? ""),
+      baseRate: Number(row["base_rate"] ?? 0),
+      validFrom: (row["valid_from"] as string | null) ?? null,
+      validTo: (row["valid_to"] as string | null) ?? null,
+      active: row["active"] !== false,
     };
   });
 }
@@ -217,7 +217,7 @@ export async function loadRevenueCommercialMasters(
   db: DbClient,
   restaurantId: string,
 ): Promise<RevenueCommercialMasters> {
-  return optionalLoad(
+  return optionalLoad<RevenueCommercialMasters>(
     async () => {
       const snapshot = await loadCommercialCard3Snapshot(db, restaurantId);
       return {
@@ -272,7 +272,7 @@ export async function loadRevenuePackages(
   db: DbClient,
   restaurantId: string,
 ): Promise<RevenuePackageConfig> {
-  return optionalLoad(
+  return optionalLoad<RevenuePackageConfig>(
     async () => {
       const snapshot = await loadMealsCard3Snapshot(db, restaurantId);
       return {
@@ -298,7 +298,7 @@ export async function loadRevenueCorporateAgreements(
   db: DbClient,
   restaurantId: string,
 ): Promise<RevenueCorporateConfig> {
-  return optionalLoad(
+  return optionalLoad<RevenueCorporateConfig>(
     async () => {
       const snapshot = await loadCorporateCard3Snapshot(db, restaurantId);
       return {

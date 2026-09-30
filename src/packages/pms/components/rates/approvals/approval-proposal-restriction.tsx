@@ -30,12 +30,12 @@ export function RestrictionApprovalProposal({
   snapshot,
 }: {
   proposal: Record<string, unknown>;
-  snapshot?: RevenueApprovalDisplaySnapshot | null;
+  snapshot?: RevenueApprovalDisplaySnapshot | null | undefined;
 }) {
-  const operation = asRecord(proposal.operation);
-  const targets = Array.isArray(proposal.targets) ? proposal.targets : [];
-  const type = String(operation.type ?? "SET_FIELDS");
-  const fields = asRecord(operation.fields);
+  const operation = asRecord(proposal["operation"]);
+  const targets = Array.isArray(proposal["targets"]) ? proposal["targets"] : [];
+  const type = String(operation["type"] ?? "SET_FIELDS");
+  const fields = asRecord(operation["fields"]);
   const changed = Object.keys(fields);
 
   return (

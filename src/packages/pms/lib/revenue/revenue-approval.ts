@@ -149,11 +149,11 @@ export type RevenueApprovalDisplaySnapshot = {
   operationLabel: string;
   roomTypeNames: string[];
   ratePlanNames: string[];
-  name?: string | null;
-  code?: string | null;
-  dateFrom?: string | null;
-  dateTo?: string | null;
-  targetCount?: number;
+  name?: string | null | undefined;
+  code?: string | null | undefined;
+  dateFrom?: string | null | undefined;
+  dateTo?: string | null | undefined;
+  targetCount?: number | undefined;
 };
 
 export type PreparedRevenueApproval = {
@@ -236,9 +236,9 @@ export function summarizeRestrictionApproval(input: {
 export function summarizeCommercialApproval(input: {
   operation: "CREATE" | "EDIT" | "DEACTIVATE";
   kind: "promotion" | "package";
-  name?: string | null;
-  code?: string | null;
-  active?: boolean;
+  name?: string | null | undefined;
+  code?: string | null | undefined;
+  active?: boolean | undefined;
 }): string {
   const label = input.name?.trim() || input.code?.trim() || `this ${input.kind}`;
   if (input.operation === "CREATE") return `Activate ${label} ${input.kind}`;
@@ -308,13 +308,13 @@ export function buildRestrictionDisplaySnapshot(input: {
 export function buildCommercialDisplaySnapshot(input: {
   operation: "CREATE" | "EDIT" | "DEACTIVATE";
   kind: "promotion" | "package";
-  name?: string | null;
-  code?: string | null;
-  dateFrom?: string | null;
-  dateTo?: string | null;
-  roomTypeNames?: string[];
-  ratePlanNames?: string[];
-  active?: boolean;
+  name?: string | null | undefined;
+  code?: string | null | undefined;
+  dateFrom?: string | null | undefined;
+  dateTo?: string | null | undefined;
+  roomTypeNames?: string[] | undefined;
+  ratePlanNames?: string[] | undefined;
+  active?: boolean | undefined;
 }): RevenueApprovalDisplaySnapshot {
   const summary = summarizeCommercialApproval(input);
   return {
@@ -347,7 +347,10 @@ export const revenueApprovalDetailQuerySchema = z.object({
   approvalRequestId: idSchema,
 });
 
-export function revenueApprovalPageBounds(input: { page?: number; pageSize?: number }) {
+export function revenueApprovalPageBounds(input: {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+}) {
   const page = input.page ?? 1;
   const pageSize = input.pageSize ?? REVENUE_APPROVAL_HISTORY_PAGE_SIZE;
   return { page, pageSize };

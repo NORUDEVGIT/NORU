@@ -313,8 +313,8 @@ export function buildCommercialPromotionRows(
     performanceByActivation: Map<string, CommercialPerformanceTotals>;
     roomNames: Map<string, string>;
     planNames: Map<string, string>;
-    roomTypeId?: string | null;
-    ratePlanId?: string | null;
+    roomTypeId?: string | null | undefined;
+    ratePlanId?: string | null | undefined;
   },
 ): CommercialPromotionRow[] {
   const overlaps = detectPromotionOverlaps(rows);

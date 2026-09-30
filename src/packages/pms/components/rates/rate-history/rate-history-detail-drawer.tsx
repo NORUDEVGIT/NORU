@@ -90,7 +90,7 @@ function DrawerBody({
   detail: RateChangeOperationDetail | null;
   loading: boolean;
   error: string | null;
-  context?: RevenueContext;
+  context?: RevenueContext | undefined;
   onClose: () => void;
 }) {
   const first = detail?.events[0];
@@ -236,7 +236,7 @@ export function RateHistoryDetailDrawer({
   detail: RateChangeOperationDetail | null;
   loading: boolean;
   error: string | null;
-  context?: RevenueContext;
+  context?: RevenueContext | undefined;
   onClose: () => void;
 }) {
   return (

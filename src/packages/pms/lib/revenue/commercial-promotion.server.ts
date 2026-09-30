@@ -88,7 +88,8 @@ export type ReservationPromotionAttributionRow = {
   discountAmount: number;
   roomSubtotalAfterPromotion: number;
   appliedAt: string;
-  snapshot: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  snapshot: Record<string, any>;
 };
 
 function asIdArray(value: unknown): string[] {
@@ -256,9 +257,9 @@ export async function quoteHotelStayCommercial(
     roomTypeId: string;
     arrivalDate: string;
     departureDate: string;
-    promotionActivationId?: string | null;
-    packageActivationIds?: string[];
-    includeEligible?: boolean;
+    promotionActivationId?: string | null | undefined;
+    packageActivationIds?: string[] | undefined;
+    includeEligible?: boolean | undefined;
   },
 ): Promise<CommercialStayQuote> {
   const room = await priceHotelStayRoom(db, input);
@@ -341,6 +342,7 @@ export async function getReservationPromotionAttribution(
     discountAmount: Number(row.discount_amount),
     roomSubtotalAfterPromotion: Number(row.room_subtotal_after_promotion),
     appliedAt: row.applied_at,
-    snapshot: (row.snapshot ?? {}) as Record<string, unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    snapshot: (row.snapshot ?? {}) as Record<string, any>,
   };
 }

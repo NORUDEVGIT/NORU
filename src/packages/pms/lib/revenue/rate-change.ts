@@ -67,10 +67,10 @@ export type RateChangeRequest = {
   restaurantId: string;
   targets: RateChangeTarget[];
   rule: RateChangeRule;
-  reason?: string | null;
-  expectedVersions?: RateChangeExpectedVersion[];
-  source?: RateChangeSource;
-  applyImmediately?: boolean;
+  reason?: string | null | undefined;
+  expectedVersions?: RateChangeExpectedVersion[] | undefined;
+  source?: RateChangeSource | undefined;
+  applyImmediately?: boolean | undefined;
 };
 
 export type RateChangePlanSnapshot = {
@@ -163,7 +163,8 @@ export type RateChangeHistoryRow = {
   actorName: string | null;
   source: string;
   createdAt: string;
-  metadata: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: Record<string, any>;
 };
 
 export type RateChangeHistoryPage = {
@@ -401,12 +402,12 @@ export function restrictionWarnings(restriction: RateChangeRestrictionContext | 
 export type RateChangePreviewInput = {
   targets: RateChangeTarget[];
   rule: RateChangeRule;
-  reason?: string | null;
+  reason?: string | null | undefined;
   restaurantId: string;
   plans: Map<string, RateChangePlanSnapshot>;
   overrides: Map<string, RateChangeOverrideSnapshot>;
   restrictions: Map<string, RateChangeRestrictionContext>;
-  expectedVersions?: Map<string, string>;
+  expectedVersions?: Map<string, string> | undefined;
 };
 
 function emptyPreviewItem(

@@ -41,17 +41,17 @@ function fieldLabel(field: string) {
 
 function formatStateValue(field: string, state: Record<string, unknown> | null) {
   if (!state) return "—";
-  if (field === "validity") return `${state.validFrom ?? "—"} – ${state.validTo ?? "—"}`;
-  if (field === "bookingWindow") return `${state.bookingFrom ?? "—"} – ${state.bookingTo ?? "—"}`;
+  if (field === "validity") return `${state["validFrom"] ?? "—"} – ${state["validTo"] ?? "—"}`;
+  if (field === "bookingWindow") return `${state["bookingFrom"] ?? "—"} – ${state["bookingTo"] ?? "—"}`;
   if (field === "roomTypes") {
-    const ids = Array.isArray(state.roomTypeIds) ? state.roomTypeIds : [];
+    const ids = Array.isArray(state["roomTypeIds"]) ? state["roomTypeIds"] : [];
     return ids.length === 0 ? "Inherit master" : `${ids.length} selected`;
   }
   if (field === "ratePlans") {
-    const ids = Array.isArray(state.ratePlanIds) ? state.ratePlanIds : [];
+    const ids = Array.isArray(state["ratePlanIds"]) ? state["ratePlanIds"] : [];
     return ids.length === 0 ? "All" : `${ids.length} selected`;
   }
-  if (field === "active") return state.active ? "Active" : "Inactive";
+  if (field === "active") return state["active"] ? "Active" : "Inactive";
   return String(state[field] ?? "—");
 }
 
@@ -155,18 +155,21 @@ export function PromotionActivationActionSheet({
       const handled = handleRevenueMutationResult(result);
       if (handled.submitted) {
         invalidateRevenueApprovals(queryClient, restaurantId);
-        toast.success(PROMOTION_SUBMITTED_TOAST, {
-          action: handled.approvalRequestId
+        toast.success(
+          PROMOTION_SUBMITTED_TOAST,
+          handled.approvalRequestId
             ? {
-                label: "View Request",
-                onClick: () =>
-                  void navigate({
-                    to: "/restaurant/pms/rates-revenue",
-                    search: approvalRequestSearch(handled.approvalRequestId!),
-                  }),
+                action: {
+                  label: "View Request",
+                  onClick: () =>
+                    void navigate({
+                      to: "/restaurant/pms/rates-revenue",
+                      search: approvalRequestSearch(handled.approvalRequestId!),
+                    }),
+                },
               }
-            : undefined,
-        });
+            : {},
+        );
         onClose();
         return;
       }

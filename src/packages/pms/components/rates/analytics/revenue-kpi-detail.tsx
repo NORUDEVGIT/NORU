@@ -8,7 +8,7 @@ export function RevenueKpiDetail({
   overview: RevenuePerformanceOverview;
   formatCurrency: (value: number) => string;
 }) {
-  const isInventoryMeaningful = overview.inventoryMetricSupport === "SUPPORTED";
+  const isInventoryMeaningful = overview.summary.inventoryMetricSupport === "SUPPORTED";
   const { roomTypes } = overview.breakdowns;
 
   return (
@@ -131,7 +131,7 @@ export function RevenueKpiDetail({
                       {row.revpar !== null ? formatCurrency(row.revpar) : "N/A"}
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">
-                      {row.pricedSoldNights}
+                      {row.pricedRoomNights}
                     </td>
                     <td className="py-2.5 pl-3 pr-4 text-right font-mono text-muted-foreground">
                       {row.reservationCount}

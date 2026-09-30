@@ -271,5 +271,17 @@ describe("RR-P5-UI-04 commercial history", () => {
     assert.match(promoDrawer, /View full history/);
     assert.match(packageDrawer, /View full history/);
     assert.match(empty, /COMMERCIAL_HISTORY_EMPTY_COPY/);
+
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_480px\]/);
+    assert.doesNotMatch(view, /text-\[9px\]|text-\[10px\]/);
+    assert.doesNotMatch(filters, /text-\[9px\]|text-\[10px\]/);
+    assert.match(filters, /Filter/);
+    assert.doesNotMatch(table, /text-\[9px\]|text-\[10px\]/);
+    assert.match(table, /role="button"/);
+    assert.match(table, /View Change Details/);
+    assert.doesNotMatch(drawer, /<aside/);
+    assert.doesNotMatch(drawer, /text-\[9px\]|text-\[10px\]/);
+    assert.match(drawer, /SheetContent/);
+    assert.match(drawer, /Commercial Change Detail/);
   });
 });

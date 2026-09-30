@@ -59,8 +59,8 @@ export type PackageEligibilityInput = {
   departureDate: string;
   roomTypeId: string;
   ratePlanId: string;
-  quantity?: number;
-  reservationId?: string;
+  quantity?: number | undefined;
+  reservationId?: string | undefined;
 };
 
 export type PackageMasterRecord = {

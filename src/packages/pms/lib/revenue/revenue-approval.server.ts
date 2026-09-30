@@ -99,7 +99,8 @@ export type RevenueApprovalListItem = {
 };
 
 export type RevenueApprovalDetail = RevenueApprovalListItem & {
-  proposal: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  proposal: Record<string, any>;
   displaySnapshot: RevenueApprovalDisplaySnapshot | null;
   reviewReason: string | null;
   events: Array<{
@@ -109,9 +110,10 @@ export type RevenueApprovalDetail = RevenueApprovalListItem & {
     actorLabel: string;
     reason: string | null;
     createdAt: string;
-    metadata: Record<string, unknown> | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: Record<string, any> | null;
   }>;
-  currentStateHint?: { changed: boolean; reason?: string };
+  currentStateHint?: { changed: boolean; reason?: string | undefined } | undefined;
   canReview: boolean;
   selfApprovalBlocked: boolean;
 };
@@ -317,7 +319,7 @@ export async function submitRevenueApprovalRequest(
     restaurantId: string;
     domain: RevenueApprovalDomain;
     proposal: unknown;
-    requestReason?: string | null;
+    requestReason?: string | null | undefined;
   },
   actor: RevenueApprovalActor,
 ): Promise<{ id: string; summary: string }> {
@@ -382,7 +384,11 @@ async function loadRequest(
 
 export async function approveRevenueApprovalRequest(
   db: DbClient,
-  input: { restaurantId: string; approvalRequestId: string; reviewReason?: string | null },
+  input: {
+    restaurantId: string;
+    approvalRequestId: string;
+    reviewReason?: string | null | undefined;
+  },
   actor: RevenueApprovalActor,
 ): Promise<
   | RevenueApprovalStaleResult
@@ -449,15 +455,15 @@ export async function listRevenueApprovalRequests(
   db: DbClient,
   query: {
     restaurantId: string;
-    status?: RevenueApprovalStatus;
-    statuses?: RevenueApprovalStatus[];
-    domain?: RevenueApprovalDomain;
-    requestedBy?: string;
-    reviewedBy?: string;
-    fromDate?: string;
-    toDate?: string;
-    page?: number;
-    pageSize?: number;
+    status?: RevenueApprovalStatus | undefined;
+    statuses?: RevenueApprovalStatus[] | undefined;
+    domain?: RevenueApprovalDomain | undefined;
+    requestedBy?: string | undefined;
+    reviewedBy?: string | undefined;
+    fromDate?: string | undefined;
+    toDate?: string | undefined;
+    page?: number | undefined;
+    pageSize?: number | undefined;
   },
 ): Promise<{ rows: RevenueApprovalListItem[]; total: number; page: number; pageSize: number }> {
   const { page, pageSize } = revenueApprovalPageBounds(query);
@@ -519,7 +525,7 @@ export async function getRevenueApprovalRequestDetail(
     ...events.map((event) => event.actor_id),
   ]);
   const item = mapListItem(request, labels);
-  let currentStateHint: { changed: boolean; reason?: string } | undefined;
+  let currentStateHint: { changed: boolean; reason?: string | undefined } | undefined;
   if (request.status === "pending") {
     try {
       const stale = await getRevenueApprovalAdapter(request.domain).checkStale(
