@@ -89,6 +89,7 @@ export type RestrictionChangeRequest = {
   expectedVersions?: RestrictionChangeExpectedVersion[];
   reason?: string | null;
   source?: RestrictionChangeSource;
+  applyImmediately?: boolean;
 };
 
 export type RestrictionPlanSnapshot = {
@@ -221,6 +222,7 @@ export const restrictionChangeRequestSchema = z.object({
   reason: z.string().max(500).nullable().optional(),
   expectedVersions: z.array(restrictionChangeExpectedVersionSchema).optional(),
   source: z.enum(RESTRICTION_CHANGE_SOURCES).optional(),
+  applyImmediately: z.boolean().optional(),
 });
 
 export const restrictionChangeHistoryQuerySchema = z.object({

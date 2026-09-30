@@ -346,4 +346,29 @@ describe("RR-P3-02 — wiring, ownership, and UI locks", () => {
     assert.doesNotMatch(view, /CREATE OR REPLACE FUNCTION public\.price_hotel_stay/);
     assert.doesNotMatch(edit, /apply_hotel_rate_restrictions/);
   });
+
+  it("enforces full-width calendar, on-demand Sheet drawer, whole-cell/row selection, and readable typography", () => {
+    const contextBar = readRel("../../components/rates/revenue-context-bar.tsx");
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_420px\]/);
+    assert.doesNotMatch(drawer, /<aside/);
+    assert.match(drawer, /<Sheet/);
+    assert.match(drawer, /Restriction Details/);
+    assert.match(cell, /<button/);
+    assert.match(cell, /focus-visible:ring-2/);
+    assert.match(grid, /selectedRowPlanId/);
+    assert.match(grid, /Edit Row/);
+    assert.match(edit, /Whole Row \(Date Range\)/);
+    assert.match(edit, /APPROVE_APPLY_LABEL/);
+    assert.match(toolbar, /Previous Period/);
+    assert.match(toolbar, /Next Period/);
+    assert.match(toolbar, /Compare Dates/);
+    assert.match(toolbar, /View Restriction History/);
+    assert.match(toolbar, /Apply Restriction/);
+    assert.match(contextBar, /Filter/);
+    assert.match(contextBar, /bg-\[#D5A62B\]/);
+    for (const source of [view, grid, cell, toolbar, legend, drawer, overview, edit, history, adapter]) {
+      assert.doesNotMatch(source, /text-\[9px\]|text-\[10px\]/);
+    }
+  });
 });
+

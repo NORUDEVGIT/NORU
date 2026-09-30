@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SlidersHorizontal, X } from "lucide-react";
+import { Filter, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -309,8 +309,8 @@ export function RevenueContextBar({
             className="h-10 bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
             onClick={() => setFiltersExpanded((current) => !current)}
           >
-            <SlidersHorizontal className="mr-1.5 size-3.5" />
-            Filters
+            <Filter className="mr-1.5 size-3.5" />
+            Filter
             {activeChips.length > 0 ? ` (${activeChips.length})` : ""}
           </Button>
         </div>

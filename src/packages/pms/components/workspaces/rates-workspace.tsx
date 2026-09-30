@@ -366,7 +366,15 @@ export function RatesWorkspace({
           />
         );
       case "restriction-history":
-        return <RestrictionHistoryView restaurantId={restaurantId} context={context} />;
+        return (
+          <RestrictionHistoryView
+            restaurantId={restaurantId}
+            context={context}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
+            onContextChange={updateContext}
+          />
+        );
       case "demand-forecast":
         return <DemandForecastView restaurantId={restaurantId} context={context} />;
       case "pickup-pace":
@@ -651,7 +659,10 @@ export function RatesWorkspace({
         </div>
 
         <main className="space-y-4 p-4 sm:p-5 lg:p-6">
-          {requestedView !== "rate-plans-reference" && requestedView !== "bulk-rate-change" ? (
+          {requestedView !== "rate-plans-reference" &&
+          requestedView !== "bulk-rate-change" &&
+          requestedView !== "apply-restriction" &&
+          requestedView !== "restriction-history" ? (
             <RevenueContextBar
               fields={contextFieldsForView(requestedView)}
               context={context}

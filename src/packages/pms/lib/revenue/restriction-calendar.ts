@@ -97,14 +97,14 @@ export function restrictionMarks(state: RateCalendarRestriction): RestrictionMar
 
 export function restrictionMarkClass(kind: RestrictionMarkKind): string {
   if (kind === "stopSell") {
-    return "rounded-md border border-red-300 bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-700";
+    return "rounded-md border border-red-300 bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700";
   }
-  
+
   if (kind === "cta" || kind === "ctd") {
-    return "rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700";
+    return "rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700";
   }
-  
-  return "rounded-md border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700";
+
+  return "rounded-md border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700";
 }
 
 export function toRestrictionCalendarCell(cell: RateCalendarCell): RestrictionCalendarCell {

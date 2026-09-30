@@ -1,5 +1,4 @@
 import type { RestrictionCalendarCell as RestrictionCalendarCellModel } from "@/packages/pms/lib/revenue/restriction-calendar";
-
 import {
   RESTRICTION_CALENDAR_OPEN_LABEL,
   restrictionMarkClass,
@@ -10,17 +9,11 @@ function restrictionCardClass(cell: RestrictionCalendarCellModel) {
     return "border-red-300 bg-red-50 hover:border-red-400 hover:bg-red-100";
   }
 
-  if (
-    cell.restriction.closedToArrival ||
-    cell.restriction.closedToDeparture
-  ) {
+  if (cell.restriction.closedToArrival || cell.restriction.closedToDeparture) {
     return "border-amber-300 bg-amber-50 hover:border-amber-400 hover:bg-amber-100";
   }
 
-  if (
-    cell.restriction.minStay != null ||
-    cell.restriction.maxStay != null
-  ) {
+  if (cell.restriction.minStay != null || cell.restriction.maxStay != null) {
     return "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100";
   }
 
@@ -49,36 +42,33 @@ export function RestrictionCalendarCell({
     <button
       type="button"
       title={title}
+      aria-label={`${cell.date}: ${title}`}
+      aria-pressed={selected}
       onClick={onSelect}
       className={[
-        "relative flex h-[68px] min-w-[96px] flex-col items-start justify-center rounded-lg border px-2 py-2 text-left transition-all",
+        "relative flex h-[72px] min-w-[104px] w-full cursor-pointer flex-col items-start justify-center rounded-lg border px-2.5 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
         restrictionCardClass(cell),
-
-        selected
-          ? "z-10 border-[#C89933] shadow-sm ring-2 ring-[#C89933]"
-          : "",
-
+        selected ? "z-10 border-[#C89933] shadow-sm ring-2 ring-[#C89933]" : "",
         !cell.planActive || cell.outsideValidity ? "opacity-60" : "",
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {cell.hasRestriction ? (
         <div className="flex flex-wrap gap-1">
           {cell.marks.map((mark) => (
-            <span
-              key={mark.key}
-              className={restrictionMarkClass(mark.kind)}
-            >
+            <span key={mark.key} className={restrictionMarkClass(mark.kind)}>
               {mark.label}
             </span>
           ))}
         </div>
       ) : (
-        <span className="text-[11px] font-medium text-[#6F665D]">
+        <span className="text-xs font-medium text-[#5A4833]">
           {RESTRICTION_CALENDAR_OPEN_LABEL}
         </span>
       )}
 
-      <span className="mt-1.5 text-[9px] text-muted-foreground">
+      <span className="mt-1.5 text-[11px] font-medium text-[#756A5B]">
         {cell.inventory.occupancyPercent}% occ
       </span>
     </button>

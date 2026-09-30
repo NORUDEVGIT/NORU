@@ -27,17 +27,21 @@ export function RestrictionDetailHistory({
     <div className="space-y-3">
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {rows.length === 0 && !error ? (
-        <p className="text-xs text-muted-foreground">{RESTRICTION_CALENDAR_HISTORY_EMPTY}</p>
+        <p className="text-xs text-[#756A5B]">{RESTRICTION_CALENDAR_HISTORY_EMPTY}</p>
       ) : (
-        <ol className="space-y-2">
+        <ol className="space-y-2.5">
           {rows.map((row) => {
             const changed = restrictionChangedFields(row.previous, row.next);
             return (
-              <li key={row.id} className="border-l-2 border-[#C89933]/50 pl-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {restrictionActionLabel(row.actionType)} · {new Date(row.createdAt).toLocaleString()}
+              <li
+                key={row.id}
+                className="rounded-lg border border-[#E8E1D7] border-l-4 border-l-[#C89933] bg-white p-3"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#756A5B]">
+                  {restrictionActionLabel(row.actionType)} ·{" "}
+                  {new Date(row.createdAt).toLocaleString()}
                 </p>
-                <p className="text-xs text-[#251605]">
+                <p className="mt-1 text-xs font-medium text-[#251605]">
                   {changed.length === 0
                     ? "No field changes"
                     : changed
@@ -47,7 +51,7 @@ export function RestrictionDetailHistory({
                         )
                         .join(" · ")}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="mt-1 text-xs text-[#756A5B]">
                   {restrictionActorLabel(row)} · {restrictionSourceLabel(row.source)}
                   {row.reason ? ` · ${row.reason}` : ""}
                 </p>
@@ -59,7 +63,7 @@ export function RestrictionDetailHistory({
       <Link
         to="/restaurant/pms/rates-revenue"
         search={search}
-        className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-[10px] text-[#251605] hover:bg-[#F8F1E5]"
+        className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#FAF6F0]"
       >
         View Full Restriction History
       </Link>

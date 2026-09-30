@@ -12,7 +12,10 @@ import {
 } from "@/packages/pms/lib/revenue/restriction-calendar";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
-import { RESTRICTION_CALENDAR_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
+import {
+  RESTRICTION_CALENDAR_LOAD_ERROR,
+  revenueUiError,
+} from "@/packages/pms/lib/revenue/revenue-read-error";
 import {
   RestrictionDetailDrawer,
   type RestrictionDrawerTab,
@@ -53,6 +56,7 @@ export function RestrictionCalendarView({
 }) {
   const fetchCalendar = useServerFn(getRevenueRateCalendar);
   const [selected, setSelected] = useState<RestrictionCalendarCell | null>(null);
+  const [selectedRowPlanId, setSelectedRowPlanId] = useState<string | null>(null);
   const [tab, setTab] = useState<RestrictionDrawerTab>("overview");
   const [page, setPage] = useState(0);
 
@@ -85,17 +89,20 @@ export function RestrictionCalendarView({
 
   const paged = useMemo(() => {
     if (!calendar) return null;
-    const maxPage = Math.max(0, Math.ceil(calendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE) - 1);
+    const maxPage = Math.max(
+      0,
+      Math.ceil(calendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE) - 1,
+    );
     return pageGroups(calendar, Math.min(page, maxPage));
   }, [calendar, page]);
 
   const selectedMeta = useMemo(() => {
-    if (!selected || !calendar) return { plan: null, roomType: null };
+    if (!selected || !calendar) return { plan: null, roomType: null, cells: [] };
     for (const group of calendar.groups) {
       const row = group.rows.find((item) => item.plan.id === selected.ratePlanId);
-      if (row) return { plan: row.plan, roomType: group.roomType };
+      if (row) return { plan: row.plan, roomType: group.roomType, cells: row.cells };
     }
-    return { plan: null, roomType: null };
+    return { plan: null, roomType: null, cells: [] };
   }, [selected, calendar]);
 
   const selectedCell = useMemo(() => {
@@ -111,7 +118,9 @@ export function RestrictionCalendarView({
     return selected;
   }, [selected, calendar]);
 
-  const pageCount = calendar ? Math.max(1, Math.ceil(calendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE)) : 1;
+  const pageCount = calendar
+    ? Math.max(1, Math.ceil(calendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE))
+    : 1;
 
   return (
     <div className="space-y-3">
@@ -139,52 +148,66 @@ export function RestrictionCalendarView({
           description="Configure room types and rate plans in Property Setup."
         />
       ) : paged ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0 space-y-2">
+        <div className="min-w-0 space-y-3">
           <RestrictionCalendarLegend />
 
-            <RestrictionCalendarGrid
-              data={paged}
-              selected={selectedCell}
-              onSelect={(cell) => {
-                setSelected(cell);
-                setTab("overview");
-              }}
-            />
-            {pageCount > 1 ? (
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <button
-                  type="button"
-                  disabled={page <= 0}
-                  onClick={() => setPage((current) => Math.max(0, current - 1))}
-                  className="rounded-md border border-[#DED7CD] bg-white px-2 py-1 disabled:opacity-50"
-                >
-                  Previous room types
-                </button>
-                <span>
-                  {page + 1} / {pageCount}
-                </span>
-                <button
-                  type="button"
-                  disabled={page + 1 >= pageCount}
-                  onClick={() => setPage((current) => current + 1)}
-                  className="rounded-md border border-[#DED7CD] bg-white px-2 py-1 disabled:opacity-50"
-                >
-                  Next room types
-                </button>
-              </div>
-            ) : null}
-          </div>
+          <RestrictionCalendarGrid
+            data={paged}
+            selected={selectedCell}
+            selectedRowPlanId={selectedRowPlanId}
+            onSelect={(cell) => {
+              setSelected(cell);
+              setSelectedRowPlanId(null);
+              setTab("overview");
+            }}
+            onSelectRow={(row) => {
+              if (row.cells[0]) {
+                setSelected(row.cells[0]);
+                setSelectedRowPlanId(row.plan.id);
+                setTab("edit");
+              }
+            }}
+          />
+
+          {pageCount > 1 ? (
+            <div className="flex items-center justify-between rounded-xl border border-[#DDD4C5] bg-white px-4 py-2.5 text-xs font-medium text-[#5A4833] shadow-sm">
+              <button
+                type="button"
+                disabled={page <= 0}
+                onClick={() => setPage((current) => Math.max(0, current - 1))}
+                className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#F8F1E5] disabled:opacity-50"
+              >
+                Previous room types
+              </button>
+              <span>
+                Page {page + 1} of {pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={page + 1 >= pageCount}
+                onClick={() => setPage((current) => current + 1)}
+                className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#F8F1E5] disabled:opacity-50"
+              >
+                Next room types
+              </button>
+            </div>
+          ) : null}
+
           <RestrictionDetailDrawer
             restaurantId={restaurantId}
             cell={selectedCell}
             plan={selectedMeta.plan}
             roomType={selectedMeta.roomType}
+            rowCells={selectedMeta.cells}
+            editScope={selectedRowPlanId ? "row" : "single"}
             context={context}
             access={access}
             tab={tab}
             setTab={setTab}
-            onClose={() => setSelected(null)}
+            onClose={() => {
+              setSelected(null);
+              setSelectedRowPlanId(null);
+            }}
           />
         </div>
       ) : null}
