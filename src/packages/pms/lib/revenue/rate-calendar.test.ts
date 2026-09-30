@@ -221,7 +221,7 @@ describe("RR-P2-03 — wiring, drawer and no fake product", () => {
     assert.match(view, /setSelected\(cell\)/);
     assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
     assert.doesNotMatch(drawer, /<aside/);
-    assert.match(drawer, /<Sheet open=\{ready\}/);
+    assert.match(drawer, /<Sheet[\s\S]*?open=\{ready\}/);
     assert.match(drawer, /Rate Detail & Edit/);
     assert.match(drawer, /Overview/);
     assert.match(drawer, /Edit Rate/);

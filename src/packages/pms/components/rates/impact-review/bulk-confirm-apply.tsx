@@ -5,6 +5,7 @@ import {
   type BulkPreviewSummary,
 } from "@/packages/pms/lib/revenue/bulk-rate-change";
 import {
+  APPROVE_APPLY_LABEL,
   BULK_RATE_SUBMITTED_TOAST,
   SUBMIT_FOR_APPROVAL_LABEL,
 } from "@/packages/pms/lib/revenue/revenue-approval-ui";
@@ -24,6 +25,7 @@ export function BulkConfirmApply({
   submitted,
   submitForApproval,
   onApply,
+  onApproveImmediate,
 }: {
   summary: BulkPreviewSummary | null;
   reason: string | null;
@@ -38,6 +40,7 @@ export function BulkConfirmApply({
   submitted?: boolean;
   submitForApproval?: boolean;
   onApply: () => void;
+  onApproveImmediate?: () => void;
 }) {
   if (submitted) {
     return (
@@ -86,6 +89,9 @@ export function BulkConfirmApply({
     );
   }
 
+  const isDisabled =
+    !canEdit || applying || !summary || summary.invalidTargets > 0 || summary.validTargets === 0;
+
   return (
     <div className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4">
       <p className="text-sm font-semibold text-[#251605]">
@@ -104,20 +110,37 @@ export function BulkConfirmApply({
           You can review this change, but applying daily rates is disabled.
         </p>
       ) : null}
-      <button
-        type="button"
-        disabled={
-          !canEdit ||
-          applying ||
-          !summary ||
-          summary.invalidTargets > 0 ||
-          summary.validTargets === 0
-        }
-        onClick={onApply}
-        className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-4 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] disabled:opacity-50"
-      >
-        {applying ? "Applying…" : submitForApproval ? SUBMIT_FOR_APPROVAL_LABEL : "Confirm & Apply"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        {submitForApproval ? (
+          <>
+            <button
+              type="button"
+              disabled={isDisabled}
+              onClick={onApply}
+              className="inline-flex h-9 items-center rounded-lg border border-[#C89933] bg-[#FAF6F0] px-4 text-xs font-semibold text-[#251605] hover:bg-[#F1E6D2] disabled:opacity-50"
+            >
+              {applying ? "Submitting…" : SUBMIT_FOR_APPROVAL_LABEL}
+            </button>
+            <button
+              type="button"
+              disabled={isDisabled}
+              onClick={onApproveImmediate ?? onApply}
+              className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-4 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] disabled:opacity-50"
+            >
+              {applying ? "Applying…" : APPROVE_APPLY_LABEL}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={isDisabled}
+            onClick={onApproveImmediate ?? onApply}
+            className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-4 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] disabled:opacity-50"
+          >
+            {applying ? "Applying…" : "Confirm & Apply"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

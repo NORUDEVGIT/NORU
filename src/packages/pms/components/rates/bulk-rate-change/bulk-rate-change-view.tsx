@@ -93,6 +93,10 @@ export function BulkRateChangeView({
     context.roomTypeId ? [context.roomTypeId] : [],
   );
   const [planIds, setPlanIds] = useState<string[]>(context.ratePlanId ? [context.ratePlanId] : []);
+  const [selectedCell, setSelectedCell] = useState<
+    import("@/packages/pms/lib/revenue/rate-calendar").RateCalendarCell | null
+  >(null);
+  const [selectedRowPlanId, setSelectedRowPlanId] = useState<string | null>(null);
   const [action, setAction] = useState<RateChangeRule["type"]>("SET_RATE");
   const [value, setValue] = useState("");
   const [sourceDate, setSourceDate] = useState("");
@@ -204,6 +208,26 @@ export function BulkRateChangeView({
     },
   });
 
+  const approveImmediateMutation = useMutation({
+    mutationFn: () => applyFn({ data: { ...requestPayload(), applyImmediately: true } }),
+    onSuccess: (result) => {
+      setError(null);
+      setSubmittedRequest(null);
+      setSuccess(true);
+      setAppliedCount("appliedCount" in result ? result.appliedCount : null);
+      void queryClient.invalidateQueries({ queryKey: ["revenue-rate-calendar"] });
+      void queryClient.invalidateQueries({ queryKey: ["revenue-control"] });
+      void queryClient.invalidateQueries({ queryKey: ["rate-change-history"] });
+      void queryClient.invalidateQueries({ queryKey: ["bulk-rate-preview"] });
+    },
+    onError: (err: Error) => {
+      const message = failMessage(err.message);
+      setError(message);
+      setSuccess(false);
+      if (isBulkStaleMessage(err.message)) setStep(3);
+    },
+  });
+
   function updateScope(patch: {
     fromDate?: string;
     toDate?: string;
@@ -217,6 +241,8 @@ export function BulkRateChangeView({
       setPlanIds(prunePlanIdsForRoomTypes(planIds, ratePlans, patch.roomTypeIds));
     }
     if (patch.planIds) setPlanIds(patch.planIds);
+    setSelectedCell(null);
+    setSelectedRowPlanId(null);
     setPreview(null);
     setError(null);
     setSuccess(false);
@@ -225,6 +251,8 @@ export function BulkRateChangeView({
   function cancelWizard() {
     setStep(1);
     setDrawerOpen(false);
+    setSelectedCell(null);
+    setSelectedRowPlanId(null);
     setPreview(null);
     setError(null);
     setSuccess(false);
@@ -232,6 +260,7 @@ export function BulkRateChangeView({
     setSubmittedRequest(null);
     previewMutation.reset();
     applyMutation.reset();
+    approveImmediateMutation.reset();
   }
 
   function openWorkflowDrawer() {
@@ -250,7 +279,7 @@ export function BulkRateChangeView({
     <div className="rounded-xl border border-[#DDD4C5] bg-white px-4 py-3 text-xs text-[#251605]">
       <p className="font-semibold uppercase tracking-wider text-[#8A641A]">Selected Scope</p>
       <p className="mt-1 text-sm font-semibold text-[#251605]">
-        {fromDate} – {toDate}
+        {fromDate === toDate ? `Specific Date: ${fromDate}` : `${fromDate} – ${toDate}`}
       </p>
       <p className="mt-0.5 text-xs text-[#5A4833]">
         {roomTypeIds.length || roomTypes.length} room type
@@ -305,7 +334,7 @@ export function BulkRateChangeView({
           summary={summary}
           reason={reason.trim() || null}
           canEdit={canEdit}
-          applying={applyMutation.isPending}
+          applying={applyMutation.isPending || approveImmediateMutation.isPending}
           error={error}
           success={success}
           appliedCount={appliedCount}
@@ -315,6 +344,7 @@ export function BulkRateChangeView({
           submitted={Boolean(submittedRequest)}
           submitForApproval={policyQuery.data?.enabled === true}
           onApply={() => applyMutation.mutate()}
+          onApproveImmediate={() => approveImmediateMutation.mutate()}
         />
       </div>
     );
@@ -388,7 +418,7 @@ export function BulkRateChangeView({
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold text-[#251605]">
             <span>
-              {fromDate} – {toDate}
+              {fromDate === toDate ? `Specific Date: ${fromDate}` : `${fromDate} – ${toDate}`}
             </span>
             <span className="text-[#756A5B]">·</span>
             <span>
@@ -451,7 +481,39 @@ export function BulkRateChangeView({
       ) : calendarQuery.data && calendarQuery.data.groups.length > 0 ? (
         <div className="space-y-3">
           <RateCalendarLegend />
-          <RateCalendarGrid data={calendarQuery.data} selected={null} onSelect={() => undefined} />
+          <RateCalendarGrid
+            data={calendarQuery.data}
+            selected={selectedCell}
+            selectedRowPlanId={selectedRowPlanId}
+            onSelect={(cell) => {
+              setSelectedCell(cell);
+              setSelectedRowPlanId(null);
+              setFromDate(cell.date);
+              setToDate(cell.date);
+              setRoomTypeIds([cell.roomTypeId]);
+              setPlanIds([cell.ratePlanId]);
+              setValue(String(cell.effectiveRate));
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+              setStep(2);
+              setDrawerOpen(true);
+            }}
+            onSelectRow={(row, roomType) => {
+              setSelectedCell(null);
+              setSelectedRowPlanId(row.plan.id);
+              setRoomTypeIds([roomType.id]);
+              setPlanIds([row.plan.id]);
+              if (row.cells[0]) {
+                setValue(String(row.cells[0].effectiveRate));
+              }
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+              setStep(2);
+              setDrawerOpen(true);
+            }}
+          />
         </div>
       ) : null}
 
@@ -459,7 +521,7 @@ export function BulkRateChangeView({
       <BulkRateChangePanel
         open={drawerOpen}
         step={step}
-        subtitle={`${fromDate} – ${toDate} · ${planIds.length} rate plan${planIds.length === 1 ? "" : "s"}`}
+        subtitle={`${fromDate === toDate ? fromDate : `${fromDate} – ${toDate}`} · ${planIds.length} rate plan${planIds.length === 1 ? "" : "s"}`}
         progress={!success && !submittedRequest}
         body={drawerBody}
         footer={footer}

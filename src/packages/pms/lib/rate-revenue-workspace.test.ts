@@ -55,7 +55,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
   it("D. implemented functional views still mount existing tabs", () => {
     const workspace = readRel("../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /<RevenueControlView /);
-    assert.match(workspace, /<RatePlansTab /);
+    assert.match(workspace, /<RatePlansTab[\s\S]*?restaurantId/);
     assert.match(workspace, /<RateCalendarView/);
     assert.match(workspace, /<RestrictionCalendarView/);
     assert.match(workspace, /<BulkRateChangeView/);

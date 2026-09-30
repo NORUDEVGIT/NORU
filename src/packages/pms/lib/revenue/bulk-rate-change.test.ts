@@ -321,7 +321,7 @@ describe("RR-P2-04 — wiring, apply and no fake product", () => {
     assert.match(view, /canEditDailyRates/);
     assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
     assert.doesNotMatch(panel, /<aside/);
-    assert.match(panel, /<Sheet open=\{open\}/);
+    assert.match(panel, /<Sheet[\s\S]*?open=\{open\}/);
     assert.match(view, /Review Bulk Change/);
     assert.match(view, /Back to Selection/);
     assert.match(scope, /BULK_RATE_CHANGE_OVER_MAX_COPY/);

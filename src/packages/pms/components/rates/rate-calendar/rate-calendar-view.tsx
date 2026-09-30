@@ -54,6 +54,7 @@ export function RateCalendarView({
   const money = useMoney();
   const fetchCalendar = useServerFn(getRevenueRateCalendar);
   const [selected, setSelected] = useState<RateCalendarCell | null>(null);
+  const [selectedRowPlanId, setSelectedRowPlanId] = useState<string | null>(null);
   const [tab, setTab] = useState<DrawerTab>("overview");
   const [page, setPage] = useState(0);
 
@@ -89,12 +90,12 @@ export function RateCalendarView({
   }, [query.data, page]);
 
   const selectedMeta = useMemo(() => {
-    if (!selected || !query.data) return { plan: null, roomType: null };
+    if (!selected || !query.data) return { plan: null, roomType: null, cells: [] };
     for (const group of query.data.groups) {
       const row = group.rows.find((item) => item.plan.id === selected.ratePlanId);
-      if (row) return { plan: row.plan, roomType: group.roomType };
+      if (row) return { plan: row.plan, roomType: group.roomType, cells: row.cells };
     }
-    return { plan: null, roomType: null };
+    return { plan: null, roomType: null, cells: [] };
   }, [selected, query.data]);
 
   const pageCount = query.data
@@ -134,9 +135,18 @@ export function RateCalendarView({
           <RateCalendarGrid
             data={paged}
             selected={selected}
+            selectedRowPlanId={selectedRowPlanId}
             onSelect={(cell) => {
               setSelected(cell);
+              setSelectedRowPlanId(null);
               setTab("overview");
+            }}
+            onSelectRow={(row) => {
+              if (row.cells[0]) {
+                setSelected(row.cells[0]);
+                setSelectedRowPlanId(row.plan.id);
+                setTab("edit");
+              }
             }}
           />
           {pageCount > 1 ? (
@@ -168,11 +178,16 @@ export function RateCalendarView({
             cell={selected}
             plan={selectedMeta.plan}
             roomType={selectedMeta.roomType}
+            rowCells={selectedMeta.cells}
+            editScope={selectedRowPlanId ? "row" : "single"}
             context={context}
             access={access}
             tab={tab}
             setTab={setTab}
-            onClose={() => setSelected(null)}
+            onClose={() => {
+              setSelected(null);
+              setSelectedRowPlanId(null);
+            }}
             money={money}
           />
         </div>

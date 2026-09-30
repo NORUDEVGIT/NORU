@@ -17,7 +17,7 @@ import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { RateDetailHistory } from "./rate-detail-history";
 import { RateDetailOverview } from "./rate-detail-overview";
 import { RateDetailRestrictions } from "./rate-detail-restrictions";
-import { RateEditForm } from "./rate-edit-form";
+import { RateEditForm, type RateEditScope } from "./rate-edit-form";
 
 type DrawerTab = "overview" | "edit" | "restrictions" | "history";
 
@@ -26,6 +26,8 @@ function DrawerBody({
   cell,
   plan,
   roomType,
+  rowCells,
+  editScope,
   context,
   access,
   tab,
@@ -37,6 +39,8 @@ function DrawerBody({
   cell: RateCalendarCell;
   plan: RateCalendarPlan;
   roomType: RateCalendarRoomType;
+  rowCells: RateCalendarCell[];
+  editScope: RateEditScope;
   context: RevenueContext;
   access: RevenueAccess;
   tab: DrawerTab;
@@ -78,7 +82,10 @@ function DrawerBody({
             {plan.code} — {plan.name}
           </h3>
           <p className="mt-0.5 text-xs font-medium text-[#5A4833]">
-            {roomType.name} · {formatStayDate(cell.date)}
+            {roomType.name} ·{" "}
+            {editScope === "row"
+              ? `Whole Row (${context.fromDate} – ${context.toDate})`
+              : formatStayDate(cell.date)}
           </p>
         </div>
         <button
@@ -125,6 +132,10 @@ function DrawerBody({
             restaurantId={restaurantId}
             cell={cell}
             plan={plan}
+            rowCells={rowCells}
+            initialScope={editScope}
+            defaultFromDate={context.fromDate}
+            defaultToDate={context.toDate}
             canEdit={access.canEditDailyRates}
             money={money}
           />
@@ -156,6 +167,8 @@ export function RateDetailDrawer({
   cell,
   plan,
   roomType,
+  rowCells = [],
+  editScope = "single",
   context,
   access,
   tab,
@@ -167,6 +180,8 @@ export function RateDetailDrawer({
   cell: RateCalendarCell | null;
   plan: RateCalendarPlan | null;
   roomType: RateCalendarRoomType | null;
+  rowCells?: RateCalendarCell[];
+  editScope?: RateEditScope;
   context: RevenueContext;
   access: RevenueAccess;
   tab: DrawerTab;
@@ -190,6 +205,8 @@ export function RateDetailDrawer({
             cell={cell}
             plan={plan}
             roomType={roomType}
+            rowCells={rowCells}
+            editScope={editScope}
             context={context}
             access={access}
             tab={tab}

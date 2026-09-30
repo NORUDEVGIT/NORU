@@ -1,4 +1,5 @@
-import { X } from "lucide-react";
+import { useState } from "react";
+import { SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/shared/components/ui/select";
 import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { addUtcDays } from "@/packages/pms/lib/revenue/revenue-context";
 import type {
   RevenueContext,
   RevenueContextField,
@@ -116,6 +118,8 @@ export function RevenueContextBar({
   coreConfigStatus?: "loading" | "error" | "success";
   cataloguesStatus?: "loading" | "error" | "success";
 }) {
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
   if (fields.length === 0) return null;
 
   const visiblePlans = context.roomTypeId
@@ -164,8 +168,6 @@ export function RevenueContextBar({
       onRemove: () => onChange({ salesChannelId: null }),
     });
   }
-
-  const hasActiveFilters = activeChips.length > 0;
 
   return (
     <section className="rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm">
@@ -283,12 +285,12 @@ export function RevenueContextBar({
           />
         ) : null}
 
-        {hasActiveFilters ? (
+        <div className="ml-auto flex items-end gap-2">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-10 px-3 text-sm font-semibold text-[#5A4833] hover:text-[#251605]"
+            className="h-10 px-3 text-xs font-semibold text-[#5A4833] hover:text-[#251605]"
             onClick={() =>
               onChange({
                 roomTypeId: null,
@@ -301,7 +303,17 @@ export function RevenueContextBar({
           >
             Clear
           </Button>
-        ) : null}
+          <Button
+            type="button"
+            size="sm"
+            className="h-10 bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
+            onClick={() => setFiltersExpanded((current) => !current)}
+          >
+            <SlidersHorizontal className="mr-1.5 size-3.5" />
+            Filters
+            {activeChips.length > 0 ? ` (${activeChips.length})` : ""}
+          </Button>
+        </div>
 
         {coreConfigStatus === "error" ? (
           <p className="w-full text-sm text-destructive">{REVENUE_CONFIG_LOAD_ERROR}</p>
@@ -310,6 +322,36 @@ export function RevenueContextBar({
           <p className="w-full text-sm text-destructive">{cataloguesError}</p>
         ) : null}
       </div>
+
+      {filtersExpanded && fields.includes("dateRange") ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EFE9DF] pt-2.5 text-xs text-[#5A4833]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-[#251605]">Quick Window:</span>
+            {[
+              { label: "7 Days", days: 6 },
+              { label: "14 Days", days: 13 },
+              { label: "30 Days", days: 29 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    fromDate: context.fromDate,
+                    toDate: addUtcDays(context.fromDate, preset.days),
+                  })
+                }
+                className="inline-flex h-7 items-center rounded-md border border-[#DED7CD] bg-[#FAF6F0] px-2.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#EFE7DA]"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-[#756A5B]">
+            Showing {context.fromDate} – {context.toDate}
+          </span>
+        </div>
+      ) : null}
 
       {activeChips.length > 0 ? (
         <ul className="mt-3 flex flex-wrap gap-2">

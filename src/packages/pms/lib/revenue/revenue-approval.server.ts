@@ -570,7 +570,7 @@ export async function executeOrSubmitRateChange(
   actor: RevenueApprovalActor,
 ): Promise<RevenueMutationResult<RateChangeApplyResult>> {
   const policy = await getRevenueApprovalPolicy(writeDb, request.restaurantId);
-  if (!policy.enabled) {
+  if (!policy.enabled || request.applyImmediately) {
     const applied = await applyRateChanges(readDb, writeDb, request, actor);
     return { mode: "applied", ...applied };
   }

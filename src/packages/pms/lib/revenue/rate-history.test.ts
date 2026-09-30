@@ -161,7 +161,7 @@ describe("RR-P2-05 — wiring, honesty and Phase 2 flow lock", () => {
   it("opens a consistent on-demand operation drawer for single and bulk rows with full-width table", () => {
     assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
     assert.doesNotMatch(drawer, /<aside/);
-    assert.match(drawer, /<Sheet open=\{open\}/);
+    assert.match(drawer, /<Sheet[\s\S]*?open=\{open\}/);
     assert.match(drawer, /Open Related Rate Calendar/);
     assert.match(table, /View Details/);
     assert.match(table, /View Operation/);

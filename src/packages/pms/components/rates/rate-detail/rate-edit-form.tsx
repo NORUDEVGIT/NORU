@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -7,14 +7,23 @@ import { toast } from "sonner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
+import {
+  expandBulkTargets,
+  expectedVersionsFromPreview,
+} from "@/packages/pms/lib/revenue/bulk-rate-change";
 import type { RateCalendarCell, RateCalendarPlan } from "@/packages/pms/lib/revenue/rate-calendar";
 import { RATE_CALENDAR_STALE_COPY } from "@/packages/pms/lib/revenue/rate-calendar";
 import {
   applyRateChanges,
   previewRateChanges,
 } from "@/packages/pms/lib/revenue/rate-change.functions";
-import type { RateChangePreview, RateChangeRule } from "@/packages/pms/lib/revenue/rate-change";
 import {
+  ABSENT_CALENDAR_VERSION,
+  type RateChangePreview,
+  type RateChangeRule,
+} from "@/packages/pms/lib/revenue/rate-change";
+import {
+  APPROVE_APPLY_LABEL,
   RATE_SUBMITTED_TOAST,
   SUBMIT_FOR_APPROVAL_LABEL,
   approvalRequestSearch,
@@ -23,6 +32,7 @@ import {
 } from "@/packages/pms/lib/revenue/revenue-approval-ui";
 
 type EditAction = RateChangeRule["type"];
+export type RateEditScope = "single" | "row";
 
 function staleMessage(message: string) {
   if (/RATE_CHANGE_STALE|changed by someone else|changed after this preview/i.test(message)) {
@@ -35,12 +45,20 @@ export function RateEditForm({
   restaurantId,
   cell,
   plan,
+  rowCells = [],
+  initialScope = "single",
+  defaultFromDate,
+  defaultToDate,
   canEdit,
   money,
 }: {
   restaurantId: string;
   cell: RateCalendarCell;
   plan: RateCalendarPlan;
+  rowCells?: RateCalendarCell[];
+  initialScope?: RateEditScope;
+  defaultFromDate?: string;
+  defaultToDate?: string;
   canEdit: boolean;
   money: (value: number) => string;
 }) {
@@ -49,6 +67,10 @@ export function RateEditForm({
   const policyQuery = useRevenueApprovalPolicy(restaurantId);
   const previewFn = useServerFn(previewRateChanges);
   const applyFn = useServerFn(applyRateChanges);
+
+  const [scope, setScope] = useState<RateEditScope>(initialScope);
+  const [rangeFrom, setRangeFrom] = useState(defaultFromDate ?? cell.date);
+  const [rangeTo, setRangeTo] = useState(defaultToDate ?? cell.date);
   const [action, setAction] = useState<EditAction>("SET_RATE");
   const [value, setValue] = useState(String(cell.effectiveRate));
   const [sourceDate, setSourceDate] = useState("");
@@ -56,12 +78,29 @@ export function RateEditForm({
   const [preview, setPreview] = useState<RateChangePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const readOnly = !canEdit || !plan.active || cell.outsideValidity;
+  useEffect(() => {
+    setScope(initialScope);
+    setValue(String(cell.effectiveRate));
+    setPreview(null);
+    setError(null);
+  }, [initialScope, cell.ratePlanId, cell.date, cell.effectiveRate]);
+
+  useEffect(() => {
+    if (defaultFromDate) setRangeFrom(defaultFromDate);
+    if (defaultToDate) setRangeTo(defaultToDate);
+  }, [defaultFromDate, defaultToDate]);
+
+  const rowExpansion = useMemo(
+    () => expandBulkTargets({ planIds: [cell.ratePlanId], fromDate: rangeFrom, toDate: rangeTo }),
+    [cell.ratePlanId, rangeFrom, rangeTo],
+  );
+
+  const readOnly = !canEdit || !plan.active || (scope === "single" && cell.outsideValidity);
   const readOnlyReason = !canEdit
     ? "You do not have permission to edit daily rates."
     : !plan.active
       ? "This rate plan is inactive. Rate editing is read-only."
-      : cell.outsideValidity
+      : scope === "single" && cell.outsideValidity
         ? "This date is outside the rate plan validity window."
         : null;
 
@@ -74,7 +113,32 @@ export function RateEditForm({
     return { type: "SET_RATE", value: numeric };
   }
 
-  function requestPayload() {
+  function requestPayload(applyImmediately?: boolean, forPreview = false) {
+    if (scope === "row") {
+      if (!rowExpansion.ok) {
+        throw new Error("Select a valid date range for the row.");
+      }
+      const cellVersionMap = new Map(rowCells.map((c) => [c.date, c.expectedVersion]));
+      const expectedVersions = forPreview
+        ? undefined
+        : preview?.items.length
+          ? expectedVersionsFromPreview(preview.items)
+          : rowExpansion.targets.map((target) => ({
+              ratePlanId: target.ratePlanId,
+              date: target.date,
+              expectedVersion: cellVersionMap.get(target.date) ?? ABSENT_CALENDAR_VERSION,
+            }));
+      return {
+        restaurantId,
+        targets: rowExpansion.targets,
+        rule: buildRule(),
+        reason: reason.trim() || null,
+        expectedVersions,
+        source: "rate_calendar" as const,
+        ...(applyImmediately ? { applyImmediately: true } : {}),
+      };
+    }
+
     return {
       restaurantId,
       targets: [{ ratePlanId: cell.ratePlanId, date: cell.date }],
@@ -84,17 +148,22 @@ export function RateEditForm({
         { ratePlanId: cell.ratePlanId, date: cell.date, expectedVersion: cell.expectedVersion },
       ],
       source: "rate_calendar" as const,
+      ...(applyImmediately ? { applyImmediately: true } : {}),
     };
   }
 
   const previewMutation = useMutation({
-    mutationFn: () => previewFn({ data: requestPayload() }),
+    mutationFn: () => previewFn({ data: requestPayload(false, true) }),
     onSuccess: (data) => {
       setPreview(data);
       setError(
         data.valid
           ? null
-          : staleMessage(data.items[0]?.validationMessages[0] ?? "Preview is not valid."),
+          : staleMessage(
+              data.items.find((i) => i.validationStatus === "invalid")?.validationMessages[0] ??
+                data.items[0]?.validationMessages[0] ??
+                "Preview is not valid.",
+            ),
       );
     },
     onError: (err: Error) => {
@@ -104,7 +173,8 @@ export function RateEditForm({
   });
 
   const applyMutation = useMutation({
-    mutationFn: () => applyFn({ data: requestPayload() }),
+    mutationFn: (applyImmediately: boolean = false) =>
+      applyFn({ data: requestPayload(applyImmediately, false) }),
     onSuccess: (result) => {
       setError(null);
       const handled = handleRevenueMutationResult(result);
@@ -124,6 +194,11 @@ export function RateEditForm({
         });
         return;
       }
+      toast.success(
+        scope === "row"
+          ? `Rate change approved and applied across ${preview?.items.length ?? 1} date(s).`
+          : "Rate change approved and applied.",
+      );
       void queryClient.invalidateQueries({ queryKey: ["revenue-rate-calendar"] });
       void queryClient.invalidateQueries({ queryKey: ["revenue-control"] });
       void queryClient.invalidateQueries({ queryKey: ["rate-change-history"] });
@@ -132,16 +207,99 @@ export function RateEditForm({
   });
 
   const item = preview?.items[0];
+  const itemCount = preview?.items.length ?? 0;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3.5">
+      {/* Scope Toggle: Single Date vs Whole Row (Specified Date Range) */}
+      <div className="rounded-xl border border-[#DDD4C5] bg-white p-3">
+        <p className="text-xs font-semibold text-[#5A4833]">Update Scope</p>
+        <div
+          role="group"
+          aria-label="Rate update scope"
+          className="mt-1.5 grid grid-cols-2 gap-1.5 rounded-lg border border-[#DDD4C5] bg-[#F7F4EE] p-1"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setScope("single");
+              setPreview(null);
+              setError(null);
+            }}
+            className={[
+              "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+              scope === "single"
+                ? "bg-white text-[#251605] shadow-sm"
+                : "text-[#756A5B] hover:text-[#251605]",
+            ].join(" ")}
+          >
+            Specific Date ({cell.date})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setScope("row");
+              setPreview(null);
+              setError(null);
+            }}
+            className={[
+              "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+              scope === "row"
+                ? "bg-white text-[#251605] shadow-sm"
+                : "text-[#756A5B] hover:text-[#251605]",
+            ].join(" ")}
+          >
+            Whole Row (Date Range)
+          </button>
+        </div>
+
+        {scope === "row" ? (
+          <div className="mt-2.5 grid grid-cols-2 gap-2.5 border-t border-[#EFE9DF] pt-2.5">
+            <label className="grid gap-1 text-xs font-semibold text-[#5A4833]">
+              From Date
+              <Input
+                type="date"
+                value={rangeFrom}
+                onChange={(event) => {
+                  setRangeFrom(event.target.value);
+                  setPreview(null);
+                }}
+                className="h-9 text-xs font-medium text-[#251605]"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-[#5A4833]">
+              To Date
+              <Input
+                type="date"
+                value={rangeTo}
+                onChange={(event) => {
+                  setRangeTo(event.target.value);
+                  setPreview(null);
+                }}
+                className="h-9 text-xs font-medium text-[#251605]"
+              />
+            </label>
+            <p className="col-span-2 text-xs text-[#756A5B]">
+              {rowExpansion.ok
+                ? `Applies to ${plan.code} across ${rowExpansion.targetCount} date(s) (${rangeFrom} – ${rangeTo}).`
+                : "Select a valid From and To date range."}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-[#756A5B]">
+            Updates <span className="font-semibold text-[#251605]">{plan.code}</span> on{" "}
+            <span className="font-semibold text-[#251605]">{cell.date}</span> only.
+          </p>
+        )}
+      </div>
+
       {readOnly ? <p className="text-xs text-[#6B4A0A]">{readOnlyReason}</p> : null}
 
       <div>
         <Label htmlFor="rate-edit-action">Change</Label>
         <select
           id="rate-edit-action"
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+          className="mt-1 flex h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
           value={action}
           disabled={readOnly}
           onChange={(event) => {
@@ -211,8 +369,17 @@ export function RateEditForm({
 
       {item ? (
         <div className="space-y-1.5 rounded-xl border border-[#DDD4C5] bg-white p-3.5 text-xs text-[#251605]">
+          {scope === "row" && itemCount > 1 ? (
+            <p className="border-b border-[#EFE9DF] pb-1.5 font-semibold text-[#251605]">
+              Previewing {itemCount} dates ({rangeFrom} – {rangeTo})
+            </p>
+          ) : null}
           <p className="flex justify-between">
-            <span className="text-[#756A5B]">Current effective:</span>
+            <span className="text-[#756A5B]">
+              {scope === "row" && itemCount > 1
+                ? "First date current effective:"
+                : "Current effective:"}
+            </span>
             <span className="font-semibold">
               {item.currentEffectiveRate == null ? "—" : money(item.currentEffectiveRate)}
             </span>
@@ -246,20 +413,42 @@ export function RateEditForm({
       <div className="flex flex-wrap gap-2 pt-1">
         <button
           type="button"
-          disabled={readOnly || previewMutation.isPending}
+          disabled={readOnly || previewMutation.isPending || (scope === "row" && !rowExpansion.ok)}
           onClick={() => previewMutation.mutate()}
           className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#FAF6F0] disabled:opacity-50"
         >
           Preview Rate Change
         </button>
-        <button
-          type="button"
-          disabled={readOnly || !preview?.valid || applyMutation.isPending}
-          onClick={() => applyMutation.mutate()}
-          className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#B5882D] disabled:opacity-50"
-        >
-          {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Apply Rate Change"}
-        </button>
+
+        {policyQuery.data?.enabled ? (
+          <>
+            <button
+              type="button"
+              disabled={readOnly || !preview?.valid || applyMutation.isPending}
+              onClick={() => applyMutation.mutate(false)}
+              className="inline-flex h-9 items-center rounded-lg border border-[#C89933] bg-[#FAF6F0] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F1E6D2] disabled:opacity-50"
+            >
+              {SUBMIT_FOR_APPROVAL_LABEL}
+            </button>
+            <button
+              type="button"
+              disabled={readOnly || !preview?.valid || applyMutation.isPending}
+              onClick={() => applyMutation.mutate(true)}
+              className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#B5882D] disabled:opacity-50"
+            >
+              {APPROVE_APPLY_LABEL}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={readOnly || !preview?.valid || applyMutation.isPending}
+            onClick={() => applyMutation.mutate(true)}
+            className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#B5882D] disabled:opacity-50"
+          >
+            {APPROVE_APPLY_LABEL}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-import { Info } from "lucide-react";
+import { Info, SlidersHorizontal } from "lucide-react";
 
+import { Button } from "@/shared/components/ui/button";
 import {
   RATE_CHANGE_ACTION_TYPES,
   type RateChangeActionType,
@@ -32,6 +33,29 @@ export function RateHistoryFilters({
             </option>
           ))}
         </select>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-9 px-3 text-xs font-semibold text-[#5A4833] hover:text-[#251605]"
+          onClick={() => onActionTypeChange("")}
+        >
+          Clear
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="h-9 bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
+          onClick={() => {
+            const el = document.getElementById("rate-history-action");
+            el?.focus();
+          }}
+        >
+          <SlidersHorizontal className="mr-1.5 size-3.5" />
+          Filters
+          {actionType ? " (1)" : ""}
+        </Button>
       </div>
 
       <p className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E1D7] bg-[#FAF6F0] px-3 py-1.5 text-xs text-[#5A4833]">

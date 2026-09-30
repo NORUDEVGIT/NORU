@@ -70,6 +70,7 @@ export type RateChangeRequest = {
   reason?: string | null;
   expectedVersions?: RateChangeExpectedVersion[];
   source?: RateChangeSource;
+  applyImmediately?: boolean;
 };
 
 export type RateChangePlanSnapshot = {
@@ -215,6 +216,7 @@ export const rateChangeRequestSchema = z.object({
   reason: z.string().max(500).nullable().optional(),
   expectedVersions: z.array(rateChangeExpectedVersionSchema).optional(),
   source: z.enum(RATE_CHANGE_SOURCES).optional(),
+  applyImmediately: z.boolean().optional(),
 });
 
 export const rateChangeHistoryQuerySchema = z.object({
@@ -245,9 +247,7 @@ export function isIsoDate(value: string): boolean {
   const [year, month, day] = value.split("-").map(Number);
   const dt = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1));
   return (
-    dt.getUTCFullYear() === year &&
-    dt.getUTCMonth() === (month ?? 1) - 1 &&
-    dt.getUTCDate() === day
+    dt.getUTCFullYear() === year && dt.getUTCMonth() === (month ?? 1) - 1 && dt.getUTCDate() === day
   );
 }
 
@@ -589,10 +589,7 @@ export function paginateRateChangeHistory<T>(
   pageSize = RATE_CHANGE_HISTORY_PAGE_SIZE,
 ): { rows: T[]; page: number; pageSize: number; total: number } {
   const safePage = Math.max(1, page);
-  const safeSize = Math.min(
-    RATE_CHANGE_HISTORY_MAX_PAGE_SIZE,
-    Math.max(1, pageSize),
-  );
+  const safeSize = Math.min(RATE_CHANGE_HISTORY_MAX_PAGE_SIZE, Math.max(1, pageSize));
   const total = rows.length;
   const start = (safePage - 1) * safeSize;
   return {

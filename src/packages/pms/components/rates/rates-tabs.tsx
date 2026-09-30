@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { CalendarDays, MoreHorizontal, Search, Settings } from "lucide-react";
+import { CalendarDays, MoreHorizontal, Search, Settings, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -151,6 +151,8 @@ export function RatePlansTab({
   const usingSharedRoomType = roomTypeId !== undefined;
   const roomTypeFilter = usingSharedRoomType ? roomTypeId || ALL : localRoomType;
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
@@ -175,25 +177,39 @@ export function RatePlansTab({
     retry: false,
   });
 
-  const allPlans = plansQuery.data ?? [];
+  const allPlans = useMemo(() => plansQuery.data ?? [], [plansQuery.data]);
   const activeCount = useMemo(() => allPlans.filter((plan) => plan.active).length, [allPlans]);
   const inactiveCount = allPlans.length - activeCount;
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          allPlans
+            .map((plan) => plan.categoryName?.trim())
+            .filter((name): name is string => Boolean(name)),
+        ),
+      ).sort(),
+    [allPlans],
+  );
 
   const filteredPlans = useMemo(() => {
     const queryText = search.trim().toLowerCase();
     return allPlans.filter((plan) => {
       if (statusFilter === "active" && !plan.active) return false;
       if (statusFilter === "inactive" && plan.active) return false;
+      if (categoryFilter !== ALL && (plan.categoryName?.trim() || "") !== categoryFilter) {
+        return false;
+      }
       if (!queryText) return true;
       const haystack =
         `${plan.code} ${plan.name} ${plan.categoryName ?? ""} ${plan.roomTypeName ?? ""}`.toLowerCase();
       return haystack.includes(queryText);
     });
-  }, [allPlans, statusFilter, search]);
+  }, [allPlans, statusFilter, categoryFilter, search]);
 
   useEffect(() => {
     setPage(1);
-  }, [roomTypeFilter, statusFilter, search, pageSize]);
+  }, [roomTypeFilter, statusFilter, categoryFilter, search, pageSize]);
 
   const pageCount = Math.max(1, Math.ceil(filteredPlans.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -208,6 +224,13 @@ export function RatePlansTab({
       return;
     }
     setLocalRoomType(next);
+  }
+
+  function clearFilters() {
+    handleRoomTypeChange(ALL);
+    setStatusFilter("all");
+    setCategoryFilter(ALL);
+    setSearch("");
   }
 
   return (
@@ -231,80 +254,121 @@ export function RatePlansTab({
       </div>
 
       {/* Compact Operational Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex flex-1 flex-wrap items-center gap-2.5">
-          <div className="w-52">
-            <Select value={roomTypeFilter} onValueChange={handleRoomTypeChange}>
-              <SelectTrigger
-                aria-label="Room type"
-                className="h-9 text-sm font-medium text-[#251605]"
-              >
-                <SelectValue placeholder="All room types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL} className="text-sm">
-                  All room types
-                </SelectItem>
-                {(typesQuery.data ?? []).map((t) => (
-                  <SelectItem key={t.id} value={t.id} className="text-sm">
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div
-            role="group"
-            aria-label="Rate plan status filter"
-            className="inline-flex h-9 items-center rounded-lg border border-[#DDD4C5] bg-[#F7F4EE] p-0.5"
-          >
-            {(
-              [
-                { id: "all", label: "All" },
-                { id: "active", label: "Active" },
-                { id: "inactive", label: "Inactive" },
-              ] as const
-            ).map((option) => {
-              const isSelected = statusFilter === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setStatusFilter(option.id)}
-                  className={[
-                    "h-8 rounded-md px-3 text-xs font-semibold transition-colors",
-                    isSelected
-                      ? "bg-white text-[#251605] shadow-sm"
-                      : "text-[#756A5B] hover:text-[#251605]",
-                  ].join(" ")}
+      <div className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-1 flex-wrap items-center gap-2.5">
+            <div className="w-52">
+              <Select value={roomTypeFilter} onValueChange={handleRoomTypeChange}>
+                <SelectTrigger
+                  aria-label="Room type"
+                  className="h-9 text-sm font-medium text-[#251605]"
                 >
-                  {option.label}
-                </button>
-              );
-            })}
+                  <SelectValue placeholder="All room types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL} className="text-sm">
+                    All room types
+                  </SelectItem>
+                  {(typesQuery.data ?? []).map((t) => (
+                    <SelectItem key={t.id} value={t.id} className="text-sm">
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div
+              role="group"
+              aria-label="Rate plan status filter"
+              className="inline-flex h-9 items-center rounded-lg border border-[#DDD4C5] bg-[#F7F4EE] p-0.5"
+            >
+              {(
+                [
+                  { id: "all", label: "All" },
+                  { id: "active", label: "Active" },
+                  { id: "inactive", label: "Inactive" },
+                ] as const
+              ).map((option) => {
+                const isSelected = statusFilter === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setStatusFilter(option.id)}
+                    className={[
+                      "h-8 rounded-md px-3 text-xs font-semibold transition-colors",
+                      isSelected
+                        ? "bg-white text-[#251605] shadow-sm"
+                        : "text-[#756A5B] hover:text-[#251605]",
+                    ].join(" ")}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative min-w-56 flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#756A5B]" />
+              <Input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search rate plans..."
+                aria-label="Search rate plans"
+                className="h-9 pl-9 text-sm text-[#251605]"
+              />
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold text-[#5A4833] hover:text-[#251605]"
+              onClick={clearFilters}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
+              onClick={() => setFiltersOpen((current) => !current)}
+            >
+              <SlidersHorizontal className="mr-1.5 size-3.5" />
+              Filters
+            </Button>
           </div>
 
-          <div className="relative min-w-56 flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#756A5B]" />
-            <Input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search rate plans..."
-              aria-label="Search rate plans"
-              className="h-9 pl-9 text-sm text-[#251605]"
-            />
-          </div>
+          <a
+            href={CARD3_HREF}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDD4C5] bg-[#FAF6F0] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F1E9DC]"
+          >
+            <Settings className="size-3.5 text-[#8A641A]" />
+            <span>Configure in Property Setup</span>
+          </a>
         </div>
 
-        <a
-          href={CARD3_HREF}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDD4C5] bg-[#FAF6F0] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F1E9DC]"
-        >
-          <Settings className="size-3.5 text-[#8A641A]" />
-          <span>Configure in Property Setup</span>
-        </a>
+        {filtersOpen ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#EFE9DF] pt-2.5">
+            <label className="flex items-center gap-2 text-xs font-semibold text-[#5A4833]">
+              Category
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                className="h-8 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605]"
+              >
+                <option value={ALL}>All categories</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
       </div>
 
       {plansQuery.isLoading ? (
