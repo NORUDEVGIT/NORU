@@ -24,7 +24,6 @@ import {
 } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { PmsPropertySetupCard3Currency } from "@/packages/pms/components/settings/pms-property-setup-card3-currency";
 import { PmsPropertySetupCard3Taxes } from "@/packages/pms/components/settings/pms-property-setup-card3-taxes";
-import { PmsPropertySetupCard3Rates } from "@/packages/pms/components/settings/pms-property-setup-card3-rates";
 import { PmsPropertySetupCard3Meals } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
 import { PmsPropertySetupCard3Payments } from "@/packages/pms/components/settings/pms-property-setup-card3-payments";
 import { PmsPropertySetupCard3Billing } from "@/packages/pms/components/settings/pms-property-setup-card3-billing";
@@ -32,7 +31,6 @@ import { PmsPropertySetupCard3Corporate } from "@/packages/pms/components/settin
 import { PmsPropertySetupCard3Commercial } from "@/packages/pms/components/settings/pms-property-setup-card3-commercial";
 import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
 import { getTaxesCard3 } from "@/packages/pms/lib/taxes-card3.functions";
-import { getRatesCard3 } from "@/packages/pms/lib/rates-card3.functions";
 import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import { getPaymentsCard3 } from "@/packages/pms/lib/payments-card3.functions";
 import { getBillingCard3 } from "@/packages/pms/lib/billing-card3.functions";
@@ -57,7 +55,6 @@ export function PmsPropertySetupCard3Section({
   const domain = CARD3_DOMAINS.find((row) => row.id === activeDomain) ?? CARD3_DOMAINS[0];
   const loadCurrency = useServerFn(getCurrencyCard3);
   const loadTaxes = useServerFn(getTaxesCard3);
-  const loadRates = useServerFn(getRatesCard3);
   const loadMeals = useServerFn(getMealsCard3);
   const loadPayments = useServerFn(getPaymentsCard3);
   const loadBilling = useServerFn(getBillingCard3);
@@ -70,10 +67,6 @@ export function PmsPropertySetupCard3Section({
   const taxesQuery = useQuery({
     queryKey: ["pms-card3-taxes", restaurantId],
     queryFn: () => loadTaxes({ data: { restaurantId } }),
-  });
-  const ratesQuery = useQuery({
-    queryKey: ["pms-card3-rates", restaurantId],
-    queryFn: () => loadRates({ data: { restaurantId } }),
   });
   const mealsQuery = useQuery({
     queryKey: ["pms-card3-meals", restaurantId],
@@ -98,7 +91,6 @@ export function PmsPropertySetupCard3Section({
   const readinessLoading =
     currencyQuery.isLoading ||
     taxesQuery.isLoading ||
-    ratesQuery.isLoading ||
     mealsQuery.isLoading ||
     paymentsQuery.isLoading ||
     billingQuery.isLoading ||
@@ -107,7 +99,6 @@ export function PmsPropertySetupCard3Section({
   const currencyStatus: PropertySetupCardStatus =
     currencyQuery.data?.readiness.status ?? "not_started";
   const taxesStatus: PropertySetupCardStatus = taxesQuery.data?.readiness.status ?? "not_started";
-  const ratesStatus: PropertySetupCardStatus = ratesQuery.data?.readiness.status ?? "not_started";
   const mealsStatus: PropertySetupCardStatus = mealsQuery.data?.readiness.status ?? "not_started";
   const paymentsStatus: PropertySetupCardStatus =
     paymentsQuery.data?.readiness.status ?? "not_started";
@@ -120,7 +111,6 @@ export function PmsPropertySetupCard3Section({
   const domainStatuses: Record<Card3DomainId, PropertySetupCardStatus> = {
     "currency-financial-settings": currencyStatus,
     "taxes-fees": taxesStatus,
-    "rates-pricing": ratesStatus,
     "meal-plans-packages": mealsStatus,
     "payments-deposits": paymentsStatus,
     "billing-invoicing": billingStatus,
@@ -224,7 +214,6 @@ export function PmsPropertySetupCard3Section({
             rail={
               <div data-testid="pms-card3-status-rail">
                 <PropertySetupStatusRail
-                  percent={progressPercent}
                   sections={railSections}
                   complete={counts.complete}
                   inProgress={counts.inProgress}
@@ -240,8 +229,6 @@ export function PmsPropertySetupCard3Section({
               <PmsPropertySetupCard3Currency {...domainProps} />
             ) : domain?.id === "taxes-fees" ? (
               <PmsPropertySetupCard3Taxes {...domainProps} />
-            ) : domain?.id === "rates-pricing" ? (
-              <PmsPropertySetupCard3Rates {...domainProps} />
             ) : domain?.id === "meal-plans-packages" ? (
               <PmsPropertySetupCard3Meals {...domainProps} />
             ) : domain?.id === "payments-deposits" ? (

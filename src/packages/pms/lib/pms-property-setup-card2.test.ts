@@ -58,12 +58,20 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.equal(PROPERTY_SETUP_CARDS[1]?.hash, CARD2_HASH);
     assert.deepEqual(
       CARD2_STEPS.map((row) => row.title),
-      ["Room Types & Rooms", "Amenities", "Housekeeping", "Inventory Rules", "Maintenance"],
+      [
+        "Room Types & Rooms",
+        "Amenities",
+        "Housekeeping",
+        "Inventory Rules",
+        "Maintenance",
+        "Rate & Pricing",
+      ],
     );
     assert.equal(CARD2_STEPS[0]?.id, "room-types");
     assert.equal(nextCard2Step("room-types"), "amenities");
     assert.equal(previousCard2Step("room-types"), null);
-    assert.equal(nextCard2Step("maintenance"), null);
+    assert.equal(nextCard2Step("maintenance"), "rates-pricing");
+    assert.equal(nextCard2Step("rates-pricing"), null);
   });
 
   it("does not invent completion and does not collide with SET2 rooms", () => {

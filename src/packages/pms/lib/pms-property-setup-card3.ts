@@ -20,7 +20,7 @@ export const CARD3_SIDEBAR_OUT =
 
 export const CARD3_PROGRESS_PERCENT = 0;
 export const CARD3_PROGRESS_LABEL = "Not Started";
-export const CARD3_PROGRESS_DETAIL = "0 of 8 domains configured";
+export const CARD3_PROGRESS_DETAIL = "0 of 7 domains configured";
 
 export const CARD3_DOMAIN_PLACEHOLDER = "This workspace will be implemented in Phase 1.";
 export const CARD3_BACK_LABEL = "Financial & Commercial";
@@ -38,12 +38,6 @@ export const CARD3_DOMAINS = [
     title: "Taxes & Fees",
     description: "Configure taxes, fees and additional charges.",
     icon: "receipt",
-  },
-  {
-    id: "rates-pricing",
-    title: "Rates & Pricing",
-    description: "Manage room rates, rate plans and pricing rules.",
-    icon: "tag",
   },
   {
     id: "meal-plans-packages",

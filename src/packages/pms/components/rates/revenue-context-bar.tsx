@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD2_HREF, CARD2_RATES_HREF } from "@/packages/pms/lib/pms-property-setup-card2";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { addUtcDays } from "@/packages/pms/lib/revenue/revenue-context";
 import type {
@@ -246,7 +246,7 @@ export function RevenueContextBar({
             onChange={(roomTypeId) => onChange({ roomTypeId })}
             placeholder="All room types"
             empty="No room types are configured for this property."
-            emptyHref={CARD3_HREF}
+            emptyHref={CARD2_HREF}
             status={coreConfigStatus}
             options={roomTypes.map((row) => ({
               id: row.id,
@@ -262,7 +262,7 @@ export function RevenueContextBar({
             onChange={(ratePlanId) => onChange({ ratePlanId })}
             placeholder="All rate plans"
             empty="No rate plans are configured for this property."
-            emptyHref={CARD3_HREF}
+            emptyHref={CARD2_RATES_HREF}
             status={coreConfigStatus}
             options={visiblePlans.map((row) => ({
               id: row.id,

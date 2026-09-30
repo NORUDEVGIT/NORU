@@ -14,6 +14,7 @@ import {
   PmsPropertySetupCard2Maintenance,
   type MaintenanceRailStats,
 } from "@/packages/pms/components/settings/pms-property-setup-card2-maintenance";
+import { PmsPropertySetupCard2Rates } from "@/packages/pms/components/settings/pms-property-setup-card2-rates";
 import {
   PropertySetupPanel,
   PropertySetupStatusRail,
@@ -31,6 +32,7 @@ import {
   CARD2_STEPS,
   CARD2_SUBTITLE,
   card2StepById,
+  card2StepFromSearch,
   evaluateCard2StepStatus,
   nextCard2Step,
   previousCard2Step,
@@ -57,7 +59,13 @@ export function PmsPropertySetupCard2Section({
   canEdit: boolean;
   initialStep?: Card2StepId;
 }) {
-  const [step, setStep] = useState<Card2StepId>(initialStep);
+  const [step, setStep] = useState<Card2StepId>(() => {
+    if (typeof window !== "undefined") {
+      const fromSearch = card2StepFromSearch(window.location.search);
+      if (fromSearch) return fromSearch;
+    }
+    return initialStep;
+  });
   const [roomTypesStatus, setRoomTypesStatus] = useState<PropertySetupCardStatus>(
     card2Steps?.["room-types"] ?? "not_started",
   );
@@ -78,6 +86,11 @@ export function PmsPropertySetupCard2Section({
     card2Steps?.maintenance ?? "not_started",
   );
   const [maintenanceStats, setMaintenanceStats] = useState<MaintenanceRailStats | null>(null);
+  const [ratesStatus, setRatesStatus] = useState<PropertySetupCardStatus>(
+    card2Steps?.["rates-pricing"] ?? "not_started",
+  );
+  const [ratesBlockers, setRatesBlockers] = useState<string[]>([]);
+  const [ratesWarnings, setRatesWarnings] = useState<string[]>([]);
   const [continuePending, setContinuePending] = useState(false);
   const actionsRef = useRef<{
     saveDraft: () => Promise<boolean>;
@@ -93,6 +106,7 @@ export function PmsPropertySetupCard2Section({
     housekeeping: housekeepingStatus,
     "inventory-rules": inventoryStatus,
     maintenance: maintenanceStatus,
+    "rates-pricing": ratesStatus,
   };
   const railSections = CARD2_STEPS.map((row) => ({
     id: row.id,
@@ -103,14 +117,21 @@ export function PmsPropertySetupCard2Section({
   const railBlockers =
     step === "housekeeping"
       ? housekeepingBlockers
-      : step === "inventory-rules"
-        ? (inventoryStats?.blockers ?? [])
-        : step === "amenities"
-          ? (amenitiesStats?.blockers ?? [])
-          : step === "maintenance"
-            ? (maintenanceStats?.blockers ?? [])
-            : [];
-  const railWarnings = step === "housekeeping" ? housekeepingWarnings : [];
+      : step === "rates-pricing"
+        ? ratesBlockers
+        : step === "inventory-rules"
+          ? (inventoryStats?.blockers ?? [])
+          : step === "amenities"
+            ? (amenitiesStats?.blockers ?? [])
+            : step === "maintenance"
+              ? (maintenanceStats?.blockers ?? [])
+              : [];
+  const railWarnings =
+    step === "housekeeping"
+      ? housekeepingWarnings
+      : step === "rates-pricing"
+        ? ratesWarnings
+        : [];
 
   const onRoomTypesReadiness = useCallback(
     (status: PropertySetupCardStatus, _blockers: string[]) => {
@@ -141,6 +162,14 @@ export function PmsPropertySetupCard2Section({
   const onMaintenanceReadiness = useCallback(
     (status: PropertySetupCardStatus, _blockers: string[]) => {
       setMaintenanceStatus(status);
+    },
+    [],
+  );
+  const onRatesReadiness = useCallback(
+    (status: PropertySetupCardStatus, blockers: string[], warnings: string[]) => {
+      setRatesStatus(status);
+      setRatesBlockers(blockers);
+      setRatesWarnings(warnings);
     },
     [],
   );
@@ -240,6 +269,19 @@ export function PmsPropertySetupCard2Section({
             Preventive: {maintenanceStats.preventiveMaintenanceEnabled ? "Enabled" : "Disabled"}
           </p>
         </div>
+      </PropertySetupPanel>
+    ) : step === "rates-pricing" ? (
+      <PropertySetupPanel
+        title="Rate & Pricing"
+        icon="rate"
+        helper="Master rate plans and standard pricing."
+      >
+        <p className="text-sm text-[#251605]">
+          {amenitiesStatusLabel(ratesStatus, ratesBlockers)}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {ratesBlockers.length} blockers · {ratesWarnings.length} warnings
+        </p>
       </PropertySetupPanel>
     ) : null;
 
@@ -353,6 +395,13 @@ export function PmsPropertySetupCard2Section({
                 registerActions={(actions) => {
                   actionsRef.current = actions;
                 }}
+              />
+            ) : step === "rates-pricing" ? (
+              <PmsPropertySetupCard2Rates
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onReadiness={onRatesReadiness}
+                onNavigateToRoomTypes={() => setStep("room-types")}
               />
             ) : (
               <PropertySetupPanel title={current.title} icon="room">

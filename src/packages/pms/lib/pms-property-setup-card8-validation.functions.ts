@@ -64,6 +64,8 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
     { evaluateCard2HousekeepingReadiness },
     { loadCard2InventoryValidation },
     { loadCard2MaintenanceValidation },
+    { loadRatesCard2Snapshot },
+    { evaluateRatesCard2Readiness },
   ] = await Promise.all([
     import("./rooms.functions"),
     import("./rooms-amenities.functions"),
@@ -72,17 +74,21 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
     import("./housekeeping-card2.server"),
     import("./inventory-rules.functions"),
     import("./maintenance.functions"),
+    import("./rates-card2.functions"),
+    import("./rates-card2.server"),
   ]);
-  const [roomTypes, amenitiesInput, housekeepingSnapshot, inventory, maintenance] =
+  const [roomTypes, amenitiesInput, housekeepingSnapshot, inventory, maintenance, ratesSnapshot] =
     await Promise.all([
       loadCard2RoomTypesReadiness(db, restaurantId),
       loadAmenitiesReadinessInput(db, restaurantId),
       loadCard2HousekeepingSnapshot(db, restaurantId, false),
       loadCard2InventoryValidation(db, restaurantId),
       loadCard2MaintenanceValidation(db, restaurantId),
+      loadRatesCard2Snapshot(db, restaurantId),
     ]);
   const amenities = evaluateAmenitiesReadiness(amenitiesInput);
   const housekeeping = evaluateCard2HousekeepingReadiness(housekeepingSnapshot);
+  const rates = evaluateRatesCard2Readiness(ratesSnapshot);
   return adaptCard8DomainSlices(2, "rooms", [
     { id: "room-types", label: "Room Types & Rooms", blockers: roomTypes.blockers },
     { id: "amenities", label: "Amenities", blockers: amenities.blockers },
@@ -94,6 +100,7 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
     },
     { id: "inventory-rules", label: "Inventory Rules", blockers: inventory.blockers },
     { id: "maintenance", label: "Maintenance", blockers: maintenance.blockers },
+    { id: "rates-pricing", label: "Rate & Pricing", blockers: rates.blockers },
   ]);
 }
 
@@ -103,8 +110,6 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
     { evaluateCurrencyCard3Readiness },
     { loadTaxesCard3Snapshot },
     { evaluateTaxesCard3Readiness },
-    { loadRatesCard3Snapshot },
-    { evaluateRatesCard3Readiness },
     { loadMealsCard3Snapshot },
     { evaluateMealsCard3Readiness },
     { loadPaymentsCard3Snapshot },
@@ -120,8 +125,6 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
     import("./currency-card3.server"),
     import("./taxes-card3.functions"),
     import("./taxes-card3.server"),
-    import("./rates-card3.functions"),
-    import("./rates-card3.server"),
     import("./meals-card3.functions"),
     import("./meals-card3.server"),
     import("./payments-card3.functions"),
@@ -136,7 +139,6 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
   const snapshots = await Promise.all([
     loadCurrencyCard3Snapshot(db, restaurantId),
     loadTaxesCard3Snapshot(db, restaurantId),
-    loadRatesCard3Snapshot(db, restaurantId),
     loadMealsCard3Snapshot(db, restaurantId),
     loadPaymentsCard3Snapshot(db, restaurantId),
     loadBillingCard3Snapshot(db, restaurantId),
@@ -146,17 +148,15 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
   const readiness = [
     evaluateCurrencyCard3Readiness(snapshots[0]),
     evaluateTaxesCard3Readiness(snapshots[1]),
-    evaluateRatesCard3Readiness(snapshots[2]),
-    evaluateMealsCard3Readiness(snapshots[3]),
-    evaluatePaymentsCard3Readiness(snapshots[4]),
-    evaluateBillingCard3Readiness(snapshots[5]),
-    evaluateCorporateCard3Readiness(snapshots[6]),
-    evaluateCommercialCard3Readiness(snapshots[7]),
+    evaluateMealsCard3Readiness(snapshots[2]),
+    evaluatePaymentsCard3Readiness(snapshots[3]),
+    evaluateBillingCard3Readiness(snapshots[4]),
+    evaluateCorporateCard3Readiness(snapshots[5]),
+    evaluateCommercialCard3Readiness(snapshots[6]),
   ];
   const labels = [
     "Currency",
     "Taxes",
-    "Rates",
     "Meals",
     "Payments",
     "Billing",
