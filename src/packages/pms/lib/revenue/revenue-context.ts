@@ -83,6 +83,13 @@ export function parseIsoDate(value: string | undefined, fallback: string): strin
   return value && ISO_DATE.test(value) ? value : fallback;
 }
 
+export function addUtcDays(isoDate: string, days: number): string {
+  if (!ISO_DATE.test(isoDate)) return isoDate;
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, (d ?? 1) + days));
+  return date.toISOString().slice(0, 10);
+}
+
 export function normalizeDateRange(
   fromDate: string,
   toDate: string,

@@ -361,9 +361,9 @@ describe("RR-P3-02 — wiring, ownership, and UI locks", () => {
     assert.match(edit, /APPROVE_APPLY_LABEL/);
     assert.match(toolbar, /Previous Period/);
     assert.match(toolbar, /Next Period/);
-    assert.match(toolbar, /Compare Dates/);
     assert.match(toolbar, /View Restriction History/);
     assert.match(toolbar, /Apply Restriction/);
+    assert.match(contextBar, /Search room type or rate plan/);
     assert.match(contextBar, /Filter/);
     assert.match(contextBar, /bg-\[#D5A62B\]/);
     for (const source of [view, grid, cell, toolbar, legend, drawer, overview, edit, history, adapter]) {

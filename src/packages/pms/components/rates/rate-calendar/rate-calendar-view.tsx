@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { InventoryState } from "@/packages/pms/components/rooms/room-inventory-shared";
 import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
 import {
+  BULK_RATE_CHANGE_OVER_MAX_COPY,
   BULK_RATE_CHANGE_STALE_COPY,
   buildBulkRule,
   buildInventoryLookup,
@@ -75,12 +76,14 @@ export function RateCalendarView({
   context,
   access,
   businessDate,
+  searchQuery = "",
   onRangeChange,
 }: {
   restaurantId: string;
   context: RevenueContext;
   access: RevenueAccess;
   businessDate: string;
+  searchQuery?: string;
   onRangeChange: (fromDate: string, toDate: string) => void;
 }) {
   const money = useMoney();
@@ -131,14 +134,40 @@ export function RateCalendarView({
     retry: false,
   });
 
-  const paged = useMemo(() => {
+  const filteredCalendar = useMemo(() => {
     if (!query.data) return null;
+    const term = searchQuery.trim().toLowerCase();
+    if (!term) return query.data;
+    const groups = query.data.groups
+      .map((group) => {
+        const roomMatches =
+          group.roomType.name.toLowerCase().includes(term) ||
+          group.roomType.code.toLowerCase().includes(term);
+        if (roomMatches) return group;
+        const rows = group.rows.filter(
+          (row) =>
+            row.plan.name.toLowerCase().includes(term) ||
+            row.plan.code.toLowerCase().includes(term),
+        );
+        return { ...group, rows };
+      })
+      .filter((group) => group.rows.length > 0);
+    return {
+      ...query.data,
+      groups,
+      groupCount: groups.length,
+      planCount: groups.reduce((acc, g) => acc + g.rows.length, 0),
+    };
+  }, [query.data, searchQuery]);
+
+  const paged = useMemo(() => {
+    if (!filteredCalendar) return null;
     const maxPage = Math.max(
       0,
-      Math.ceil(query.data.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE) - 1,
+      Math.ceil(filteredCalendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE) - 1,
     );
-    return pageGroups(query.data, Math.min(page, maxPage));
-  }, [query.data, page]);
+    return pageGroups(filteredCalendar, Math.min(page, maxPage));
+  }, [filteredCalendar, page]);
 
   const selectedMeta = useMemo(() => {
     if (!selected || !query.data) return { plan: null, roomType: null, cells: [] };
@@ -290,8 +319,8 @@ export function RateCalendarView({
     setSubmittedRequest(null);
   }
 
-  const pageCount = query.data
-    ? Math.max(1, Math.ceil(query.data.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE))
+  const pageCount = filteredCalendar
+    ? Math.max(1, Math.ceil(filteredCalendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE))
     : 1;
 
   const calendarSearch = serializeRevenueSearch("rate-calendar", context);
@@ -468,7 +497,9 @@ export function RateCalendarView({
             <span className="text-[#8A641A]">
               {expansion.ok
                 ? `${expansion.targetCount} cells (${context.fromDate} – ${context.toDate})`
-                : "Select a valid range"}
+                : expansion.code === "over_max"
+                  ? `${expansion.targetCount} cells — ${BULK_RATE_CHANGE_OVER_MAX_COPY}`
+                  : "Select a valid range"}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -513,6 +544,12 @@ export function RateCalendarView({
           state="empty"
           title="No rate plans are configured for this property."
           description="Configure room types and rate plans in Property Setup."
+        />
+      ) : filteredCalendar && filteredCalendar.groups.length === 0 ? (
+        <InventoryState
+          state="empty"
+          title="No room types or rate plans match your search."
+          description="Clear the search filter or try a different room type or rate plan name."
         />
       ) : paged ? (
         <div className="min-w-0 space-y-3">

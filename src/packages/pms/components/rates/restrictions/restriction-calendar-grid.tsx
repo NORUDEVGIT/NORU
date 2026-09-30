@@ -125,7 +125,7 @@ function GroupRows({
             key={row.plan.id}
             className={[
               "border-t border-[#E8E1D7] transition-colors",
-              isRowSelected ? "bg-[#FDF7EB]" : "",
+              isRowSelected ? "bg-[#FDF5E2]" : "",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -133,7 +133,14 @@ function GroupRows({
             {index === 0 ? (
               <td
                 rowSpan={group.rows.length}
-                className="sticky left-0 z-20 min-w-[190px] border-r border-[#E8E1D7] bg-[#FAF6F0] px-3.5 py-3 align-top text-sm font-semibold text-[#251605]"
+                className={[
+                  "sticky left-0 z-20 min-w-[190px] border-r border-[#E8E1D7] px-3.5 py-3 align-top text-sm font-semibold text-[#251605] transition-colors",
+                  isGroupChecked
+                    ? "border-l-4 border-l-[#C89933] bg-[#FDF5E2]"
+                    : selectedInGroup.length > 0
+                      ? "border-l-4 border-l-[#C89933]/60 bg-[#FBF3DF]"
+                      : "bg-[#FAF6F0]",
+                ].join(" ")}
               >
                 {onToggleRoomType ? (
                   <label className="flex cursor-pointer items-start gap-2.5 select-none">
@@ -150,7 +157,12 @@ function GroupRows({
                       <div className="text-sm font-semibold text-[#251605]">
                         {group.roomType.name}
                       </div>
-                      <div className="mt-0.5 text-[11px] font-medium text-[#756A5B]">
+                      <div
+                        className={[
+                          "mt-0.5 text-[11px] font-semibold",
+                          selectedInGroup.length > 0 ? "text-[#8A641A]" : "text-[#756A5B]",
+                        ].join(" ")}
+                      >
                         {selectedInGroup.length > 0
                           ? `${selectedInGroup.length}/${groupPlanIds.length} selected`
                           : `${groupPlanIds.length} plan${groupPlanIds.length === 1 ? "" : "s"}`}
@@ -165,7 +177,7 @@ function GroupRows({
             <td
               className={[
                 "sticky left-[190px] z-20 min-w-[230px] border-r border-[#E8E1D7] px-3.5 py-2.5 align-middle transition-colors",
-                isRowSelected ? "bg-[#FDF7EB]" : "bg-white",
+                isRowSelected ? "border-l-4 border-l-[#C89933] bg-[#FDF5E2]" : "bg-white",
                 onSelectRow || onTogglePlan ? "cursor-pointer hover:bg-[#FAF6F0]" : "",
               ]
                 .filter(Boolean)

@@ -1,9 +1,9 @@
 const ITEMS = [
-  { label: "Stop Sell", swatch: "bg-rose-600" },
-  { label: "CTA / CTD", swatch: "bg-amber-500" },
-  { label: "Min / Max stay", swatch: "bg-[#251605]" },
-  { label: "Open", swatch: "bg-[#F7F4EE]" },
-  { label: "Selected", swatch: "ring-2 ring-[#C89933] bg-white" },
+  { label: "Stop Sell (SS)", swatch: "border-rose-400 bg-rose-600" },
+  { label: "CTA / CTD", swatch: "border-amber-400 bg-amber-500" },
+  { label: "Min / Max stay", swatch: "border-indigo-400 bg-indigo-600" },
+  { label: "Open", swatch: "border-emerald-300 bg-emerald-100" },
+  { label: "Selected / Checked", swatch: "border-[#C89933] bg-[#FDF5E2] ring-2 ring-[#C89933]" },
 ];
 
 export function RestrictionCalendarLegend() {
@@ -16,9 +16,7 @@ export function RestrictionCalendarLegend() {
         </span>
       ))}
 
-      <span className="ml-auto text-xs text-[#756A5B]">
-        Operational restrictions, not demand
-      </span>
+      <span className="ml-auto text-xs text-[#756A5B]">Operational restrictions, not demand</span>
     </div>
   );
 }

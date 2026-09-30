@@ -1,14 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarRange, ChevronLeft, ChevronRight, History, Info, ShieldAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, Info, ShieldAlert } from "lucide-react";
 
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { serializeRevenueSearch } from "@/packages/pms/lib/revenue/revenue-context";
 import {
   RATE_CALENDAR_CLAMP_NOTE,
   RATE_CALENDAR_DEFAULT_DAYS,
-  RATE_CALENDAR_MAX_COLUMNS,
   defaultRateCalendarRange,
-  shiftIsoDate,
   shiftRateCalendarRange,
 } from "@/packages/pms/lib/revenue/rate-calendar";
 
@@ -94,21 +92,6 @@ export function RestrictionCalendarToolbar({
             <ChevronRight className="size-3.5 text-[#756A5B]" />
           </button>
         </div>
-
-        <button
-          type="button"
-          title="Expand window to compare 14 consecutive dates"
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#DED7CD] bg-white px-3 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#FAF6F0]"
-          onClick={() =>
-            onRangeChange(
-              context.fromDate,
-              shiftIsoDate(context.fromDate, RATE_CALENDAR_MAX_COLUMNS - 1),
-            )
-          }
-        >
-          <CalendarRange className="size-3.5 text-[#8A641A]" />
-          <span>Compare Dates</span>
-        </button>
 
         {canViewRestrictions ? (
           <>

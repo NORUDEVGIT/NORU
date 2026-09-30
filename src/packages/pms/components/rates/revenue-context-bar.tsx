@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Filter, X } from "lucide-react";
+import { Filter, Search, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -105,7 +105,8 @@ export function RevenueContextBar({
   cataloguesError,
   coreConfigStatus = "success",
   cataloguesStatus = "success",
-  hidePlanSelectors = false,
+  searchQuery = "",
+  onSearchChange,
 }: {
   fields: readonly RevenueContextField[];
   context: RevenueContext;
@@ -118,9 +119,26 @@ export function RevenueContextBar({
   cataloguesError?: string | null;
   coreConfigStatus?: "loading" | "error" | "success";
   cataloguesStatus?: "loading" | "error" | "success";
-  hidePlanSelectors?: boolean;
+  searchQuery?: string;
+  onSearchChange?: (next: string) => void;
 }) {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [draftFrom, setDraftFrom] = useState(context.fromDate);
+  const [draftTo, setDraftTo] = useState(context.toDate);
+  const [draftSearch, setDraftSearch] = useState(searchQuery);
+  const [prevDates, setPrevDates] = useState(`${context.fromDate}|${context.toDate}`);
+  const [prevSearch, setPrevSearch] = useState(searchQuery);
+
+  const currentDatesKey = `${context.fromDate}|${context.toDate}`;
+  if (currentDatesKey !== prevDates) {
+    setPrevDates(currentDatesKey);
+    setDraftFrom(context.fromDate);
+    setDraftTo(context.toDate);
+  }
+  if (searchQuery !== prevSearch) {
+    setPrevSearch(searchQuery);
+    setDraftSearch(searchQuery);
+  }
 
   if (fields.length === 0) return null;
 
@@ -130,6 +148,16 @@ export function RevenueContextBar({
 
   const activeChips: Array<{ id: string; label: string; onRemove: () => void }> = [];
 
+  if (searchQuery.trim()) {
+    activeChips.push({
+      id: "search",
+      label: `Search: "${searchQuery.trim()}"`,
+      onRemove: () => {
+        setDraftSearch("");
+        onSearchChange?.("");
+      },
+    });
+  }
   if (context.roomTypeId) {
     const rt = roomTypes.find((r) => r.id === context.roomTypeId);
     activeChips.push({
@@ -184,9 +212,12 @@ export function RevenueContextBar({
               <Input
                 id="revenue-from"
                 type="date"
-                value={context.fromDate}
-                onChange={(event) => onChange({ fromDate: event.target.value })}
-                className="h-10 w-44 text-sm font-medium text-[#251605]"
+                value={draftFrom}
+                onChange={(event) => {
+                  setDraftFrom(event.target.value);
+                  onChange({ fromDate: event.target.value });
+                }}
+                className="h-10 w-40 text-sm font-medium text-[#251605]"
               />
             </label>
             <label
@@ -197,15 +228,18 @@ export function RevenueContextBar({
               <Input
                 id="revenue-to"
                 type="date"
-                value={context.toDate}
-                onChange={(event) => onChange({ toDate: event.target.value })}
-                className="h-10 w-44 text-sm font-medium text-[#251605]"
+                value={draftTo}
+                onChange={(event) => {
+                  setDraftTo(event.target.value);
+                  onChange({ toDate: event.target.value });
+                }}
+                className="h-10 w-40 text-sm font-medium text-[#251605]"
               />
             </label>
           </>
         ) : null}
 
-        {!hidePlanSelectors && fields.includes("roomType") ? (
+        {fields.includes("roomType") ? (
           <FilterSelect
             label="Room type"
             value={context.roomTypeId}
@@ -221,7 +255,7 @@ export function RevenueContextBar({
           />
         ) : null}
 
-        {!hidePlanSelectors && fields.includes("ratePlan") ? (
+        {fields.includes("ratePlan") ? (
           <FilterSelect
             label="Rate plan"
             value={context.ratePlanId}
@@ -237,6 +271,29 @@ export function RevenueContextBar({
                 : `${row.code} — ${row.name} (inactive)`,
             }))}
           />
+        ) : null}
+
+        {onSearchChange && (fields.includes("roomType") || fields.includes("ratePlan")) ? (
+          <label
+            htmlFor="revenue-search"
+            className="grid min-w-52 flex-1 gap-1.5 text-xs font-semibold text-[#5A4833]"
+          >
+            Search
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#756A5B]" />
+              <Input
+                id="revenue-search"
+                type="search"
+                value={draftSearch}
+                placeholder="Search room type or rate plan..."
+                onChange={(event) => {
+                  setDraftSearch(event.target.value);
+                  onSearchChange(event.target.value);
+                }}
+                className="h-10 w-full pl-8 text-sm font-medium text-[#251605]"
+              />
+            </div>
+          </label>
         ) : null}
 
         {fields.includes("segment") ? (
@@ -293,15 +350,17 @@ export function RevenueContextBar({
             variant="ghost"
             size="sm"
             className="h-10 px-3 text-xs font-semibold text-[#5A4833] hover:text-[#251605]"
-            onClick={() =>
+            onClick={() => {
+              setDraftSearch("");
+              onSearchChange?.("");
               onChange({
                 roomTypeId: null,
                 ratePlanId: null,
                 marketSegmentId: null,
                 commercialSourceId: null,
                 salesChannelId: null,
-              })
-            }
+              });
+            }}
           >
             Clear
           </Button>
@@ -309,7 +368,11 @@ export function RevenueContextBar({
             type="button"
             size="sm"
             className="h-10 bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
-            onClick={() => setFiltersExpanded((current) => !current)}
+            onClick={() => {
+              onSearchChange?.(draftSearch);
+              onChange({ fromDate: draftFrom, toDate: draftTo });
+              setFiltersExpanded((current) => !current);
+            }}
           >
             <Filter className="mr-1.5 size-3.5" />
             Filter
@@ -337,12 +400,14 @@ export function RevenueContextBar({
               <button
                 key={preset.label}
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  const nextTo = addUtcDays(draftFrom, preset.days);
+                  setDraftTo(nextTo);
                   onChange({
-                    fromDate: context.fromDate,
-                    toDate: addUtcDays(context.fromDate, preset.days),
-                  })
-                }
+                    fromDate: draftFrom,
+                    toDate: nextTo,
+                  });
+                }}
                 className="inline-flex h-7 items-center rounded-md border border-[#DED7CD] bg-[#FAF6F0] px-2.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#EFE7DA]"
               >
                 {preset.label}

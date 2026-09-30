@@ -137,6 +137,7 @@ export function RatesWorkspace({
     normalizeRevenueView(search.view ?? search.tab),
   );
   const [moreOpen, setMoreOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setView(normalizeRevenueView(search.view ?? search.tab));
@@ -329,6 +330,7 @@ export function RatesWorkspace({
             context={context}
             access={access!}
             businessDate={businessDate}
+            searchQuery={searchQuery}
             onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
           />
         );
@@ -351,6 +353,7 @@ export function RatesWorkspace({
             context={context}
             access={access!}
             businessDate={businessDate}
+            searchQuery={searchQuery}
             onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
           />
         );
@@ -549,17 +552,7 @@ export function RatesWorkspace({
                             className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
                           >
                             <CalendarDays className="size-4 text-[#8A641A]" />
-                            <span>Open Rate Calendar</span>
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            to="/restaurant/pms/rates-revenue"
-                            search={serializeRevenueSearch("bulk-rate-change", context)}
-                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
-                          >
-                            <SlidersHorizontal className="size-4 text-[#8A641A]" />
-                            <span>Bulk Rate Change</span>
+                            <span>Rate Calendar & Bulk Rates</span>
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
@@ -582,7 +575,7 @@ export function RatesWorkspace({
                           className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
                         >
                           <ShieldAlert className="size-4 text-amber-700" />
-                          <span>View Restrictions</span>
+                          <span>Restrictions & Bulk Rules</span>
                         </Link>
                       </DropdownMenuItem>
                     ) : null}
@@ -647,7 +640,9 @@ export function RatesWorkspace({
             <div className="flex items-end gap-3 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
               {secondaryViews
                 .filter(
-                  (item) => item !== "bulk-rate-change" || requestedView === "bulk-rate-change",
+                  (item) =>
+                    (item !== "bulk-rate-change" || requestedView === "bulk-rate-change") &&
+                    (item !== "apply-restriction" || requestedView === "apply-restriction"),
                 )
                 .map((item) => (
                   <SecondaryButton
@@ -676,9 +671,8 @@ export function RatesWorkspace({
               marketSegments={marketSegments}
               bookingSources={bookingSources}
               salesChannels={salesChannels}
-              hidePlanSelectors={
-                requestedView === "rate-calendar" || requestedView === "restrictions"
-              }
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
               cataloguesError={
                 cataloguesQuery.isError
                   ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")
