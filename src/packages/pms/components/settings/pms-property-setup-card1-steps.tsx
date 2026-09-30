@@ -57,14 +57,10 @@ import {
   CARD1_ADDRESS_SUBTITLE,
   CARD1_AGREEMENT_OUT,
   CARD1_BLOCKER_LABELS,
-  CARD1_BRAND_AFFILIATION_LABELS,
-  CARD1_BRAND_AFFILIATIONS,
   CARD1_BRAND_IMAGE_HELPER,
   CARD1_BRAND_IMAGE_UPLOAD_ERROR,
   CARD1_BRANDING_HELPER,
   CARD1_BUSINESS_DATE_CURRENT_COPY,
-  CARD1_BUSINESS_TYPE_LABELS,
-  CARD1_BUSINESS_TYPES,
   CARD1_CALENDAR_DISPLAY_LABELS,
   CARD1_CALENDAR_DISPLAYS,
   CARD1_CAPACITY_COPY,
@@ -88,6 +84,7 @@ import {
   LEGAL_ENTITY_TYPES,
   STAR_RATINGS,
   card1LanguageOptions,
+  emptyCurrentState,
   validateBrandImageFile,
   liveBlockPreview,
   structureRoomCodeExample,
@@ -210,39 +207,7 @@ function SelectField({
   );
 }
 
-function AffiliationSelect({
-  id,
-  draft,
-  setDraft,
-  canEdit,
-}: {
-  id: string;
-  draft: Card1Draft;
-  setDraft: Dispatch<SetStateAction<Card1Draft>>;
-  canEdit: boolean;
-}) {
-  return (
-    <Select
-      value={draft.brandAffiliation || "unset"}
-      onValueChange={(value) =>
-        setDraft((p) => ({ ...p, brandAffiliation: value === "unset" ? "" : value }))
-      }
-      disabled={!canEdit}
-    >
-      <SelectTrigger id={id} className={SELECT_TRIGGER_CLASS}>
-        <SelectValue placeholder="Independent / No Chain" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="unset">Not set</SelectItem>
-        {CARD1_BRAND_AFFILIATIONS.map((item) => (
-          <SelectItem key={item} value={item}>
-            {CARD1_BRAND_AFFILIATION_LABELS[item]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
+
 
 export function IdentityStep({
   restaurantId,
@@ -312,6 +277,7 @@ export function IdentityStep({
           <Field
             id="card1-trading-name"
             label="Trading Name"
+            helper="The name used publicly by the property."
             value={draft.tradingName}
             disabled={!canEdit}
             onChange={(tradingName) => setDraft((p) => ({ ...p, tradingName }))}
@@ -342,37 +308,6 @@ export function IdentityStep({
                 {CARD1_PROPERTY_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>
                     {CARD1_PROPERTY_TYPE_LABELS[type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SelectField>
-          <SelectField
-            id="card1-business-type"
-            label="Business Type"
-            required
-            error={errors.businessType}
-          >
-            <Select
-              value={draft.businessType || "unset"}
-              onValueChange={(value) => {
-                onClearError("businessType");
-                setDraft((p) => ({ ...p, businessType: value === "unset" ? "" : value }));
-              }}
-              disabled={!canEdit}
-            >
-              <SelectTrigger
-                id="card1-business-type"
-                className={SELECT_TRIGGER_CLASS}
-                aria-invalid={Boolean(errors.businessType)}
-              >
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unset">Not set</SelectItem>
-                {CARD1_BUSINESS_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {CARD1_BUSINESS_TYPE_LABELS[type]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -483,14 +418,7 @@ export function IdentityStep({
               </SelectContent>
             </Select>
           </SelectField>
-          <SelectField id="card1-affiliation" label="Brand / Chain Affiliation" icon="badge">
-            <AffiliationSelect
-              id="card1-affiliation"
-              draft={draft}
-              setDraft={setDraft}
-              canEdit={canEdit}
-            />
-          </SelectField>
+
           <PropertySetupFormItem span={3}>
             <PropertySetupFormGrid>
               <PropertySetupField
@@ -618,34 +546,6 @@ export function IdentityStep({
             }}
           />
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field
-            id="card1-website"
-            label="Company Website"
-            icon="website"
-            type="url"
-            value={draft.websiteUrl}
-            disabled={!canEdit}
-            placeholder="https://"
-            error={errors.websiteUrl}
-            onChange={(websiteUrl) => {
-              onClearError("websiteUrl");
-              setDraft((p) => ({ ...p, websiteUrl }));
-            }}
-          />
-          <SelectField
-            id="card1-affiliation-branding"
-            label="Brand / Chain Affiliation"
-            icon="badge"
-          >
-            <AffiliationSelect
-              id="card1-affiliation-branding"
-              draft={draft}
-              setDraft={setDraft}
-              canEdit={canEdit}
-            />
-          </SelectField>
-        </div>
       </Panel>
     </div>
   );
@@ -658,6 +558,8 @@ export function AddressStep({
   composedAddress,
   errors,
   onClearError,
+  departmentOptions,
+  websiteError,
 }: {
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
@@ -665,6 +567,8 @@ export function AddressStep({
   composedAddress: string;
   errors: Card1AddressFieldErrors;
   onClearError: (key: keyof Card1AddressFieldErrors) => void;
+  departmentOptions: Card1DepartmentOption[];
+  websiteError?: string | undefined;
 }) {
   const layout = addressLayoutForCountry(draft.country);
   const countryCode = countryCodeFromInput(draft.country);
@@ -673,6 +577,11 @@ export function AddressStep({
     label: region,
   }));
   const countryOptions = ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name }));
+  const defaultIso = countryCodeFromInput(draft.country) || null;
+  const socialOptions = CARD1_SOCIAL_PLATFORMS.map((platform) => ({
+    id: platform,
+    label: CARD1_SOCIAL_PLATFORM_LABELS[platform],
+  }));
 
   function extraValue(key: AddressFieldKey): string {
     if (key === "nearbyLandmark") return draft.locationExtras.nearbyLandmark;
@@ -857,29 +766,8 @@ export function AddressStep({
           }
         />
       </Panel>
-    </div>
-  );
-}
 
-export function ContactsStep({
-  draft,
-  setDraft,
-  canEdit,
-  departmentOptions,
-}: {
-  draft: Card1Draft;
-  setDraft: Dispatch<SetStateAction<Card1Draft>>;
-  canEdit: boolean;
-  departmentOptions: Card1DepartmentOption[];
-}) {
-  const defaultIso = countryCodeFromInput(draft.country) || null;
-  const socialOptions = CARD1_SOCIAL_PLATFORMS.map((platform) => ({
-    id: platform,
-    label: CARD1_SOCIAL_PLATFORM_LABELS[platform],
-  }));
-  return (
-    <div className="space-y-4" data-testid="pms-card1-step-contacts">
-      <Panel title="Contacts" helper="General contact details" icon="contact">
+      <Panel title="Primary & Alternate Contacts" helper="Property contact details and channels" icon="contact">
         <div className="grid gap-3 sm:grid-cols-2">
           <PropertySetupPhoneField
             id="card1-phone"
@@ -899,6 +787,17 @@ export function ContactsStep({
             disabled={!canEdit}
             onChange={(email) => setDraft((p) => ({ ...p, email }))}
           />
+          <Field
+            id="card1-website"
+            label="Company Website"
+            icon="website"
+            type="url"
+            value={draft.websiteUrl}
+            disabled={!canEdit}
+            placeholder="https://"
+            error={websiteError}
+            onChange={(websiteUrl) => setDraft((p) => ({ ...p, websiteUrl }))}
+          />
           <PropertySetupPhoneField
             id="card1-whatsapp"
             label="WhatsApp / Messaging contact"
@@ -909,6 +808,7 @@ export function ContactsStep({
           />
         </div>
       </Panel>
+
       <Panel title="Social media links" icon="network">
         <div className="space-y-3">
           {draft.social.links.map((row, index) => (
@@ -973,6 +873,7 @@ export function ContactsStep({
           ) : null}
         </div>
       </Panel>
+
       <Panel title="Department contacts" icon="department">
         <div className="space-y-3">
           {draft.departmentContacts.map((row, index) => (
@@ -1098,6 +999,7 @@ export function ContactsStep({
           ) : null}
         </div>
       </Panel>
+
       <Panel title="Emergency / alternate contact" testId="card1-emergency" icon="contact">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
@@ -1141,15 +1043,43 @@ export function ContactsStep({
   );
 }
 
-export function CheckinStep({
+export function ContactsStep({
   draft,
   setDraft,
   canEdit,
+  departmentOptions,
 }: {
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
+  departmentOptions: Card1DepartmentOption[];
 }) {
+  return (
+    <AddressStep
+      draft={draft}
+      setDraft={setDraft}
+      canEdit={canEdit}
+      composedAddress=""
+      errors={{}}
+      onClearError={() => {}}
+      departmentOptions={departmentOptions}
+    />
+  );
+}
+
+export function CheckinStep({
+  draft,
+  setDraft,
+  canEdit,
+  currentState,
+}: {
+  draft: Card1Draft;
+  setDraft: Dispatch<SetStateAction<Card1Draft>>;
+  canEdit: boolean;
+  currentState?: Card1CurrentState;
+}) {
+  const effectiveCurrentState = currentState ?? emptyCurrentState();
+  const preview = liveBlockPreview(draft.businessDateBlockers);
   return (
     <div className="space-y-4" data-testid="pms-card1-step-checkin">
       <Panel
@@ -1362,6 +1292,250 @@ export function CheckinStep({
           </div>
         </div>
       </Panel>
+
+      <Panel title="CURRENT STATE" helper={CARD1_BUSINESS_DATE_CURRENT_COPY} icon="date">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="card1-business-date-current">Business Date</Label>
+            <Input
+              id="card1-business-date-current"
+              value={effectiveCurrentState.businessDate ?? "—"}
+              readOnly
+              disabled
+              data-testid="card1-business-date-current"
+              className="h-11 bg-muted/40"
+            />
+          </div>
+          <Field
+            id="card1-system-date"
+            label="System Date"
+            value={effectiveCurrentState.systemDate || "—"}
+            readOnly
+          />
+          <Field
+            id="card1-local-time"
+            label="Property Local Time"
+            value={effectiveCurrentState.propertyLocalTime || "—"}
+            readOnly
+          />
+          <Field id="card1-bd-status" label="Status" value={effectiveCurrentState.status} readOnly />
+          <Field
+            id="card1-last-na"
+            label="Last Successful Night Audit"
+            value={effectiveCurrentState.lastSuccessfulNightAudit || "Never"}
+            readOnly
+          />
+        </div>
+      </Panel>
+      <Panel title="CONFIGURATION" icon="time">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Business date time zone</Label>
+            <Input value={draft.timezone || "—"} readOnly disabled className="h-11 bg-muted/40" />
+            <a
+              href={`${SET1_HUB_HREF}#property-business`}
+              className="text-xs font-medium text-[#C89933]"
+              onClick={() => {
+                window.location.hash = "property-business";
+              }}
+            >
+              Edit in Property Identity
+            </a>
+          </div>
+          <TimeSelect
+            id="card1-boundary"
+            label="Business day boundary"
+            required
+            value={draft.businessDateConfig.dayBoundary}
+            disabled={!canEdit}
+            onChange={(dayBoundary) =>
+              setDraft((p) => ({
+                ...p,
+                businessDateConfig: { ...p.businessDateConfig, dayBoundary },
+              }))
+            }
+          />
+          <TimeSelect
+            id="card1-na-start"
+            label="Expected Night Audit window start"
+            required
+            value={draft.businessDateConfig.nightAuditWindowStart}
+            disabled={!canEdit}
+            onChange={(nightAuditWindowStart) =>
+              setDraft((p) => ({
+                ...p,
+                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowStart },
+              }))
+            }
+          />
+          <TimeSelect
+            id="card1-na-end"
+            label="Expected Night Audit window end"
+            required
+            value={draft.businessDateConfig.nightAuditWindowEnd}
+            disabled={!canEdit}
+            onChange={(nightAuditWindowEnd) =>
+              setDraft((p) => ({
+                ...p,
+                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowEnd },
+              }))
+            }
+          />
+        </div>
+        <ToggleRow
+          id="card1-auto-roll"
+          label="Automatic date rollover — Only after successful Night Audit"
+          checked={draft.businessDateConfig.automaticRollover}
+          disabled={!canEdit}
+          onChange={(automaticRollover) =>
+            setDraft((p) => ({
+              ...p,
+              businessDateConfig: { ...p.businessDateConfig, automaticRollover },
+            }))
+          }
+        />
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-[#251605]">
+            Manual rollover (permissions) <span className="text-red-600">*</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {CARD1_MANUAL_ROLLOVER_ROLES.map((role) => {
+              const on = draft.businessDateConfig.manualRolloverRoles.includes(role.id);
+              return (
+                <button
+                  key={role.id}
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() =>
+                    setDraft((p) => {
+                      const roles = on
+                        ? p.businessDateConfig.manualRolloverRoles.filter((id) => id !== role.id)
+                        : [...p.businessDateConfig.manualRolloverRoles, role.id];
+                      return {
+                        ...p,
+                        businessDateConfig: {
+                          ...p.businessDateConfig,
+                          manualRolloverRoles: roles,
+                        },
+                      };
+                    })
+                  }
+                  className={`rounded-full border px-3 py-1 text-xs ${on ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]" : "border-[#CCCCCC] text-muted-foreground"}`}
+                >
+                  {role.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <ToggleRow
+          id="card1-approval"
+          label="Approval required"
+          checked={draft.businessDateConfig.approvalRequired}
+          disabled={!canEdit}
+          onChange={(approvalRequired) =>
+            setDraft((p) => ({
+              ...p,
+              businessDateConfig: { ...p.businessDateConfig, approvalRequired },
+            }))
+          }
+        />
+        <ToggleRow
+          id="card1-lock"
+          label="Business date lock during audit"
+          checked={draft.businessDateConfig.lockDuringAudit}
+          disabled={!canEdit}
+          onChange={(lockDuringAudit) =>
+            setDraft((p) => ({
+              ...p,
+              businessDateConfig: { ...p.businessDateConfig, lockDuringAudit },
+            }))
+          }
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            id="card1-sell-date"
+            label="Reservation sell date rule"
+            value={`Uses business date: ${effectiveCurrentState.businessDate ?? "—"}`}
+            readOnly
+          />
+          <Field
+            id="card1-hk-date"
+            label="Housekeeping board date"
+            value={effectiveCurrentState.businessDate ?? "—"}
+            readOnly
+          />
+          <Field
+            id="card1-fo-date"
+            label="Front Office desk date"
+            value={effectiveCurrentState.businessDate ?? "—"}
+            readOnly
+          />
+          <div className="space-y-1.5">
+            <Label htmlFor="card1-calendar">Calendar display</Label>
+            <Select
+              value={draft.businessDateConfig.calendarDisplay}
+              onValueChange={(calendarDisplay) =>
+                setDraft((p) => ({
+                  ...p,
+                  businessDateConfig: {
+                    ...p.businessDateConfig,
+                    calendarDisplay: calendarDisplay as typeof p.businessDateConfig.calendarDisplay,
+                  },
+                }))
+              }
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-calendar" className={SELECT_TRIGGER_CLASS}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CARD1_CALENDAR_DISPLAYS.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {CARD1_CALENDAR_DISPLAY_LABELS[item]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Block Date Advance When" icon="security">
+        <div className="space-y-2">
+          {CARD1_DEFAULT_BLOCKERS.map((id) => (
+            <label key={id} className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={draft.businessDateBlockers.includes(id)}
+                disabled={!canEdit}
+                onCheckedChange={(checked) =>
+                  setDraft((p) => ({
+                    ...p,
+                    businessDateBlockers:
+                      checked === true
+                        ? [...new Set([...p.businessDateBlockers, id])]
+                        : p.businessDateBlockers.filter((row) => row !== id),
+                  }))
+                }
+              />
+              {CARD1_BLOCKER_LABELS[id]}
+            </label>
+          ))}
+        </div>
+        <div
+          className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+          data-testid="card1-live-block-preview"
+        >
+          <p className="font-medium">Live Block Preview</p>
+          <p className="mt-1">{preview}</p>
+        </div>
+      </Panel>
+      <Panel title="Recommended Defaults" icon="document">
+        <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+          <li>Rollover only after successful Night Audit</li>
+          <li>FO / HK / Reservations follow business date</li>
+          <li>Time zone managed in Property Identity</li>
+        </ul>
+      </Panel>
     </div>
   );
 }
@@ -1512,253 +1686,13 @@ export function BusinessDateStep({
   canEdit: boolean;
   currentState: Card1CurrentState;
 }) {
-  const preview = liveBlockPreview(draft.businessDateBlockers);
   return (
-    <div className="space-y-4" data-testid="pms-card1-step-business-date">
-      <Panel title="CURRENT STATE" helper={CARD1_BUSINESS_DATE_CURRENT_COPY} icon="date">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-business-date-current">Business Date</Label>
-            <Input
-              id="card1-business-date-current"
-              value={currentState.businessDate ?? "—"}
-              readOnly
-              disabled
-              data-testid="card1-business-date-current"
-              className="h-11 bg-muted/40"
-            />
-          </div>
-          <Field
-            id="card1-system-date"
-            label="System Date"
-            value={currentState.systemDate || "—"}
-            readOnly
-          />
-          <Field
-            id="card1-local-time"
-            label="Property Local Time"
-            value={currentState.propertyLocalTime || "—"}
-            readOnly
-          />
-          <Field id="card1-bd-status" label="Status" value={currentState.status} readOnly />
-          <Field
-            id="card1-last-na"
-            label="Last Successful Night Audit"
-            value={currentState.lastSuccessfulNightAudit || "Never"}
-            readOnly
-          />
-        </div>
-      </Panel>
-      <Panel title="CONFIGURATION" icon="time">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Business date time zone</Label>
-            <Input value={draft.timezone || "—"} readOnly disabled className="h-11 bg-muted/40" />
-            <a
-              href={`${SET1_HUB_HREF}#property-business`}
-              className="text-xs font-medium text-[#C89933]"
-              onClick={() => {
-                window.location.hash = "property-business";
-              }}
-            >
-              Edit in Property Identity
-            </a>
-          </div>
-          <TimeSelect
-            id="card1-boundary"
-            label="Business day boundary"
-            required
-            value={draft.businessDateConfig.dayBoundary}
-            disabled={!canEdit}
-            onChange={(dayBoundary) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, dayBoundary },
-              }))
-            }
-          />
-          <TimeSelect
-            id="card1-na-start"
-            label="Expected Night Audit window start"
-            required
-            value={draft.businessDateConfig.nightAuditWindowStart}
-            disabled={!canEdit}
-            onChange={(nightAuditWindowStart) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowStart },
-              }))
-            }
-          />
-          <TimeSelect
-            id="card1-na-end"
-            label="Expected Night Audit window end"
-            required
-            value={draft.businessDateConfig.nightAuditWindowEnd}
-            disabled={!canEdit}
-            onChange={(nightAuditWindowEnd) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowEnd },
-              }))
-            }
-          />
-        </div>
-        <ToggleRow
-          id="card1-auto-roll"
-          label="Automatic date rollover — Only after successful Night Audit"
-          checked={draft.businessDateConfig.automaticRollover}
-          disabled={!canEdit}
-          onChange={(automaticRollover) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, automaticRollover },
-            }))
-          }
-        />
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-[#251605]">
-            Manual rollover (permissions) <span className="text-red-600">*</span>
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {CARD1_MANUAL_ROLLOVER_ROLES.map((role) => {
-              const on = draft.businessDateConfig.manualRolloverRoles.includes(role.id);
-              return (
-                <button
-                  key={role.id}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() =>
-                    setDraft((p) => {
-                      const roles = on
-                        ? p.businessDateConfig.manualRolloverRoles.filter((id) => id !== role.id)
-                        : [...p.businessDateConfig.manualRolloverRoles, role.id];
-                      return {
-                        ...p,
-                        businessDateConfig: {
-                          ...p.businessDateConfig,
-                          manualRolloverRoles: roles,
-                        },
-                      };
-                    })
-                  }
-                  className={`rounded-full border px-3 py-1 text-xs ${on ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]" : "border-[#CCCCCC] text-muted-foreground"}`}
-                >
-                  {role.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <ToggleRow
-          id="card1-approval"
-          label="Approval required"
-          checked={draft.businessDateConfig.approvalRequired}
-          disabled={!canEdit}
-          onChange={(approvalRequired) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, approvalRequired },
-            }))
-          }
-        />
-        <ToggleRow
-          id="card1-lock"
-          label="Business date lock during audit"
-          checked={draft.businessDateConfig.lockDuringAudit}
-          disabled={!canEdit}
-          onChange={(lockDuringAudit) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, lockDuringAudit },
-            }))
-          }
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field
-            id="card1-sell-date"
-            label="Reservation sell date rule"
-            value={`Uses business date: ${currentState.businessDate ?? "—"}`}
-            readOnly
-          />
-          <Field
-            id="card1-hk-date"
-            label="Housekeeping board date"
-            value={currentState.businessDate ?? "—"}
-            readOnly
-          />
-          <Field
-            id="card1-fo-date"
-            label="Front Office desk date"
-            value={currentState.businessDate ?? "—"}
-            readOnly
-          />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-calendar">Calendar display</Label>
-            <Select
-              value={draft.businessDateConfig.calendarDisplay}
-              onValueChange={(calendarDisplay) =>
-                setDraft((p) => ({
-                  ...p,
-                  businessDateConfig: {
-                    ...p.businessDateConfig,
-                    calendarDisplay: calendarDisplay as typeof p.businessDateConfig.calendarDisplay,
-                  },
-                }))
-              }
-              disabled={!canEdit}
-            >
-              <SelectTrigger id="card1-calendar" className={SELECT_TRIGGER_CLASS}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CARD1_CALENDAR_DISPLAYS.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {CARD1_CALENDAR_DISPLAY_LABELS[item]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Panel>
-      <Panel title="Block Date Advance When" icon="security">
-        <div className="space-y-2">
-          {CARD1_DEFAULT_BLOCKERS.map((id) => (
-            <label key={id} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={draft.businessDateBlockers.includes(id)}
-                disabled={!canEdit}
-                onCheckedChange={(checked) =>
-                  setDraft((p) => ({
-                    ...p,
-                    businessDateBlockers:
-                      checked === true
-                        ? [...new Set([...p.businessDateBlockers, id])]
-                        : p.businessDateBlockers.filter((row) => row !== id),
-                  }))
-                }
-              />
-              {CARD1_BLOCKER_LABELS[id]}
-            </label>
-          ))}
-        </div>
-        <div
-          className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800"
-          data-testid="card1-live-block-preview"
-        >
-          <p className="font-medium">Live Block Preview</p>
-          <p className="mt-1">{preview}</p>
-        </div>
-      </Panel>
-      <Panel title="Recommended Defaults" icon="document">
-        <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Rollover only after successful Night Audit</li>
-          <li>FO / HK / Reservations follow business date</li>
-          <li>Time zone managed in Property Identity</li>
-        </ul>
-      </Panel>
-    </div>
+    <CheckinStep
+      draft={draft}
+      setDraft={setDraft}
+      canEdit={canEdit}
+      currentState={currentState}
+    />
   );
 }
 
@@ -1767,11 +1701,13 @@ export function LegalStep({
   draft,
   setDraft,
   canEdit,
+  warnings = [],
 }: {
   restaurantId: string;
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
+  warnings?: string[];
 }) {
   return (
     <div className="space-y-4" data-testid="pms-card1-step-legal">
@@ -1861,25 +1797,7 @@ export function LegalStep({
           onChange={(legalUploadRefs) => setDraft((p) => ({ ...p, legalUploadRefs }))}
         />
       </Panel>
-    </div>
-  );
-}
 
-export function TaxStep({
-  restaurantId,
-  draft,
-  setDraft,
-  canEdit,
-  warnings,
-}: {
-  restaurantId: string;
-  draft: Card1Draft;
-  setDraft: Dispatch<SetStateAction<Card1Draft>>;
-  canEdit: boolean;
-  warnings: string[];
-}) {
-  return (
-    <div className="space-y-4" data-testid="pms-card1-step-tax">
       <Panel title="Tax & Documents" helper={CARD1_VAT_GATE_COPY} icon="tax">
         <div className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 p-3 text-sm text-[#251605]">
           Tax identity is used for property setup and compliance. VAT certificate is required only
@@ -1951,6 +1869,30 @@ export function TaxStep({
         ))}
       </Panel>
     </div>
+  );
+}
+
+export function TaxStep({
+  restaurantId,
+  draft,
+  setDraft,
+  canEdit,
+  warnings = [],
+}: {
+  restaurantId: string;
+  draft: Card1Draft;
+  setDraft: Dispatch<SetStateAction<Card1Draft>>;
+  canEdit: boolean;
+  warnings?: string[];
+}) {
+  return (
+    <LegalStep
+      restaurantId={restaurantId}
+      draft={draft}
+      setDraft={setDraft}
+      canEdit={canEdit}
+      warnings={warnings}
+    />
   );
 }
 
