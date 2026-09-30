@@ -41,7 +41,6 @@ import {
   PREDEFINED_ROOM_CLASSES,
 } from "@/packages/pms/lib/rooms-classification";
 import {
-  MAINTENANCE_STATUSES,
   ROOM_LINK_KINDS,
   ROOM_STATUSES,
   SMOKING_POLICIES,
@@ -50,7 +49,7 @@ import {
   type RoomStatus,
   type SmokingPolicy,
 } from "@/packages/pms/lib/rooms.server";
-import { HK_STATUSES, type HkStatus } from "@/packages/pms/lib/housekeeping.server";
+import { type HkStatus } from "@/packages/pms/lib/housekeeping.server";
 import { getPmsSet2Snapshot } from "@/packages/pms/lib/pms-set2-structure.functions";
 import { emptySet2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import {
@@ -1273,8 +1272,6 @@ export function PmsPropertySetupCard2RoomTypes({
                 <th className="px-3 py-2">Building</th>
                 <th className="px-3 py-2">Floor</th>
                 <th className="px-3 py-2">Ops</th>
-                <th className="px-3 py-2">HK</th>
-                <th className="px-3 py-2">Maint.</th>
                 <th className="px-3 py-2">Sellable</th>
                 <th className="px-3 py-2 text-right">Action</th>
               </tr>
@@ -1293,12 +1290,6 @@ export function PmsPropertySetupCard2RoomTypes({
                     <td className="px-3 py-2">{buildingName}</td>
                     <td className="px-3 py-2">{floorName}</td>
                     <td className="px-3 py-2 capitalize">{row.status.replaceAll("_", " ")}</td>
-                    <td className="px-3 py-2 capitalize">
-                      {(row.housekeepingStatus ?? "clean").replaceAll("_", " ")}
-                    </td>
-                    <td className="px-3 py-2 capitalize">
-                      {row.maintenanceStatus.replaceAll("_", " ")}
-                    </td>
                     <td className="px-3 py-2">{row.sellable ? "Yes" : "No"}</td>
                     <td className="px-3 py-2 text-right">
                       <Button
@@ -1318,7 +1309,7 @@ export function PmsPropertySetupCard2RoomTypes({
               })}
               {filteredRooms.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
                     No rooms match the current filters.
                   </td>
                 </tr>
@@ -1352,39 +1343,6 @@ export function PmsPropertySetupCard2RoomTypes({
           </div>
           <div className="p-5">
           <PropertySetupFormGrid>
-            <PropertySetupField label="Room Number">
-              <Input
-                disabled={disabled}
-                value={roomForm.roomNumber}
-                onChange={(e) => setRoomForm({ ...roomForm, roomNumber: e.target.value })}
-              />
-            </PropertySetupField>
-            <PropertySetupField label="Room Code">
-              <Input
-                disabled={disabled}
-                value={roomForm.roomCode}
-                onChange={(e) => setRoomForm({ ...roomForm, roomCode: e.target.value })}
-                placeholder="Defaults to room number"
-              />
-            </PropertySetupField>
-            <PropertySetupField label="Room Type">
-              <Select
-                value={roomForm.roomTypeId}
-                onValueChange={(value) => setRoomForm({ ...roomForm, roomTypeId: value })}
-                disabled={disabled}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {types.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name} ({row.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </PropertySetupField>
             <PropertySetupField label="Building">
               <Select
                 value={roomForm.buildingId || "__none"}
@@ -1412,6 +1370,27 @@ export function PmsPropertySetupCard2RoomTypes({
                 <SelectContent>
                   <SelectItem value="__none">None</SelectItem>
                   {structure.buildings.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </PropertySetupField>
+            <PropertySetupField label="Floor">
+              <Select
+                value={roomForm.floorId || "__none"}
+                onValueChange={(value) =>
+                  setRoomForm({ ...roomForm, floorId: value === "__none" ? "" : value })
+                }
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">None</SelectItem>
+                  {roomFloors.map((row) => (
                     <SelectItem key={row.id} value={row.id}>
                       {row.name}
                     </SelectItem>
@@ -1448,26 +1427,38 @@ export function PmsPropertySetupCard2RoomTypes({
                 </SelectContent>
               </Select>
             </PropertySetupField>
-            <PropertySetupField label="Floor">
+            <PropertySetupField label="Room Type">
               <Select
-                value={roomForm.floorId || "__none"}
-                onValueChange={(value) =>
-                  setRoomForm({ ...roomForm, floorId: value === "__none" ? "" : value })
-                }
+                value={roomForm.roomTypeId}
+                onValueChange={(value) => setRoomForm({ ...roomForm, roomTypeId: value })}
                 disabled={disabled}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="None" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none">None</SelectItem>
-                  {roomFloors.map((row) => (
+                  {types.map((row) => (
                     <SelectItem key={row.id} value={row.id}>
-                      {row.name}
+                      {row.name} ({row.code})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </PropertySetupField>
+            <PropertySetupField label="Room Number">
+              <Input
+                disabled={disabled}
+                value={roomForm.roomNumber}
+                onChange={(e) => setRoomForm({ ...roomForm, roomNumber: e.target.value })}
+              />
+            </PropertySetupField>
+            <PropertySetupField label="Room Code">
+              <Input
+                disabled={disabled}
+                value={roomForm.roomCode}
+                onChange={(e) => setRoomForm({ ...roomForm, roomCode: e.target.value })}
+                placeholder="Defaults to room number"
+              />
             </PropertySetupField>
             <PropertySetupField label="Operational Status">
               <Select
@@ -1480,50 +1471,6 @@ export function PmsPropertySetupCard2RoomTypes({
                 </SelectTrigger>
                 <SelectContent>
                   {ROOM_STATUSES.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value
-                        .replaceAll("_", " ")
-                        .replace(/\b\w/g, (letter) => letter.toUpperCase())}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </PropertySetupField>
-            <PropertySetupField label="Housekeeping Status">
-              <Select
-                value={roomForm.housekeepingStatus}
-                onValueChange={(value) =>
-                  setRoomForm({ ...roomForm, housekeepingStatus: value as HkStatus })
-                }
-                disabled={disabled}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HK_STATUSES.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value
-                        .replaceAll("_", " ")
-                        .replace(/\b\w/g, (letter) => letter.toUpperCase())}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </PropertySetupField>
-            <PropertySetupField label="Maintenance Status">
-              <Select
-                value={roomForm.maintenanceStatus}
-                onValueChange={(value) =>
-                  setRoomForm({ ...roomForm, maintenanceStatus: value as MaintenanceStatus })
-                }
-                disabled={disabled}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MAINTENANCE_STATUSES.map((value) => (
                     <SelectItem key={value} value={value}>
                       {value
                         .replaceAll("_", " ")

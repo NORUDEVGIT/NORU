@@ -253,3 +253,43 @@ describe("PMS Card 2 Room Types Form UI Component Contract", () => {
     assert.match(uiSrc, /code: typeForm\.code\.trim\(\)/);
   });
 });
+
+describe("PMS Card 2 Physical Room Setup Form UI Contract", () => {
+  const uiSrc = readFileSync(
+    new URL("../components/settings/pms-property-setup-card2-room-types.tsx", import.meta.url),
+    "utf8",
+  );
+
+  it("removes Housekeeping Status and Maintenance Status from the physical room setup form", () => {
+    assert.doesNotMatch(uiSrc, /<PropertySetupField label="Housekeeping Status">/);
+    assert.doesNotMatch(uiSrc, /<PropertySetupField label="Maintenance Status">/);
+  });
+
+  it("removes HK and Maint. columns from the Physical Rooms summary table", () => {
+    assert.doesNotMatch(uiSrc, /<th[^>]*>HK<\/th>/);
+    assert.doesNotMatch(uiSrc, /<th[^>]*>Maint\.<\/th>/);
+  });
+
+  it("reorders main location/identity fields to Building -> Floor -> Wing -> Room Type -> Room Number -> Room Code", () => {
+    const buildingIdx = uiSrc.indexOf('<PropertySetupField label="Building">');
+    const floorIdx = uiSrc.indexOf('<PropertySetupField label="Floor">');
+    const wingIdx = uiSrc.indexOf('<PropertySetupField label="Wing">');
+    const roomTypeIdx = uiSrc.indexOf('<PropertySetupField label="Room Type">');
+    const roomNumberIdx = uiSrc.indexOf('<PropertySetupField label="Room Number">');
+    const roomCodeIdx = uiSrc.indexOf('<PropertySetupField label="Room Code">');
+
+    assert.ok(buildingIdx > 0, "Building field must exist");
+    assert.ok(floorIdx > buildingIdx, "Floor must be after Building");
+    assert.ok(wingIdx > floorIdx, "Wing must be after Floor");
+    assert.ok(roomTypeIdx > wingIdx, "Room Type must be after Wing");
+    assert.ok(roomNumberIdx > roomTypeIdx, "Room Number must be after Room Type");
+    assert.ok(roomCodeIdx > roomNumberIdx, "Room Code must be after Room Number");
+  });
+
+  it("preserves operational status and room state on room save", () => {
+    assert.match(uiSrc, /saveRoomFn/);
+    assert.match(uiSrc, /housekeepingStatus: roomForm\.housekeepingStatus/);
+    assert.match(uiSrc, /maintenanceStatus: roomForm\.maintenanceStatus/);
+  });
+});
+
