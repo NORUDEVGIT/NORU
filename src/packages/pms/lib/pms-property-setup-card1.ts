@@ -568,6 +568,8 @@ export type PropertySetupStatus = {
   cards: Partial<Record<PropertySetupCardId, PropertySetupCardStatus>>;
   card1Steps: Card1StepStatusMap;
   card2Steps?: Card2StepStatusMap;
+  customRoomCategories?: string[];
+  customRoomClasses?: string[];
 };
 
 export type Card1DerivedCapacity = {
@@ -765,7 +767,14 @@ export function emptyStructureRules(partial?: Partial<Card1StructureRules>): Car
 export function emptyPropertySetupStatus(
   partial?: Partial<PropertySetupStatus>,
 ): PropertySetupStatus {
-  return { cards: {}, card1Steps: {}, card2Steps: {}, ...partial };
+  return {
+    cards: {},
+    card1Steps: {},
+    card2Steps: {},
+    customRoomCategories: [],
+    customRoomClasses: [],
+    ...partial,
+  };
 }
 
 export function emptyDerivedCapacity(
@@ -1313,7 +1322,13 @@ export function parseCardStatus(value: unknown): PropertySetupCardStatus {
 
 export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
   if (!value || typeof value !== "object") return emptyPropertySetupStatus();
-  const rec = value as { cards?: unknown; card1Steps?: unknown; card2Steps?: unknown };
+  const rec = value as {
+    cards?: unknown;
+    card1Steps?: unknown;
+    card2Steps?: unknown;
+    customRoomCategories?: unknown;
+    customRoomClasses?: unknown;
+  };
   const cards: PropertySetupStatus["cards"] = {};
   if (rec.cards && typeof rec.cards === "object") {
     for (const card of PROPERTY_SETUP_CARDS) {
@@ -1346,7 +1361,35 @@ export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
       if (raw != null) card2Steps[step.id] = parseCardStatus(raw);
     }
   }
-  return { cards, card1Steps, card2Steps };
+
+  const customRoomCategories = Array.isArray(rec.customRoomCategories)
+    ? Array.from(
+        new Map(
+          rec.customRoomCategories
+            .map((row) => String(row ?? "").trim())
+            .filter(Boolean)
+            .map((val) => [val.toLowerCase(), val]),
+        ).values(),
+      )
+    : [];
+  const customRoomClasses = Array.isArray(rec.customRoomClasses)
+    ? Array.from(
+        new Map(
+          rec.customRoomClasses
+            .map((row) => String(row ?? "").trim())
+            .filter(Boolean)
+            .map((val) => [val.toLowerCase(), val]),
+        ).values(),
+      )
+    : [];
+
+  return {
+    cards,
+    card1Steps,
+    card2Steps,
+    customRoomCategories,
+    customRoomClasses,
+  };
 }
 
 function plausiblePhone(value: string): boolean {
@@ -1608,6 +1651,7 @@ export function markStepInProgress(
   step: Card1StepId,
 ): PropertySetupStatus {
   return {
+    ...status,
     cards: { ...status.cards, "property-business": "in_progress" },
     card1Steps: {
       ...status.card1Steps,
@@ -1628,6 +1672,7 @@ export function markStepComplete(
     [step]: card1StepComplete(step, draft, set2) ? "complete" : "in_progress",
   };
   const next: PropertySetupStatus = {
+    ...status,
     cards: { ...status.cards },
     card1Steps: nextSteps,
     card2Steps: { ...(status.card2Steps ?? {}) },
@@ -1640,6 +1685,7 @@ export function markCard1Complete(status: PropertySetupStatus): PropertySetupSta
   const card1Steps = { ...status.card1Steps };
   for (const step of CARD1_STEPS) card1Steps[step.id] = "complete";
   return {
+    ...status,
     cards: { ...status.cards, "property-business": "complete" },
     card1Steps,
     card2Steps: { ...(status.card2Steps ?? {}) },

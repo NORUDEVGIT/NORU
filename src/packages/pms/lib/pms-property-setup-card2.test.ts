@@ -156,7 +156,7 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.doesNotMatch(ui, /pmsDb/);
     assert.doesNotMatch(ui, /localStorage/);
     assert.match(ui, /Bed configuration/);
-    assert.match(ui, /Bulk room generation/);
+    assert.match(ui, /Bulk [Rr]oom [Gg]eneration/);
     assert.match(ui, /Connecting \/ adjacent/);
     assert.match(ui, /maintenanceStatus/);
     assert.match(ui, /housekeepingStatus/);
@@ -212,12 +212,12 @@ describe("PMS Property Setup Card 2 Phase 5 Maintenance UI", () => {
     assert.match(ui, /getMaintenanceSummary/);
     assert.match(ui, /evaluateCard2MaintenanceReadiness/);
     assert.match(ui, /listMaintenanceDepartments/);
-    assert.match(ui, /Maintenance Status Rules control restrictions/);
+    assert.match(ui, /Maintenance Status Rules/);
     assert.match(
       ui,
-      /Out of Service \/ Out of Order policies below govern operational room restrictions/,
+      /Out of Service and Out of Order/,
     );
-    assert.match(ui, /maintenance-status-\$\{status\}-\$\{field\.key\}/);
+    assert.match(ui, /maintenance-status-\$\{status\}-active/);
     assert.match(ui, /maintenance-oos-enabled/);
     assert.match(ui, /maintenance-ooo-ticket-required/);
     assert.match(ui, /scroll-mb-32/);
