@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LockKeyhole, Plus, Search } from "lucide-react";
+import { LockKeyhole, MoreVertical, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -12,6 +12,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -23,25 +30,32 @@ import {
 } from "@/shared/components/ui/select";
 import { Switch } from "@/shared/components/ui/switch";
 import {
+  deletePmsCard2HousekeepingStatus,
   evaluatePmsCard2HousekeepingReadiness,
   getPmsCard2Housekeeping,
   savePmsCard2CustomStatus,
   savePmsCard2Housekeeping,
+  savePmsCard2Transition,
 } from "@/packages/pms/lib/housekeeping-card2.functions";
 import {
+  checkStatusDeletability,
   HOUSEKEEPING_OVERRIDE_PERMISSIONS,
   HOUSEKEEPING_PRIORITY_CODES,
   HOUSEKEEPING_RELEASE_RULES,
+  HOUSEKEEPING_TRANSITION_EVENTS,
   priorityEventLabel,
   transitionEventLabel,
+  validateTransitionRule,
   type HousekeepingCard2Priority,
   type HousekeepingCard2Settings,
   type HousekeepingCard2Snapshot,
+  type HousekeepingCard2Status,
   type HousekeepingCard2Transition,
   type HousekeepingOperationalStatus,
   type HousekeepingOverridePermission,
   type HousekeepingPriorityCode,
   type HousekeepingReleaseRule,
+  type HousekeepingTransitionEvent,
 } from "@/packages/pms/lib/housekeeping-card2.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 
@@ -168,6 +182,269 @@ function titleCase(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+export function getStatusDot(code: string) {
+  switch (code) {
+    case "clean":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-emerald-500" />;
+    case "dirty":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-amber-500" />;
+    case "inspected":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-sky-500" />;
+    case "pickup":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-purple-500" />;
+    case "ready":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-green-600" />;
+    case "occupied":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-blue-600" />;
+    case "vacant":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-gray-400" />;
+    case "out_of_order":
+    case "out_of_service":
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-rose-500" />;
+    default:
+      return <span className="inline-block size-2 shrink-0 rounded-full bg-slate-400" />;
+  }
+}
+
+export function getStatusName(statuses: HousekeepingCard2Status[], code: string) {
+  return statuses.find((s) => s.code === code)?.name ?? code;
+}
+
+export type AutomaticTransitionFormProps = {
+  transition: {
+    id?: string;
+    event: HousekeepingTransitionEvent | "";
+    fromStatus: string;
+    toStatus: string;
+    approvalRequired: boolean;
+    enabled: boolean;
+  };
+  statuses: HousekeepingCard2Status[];
+  existingTransitions: HousekeepingCard2Transition[];
+  canEdit: boolean;
+  isSaving: boolean;
+  onSave: (data: {
+    id?: string;
+    event: HousekeepingTransitionEvent;
+    fromStatus: string;
+    toStatus: string;
+    approvalRequired: boolean;
+    enabled: boolean;
+  }) => void;
+  onCancel: () => void;
+};
+
+export function AutomaticTransitionForm({
+  transition,
+  statuses,
+  existingTransitions,
+  canEdit,
+  isSaving,
+  onSave,
+  onCancel,
+}: AutomaticTransitionFormProps) {
+  const [event, setEvent] = useState<HousekeepingTransitionEvent | "">(transition.event);
+  const [fromStatus, setFromStatus] = useState<string>(transition.fromStatus);
+  const [toStatus, setToStatus] = useState<string>(transition.toStatus);
+  const [approvalRequired, setApprovalRequired] = useState<boolean>(transition.approvalRequired);
+  const [enabled, setEnabled] = useState<boolean>(transition.enabled);
+  const [error, setError] = useState<string | null>(null);
+
+  const isEdit = Boolean(transition.id || transition.event);
+
+  const fromOptions = useMemo(() => {
+    return statuses.filter((s) => s.active || s.code === fromStatus);
+  }, [statuses, fromStatus]);
+
+  const toOptions = useMemo(() => {
+    return statuses.filter((s) => s.active || s.code === toStatus);
+  }, [statuses, toStatus]);
+
+  function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setError(null);
+
+    const validation = validateTransitionRule(
+      {
+        id: transition.id,
+        event,
+        fromStatus,
+        toStatus,
+        approvalRequired,
+        enabled,
+      },
+      existingTransitions,
+      statuses,
+    );
+
+    if (!validation.valid) {
+      setError(validation.error);
+      return;
+    }
+
+    onSave({
+      id: transition.id,
+      event: event as HousekeepingTransitionEvent,
+      fromStatus,
+      toStatus,
+      approvalRequired,
+      enabled,
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="border-b border-[#EDE6D8] bg-white px-5 py-4">
+        <DialogHeader className="space-y-1 text-left">
+          <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
+            {isEdit ? "Edit Automatic Status Transition" : "Automatic Status Transition"}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Configure the automatic status transition for this operational event.
+          </DialogDescription>
+        </DialogHeader>
+      </div>
+
+      <div className="space-y-4 px-5 py-2">
+        {error ? (
+          <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm font-medium text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="space-y-1.5">
+          <Label htmlFor="trans-event" className="text-xs font-medium text-[#251605]">
+            Event *
+          </Label>
+          <Select
+            value={event}
+            disabled={!canEdit || isSaving}
+            onValueChange={(val) => setEvent(val as HousekeepingTransitionEvent)}
+          >
+            <SelectTrigger id="trans-event" className="h-10 text-sm">
+              <SelectValue placeholder="Select operational event" />
+            </SelectTrigger>
+            <SelectContent>
+              {HOUSEKEEPING_TRANSITION_EVENTS.map((ev) => (
+                <SelectItem key={ev} value={ev} className="text-sm">
+                  {transitionEventLabel(ev)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="trans-from-status" className="text-xs font-medium text-[#251605]">
+              From Status *
+            </Label>
+            <Select
+              value={fromStatus}
+              disabled={!canEdit || isSaving}
+              onValueChange={setFromStatus}
+            >
+              <SelectTrigger id="trans-from-status" className="h-10 text-sm">
+                <SelectValue placeholder="Select from status" />
+              </SelectTrigger>
+              <SelectContent>
+                {fromOptions.map((status) => (
+                  <SelectItem key={status.code} value={status.code} className="text-sm">
+                    <span className="flex items-center gap-2">
+                      {getStatusDot(status.code)}
+                      <span>{status.name}</span>
+                      {!status.active ? (
+                        <span className="text-xs text-muted-foreground">(Inactive)</span>
+                      ) : null}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="trans-to-status" className="text-xs font-medium text-[#251605]">
+              To Status *
+            </Label>
+            <Select
+              value={toStatus}
+              disabled={!canEdit || isSaving}
+              onValueChange={setToStatus}
+            >
+              <SelectTrigger id="trans-to-status" className="h-10 text-sm">
+                <SelectValue placeholder="Select to status" />
+              </SelectTrigger>
+              <SelectContent>
+                {toOptions.map((status) => (
+                  <SelectItem key={status.code} value={status.code} className="text-sm">
+                    <span className="flex items-center gap-2">
+                      {getStatusDot(status.code)}
+                      <span>{status.name}</span>
+                      {!status.active ? (
+                        <span className="text-xs text-muted-foreground">(Inactive)</span>
+                      ) : null}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#E5DED1] px-3.5 py-3">
+          <div>
+            <Label htmlFor="trans-approval" className="text-xs font-medium text-[#251605]">
+              Require Approval
+            </Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Transition requires supervisor confirmation before status updates.
+            </p>
+          </div>
+          <Switch
+            id="trans-approval"
+            checked={approvalRequired}
+            disabled={!canEdit || isSaving}
+            onCheckedChange={setApprovalRequired}
+            aria-label="Require Approval"
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#E5DED1] px-3.5 py-3">
+          <div>
+            <Label htmlFor="trans-active" className="text-xs font-medium text-[#251605]">
+              Active
+            </Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Enable or disable this automated transition rule.
+            </p>
+          </div>
+          <Switch
+            id="trans-active"
+            checked={enabled}
+            disabled={!canEdit || isSaving}
+            onCheckedChange={setEnabled}
+            aria-label="Active"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
+        <Button type="button" variant="outline" disabled={isSaving} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={!canEdit || isSaving || !event || !fromStatus || !toStatus}
+          className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+        >
+          {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Save Transition"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function PmsPropertySetupCard2Housekeeping({
   restaurantId,
   canEdit,
@@ -190,17 +467,26 @@ export function PmsPropertySetupCard2Housekeeping({
     evaluatePmsCard2HousekeepingReadiness,
   );
   const saveCustomStatus = useServerFn(savePmsCard2CustomStatus);
+  const deleteStatus = useServerFn(deletePmsCard2HousekeepingStatus);
+  const saveTransition = useServerFn(savePmsCard2Transition);
 
   const [draft, setDraft] = useState<HousekeepingCard2Snapshot | null>(null);
   const [custom, setCustom] = useState<CustomStatusDraft>(
     emptyCustomStatus(),
   );
   const [customStatusOpen, setCustomStatusOpen] = useState(false);
+  const [statusToDelete, setStatusToDelete] = useState<HousekeepingCard2Status | null>(null);
+  const [transitionModalOpen, setTransitionModalOpen] = useState(false);
+  const [selectedTransition, setSelectedTransition] = useState<{
+    id?: string;
+    event: HousekeepingTransitionEvent | "";
+    fromStatus: string;
+    toStatus: string;
+    approvalRequired: boolean;
+    enabled: boolean;
+  } | null>(null);
   const [statusSearch, setStatusSearch] = useState("");
   const [statusSourceFilter, setStatusSourceFilter] = useState("__all");
-  const [transitionEvent, setTransitionEvent] = useState<
-    HousekeepingCard2Transition["event"] | null
-  >(null);
 
   const query = useQuery({
     queryKey: ["pms-card2-housekeeping", restaurantId],
@@ -307,6 +593,53 @@ export function PmsPropertySetupCard2Housekeeping({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const deleteStatusMutation = useMutation({
+    mutationFn: (input: { statusId: string }) =>
+      deleteStatus({ data: { restaurantId, statusId: input.statusId } }),
+    onSuccess: (result) => {
+      setDraft(result.snapshot);
+      setStatusToDelete(null);
+      onReadiness(
+        result.readiness.stepStatus,
+        result.readiness.blockers,
+        result.readiness.warnings,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: ["pms-card2-housekeeping", restaurantId],
+      });
+      toast.success("Housekeeping status deleted.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveTransitionMutation = useMutation({
+    mutationFn: (input: {
+      id?: string;
+      event: HousekeepingTransitionEvent;
+      fromStatus: string;
+      toStatus: string;
+      enabled: boolean;
+      approvalRequired: boolean;
+    }) => saveTransition({ data: { restaurantId, ...input } }),
+    onSuccess: (result) => {
+      setDraft(result.snapshot);
+      setTransitionModalOpen(false);
+      setSelectedTransition(null);
+      onReadiness(
+        result.readiness.stepStatus,
+        result.readiness.blockers,
+        result.readiness.warnings,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: ["pms-card2-housekeeping", restaurantId],
+      });
+      toast.success(
+        selectedTransition?.id ? "Transition updated." : "Transition added.",
+      );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   async function saveDraft(): Promise<boolean> {
     if (!canEdit || !draft) return false;
 
@@ -396,11 +729,6 @@ export function PmsPropertySetupCard2Housekeeping({
     return matchesSearch && matchesSource;
   });
 
-  const selectedTransition = transitionEvent
-    ? draft.transitions.find((rule) => rule.event === transitionEvent) ??
-      null
-    : null;
-
   function updateSettings(
     patch: Partial<HousekeepingCard2Settings>,
   ) {
@@ -462,6 +790,39 @@ export function PmsPropertySetupCard2Housekeeping({
       name: status.name,
     });
     setCustomStatusOpen(true);
+  }
+
+  function promptDeleteStatus(status: HousekeepingCard2Status) {
+    if (!draft) return;
+    const check = checkStatusDeletability(status, draft);
+    if (!check.deletable) {
+      toast.error(check.reason ?? "This status cannot be deleted.");
+      return;
+    }
+    setStatusToDelete(status);
+  }
+
+  function openAddTransition() {
+    setSelectedTransition({
+      event: "",
+      fromStatus: "",
+      toStatus: "",
+      approvalRequired: false,
+      enabled: true,
+    });
+    setTransitionModalOpen(true);
+  }
+
+  function openEditTransition(rule: HousekeepingCard2Transition) {
+    setSelectedTransition({
+      id: rule.id,
+      event: rule.event,
+      fromStatus: rule.fromStatus,
+      toStatus: rule.toStatus,
+      approvalRequired: rule.approvalRequired,
+      enabled: rule.enabled,
+    });
+    setTransitionModalOpen(true);
   }
 
   return (
@@ -644,41 +1005,48 @@ export function PmsPropertySetupCard2Housekeeping({
                   </td>
                   <td className="px-3 py-2 text-right">
                     {status.isCore ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="System core statuses cannot be edited or deleted">
                         <LockKeyhole className="size-3.5" />
                         Locked
                       </span>
                     ) : canEdit ? (
-                      <div className="inline-flex gap-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            openEditCustomStatus(status)
-                          }
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={customMutation.isPending}
-                          onClick={() =>
-                            customMutation.mutate({
-                              id: status.id,
-                              code: status.code,
-                              name: status.name,
-                              active: !status.active,
-                            })
-                          }
-                        >
-                          {status.active
-                            ? "Deactivate"
-                            : "Activate"}
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-foreground"
+                            aria-label={`Actions for ${status.name}`}
+                          >
+                            <MoreVertical className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-36">
+                          <DropdownMenuItem onSelect={() => openEditCustomStatus(status)}>
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              customMutation.mutate({
+                                id: status.id,
+                                code: status.code,
+                                name: status.name,
+                                active: !status.active,
+                              })
+                            }
+                          >
+                            {status.active ? "Deactivate" : "Activate"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            onSelect={() => promptDeleteStatus(status)}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     ) : null}
                   </td>
                 </tr>
@@ -706,24 +1074,61 @@ export function PmsPropertySetupCard2Housekeeping({
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium text-[#251605]">
-                    {status.name}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    {getStatusDot(status.code)}
+                    <p className="font-medium text-[#251605]">
+                      {status.name}
+                    </p>
+                  </div>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {status.code} · {titleCase(status.domain)} ·{" "}
                     {status.isCore ? "System/Core" : "Property"}
                   </p>
                 </div>
 
-                {!status.isCore && canEdit ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openEditCustomStatus(status)}
-                  >
-                    Edit
-                  </Button>
+                {status.isCore ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <LockKeyhole className="size-3.5" />
+                    Locked
+                  </span>
+                ) : canEdit ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-foreground"
+                        aria-label={`Actions for ${status.name}`}
+                      >
+                        <MoreVertical className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-36">
+                      <DropdownMenuItem onSelect={() => openEditCustomStatus(status)}>
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          customMutation.mutate({
+                            id: status.id,
+                            code: status.code,
+                            name: status.name,
+                            active: !status.active,
+                          })
+                        }
+                      >
+                        {status.active ? "Deactivate" : "Activate"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        onSelect={() => promptDeleteStatus(status)}
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : null}
               </div>
             </article>
@@ -735,80 +1140,148 @@ export function PmsPropertySetupCard2Housekeeping({
         number={3}
         title="Automatic Status Transitions"
         description="These rules configure operational events; they do not execute housekeeping work from Settings."
+        action={
+          canEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={openAddTransition}
+            >
+              <Plus className="mr-1 size-4" />
+              Add Transition Status
+            </Button>
+          ) : null
+        }
       >
-        <div className="overflow-x-auto rounded-lg border border-[#E6DFD3]">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-[#F7F4EE] text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Event</th>
-                <th className="px-3 py-2">From Status</th>
-                <th className="px-3 py-2">To Status</th>
-                <th className="px-3 py-2">Approval</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {draft.transitions.map((rule) => (
-                <tr
-                  key={rule.event}
-                  className="border-t border-[#EDE6D8] hover:bg-[#FBF9F5]"
-                >
-                  <td className="px-3 py-2 font-medium text-[#251605]">
-                    {transitionEventLabel(rule.event)}
-                  </td>
-                  <td className="px-3 py-2">
-                    {statusOptions.find(
-                      (option) => option.value === rule.fromStatus,
-                    )?.label ?? rule.fromStatus}
-                  </td>
-                  <td className="px-3 py-2">
-                    {statusOptions.find(
-                      (option) => option.value === rule.toStatus,
-                    )?.label ?? rule.toStatus}
-                  </td>
-                  <td className="px-3 py-2">
-                    {rule.approvalRequired
-                      ? "Required"
-                      : "—"}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className={`size-2 rounded-full ${
-                          rule.enabled
-                            ? "bg-green-500"
-                            : "bg-gray-400"
-                        }`}
-                      />
-                      {rule.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {rule.event === "guest_check_in" ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        <LockKeyhole className="size-3.5" />
-                        System
-                      </span>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={disabled}
-                        onClick={() =>
-                          setTransitionEvent(rule.event)
-                        }
-                      >
-                        Edit
-                      </Button>
-                    )}
-                  </td>
+        {draft.transitions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#DDD5C7] p-8 text-center">
+            <p className="text-sm font-medium text-[#251605]">
+              No automatic status transitions configured.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Define rules to update room housekeeping status automatically when operational events occur.
+            </p>
+            {canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={openAddTransition}
+              >
+                <Plus className="mr-1 size-4" />
+                Add Transition Status
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-[#E6DFD3]">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-[#F7F4EE] text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2.5">Event</th>
+                  <th className="px-3 py-2.5">From Status</th>
+                  <th className="px-3 py-2.5">To Status</th>
+                  <th className="px-3 py-2.5">Approval</th>
+                  <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {draft.transitions.map((rule) => (
+                  <tr
+                    key={rule.event}
+                    tabIndex={canEdit ? 0 : undefined}
+                    role={canEdit ? "button" : undefined}
+                    aria-label={canEdit ? `Edit transition for ${transitionEventLabel(rule.event)}` : undefined}
+                    className={`border-t border-[#EDE6D8] transition-colors ${
+                      canEdit
+                        ? "cursor-pointer hover:bg-[#FBF9F5] focus-visible:bg-[#FBF9F5] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
+                        : ""
+                    }`}
+                    onClick={() => {
+                      if (canEdit) openEditTransition(rule);
+                    }}
+                    onKeyDown={(e) => {
+                      if (canEdit && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        openEditTransition(rule);
+                      }
+                    }}
+                  >
+                    <td className="px-3 py-2.5 font-medium text-[#251605]">
+                      {transitionEventLabel(rule.event)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        {getStatusDot(rule.fromStatus)}
+                        <span>{getStatusName(draft.statuses, rule.fromStatus)}</span>
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        {getStatusDot(rule.toStatus)}
+                        <span>{getStatusName(draft.statuses, rule.toStatus)}</span>
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {rule.approvalRequired ? (
+                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          Required
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not Required</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+                        <span
+                          className={`size-2 rounded-full ${
+                            rule.enabled ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {rule.enabled ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        {rule.event === "guest_check_in" ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <LockKeyhole className="size-3.5" />
+                            System
+                          </span>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-muted-foreground hover:text-foreground"
+                                aria-label={`Actions for ${transitionEventLabel(rule.event)}`}
+                              >
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-32">
+                              <DropdownMenuItem
+                                disabled={!canEdit}
+                                onSelect={() => openEditTransition(rule)}
+                              >
+                                Edit
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <p className="mt-3 text-xs text-muted-foreground">
           Guest Check-In is reservation-derived and remains system controlled.
@@ -1107,104 +1580,73 @@ export function PmsPropertySetupCard2Housekeeping({
       </Dialog>
 
       <Dialog
-        open={Boolean(selectedTransition)}
+        open={Boolean(statusToDelete)}
         onOpenChange={(open) => {
-          if (!open) setTransitionEvent(null);
+          if (!open) setStatusToDelete(null);
         }}
       >
-        <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-0 shadow-xl">
+        <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-0 shadow-xl">
+          <div className="border-b border-[#EDE6D8] bg-white px-5 py-4">
+            <DialogHeader className="space-y-1 text-left">
+              <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
+                Delete Housekeeping Status?
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                &ldquo;{statusToDelete?.name}&rdquo; will be permanently removed from the Housekeeping Catalog.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="p-5 text-sm text-[#554A3E]">
+            <p>This action cannot be undone.</p>
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteStatusMutation.isPending}
+              onClick={() => setStatusToDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteStatusMutation.isPending}
+              onClick={() => {
+                if (statusToDelete) {
+                  deleteStatusMutation.mutate({ statusId: statusToDelete.id });
+                }
+              }}
+            >
+              {deleteStatusMutation.isPending ? "Deleting..." : "Delete Status"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={transitionModalOpen}
+        onOpenChange={(open) => {
+          setTransitionModalOpen(open);
+          if (!open) setSelectedTransition(null);
+        }}
+      >
+        <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-0 shadow-xl">
           {selectedTransition ? (
-            <>
-              <div className="border-b border-[#EDE6D8] bg-white px-5 py-4">
-                <DialogHeader className="space-y-1 text-left">
-                  <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
-                    Edit transition —{" "}
-                    {transitionEventLabel(selectedTransition.event)}
-                  </DialogTitle>
-                  <DialogDescription className="text-sm text-muted-foreground">
-                    Configure the automatic status transition for this
-                    operational event.
-                  </DialogDescription>
-                </DialogHeader>
-              </div>
-
-              <div className="space-y-4 p-5">
-                <RuleToggle
-                  id={`hk-${selectedTransition.event}-enabled`}
-                  label="Enabled"
-                  checked={selectedTransition.enabled}
-                  disabled={disabled}
-                  onCheckedChange={(enabled) =>
-                    updateTransition(selectedTransition.event, {
-                      enabled,
-                    })
-                  }
-                />
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <SelectField
-                    id={`hk-${selectedTransition.event}-from`}
-                    label="From Status"
-                    value={selectedTransition.fromStatus}
-                    options={statusOptions}
-                    disabled={disabled}
-                    onValueChange={(fromStatus) =>
-                      updateTransition(selectedTransition.event, {
-                        fromStatus,
-                      })
-                    }
-                  />
-
-                  <SelectField
-                    id={`hk-${selectedTransition.event}-to`}
-                    label="To Status"
-                    value={selectedTransition.toStatus}
-                    options={statusOptions}
-                    disabled={disabled}
-                    onValueChange={(toStatus) =>
-                      updateTransition(selectedTransition.event, {
-                        toStatus,
-                      })
-                    }
-                  />
-                </div>
-
-                {draft.settings.inspectionRequired &&
-                selectedTransition.event ===
-                  "inspection_complete" ? (
-                  <RuleToggle
-                    id="hk-transition-inspection-approval"
-                    label="Approval Required"
-                    description="Require supervisor approval for this transition."
-                    checked={selectedTransition.approvalRequired}
-                    disabled={disabled}
-                    onCheckedChange={(approvalRequired) =>
-                      updateTransition(
-                        selectedTransition.event,
-                        { approvalRequired },
-                      )
-                    }
-                  />
-                ) : null}
-              </div>
-
-              <div className="flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setTransitionEvent(null)}
-                >
-                  Close
-                </Button>
-                <Button
-                  type="button"
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                  onClick={() => setTransitionEvent(null)}
-                >
-                  Done
-                </Button>
-              </div>
-            </>
+            <AutomaticTransitionForm
+              transition={selectedTransition}
+              statuses={draft.statuses}
+              existingTransitions={draft.transitions}
+              canEdit={canEdit}
+              isSaving={saveTransitionMutation.isPending}
+              onSave={(data) => saveTransitionMutation.mutate(data)}
+              onCancel={() => {
+                setTransitionModalOpen(false);
+                setSelectedTransition(null);
+              }}
+            />
           ) : null}
         </DialogContent>
       </Dialog>

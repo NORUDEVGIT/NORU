@@ -162,6 +162,12 @@ export type GuestMergeLedgerPayload = {
   movedLinkIds: string[];
   deletedLinkIds: string[];
   retiredStatus: string;
+  customFieldConflicts?: Array<{
+    fieldId: string;
+    survivorValue: unknown;
+    retiredValue: unknown;
+  }>;
+  copiedCustomFieldIds?: string[];
 };
 
 export type UnmergeAssessment =

@@ -5,9 +5,9 @@ import {
 
 export function CommercialHistoryEmptyState() {
   return (
-    <div className="rounded-xl border border-dashed border-[#E8E1D7] bg-[#F7F4EE] px-4 py-8 text-center">
-      <p className="text-sm font-medium text-[#251605]">{COMMERCIAL_HISTORY_EMPTY_COPY}</p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{COMMERCIAL_HISTORY_IMMUTABLE_COPY}</p>
+    <div className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF6F0] px-4 py-8 text-center">
+      <p className="text-sm font-semibold text-[#251605]">{COMMERCIAL_HISTORY_EMPTY_COPY}</p>
+      <p className="mt-1 text-xs text-[#756A5B]">{COMMERCIAL_HISTORY_IMMUTABLE_COPY}</p>
     </div>
   );
 }

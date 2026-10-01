@@ -271,4 +271,21 @@ describe("RR-P3-04 — wiring, honesty and Phase 3 flow lock", () => {
     assert.doesNotMatch(view, /CREATE OR REPLACE FUNCTION public\.price_hotel_stay/);
     assert.doesNotMatch(helper, /rpc\(/);
   });
+
+  it("enforces full-width table, on-demand Sheet drawer, whole-row click, isolated menu, and yellow Filter button", () => {
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
+    assert.doesNotMatch(drawer, /<aside/);
+    assert.match(drawer, /<Sheet/);
+    assert.match(table, /onClick=\{\(\) => onViewDetails\(row\)\}/);
+    assert.match(table, /event\.stopPropagation\(\)/);
+    assert.match(table, /cursor-pointer/);
+    assert.match(table, /focus-visible:ring-2/);
+    assert.match(filters, /Filter/);
+    assert.match(filters, /Clear/);
+    assert.match(filters, /bg-\[#D5A62B\]/);
+    for (const source of [view, filters, table, drawer, empty]) {
+      assert.doesNotMatch(source, /text-\[9px\]|text-\[10px\]/);
+    }
+  });
 });
+

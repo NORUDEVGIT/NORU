@@ -66,13 +66,13 @@ export async function loadPackageMasterPreview(
     roomTypeIds: ((rooms.data ?? []) as Array<{ room_type_id: string }>).map((item) => item.room_type_id),
     ratePlanIds: ((plans.data ?? []) as Array<{ rate_plan_id: string }>).map((item) => item.rate_plan_id),
     components: ((components.data ?? []) as Array<Record<string, unknown>>).map((item) => {
-      const meal = item.pms_meal_plans as { name?: string } | null;
-      const amenity = item.room_amenities as { name?: string } | null;
+      const meal = item["pms_meal_plans"] as { name?: string } | null;
+      const amenity = item["room_amenities"] as { name?: string } | null;
       const snapshot: PackageComponentSnapshot = {
-        componentType: String(item.component_kind ?? ""),
-        componentId: String(item.meal_plan_id ?? item.room_amenity_id ?? item.fo_service_id ?? ""),
-        label: meal?.name ?? amenity?.name ?? String(item.component_kind ?? ""),
-        quantity: Number(item.quantity ?? 1),
+        componentType: String(item["component_kind"] ?? ""),
+        componentId: String(item["meal_plan_id"] ?? item["room_amenity_id"] ?? item["fo_service_id"] ?? ""),
+        label: meal?.name ?? amenity?.name ?? String(item["component_kind"] ?? ""),
+        quantity: Number(item["quantity"] ?? 1),
       };
       return snapshot;
     }),

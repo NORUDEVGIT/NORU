@@ -15,8 +15,8 @@ export function ActivationScopeStep({
   ratePlans: RevenueRatePlan[];
   roomTypeIds: string[];
   ratePlanIds: string[];
-  eligibleRoomTypeIds?: string[];
-  eligibleRatePlanIds?: string[];
+  eligibleRoomTypeIds?: string[] | undefined;
+  eligibleRatePlanIds?: string[] | undefined;
   onToggleRoom: (id: string) => void;
   onTogglePlan: (id: string) => void;
 }) {

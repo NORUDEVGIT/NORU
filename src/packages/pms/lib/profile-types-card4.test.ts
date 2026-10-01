@@ -19,10 +19,10 @@ const functionsSrc = readFileSync(
 const wave1Src = readFileSync(new URL("./guest-profile-wave1.ts", import.meta.url), "utf8");
 
 describe("Card 4 Profile Types catalogue", () => {
-  it("seeds seven default codes including Group and keeps SET3-plus required field ids", () => {
+  it("seeds four default codes including Group and keeps SET3-plus required field ids", () => {
     assert.deepEqual(
       DEFAULT_PROFILE_TYPES.map((row) => row.code),
-      ["IND", "COM", "TRA", "TOU", "ORG", "CON", "GRP"],
+      ["IND", "COM", "TRA", "GRP"],
     );
     assert.deepEqual(
       PROFILE_TYPE_PREFERENCE_TYPES.map((row) => row.id),

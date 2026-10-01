@@ -814,7 +814,7 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
       assert.equal(err, null);
     });
 
-    it("60. unmapped field codes resolve with canonicalKey null and isUnsupported true", () => {
+    it("60. unmapped field codes resolve with canonicalKey null and isUnsupported false", () => {
       const config = makeConfig({
         requiredFields: [
           {
@@ -837,10 +837,10 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
       const unmapped = rules.find((r) => r.code === "CUSTOM_TAX_INTERNAL_CODE");
       assert.ok(unmapped);
       assert.equal(unmapped.canonicalKey, null);
-      assert.equal(unmapped.isUnsupported, true);
+      assert.equal(unmapped.isUnsupported, false);
     });
 
-    it("61. unmapped field does not block validation or crash validator", () => {
+    it("61. unmapped field validates when provided in customFieldValues", () => {
       const config = makeConfig({
         requiredFields: [
           {
@@ -860,7 +860,13 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
         ],
       });
       const rules = resolveGuestFieldRules(config, null, "profile_create");
-      const res = validateGuestFields({ firstName: "Alice" }, rules, "profile_create");
+      const res = validateGuestFields(
+        { firstName: "Alice" },
+        rules,
+        "profile_create",
+        null,
+        { CUSTOM_TAX_INTERNAL_CODE: "TAX-123" },
+      );
       assert.equal(res.valid, true);
     });
   });
@@ -1032,7 +1038,7 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
       assert.equal(isDocumentTypeAllowedForProfileType(passport, corpProfile), false);
     });
 
-    it("72. unmapped configured field is documented/deferred and no fake value is persisted", () => {
+    it("72. unmapped configured field resolves as custom_value and validates with customFieldValues", () => {
       const config = makeConfig({
         requiredFields: [
           {
@@ -1055,10 +1061,15 @@ describe("PMS Guest Profile Phase 4 — Property Setup Field Rule Integration", 
       const unmapped = rules.find((r) => r.code === "UNMAPPED_ARBITRARY_FIELD_CODE");
       assert.ok(unmapped);
       assert.equal(unmapped.canonicalKey, null);
-      assert.equal(unmapped.isUnsupported, true);
+      assert.equal(unmapped.isUnsupported, false);
 
-      // Validation passes because unmapped fields are safely deferred and not enforced as phantom DB writes
-      const res = validateGuestFields({ firstName: "Alice" }, rules, "profile_create");
+      const res = validateGuestFields(
+        { firstName: "Alice" },
+        rules,
+        "profile_create",
+        null,
+        { UNMAPPED_ARBITRARY_FIELD_CODE: "valid_val" },
+      );
       assert.equal(res.valid, true);
     });
 

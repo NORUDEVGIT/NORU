@@ -41,7 +41,7 @@ export function rateHistoryReasonLabel(reason: string | null | undefined): strin
 }
 
 export function copySourceDateFromMetadata(metadata: Record<string, unknown> | null | undefined): string | null {
-  const value = metadata?.sourceDate;
+  const value = metadata?.["sourceDate"];
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 

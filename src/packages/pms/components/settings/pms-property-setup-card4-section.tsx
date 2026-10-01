@@ -11,6 +11,7 @@ import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-u
 import {
   Card4ProfileTypesGuide,
   PmsCard4ProfileTypes,
+  type ProfileTypeTabId,
 } from "@/packages/pms/components/settings/pms-card4-profile-types";
 import {
   Card4RequiredFieldsGuide,
@@ -153,15 +154,51 @@ export function PmsPropertySetupCard4Section({
 }: {
   restaurantId: string;
   canEdit: boolean;
-  initialStep?: Card4StepId;
+  initialStep?: string;
 }) {
+  const resolvedInitialStep: Card4StepId =
+    initialStep === "company-business"
+      ? "company-business"
+      : initialStep === "group-types"
+        ? "group-types"
+        : "profile-types";
+
+  const resolvedInitialTab: ProfileTypeTabId =
+    initialStep === "required-fields"
+      ? "fields"
+      : initialStep === "identity-documents"
+        ? "documents"
+        : initialStep === "preferences"
+          ? "preferences"
+          : "general";
+
   const [mainSection, setMainSection] = useState<Card4MainSectionId>("profile-rules");
-  const [step, setStep] = useState<Card4StepId>(initialStep);
+  const [step, setStep] = useState<Card4StepId>(resolvedInitialStep);
+  const [profileTypeTab, setProfileTypeTab] = useState<ProfileTypeTabId>(resolvedInitialTab);
   const [gstStep, setGstStep] = useState<Card4GstStepId>("service-categories");
   const [notificationStep, setNotificationStep] = useState<Card4NotificationStepId>("channels");
   const [saveRequest, setSaveRequest] = useState<{ token: number; thenNext: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
   const [canSave, setCanSave] = useState(false);
+
+  const navigateToStep = useCallback((targetStep: string) => {
+    if (targetStep === "required-fields") {
+      setStep("profile-types");
+      setProfileTypeTab("fields");
+      return;
+    }
+    if (targetStep === "identity-documents") {
+      setStep("profile-types");
+      setProfileTypeTab("documents");
+      return;
+    }
+    if (targetStep === "preferences") {
+      setStep("profile-types");
+      setProfileTypeTab("preferences");
+      return;
+    }
+    setStep(targetStep as Card4StepId);
+  }, []);
   const loadTypes = useServerFn(getPmsCard4ProfileTypes);
   const loadFields = useServerFn(getPmsCard4RequiredFields);
   const loadDocuments = useServerFn(getPmsCard4IdentityDocumentTypes);
@@ -351,31 +388,6 @@ export function PmsPropertySetupCard4Section({
       requiredFieldsConfigured,
       identityDocumentsConfigured,
       preferencesReady,
-    ),
-    "required-fields": evaluateCard4StepStatus(
-      "required-fields",
-      undefined,
-      profileTypesConfigured,
-      requiredFieldsConfigured,
-      identityDocumentsConfigured,
-      preferencesReady,
-    ),
-    "identity-documents": evaluateCard4StepStatus(
-      "identity-documents",
-      undefined,
-      profileTypesConfigured,
-      requiredFieldsConfigured,
-      identityDocumentsConfigured,
-      preferencesReady,
-    ),
-    preferences: evaluateCard4StepStatus(
-      "preferences",
-      undefined,
-      profileTypesConfigured,
-      requiredFieldsConfigured,
-      identityDocumentsConfigured,
-      preferencesReady,
-      companyReady,
     ),
     "company-business": evaluateCard4StepStatus(
       "company-business",
@@ -577,9 +589,6 @@ export function PmsPropertySetupCard4Section({
     }
     if (
       step === "profile-types" ||
-      step === "required-fields" ||
-      step === "identity-documents" ||
-      step === "preferences" ||
       step === "company-business" ||
       step === "group-types"
     ) {
@@ -591,9 +600,6 @@ export function PmsPropertySetupCard4Section({
 
   const gprLive =
     step === "profile-types" ||
-    step === "required-fields" ||
-    step === "identity-documents" ||
-    step === "preferences" ||
     step === "company-business" ||
     step === "group-types";
   const gstLive =
@@ -711,7 +717,7 @@ export function PmsPropertySetupCard4Section({
                     if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
                     else if (mainSection === "notifications")
                       setNotificationStep(id as Card4NotificationStepId);
-                    else if (mainSection === "profile-rules") setStep(id as Card4StepId);
+                    else if (mainSection === "profile-rules") navigateToStep(id);
                   }}
                   steps={workspaceSteps}
                 />
@@ -777,22 +783,6 @@ export function PmsPropertySetupCard4Section({
               />
             ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
               <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
-            ) : step === "required-fields" ? (
-              <Card4RequiredFieldsGuide
-                count={fieldsQuery.data?.fields.length ?? 0}
-                onGoIdentityDocuments={() => setStep("identity-documents")}
-              />
-            ) : step === "identity-documents" ? (
-              <Card4IdentityDocumentsGuide
-                activeCount={
-                  documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0
-                }
-              />
-            ) : step === "preferences" ? (
-              <Card4PreferencesGuide
-                categoryCount={preferencesQuery.data?.categories.length ?? 0}
-                typeCount={preferencesQuery.data?.types.length ?? 0}
-              />
             ) : step === "company-business" ? (
               <Card4CompanyBusinessGuide
                 typeCount={companyQuery.data?.types.length ?? 0}
@@ -926,6 +916,8 @@ export function PmsPropertySetupCard4Section({
                 onSavingChange={onSavingChange}
                 saveRequest={saveRequest}
                 onSaved={onSaved}
+                initialTab={profileTypeTab}
+                onTabChange={setProfileTypeTab}
               />
             ) : step === "required-fields" ? (
               <PmsCard4RequiredFields
@@ -934,7 +926,7 @@ export function PmsPropertySetupCard4Section({
                 onSavingChange={onSavingChange}
                 saveRequest={saveRequest}
                 onSaved={onSaved}
-                onGoIdentityDocuments={() => setStep("identity-documents")}
+                onGoIdentityDocuments={() => navigateToStep("identity-documents")}
               />
             ) : step === "identity-documents" ? (
               <PmsCard4IdentityDocuments
@@ -959,7 +951,7 @@ export function PmsPropertySetupCard4Section({
                 onSavingChange={onSavingChange}
                 saveRequest={saveRequest}
                 onSaved={onSaved}
-                onGoRequiredFields={() => setStep("required-fields")}
+                onGoRequiredFields={() => navigateToStep("required-fields")}
               />
             ) : step === "group-types" ? (
               <PmsCard4GroupTypes

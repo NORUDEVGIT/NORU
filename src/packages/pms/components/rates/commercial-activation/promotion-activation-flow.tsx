@@ -65,9 +65,9 @@ export function PromotionActivationFlow({
   masters: PromotionWorkspaceMaster[];
   roomTypes: RevenueRoomType[];
   ratePlans: RevenueRatePlan[];
-  initialPromotionId?: string | null;
+  initialPromotionId?: string | null | undefined;
   onClose: () => void;
-  onActivated?: (activationId: string) => void;
+  onActivated?: ((activationId: string) => void) | undefined;
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const queryClient = useQueryClient();
@@ -133,18 +133,21 @@ export function PromotionActivationFlow({
       const handled = handleRevenueMutationResult(result);
       if (handled.submitted) {
         invalidateRevenueApprovals(queryClient, restaurantId);
-        toast.success(PROMOTION_SUBMITTED_TOAST, {
-          action: handled.approvalRequestId
+        toast.success(
+          PROMOTION_SUBMITTED_TOAST,
+          handled.approvalRequestId
             ? {
-                label: "View Request",
-                onClick: () =>
-                  void navigate({
-                    to: "/restaurant/pms/rates-revenue",
-                    search: approvalRequestSearch(handled.approvalRequestId!),
-                  }),
+                action: {
+                  label: "View Request",
+                  onClick: () =>
+                    void navigate({
+                      to: "/restaurant/pms/rates-revenue",
+                      search: approvalRequestSearch(handled.approvalRequestId!),
+                    }),
+                },
               }
-            : undefined,
-        });
+            : {},
+        );
         onClose();
         return;
       }

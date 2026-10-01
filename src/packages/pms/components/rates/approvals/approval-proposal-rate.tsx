@@ -21,13 +21,13 @@ export function RateApprovalProposal({
   snapshot,
 }: {
   proposal: Record<string, unknown>;
-  snapshot?: RevenueApprovalDisplaySnapshot | null;
+  snapshot?: RevenueApprovalDisplaySnapshot | null | undefined;
 }) {
-  const rule = asRecord(proposal.rule);
-  const targets = Array.isArray(proposal.targets) ? proposal.targets : [];
-  const type = String(rule.type ?? snapshot?.operationLabel ?? "SET_RATE");
-  const value = rule.value;
-  const sourceDate = typeof rule.sourceDate === "string" ? rule.sourceDate : null;
+  const rule = asRecord(proposal["rule"]);
+  const targets = Array.isArray(proposal["targets"]) ? proposal["targets"] : [];
+  const type = String(rule["type"] ?? snapshot?.operationLabel ?? "SET_RATE");
+  const value = rule["value"];
+  const sourceDate = typeof rule["sourceDate"] === "string" ? rule["sourceDate"] : null;
 
   let change = type;
   if (type === "SET_RATE") change = `Set rate${value == null ? "" : ` to ${String(value)}`}`;

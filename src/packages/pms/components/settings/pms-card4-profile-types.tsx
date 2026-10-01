@@ -45,6 +45,8 @@ import {
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import { GUEST_PROFILE_TYPES } from "@/packages/pms/lib/guest-profile-wave1";
 import { getPmsCard4RequiredFields } from "@/packages/pms/lib/required-fields-card4.functions";
+import { getPmsCard4IdentityDocumentTypes } from "@/packages/pms/lib/identity-documents-card4.functions";
+import { getPmsCard4Preferences } from "@/packages/pms/lib/preferences-card4.functions";
 import {
   deletePmsCard4ProfileType,
   getPmsCard4ProfileTypes,
@@ -62,9 +64,31 @@ import {
   type ProfileTypeRecord,
   validateProfileTypeDraft,
 } from "@/packages/pms/lib/profile-types-card4.server";
+import {
+  GUEST_FIELD_TYPE_LABELS,
+  type GuestFieldRecord,
+} from "@/packages/pms/lib/required-fields-card4.server";
+import type { IdentityDocumentTypeRecord } from "@/packages/pms/lib/identity-documents-card4.server";
+import {
+  PREFERENCE_VALUE_TYPE_LABELS,
+  type PreferenceCategoryRecord,
+  type PreferenceTypeRecord,
+} from "@/packages/pms/lib/preferences-card4.server";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
-// Invalidates guest-workspace-config query cache on profile type mutations
 import { cn } from "@/shared/lib/utils";
+
+import {
+  GuestFieldCatalogSheet,
+  GuestFieldEditorSheet,
+} from "./catalog-sheets/guest-field-catalog-sheet";
+import {
+  IdentityDocumentCatalogSheet,
+  IdentityDocumentEditorSheet,
+} from "./catalog-sheets/identity-document-catalog-sheet";
+import {
+  PreferenceCatalogSheet,
+  PreferenceTypeEditorSheet,
+} from "./catalog-sheets/preference-catalog-sheet";
 
 function recordToDraft(row: ProfileTypeRecord): ProfileTypeDraft {
   return {
@@ -86,22 +110,30 @@ function toggleId(list: string[], id: string, on: boolean): string[] {
   return list.filter((item) => item !== id);
 }
 
+export type ProfileTypeTabId = "general" | "fields" | "documents" | "preferences" | "defaults";
+
 export function PmsCard4ProfileTypes({
   restaurantId,
   canEdit,
   onSavingChange,
   saveRequest,
   onSaved,
+  initialTab = "general",
+  onTabChange,
 }: {
   restaurantId: string;
   canEdit: boolean;
   onSavingChange: (saving: boolean, canSave: boolean) => void;
   saveRequest: { token: number; thenNext: boolean } | null;
   onSaved: (thenNext: boolean) => void;
+  initialTab?: ProfileTypeTabId;
+  onTabChange?: (tab: ProfileTypeTabId) => void;
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(getPmsCard4ProfileTypes);
   const loadFields = useServerFn(getPmsCard4RequiredFields);
+  const loadDocs = useServerFn(getPmsCard4IdentityDocumentTypes);
+  const loadPrefs = useServerFn(getPmsCard4Preferences);
   const save = useServerFn(savePmsCard4ProfileType);
   const setActive = useServerFn(setPmsCard4ProfileTypeActive);
   const remove = useServerFn(deletePmsCard4ProfileType);
@@ -112,12 +144,28 @@ export function PmsCard4ProfileTypes({
     queryFn: () => load({ data: { restaurantId } }),
     retry: false,
   });
+
   const fieldsQuery = useQuery({
     queryKey: ["pms-card4-required-fields", restaurantId],
     queryFn: () => loadFields({ data: { restaurantId } }),
     retry: false,
   });
-  const catalogueFields = (fieldsQuery.data?.fields ?? []).filter((row) => row.active);
+  const allFields = fieldsQuery.data?.fields ?? [];
+
+  const docsQuery = useQuery({
+    queryKey: ["pms-card4-identity-documents", restaurantId],
+    queryFn: () => loadDocs({ data: { restaurantId } }),
+    retry: false,
+  });
+  const allDocs = docsQuery.data?.documentTypes ?? [];
+
+  const prefsQuery = useQuery({
+    queryKey: ["pms-card4-preferences", restaurantId],
+    queryFn: () => loadPrefs({ data: { restaurantId } }),
+    retry: false,
+  });
+  const categories = prefsQuery.data?.categories ?? [];
+  const allPrefs = prefsQuery.data?.types ?? [];
 
   const types = query.data?.types ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -125,8 +173,28 @@ export function PmsCard4ProfileTypes({
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ProfileTypeRecord | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ProfileTypeTabId>(initialTab);
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(0);
+
+  // Sheets state for catalog management & item editors
+  const [fieldEditorOpen, setFieldEditorOpen] = useState(false);
+  const [fieldCatalogOpen, setFieldCatalogOpen] = useState(false);
+  const [selectedField, setSelectedField] = useState<GuestFieldRecord | null>(null);
+
+  const [docEditorOpen, setDocEditorOpen] = useState(false);
+  const [docCatalogOpen, setDocCatalogOpen] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<IdentityDocumentTypeRecord | null>(null);
+
+  const [prefEditorOpen, setPrefEditorOpen] = useState(false);
+  const [prefCatalogOpen, setPrefCatalogOpen] = useState(false);
+  const [selectedPref, setSelectedPref] = useState<PreferenceTypeRecord | null>(null);
+
+  useEffect(() => {
+    if (initialTab && initialTab !== activeTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   useEffect(() => {
     if (!query.data) return;
@@ -157,6 +225,12 @@ export function PmsCard4ProfileTypes({
     setDirty(true);
   }
 
+  function handleTabChange(nextTab: string) {
+    const tabId = nextTab as ProfileTypeTabId;
+    setActiveTab(tabId);
+    onTabChange?.(tabId);
+  }
+
   const errors = validateProfileTypeDraft(draft, types);
   const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;
 
@@ -179,6 +253,9 @@ export function PmsCard4ProfileTypes({
       }),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({
+        queryKey: ["pms-card4-identity-documents", restaurantId],
+      });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       if (result.type) applyRecord(result.type);
       toast.success("Profile type saved successfully.");
@@ -199,18 +276,6 @@ export function PmsCard4ProfileTypes({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey });
-      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
-      setPendingDelete(null);
-      applyRecord(null);
-      toast.success("Profile type deleted.");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
   const canSave = canEdit && errors.length === 0 && !saveMutation.isPending;
   useEffect(() => {
     onSavingChange(saveMutation.isPending, canSave);
@@ -227,16 +292,6 @@ export function PmsCard4ProfileTypes({
     saveMutation.mutate();
   }, [saveRequest, canEdit, errors, saveMutation]);
 
-  function startCreate() {
-    if (dirty) {
-      setPendingSwitch("__new__");
-      return;
-    }
-    setSelectedId(null);
-    setDraft(emptyProfileTypeDraft());
-    setDirty(true);
-  }
-
   const configuredCount = types.length;
   const lastUpdated = query.data?.lastUpdatedAt
     ? new Date(query.data.lastUpdatedAt).toLocaleString()
@@ -248,19 +303,9 @@ export function PmsCard4ProfileTypes({
         <div>
           <h2 className="font-display text-2xl text-[#251605]">Profile Types</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Configure which guest profile types this property uses. This does not change live guest
-            records.
+            Profile types are system-defined. Configure which supported profile types are active and which fields, documents, preferences, and defaults apply to each.
           </p>
         </div>
-        {canEdit ? (
-          <Button
-            type="button"
-            onClick={startCreate}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-          >
-            <Plus className="mr-1 size-4" /> Add Profile Type
-          </Button>
-        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
@@ -282,11 +327,9 @@ export function PmsCard4ProfileTypes({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10" />
-                <TableHead>Name</TableHead>
+                <TableHead>Profile Type</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
@@ -295,39 +338,36 @@ export function PmsCard4ProfileTypes({
               {types.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={row.id === selectedId ? "bg-[#C89933]/5" : undefined}
+                  className={cn(
+                    "cursor-pointer transition-colors hover:bg-[#FAF8F5]/80",
+                    row.id === selectedId && "bg-[#F7F4EE]/60",
+                  )}
+                  onClick={() => requestSelect(row.id)}
                 >
-                  <TableCell>
-                    <Checkbox
-                      checked={row.id === selectedId}
-                      onCheckedChange={() => requestSelect(row.id)}
-                      aria-label={`Select ${row.name}`}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                  <TableCell>{row.code}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.description ?? "—"}</TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                        row.active
-                          ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                          : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                      )}
+                  <TableCell className="font-medium text-[#251605]">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestSelect(row.id);
+                      }}
+                      className="text-left hover:underline font-medium"
                     >
-                      {row.active ? "Active" : "Inactive"}
-                    </span>
+                      {row.name}
+                    </button>
                   </TableCell>
-                  <TableCell>
+                  <TableCell>{row.code}</TableCell>
+                  <TableCell className="max-w-md text-muted-foreground truncate">
+                    {row.description || "—"}
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={row.active}
                       disabled={!canEdit || toggleMutation.isPending}
-                      aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
                       onCheckedChange={(active) => toggleMutation.mutate({ id: row.id, active })}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
@@ -338,11 +378,6 @@ export function PmsCard4ProfileTypes({
                         <DropdownMenuItem onSelect={() => requestSelect(row.id)}>
                           Edit
                         </DropdownMenuItem>
-                        {canEdit ? (
-                          <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
-                            Delete
-                          </DropdownMenuItem>
-                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -362,17 +397,16 @@ export function PmsCard4ProfileTypes({
           <div className="space-y-1.5">
             <Label>Profile Type</Label>
             <Select
-              value={draft.id ?? "new"}
-              onValueChange={(value) => requestSelect(value === "new" ? null : value)}
+              value={draft.id ?? (types[0]?.id ?? "")}
+              onValueChange={(value) => requestSelect(value)}
             >
               <SelectTrigger className="w-[16rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {!draft.id ? <SelectItem value="new">New profile type</SelectItem> : null}
                 {types.map((row) => (
                   <SelectItem key={row.id} value={row.id}>
-                    {row.name}
+                    {row.name} ({row.code})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -380,14 +414,16 @@ export function PmsCard4ProfileTypes({
           </div>
         </div>
 
-        <Tabs defaultValue="general">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTrigger value="general">General Information</TabsTrigger>
-            <TabsTrigger value="fields">Required Fields</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
+            <TabsTrigger value="fields">Fields</TabsTrigger>
+            <TabsTrigger value="documents">Identity Documents</TabsTrigger>
             <TabsTrigger value="preferences">Preferences</TabsTrigger>
             <TabsTrigger value="defaults">Defaults</TabsTrigger>
           </TabsList>
+
+          {/* TAB: GENERAL */}
           <TabsContent value="general" className="space-y-3 pt-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -407,12 +443,10 @@ export function PmsCard4ProfileTypes({
                 <Input
                   id="pt-code"
                   value={draft.code}
-                  disabled={!canEdit}
-                  onChange={(event) => mark("code", normalizeProfileTypeCode(event.target.value))}
+                  disabled={true}
+                  className="bg-muted text-muted-foreground"
                 />
-                {errorFor("code") ? (
-                  <p className="text-xs text-destructive">{errorFor("code")}</p>
-                ) : null}
+                <p className="text-xs text-muted-foreground">Canonical system code cannot be changed.</p>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -455,84 +489,383 @@ export function PmsCard4ProfileTypes({
               </Select>
             </div>
           </TabsContent>
-          <TabsContent value="fields" className="space-y-2 pt-3">
-            {catalogueFields.length === 0 ? (
+
+          {/* TAB: FIELDS */}
+          <TabsContent value="fields" className="space-y-4 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+              <div>
+                <p className="text-xs font-medium text-[#251605]">
+                  Configure fields for {draft.name || "this profile type"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Global required fields are enforced by system baseline. Profile-specific required fields apply when creating this profile type.
+                </p>
+              </div>
+              {canEdit ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setFieldCatalogOpen(true)}
+                  >
+                    Manage Field Catalog
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-[#C89933] text-[#251605] text-xs h-7"
+                    onClick={() => {
+                      setSelectedField(null);
+                      setFieldEditorOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-1 size-3" /> Add Field
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            {allFields.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No required fields are configured yet. Add them on Required Fields.
+                No guest fields are available in the catalog yet. Use "+ Add Field" above to create one.
               </p>
             ) : (
-              catalogueFields.map((field) => (
-                <div key={field.id} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`field-${field.id}`}
-                    checked={draft.requiredFieldIds.includes(field.id)}
-                    disabled={!canEdit}
-                    onCheckedChange={(checked) =>
-                      mark(
-                        "requiredFieldIds",
-                        toggleId(draft.requiredFieldIds, field.id, checked === true),
-                      )
-                    }
-                  />
-                  <Label htmlFor={`field-${field.id}`} className="font-normal">
-                    {field.name}
-                  </Label>
-                </div>
-              ))
+              <div className="border rounded-xl overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Field</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Global Requirement</TableHead>
+                      <TableHead>Required for {draft.name || "Type"}</TableHead>
+                      <TableHead className="w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allFields.map((field) => {
+                      const isGlobalRequired = field.required;
+                      return (
+                        <TableRow
+                          key={field.id}
+                          className={cn(!field.active && "opacity-70 bg-muted/20")}
+                        >
+                          <TableCell className="font-medium text-[#251605]">
+                            <div className="flex items-center gap-2">
+                              <span>{field.name}</span>
+                              {!field.active ? (
+                                <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                                  Inactive
+                                </span>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {GUEST_FIELD_TYPE_LABELS[field.fieldType]}
+                          </TableCell>
+                          <TableCell>
+                            {isGlobalRequired ? (
+                              <span className="inline-flex items-center text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                                Required Globally
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Optional Globally</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isGlobalRequired ? (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Checkbox checked={true} disabled={true} />
+                                <span className="italic">System required</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`field-${field.id}`}
+                                  checked={draft.requiredFieldIds.includes(field.id)}
+                                  disabled={!canEdit}
+                                  onCheckedChange={(checked) =>
+                                    mark(
+                                      "requiredFieldIds",
+                                      toggleId(draft.requiredFieldIds, field.id, checked === true),
+                                    )
+                                  }
+                                />
+                                <Label htmlFor={`field-${field.id}`} className="text-xs cursor-pointer font-normal">
+                                  Required for {draft.name}
+                                </Label>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {canEdit ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs px-2"
+                                onClick={() => {
+                                  setSelectedField(field);
+                                  setFieldEditorOpen(true);
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </TabsContent>
-          <TabsContent value="documents" className="space-y-2 pt-3">
-            {(query.data?.documentTypes ?? []).length === 0 ? (
+
+          {/* TAB: DOCUMENTS */}
+          <TabsContent value="documents" className="space-y-4 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+              <div>
+                <p className="text-xs font-medium text-[#251605]">
+                  Configure identity documents accepted for {draft.name || "this profile type"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Select which document types guests of this profile type are allowed to present.
+                </p>
+              </div>
+              {canEdit ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setDocCatalogOpen(true)}
+                  >
+                    Manage Document Catalog
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-[#C89933] text-[#251605] text-xs h-7"
+                    onClick={() => {
+                      setSelectedDoc(null);
+                      setDocEditorOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-1 size-3" /> Add Document Type
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            {allDocs.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No identity document types are configured yet. Add them on Identity Documents later.
+                No identity document types configured yet. Use "+ Add Document Type" above to create one.
               </p>
             ) : (
-              (query.data?.documentTypes ?? []).map((doc) => (
-                <div key={doc.id} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`doc-${doc.id}`}
-                    checked={draft.documentTypeIds.includes(doc.id)}
-                    disabled={!canEdit}
-                    onCheckedChange={(checked) =>
-                      mark(
-                        "documentTypeIds",
-                        toggleId(draft.documentTypeIds, doc.id, checked === true),
-                      )
-                    }
-                  />
-                  <Label htmlFor={`doc-${doc.id}`} className="font-normal">
-                    {doc.name}
-                  </Label>
-                </div>
-              ))
+              <div className="border rounded-xl overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document Type</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Check-in Required</TableHead>
+                      <TableHead>Applicable to {draft.name || "Type"}</TableHead>
+                      <TableHead className="w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allDocs.map((doc) => (
+                      <TableRow
+                        key={doc.id}
+                        className={cn(!doc.active && "opacity-70 bg-muted/20")}
+                      >
+                        <TableCell className="font-medium text-[#251605]">
+                          <div className="flex items-center gap-2">
+                            <span>{doc.name}</span>
+                            {!doc.active ? (
+                              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                                Inactive
+                              </span>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{doc.code}</TableCell>
+                        <TableCell className="text-xs">
+                          {doc.requiredAtCheckIn ? "Yes" : "No"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id={`doc-${doc.id}`}
+                              checked={draft.documentTypeIds.includes(doc.id)}
+                              disabled={!canEdit}
+                              onCheckedChange={(checked) =>
+                                mark(
+                                  "documentTypeIds",
+                                  toggleId(draft.documentTypeIds, doc.id, checked === true),
+                                )
+                              }
+                            />
+                            <Label htmlFor={`doc-${doc.id}`} className="text-xs cursor-pointer font-normal">
+                              Accepted for {draft.name}
+                            </Label>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {canEdit ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs px-2"
+                              onClick={() => {
+                                setSelectedDoc(doc);
+                                setDocEditorOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </TabsContent>
-          <TabsContent value="preferences" className="space-y-2 pt-3">
-            {(query.data?.preferenceTypes ?? []).length === 0 ? (
+
+          {/* TAB: PREFERENCES */}
+          <TabsContent value="preferences" className="space-y-4 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+              <div>
+                <p className="text-xs font-medium text-[#251605]">
+                  Configure guest preferences applicable to {draft.name || "this profile type"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Select which preference categories and types apply to this profile type.
+                </p>
+              </div>
+              {canEdit ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setPrefCatalogOpen(true)}
+                  >
+                    Manage Preference Catalog
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-[#C89933] text-[#251605] text-xs h-7"
+                    onClick={() => {
+                      setSelectedPref(null);
+                      setPrefEditorOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-1 size-3" /> Add Preference
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            {categories.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No preference types are configured yet. Add them on Preferences later.
+                No preference categories configured yet. Use "+ Add Preference" or "Manage Preference Catalog" above to set them up.
               </p>
             ) : (
-              (query.data?.preferenceTypes ?? []).map((pref) => (
-                <div key={pref.id} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`pref-${pref.id}`}
-                    checked={draft.preferenceTypeIds.includes(pref.id)}
-                    disabled={!canEdit}
-                    onCheckedChange={(checked) =>
-                      mark(
-                        "preferenceTypeIds",
-                        toggleId(draft.preferenceTypeIds, pref.id, checked === true),
-                      )
-                    }
-                  />
-                  <Label htmlFor={`pref-${pref.id}`} className="font-normal">
-                    {pref.name}
-                  </Label>
-                </div>
-              ))
+              <div className="space-y-3">
+                {categories.map((cat) => {
+                  const catTypes = allPrefs.filter((p) => p.categoryId === cat.id);
+                  return (
+                    <div key={cat.id} className="border rounded-xl p-3.5 bg-white space-y-2">
+                      <div className="font-semibold text-xs text-[#251605] flex items-center justify-between border-b pb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span>{cat.name} ({cat.code})</span>
+                          {!cat.active ? (
+                            <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                              Inactive Category
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground font-normal">
+                          {catTypes.length} type{catTypes.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      {catTypes.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic py-1">
+                          No preference types in this category.
+                        </p>
+                      ) : (
+                        <div className="grid sm:grid-cols-2 gap-2 pt-1">
+                          {catTypes.map((pref) => (
+                            <div
+                              key={pref.id}
+                              className={cn(
+                                "flex items-center justify-between border rounded-lg p-2 text-xs",
+                                !pref.active && "opacity-70 bg-muted/20",
+                              )}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Checkbox
+                                  id={`pref-${pref.id}`}
+                                  checked={draft.preferenceTypeIds.includes(pref.id)}
+                                  disabled={!canEdit}
+                                  onCheckedChange={(checked) =>
+                                    mark(
+                                      "preferenceTypeIds",
+                                      toggleId(draft.preferenceTypeIds, pref.id, checked === true),
+                                    )
+                                  }
+                                />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <Label htmlFor={`pref-${pref.id}`} className="font-medium cursor-pointer truncate block">
+                                      {pref.name}
+                                    </Label>
+                                    {!pref.active ? (
+                                      <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-muted text-muted-foreground">
+                                        Inactive
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground block truncate">
+                                    {PREFERENCE_VALUE_TYPE_LABELS[pref.valueType]}
+                                  </span>
+                                </div>
+                              </div>
+                              {canEdit ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-xs ml-1"
+                                  onClick={() => {
+                                    setSelectedPref(pref);
+                                    setPrefEditorOpen(true);
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </TabsContent>
+
+          {/* TAB: DEFAULTS */}
           <TabsContent value="defaults" className="grid gap-3 sm:grid-cols-2 pt-3">
             <DefaultSelect
               label="Default Country"
@@ -568,67 +901,92 @@ export function PmsCard4ProfileTypes({
               label="Default Guest Type"
               value={draft.defaults.guestTypeId}
               disabled={!canEdit}
-              options={GUEST_PROFILE_TYPES.map((row) => ({ id: row.id, label: row.title }))}
+              options={GUEST_PROFILE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
               onChange={(guestTypeId) => mark("defaults", { ...draft.defaults, guestTypeId })}
             />
           </TabsContent>
         </Tabs>
       </section>
 
+      {/* Reusable Catalog Sheets */}
+      <GuestFieldEditorSheet
+        open={fieldEditorOpen}
+        onOpenChange={setFieldEditorOpen}
+        restaurantId={restaurantId}
+        canEdit={canEdit}
+        field={selectedField}
+        onSaved={async () => {
+          await fieldsQuery.refetch();
+        }}
+      />
+      <GuestFieldCatalogSheet
+        open={fieldCatalogOpen}
+        onOpenChange={setFieldCatalogOpen}
+        restaurantId={restaurantId}
+        canEdit={canEdit}
+      />
+
+      <IdentityDocumentEditorSheet
+        open={docEditorOpen}
+        onOpenChange={setDocEditorOpen}
+        restaurantId={restaurantId}
+        canEdit={canEdit}
+        documentType={selectedDoc}
+        onSaved={async () => {
+          await docsQuery.refetch();
+        }}
+      />
+      <IdentityDocumentCatalogSheet
+        open={docCatalogOpen}
+        onOpenChange={setDocCatalogOpen}
+        restaurantId={restaurantId}
+        canEdit={canEdit}
+      />
+
+      <PreferenceTypeEditorSheet
+        open={prefEditorOpen}
+        onOpenChange={setPrefEditorOpen}
+        restaurantId={restaurantId}
+        canEdit={canEdit}
+        preferenceType={selectedPref}
+        onSaved={async () => {
+          await prefsQuery.refetch();
+        }}
+      />
+      <PreferenceCatalogSheet
+        open={prefCatalogOpen}
+        onOpenChange={setPrefCatalogOpen}
+        restaurantId={restaurantId}
+        canEdit={canEdit}
+      />
+
       <p className="sr-only">
-        Profile Types {configuredCount} of {Math.max(configuredCount, 6)} configured
+        Profile Types {configuredCount} of {Math.max(configuredCount, 4)} configured
       </p>
 
       <AlertDialog
-        open={Boolean(pendingDelete)}
-        onOpenChange={(open) => !open && setPendingDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Profile Type?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This profile type may be referenced by guest profile configuration. Guest operational
-              records are not deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={pendingSwitch !== null}
+        open={Boolean(pendingSwitch)}
         onOpenChange={(open) => !open && setPendingSwitch(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved profile type changes. Discard them to switch?
+              You have unsaved changes on this profile type. Switching will discard them.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingSwitch === "__new__") {
-                  setSelectedId(null);
-                  setDraft(emptyProfileTypeDraft());
-                  setDirty(true);
-                } else {
-                  const row = types.find((item) => item.id === pendingSwitch) ?? null;
-                  applyRecord(row);
-                }
+                const target = pendingSwitch;
                 setPendingSwitch(null);
+                setDirty(false);
+                const row = types.find((item) => item.id === target) ?? null;
+                applyRecord(row);
               }}
             >
-              Discard
+              Discard Changes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -640,14 +998,14 @@ export function PmsCard4ProfileTypes({
 function DefaultSelect({
   label,
   value,
-  options,
   disabled,
+  options,
   onChange,
 }: {
   label: string;
   value: string | null;
-  options: { id: string; label: string }[];
   disabled: boolean;
+  options: readonly { id: string; label: string }[];
   onChange: (value: string | null) => void;
 }) {
   return (
@@ -655,14 +1013,14 @@ function DefaultSelect({
       <Label>{label}</Label>
       <Select
         value={value ?? "none"}
-        onValueChange={(next) => onChange(next === "none" ? null : next)}
         disabled={disabled}
+        onValueChange={(next) => onChange(next === "none" ? null : next)}
       >
         <SelectTrigger>
-          <SelectValue />
+          <SelectValue placeholder="None" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Not set</SelectItem>
+          <SelectItem value="none">None</SelectItem>
           {options.map((row) => (
             <SelectItem key={row.id} value={row.id}>
               {row.label}
@@ -675,15 +1033,17 @@ function DefaultSelect({
 }
 
 export function Card4ProfileTypesGuide({ count }: { count: number }) {
-  const target = Math.max(count, 7);
+  const target = Math.max(count, 4);
   return (
     <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <p className="mt-2 text-sm text-[#251605]">
-        Profile Types
-        <span className="mt-1 block text-muted-foreground">
-          {count} of {target} configured
-        </span>
+      <p className="text-sm font-medium text-[#251605]">Profile Types Guide</p>
+      <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+        <li>Configure field rules, identity documents, and preferences directly under each profile type.</li>
+        <li>Manage the underlying catalogs using the inline "Manage Catalog" actions when needed.</li>
+        <li>Individual, Company, Travel Agency, and Group profile types share a consolidated workspace.</li>
+      </ul>
+      <p className="mt-3 text-sm text-[#251605]">
+        {count} of {target} canonical profile types configured
       </p>
     </section>
   );

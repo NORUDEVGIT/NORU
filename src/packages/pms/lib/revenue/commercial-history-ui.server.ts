@@ -23,14 +23,14 @@ type DbClient = any;
 
 export type CommercialHistoryWorkspaceQuery = {
   restaurantId: string;
-  fromDate?: string | null;
-  toDate?: string | null;
-  entityType?: CommercialEntityType;
-  actionType?: CommercialActionType;
-  actorId?: string;
-  search?: string;
-  page?: number;
-  pageSize?: number;
+  fromDate?: string | null | undefined;
+  toDate?: string | null | undefined;
+  entityType?: CommercialEntityType | undefined;
+  actionType?: CommercialActionType | undefined;
+  actorId?: string | undefined;
+  search?: string | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
 };
 
 async function loadCatalogNames(db: DbClient, restaurantId: string) {

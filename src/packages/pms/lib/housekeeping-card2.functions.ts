@@ -18,6 +18,7 @@ import {
   emptyHousekeepingCard2Settings,
   evaluateCard2HousekeepingReadiness,
   mergeCard2HousekeepingStatus,
+  transitionEventLabel,
   type HousekeepingCard2Priority,
   type HousekeepingCard2Settings,
   type HousekeepingCard2Snapshot,
@@ -58,7 +59,7 @@ const prioritySchema = z.object({
 const saveSchema = z.object({
   restaurantId: idSchema,
   settings: settingsSchema,
-  transitions: z.array(transitionSchema).length(HOUSEKEEPING_TRANSITION_EVENTS.length),
+  transitions: z.array(transitionSchema),
   priorities: z.array(prioritySchema).length(HOUSEKEEPING_PRIORITY_EVENTS.length),
 });
 
@@ -458,5 +459,246 @@ export const savePmsCard2CustomStatus = createServerFn({ method: "POST" })
       "pms_card2_housekeeping_custom_status_saved",
       { code: data.code, active: data.active },
     );
+    return { ok: true as const, snapshot, readiness };
+  });
+
+export const deletePmsCard2HousekeepingStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, statusId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+
+    const statusRes = await db
+      .from("pms_housekeeping_status_catalog")
+      .select("*")
+      .eq("id", data.statusId)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+
+    if (statusRes.error) unavailable(statusRes.error);
+    const status = statusRes.data;
+    if (!status) throw new Error("Housekeeping status not found.");
+
+    if (status.is_core || CORE_HOUSEKEEPING_STATUSES.some((s) => s.code === status.code)) {
+      throw new Error("System core statuses cannot be deleted.");
+    }
+
+    // Check settings default status
+    const settingsRes = await db
+      .from("pms_housekeeping_settings")
+      .select("default_housekeeping_status")
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (settingsRes.data?.default_housekeeping_status === status.code) {
+      throw new Error(
+        "This housekeeping status is currently configured as the default housekeeping status and cannot be deleted.",
+      );
+    }
+
+    // Check transitions
+    const transitionsRes = await db
+      .from("pms_housekeeping_transition_rules")
+      .select("event_code, from_status_code, to_status_code")
+      .eq("restaurant_id", data.restaurantId)
+      .or(`from_status_code.eq.${status.code},to_status_code.eq.${status.code}`);
+    const transitionCount = (transitionsRes.data ?? []).length;
+
+    // Check hotel rooms
+    const roomsRes = await db
+      .from("hotel_rooms")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", data.restaurantId)
+      .eq("housekeeping_status", status.code);
+    const roomCount = roomsRes.count ?? 0;
+
+    if (roomCount > 0 && transitionCount > 0) {
+      throw new Error(
+        `This housekeeping status is currently in use and cannot be deleted. Used by ${roomCount} room${roomCount > 1 ? "s" : ""} and ${transitionCount} automatic transition${transitionCount > 1 ? "s" : ""}.`,
+      );
+    }
+    if (roomCount > 0) {
+      throw new Error(
+        `This housekeeping status is currently in use by ${roomCount} room${roomCount > 1 ? "s" : ""} and cannot be deleted.`,
+      );
+    }
+    if (transitionCount > 0) {
+      throw new Error(
+        `Cannot delete this status because it is used by ${transitionCount} automatic transition${transitionCount > 1 ? "s" : ""}.`,
+      );
+    }
+
+    const delRes = await db
+      .from("pms_housekeeping_status_catalog")
+      .delete()
+      .eq("id", data.statusId)
+      .eq("restaurant_id", data.restaurantId);
+    if (delRes.error) unavailable(delRes.error);
+
+    await writeHousekeepingAudit(
+      db,
+      data.restaurantId,
+      context.userId,
+      "pms_card2_housekeeping_status_deleted",
+      {
+        statusId: data.statusId,
+        code: status.code,
+        name: status.name,
+        timestamp: new Date().toISOString(),
+      },
+    );
+
+    const snapshot = await loadCard2HousekeepingSnapshot(db, data.restaurantId, false);
+    const readiness = await persistHousekeepingStepStatus(db, data.restaurantId, snapshot);
+    return { ok: true as const, snapshot, readiness };
+  });
+
+const singleTransitionSchema = z.object({
+  restaurantId: idSchema,
+  id: z.string().optional(),
+  event: z.enum(HOUSEKEEPING_TRANSITION_EVENTS),
+  fromStatus: z.string().trim().min(1).max(40),
+  toStatus: z.string().trim().min(1).max(40),
+  enabled: z.boolean(),
+  approvalRequired: z.boolean(),
+});
+
+export const savePmsCard2Transition = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => singleTransitionSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    if (data.fromStatus === data.toStatus) {
+      throw new Error("From Status and To Status cannot be identical.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+
+    const [fromRes, toRes, existingRes] = await Promise.all([
+      db
+        .from("pms_housekeeping_status_catalog")
+        .select("code, operational, domain")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("code", data.fromStatus)
+        .maybeSingle(),
+      db
+        .from("pms_housekeeping_status_catalog")
+        .select("code, operational, domain")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("code", data.toStatus)
+        .maybeSingle(),
+      db
+        .from("pms_housekeeping_transition_rules")
+        .select("id, event_code, from_status_code, to_status_code")
+        .eq("restaurant_id", data.restaurantId),
+    ]);
+
+    if (!fromRes.data) throw new Error(`Status "${data.fromStatus}" does not exist.`);
+    if (!toRes.data) throw new Error(`Status "${data.toStatus}" does not exist.`);
+    if (
+      data.event !== "guest_check_in" &&
+      (!toRes.data.operational || toRes.data.domain !== "housekeeping")
+    ) {
+      throw new Error(`${transitionEventLabel(data.event)} must end in an operational housekeeping status.`);
+    }
+
+    const existingRules = existingRes.data ?? [];
+    for (const rule of existingRules) {
+      if (rule.id !== data.id) {
+        if (rule.event_code === data.event) {
+          if (rule.from_status_code === data.fromStatus) {
+            throw new Error("An automatic transition with this event and status change already exists.");
+          }
+          throw new Error("An automatic transition for this event already exists.");
+        }
+      }
+    }
+
+    const payload = {
+      restaurant_id: data.restaurantId,
+      event_code: data.event,
+      from_status_code: data.fromStatus,
+      to_status_code: data.toStatus,
+      enabled: data.enabled,
+      approval_required: data.approvalRequired,
+      updated_at: new Date().toISOString(),
+    };
+
+    const writeRes = data.id
+      ? await db
+          .from("pms_housekeeping_transition_rules")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+      : await db
+          .from("pms_housekeeping_transition_rules")
+          .upsert(payload, { onConflict: "restaurant_id,event_code" });
+
+    if (writeRes.error) unavailable(writeRes.error);
+
+    const snapshot = await loadCard2HousekeepingSnapshot(db, data.restaurantId, false);
+    await syncSet4Compatibility(db, data.restaurantId, snapshot);
+    const readiness = await persistHousekeepingStepStatus(db, data.restaurantId, snapshot);
+    await writeHousekeepingAudit(
+      db,
+      data.restaurantId,
+      context.userId,
+      data.id ? "pms_card2_housekeeping_transition_updated" : "pms_card2_housekeeping_transition_created",
+      {
+        event: data.event,
+        fromStatus: data.fromStatus,
+        toStatus: data.toStatus,
+        enabled: data.enabled,
+        approvalRequired: data.approvalRequired,
+      },
+    );
+    return { ok: true as const, snapshot, readiness };
+  });
+
+export const deletePmsCard2Transition = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+
+    const ruleRes = await db
+      .from("pms_housekeeping_transition_rules")
+      .select("id, event_code")
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (!ruleRes.data) throw new Error("Transition rule not found.");
+    if (ruleRes.data.event_code === "guest_check_in") {
+      throw new Error("Guest Check-In is a system rule and cannot be deleted.");
+    }
+
+    const delRes = await db
+      .from("pms_housekeeping_transition_rules")
+      .delete()
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (delRes.error) unavailable(delRes.error);
+
+    await writeHousekeepingAudit(
+      db,
+      data.restaurantId,
+      context.userId,
+      "pms_card2_housekeeping_transition_deleted",
+      {
+        id: data.id,
+        event: ruleRes.data.event_code,
+        timestamp: new Date().toISOString(),
+      },
+    );
+
+    const snapshot = await loadCard2HousekeepingSnapshot(db, data.restaurantId, false);
+    const readiness = await persistHousekeepingStepStatus(db, data.restaurantId, snapshot);
     return { ok: true as const, snapshot, readiness };
   });

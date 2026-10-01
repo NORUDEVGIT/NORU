@@ -46,7 +46,9 @@ import {
   isCard1WorkspaceHash,
   isNrcPropertyCode,
   normalizeCard1CheckinOpsForPersistence,
+  normalizeCard1StepId,
   parseCheckinOps,
+  parsePropertySetupStatus,
   propertySetupStatusLabel,
   validateAddressFields,
   validateBrandImageFile,
@@ -151,7 +153,6 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
         emptyCard1Draft({
           name: "Harbour House",
           propertyType: "hotel",
-          businessType: "independent",
           openingDate: "2026-09-17",
           timezone: "Africa/Addis_Ababa",
           currencyCode: "ETB",
@@ -401,17 +402,14 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
         card.specced ? card.hash !== null : card.hash === null,
       ),
     );
-    assert.equal(CARD1_STEPS.length, 8);
+    assert.equal(CARD1_STEPS.length, 5);
     assert.deepEqual(
       CARD1_STEPS.map((step) => step.title),
       [
         "Property Identity",
-        "Address & Location",
-        "Contacts",
-        "Check-In & Check-Out",
-        "Business Date",
-        "Legal Identity",
-        "Tax Documents",
+        "Address, Location & Contacts",
+        "Check-In, Check-Out & Business Date",
+        "Legal & Tax Information",
         "Property Structure",
       ],
     );
@@ -713,5 +711,148 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(drizzle, /No types.ts regen/);
     assert.doesNotMatch(drizzle, /CREATE TABLE IF NOT EXISTS public\.pms_departments/);
     assert.doesNotMatch(drizzle, /ADD COLUMN IF NOT EXISTS business_date /);
+  });
+
+  it("consolidates Card 1 sections, omits Brand/Affiliation/Business Type from UI, and preserves legacy compatibility", () => {
+    const card3BillingUi = readFileSync(
+      new URL("../components/settings/pms-property-setup-card3-billing.tsx", import.meta.url),
+      "utf8",
+    );
+
+    // 1. Brand no longer renders in Card 1 steps or Card 3 inherited summary
+    assert.doesNotMatch(steps, /id="card1-brand-name"|id="card1-brand-code"|id="card1-chain-name"/);
+    assert.doesNotMatch(card3BillingUi, /Inherited from Card 1 · brand/);
+
+    // 2. Affiliation no longer renders
+    assert.doesNotMatch(steps, /AffiliationSelect/);
+    assert.doesNotMatch(steps, /card1-affiliation/);
+    assert.doesNotMatch(steps, /Brand \/ Chain Affiliation/);
+
+    // 3. Business Type no longer renders and is not validated/required
+    assert.doesNotMatch(steps, /card1-business-type/);
+    assert.doesNotMatch(steps, /label="Business Type"/);
+    assert.equal(validateIdentityFields(emptyCard1Draft()).businessType, undefined);
+
+    // 4. Trading Name remains with concise helper text
+    assert.match(steps, /id="card1-trading-name"/);
+    assert.match(steps, /label="Trading Name"/);
+    assert.match(steps, /The name used publicly by the property\./);
+
+    // 5-7. Address, Location & Contacts render in one consolidated step ("address")
+    assert.equal(CARD1_STEPS[1]?.id, "address");
+    assert.equal(CARD1_STEPS[1]?.title, "Address, Location & Contacts");
+    assert.doesNotMatch(ui, /step === "contacts"/);
+    assert.equal(
+      card1StepComplete(
+        "address",
+        emptyCard1Draft({
+          country: "Ethiopia",
+          addressRegion: "Addis Ababa",
+          city: "Addis Ababa",
+          phone: "+251911000000",
+          email: "ops@example.com",
+          emergency: { name: "", phone: "", notes: "" },
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      card1StepComplete(
+        "address",
+        emptyCard1Draft({
+          country: "Ethiopia",
+          addressRegion: "Addis Ababa",
+          city: "Addis Ababa",
+          phone: "+251911000000",
+          email: "ops@example.com",
+          emergency: { name: "Duty Manager", phone: "+251911000111", notes: "" },
+        }),
+      ),
+      true,
+    );
+
+    // 8-10. Check-In, Check-Out & Business Date render together in one step ("checkin")
+    assert.equal(CARD1_STEPS[2]?.id, "checkin");
+    assert.equal(CARD1_STEPS[2]?.title, "Check-In, Check-Out & Business Date");
+    assert.doesNotMatch(ui, /step === "business-date"/);
+    assert.equal(
+      card1StepComplete(
+        "checkin",
+        emptyCard1Draft({
+          checkInTime: "14:00",
+          checkOutTime: "11:00",
+          businessDateConfig: {
+            ...emptyCard1Draft().businessDateConfig,
+            manualRolloverRoles: [],
+          },
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      card1StepComplete(
+        "checkin",
+        emptyCard1Draft({
+          checkInTime: "14:00",
+          checkOutTime: "11:00",
+        }),
+      ),
+      true,
+    );
+
+    // 11-12. Legal Identity and Tax Documents render together in one step ("legal")
+    assert.equal(CARD1_STEPS[3]?.id, "legal");
+    assert.equal(CARD1_STEPS[3]?.title, "Legal & Tax Information");
+    assert.doesNotMatch(ui, /step === "tax"/);
+    assert.equal(
+      card1StepComplete(
+        "legal",
+        emptyCard1Draft({
+          legalName: "Harbour House PLC",
+          vatRegistered: true,
+          taxUploadRefs: [],
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      card1StepComplete(
+        "legal",
+        emptyCard1Draft({
+          legalName: "Harbour House PLC",
+          vatRegistered: true,
+          taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
+        }),
+      ),
+      true,
+    );
+
+    // 13-14. Removed fields are not required for completion & legacy 8-step status maps cleanly
+    assert.equal(normalizeCard1StepId("contacts"), "address");
+    assert.equal(normalizeCard1StepId("business-date"), "checkin");
+    assert.equal(normalizeCard1StepId("tax"), "legal");
+    const parsedLegacyStatus = parsePropertySetupStatus({
+      cards: { "property-business": "in_progress" },
+      card1Steps: {
+        identity: "complete",
+        address: "complete",
+        contacts: "in_progress",
+        checkin: "complete",
+        "business-date": "complete",
+        legal: "complete",
+        tax: "complete",
+      },
+    });
+    assert.equal(parsedLegacyStatus.card1Steps.identity, "complete");
+    assert.equal(parsedLegacyStatus.card1Steps.address, "in_progress");
+    assert.equal(parsedLegacyStatus.card1Steps.checkin, "complete");
+    assert.equal(parsedLegacyStatus.card1Steps.legal, "complete");
+
+    // 15. No duplicate fields in steps
+    assert.equal((steps.match(/\bid="card1-website"/g) ?? []).length, 1);
+    assert.equal((steps.match(/\bid="card1-trading-name"/g) ?? []).length, 1);
+    assert.equal((steps.match(/\bid="card1-business-date-current"/g) ?? []).length, 1);
+    assert.equal((steps.match(/\bid="card1-legal-name"/g) ?? []).length, 1);
+    assert.equal((steps.match(/\bid="card1-vat-number"/g) ?? []).length, 1);
   });
 });

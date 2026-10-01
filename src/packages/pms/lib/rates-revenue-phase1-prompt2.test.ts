@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+import { CARD2_RATES_HREF } from "./pms-property-setup-card2.ts";
 import { CARD3_HREF } from "./pms-property-setup-card3.ts";
 import { SET3_RATES_HREF, SET3_RATES_REVENUE_HREF } from "./pms-set3-rates-guest.ts";
 
@@ -14,13 +15,19 @@ function readRel(rel: string) {
 }
 
 describe("Rate & Revenue Phase 1 Prompt 2 — responsibility split", () => {
-  it("A. Rate & Revenue plans UI is a read-only operational reference", () => {
+  it("A. Rate & Revenue plans UI is a read-only operational reference with compact toolbar, validity and pagination", () => {
     const tabs = readRel("../components/rates/rates-tabs.tsx");
     const plansStart = tabs.indexOf("export function RatePlansTab");
     const plansEnd = tabs.indexOf("function usePlanPicker");
     const plans = tabs.slice(plansStart, plansEnd);
     assert.match(plans, /Rate plan masters are configured in/);
     assert.match(plans, /CARD3_HREF|PropertySetupRatesLink/);
+    assert.match(plans, /Configure in Property Setup/);
+    assert.match(plans, /Search rate plans\.\.\./);
+    assert.match(plans, /formatRatePlanValidity/);
+    assert.match(plans, /Always/);
+    assert.match(plans, /Showing \{showingFrom\}–\{showingTo\} of \{filteredPlans\.length\}/);
+    assert.doesNotMatch(plans, /\{money\(plan\.baseRate\)\}\s*<span[^>]*>\{plan\.currency\}/);
     assert.doesNotMatch(plans, /Add rate plan/);
     assert.doesNotMatch(plans, /Add category/);
     assert.doesNotMatch(plans, /Edit rate plan/);
@@ -100,9 +107,12 @@ describe("Rate & Revenue Phase 1 Prompt 2 — responsibility split", () => {
     assert.match(overview, /getRevenueOverview/);
   });
 
-  it("G. Configure-rates deep-links go to Property Setup Card 3", () => {
-    assert.equal(SET3_RATES_HREF, CARD3_HREF);
-    assert.equal(SET3_RATES_HREF, "/restaurant/settings#financial-commercial");
+  it("G. Configure-rates deep-links go to Property Setup Card 2 Rate & Pricing", () => {
+    assert.equal(SET3_RATES_HREF, CARD2_RATES_HREF);
+    assert.equal(
+      SET3_RATES_HREF,
+      "/restaurant/settings?card2Step=rates-pricing#rooms-inventory",
+    );
     assert.equal(SET3_RATES_REVENUE_HREF, "/restaurant/pms/rates-revenue");
     const admin = readRel("../components/workspaces/pms-administration-workspace.tsx");
     assert.match(admin, /settings#financial-commercial/);

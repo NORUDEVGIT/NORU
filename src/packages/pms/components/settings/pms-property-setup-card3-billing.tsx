@@ -166,12 +166,6 @@ export function PmsPropertySetupCard3Billing({
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Inherited from Card 1 · brand
-                </dt>
-                <dd className="text-[#251605]">{inherited?.brandName || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
                   Inherited from Card 1 · trading name
                 </dt>
                 <dd className="text-[#251605]">{inherited?.tradingName || "—"}</dd>

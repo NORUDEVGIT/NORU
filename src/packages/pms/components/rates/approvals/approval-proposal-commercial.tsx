@@ -12,10 +12,10 @@ export function ApprovalProposalCommercial({
 }: {
   kind: "promotion" | "package";
   proposal: Record<string, unknown>;
-  snapshot?: RevenueApprovalDisplaySnapshot | null;
+  snapshot?: RevenueApprovalDisplaySnapshot | null | undefined;
 }) {
-  const operation = String(proposal.operation ?? snapshot?.operationLabel ?? "EDIT");
-  const reactivate = proposal.reactivate === true;
+  const operation = String(proposal["operation"] ?? snapshot?.operationLabel ?? "EDIT");
+  const reactivate = proposal["reactivate"] === true;
   return (
     <div className="space-y-1 text-[11px] text-[#251605]">
       <p className="font-medium">
@@ -24,17 +24,17 @@ export function ApprovalProposalCommercial({
       <p>{snapshot?.name || snapshot?.code || (kind === "package" ? "Package" : "Promotion")}</p>
       {snapshot?.code ? <p className="text-muted-foreground">{snapshot.code}</p> : null}
       <p>
-        Stay: {String(proposal.validFrom ?? snapshot?.dateFrom ?? "—")} –{" "}
-        {String(proposal.validTo ?? snapshot?.dateTo ?? "—")}
+        Stay: {String(proposal["validFrom"] ?? snapshot?.dateFrom ?? "—")} –{" "}
+        {String(proposal["validTo"] ?? snapshot?.dateTo ?? "—")}
       </p>
       {kind === "promotion" ? (
         <p>
-          Booking: {String(proposal.bookingFrom ?? "—")} – {String(proposal.bookingTo ?? "—")}
+          Booking: {String(proposal["bookingFrom"] ?? "—")} – {String(proposal["bookingTo"] ?? "—")}
         </p>
       ) : null}
-      {proposal.priority != null ? <p>Priority: {String(proposal.priority)}</p> : null}
-      <p>Room types: {list(proposal.roomTypeIds)}</p>
-      <p>Rate plans: {list(proposal.ratePlanIds)}</p>
+      {proposal["priority"] != null ? <p>Priority: {String(proposal["priority"])}</p> : null}
+      <p>Room types: {list(proposal["roomTypeIds"])}</p>
+      <p>Rate plans: {list(proposal["ratePlanIds"])}</p>
     </div>
   );
 }

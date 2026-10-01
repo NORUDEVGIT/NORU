@@ -14,6 +14,7 @@ import {
   type IdentityDocumentTypeRecord,
   type IdentityDocumentTypeSnapshot,
 } from "./identity-documents-card4.server";
+import { syncDocumentTypeProfileAssignments } from "./profile-type-document-sync.server";
 
 // Generated database types predate migration 0079.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -258,6 +259,13 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
       id,
       code: payload.code,
     });
+    await syncDocumentTypeProfileAssignments(
+      db,
+      data.restaurantId,
+      id,
+      data.validForProfileTypeIds,
+      context.userId,
+    );
     return { ok: true as const, id };
   });
 

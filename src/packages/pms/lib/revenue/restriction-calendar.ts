@@ -90,21 +90,23 @@ export function restrictionMarks(state: RateCalendarRestriction): RestrictionMar
   if (state.stopSell) marks.push({ key: "stopSell", kind: "stopSell", label: "SS" });
   if (state.closedToArrival) marks.push({ key: "closedToArrival", kind: "cta", label: "CTA" });
   if (state.closedToDeparture) marks.push({ key: "closedToDeparture", kind: "ctd", label: "CTD" });
-  if (state.minStay != null) marks.push({ key: "minStay", kind: "stay", label: `Min ${state.minStay}` });
-  if (state.maxStay != null) marks.push({ key: "maxStay", kind: "stay", label: `Max ${state.maxStay}` });
+  if (state.minStay != null)
+    marks.push({ key: "minStay", kind: "stay", label: `Min ${state.minStay}` });
+  if (state.maxStay != null)
+    marks.push({ key: "maxStay", kind: "stay", label: `Max ${state.maxStay}` });
   return marks;
 }
 
 export function restrictionMarkClass(kind: RestrictionMarkKind): string {
   if (kind === "stopSell") {
-    return "rounded-md border border-red-300 bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-700";
+    return "rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white shadow-xs";
   }
-  
+
   if (kind === "cta" || kind === "ctd") {
-    return "rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700";
+    return "rounded bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-[#251605] shadow-xs";
   }
-  
-  return "rounded-md border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700";
+
+  return "rounded bg-indigo-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white shadow-xs";
 }
 
 export function toRestrictionCalendarCell(cell: RateCalendarCell): RestrictionCalendarCell {
@@ -188,12 +190,17 @@ export function restrictionSourceLabel(source: string): string {
   return source;
 }
 
-export function restrictionActorLabel(row: { actorName: string | null; actorMembershipId: string | null }): string {
+export function restrictionActorLabel(row: {
+  actorName: string | null;
+  actorMembershipId: string | null;
+}): string {
   return row.actorName?.trim() || "Staff";
 }
 
 export function isRestrictionStaleMessage(message: string): boolean {
-  return /RESTRICTION_CHANGE_STALE|changed by someone else|changed after this preview/i.test(message);
+  return /RESTRICTION_CHANGE_STALE|changed by someone else|changed after this preview/i.test(
+    message,
+  );
 }
 
 export function humanizeRestrictionCalendarError(message: string): string {

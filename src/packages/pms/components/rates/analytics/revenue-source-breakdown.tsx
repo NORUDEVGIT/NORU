@@ -85,12 +85,12 @@ export function RevenueSourceBreakdown({
                 </thead>
                 <tbody className="divide-y divide-[#E8E1D7]/60">
                   {commercialSources.map((row) => {
-                    const isLegacy = row.commercialSourceId === "unassigned";
+                    const isLegacy = row.commercialSource === "unassigned";
                     return (
-                      <tr key={row.commercialSourceId} className="hover:bg-muted/20">
+                      <tr key={row.commercialSource} className="hover:bg-muted/20">
                         <td className="py-2.5 pl-4 pr-3 font-medium text-foreground">
                           <div className="flex items-center gap-1.5">
-                            <span>{row.commercialSourceName}</span>
+                            <span>{row.commercialSourceLabel}</span>
                             {isLegacy && (
                               <span className="inline-flex items-center gap-1 rounded bg-amber-100/70 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
                                 <AlertCircle className="h-2.5 w-2.5" />
@@ -111,9 +111,9 @@ export function RevenueSourceBreakdown({
                         <td className="px-3 py-2.5 text-right font-mono">
                           {formatCurrency(row.adr)}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-mono">{row.revenueSharePct}%</td>
+                        <td className="px-3 py-2.5 text-right font-mono">{row.shareOfRevenue}%</td>
                         <td className="py-2.5 pl-3 pr-4 text-right font-mono text-muted-foreground">
-                          {row.pricedSoldNights}
+                          {row.soldRoomNights}
                         </td>
                       </tr>
                     );
@@ -155,9 +155,9 @@ export function RevenueSourceBreakdown({
                 </thead>
                 <tbody className="divide-y divide-[#E8E1D7]/60">
                   {technicalOrigins.map((row) => (
-                    <tr key={row.technicalOrigin} className="hover:bg-muted/20">
+                    <tr key={row.origin} className="hover:bg-muted/20">
                       <td className="py-2.5 pl-4 pr-3 font-medium text-foreground">
-                        {originLabels[row.technicalOrigin] ?? row.technicalOrigin}
+                        {originLabels[row.origin] ?? row.originLabel}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">
                         {row.reservationCount}
@@ -172,7 +172,7 @@ export function RevenueSourceBreakdown({
                         {formatCurrency(row.adr)}
                       </td>
                       <td className="py-2.5 pl-3 pr-4 text-right font-mono">
-                        {row.revenueSharePct}%
+                        {row.shareOfRevenue}%
                       </td>
                     </tr>
                   ))}

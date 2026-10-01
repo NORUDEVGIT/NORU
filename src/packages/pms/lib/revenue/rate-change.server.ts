@@ -407,15 +407,15 @@ export async function listRateChangeHistory(
   db: DbClient,
   query: {
     restaurantId: string;
-    from?: string;
-    to?: string;
-    stayDate?: string;
-    ratePlanId?: string;
-    roomTypeId?: string;
-    actionType?: RateChangeActionType;
-    actorMembershipId?: string;
-    page?: number;
-    pageSize?: number;
+    from?: string | undefined;
+    to?: string | undefined;
+    stayDate?: string | undefined;
+    ratePlanId?: string | undefined;
+    roomTypeId?: string | undefined;
+    actionType?: RateChangeActionType | undefined;
+    actorMembershipId?: string | undefined;
+    page?: number | undefined;
+    pageSize?: number | undefined;
   },
 ): Promise<RateChangeHistoryPage> {
   const page = query.page ?? 1;
@@ -457,7 +457,7 @@ export async function listRateChangeHistory(
 
 export async function getRateChangeOperationDetail(
   db: DbClient,
-  query: { restaurantId: string; operationId?: string; eventId?: string },
+  query: { restaurantId: string; operationId?: string | undefined; eventId?: string | undefined },
 ): Promise<RateChangeOperationDetail | null> {
   let operationId = query.operationId ?? null;
   if (!operationId && query.eventId) {

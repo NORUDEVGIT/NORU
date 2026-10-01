@@ -1,16 +1,12 @@
 import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import type {
-  DailyTrendRow,
-  RevenuePerformanceOverview,
-} from "@/packages/pms/lib/revenue/revenue-analytics";
+import type { RevenuePerformanceOverview } from "@/packages/pms/lib/revenue/revenue-analytics";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/shared/components/ui/chart";
-import { Info } from "lucide-react";
 
 type TrendMetric = "revenue" | "occupancy" | "adr" | "revpar" | "soldNights";
 type TrendGranularity = "daily" | "weekly" | "monthly";
@@ -49,7 +45,7 @@ export function RevenueTrendView({
   overview: RevenuePerformanceOverview;
   formatCurrency: (value: number) => string;
 }) {
-  const isInventoryMeaningful = overview.inventoryMetricSupport === "SUPPORTED";
+  const isInventoryMeaningful = overview.summary.inventoryMetricSupport === "SUPPORTED";
   const [metric, setMetric] = useState<TrendMetric>("revenue");
   const [granularity, setGranularity] = useState<TrendGranularity>("daily");
 
@@ -60,15 +56,15 @@ export function RevenueTrendView({
   const displayRows: AggregatedTrendRow[] = useMemo(() => {
     if (granularity === "daily") {
       return dailyTrend.map((row) => ({
-        key: row.stayDate,
-        label: row.stayDate,
+        key: row.date,
+        label: row.date,
         bookedRoomRevenue: row.bookedRoomRevenue,
         soldRoomNights: row.soldRoomNights,
         availableRoomNights: row.availableRoomNights,
         occupancyPct: row.occupancyPct,
         adr: row.adr,
         revpar: row.revpar,
-        pricedSharePct: row.pricedSharePct,
+        pricedSharePct: row.pricedShare,
         reservationCountDisplay: String(row.reservationCount),
       }));
     }
@@ -87,7 +83,7 @@ export function RevenueTrendView({
     >();
 
     for (const d of dailyTrend) {
-      const key = granularity === "weekly" ? getWeekNumber(d.stayDate) : d.stayDate.substring(0, 7);
+      const key = granularity === "weekly" ? getWeekNumber(d.date) : d.date.substring(0, 7);
       const existing = map.get(key) ?? {
         key,
         label: key,
@@ -107,10 +103,7 @@ export function RevenueTrendView({
       }
 
       // calculate unpriced sold nights for accurate weighted priced share
-      const unpriced = Math.max(
-        0,
-        d.soldRoomNights - Math.round((d.soldRoomNights * d.pricedSharePct) / 100),
-      );
+      const unpriced = Math.max(0, d.soldRoomNights - d.pricedRoomNights);
       existing.unpricedSoldNights += unpriced;
 
       map.set(key, existing);

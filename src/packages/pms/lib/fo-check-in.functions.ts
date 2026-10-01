@@ -10,6 +10,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 import { MANAGE_ROLES } from "@/core/lib/workforce.server";
 import {
   blankToNull,
@@ -501,6 +502,7 @@ const registrationSchema = z.object({
   country: z.string().max(120).optional().nullable(),
   adults: z.number().int().min(1).max(20),
   children: z.number().int().min(0).max(20),
+  customFields: z.record(z.unknown()).optional(),
 });
 
 export const saveCheckInRegistration = createServerFn({ method: "POST" })
@@ -585,6 +587,18 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
         newValues: profileDiff.next,
         actorMembershipId: me.id,
       });
+    }
+
+    if (data.customFields && Object.keys(data.customFields).length > 0) {
+      const { persistGuestCustomFieldValues } = await import("./guest-custom-fields.functions");
+      await persistGuestCustomFieldValues(
+        supabaseAdmin,
+        data.restaurantId,
+        loaded.guestId,
+        context.userId,
+        data.customFields,
+        me.id,
+      );
     }
 
     if (data.adults !== loaded.stay.adults || data.children !== loaded.stay.children) {
@@ -920,12 +934,25 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       (propRow as { timezone?: string } | null)?.timezone ?? "UTC",
     );
 
+    const { data: customFieldRows } = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("field_id, value_json")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", loaded.guestId);
+    const customValues: Record<string, unknown> = {};
+    if (customFieldRows) {
+      for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
+        customValues[row.field_id] = row.value_json;
+      }
+    }
+
     const checkInValidation = validateGuestCheckInRequirements({
       guest: guestProfile,
       documents: checkInDocs,
       config: workspaceConfig,
       profileType: individualType,
       today,
+      customFieldValues: customValues,
     });
     if (!checkInValidation.valid) {
       throw new Error(

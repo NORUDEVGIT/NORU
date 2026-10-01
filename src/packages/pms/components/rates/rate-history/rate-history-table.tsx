@@ -18,8 +18,8 @@ import {
 } from "@/packages/pms/lib/revenue/rate-history";
 
 const TONE: Record<ReturnType<typeof deltaTone>, string> = {
-  up: "text-emerald-800",
-  down: "text-rose-800",
+  up: "font-semibold text-emerald-800",
+  down: "font-semibold text-rose-800",
   flat: "text-[#251605]",
 };
 
@@ -36,8 +36,8 @@ export function RateHistoryTable({
   onViewDetails: (row: RateChangeHistoryRow) => void;
 }) {
   return (
-    <div className="overflow-auto rounded-xl border border-[#E8E1D7] bg-card">
-      <table className="min-w-max w-full border-collapse">
+    <div className="overflow-auto rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+      <table className="min-w-max w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-[#E8E1D7] bg-[#F7F4EE]">
             {[
@@ -56,55 +56,94 @@ export function RateHistoryTable({
             ].map((label) => (
               <th
                 key={label}
-                className="whitespace-nowrap px-2 py-1.5 text-left text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
+                className={[
+                  "whitespace-nowrap px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#5A4833]",
+                  label === "Before" ||
+                  label === "After" ||
+                  label === "Delta" ||
+                  label === "Actions"
+                    ? "text-right"
+                    : "text-left",
+                ].join(" ")}
               >
                 {label}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-[#EFE9DF]">
           {rows.map((row) => {
             const tone = TONE[deltaTone(row.absoluteDelta)];
+            const reasonText = rateHistoryReasonLabel(row.reason);
             return (
-              <tr key={row.id} className="border-t border-[#E8E1D7]">
-                <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">
+              <tr
+                key={row.id}
+                onClick={() => onViewDetails(row)}
+                className="cursor-pointer transition-colors hover:bg-[#FAF6F0]/70"
+              >
+                <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#251605]">
                   {formatChangedAt(row.createdAt)}
                 </td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">{rateHistoryActionLabel(row.actionType)}</td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">{row.roomTypeName ?? "Room type"}</td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">{row.ratePlanCode ?? row.ratePlanName ?? "Plan"}</td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">{formatStayDate(row.stayDate)}</td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">
+                <td className="whitespace-nowrap px-3.5 py-3">
+                  <span className="inline-flex items-center rounded-md border border-[#E8E1D7] bg-[#FAF6F0] px-2 py-0.5 text-xs font-semibold text-[#251605]">
+                    {rateHistoryActionLabel(row.actionType)}
+                  </span>
+                </td>
+                <td className="whitespace-nowrap px-3.5 py-3 text-sm text-[#251605]">
+                  {row.roomTypeName ?? "Room type"}
+                </td>
+                <td className="whitespace-nowrap px-3.5 py-3 text-sm font-medium text-[#251605]">
+                  {row.ratePlanCode ?? row.ratePlanName ?? "Plan"}
+                </td>
+                <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#251605]">
+                  {formatStayDate(row.stayDate)}
+                </td>
+                <td className="whitespace-nowrap px-3.5 py-3 text-right text-sm tabular-nums text-[#5A4833]">
                   {formatHistoryMoney(row.previousEffectiveRate, row.currency)}
                 </td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">
+                <td className="whitespace-nowrap px-3.5 py-3 text-right text-sm font-semibold tabular-nums text-[#251605]">
                   {formatHistoryMoney(row.newEffectiveRate, row.currency)}
                 </td>
-                <td className={["px-2 py-1.5 text-[10px]", tone].join(" ")}>
+                <td
+                  className={[
+                    "whitespace-nowrap px-3.5 py-3 text-right text-xs tabular-nums",
+                    tone,
+                  ].join(" ")}
+                >
                   {formatHistoryMoney(row.absoluteDelta, row.currency)}
                   {row.percentageDelta == null ? "" : ` · ${row.percentageDelta}%`}
                 </td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">{rateHistoryActorLabel(row)}</td>
-                <td className="px-2 py-1.5 text-[10px] text-muted-foreground">{rateHistorySourceLabel(row.source)}</td>
-                <td className="max-w-40 truncate px-2 py-1.5 text-[10px] text-muted-foreground">
-                  {rateHistoryReasonLabel(row.reason)}
+                <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#251605]">
+                  {rateHistoryActorLabel(row)}
                 </td>
-                <td className="px-2 py-1.5 text-right">
+                <td className="whitespace-nowrap px-3.5 py-3 text-xs text-[#756A5B]">
+                  {rateHistorySourceLabel(row.source)}
+                </td>
+                <td
+                  title={reasonText}
+                  className="max-w-52 truncate px-3.5 py-3 text-xs text-[#5A4833]"
+                >
+                  {reasonText}
+                </td>
+                <td className="px-3.5 py-3 text-right" onClick={(event) => event.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
                         aria-label={`Actions for ${row.ratePlanCode ?? "rate change"}`}
-                        className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#F3ECE2] hover:text-[#251605] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]/40"
+                        className="inline-flex size-8 items-center justify-center rounded-md text-[#756A5B] transition-colors hover:bg-[#F3ECE2] hover:text-[#251605] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]/40"
                       >
                         <MoreHorizontal className="size-4" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-44">
-                      <DropdownMenuItem onSelect={() => onViewDetails(row)}>View Details</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onViewDetails(row)}>
+                        View Details
+                      </DropdownMenuItem>
                       {row.actionType === "bulk_rate_change" ? (
-                        <DropdownMenuItem onSelect={() => onViewDetails(row)}>View Operation</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => onViewDetails(row)}>
+                          View Operation
+                        </DropdownMenuItem>
                       ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>

@@ -55,7 +55,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
   it("D. implemented functional views still mount existing tabs", () => {
     const workspace = readRel("../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /<RevenueControlView /);
-    assert.match(workspace, /<RatePlansTab /);
+    assert.match(workspace, /<RatePlansTab[\s\S]*?restaurantId/);
     assert.match(workspace, /<RateCalendarView/);
     assert.match(workspace, /<RestrictionCalendarView/);
     assert.match(workspace, /<BulkRateChangeView/);
@@ -222,5 +222,36 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /REVENUE_PRIMARY_SECTIONS/);
     assert.match(lib, /label: "Revenue Control"/);
     assert.match(lib, /label: "Demand & Forecast"/);
+  });
+
+  it("K. demotes Demand & Forecast out of primary nav into disabled More item and blocks direct URL access", () => {
+    const lib = readRel("./rate-revenue-workspace.ts");
+    const workspace = readRel("../components/workspaces/rates-workspace.tsx");
+
+    assert.doesNotMatch(
+      lib.slice(lib.indexOf("export const REVENUE_PRIMARY_SECTIONS"), lib.indexOf("export const REVENUE_SECTION_DEFAULTS")),
+      /demand-forecast/,
+    );
+    assert.equal(normalizeRevenueView("demand-forecast"), "control-center");
+    assert.equal(normalizeRevenueView("demand-calendar"), "control-center");
+    assert.equal(normalizeRevenueView("pickup-pace"), "control-center");
+    assert.equal(normalizeRevenueView("forecast-detail"), "control-center");
+    assert.equal(normalizeRevenueView("forecast-history"), "control-center");
+
+    const commercialViews = REVENUE_VIEW_DEFINITIONS.filter((view) => view.section === "commercial");
+    assert.deepEqual(
+      commercialViews.map((view) => view.id),
+      ["commercial", "promotions", "packages", "commercial-history"],
+    );
+    assert.deepEqual(
+      commercialViews.map((view) => view.label),
+      ["Overview", "Promotions", "Packages", "History"],
+    );
+
+    assert.match(workspace, /Demand & Forecast/);
+    assert.match(workspace, /Coming later/);
+    assert.match(workspace, /Forecast occupancy and booking pace/);
+    assert.match(workspace, /aria-disabled="true"/);
+    assert.match(workspace, /isDemotedDemandView/);
   });
 });

@@ -35,11 +35,21 @@ import {
   createGuest,
   createGuestDocumentUpload,
   findGuestDuplicates,
+  listGuestPreferenceRegistrationCatalogue,
   registerGuestDocument,
+  saveGuestPreferenceAnswers,
   updateGuest,
   type GuestProfile,
   type GuestSummary,
 } from "@/packages/pms/lib/guests.functions";
+import { validatePreferenceAnswer } from "@/packages/pms/lib/guest-preferences-workspace";
+import {
+  listGuestCustomFieldValues,
+  saveGuestCustomFieldValues,
+} from "@/packages/pms/lib/guest-custom-fields.functions";
+import { GuestDynamicFieldsSection } from "@/packages/pms/components/guests/guest-dynamic-fields-section";
+import { GuestRegistrationPreferences } from "@/packages/pms/components/guests/guest-registration-preferences";
+import { GuestCreateModal } from "./guest-create-modal";
 import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { guestCreateBlocked } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
@@ -261,7 +271,33 @@ function Section({
   );
 }
 
-export function GuestFormDialog({
+export function GuestFormDialog(props: {
+  restaurantId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Present when editing an existing guest. */
+  guest?: GuestProfile | null;
+  onSaved?: (guestId: string) => void;
+  /** Called when staff choose an existing duplicate instead of creating a new guest. */
+  onOpenExisting?: (guestId: string) => void;
+  /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
+  onMergeRequested?: (duplicateId: string) => void;
+}) {
+  if (!props.guest) {
+    return (
+      <GuestCreateModal
+        restaurantId={props.restaurantId}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        onCreated={(id) => props.onSaved?.(id)}
+        onCancel={() => props.onOpenChange(false)}
+      />
+    );
+  }
+  return <GuestEditFormDialog {...props} guest={props.guest} />;
+}
+
+function GuestEditFormDialog({
   restaurantId,
   open,
   onOpenChange,
@@ -273,12 +309,9 @@ export function GuestFormDialog({
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Present when editing an existing guest. */
-  guest?: GuestProfile | null;
+  guest: GuestProfile;
   onSaved?: (guestId: string) => void;
-  /** Called when staff choose an existing duplicate instead of creating a new guest. */
   onOpenExisting?: (guestId: string) => void;
-  /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
   onMergeRequested?: (duplicateId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -326,11 +359,34 @@ export function GuestFormDialog({
   }, [fieldRules]);
 
   const [form, setForm] = useState<GuestFormValues>(EMPTY);
+  const [customValues, setCustomValues] = useState<Record<string, unknown>>({});
+  const [preferenceAnswers, setPreferenceAnswers] = useState<Record<string, string[]>>({});
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
   const [stagedFiles, setStagedFiles] = useState<StagedIdentityFile[]>([]);
   const [stagedLinks, setStagedLinks] = useState<StagedMasterLink[]>([]);
   const [createdGuestId, setCreatedGuestId] = useState<string | null>(null);
   const [followupErrors, setFollowupErrors] = useState<string[]>([]);
+
+  const loadCustomValues = useServerFn(listGuestCustomFieldValues);
+  const customValuesQuery = useQuery({
+    queryKey: ["guest-custom-fields", restaurantId, guest?.id],
+    queryFn: () =>
+      guest
+        ? loadCustomValues({ data: { restaurantId, guestId: guest.id } })
+        : Promise.resolve([]),
+    enabled: open && Boolean(guest?.id),
+    staleTime: 0,
+  });
+
+  const saveCustomValues = useServerFn(saveGuestCustomFieldValues);
+  const savePreferences = useServerFn(saveGuestPreferenceAnswers);
+  const loadPrefCatalogue = useServerFn(listGuestPreferenceRegistrationCatalogue);
+  const prefCatalogueQuery = useQuery({
+    queryKey: ["guest-preferences-catalogue", restaurantId],
+    queryFn: () => loadPrefCatalogue({ data: { restaurantId } }),
+    enabled: open && !guest,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (open) {
@@ -340,8 +396,22 @@ export function GuestFormDialog({
       setStagedLinks([]);
       setCreatedGuestId(null);
       setFollowupErrors([]);
+      setPreferenceAnswers({});
+      if (!guest) {
+        setCustomValues({});
+      }
     }
   }, [open, guest]);
+
+  useEffect(() => {
+    if (open && guest && customValuesQuery.data) {
+      const initial: Record<string, unknown> = {};
+      for (const item of customValuesQuery.data) {
+        initial[item.fieldId] = item.value;
+      }
+      setCustomValues(initial);
+    }
+  }, [open, guest, customValuesQuery.data]);
 
   function set<K extends keyof GuestFormValues>(key: K, value: GuestFormValues[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -434,24 +504,68 @@ export function GuestFormDialog({
 
   const save = useMutation({
     mutationFn: async () => {
+      let activeGuestId: string;
       if (guest) {
         await update({ data: { restaurantId, guestId: guest.id, guest: payload } });
-        return { id: guest.id, complete: true as const };
+        activeGuestId = guest.id;
+      } else {
+        activeGuestId = createdGuestId
+          ? createdGuestId
+          : (await create({ data: { restaurantId, guest: payload } })).id;
+        setCreatedGuestId(activeGuestId);
       }
-      const guestId = createdGuestId
-        ? createdGuestId
-        : (await create({ data: { restaurantId, guest: payload } })).id;
-      setCreatedGuestId(guestId);
-      const complete = await applyStagedFollowups(guestId);
-      return { id: guestId, complete };
+
+      const errors: string[] = [];
+      let customFieldsSuccess = true;
+      let preferencesSuccess = true;
+
+      // Save custom field values
+      if (Object.keys(customValues).length > 0) {
+        try {
+          await saveCustomValues({
+            data: { restaurantId, guestId: activeGuestId, values: customValues },
+          });
+        } catch (err) {
+          customFieldsSuccess = false;
+          const msg = err instanceof Error ? err.message : "Failed to save some additional fields";
+          errors.push(msg);
+        }
+      }
+
+      // Save preference answers (at registration)
+      const prefEntries = Object.entries(preferenceAnswers)
+        .filter(([_, vals]) => vals && vals.length > 0)
+        .map(([typeId, values]) => ({ typeId, values }));
+      if (prefEntries.length > 0) {
+        try {
+          const res = await savePreferences({
+            data: { restaurantId, guestId: activeGuestId, answers: prefEntries },
+          });
+          if (res && !res.ok) {
+            preferencesSuccess = false;
+            errors.push(res.message);
+          }
+        } catch (err) {
+          preferencesSuccess = false;
+          const msg = err instanceof Error ? err.message : "Failed to save some preferences";
+          errors.push(msg);
+        }
+      }
+
+      const followupsComplete = guest ? true : await applyStagedFollowups(activeGuestId);
+      const complete = customFieldsSuccess && preferencesSuccess && followupsComplete;
+      return { id: activeGuestId, complete, errors };
     },
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-documents", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["guest-custom-fields", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["guest-preference-workspace", restaurantId] });
       if (!result.complete) {
-        toast.error(INDIVIDUAL_PARTIAL_CREATE_COPY);
+        const errorDetail = result.errors.length > 0 ? result.errors.join("; ") : null;
+        toast.error(errorDetail ? `${INDIVIDUAL_PARTIAL_CREATE_COPY} ${errorDetail}` : INDIVIDUAL_PARTIAL_CREATE_COPY);
         return;
       }
       toast.success(guest ? "Guest updated." : "Guest created.");
@@ -477,9 +591,33 @@ export function GuestFormDialog({
       );
       if (restrictionError) throw new Error(restrictionError);
 
-      const fieldValidation = validateGuestFields(payload, fieldRules, context, savedRules);
+      const fieldValidation = validateGuestFields(
+        payload,
+        fieldRules,
+        context,
+        savedRules,
+        customValues,
+      );
       if (!fieldValidation.valid) {
         throw new Error(fieldValidation.errors[0]);
+      }
+
+      // Validate required preferences for Individual profile before guest creation
+      if (!guest && prefCatalogueQuery.data?.categories) {
+        const allowedSet =
+          individualType?.preferenceTypeIds && individualType.preferenceTypeIds.length > 0
+            ? new Set(individualType.preferenceTypeIds)
+            : null;
+        for (const cat of prefCatalogueQuery.data.categories) {
+          if (!cat.active) continue;
+          for (const t of cat.types) {
+            if (!t.active) continue;
+            if (allowedSet && !allowedSet.has(t.id)) continue;
+            const answers = preferenceAnswers[t.id] ?? [];
+            const error = validatePreferenceAnswer(t, answers);
+            if (error) throw new Error(error);
+          }
+        }
       }
 
       const matches = await checkDuplicates({
@@ -1004,6 +1142,37 @@ export function GuestFormDialog({
               Add emergency contact
             </Button>
           </Section>
+
+          {fieldRules.some((r) => r.category === "custom_value") ? (
+            <Section
+              id="additional"
+              title="Additional Information"
+              defaultOpen={fieldRules.some(
+                (r) => r.category === "custom_value" && r.requiredForContext,
+              )}
+            >
+              <GuestDynamicFieldsSection
+                fields={fieldRules}
+                values={customValues}
+                onChange={(fieldId, val) =>
+                  setCustomValues((prev) => ({ ...prev, [fieldId]: val }))
+                }
+                isCreateMode={!guest}
+              />
+            </Section>
+          ) : null}
+
+          {!guest ? (
+            <Section id="preferences" title="Preferences">
+              <GuestRegistrationPreferences
+                restaurantId={restaurantId}
+                answers={preferenceAnswers}
+                onChange={(typeId, values) =>
+                  setPreferenceAnswers((prev) => ({ ...prev, [typeId]: values }))
+                }
+              />
+            </Section>
+          ) : null}
 
           <Section id="notes" title="Notes">
             <Field label="Notes">

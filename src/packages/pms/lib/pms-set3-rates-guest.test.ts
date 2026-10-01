@@ -197,7 +197,10 @@ describe("PMS-SET3 single Activate and checklist expand", () => {
 
 describe("PMS-SET3 hub unmute and deep-links", () => {
   it("promotes Rates and Guest profile to Live cards and deep-links the existing workspaces", () => {
-    assert.equal(SET3_RATES_HREF, "/restaurant/settings#financial-commercial");
+    assert.equal(
+      SET3_RATES_HREF,
+      "/restaurant/settings?card2Step=rates-pricing#rooms-inventory",
+    );
     assert.equal(SET3_RATES_REVENUE_HREF, "/restaurant/pms/rates-revenue");
     assert.equal(SET3_GUESTS_HREF, "/restaurant/pms/guests");
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "rates" && card.title === "Rates & meal plans"));

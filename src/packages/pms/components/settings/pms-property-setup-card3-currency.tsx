@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
+import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
@@ -13,7 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { cn } from "@/shared/lib/utils";
 import { COMMON_CURRENCIES } from "@/shared/lib/property-time";
+import { CARD1_HREF } from "@/packages/pms/lib/pms-property-setup-card1";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
   Card3InheritedStrip,
@@ -32,6 +36,7 @@ import {
 import { PROPERTY_SETUP_CONTROL_CLASS } from "@/packages/pms/lib/pms-property-setup-ui";
 import {
   getCurrencyCard3,
+  refreshExchangeRatesCard3,
   saveCurrencyCard3,
   saveExchangeRateCard3,
   saveFinancialSettingsCard3,
@@ -96,6 +101,7 @@ export function PmsPropertySetupCard3Currency({
   const saveCurrency = useServerFn(saveCurrencyCard3);
   const saveRate = useServerFn(saveExchangeRateCard3);
   const saveSettings = useServerFn(saveFinancialSettingsCard3);
+  const refreshRates = useServerFn(refreshExchangeRatesCard3);
   const [currencySearch, setCurrencySearch] = useState("");
   const [rateSearch, setRateSearch] = useState("");
   const [currencyDraft, setCurrencyDraft] = useState<PropertyCurrency | "new" | null>(null);
@@ -112,6 +118,11 @@ export function PmsPropertySetupCard3Currency({
   const currencies = snapshot?.currencies ?? [];
   const rates = snapshot?.rates ?? [];
   const settings = snapshot?.settings ?? emptyFinancialSettings();
+  const fxStatus = snapshot?.fxStatus ?? {
+    providerName: "ExchangeRate-API",
+    lastRefreshedAt: null,
+    status: "never" as const,
+  };
 
   const filteredCurrencies = useMemo(() => {
     const q = currencySearch.trim().toLowerCase();
@@ -132,6 +143,8 @@ export function PmsPropertySetupCard3Currency({
         row.directionLabel.toLowerCase().includes(q) ||
         row.quoteCurrencyCode.toLowerCase().includes(q) ||
         row.effectiveDate.toLowerCase().includes(q) ||
+        row.displaySource.toLowerCase().includes(q) ||
+        row.status.toLowerCase().includes(q) ||
         FX_LABELS[row.source].toLowerCase().includes(q),
     );
   }, [rates, rateSearch]);
@@ -140,6 +153,19 @@ export function PmsPropertySetupCard3Currency({
   const baseRow =
     currencies.find((row) => row.isBase || row.code === inherited?.baseCurrency) ?? null;
   const baseMeta = inherited ? card3CurrencyCatalogMeta(inherited.baseCurrency) : null;
+
+  const refreshMut = useMutation({
+    mutationFn: (input: Parameters<typeof refreshRates>[0]["data"]) =>
+      refreshRates({ data: input }),
+    onSuccess: (result) => {
+      const res = result.refreshResult;
+      toast.success(
+        `Rates updated: ${res.persistedCount} saved, ${res.manualPreservedCount} manual preserved.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["pms-card3-currency", restaurantId] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to refresh exchange rates."),
+  });
 
   const currencyMut = useMutation({
     mutationFn: (input: Parameters<typeof saveCurrency>[0]["data"]) =>
@@ -217,6 +243,19 @@ export function PmsPropertySetupCard3Currency({
       ) : (
         <div className="space-y-5" data-testid="pms-card3-currency">
           <Card3Section icon="money" title="Primary Currency" testId="card3-base-currency-strip">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p>
+                ETB is the property/base currency for all exchange-rate conversions (1 ETB = 1 ETB).
+                Primary currency configuration is managed in{" "}
+                <a
+                  href={CARD1_HREF}
+                  className="font-medium text-[#C89933] underline hover:text-[#A67C1E]"
+                >
+                  Card 1: Property & Business
+                </a>
+                .
+              </p>
+            </div>
             <div className="overflow-x-auto rounded-[8px] border border-[#E6E1D8]">
               <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
                 <thead className="bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wide text-[#6B6458]">
@@ -241,10 +280,14 @@ export function PmsPropertySetupCard3Currency({
                       </span>
                     </td>
                     <td className="px-3 py-3 text-[#251605]">
-                      {baseRow?.name || baseMeta?.name || inherited.baseCurrency}
+                      {baseRow?.name ||
+                        baseMeta?.name ||
+                        (inherited.baseCurrency === "ETB" ? "Ethiopian Birr" : inherited.baseCurrency)}
                     </td>
                     <td className="px-3 py-3 text-[#251605]">
-                      {baseRow?.symbol || baseMeta?.symbol || inherited.baseCurrency}
+                      {baseRow?.symbol ||
+                        baseMeta?.symbol ||
+                        (inherited.baseCurrency === "ETB" ? "Br" : inherited.baseCurrency)}
                     </td>
                     <td className="px-3 py-3 text-[#251605]">
                       {String(baseRow?.decimalPlaces ?? baseMeta?.decimalPlaces ?? 2)}
@@ -294,26 +337,103 @@ export function PmsPropertySetupCard3Currency({
             })}
           />
 
-          <Card3ListSection
-            icon="money"
-            title="Exchange Rates"
-            helper={FX_DIRECTION_COPY}
-            search={rateSearch}
-            onSearch={setRateSearch}
-            placeholder="Search exchange rates"
-            addLabel="Add exchange rate"
-            onAdd={() => setRateDraft("new")}
-            canEdit={canEdit}
-            columns={["Direction", "Effective", "Source"]}
-            empty="No exchange rates yet."
-            rows={filteredRates.map((row) => ({
-              id: row.id,
-              onEdit: () => setRateDraft(row),
-              cells: [row.directionLabel, row.effectiveDate, FX_LABELS[row.source]],
-            }))}
-          />
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#E6E1D8] bg-[#FAF8F5] p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-4 text-[#251605]">
+                <div>
+                  <span className="text-muted-foreground">Base Currency: </span>
+                  <span className="font-semibold">
+                    {inherited.baseCurrency} (1 {inherited.baseCurrency} = 1 {inherited.baseCurrency})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Source: </span>
+                  <span className="font-medium">{fxStatus.providerName} · Automatic</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Last Updated: </span>
+                  <span className="font-medium">
+                    {fxStatus.lastRefreshedAt
+                      ? new Date(fxStatus.lastRefreshedAt).toLocaleString()
+                      : "Never"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Freshness: </span>
+                  {fxStatus.status === "current" && (
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      Current
+                    </span>
+                  )}
+                  {fxStatus.status === "stale" && (
+                    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                      Stale
+                    </span>
+                  )}
+                  {fxStatus.status === "failed" && (
+                    <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">
+                      Refresh Failed
+                    </span>
+                  )}
+                  {fxStatus.status === "never" && (
+                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                      Not Refreshed
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {canEdit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={refreshMut.isPending}
+                  onClick={() => refreshMut.mutate({ restaurantId })}
+                  className="h-8 gap-1.5 border-[#C89933] bg-[#F4EDE0] text-xs font-medium text-[#251605] hover:bg-[#C89933]/20"
+                >
+                  <RefreshCw className={cn("size-3.5", refreshMut.isPending && "animate-spin")} />
+                  {refreshMut.isPending ? "Refreshing Rates…" : "Refresh Rates"}
+                </Button>
+              )}
+            </div>
+
+            <Card3ListSection
+              icon="money"
+              title="Exchange Rates"
+              helper={FX_DIRECTION_COPY}
+              search={rateSearch}
+              onSearch={setRateSearch}
+              placeholder="Search exchange rates"
+              addLabel="Add exchange rate"
+              onAdd={() => setRateDraft("new")}
+              canEdit={canEdit}
+              columns={["Currency", "Rate", "Effective Date", "Source", "Status"]}
+              empty="No exchange rates yet."
+              rows={filteredRates.map((row) => ({
+                id: row.id,
+                onEdit: () => setRateDraft(row),
+                cells: [
+                  row.quoteCurrencyCode,
+                  row.directionLabel,
+                  row.effectiveDate,
+                  row.displaySource,
+                  row.status === "current" ? (
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                      Current
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                      Stale
+                    </span>
+                  ),
+                ],
+              }))}
+            />
+          </div>
 
           <div className="grid gap-5 lg:grid-cols-2">
+
             <Card3Section icon="date" title="Financial Calendar">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <Card3InheritedStrip>

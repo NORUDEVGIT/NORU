@@ -10,6 +10,18 @@ import {
   evaluateRatesCard3Readiness,
   type RatesCard3Snapshot,
 } from "./rates-card3.server.ts";
+import {
+  getRatesCard3,
+  saveRateCategoryCard3,
+  saveRatePlanCard3,
+  loadRatesCard3Snapshot,
+} from "./rates-card3.functions.ts";
+import {
+  getRatesCard2,
+  saveRateCategoryCard2,
+  saveRatePlanCard2,
+  loadRatesCard2Snapshot,
+} from "./rates-card2.functions.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fns = readFileSync(new URL("./rates-card3.functions.ts", import.meta.url), "utf8");
@@ -18,23 +30,19 @@ const section = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-section.tsx", import.meta.url),
   "utf8",
 );
-const ui = readFileSync(
-  new URL("../components/settings/pms-property-setup-card3-rates.tsx", import.meta.url),
-  "utf8",
-);
+const card2Fns = readFileSync(new URL("./rates-card2.functions.ts", import.meta.url), "utf8");
 
 function snapshot(partial?: Partial<RatesCard3Snapshot>): RatesCard3Snapshot {
   return {
     roomTypes: [{ id: "rt1", code: "DLX", name: "Deluxe", active: true }],
     categories: [],
     plans: [],
-    calendar: [],
     ...partial,
   };
 }
 
-describe("Card 3 Phase 3 rates readiness", () => {
-  it("stays not started until a plan exists and never completes the Card 3 programme", () => {
+describe("Card 3 rates compatibility aliases", () => {
+  it("delegates readiness to Card 2 evaluator without completing Card 3 programme", () => {
     const empty = evaluateRatesCard3Readiness(snapshot());
     assert.equal(empty.status, "not_started");
     const started = evaluateRatesCard3Readiness(
@@ -77,50 +85,30 @@ describe("Card 3 Phase 3 rates readiness", () => {
       }),
     );
     assert.equal(complete.status, "complete");
-    assert.doesNotMatch(fns, /rates-guest-rules/);
-    assert.doesNotMatch(fns, /pms_property_setup_status/);
   });
 
-  it("reads Card 2 room types and never writes types, inventory, or reservation snapshots", () => {
-    assert.match(fns, /from\("room_types"\)/);
-    assert.match(fns, /from\("hotel_rate_plans"\)/);
-    assert.match(fns, /from\("hotel_rate_calendar"\)/);
-    assert.doesNotMatch(fns, /from\("pms_rate/);
-    assert.doesNotMatch(fns, /insert\(\{[^}]*room_types/);
-    assert.doesNotMatch(fns, /from\("pms_inventory_rules"\)/);
-    assert.doesNotMatch(fns, /from\("hotel_reservations"\)/);
-    assert.doesNotMatch(fns, /repriceReservation/);
-    assert.doesNotMatch(fns, /nightly_rate_snapshot/);
-    assert.match(fns, /That room type doesn't belong to this property/);
-    assert.match(server, /Derived and corporate-style pricing is not in this schema/);
+  it("re-exports canonical Card 2 functions as thin aliases with zero duplicate logic", () => {
+    assert.equal(getRatesCard3, getRatesCard2);
+    assert.equal(saveRateCategoryCard3, saveRateCategoryCard2);
+    assert.equal(saveRatePlanCard3, saveRatePlanCard2);
+    assert.equal(loadRatesCard3Snapshot, loadRatesCard2Snapshot);
+
+    assert.match(fns, /from "\.\/rates-card2\.functions\.ts"/);
+    assert.doesNotMatch(fns, /from\("hotel_rate_plans"\)/);
+    assert.match(card2Fns, /from\("room_types"\)/);
+    assert.match(card2Fns, /from\("hotel_rate_plans"\)/);
+    assert.match(card2Fns, /That room type doesn't belong to this property/);
   });
 
-  it("reads as a member, writes as owner/manager, and audits on the shared staff log", () => {
-    assert.match(fns, /requireFrontOfficeAccess/);
-    assert.match(fns, /requireRoomManager/);
-    assert.match(fns, /restaurant_staff_audit_log/);
-    assert.match(fns, /card3_rate_category_saved/);
-    assert.match(fns, /card3_rate_plan_saved/);
-    assert.match(fns, /card3_rate_override_saved/);
-    assert.equal(CARD3_RATES_AUDIT_SECTION, "card3-rates");
-    assert.doesNotMatch(fns, /Database\[/);
-  });
-
-  it("keeps four rates tabs while Meal Plans owns its Phase 4 workspace", () => {
-    assert.deepEqual(
-      CARD3_RATES_TABS.map((tab) => tab.label),
-      ["Overview", "Rate Plans", "Room Rates", "Rate Calendar"],
-    );
-    assert.match(section, /PmsPropertySetupCard3Rates/);
-    assert.match(ui, /CARD3_RATES_DERIVED_COPY/);
-    assert.match(ui, /CARD3_RATES_CARD2_COPY/);
-    assert.match(ui, /Card3ListSection/);
-    assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
+  it("proves Card 3 no longer renders Rate & Pricing after the move to Card 2", () => {
+    assert.doesNotMatch(section, /PmsPropertySetupCard3Rates/);
+    assert.doesNotMatch(section, /"rates-pricing"/);
+    assert.doesNotMatch(section, /loadRates/);
+    assert.doesNotMatch(section, /ratesQuery/);
     assert.equal(
       existsSync(join(here, "../components/settings/pms-property-setup-card3-meals.tsx")),
       true,
     );
     assert.match(section, /PmsPropertySetupCard3Meals/);
-    assert.doesNotMatch(ui, /Meal Plans & Packages/);
   });
 });

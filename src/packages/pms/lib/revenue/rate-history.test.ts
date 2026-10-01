@@ -99,7 +99,12 @@ describe("RR-P2-05 — history display", () => {
   it("groups a bulk operation and keeps a single event as one operation", () => {
     const bulk = groupHistoryByOperation([
       row({ id: "a", stayDate: "2026-09-24", actionType: "bulk_rate_change" }),
-      row({ id: "b", stayDate: "2026-09-25", actionType: "bulk_rate_change", ratePlanCode: "CORP" }),
+      row({
+        id: "b",
+        stayDate: "2026-09-25",
+        actionType: "bulk_rate_change",
+        ratePlanCode: "CORP",
+      }),
     ]);
     assert.equal(bulk.length, 1);
     assert.equal(bulk[0]?.events.length, 2);
@@ -153,7 +158,11 @@ describe("RR-P2-05 — wiring, honesty and Phase 2 flow lock", () => {
     assert.doesNotMatch(view, /limit: 10000|pageSize: 1000/);
   });
 
-  it("opens a consistent operation drawer for single and bulk rows", () => {
+  it("opens a consistent on-demand operation drawer for single and bulk rows with full-width table", () => {
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
+    assert.doesNotMatch(drawer, /<aside/);
+    assert.match(drawer, /<Sheet[\s\S]*?open=\{open\}/);
+    assert.match(drawer, /Open Related Rate Calendar/);
     assert.match(table, /View Details/);
     assert.match(table, /View Operation/);
     assert.match(table, /MoreHorizontal/);
@@ -169,7 +178,10 @@ describe("RR-P2-05 — wiring, honesty and Phase 2 flow lock", () => {
     assert.match(empty, /RATE_HISTORY_EMPTY_COPY/);
     assert.match(empty, /RATE_HISTORY_EMPTY_SECONDARY/);
     assert.equal(RATE_HISTORY_EMPTY_COPY.includes("rate-change history was enabled"), true);
-    assert.equal(RATE_HISTORY_EMPTY_SECONDARY.includes("Earlier calendar changes are not available"), true);
+    assert.equal(
+      RATE_HISTORY_EMPTY_SECONDARY.includes("Earlier calendar changes are not available"),
+      true,
+    );
   });
 
   it("does not present export, approval, forecast or invented statuses", () => {

@@ -71,7 +71,6 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
       [
         "Currency & Financial Settings",
         "Taxes & Fees",
-        "Rates & Pricing",
         "Meal Plans & Packages",
         "Payments & Deposits",
         "Billing & Invoicing",
@@ -79,7 +78,7 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
         "Revenue & Commercial Rules",
       ],
     );
-    assert.equal(CARD3_DOMAINS.length, 8);
+    assert.equal(CARD3_DOMAINS.length, 7);
     assert.equal(CARD3_PROGRESS_PERCENT, 0);
     assert.equal(CARD3_PROGRESS_LABEL, "Not Started");
     assert.doesNotMatch(lib, /86%/);

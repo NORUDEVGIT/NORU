@@ -45,17 +45,17 @@ export type PromotionActivationReasonCode = (typeof PROMOTION_ACTIVATION_REASON_
 export type PromotionActivationPreviewInput = {
   restaurantId: string;
   operation: CommercialActivationOperation;
-  promotionId?: string;
-  activationId?: string;
-  validFrom?: string;
-  validTo?: string;
-  bookingFrom?: string;
-  bookingTo?: string;
-  priority?: number;
-  roomTypeIds?: string[];
-  ratePlanIds?: string[];
-  reason?: string | null;
-  expectedVersion?: string;
+  promotionId?: string | undefined;
+  activationId?: string | undefined;
+  validFrom?: string | undefined;
+  validTo?: string | undefined;
+  bookingFrom?: string | undefined;
+  bookingTo?: string | undefined;
+  priority?: number | undefined;
+  roomTypeIds?: string[] | undefined;
+  ratePlanIds?: string[] | undefined;
+  reason?: string | null | undefined;
+  expectedVersion?: string | undefined;
 };
 
 export type PromotionMasterPreview = {
@@ -69,7 +69,7 @@ export type PromotionMasterPreview = {
   validTo: string;
   active: boolean;
   roomTypeIds: string[];
-  conditions?: string | null;
+  conditions?: string | null | undefined;
 };
 
 export type PromotionOverlapWarning = {

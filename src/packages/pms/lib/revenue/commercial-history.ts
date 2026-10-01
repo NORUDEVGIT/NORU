@@ -32,6 +32,9 @@ export const COMMERCIAL_HISTORY_VALUE_ALL_ELIGIBLE = "All eligible";
 export const COMMERCIAL_HISTORY_VALUE_NONE = "None";
 export const COMMERCIAL_HISTORY_STATUS_NOT_ACTIVATED = "Not activated";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type CommercialStateSnapshot = Record<string, any>;
+
 export type CommercialHistoryRow = {
   id: string;
   restaurantId: string;
@@ -40,8 +43,8 @@ export type CommercialHistoryRow = {
   entityId: string;
   masterId: string | null;
   actionType: CommercialActionType;
-  beforeState: Record<string, unknown> | null;
-  afterState: Record<string, unknown> | null;
+  beforeState: CommercialStateSnapshot | null;
+  afterState: CommercialStateSnapshot | null;
   reason: string | null;
   actorMembershipId: string | null;
   actorName: string | null;
@@ -87,8 +90,8 @@ export function commercialHistoryIsReactivated(
 ): boolean {
   return (
     (actionType === "promotion_activation_edited" || actionType === "package_activation_edited") &&
-    before?.active === false &&
-    after?.active === true
+    before?.["active"] === false &&
+    after?.["active"] === true
   );
 }
 
@@ -126,14 +129,14 @@ export function commercialHistoryEntityFromState(
   state: Record<string, unknown> | null | undefined,
 ): { name: string; code: string | null } {
   if (entityType === "promotion_activation") {
-    const name = asText(state?.promotionName);
-    const code = asText(state?.promotionCode);
+    const name = asText(state?.["promotionName"]);
+    const code = asText(state?.["promotionCode"]);
     if (name || code) return { name: name ?? code!, code };
     return { name: "Promotion Activation", code: null };
   }
   if (entityType === "package_activation") {
-    const name = asText(state?.packageName);
-    const code = asText(state?.packageCode);
+    const name = asText(state?.["packageName"]);
+    const code = asText(state?.["packageCode"]);
     if (name || code) return { name: name ?? code!, code };
     return { name: "Package Activation", code: null };
   }
@@ -221,15 +224,15 @@ export function commercialHistoryScopeNames(
 function asState(value: Record<string, unknown> | null): CommercialActivationState | null {
   if (!value) return null;
   return {
-    active: value.active === true,
-    validFrom: String(value.validFrom ?? ""),
-    validTo: String(value.validTo ?? ""),
-    bookingFrom: value.bookingFrom == null ? null : String(value.bookingFrom),
-    bookingTo: value.bookingTo == null ? null : String(value.bookingTo),
-    priority: value.priority == null ? null : Number(value.priority),
-    reason: value.reason == null ? null : String(value.reason),
-    roomTypeIds: asIdList(value.roomTypeIds),
-    ratePlanIds: asIdList(value.ratePlanIds),
+    active: value["active"] === true,
+    validFrom: String(value["validFrom"] ?? ""),
+    validTo: String(value["validTo"] ?? ""),
+    bookingFrom: value["bookingFrom"] == null ? null : String(value["bookingFrom"]),
+    bookingTo: value["bookingTo"] == null ? null : String(value["bookingTo"]),
+    priority: value["priority"] == null ? null : Number(value["priority"]),
+    reason: value["reason"] == null ? null : String(value["reason"]),
+    roomTypeIds: asIdList(value["roomTypeIds"]),
+    ratePlanIds: asIdList(value["ratePlanIds"]),
   };
 }
 

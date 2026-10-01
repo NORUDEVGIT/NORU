@@ -42,6 +42,14 @@ import {
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 import { persistCard2AmenitiesReadiness } from "./rooms-amenities.functions";
 import { roomPersistencePayload } from "./room-inventory-compat";
+import {
+  PREDEFINED_ROOM_CATEGORIES,
+  PREDEFINED_ROOM_CLASSES,
+  isDuplicateClassification,
+  mergeClassificationLists,
+  mergeCustomClassifications,
+} from "./rooms-classification";
+import { parsePropertySetupStatus } from "./pms-property-setup-card1";
 
 const idSchema = z.string().uuid();
 const smokingPolicySchema = z.enum(SMOKING_POLICIES);
@@ -1545,3 +1553,195 @@ export const getRoomsDashboard = createServerFn({ method: "POST" })
       })),
     };
   });
+
+/* ---------------------------------------------------------------------- room classifications */
+
+export type RoomClassificationsResult = {
+  categories: string[];
+  classes: string[];
+  predefinedCategories: readonly string[];
+  predefinedClasses: readonly string[];
+  customCategories: string[];
+  customClasses: string[];
+};
+
+export const listRoomClassifications = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<RoomClassificationsResult> => {
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
+
+    const [{ data: restaurant }, { data: existingTypes }] = await Promise.all([
+      pmsDb(context.supabase)
+        .from("restaurants")
+        .select("pms_property_setup_status")
+        .eq("id", data.restaurantId)
+        .maybeSingle(),
+      pmsDb(context.supabase)
+        .from("room_types")
+        .select("category, class")
+        .eq("restaurant_id", data.restaurantId),
+    ]);
+
+    const status = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+    const customCategories = status.customRoomCategories ?? [];
+    const customClasses = status.customRoomClasses ?? [];
+
+    const legacyCategories = (existingTypes ?? [])
+      .map((r: any) => String(r.category ?? "").trim())
+      .filter(Boolean);
+    const legacyClasses = (existingTypes ?? [])
+      .map((r: any) => String(r.class ?? "").trim())
+      .filter(Boolean);
+
+    const categories = mergeClassificationLists(
+      PREDEFINED_ROOM_CATEGORIES,
+      customCategories,
+      legacyCategories,
+    );
+    const classes = mergeClassificationLists(
+      PREDEFINED_ROOM_CLASSES,
+      customClasses,
+      legacyClasses,
+    );
+
+    return {
+      categories,
+      classes,
+      predefinedCategories: PREDEFINED_ROOM_CATEGORIES,
+      predefinedClasses: PREDEFINED_ROOM_CLASSES,
+      customCategories,
+      customClasses,
+    };
+  });
+
+export async function saveCustomClassificationWithRetry(
+  supabaseAdmin: any,
+  restaurantId: string,
+  kind: "category" | "class",
+  value: string,
+  maxAttempts: number = 3,
+): Promise<{ ok: true; name: string } | { ok: false; message: string }> {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { ok: false, message: `Enter a ${kind} name.` };
+  }
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // 1. Read current status & distinct room_types values
+    const [{ data: restaurant }, { data: existingTypes }] = await Promise.all([
+      supabaseAdmin
+        .from("restaurants")
+        .select("pms_property_setup_status")
+        .eq("id", restaurantId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("room_types")
+        .select(kind)
+        .eq("restaurant_id", restaurantId),
+    ]);
+
+    const currentStatus = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+    const existingList = kind === "category"
+      ? (currentStatus.customRoomCategories ?? [])
+      : (currentStatus.customRoomClasses ?? []);
+    const predefinedList = kind === "category" ? PREDEFINED_ROOM_CATEGORIES : PREDEFINED_ROOM_CLASSES;
+    const legacyList = (existingTypes ?? [])
+      .map((t: any) => String(t[kind] ?? "").trim())
+      .filter(Boolean);
+
+    // 2. Three-way case-insensitive duplicate check
+    const allKnown = [...predefinedList, ...existingList, ...legacyList];
+    if (isDuplicateClassification(allKnown, trimmed)) {
+      return {
+        ok: false,
+        message: `A room ${kind} with this name already exists.`,
+      };
+    }
+
+    // 3. Merge custom value case-insensitively
+    const updatedStatus = mergeCustomClassifications(restaurant?.pms_property_setup_status, {
+      [kind]: trimmed,
+    });
+
+    // 4. Write updated status
+    const { error: writeError } = await supabaseAdmin
+      .from("restaurants")
+      .update({ pms_property_setup_status: updatedStatus as unknown as Json })
+      .eq("id", restaurantId);
+
+    if (writeError) {
+      if (attempt < maxAttempts - 1) continue;
+      return { ok: false, message: `Could not save custom room ${kind}.` };
+    }
+
+    // 5. Re-read and verify that new item AND existing items survived
+    const { data: verifyRow } = await supabaseAdmin
+      .from("restaurants")
+      .select("pms_property_setup_status")
+      .eq("id", restaurantId)
+      .maybeSingle();
+
+    const verifiedStatus = parsePropertySetupStatus(verifyRow?.pms_property_setup_status);
+    const verifiedList = kind === "category"
+      ? (verifiedStatus.customRoomCategories ?? [])
+      : (verifiedStatus.customRoomClasses ?? []);
+
+    const hasNewItem = verifiedList.some((item) => item.toLowerCase() === trimmed.toLowerCase());
+    const preservedPriorItems = existingList.every((oldItem) =>
+      verifiedList.some((item) => item.toLowerCase() === oldItem.toLowerCase())
+    );
+
+    if (hasNewItem && preservedPriorItems) {
+      return { ok: true, name: trimmed };
+    }
+  }
+
+  return {
+    ok: false,
+    message: `Could not safely save custom room ${kind} due to concurrent updates.`,
+  };
+}
+
+export const addCustomRoomCategory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        name: z.string().trim().min(1, "Enter a category name.").max(80),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return saveCustomClassificationWithRetry(
+      supabaseAdmin,
+      data.restaurantId,
+      "category",
+      data.name,
+    );
+  });
+
+export const addCustomRoomClass = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        name: z.string().trim().min(1, "Enter a class name.").max(80),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return saveCustomClassificationWithRetry(
+      supabaseAdmin,
+      data.restaurantId,
+      "class",
+      data.name,
+    );
+  });
+

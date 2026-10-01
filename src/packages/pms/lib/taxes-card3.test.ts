@@ -72,7 +72,6 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             active: true,
           },
         ],
-        groups: [{ id: "g1", code: "STD", name: "Standard", active: true, taxIds: ["t1"] }],
         serviceCharges: [
           {
             id: "s1",
@@ -140,19 +139,136 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.doesNotMatch(fns, /pms_tax_activity/);
     assert.doesNotMatch(server, /reservation_id|folio_id/);
     const types = readFileSync(join(here, "../../../../src/integrations/supabase/types.ts"), "utf8");
-    assert.doesNotMatch(types, /pms_tax_exemption_rules/);
-    assert.doesNotMatch(types, /pms_taxes:/);
+    assert.match(types, /pms_tax_exemption_rules/);
+    assert.match(types, /pms_taxes:/);
   });
 
-  it("keeps six taxes tabs and leaves remaining Card 3 domains as placeholders", () => {
+  it("keeps five taxes tabs and removes Tax Groups from UI", () => {
     assert.deepEqual(
       CARD3_TAXES_TABS.map((tab) => tab.label),
-      ["Overview", "Taxes", "Tax Groups", "Service Charges", "Fees", "Exemptions"],
+      ["Overview", "Taxes", "Service Charges", "Fees", "Exemptions"],
     );
     assert.match(section, /PmsPropertySetupCard3Taxes/);
     assert.match(ui, /CARD3_TAXES_SET1_COPY/);
     assert.match(ui, /Card3ListSection/);
+    assert.doesNotMatch(ui, /title="Tax groups"/);
+    assert.doesNotMatch(ui, /Add tax group/);
+    assert.doesNotMatch(ui, /GroupDrawer/);
+    assert.doesNotMatch(ui, /saveTaxGroupCard3/);
     assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.doesNotMatch(ui, /Rates & Pricing/);
   });
+
+  it("verifies readiness completes without Tax Group and tolerates legacy group data", () => {
+    const withoutGroup = evaluateTaxesCard3Readiness(
+      snapshot({
+        taxes: [
+          {
+            id: "t1",
+            code: "VAT",
+            name: "VAT",
+            chargeType: "percentage",
+            amount: 15,
+            basis: "all",
+            calculation: "exclusive",
+            active: true,
+          },
+        ],
+        groups: [],
+        serviceCharges: [
+          {
+            id: "s1",
+            code: "SC",
+            name: "Service",
+            chargeType: "percentage",
+            amount: 10,
+            basis: "fnb",
+            active: true,
+          },
+        ],
+        fees: [
+          {
+            id: "f1",
+            code: "CITY",
+            name: "City levy",
+            chargeType: "fixed",
+            amount: 5,
+            basis: "night",
+            active: true,
+          },
+        ],
+        exemptionRules: [
+          {
+            id: "e1",
+            code: "DIPL",
+            name: "Diplomatic",
+            description: "",
+            reasonCategory: "diplomatic",
+            documentationRequired: true,
+            approvalRequired: true,
+            active: true,
+          },
+        ],
+      }),
+    );
+    assert.equal(withoutGroup.ready, true);
+    assert.equal(withoutGroup.status, "complete");
+    assert.equal(withoutGroup.blockers.length, 0);
+
+    const withLegacyGroup = evaluateTaxesCard3Readiness(
+      snapshot({
+        taxes: [
+          {
+            id: "t1",
+            code: "VAT",
+            name: "VAT",
+            chargeType: "percentage",
+            amount: 15,
+            basis: "all",
+            calculation: "exclusive",
+            active: true,
+          },
+        ],
+        groups: [{ id: "legacy1", code: "OLD", name: "Old Group", active: false, taxIds: [] }],
+        serviceCharges: [
+          {
+            id: "s1",
+            code: "SC",
+            name: "Service",
+            chargeType: "percentage",
+            amount: 10,
+            basis: "fnb",
+            active: true,
+          },
+        ],
+        fees: [
+          {
+            id: "f1",
+            code: "CITY",
+            name: "City levy",
+            chargeType: "fixed",
+            amount: 5,
+            basis: "night",
+            active: true,
+          },
+        ],
+        exemptionRules: [
+          {
+            id: "e1",
+            code: "DIPL",
+            name: "Diplomatic",
+            description: "",
+            reasonCategory: "diplomatic",
+            documentationRequired: true,
+            approvalRequired: true,
+            active: true,
+          },
+        ],
+      }),
+    );
+    assert.equal(withLegacyGroup.ready, true);
+    assert.equal(withLegacyGroup.status, "complete");
+    assert.equal(withLegacyGroup.blockers.length, 0);
+  });
 });
+

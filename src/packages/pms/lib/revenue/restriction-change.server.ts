@@ -411,7 +411,7 @@ export async function listRestrictionChangeHistory(
 
 export async function getRestrictionOperationDetail(
   db: DbClient,
-  query: { restaurantId: string; operationId?: string; eventId?: string },
+  query: { restaurantId: string; operationId?: string | undefined; eventId?: string | undefined },
 ): Promise<RestrictionOperationDetail | null> {
   let operationId = query.operationId ?? null;
   if (!operationId && query.eventId) {

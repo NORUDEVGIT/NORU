@@ -25,8 +25,8 @@ export type RateCalendarQuery = {
   restaurantId: string;
   fromDate: string;
   toDate: string;
-  roomTypeId?: string | null;
-  ratePlanId?: string | null;
+  roomTypeId?: string | null | undefined;
+  ratePlanId?: string | null | undefined;
 };
 
 async function loadRooms(db: DbClient, restaurantId: string): Promise<CalendarRoom[]> {

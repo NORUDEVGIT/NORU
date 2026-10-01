@@ -69,7 +69,7 @@ export function PropertySetupWorkspaceShell({
 }) {
   return (
     <div
-      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col overflow-hidden bg-[#F7F4EE]"
+      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col overflow-hidden overflow-x-hidden bg-[#F7F4EE]"
       data-testid="property-setup-workspace-shell"
     >
       <div className="@container min-h-0 min-w-0 w-full flex-1 overflow-y-auto">

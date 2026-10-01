@@ -67,10 +67,13 @@ export type CanonicalGuestFieldKey =
   | "documents"
   | "company";
 
+export type GuestFieldCategory = "core_mapped" | "custom_value" | "document" | "lookup";
+
 export type ResolvedGuestFieldRule = {
   id: string;
   code: string;
   canonicalKey: CanonicalGuestFieldKey | null;
+  category: GuestFieldCategory;
   label: string;
   fieldType: string;
   active: boolean;
@@ -80,7 +83,17 @@ export type ResolvedGuestFieldRule = {
   options: NormalizedFieldOption[];
   isTechnicalMinimum: boolean;
   isUnsupported: boolean;
+  minValue?: number | null;
+  maxValue?: number | null;
 };
+
+export function classifyGuestField(code: string, fieldType: string): GuestFieldCategory {
+  const codeUpper = code.toUpperCase();
+  if (CANONICAL_FIELD_CODE_MAP[codeUpper]) return "core_mapped";
+  if (fieldType === "document") return "document";
+  if (fieldType === "lookup") return "lookup";
+  return "custom_value";
+}
 
 /**
  * Canonical mapping between Card 4 configured field codes and operational guest keys.
@@ -332,10 +345,13 @@ export function resolveGuestFieldRules(
     const options =
       normalizedOptions.length > 0 ? normalizedOptions : resolveFallbackOptionsForField(code);
 
+    const category = classifyGuestField(code, field.fieldType);
+
     rules.push({
       id: field.id,
       code,
       canonicalKey,
+      category,
       label: field.name,
       fieldType: field.fieldType,
       active: field.active,
@@ -344,7 +360,9 @@ export function resolveGuestFieldRules(
       displayOrder: field.displayOrder ?? 0,
       options,
       isTechnicalMinimum,
-      isUnsupported: canonicalKey === null,
+      isUnsupported: false,
+      minValue: (field as { minValue?: number | null }).minValue ?? null,
+      maxValue: (field as { maxValue?: number | null }).maxValue ?? null,
     });
   }
 
@@ -355,6 +373,7 @@ export function resolveGuestFieldRules(
         id: `tech-min-${minCode}`,
         code: minCode,
         canonicalKey: CANONICAL_FIELD_CODE_MAP[minCode] ?? "firstName",
+        category: "core_mapped",
         label: minCode === "FIRST_NAME" ? "First Name" : minCode,
         fieldType: "text",
         active: true,
@@ -385,6 +404,7 @@ export function validateGuestFields(
   rules: ResolvedGuestFieldRule[],
   context: GuestFieldContext,
   set3Fallback?: GuestProfileRules | null,
+  customFieldValues?: Record<string, unknown>,
 ): ValidationResult {
   const errors: string[] = [];
   const missingFieldCodes: string[] = [];
@@ -409,12 +429,24 @@ export function validateGuestFields(
   for (const rule of rules) {
     if (!rule.requiredForContext) continue;
 
-    // Unmapped/deferred fields do not block validation
-    if (!rule.canonicalKey || rule.isUnsupported) continue;
+    // Document & relationship lookup fields are resolved in their specialized check routines
+    if (rule.category === "document" || rule.category === "lookup") continue;
 
-    const val = values[rule.canonicalKey];
+    let val: unknown;
+    if (rule.category === "core_mapped" && rule.canonicalKey) {
+      val = values[rule.canonicalKey];
+    } else {
+      // Custom field: check customFieldValues or values by id, code, or lowercase code
+      val =
+        customFieldValues?.[rule.id] ??
+        customFieldValues?.[rule.code] ??
+        customFieldValues?.[rule.code.toLowerCase()] ??
+        values[rule.code] ??
+        values[rule.code.toLowerCase()] ??
+        values[rule.id];
+    }
+
     let isBlank = false;
-
     if (val === null || val === undefined) {
       isBlank = true;
     } else if (typeof val === "string") {
@@ -426,6 +458,43 @@ export function validateGuestFields(
     if (isBlank) {
       missingFieldCodes.push(rule.code);
       errors.push(`${rule.label} is required.`);
+    } else if (rule.category === "custom_value") {
+      // Format validation for non-blank custom values
+      if (rule.fieldType === "email" && typeof val === "string" && val.trim()) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())) {
+          errors.push(`${rule.label} must be a valid email address.`);
+        }
+      } else if (rule.fieldType === "number") {
+        const num = typeof val === "number" ? val : Number(val);
+        if (!Number.isFinite(num)) {
+          errors.push(`${rule.label} must be a number.`);
+        } else {
+          if (rule.minValue !== null && rule.minValue !== undefined && num < rule.minValue) {
+            errors.push(`${rule.label} cannot be less than ${rule.minValue}.`);
+          }
+          if (rule.maxValue !== null && rule.maxValue !== undefined && num > rule.maxValue) {
+            errors.push(`${rule.label} cannot be greater than ${rule.maxValue}.`);
+          }
+        }
+      } else if (rule.fieldType === "date" && typeof val === "string" && val.trim()) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
+          errors.push(`${rule.label} must be a valid date in YYYY-MM-DD format.`);
+        }
+      } else if (rule.fieldType === "select" && typeof val === "string" && val.trim()) {
+        const allowed = new Set(rule.options.map((opt) => opt.value));
+        if (allowed.size > 0 && !allowed.has(val.trim())) {
+          errors.push(`Selected option for ${rule.label} is invalid.`);
+        }
+      } else if (rule.fieldType === "multi_select" && Array.isArray(val) && val.length > 0) {
+        const allowed = new Set(rule.options.map((opt) => opt.value));
+        if (allowed.size > 0) {
+          for (const item of val) {
+            if (!allowed.has(String(item))) {
+              errors.push(`Option "${item}" for ${rule.label} is invalid.`);
+            }
+          }
+        }
+      }
     }
   }
 
@@ -452,6 +521,7 @@ export function validateReservationGuestRequirements(
   guest: GuestProfile | GuestSummary | null | undefined,
   config: GuestWorkspaceConfig | null | undefined,
   profileType?: GuestWorkspaceTypeConfig | null,
+  customFieldValues?: Record<string, unknown>,
 ): ValidationResult {
   if (!guest) {
     return { valid: false, errors: ["No guest selected."], missingFieldCodes: ["GUEST"] };
@@ -462,11 +532,9 @@ export function validateReservationGuestRequirements(
 
   // Cast guest to generic dictionary for validation
   const dict = guest as unknown as Record<string, unknown>;
-  return validateGuestFields(dict, rules, "reservation");
+  return validateGuestFields(dict, rules, "reservation", null, customFieldValues);
 }
 
-/**
- * Validates Front Office check-in requirements:
 export type CheckInDocumentCandidate = {
   id?: string;
   typeId?: string | null;
@@ -480,14 +548,8 @@ export type CheckInDocumentCandidate = {
 
 /**
  * Validates Front Office check-in requirements:
- * 1. Checks check_in field requirements on the guest.
+ * 1. Checks check_in field requirements on the guest (core and custom).
  * 2. Checks identity document requirements (if any active doc type has requiredAtCheckIn).
- *    Enforces:
- *    - matching active requiredAtCheckIn type
- *    - type allowed for Individual profile type
- *    - documentNumberRequired, issuingCountryRequired, expiryDateRequired
- *    - unexpired document (doc.expiryDate >= today)
- *    - property-date-safe comparison
  */
 export function validateGuestCheckInRequirements(params: {
   guest: GuestProfile | GuestSummary | null | undefined;
@@ -495,8 +557,9 @@ export function validateGuestCheckInRequirements(params: {
   config: GuestWorkspaceConfig | null | undefined;
   profileType?: GuestWorkspaceTypeConfig | null;
   today?: string;
+  customFieldValues?: Record<string, unknown>;
 }): ValidationResult {
-  const { guest, documents, config } = params;
+  const { guest, documents, config, customFieldValues } = params;
   if (!guest) {
     return { valid: false, errors: ["No guest profile on file."], missingFieldCodes: ["GUEST"] };
   }
@@ -505,7 +568,7 @@ export function validateGuestCheckInRequirements(params: {
   const rules = resolveGuestFieldRules(config, pType, "check_in");
 
   const dict = guest as unknown as Record<string, unknown>;
-  const fieldValidation = validateGuestFields(dict, rules, "check_in");
+  const fieldValidation = validateGuestFields(dict, rules, "check_in", null, customFieldValues);
   const errors = [...fieldValidation.errors];
   const missingFieldCodes = [...fieldValidation.missingFieldCodes];
 

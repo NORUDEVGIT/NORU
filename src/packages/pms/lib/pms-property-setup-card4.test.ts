@@ -43,7 +43,7 @@ const settings = readFileSync(
 const wave1 = readFileSync(new URL("./guest-profile-wave1.ts", import.meta.url), "utf8");
 
 describe("PMS Property Setup Card 4 Phase 1 shell", () => {
-  it("promotes Guest & Services with guest-services hash and six Guest Profile Rules steps", () => {
+  it("promotes Guest & Services with guest-services hash and three Guest Profile Rules steps", () => {
     assert.equal(CARD4_TITLE, "Guest & Services");
     assert.equal(CARD4_HASH, "guest-services");
     assert.equal(CARD4_HREF, `${SET1_HUB_HREF}#guest-services`);
@@ -51,16 +51,13 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     assert.equal(PROPERTY_SETUP_CARDS[3]?.title, CARD4_TITLE);
     assert.equal(PROPERTY_SETUP_CARDS[3]?.specced, true);
     assert.equal(PROPERTY_SETUP_CARDS[3]?.hash, CARD4_HASH);
-    assert.equal(CARD4_STEPS.length, 6);
+    assert.equal(CARD4_STEPS.length, 3);
     assert.deepEqual(
       CARD4_STEPS.map((row) => [row.number, row.id, row.title]),
       [
         [1, "profile-types", "Profile Types"],
-        [2, "required-fields", "Required Fields"],
-        [3, "identity-documents", "Identity Documents"],
-        [4, "preferences", "Preferences"],
-        [5, "company-business", "Company & Business"],
-        [6, "group-types", "Group Types"],
+        [2, "company-business", "Company & Business"],
+        [3, "group-types", "Group Types"],
       ],
     );
     assert.equal(
@@ -71,7 +68,9 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
       ),
       false,
     );
-    assert.equal(nextCard4Step("profile-types"), "required-fields");
+    assert.equal(nextCard4Step("profile-types"), "company-business");
+    assert.equal(nextCard4Step("company-business"), "group-types");
+    assert.equal(nextCard4Step("group-types"), null);
     assert.equal(evaluateCard4StepStatus("profile-types", undefined, true), "complete");
     assert.equal(evaluateCard4StepStatus("required-fields", undefined, true), "not_started");
     assert.equal(evaluateCard4StepStatus("required-fields", undefined, true, true), "complete");
@@ -83,11 +82,6 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
       evaluateCard4StepStatus("preferences", undefined, true, true, true, true),
       "complete",
     );
-    assert.equal(nextCard4Step("required-fields"), "identity-documents");
-    assert.equal(nextCard4Step("identity-documents"), "preferences");
-    assert.equal(nextCard4Step("preferences"), "company-business");
-    assert.equal(nextCard4Step("company-business"), "group-types");
-    assert.equal(nextCard4Step("group-types"), null);
     assert.equal(
       evaluateCard4StepStatus("company-business", undefined, true, true, true, true, true),
       "complete",

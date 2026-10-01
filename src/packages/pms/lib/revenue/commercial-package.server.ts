@@ -62,7 +62,8 @@ export type ReservationPackageAttributionRow = {
   appliedAmount: number;
   components: PackageComponentSnapshot[];
   appliedAt: string;
-  snapshot: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  snapshot: Record<string, any>;
 };
 
 export type ReservationCommercialAttribution = {
@@ -84,10 +85,13 @@ function asComponents(value: unknown): PackageComponentSnapshot[] {
   return value.map((row) => {
     const item = row as Record<string, unknown>;
     return {
-      componentType: String(item.componentType ?? item.component_kind ?? ""),
-      componentId: item.componentId == null && item.component_id == null ? null : String(item.componentId ?? item.component_id),
-      label: String(item.label ?? ""),
-      quantity: Number(item.quantity ?? 1),
+      componentType: String(item["componentType"] ?? item["component_kind"] ?? ""),
+      componentId:
+        item["componentId"] == null && item["component_id"] == null
+          ? null
+          : String(item["componentId"] ?? item["component_id"]),
+      label: String(item["label"] ?? ""),
+      quantity: Number(item["quantity"] ?? 1),
     };
   });
 }
@@ -245,26 +249,27 @@ export async function getReservationPackageAttributions(
     .order("created_at");
   if (result.error) throw new Error(result.error.message);
   return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    id: String(row.id),
-    restaurantId: String(row.restaurant_id),
-    reservationId: String(row.reservation_id),
-    packageActivationId: String(row.package_activation_id),
-    packageId: String(row.package_id),
-    packageCode: String(row.package_code),
-    packageName: String(row.package_name),
-    chargeBasis: String(row.charge_basis),
-    quantity: Number(row.quantity),
-    unitAmount: Number(row.unit_amount),
-    appliedAmount: Number(row.applied_amount),
-    components: asComponents(row.components_snapshot),
-    appliedAt: String(row.applied_at),
-    snapshot: (row.snapshot ?? {}) as Record<string, unknown>,
+    id: String(row["id"]),
+    restaurantId: String(row["restaurant_id"]),
+    reservationId: String(row["reservation_id"]),
+    packageActivationId: String(row["package_activation_id"]),
+    packageId: String(row["package_id"]),
+    packageCode: String(row["package_code"]),
+    packageName: String(row["package_name"]),
+    chargeBasis: String(row["charge_basis"]),
+    quantity: Number(row["quantity"]),
+    unitAmount: Number(row["unit_amount"]),
+    appliedAmount: Number(row["applied_amount"]),
+    components: asComponents(row["components_snapshot"]),
+    appliedAt: String(row["applied_at"]),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    snapshot: (row["snapshot"] ?? {}) as Record<string, any>,
   }));
 }
 
 export async function getReservationCommercialAttribution(
   db: DbClient,
-  input: { restaurantId: string; reservationId: string; roomSubtotal?: number | null },
+  input: { restaurantId: string; reservationId: string; roomSubtotal?: number | null | undefined },
 ): Promise<ReservationCommercialAttribution> {
   const { getReservationPromotionAttribution } = await import("./commercial-promotion.server.ts");
   const [promotion, packages] = await Promise.all([

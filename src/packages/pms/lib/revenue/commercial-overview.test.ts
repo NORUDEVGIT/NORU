@@ -254,4 +254,28 @@ describe("RR-P5-UI-01 commercial overview + promotions", () => {
     assert.match(server, /from\("pms_promotions"\)/);
     assert.match(server, /loadPromotionMasters/);
   });
+
+  it("refines Commercial Overview and Promotions to full-width workspace with on-demand drawers, pagination, and readable typography", () => {
+    const overview = readRel("../../components/rates/commercial-overview/commercial-overview-view.tsx");
+    const promotions = readRel("../../components/rates/promotions/promotions-view.tsx");
+    const drawer = readRel("../../components/rates/promotions/promotion-detail-drawer.tsx");
+
+    assert.doesNotMatch(overview, /text-\[9px\]|text-\[10px\]/);
+    assert.match(overview, /PREVIEW_LIMIT = 5/);
+    assert.match(overview, /View Promotions/);
+    assert.match(overview, /View Packages/);
+    assert.match(overview, /View Commercial History/);
+
+    assert.doesNotMatch(promotions, /xl:grid-cols-\[minmax\(0,1fr\)_420px\]/);
+    assert.doesNotMatch(promotions, /text-\[9px\]|text-\[10px\]/);
+    assert.match(promotions, /PROMOTION_PAGE_SIZES/);
+    assert.match(promotions, /role="button"/);
+    assert.match(promotions, /Filter/);
+    assert.match(promotions, /Configure in Property Setup/);
+
+    assert.doesNotMatch(drawer, /<aside/);
+    assert.doesNotMatch(drawer, /text-\[9px\]|text-\[10px\]/);
+    assert.match(drawer, /SheetContent/);
+    assert.match(drawer, /Promotion Details/);
+  });
 });

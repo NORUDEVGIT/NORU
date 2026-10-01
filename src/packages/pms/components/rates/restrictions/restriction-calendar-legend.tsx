@@ -1,26 +1,22 @@
 const ITEMS = [
-  { label: "Stop Sell", swatch: "bg-rose-600" },
-  { label: "CTA / CTD", swatch: "bg-amber-500" },
-  { label: "Min / Max stay", swatch: "bg-[#251605]" },
-  { label: "Open", swatch: "bg-[#F7F4EE]" },
-  { label: "Selected", swatch: "ring-2 ring-[#C89933] bg-white" },
+  { label: "Stop Sell (SS)", swatch: "border-rose-400 bg-rose-600" },
+  { label: "CTA / CTD", swatch: "border-amber-400 bg-amber-500" },
+  { label: "Min / Max stay", swatch: "border-indigo-400 bg-indigo-600" },
+  { label: "Open", swatch: "border-emerald-300 bg-emerald-100" },
+  { label: "Selected / Checked", swatch: "border-[#C89933] bg-[#FDF5E2] ring-2 ring-[#C89933]" },
 ];
 
 export function RestrictionCalendarLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-[#E8E1D7] bg-white px-4 py-3 text-[10px] text-muted-foreground shadow-sm">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-[#DDD4C5] bg-white px-4 py-2.5 text-xs font-medium text-[#5A4833] shadow-sm">
       {ITEMS.map((item) => (
         <span key={item.label} className="inline-flex items-center gap-2">
-          <span
-            className={`h-3 w-3 rounded border border-[#E8E1D7] ${item.swatch}`}
-          />
+          <span className={`h-3.5 w-3.5 rounded border border-[#DDD4C5] ${item.swatch}`} />
           {item.label}
         </span>
       ))}
 
-      <span className="ml-auto text-[9px]">
-        Operational restrictions, not demand
-      </span>
+      <span className="ml-auto text-xs text-[#756A5B]">Operational restrictions, not demand</span>
     </div>
   );
 }

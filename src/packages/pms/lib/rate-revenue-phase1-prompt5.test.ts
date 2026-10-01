@@ -36,7 +36,7 @@ describe("Rate & Revenue Phase 1 Prompt 5 — completion locks", () => {
     assert.equal(LEGACY_REVENUE_TAB_MAP.plans, "rate-plans-reference");
     assert.deepEqual(
       REVENUE_PRIMARY_SECTIONS.map((section) => section.label),
-      ["Revenue Control", "Rates", "Restrictions", "Demand & Forecast", "Commercial", "More"],
+      ["Revenue Control", "Rates", "Restrictions", "Commercial", "More"],
     );
     assert.deepEqual(implementedRevenueViews(), [
       "control-center",
@@ -56,6 +56,9 @@ describe("Rate & Revenue Phase 1 Prompt 5 — completion locks", () => {
       "commercial-history",
       "competitor-setup",
       "approvals",
+      "revenue-performance",
+      "audit-control",
+      "export",
     ]);
     assert.ok(!foundationRevenueViews().includes("demand-forecast"));
     assert.ok(!foundationRevenueViews().includes("pickup-pace"));

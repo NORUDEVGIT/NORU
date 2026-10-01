@@ -311,21 +311,37 @@ export async function loadGuestWorkspaceConfig(
     updated_at: string;
   }>;
 
-  const types: GuestWorkspaceTypeConfig[] = rawTypes.map((row) => ({
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    description: row.description ?? null,
-    icon: row.icon || "user",
-    active: row.active,
-    section: listingSectionFromCard4Code(row.code),
-    domain: domainFromCard4Code(row.code),
-    requiredFieldIds: row.required_field_ids ?? [],
-    documentTypeIds: row.document_type_ids ?? [],
-    preferenceTypeIds: row.preference_type_ids ?? [],
-    defaults: (row.defaults as GuestWorkspaceTypeConfig["defaults"]) ?? undefined,
-    updatedAt: row.updated_at,
-  }));
+  const canonicalOrder: Record<string, number> = {
+    IND: 1,
+    COM: 2,
+    TRA: 3,
+    GRP: 4,
+  };
+
+  const types: GuestWorkspaceTypeConfig[] = (rawTypes ?? [])
+    .slice()
+    .sort((a, b) => {
+      const codeA = a.code ? a.code.trim().toUpperCase() : "";
+      const codeB = b.code ? b.code.trim().toUpperCase() : "";
+      const orderA = canonicalOrder[codeA] ?? 99;
+      const orderB = canonicalOrder[codeB] ?? 99;
+      return orderA - orderB;
+    })
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      code: row.code ? row.code.trim().toUpperCase() : "",
+      description: row.description ?? null,
+      icon: row.icon || "user",
+      active: row.active,
+      section: listingSectionFromCard4Code(row.code),
+      domain: domainFromCard4Code(row.code),
+      requiredFieldIds: row.required_field_ids ?? [],
+      documentTypeIds: row.document_type_ids ?? [],
+      preferenceTypeIds: row.preference_type_ids ?? [],
+      defaults: (row.defaults as GuestWorkspaceTypeConfig["defaults"]) ?? undefined,
+      updatedAt: row.updated_at,
+    }));
 
   const requiredFields: GuestWorkspaceRequiredFieldConfig[] = (fieldsRes.data ?? []).map((row) => ({
     id: row.id,

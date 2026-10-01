@@ -31,8 +31,9 @@ export type RevenueRatePlan = {
   id: string;
   code: string;
   name: string;
-  categoryId: string;
-  categoryName: string;
+  categoryId: string | null;
+  categoryCode?: string | null | undefined;
+  categoryName: string | null;
   roomTypeId: string;
   roomTypeName: string;
   currency: string;

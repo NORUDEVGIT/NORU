@@ -1,8 +1,15 @@
 import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  Clock,
+  History,
+  ShieldAlert,
+  SlidersHorizontal,
+} from "lucide-react";
 
 import {
   DropdownMenu,
@@ -54,11 +61,13 @@ import {
 import {
   type RevenuePrimarySection,
   type RevenueWorkspaceView,
+  REVENUE_DEFAULT_VIEW,
   REVENUE_PRIMARY_SECTIONS,
   REVENUE_SECTION_DEFAULTS,
   canAccessRevenueView,
   contextFieldsForView,
   firstAccessibleRevenueView,
+  isDemotedDemandView,
   normalizeRevenueView,
   revenueViewDefinition,
   sectionForRevenueView,
@@ -78,8 +87,8 @@ const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
         ref={ref}
         type="button"
         className={[
-          "relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors",
-          active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          "relative flex h-11 shrink-0 items-center gap-2 px-4 text-sm font-semibold transition-colors",
+          active ? "text-[#251605]" : "text-[#756A5B] hover:text-[#251605]",
           className,
         ]
           .filter(Boolean)
@@ -88,7 +97,7 @@ const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
       >
         {children}
         {active ? (
-          <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+          <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
         ) : null}
       </button>
     );
@@ -110,13 +119,13 @@ function SecondaryButton({
       type="button"
       onClick={onClick}
       className={[
-        "relative flex h-9 shrink-0 items-center px-2.5 text-xs font-medium transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        "relative flex h-10 shrink-0 items-center px-3.5 text-sm font-semibold transition-colors",
+        active ? "text-[#251605]" : "text-[#756A5B] hover:text-[#251605]",
       ].join(" ")}
     >
       {children}
       {active ? (
-        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+        <span className="absolute inset-x-2.5 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
       ) : null}
     </button>
   );
@@ -137,6 +146,7 @@ export function RatesWorkspace({
     normalizeRevenueView(search.view ?? search.tab),
   );
   const [moreOpen, setMoreOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setView(normalizeRevenueView(search.view ?? search.tab));
@@ -193,25 +203,29 @@ export function RatesWorkspace({
     catalogues: cataloguesQuery.isSuccess,
   });
 
+  const safeView = isDemotedDemandView(view) ? REVENUE_DEFAULT_VIEW : view;
   const requestedView =
-    access && !canAccessRevenueView(access, view)
-      ? (firstAccessibleRevenueView(access) ?? view)
-      : view;
+    access && !canAccessRevenueView(access, safeView)
+      ? (firstAccessibleRevenueView(access) ?? REVENUE_DEFAULT_VIEW)
+      : safeView;
   const definition = revenueViewDefinition(requestedView);
   const activeSection = sectionForRevenueView(requestedView);
   const secondaryViews = viewsForRevenueSection(activeSection, access);
   const showSecondary = activeSection !== "revenue-control" && activeSection !== "more";
-  const moreViews = viewsForRevenueSection("more", access);
+  const moreViews = viewsForRevenueSection("more", access).filter(
+    (item) => revenueViewDefinition(item).implemented,
+  );
   const primarySections = REVENUE_PRIMARY_SECTIONS.filter(
     (section) => viewsForRevenueSection(section.id, access).length > 0,
   );
 
   function writeState(nextView: RevenueWorkspaceView, nextContext: RevenueContext) {
-    setView(nextView);
+    const targetView = isDemotedDemandView(nextView) ? REVENUE_DEFAULT_VIEW : nextView;
+    setView(targetView);
     setMoreOpen(false);
     void navigate({
       to: "/restaurant/pms/rates-revenue",
-      search: serializeRevenueSearch(nextView, nextContext, {
+      search: serializeRevenueSearch(targetView, nextContext, {
         approvalTab: search.approvalTab,
         approvalRequest: search.approvalRequest,
         analyticsTab: search.analyticsTab,
@@ -226,6 +240,7 @@ export function RatesWorkspace({
   }
 
   function selectView(nextView: RevenueWorkspaceView) {
+    if (isDemotedDemandView(nextView)) return;
     if (access && !canAccessRevenueView(access, nextView)) return;
     writeState(nextView, context);
   }
@@ -233,6 +248,13 @@ export function RatesWorkspace({
   function updateContext(patch: Partial<RevenueContext>) {
     writeState(requestedView, patchRevenueContext(context, patch, contextOptions));
   }
+
+  useEffect(() => {
+    const rawView = search.view ?? search.tab;
+    if (!isDemotedDemandView(rawView)) return;
+    writeState(REVENUE_DEFAULT_VIEW, context);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.view, search.tab]);
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
@@ -305,7 +327,23 @@ export function RatesWorkspace({
           <RevenueControlView restaurantId={restaurantId} context={context} access={access!} />
         );
       case "rate-plans-reference":
-        return <RatePlansTab restaurantId={restaurantId} roomTypeId={context.roomTypeId} />;
+        return (
+          <RatePlansTab
+            restaurantId={restaurantId}
+            roomTypeId={context.roomTypeId}
+            onRoomTypeChange={(roomTypeId) => updateContext({ roomTypeId })}
+            onOpenCalendar={(ratePlanId, planRoomTypeId) =>
+              writeState(
+                "rate-calendar",
+                patchRevenueContext(
+                  context,
+                  { ratePlanId, roomTypeId: planRoomTypeId },
+                  contextOptions,
+                ),
+              )
+            }
+          />
+        );
       case "rate-calendar":
         return (
           <RateCalendarView
@@ -313,6 +351,7 @@ export function RatesWorkspace({
             context={context}
             access={access!}
             businessDate={businessDate}
+            searchQuery={searchQuery}
             onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
           />
         );
@@ -335,6 +374,7 @@ export function RatesWorkspace({
             context={context}
             access={access!}
             businessDate={businessDate}
+            searchQuery={searchQuery}
             onRangeChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
           />
         );
@@ -350,7 +390,15 @@ export function RatesWorkspace({
           />
         );
       case "restriction-history":
-        return <RestrictionHistoryView restaurantId={restaurantId} context={context} />;
+        return (
+          <RestrictionHistoryView
+            restaurantId={restaurantId}
+            context={context}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
+            onContextChange={updateContext}
+          />
+        );
       case "demand-forecast":
         return <DemandForecastView restaurantId={restaurantId} context={context} />;
       case "pickup-pace":
@@ -383,6 +431,7 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
@@ -394,6 +443,7 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
@@ -402,6 +452,7 @@ export function RatesWorkspace({
           <CommercialHistoryView
             restaurantId={restaurantId}
             context={context}
+            onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
@@ -486,19 +537,79 @@ export function RatesWorkspace({
       <div className="min-w-0 bg-[#F7F4EE]">
         <div className="border-b border-border bg-background">
           <div className="px-5 pt-4 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Operations
-            </p>
-            <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-              Rate & Revenue
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Commercial and revenue operations for {membership.restaurant.name}.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{definition.description}</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Operations
+                </p>
+                <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-[#251605]">
+                  Rate & Revenue
+                </h1>
+                <p className="mt-1 text-sm text-[#756A5B]">
+                  Operational pricing, occupancy and revenue control.
+                </p>
+              </div>
+
+              {access.canViewRates || access.canViewRestrictions ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-10 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-4 text-sm font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#FAF6F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#251605]"
+                    >
+                      <SlidersHorizontal className="size-4 text-[#8A641A]" />
+                      <span>Rate & Restriction Actions</span>
+                      <ChevronDown className="size-4 text-[#756A5B]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={6}
+                    className="z-50 w-60 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-xl"
+                  >
+                    {access.canViewRates ? (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            to="/restaurant/pms/rates-revenue"
+                            search={serializeRevenueSearch("rate-calendar", context)}
+                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
+                          >
+                            <CalendarDays className="size-4 text-[#8A641A]" />
+                            <span>Rate Calendar & Bulk Rates</span>
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            to="/restaurant/pms/rates-revenue"
+                            search={serializeRevenueSearch("rate-history", context)}
+                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
+                          >
+                            <History className="size-4 text-[#8A641A]" />
+                            <span>View Rate History</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                    {access.canViewRestrictions ? (
+                      <DropdownMenuItem asChild>
+                        <Link
+                          to="/restaurant/pms/rates-revenue"
+                          search={serializeRevenueSearch("restrictions", context)}
+                          className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
+                        >
+                          <ShieldAlert className="size-4 text-amber-700" />
+                          <span>Restrictions & Bulk Rules</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </div>
           </div>
 
-          <div className="relative mt-3 flex items-end gap-1 overflow-x-auto px-5 sm:px-6">
+          <div className="relative mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6">
             {primarySections.map((section) =>
               section.id === "more" ? (
                 <DropdownMenu key={section.id} open={moreOpen} onOpenChange={setMoreOpen}>
@@ -507,7 +618,7 @@ export function RatesWorkspace({
                       {section.label}
                       <ChevronDown
                         className={[
-                          "h-3.5 w-3.5 transition-transform",
+                          "h-4 w-4 transition-transform",
                           moreOpen ? "rotate-180" : "",
                         ].join(" ")}
                       />
@@ -516,7 +627,7 @@ export function RatesWorkspace({
                   <DropdownMenuContent
                     align="start"
                     sideOffset={6}
-                    className="z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl"
+                    className="z-50 w-72 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl"
                   >
                     {moreViews.map((item) => {
                       const itemDef = revenueViewDefinition(item);
@@ -527,7 +638,7 @@ export function RatesWorkspace({
                           className={[
                             "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm cursor-pointer transition-colors",
                             requestedView === item
-                              ? "bg-muted font-medium text-foreground"
+                              ? "bg-muted font-semibold text-foreground"
                               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                           ].join(" ")}
                         >
@@ -535,6 +646,26 @@ export function RatesWorkspace({
                         </DropdownMenuItem>
                       );
                     })}
+                    <div className="my-1 border-t border-border/60" />
+                    <DropdownMenuItem
+                      disabled
+                      aria-disabled="true"
+                      onSelect={(event) => event.preventDefault()}
+                      className="pointer-events-none flex w-full flex-col items-start gap-1 rounded-lg border border-dashed border-[#E8E1D7] bg-[#FAF6F0]/80 px-3 py-2.5 text-left opacity-65 select-none"
+                    >
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5A4833]">
+                          <Clock className="size-3.5 text-[#8A641A]" />
+                          Demand & Forecast
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-[#E5D3A8] bg-[#F8F1E5] px-2 py-0.5 text-[11px] font-semibold text-[#8A641A]">
+                          Coming later
+                        </span>
+                      </div>
+                      <span className="text-xs text-[#756A5B]">
+                        Forecast occupancy and booking pace
+                      </span>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -550,39 +681,60 @@ export function RatesWorkspace({
           </div>
 
           {showSecondary ? (
-            <div className="flex items-end gap-1 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
-              {secondaryViews.map((item) => (
-                <SecondaryButton
-                  key={item}
-                  active={requestedView === item}
-                  onClick={() => selectView(item)}
-                >
-                  {revenueViewDefinition(item).label}
-                </SecondaryButton>
-              ))}
+            <div className="flex items-end gap-3 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
+              {secondaryViews
+                .filter(
+                  (item) =>
+                    (item !== "bulk-rate-change" || requestedView === "bulk-rate-change") &&
+                    (item !== "apply-restriction" || requestedView === "apply-restriction"),
+                )
+                .map((item) => (
+                  <SecondaryButton
+                    key={item}
+                    active={requestedView === item}
+                    onClick={() => selectView(item)}
+                  >
+                    {revenueViewDefinition(item).label}
+                  </SecondaryButton>
+                ))}
             </div>
           ) : null}
-
-          <RevenueContextBar
-            fields={contextFieldsForView(requestedView)}
-            context={context}
-            onChange={updateContext}
-            roomTypes={roomTypes}
-            ratePlans={ratePlans}
-            marketSegments={marketSegments}
-            bookingSources={bookingSources}
-            salesChannels={salesChannels}
-            cataloguesError={
-              cataloguesQuery.isError
-                ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")
-                : null
-            }
-            coreConfigStatus={coreConfigStatus}
-            cataloguesStatus={cataloguesStatus}
-          />
         </div>
 
-        <main className="p-3 sm:p-4">{renderView()}</main>
+        <main className="space-y-4 p-4 sm:p-5 lg:p-6">
+          {requestedView !== "rate-plans-reference" &&
+          requestedView !== "bulk-rate-change" &&
+          requestedView !== "apply-restriction" &&
+          requestedView !== "restriction-history" &&
+          requestedView !== "promotions" &&
+          requestedView !== "packages" &&
+          requestedView !== "commercial-history" ? (
+            <RevenueContextBar
+              fields={contextFieldsForView(requestedView)}
+              context={context}
+              onChange={updateContext}
+              roomTypes={roomTypes}
+              ratePlans={ratePlans}
+              marketSegments={marketSegments}
+              bookingSources={bookingSources}
+              salesChannels={salesChannels}
+              searchQuery={searchQuery}
+              onSearchChange={
+                requestedView === "rate-calendar" || requestedView === "restrictions"
+                  ? setSearchQuery
+                  : undefined
+              }
+              cataloguesError={
+                cataloguesQuery.isError
+                  ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")
+                  : null
+              }
+              coreConfigStatus={coreConfigStatus}
+              cataloguesStatus={cataloguesStatus}
+            />
+          ) : null}
+          {renderView()}
+        </main>
       </div>
     </RateRevenueChrome>
   );
