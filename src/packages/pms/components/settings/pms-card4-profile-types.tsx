@@ -338,13 +338,20 @@ export function PmsCard4ProfileTypes({
               {types.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={cn(row.id === selectedId && "bg-[#F7F4EE]/60")}
+                  className={cn(
+                    "cursor-pointer transition-colors hover:bg-[#FAF8F5]/80",
+                    row.id === selectedId && "bg-[#F7F4EE]/60",
+                  )}
+                  onClick={() => requestSelect(row.id)}
                 >
                   <TableCell className="font-medium text-[#251605]">
                     <button
                       type="button"
-                      onClick={() => requestSelect(row.id)}
-                      className="text-left hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestSelect(row.id);
+                      }}
+                      className="text-left hover:underline font-medium"
                     >
                       {row.name}
                     </button>
@@ -353,14 +360,14 @@ export function PmsCard4ProfileTypes({
                   <TableCell className="max-w-md text-muted-foreground truncate">
                     {row.description || "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={row.active}
                       disabled={!canEdit || toggleMutation.isPending}
                       onCheckedChange={(active) => toggleMutation.mutate({ id: row.id, active })}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
