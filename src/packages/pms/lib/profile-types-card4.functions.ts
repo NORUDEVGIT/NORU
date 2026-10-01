@@ -17,6 +17,7 @@ import {
   type ProfileTypeRecord,
   type ProfileTypeSnapshot,
 } from "./profile-types-card4.server";
+import { syncProfileTypeDocumentAssignments } from "./profile-type-document-sync.server";
 
 // Generated schema predates 0077.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -201,7 +202,20 @@ async function loadSnapshot(
     .order("name");
   const preferenceTypes: NamedOption[] = prefsRes.error ? [] : (prefsRes.data ?? []);
 
-  const types = (typesRes.data ?? []).map(mapRow);
+  const canonicalOrder: Record<string, number> = {
+    IND: 1,
+    COM: 2,
+    TRA: 3,
+    GRP: 4,
+  };
+
+  const types = (typesRes.data ?? [])
+    .map(mapRow)
+    .sort((a, b) => {
+      const orderA = canonicalOrder[normalizeProfileTypeCode(a.code)] ?? 99;
+      const orderB = canonicalOrder[normalizeProfileTypeCode(b.code)] ?? 99;
+      return orderA - orderB;
+    });
   const lastUpdatedAt = types.reduce<string | null>((latest, row) => {
     if (!latest || row.updatedAt > latest) return row.updatedAt;
     return latest;
@@ -285,6 +299,13 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
       id,
       code,
     });
+    await syncProfileTypeDocumentAssignments(
+      db,
+      data.restaurantId,
+      id,
+      data.documentTypeIds,
+      context.userId,
+    );
     const next = await loadSnapshot(db, data.restaurantId, context.userId);
     return {
       ok: true as const,

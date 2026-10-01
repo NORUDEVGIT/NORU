@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -28,7 +27,6 @@ import {
   saveFeeCard3,
   saveServiceChargeCard3,
   saveTaxCard3,
-  saveTaxGroupCard3,
 } from "@/packages/pms/lib/taxes-card3.functions";
 import {
   CARD3_TAXES_SET1_COPY,
@@ -51,7 +49,6 @@ import {
   type TaxBasis,
   type TaxCalculation,
   type TaxChargeType,
-  type TaxGroupRow,
   type TaxRow,
   type TaxesCard3Snapshot,
 } from "@/packages/pms/lib/taxes-card3.server";
@@ -75,17 +72,14 @@ export function PmsPropertySetupCard3Taxes({
   const queryClient = useQueryClient();
   const load = useServerFn(getTaxesCard3);
   const saveTax = useServerFn(saveTaxCard3);
-  const saveGroup = useServerFn(saveTaxGroupCard3);
   const saveService = useServerFn(saveServiceChargeCard3);
   const saveFee = useServerFn(saveFeeCard3);
   const saveRule = useServerFn(saveExemptionRuleCard3);
   const [taxSearch, setTaxSearch] = useState("");
-  const [groupSearch, setGroupSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [feeSearch, setFeeSearch] = useState("");
   const [ruleSearch, setRuleSearch] = useState("");
   const [taxDraft, setTaxDraft] = useState<TaxRow | "new" | null>(null);
-  const [groupDraft, setGroupDraft] = useState<TaxGroupRow | "new" | null>(null);
   const [serviceDraft, setServiceDraft] = useState<ServiceChargeRow | "new" | null>(null);
   const [feeDraft, setFeeDraft] = useState<FeeRow | "new" | null>(null);
   const [ruleDraft, setRuleDraft] = useState<ExemptionRuleRow | "new" | null>(null);
@@ -96,7 +90,6 @@ export function PmsPropertySetupCard3Taxes({
   });
   const snapshot: TaxesCard3Snapshot | undefined = query.data?.snapshot;
   const taxes = snapshot?.taxes ?? [];
-  const groups = snapshot?.groups ?? [];
   const services = snapshot?.serviceCharges ?? [];
   const fees = snapshot?.fees ?? [];
   const rules = snapshot?.exemptionRules ?? [];
@@ -105,10 +98,6 @@ export function PmsPropertySetupCard3Taxes({
     () =>
       taxes.filter((row) => matchesQuery(taxSearch, row.code, row.name, row.basis, row.chargeType)),
     [taxes, taxSearch],
-  );
-  const filteredGroups = useMemo(
-    () => groups.filter((row) => matchesQuery(groupSearch, row.code, row.name)),
-    [groups, groupSearch],
   );
   const filteredServices = useMemo(
     () => services.filter((row) => matchesQuery(serviceSearch, row.code, row.name, row.basis)),
@@ -151,15 +140,6 @@ export function PmsPropertySetupCard3Taxes({
     onSuccess: () => {
       toast.success("Tax saved.");
       setTaxDraft(null);
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(friendlyValidationError(error)),
-  });
-  const groupMut = useMutation({
-    mutationFn: (input: Parameters<typeof saveGroup>[0]["data"]) => saveGroup({ data: input }),
-    onSuccess: () => {
-      toast.success("Tax group saved.");
-      setGroupDraft(null);
       invalidate();
     },
     onError: (error: Error) => toast.error(friendlyValidationError(error)),
@@ -229,30 +209,7 @@ export function PmsPropertySetupCard3Taxes({
               onEdit: () => setTaxDraft(row),
             }))}
             onAdd={() => setTaxDraft("new")}
-          />
-
-          <Card3ListSection
-            title="Tax groups"
-            icon="tax"
-            search={groupSearch}
-            onSearch={setGroupSearch}
-            placeholder="Search tax groups"
-            canEdit={canEdit}
-            addLabel="Add tax group"
-            empty="No tax groups saved yet."
-            columns={["Code", "Name", "Taxes", "Status"]}
-            rows={filteredGroups.map((row) => ({
-              id: row.id,
-              cells: [
-                row.code,
-                row.name,
-                String(row.taxIds.length),
-                <Card3StatusDot active={row.active} />,
-              ],
-              onEdit: () => setGroupDraft(row),
-            }))}
-            onAdd={() => setGroupDraft("new")}
-          />
+  />
 
           <Card3ListSection
             title="Service charges"
@@ -337,16 +294,6 @@ export function PmsPropertySetupCard3Taxes({
             pending={taxMut.isPending}
             onClose={() => setTaxDraft(null)}
             onSave={(payload) => taxMut.mutate({ restaurantId, ...payload })}
-          />
-          <GroupDrawer
-            key={groupDraft === "new" ? "group-new" : (groupDraft?.id ?? "group-closed")}
-            open={groupDraft !== null}
-            canEdit={canEdit}
-            taxes={taxes}
-            value={groupDraft === "new" || groupDraft === null ? null : groupDraft}
-            pending={groupMut.isPending}
-            onClose={() => setGroupDraft(null)}
-            onSave={(payload) => groupMut.mutate({ restaurantId, ...payload })}
           />
           <ServiceDrawer
             key={serviceDraft === "new" ? "svc-new" : (serviceDraft?.id ?? "svc-closed")}
@@ -589,81 +536,6 @@ function TaxDrawer({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <ActiveField active={active} canEdit={canEdit} onChange={setActive} />
-      </div>
-    </Card3OverlapSheet>
-  );
-}
-
-function GroupDrawer({
-  open,
-  canEdit,
-  taxes,
-  value,
-  pending,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  canEdit: boolean;
-  taxes: TaxRow[];
-  value: TaxGroupRow | null;
-  pending: boolean;
-  onClose: () => void;
-  onSave: (payload: {
-    id?: string;
-    code: string;
-    name: string;
-    active: boolean;
-    taxIds: string[];
-  }) => void;
-}) {
-  const [code, setCode] = useState(value?.code ?? "");
-  const [name, setName] = useState(value?.name ?? "");
-  const [active, setActive] = useState(value?.active ?? true);
-  const [taxIds, setTaxIds] = useState<string[]>(value?.taxIds ?? []);
-
-  function toggle(id: string, checked: boolean) {
-    setTaxIds((current) => (checked ? [...current, id] : current.filter((row) => row !== id)));
-  }
-
-  return (
-    <Card3OverlapSheet
-      open={open}
-      onClose={onClose}
-      title={value ? "Edit tax group" : "Add tax group"}
-      description="Assign taxes from this property only."
-      canEdit={canEdit}
-      pending={pending}
-      submitLabel="Save tax group"
-      onSubmit={() => onSave({ ...(value ? { id: value.id } : {}), code, name, active, taxIds })}
-    >
-      <div className="space-y-3">
-        <CodeFields
-          code={code}
-          name={name}
-          locked={Boolean(value)}
-          canEdit={canEdit}
-          onCode={setCode}
-          onName={setName}
-        />
-        <div className="space-y-2 rounded-xl border px-3 py-2">
-          <p className="text-sm font-medium text-[#251605]">Assigned taxes</p>
-          {taxes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Save a tax first.</p>
-          ) : (
-            taxes.map((tax) => (
-              <label key={tax.id} className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={taxIds.includes(tax.id)}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => toggle(tax.id, checked === true)}
-                />
-                {tax.code} — {tax.name}
-              </label>
-            ))
-          )}
         </div>
         <ActiveField active={active} canEdit={canEdit} onChange={setActive} />
       </div>
