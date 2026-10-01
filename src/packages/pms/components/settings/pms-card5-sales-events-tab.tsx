@@ -2,8 +2,16 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { MoreHorizontal } from "lucide-react";
 
+import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
@@ -16,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { PipelineStageDialog } from "./pipeline-stage-dialog";
 import { PmsPropertySetupCard5Workspace } from "./pms-property-setup-card5-workspace";
 import { propertySetupStatusLabel } from "../../lib/pms-property-setup-card1";
 import {
@@ -148,6 +157,45 @@ export function Card5SalesEventsTab({
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [validated, setValidated] = useState<Card5SalesReadiness | null>(null);
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
+  const [selectedPipelineStage, setSelectedPipelineStage] = useState<Card5PipelineStage | null>(null);
+  const [isSavingPipelineStage, setIsSavingPipelineStage] = useState(false);
+
+  async function handleSavePipelineStage(payload: {
+    id?: string;
+    name: string;
+    description: string;
+    defaultProbability: number;
+    sortOrder: number;
+    active: boolean;
+  }) {
+    setIsSavingPipelineStage(true);
+    try {
+      const res = await saveOrdered({
+        data: {
+          restaurantId,
+          kind: "pipeline_stage",
+          ...(payload.id ? { id: payload.id } : {}),
+          name: payload.name,
+          description: payload.description,
+          defaultProbability: payload.defaultProbability,
+          sortOrder: payload.sortOrder,
+          active: payload.active,
+        },
+      });
+      cache(res);
+      setPipelineDialogOpen(false);
+      setSelectedPipelineStage(null);
+      setValidated(null);
+      if (payload.id) {
+        toast.success("Pipeline stage updated successfully.");
+      } else {
+        toast.success("Pipeline stage created successfully.");
+      }
+    } finally {
+      setIsSavingPipelineStage(false);
+    }
+  }
 
   function cache(result: { snapshot: typeof snapshot; readiness: Card5SalesReadiness }) {
     invalidateHub();
@@ -250,7 +298,10 @@ export function Card5SalesEventsTab({
     if (catalogue === "event_types") return filter(snapshot.eventTypes);
     if (catalogue === "event_statuses") return filter(snapshot.eventStatuses);
     if (catalogue === "function_spaces") return filter(snapshot.functionSpaces);
-    if (catalogue === "pipeline_stages") return filter(snapshot.pipelineStages);
+    if (catalogue === "pipeline_stages") {
+      const filtered = filter(snapshot.pipelineStages);
+      return filtered.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    }
     if (catalogue === "package_templates") return filter(snapshot.packageTemplates);
     return filter(
       snapshot.contractDefaults.map((row) => ({ ...row, name: row.contractType, code: "" })),
@@ -259,8 +310,10 @@ export function Card5SalesEventsTab({
 
   function openCreate() {
     if (catalogue === "event_statuses") setDraft({ kind: "status", value: emptyOrderedItem() });
-    else if (catalogue === "pipeline_stages")
-      setDraft({ kind: "pipeline", value: emptyPipelineStage() });
+    else if (catalogue === "pipeline_stages") {
+      setSelectedPipelineStage(null);
+      setPipelineDialogOpen(true);
+    }
     else if (catalogue === "function_spaces")
       setDraft({ kind: "space", value: emptyFunctionSpace() });
     else if (catalogue === "package_templates")
@@ -337,7 +390,11 @@ export function Card5SalesEventsTab({
               </Select>
             </div>
             {editor ? (
-              <Button type="button" onClick={openCreate}>
+              <Button
+                type="button"
+                onClick={openCreate}
+                className="bg-[#251605] hover:bg-[#3D260F] text-white"
+              >
                 Add
               </Button>
             ) : null}
@@ -345,7 +402,7 @@ export function Card5SalesEventsTab({
         </div>
       }
       drawer={
-        draft ? (
+        catalogue === "pipeline_stages" ? null : draft ? (
           <div
             className="rounded-2xl border border-[#E6D7B8] bg-card p-4"
             data-testid="pms-card5-sales-drawer"
@@ -762,6 +819,107 @@ export function Card5SalesEventsTab({
         <p className="text-sm text-muted-foreground">Loading Sales & Events setup…</p>
       ) : query.isError ? (
         <p className="text-sm text-destructive">{(query.error as Error).message}</p>
+      ) : catalogue === "pipeline_stages" ? (
+        rows.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-6 text-sm text-muted-foreground">
+            {snapshot.pipelineStages.length === 0
+              ? "No pipeline stages configured yet."
+              : `No ${CARD5_SALES_CATALOGUE_LABELS[catalogue].toLowerCase()} match this view.`}
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border bg-card">
+            <table
+              className="w-full min-w-[45rem] text-left text-sm"
+              data-testid="pms-card5-pipeline-stages-table"
+            >
+              <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground bg-[#FAF8F5]/60">
+                <tr>
+                  <th className="px-3 py-2.5 font-medium">Order</th>
+                  <th className="px-3 py-2.5 font-medium">Stage Name</th>
+                  <th className="px-3 py-2.5 font-medium">Description</th>
+                  <th className="px-3 py-2.5 font-medium">Probability</th>
+                  <th className="px-3 py-2.5 font-medium">Status</th>
+                  <th className="px-3 py-2.5 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(rows as Card5PipelineStage[]).map((stage) => {
+                  const descDisplay = stage.description ? stage.description : "—";
+                  const probDisplay =
+                    stage.defaultProbability != null
+                      ? `${stage.defaultProbability}%`
+                      : "Not configured";
+                  return (
+                    <tr
+                      key={stage.id}
+                      className={cn(
+                        "border-b last:border-0 hover:bg-[#FAF8F5]/50 transition-colors",
+                        editor && "cursor-pointer",
+                      )}
+                      onClick={() => {
+                        if (editor) {
+                          setSelectedPipelineStage(stage);
+                          setPipelineDialogOpen(true);
+                        }
+                      }}
+                    >
+                      <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
+                        {stage.sortOrder}
+                      </td>
+                      <td className="px-3 py-2.5 font-medium text-[#251605]">{stage.name}</td>
+                      <td
+                        className="px-3 py-2.5 text-muted-foreground max-w-xs truncate"
+                        title={stage.description ?? ""}
+                      >
+                        {descDisplay}
+                      </td>
+                      <td className="px-3 py-2.5 text-[#251605]">{probDisplay}</td>
+                      <td className="px-3 py-2.5">
+                        <span
+                          className={cn(
+                            "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                            stage.active
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-stone-100 text-stone-600 border border-stone-200",
+                          )}
+                        >
+                          {stage.active ? "Enabled" : "Disabled"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                        {editor ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-[#251605]"
+                                aria-label={`Actions for ${stage.name}`}
+                              >
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white border-[#E6D7B8]">
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setSelectedPipelineStage(stage);
+                                  setPipelineDialogOpen(true);
+                                }}
+                                className="cursor-pointer text-[#251605]"
+                              >
+                                Edit
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
       ) : rows.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-6 text-sm text-muted-foreground">
           No {CARD5_SALES_CATALOGUE_LABELS[catalogue].toLowerCase()} match this view.
@@ -888,6 +1046,18 @@ export function Card5SalesEventsTab({
           </table>
         </div>
       )}
+      {catalogue === "pipeline_stages" ? (
+        <PipelineStageDialog
+          open={pipelineDialogOpen}
+          onOpenChange={(open) => {
+            setPipelineDialogOpen(open);
+            if (!open) setSelectedPipelineStage(null);
+          }}
+          stage={selectedPipelineStage}
+          onSave={handleSavePipelineStage}
+          isSubmitting={isSavingPipelineStage}
+        />
+      ) : null}
     </PmsPropertySetupCard5Workspace>
   );
 }

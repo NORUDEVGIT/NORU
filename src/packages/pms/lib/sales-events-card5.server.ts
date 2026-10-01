@@ -63,9 +63,29 @@ export type Card5OrderedItem = Card5SalesItem & {
   sortOrder: number;
 };
 
-export type Card5PipelineStage = Card5OrderedItem & {
+export type Card5PipelineStage = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
   isTerminal: boolean;
+  defaultProbability: number | null;
+  active: boolean;
 };
+
+export function normalizePipelineStageCode(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "")
+    .slice(0, 20);
+}
+
+export function codeFromPipelineStageName(name: string): string {
+  return normalizePipelineStageCode(name);
+}
 
 export type Card5FunctionSpace = Card5SalesItem & {
   outletIds: string[];
@@ -275,7 +295,16 @@ export function emptyOrderedItem(partial?: Partial<Card5OrderedItem>): Card5Orde
 }
 
 export function emptyPipelineStage(partial?: Partial<Card5PipelineStage>): Card5PipelineStage {
-  return { ...emptyOrderedItem(partial), isTerminal: partial?.isTerminal === true };
+  return {
+    id: partial?.id ?? "",
+    code: partial?.code ?? "",
+    name: partial?.name ?? "",
+    description: partial?.description ?? null,
+    sortOrder: partial?.sortOrder ?? 1,
+    isTerminal: partial?.isTerminal === true,
+    defaultProbability: partial?.defaultProbability ?? null,
+    active: partial?.active !== false,
+  };
 }
 
 export function emptyPackageTemplate(
