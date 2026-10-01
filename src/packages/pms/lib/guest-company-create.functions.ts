@@ -29,6 +29,11 @@ function admin(client: { from: (table: string) => unknown }) {
   return client as { from: (table: string) => any };
 }
 
+import {
+  DEFAULT_BUSINESS_CONTACT_ROLES,
+  DEFAULT_BUSINESS_PROFILE_TYPES,
+} from "./company-business-card4.server";
+
 export type CompanyCreateContext = {
   catalogues: {
     businessTypes: AccountCreateCatalogueOption[];
@@ -43,6 +48,8 @@ export type CompanyCreateContext = {
     currencies: string[];
   };
   defaultCurrency: string;
+  defaultBusinessTypeId?: string | null;
+  autoApproval?: boolean;
   draft: { id: string; payload: GuestCompanyCreateDraft; step: GuestCompanyCreateStepId } | null;
 };
 
@@ -89,6 +96,7 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       staff,
       restaurant,
       draft,
+      businessSettingsRes,
     ] = await Promise.all([
       loadOptionalOptions(
         db,
@@ -116,6 +124,11 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
         .eq("created_by_membership_id", me.id)
         .eq("account_kind", "company")
         .maybeSingle(),
+      db
+        .from("pms_business_profile_settings")
+        .select("default_business_type_id, auto_approval")
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle(),
     ]);
 
     let savedDraft: { id: string; payload: GuestCompanyCreateDraft; step: GuestCompanyCreateStepId } | null = null;
@@ -127,6 +140,73 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
     }
 
     const defaultCurrency = String(restaurant.data?.currency_code ?? "").trim();
+    const currencies = Array.from(
+      new Set([defaultCurrency, "USD", "EUR", "GBP", "ETB"].filter(Boolean)),
+    );
+
+    const businessSettings =
+      businessSettingsRes.error &&
+      (isMissingSchemaError(businessSettingsRes.error) || businessSettingsRes.error.code === "42P01")
+        ? null
+        : businessSettingsRes.data;
+
+    const defaultBusinessTypeId = businessSettings?.default_business_type_id
+      ? String(businessSettings.default_business_type_id)
+      : null;
+    const autoApproval =
+      businessSettings?.auto_approval != null ? Boolean(businessSettings.auto_approval) : true;
+
+    let resolvedContactRoles = contactRoles;
+    if (resolvedContactRoles.length === 0) {
+      try {
+        const seeded = await db
+          .from("pms_business_contact_roles")
+          .insert(
+            DEFAULT_BUSINESS_CONTACT_ROLES.map((row) => ({
+              restaurant_id: data.restaurantId,
+              name: row.name,
+              code: row.code,
+              active: true,
+              updated_by: me.id,
+            })),
+          )
+          .select("id, name, code, active");
+        if (!seeded.error && seeded.data && seeded.data.length > 0) {
+          resolvedContactRoles = (seeded.data as Array<Record<string, unknown>>).map(mapOption);
+        }
+      } catch {
+        // Fallback silently if table not available
+      }
+    }
+
+    let resolvedBusinessTypes = businessTypes;
+    if (resolvedBusinessTypes.length === 0) {
+      try {
+        const seededTypes = await db
+          .from("pms_business_profile_types")
+          .insert(
+            DEFAULT_BUSINESS_PROFILE_TYPES.map((row) => ({
+              restaurant_id: data.restaurantId,
+              name: row.name,
+              code: row.code,
+              description: row.description,
+              active: true,
+              required_field_ids: [],
+              tax_id_required: row.taxIdRequired,
+              contact_required: row.contactRequired,
+              credit_account_allowed: row.creditAccountAllowed,
+              updated_by: me.id,
+            })),
+          )
+          .select("id, name, code, active, credit_account_allowed, contact_required");
+        if (!seededTypes.error && seededTypes.data && seededTypes.data.length > 0) {
+          resolvedBusinessTypes = (seededTypes.data as Array<Record<string, unknown>>).map(mapOption);
+        }
+      } catch {
+        // Fallback silently if table not available
+      }
+    }
+
     const staffRows = staff.error
       ? []
       : ((staff.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
@@ -138,8 +218,8 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
 
     return {
       catalogues: {
-        businessTypes,
-        contactRoles,
+        businessTypes: resolvedBusinessTypes,
+        contactRoles: resolvedContactRoles,
         marketSegments,
         sourceCodes,
         ratePlans,
@@ -147,9 +227,11 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
         packages,
         paymentMethods,
         staff: staffRows,
-        currencies: defaultCurrency ? [defaultCurrency] : [],
+        currencies,
       },
       defaultCurrency,
+      defaultBusinessTypeId,
+      autoApproval,
       draft: savedDraft,
     };
   });

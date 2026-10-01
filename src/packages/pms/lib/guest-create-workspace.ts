@@ -237,9 +237,9 @@ export function emptyGuestCreateDraft(defaults?: ProfileTypeDefaults | null): Gu
     gender: "",
     nationality: "",
     language: defaults?.languageId ?? "",
-    country: defaults?.countryId ?? "",
-    region: "",
-    city: "",
+    country: defaults?.countryId ?? "Ethiopia",
+    region: "Addis Ababa",
+    city: "Addis Ababa",
     addressLine1: "",
     addressLine2: "",
     postalCode: "",
@@ -279,7 +279,7 @@ export function applyCreateDefaults(
   if (!defaults) return draft;
   const next = { ...draft };
   if (!touched.has("language") && !draft.language && defaults.languageId) next.language = defaults.languageId;
-  if (!touched.has("country") && !draft.country && defaults.countryId) next.country = defaults.countryId;
+  if (!touched.has("country") && (!draft.country || draft.country === "Ethiopia") && defaults.countryId) next.country = defaults.countryId;
   if (
     !touched.has("preferredContactMethod") &&
     !draft.preferredContactMethod &&

@@ -47,6 +47,8 @@ import { GuestCreateWorkspace } from "@/packages/pms/components/workspaces/guest
 import { GuestCreateModal } from "@/packages/pms/components/guests/guest-create-modal";
 import { GuestGroupCreateWorkspace } from "@/packages/pms/components/workspaces/guest-group-create-workspace";
 import { GuestCompanyCreateWorkspace } from "@/packages/pms/components/workspaces/guest-company-create-workspace";
+import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
+import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
 import { GuestTravelAgentCreateWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-create-workspace";
 import { GuestCompanyDetailWorkspace } from "@/packages/pms/components/workspaces/guest-company-detail-workspace";
 import { GuestTravelAgentDetailWorkspace } from "@/packages/pms/components/workspaces/guest-travel-agent-detail-workspace";
@@ -621,8 +623,53 @@ export function GuestProfileWorkspace({
         isRefreshing={isRefreshing}
         onRefresh={handleRefresh}
       >
-        <div className="space-y-4">
-          {createBackBanner}
+        <div className="space-y-6" data-testid="guest-profile-shell">
+          <GuestListingWorkspace
+            membership={membership}
+            listingType={profileType}
+            returnCard={returnCard ?? emptyReturnCard}
+            directorySearch={directorySearch}
+            canCreate={canCreate}
+            isTypeInactive={isTypeInactive}
+          />
+        </div>
+        <GuestCompanyCreateModal
+          restaurantId={membership.restaurant.id}
+          open={true}
+          onOpenChange={(next) => {
+            if (!next) {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({
+                  ...(directorySearch as Record<string, unknown> | undefined),
+                  section: "companies",
+                  type: "company",
+                  create: undefined,
+                }),
+              });
+            }
+          }}
+          onCreated={(id) => {
+            void navigate({
+              to: GUEST_PROFILE_DETAIL_PATH,
+              params: { guestId: id },
+              search: guestProfileSearch({ type: "company" }),
+            });
+          }}
+          onCancel={() => {
+            void navigate({
+              to: GUEST_PROFILE_DIRECTORY_PATH,
+              search: guestProfileSearch({
+                ...(directorySearch as Record<string, unknown> | undefined),
+                section: "companies",
+                type: "company",
+                create: undefined,
+              }),
+            });
+          }}
+        />
+        {/* Preserved workspace anchor */}
+        <div className="hidden" aria-hidden="true">
           <GuestCompanyCreateWorkspace restaurantId={membership.restaurant.id} />
         </div>
       </GuestProfileChrome>
@@ -641,10 +688,51 @@ export function GuestProfileWorkspace({
         isRefreshing={isRefreshing}
         onRefresh={handleRefresh}
       >
-        <div className="space-y-4">
-          {createBackBanner}
-          <GuestTravelAgentCreateWorkspace restaurantId={membership.restaurant.id} />
+        <div className="space-y-6" data-testid="guest-profile-shell">
+          <GuestListingWorkspace
+            membership={membership}
+            listingType={profileType}
+            returnCard={returnCard ?? emptyReturnCard}
+            directorySearch={directorySearch}
+            canCreate={canCreate}
+            isTypeInactive={isTypeInactive}
+          />
         </div>
+        <GuestTravelAgencyCreateModal
+          restaurantId={membership.restaurant.id}
+          open={true}
+          onOpenChange={(next) => {
+            if (!next) {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({
+                  ...(directorySearch as Record<string, unknown> | undefined),
+                  section: "travel-agents",
+                  type: "travel-agent",
+                  create: undefined,
+                }),
+              });
+            }
+          }}
+          onCreated={(id) => {
+            void navigate({
+              to: GUEST_PROFILE_DETAIL_PATH,
+              params: { guestId: id },
+              search: guestProfileSearch({ type: "travel-agent", nav: "overview" }),
+            });
+          }}
+          onCancel={() => {
+            void navigate({
+              to: GUEST_PROFILE_DIRECTORY_PATH,
+              search: guestProfileSearch({
+                ...(directorySearch as Record<string, unknown> | undefined),
+                section: "travel-agents",
+                type: "travel-agent",
+                create: undefined,
+              }),
+            });
+          }}
+        />
       </GuestProfileChrome>
     );
   }

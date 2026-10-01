@@ -8,6 +8,7 @@ import {
   CARD2_RATES_AUDIT_SECTION,
   CARD2_RATES_UNAVAILABLE,
   evaluateRatesCard2Readiness,
+  findMatchingPredefinedCategory,
   type Card2RoomTypeRef,
   type RateCategoryRow,
   type RatePlanRow,
@@ -39,6 +40,7 @@ const categorySchema = z.object({
   code: setupCode,
   name: z.string().trim().min(1).max(80),
   active: z.boolean(),
+  isCustom: z.boolean().optional(),
 });
 
 const planSchema = z.object({
@@ -197,6 +199,34 @@ export const saveRateCategoryCard2 = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+
+    if (data.isCustom) {
+      const match = findMatchingPredefinedCategory(data.name, data.code);
+      if (match) {
+        throw new Error(
+          `${match.name} is already available in the predefined Rate Categories. Select it from the predefined list.`,
+        );
+      }
+    }
+
+    const existingRes = await db
+      .from("hotel_rate_categories")
+      .select("id, code, name")
+      .eq("restaurant_id", data.restaurantId);
+
+    if (!existingRes.error && existingRes.data) {
+      const existing = existingRes.data as Array<{ id: string; code: string; name: string }>;
+      for (const row of existing) {
+        if (data.id && row.id === data.id) continue;
+        if (row.code.toUpperCase().trim() === data.code.toUpperCase().trim()) {
+          throw new Error(`A rate category with code "${data.code}" already exists.`);
+        }
+        if (row.name.trim().toLowerCase() === data.name.trim().toLowerCase()) {
+          throw new Error(`A rate category with name "${data.name}" already exists.`);
+        }
+      }
+    }
+
     const payload = {
       restaurant_id: data.restaurantId,
       code: data.code,

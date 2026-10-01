@@ -247,10 +247,10 @@ export function emptyGuestCompanyCreateDraft(): GuestCompanyCreateDraft {
     contacts: [emptyAccountCreateContact(true)],
     addressLine1: "",
     addressLine2: "",
-    city: "",
-    region: "",
+    city: "Addis Ababa",
+    region: "Addis Ababa",
     postalCode: "",
-    country: "",
+    country: "Ethiopia",
     marketSegmentId: "",
     sourceCodeId: "",
     sourceOfBusiness: "",
@@ -442,7 +442,9 @@ export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
 }
 
 export function optionLabel(options: AccountCreateCatalogueOption[], id: string): string {
-  return options.find((row) => row.id === id)?.name || "";
+  const match = options.find((row) => row.id === id);
+  if (!match) return "";
+  return match.code && match.code !== match.name ? `${match.code} — ${match.name}` : match.name;
 }
 
 export function billingArrangementLabel(id: string): string {

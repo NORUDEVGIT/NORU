@@ -216,12 +216,12 @@ describe("NORU PMS — Guest Profile: New Guest Wide Modal Modernization (6-Step
   it("26. Zero migrations introduced for UI modernization", () => {
     const migrationsDir = join(here, "../../../../../supabase/migrations");
     const migrationFiles = readdirSync(migrationsDir);
-    // Highest migration remains 0117
+    // Highest migration remains 0118
     const highest = migrationFiles
       .filter((f) => /^\d{4}_/.test(f))
       .map((f) => parseInt(f.slice(0, 4), 10))
       .sort((a, b) => b - a)[0];
-    assert.equal(highest, 117);
+    assert.equal(highest, 118);
   });
 
   it("27. Edit Guest remains functional and untouched", () => {
