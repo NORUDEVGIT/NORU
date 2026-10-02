@@ -46,6 +46,7 @@ import { GuestListingWorkspace } from "@/packages/pms/components/workspaces/gues
 import { GuestCreateWorkspace } from "@/packages/pms/components/workspaces/guest-create-workspace";
 import { GuestCreateModal } from "@/packages/pms/components/guests/guest-create-modal";
 import { GuestGroupCreateWorkspace } from "@/packages/pms/components/workspaces/guest-group-create-workspace";
+import { GuestGroupCreateModal } from "@/packages/pms/components/guests/guest-group-create-modal";
 import { GuestCompanyCreateWorkspace } from "@/packages/pms/components/workspaces/guest-company-create-workspace";
 import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
 import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
@@ -603,10 +604,51 @@ export function GuestProfileWorkspace({
         isRefreshing={isRefreshing}
         onRefresh={handleRefresh}
       >
-        <div className="space-y-4">
-          {createBackBanner}
-          <GuestGroupCreateWorkspace restaurantId={membership.restaurant.id} />
+        <div className="space-y-6" data-testid="guest-profile-shell">
+          <GuestListingWorkspace
+            membership={membership}
+            listingType={profileType}
+            returnCard={returnCard ?? emptyReturnCard}
+            directorySearch={directorySearch}
+            canCreate={canCreate}
+            isTypeInactive={isTypeInactive}
+          />
         </div>
+        <GuestGroupCreateModal
+          restaurantId={membership.restaurant.id}
+          open={true}
+          onOpenChange={(next) => {
+            if (!next) {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({
+                  ...(directorySearch as Record<string, unknown> | undefined),
+                  section: "groups",
+                  type: "group",
+                  create: undefined,
+                }),
+              });
+            }
+          }}
+          onCreated={(id) => {
+            void navigate({
+              to: GUEST_PROFILE_DETAIL_PATH,
+              params: { guestId: id },
+              search: guestProfileSearch({ type: "group", nav: "overview" }),
+            });
+          }}
+          onCancel={() => {
+            void navigate({
+              to: GUEST_PROFILE_DIRECTORY_PATH,
+              search: guestProfileSearch({
+                ...(directorySearch as Record<string, unknown> | undefined),
+                section: "groups",
+                type: "group",
+                create: undefined,
+              }),
+            });
+          }}
+        />
       </GuestProfileChrome>
     );
   }
