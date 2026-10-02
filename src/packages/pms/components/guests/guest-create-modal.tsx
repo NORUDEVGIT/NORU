@@ -58,6 +58,7 @@ import {
   GUEST_CREATE_START_OVER,
   GUEST_CREATE_START_OVER_COPY,
   GUEST_CREATE_STEPS,
+  resolveGuestCreateSteps,
   GUEST_CREATE_TITLE,
   applyCreateDefaults,
   clearGuestCreateHold,
@@ -265,7 +266,19 @@ export function GuestCreateModal({
     .map((row) => row.id);
   const visible = (code: string) => rules.find((rule) => rule.code === code)?.visible !== false;
   const required = (code: string) => Boolean(rules.find((rule) => rule.code === code)?.required);
-  const stepIndex = GUEST_CREATE_STEPS.findIndex((item) => item.id === step);
+
+  // Determine whether the identity-document feature is active for this property
+  const identityField = context.data?.fields?.find((f) => f.code === "IDENTITY_DOCUMENT");
+  const identityActive = identityField ? Boolean(identityField.active) : true;
+  const activeSteps = useMemo(() => resolveGuestCreateSteps(identityActive), [identityActive]);
+  const stepIndex = activeSteps.findIndex((item) => item.id === step);
+
+  // Redirect away from the identity step when documents are disabled
+  useEffect(() => {
+    if (!identityActive && step === "identity") {
+      setStep("basic");
+    }
+  }, [identityActive, step]);
 
   const fieldIssues = guestCreateFieldIssues(draft, {
     rules,
@@ -304,10 +317,10 @@ export function GuestCreateModal({
   }
 
   function go(next: GuestCreateStepId) {
-    const blockers = issuesBeforeStep(fieldIssues, GUEST_CREATE_STEPS, next);
+    const blockers = issuesBeforeStep(fieldIssues, activeSteps, next);
     if (blockers.length) {
       markAttempted(step, ...blockers.map((issue) => issue.step));
-      toast.error(formatCreateIssuesByStep(blockers, GUEST_CREATE_STEPS));
+      toast.error(formatCreateIssuesByStep(blockers, activeSteps));
       const first = blockers[0];
       if (first && first.step !== step) setStep(first.step);
       return;
@@ -319,8 +332,40 @@ export function GuestCreateModal({
     const current = fieldIssues.filter((issue) => issue.step === step);
     if (current.length) {
       markAttempted(step);
-      toast.error(formatCreateIssuesByStep(current, GUEST_CREATE_STEPS));
+      toast.error(formatCreateIssuesByStep(current, activeSteps));
       return false;
+    }
+    if (step === "identity") {
+      const docTypes = context.data?.documentTypes ?? [];
+      for (let i = 0; i < draft.documents.length; i++) {
+        const doc = draft.documents[i];
+        const docType = docTypes.find((t) => t.id === doc.idTypeId);
+        if (!docType) continue;
+        if (docType.documentNumberActive !== false && docType.documentNumberRequired && !doc.documentNumber.trim()) {
+          toast.error(`Document #${i + 1}: Document number is required.`);
+          return false;
+        }
+        if (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) {
+          toast.error(`Document #${i + 1}: Issuing country is required.`);
+          return false;
+        }
+        if (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) {
+          toast.error(`Document #${i + 1}: Issue date is required.`);
+          return false;
+        }
+        if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) {
+          toast.error(`Document #${i + 1}: Expiry date is required.`);
+          return false;
+        }
+        if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) {
+          toast.error(`Document #${i + 1}: Issuing authority is required.`);
+          return false;
+        }
+        if (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !docFiles[`${doc.key}-front`]) {
+          toast.error(`Document #${i + 1}: Front document scan/image is required.`);
+          return false;
+        }
+      }
     }
     if (step === "additional" && missingCustomFields.length > 0) {
       toast.error(`${missingCustomFields[0].label} is required.`);
@@ -374,7 +419,35 @@ export function GuestCreateModal({
         requiredPreferenceTypeIds: requiredPrefs,
         dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
       });
-      if (issues.length) throw new Error(formatCreateIssuesByStep(issues, GUEST_CREATE_STEPS));
+      if (issues.length) throw new Error(formatCreateIssuesByStep(issues, activeSteps));
+
+      // Only validate documents when identity feature is active
+      if (identityActive) {
+        const docTypes = context.data?.documentTypes ?? [];
+        for (let i = 0; i < draft.documents.length; i++) {
+          const doc = draft.documents[i];
+          const docType = docTypes.find((t) => t.id === doc.idTypeId);
+          if (!docType) continue;
+          if (docType.documentNumberActive !== false && docType.documentNumberRequired && !doc.documentNumber.trim()) {
+            throw new Error(`Document #${i + 1}: Document number is required.`);
+          }
+          if (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) {
+            throw new Error(`Document #${i + 1}: Issuing country is required.`);
+          }
+          if (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) {
+            throw new Error(`Document #${i + 1}: Issue date is required.`);
+          }
+          if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) {
+            throw new Error(`Document #${i + 1}: Expiry date is required.`);
+          }
+          if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) {
+            throw new Error(`Document #${i + 1}: Issuing authority is required.`);
+          }
+          if (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !docFiles[`${doc.key}-front`]) {
+            throw new Error(`Document #${i + 1}: Front document scan/image is required.`);
+          }
+        }
+      }
 
       if (!draft.acknowledgeDuplicates) {
         const matches = await checkDuplicates({
@@ -691,7 +764,7 @@ export function GuestCreateModal({
 
             {/* Stepper Navigation */}
             <ol className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#E8E4DC] pt-3" data-testid="guest-create-stepper">
-              {GUEST_CREATE_STEPS.map((item, index) => {
+              {activeSteps.map((item, index) => {
                 const current = item.id === step;
                 const done = index < stepIndex;
                 const invalid =
@@ -797,7 +870,7 @@ export function GuestCreateModal({
                 />
               ) : null}
 
-              {step === "identity" ? (
+              {step === "identity" && identityActive ? (
                 <IdentityStep
                   draft={draft}
                   setDraft={setDraft}
@@ -864,6 +937,8 @@ export function GuestCreateModal({
                   issues={fieldIssues}
                   customValues={customValues}
                   dynamicFields={dynamicFieldRules}
+                  identityActive={identityActive}
+                  activeSteps={activeSteps}
                   onEdit={go}
                 />
               ) : null}
@@ -976,7 +1051,7 @@ export function GuestCreateModal({
                 variant="outline"
                 className="border-[#DDD4C5]"
                 disabled={stepIndex === 0}
-                onClick={() => go(GUEST_CREATE_STEPS[stepIndex - 1].id)}
+                onClick={() => go(activeSteps[stepIndex - 1].id)}
               >
                 ← Back
               </Button>
@@ -996,7 +1071,7 @@ export function GuestCreateModal({
                   type="button"
                   className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-medium shadow-sm"
                   onClick={() => {
-                    if (validateCurrent()) go(GUEST_CREATE_STEPS[stepIndex + 1].id);
+                    if (validateCurrent()) go(activeSteps[stepIndex + 1].id);
                   }}
                 >
                   Next <ChevronRight className="ml-1 size-4" />
@@ -1432,10 +1507,18 @@ function IdentityStep({
     id: string;
     name: string;
     active: boolean;
-    issuingCountryRequired: boolean;
-    expiryDateRequired: boolean;
+    documentNumberActive?: boolean;
     documentNumberRequired: boolean;
+    issuingCountryActive?: boolean;
+    issuingCountryRequired: boolean;
+    issueDateActive?: boolean;
+    issueDateRequired?: boolean;
+    expiryDateActive?: boolean;
+    expiryDateRequired: boolean;
+    issuingAuthorityActive?: boolean;
+    issuingAuthorityRequired?: boolean;
     scanImageAllowed: boolean;
+    scanImageRequired?: boolean;
     validForProfileTypeIds: string[];
   }>;
   profileTypeId: string | null;
@@ -1524,21 +1607,23 @@ function IdentityStep({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Document Number" required={type?.documentNumberRequired}>
-                <Input
-                  value={document.documentNumber}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      documents: current.documents.map((row) =>
-                        row.key === document.key ? { ...row, documentNumber: event.target.value } : row,
-                      ),
-                    }))
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                />
-              </Field>
-              {type?.issuingCountryRequired !== false ? (
+              {type?.documentNumberActive !== false ? (
+                <Field label="Document Number" required={type?.documentNumberRequired}>
+                  <Input
+                    value={document.documentNumber}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        documents: current.documents.map((row) =>
+                          row.key === document.key ? { ...row, documentNumber: event.target.value } : row,
+                        ),
+                      }))
+                    }
+                    className={MODAL_CONTROL_CLASS}
+                  />
+                </Field>
+              ) : null}
+              {type?.issuingCountryActive !== false ? (
                 <Field label="Issuing Country" required={type?.issuingCountryRequired}>
                   <SearchableSelect
                     id={`doc-issuing-country-${document.key}`}
@@ -1559,53 +1644,59 @@ function IdentityStep({
                   />
                 </Field>
               ) : null}
-              <Field label="Issue Date">
-                <Input
-                  type="date"
-                  value={document.issueDate}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      documents: current.documents.map((row) =>
-                        row.key === document.key ? { ...row, issueDate: event.target.value } : row,
-                      ),
-                    }))
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                />
-              </Field>
-              <Field label="Expiry Date" required={type?.expiryDateRequired}>
-                <Input
-                  type="date"
-                  value={document.expiryDate}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      documents: current.documents.map((row) =>
-                        row.key === document.key ? { ...row, expiryDate: event.target.value } : row,
-                      ),
-                    }))
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                />
-              </Field>
-              <Field label="Issuing Authority">
-                <Input
-                  value={document.issuingAuthority}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      documents: current.documents.map((row) =>
-                        row.key === document.key ? { ...row, issuingAuthority: event.target.value } : row,
-                      ),
-                    }))
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                />
-              </Field>
+              {type?.issueDateActive !== false ? (
+                <Field label="Issue Date" required={type?.issueDateRequired}>
+                  <Input
+                    type="date"
+                    value={document.issueDate}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        documents: current.documents.map((row) =>
+                          row.key === document.key ? { ...row, issueDate: event.target.value } : row,
+                        ),
+                      }))
+                    }
+                    className={MODAL_CONTROL_CLASS}
+                  />
+                </Field>
+              ) : null}
+              {type?.expiryDateActive !== false ? (
+                <Field label="Expiry Date" required={type?.expiryDateRequired}>
+                  <Input
+                    type="date"
+                    value={document.expiryDate}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        documents: current.documents.map((row) =>
+                          row.key === document.key ? { ...row, expiryDate: event.target.value } : row,
+                        ),
+                      }))
+                    }
+                    className={MODAL_CONTROL_CLASS}
+                  />
+                </Field>
+              ) : null}
+              {type?.issuingAuthorityActive !== false ? (
+                <Field label="Issuing Authority" required={type?.issuingAuthorityRequired}>
+                  <Input
+                    value={document.issuingAuthority}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        documents: current.documents.map((row) =>
+                          row.key === document.key ? { ...row, issuingAuthority: event.target.value } : row,
+                        ),
+                      }))
+                    }
+                    className={MODAL_CONTROL_CLASS}
+                  />
+                </Field>
+              ) : null}
               {type?.scanImageAllowed ? (
                 <>
-                  <Field label="Front Scan/Image">
+                  <Field label="Front Scan/Image" required={type?.scanImageRequired}>
                     <Input
                       type="file"
                       accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -2021,6 +2112,8 @@ function ReviewStep({
   issues,
   customValues,
   dynamicFields,
+  identityActive,
+  activeSteps,
   onEdit,
 }: {
   draft: GuestCreateDraft;
@@ -2029,6 +2122,8 @@ function ReviewStep({
   issues: Array<{ key: string; message: string; step: GuestCreateStepId }>;
   customValues: Record<string, unknown>;
   dynamicFields: ReturnType<typeof resolveGuestFieldRules>;
+  identityActive: boolean;
+  activeSteps: ReturnType<typeof resolveGuestCreateSteps>;
   onEdit: (step: GuestCreateStepId) => void;
 }) {
   const remaining = issues.length
@@ -2060,7 +2155,7 @@ function ReviewStep({
             {remaining.map((item) => (
               <li key={`${item.step}-${item.key}`}>
                 <span className="text-destructive">
-                  {GUEST_CREATE_STEPS.find((step) => step.id === item.step)?.title}: {item.message}
+                  {activeSteps.find((step) => step.id === item.step)?.title}: {item.message}
                 </span>{" "}
                 <button type="button" className="underline font-semibold" onClick={() => onEdit(item.step)}>
                   Go to step
@@ -2082,13 +2177,17 @@ function ReviewStep({
           step: "basic" as GuestCreateStepId,
           content: [draft.phone, draft.email, [draft.city, draft.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "No contact or address recorded",
         },
-        {
-          title: "Identity Documents",
-          step: "identity" as GuestCreateStepId,
-          content: draft.documents.length
-            ? `${draft.documents.length} document${draft.documents.length === 1 ? "" : "s"} staged`
-            : "No identity documents staged",
-        },
+        ...(identityActive
+          ? [
+              {
+                title: "Identity Documents",
+                step: "identity" as GuestCreateStepId,
+                content: draft.documents.length
+                  ? `${draft.documents.length} document${draft.documents.length === 1 ? "" : "s"} staged`
+                  : "No identity documents staged",
+              },
+            ]
+          : []),
         {
           title: "Preferences",
           step: "preferences" as GuestCreateStepId,

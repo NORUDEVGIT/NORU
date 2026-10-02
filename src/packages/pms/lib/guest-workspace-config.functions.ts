@@ -71,10 +71,18 @@ export type GuestWorkspaceIdentityDocTypeConfig = {
   name: string;
   code: string;
   description: string | null;
-  issuingCountryRequired: boolean;
-  expiryDateRequired: boolean;
+  documentNumberActive: boolean;
   documentNumberRequired: boolean;
+  issuingCountryActive: boolean;
+  issuingCountryRequired: boolean;
+  issueDateActive: boolean;
+  issueDateRequired: boolean;
+  expiryDateActive: boolean;
+  expiryDateRequired: boolean;
+  issuingAuthorityActive: boolean;
+  issuingAuthorityRequired: boolean;
   scanImageAllowed: boolean;
+  scanImageRequired: boolean;
   requiredAtCheckIn: boolean;
   active: boolean;
   validForProfileTypeIds: string[];
@@ -175,6 +183,8 @@ export type GuestWorkspaceConfig = {
   types: GuestWorkspaceTypeConfig[];
   requiredFields: GuestWorkspaceRequiredFieldConfig[];
   identityDocumentTypes: GuestWorkspaceIdentityDocTypeConfig[];
+  /** Whether the global "Accept Identity Documents" switch is active for this property. */
+  identityDocumentActive: boolean;
   preferenceCategories: GuestWorkspacePreferenceCategoryConfig[];
   preferenceOptions: GuestWorkspacePreferenceOptionConfig[];
   companyBusiness: GuestWorkspaceCompanyBusinessConfig;
@@ -227,7 +237,7 @@ export async function loadGuestWorkspaceConfig(
     supabaseAdmin
       .from("pms_guest_id_types")
       .select(
-        "id, name, code, description, issuing_country_required, expiry_date_required, document_number_required, scan_image_allowed, required_at_check_in, active, valid_for_profile_type_ids, display_order, updated_at",
+        "id, name, code, description, document_number_active, document_number_required, issuing_country_active, issuing_country_required, issue_date_active, issue_date_required, expiry_date_active, expiry_date_required, issuing_authority_active, issuing_authority_required, scan_image_allowed, scan_image_required, required_at_check_in, active, valid_for_profile_type_ids, display_order, updated_at",
       )
       .eq("restaurant_id", restaurantId)
       .order("display_order"),
@@ -287,6 +297,7 @@ export async function loadGuestWorkspaceConfig(
       types: [],
       requiredFields: [],
       identityDocumentTypes: [],
+      identityDocumentActive: true,
       preferenceCategories: [],
       preferenceOptions: [],
       companyBusiness: { types: [], settings: null },
@@ -367,10 +378,18 @@ export async function loadGuestWorkspaceConfig(
       name: row.name,
       code: row.code,
       description: row.description ?? null,
-      issuingCountryRequired: Boolean(row.issuing_country_required),
-      expiryDateRequired: Boolean(row.expiry_date_required),
+      documentNumberActive: Boolean(row.document_number_active ?? true),
       documentNumberRequired: Boolean(row.document_number_required),
+      issuingCountryActive: Boolean(row.issuing_country_active ?? true),
+      issuingCountryRequired: Boolean(row.issuing_country_required),
+      issueDateActive: Boolean(row.issue_date_active ?? true),
+      issueDateRequired: Boolean(row.issue_date_required ?? false),
+      expiryDateActive: Boolean(row.expiry_date_active ?? true),
+      expiryDateRequired: Boolean(row.expiry_date_required),
+      issuingAuthorityActive: Boolean(row.issuing_authority_active ?? true),
+      issuingAuthorityRequired: Boolean(row.issuing_authority_required ?? false),
       scanImageAllowed: Boolean(row.scan_image_allowed),
+      scanImageRequired: Boolean(row.scan_image_required ?? false),
       requiredAtCheckIn: Boolean(row.required_at_check_in),
       active: Boolean(row.active),
       validForProfileTypeIds: Array.isArray(row.valid_for_profile_type_ids)
@@ -491,12 +510,17 @@ export async function loadGuestWorkspaceConfig(
 
   const lastUpdatedAt = timestamps.length > 0 ? timestamps.sort().reverse()[0] : null;
 
+  // Derive global identity-document active flag from the IDENTITY_DOCUMENT required-field row
+  const identityDocField = requiredFields.find((f) => f.code === "IDENTITY_DOCUMENT");
+  const identityDocumentActive = identityDocField ? identityDocField.active : true;
+
   return {
     available: true,
     lastUpdatedAt,
     types,
     requiredFields,
     identityDocumentTypes,
+    identityDocumentActive,
     preferenceCategories,
     preferenceOptions,
     companyBusiness,

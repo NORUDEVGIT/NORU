@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +46,7 @@ import {
   deletePmsCard4IdentityDocumentType,
   getPmsCard4IdentityDocumentTypes,
   savePmsCard4IdentityDocumentType,
+  setPmsCard4IdentityGlobalSettings,
   setPmsCard4IdentityDocumentTypeActive,
 } from "@/packages/pms/lib/identity-documents-card4.functions";
 import {
@@ -69,10 +69,18 @@ function recordToDraft(row: IdentityDocumentTypeRecord): IdentityDocumentTypeDra
     name: row.name,
     code: row.code,
     description: row.description ?? "",
-    issuingCountryRequired: row.issuingCountryRequired,
-    expiryDateRequired: row.expiryDateRequired,
+    documentNumberActive: row.documentNumberActive,
     documentNumberRequired: row.documentNumberRequired,
+    issuingCountryActive: row.issuingCountryActive,
+    issuingCountryRequired: row.issuingCountryRequired,
+    issueDateActive: row.issueDateActive,
+    issueDateRequired: row.issueDateRequired,
+    expiryDateActive: row.expiryDateActive,
+    expiryDateRequired: row.expiryDateRequired,
+    issuingAuthorityActive: row.issuingAuthorityActive,
+    issuingAuthorityRequired: row.issuingAuthorityRequired,
     scanImageAllowed: row.scanImageAllowed,
+    scanImageRequired: row.scanImageRequired,
     requiredAtCheckIn: row.requiredAtCheckIn,
     active: row.active,
     validForProfileTypeIds: [...row.validForProfileTypeIds],
@@ -105,6 +113,7 @@ export function PmsCard4IdentityDocuments({
   const load = useServerFn(getPmsCard4IdentityDocumentTypes);
   const save = useServerFn(savePmsCard4IdentityDocumentType);
   const setActive = useServerFn(setPmsCard4IdentityDocumentTypeActive);
+  const setGlobalSettings = useServerFn(setPmsCard4IdentityGlobalSettings);
   const remove = useServerFn(deletePmsCard4IdentityDocumentType);
   const queryKey = ["pms-card4-identity-documents", restaurantId];
   const query = useQuery({
@@ -115,6 +124,11 @@ export function PmsCard4IdentityDocuments({
 
   const rows = query.data?.documentTypes ?? [];
   const profileTypes = query.data?.profileTypes ?? [];
+  const globalSettings = query.data?.identityGlobalSettings ?? {
+    active: true,
+    checkIn: true,
+    reservation: false,
+  };
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<IdentityDocumentTypeDraft>(emptyIdentityDocumentTypeDraft());
   const [codeTouched, setCodeTouched] = useState(false);
@@ -141,6 +155,16 @@ export function PmsCard4IdentityDocuments({
     ]);
   };
 
+  const settingsMutation = useMutation({
+    mutationFn: (patch: { active?: boolean; checkIn?: boolean; reservation?: boolean }) =>
+      setGlobalSettings({ data: { restaurantId, ...patch } }),
+    onSuccess: async () => {
+      await invalidateCatalogues();
+      toast.success("Identity document settings updated.");
+    },
+    onError: (error: Error) => toast.error(error.message || "Unable to update settings."),
+  });
+
   const saveMutation = useMutation({
     mutationFn: () =>
       save({
@@ -150,10 +174,18 @@ export function PmsCard4IdentityDocuments({
           name: draft.name,
           code: normalizeIdentityDocumentCode(draft.code),
           description: draft.description,
-          issuingCountryRequired: draft.issuingCountryRequired,
-          expiryDateRequired: draft.expiryDateRequired,
+          documentNumberActive: draft.documentNumberActive,
           documentNumberRequired: draft.documentNumberRequired,
+          issuingCountryActive: draft.issuingCountryActive,
+          issuingCountryRequired: draft.issuingCountryRequired,
+          issueDateActive: draft.issueDateActive,
+          issueDateRequired: draft.issueDateRequired,
+          expiryDateActive: draft.expiryDateActive,
+          expiryDateRequired: draft.expiryDateRequired,
+          issuingAuthorityActive: draft.issuingAuthorityActive,
+          issuingAuthorityRequired: draft.issuingAuthorityRequired,
           scanImageAllowed: draft.scanImageAllowed,
+          scanImageRequired: draft.scanImageRequired,
           requiredAtCheckIn: draft.requiredAtCheckIn,
           active: draft.active,
           validForProfileTypeIds: draft.validForProfileTypeIds,
@@ -186,7 +218,11 @@ export function PmsCard4IdentityDocuments({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const busy = saveMutation.isPending || activeMutation.isPending || deleteMutation.isPending;
+  const busy =
+    saveMutation.isPending ||
+    activeMutation.isPending ||
+    deleteMutation.isPending ||
+    settingsMutation.isPending;
   const configured = identityDocumentTypesConfigured(rows);
   useEffect(() => {
     onSavingChange(busy, canEdit && !busy && !query.isLoading && !query.isError && configured);
@@ -205,9 +241,10 @@ export function PmsCard4IdentityDocuments({
 
   function openCreate() {
     const nextOrder = rows.reduce((maximum, row) => Math.max(maximum, row.displayOrder), 0) + 1;
+    const defaultProfileIds = profileTypes.length > 0 ? profileTypes.map((row) => row.id) : [];
     setDraft({
       ...emptyIdentityDocumentTypeDraft(nextOrder),
-      validForProfileTypeIds: profileTypes.filter((row) => row.active).map((row) => row.id),
+      validForProfileTypeIds: defaultProfileIds,
     });
     setCodeTouched(false);
     setDirty(false);
@@ -215,7 +252,11 @@ export function PmsCard4IdentityDocuments({
   }
 
   function openEdit(row: IdentityDocumentTypeRecord) {
-    setDraft(recordToDraft(row));
+    const d = recordToDraft(row);
+    if (d.validForProfileTypeIds.length === 0 && profileTypes.length > 0) {
+      d.validForProfileTypeIds = profileTypes.map((pt) => pt.id);
+    }
+    setDraft(d);
     setCodeTouched(true);
     setDirty(false);
     setEditorOpen(true);
@@ -272,6 +313,68 @@ export function PmsCard4IdentityDocuments({
         ) : null}
       </div>
 
+      <div className="rounded-2xl border border-[#DDD4C5] bg-[#FAF8F5] p-4 space-y-3">
+        <div className="flex items-center justify-between pb-3 border-b border-[#DDD4C5]/70">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-[#251605]">
+                Accept Identity Documents
+              </span>
+              <Badge
+                variant={globalSettings.active ? "default" : "secondary"}
+                className={globalSettings.active ? "bg-[#436436]" : ""}
+              >
+                {globalSettings.active ? "Active" : "Disabled"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              When disabled, identity document collection is turned off and the identity step is hidden in guest creation.
+            </p>
+          </div>
+          <Switch
+            checked={globalSettings.active}
+            disabled={!canEdit || settingsMutation.isPending}
+            onCheckedChange={(active) => settingsMutation.mutate({ active })}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div className="flex items-center justify-between rounded-xl border border-[#E8E4DC] bg-white p-3">
+            <div className="space-y-0.5 pr-2">
+              <Label htmlFor="id-checkin" className="text-xs font-medium text-[#251605]">
+                Required at Check-in
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Enforce a valid identity document before completing guest check-in.
+              </p>
+            </div>
+            <Switch
+              id="id-checkin"
+              checked={globalSettings.active && globalSettings.checkIn}
+              disabled={!canEdit || !globalSettings.active || settingsMutation.isPending}
+              onCheckedChange={(checkIn) => settingsMutation.mutate({ checkIn })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-[#E8E4DC] bg-white p-3">
+            <div className="space-y-0.5 pr-2">
+              <Label htmlFor="id-reservation" className="text-xs font-medium text-[#251605]">
+                Required for Reservation
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Require an identity document during reservation confirmation.
+              </p>
+            </div>
+            <Switch
+              id="id-reservation"
+              checked={globalSettings.active && globalSettings.reservation}
+              disabled={!canEdit || !globalSettings.active || settingsMutation.isPending}
+              onCheckedChange={(reservation) => settingsMutation.mutate({ reservation })}
+            />
+          </div>
+        </div>
+      </div>
+
       <section className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
         <div className="border-b border-[#CCCCCC] px-4 py-3">
           <h3 className="font-medium text-[#251605]">Identity Document Types</h3>
@@ -318,12 +421,13 @@ export function PmsCard4IdentityDocuments({
                   <TableRow>
                     <TableHead>Document Type</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Issuing Country Required</TableHead>
-                    <TableHead>Expiry Required</TableHead>
-                    <TableHead>Document No. Required</TableHead>
-                    <TableHead>Scan/Image Allowed</TableHead>
+                    <TableHead>Doc Number</TableHead>
+                    <TableHead>Country</TableHead>
+                    <TableHead>Issue Date</TableHead>
+                    <TableHead>Expiry</TableHead>
+                    <TableHead>Scan/Image</TableHead>
                     <TableHead>Active</TableHead>
-                    <TableHead className="w-12" />
+                    <TableHead className="w-28 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -332,16 +436,29 @@ export function PmsCard4IdentityDocuments({
                       <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
                       <TableCell>{row.code}</TableCell>
                       <TableCell>
-                        <YesNo value={row.issuingCountryRequired} />
+                        <Badge variant={row.documentNumberActive ? (row.documentNumberRequired ? "default" : "secondary") : "outline"} className={row.documentNumberActive && row.documentNumberRequired ? "bg-[#436436]" : ""}>
+                          {!row.documentNumberActive ? "Hidden" : row.documentNumberRequired ? "Required" : "Optional"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        <YesNo value={row.expiryDateRequired} />
+                        <Badge variant={row.issuingCountryActive ? (row.issuingCountryRequired ? "default" : "secondary") : "outline"} className={row.issuingCountryActive && row.issuingCountryRequired ? "bg-[#436436]" : ""}>
+                          {!row.issuingCountryActive ? "Hidden" : row.issuingCountryRequired ? "Required" : "Optional"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        <YesNo value={row.documentNumberRequired} />
+                        <Badge variant={row.issueDateActive ? (row.issueDateRequired ? "default" : "secondary") : "outline"} className={row.issueDateActive && row.issueDateRequired ? "bg-[#436436]" : ""}>
+                          {!row.issueDateActive ? "Hidden" : row.issueDateRequired ? "Required" : "Optional"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        <YesNo value={row.scanImageAllowed} />
+                        <Badge variant={row.expiryDateActive ? (row.expiryDateRequired ? "default" : "secondary") : "outline"} className={row.expiryDateActive && row.expiryDateRequired ? "bg-[#436436]" : ""}>
+                          {!row.expiryDateActive ? "Hidden" : row.expiryDateRequired ? "Required" : "Optional"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={row.scanImageAllowed ? (row.scanImageRequired ? "default" : "secondary") : "outline"} className={row.scanImageAllowed && row.scanImageRequired ? "bg-[#436436]" : ""}>
+                          {!row.scanImageAllowed ? "Disabled" : row.scanImageRequired ? "Required" : "Allowed"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Switch
@@ -352,35 +469,47 @@ export function PmsCard4IdentityDocuments({
                           }
                         />
                       </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Actions for ${row.name}`}
-                            >
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => openEdit(row)}>Edit</DropdownMenuItem>
-                            {canEdit ? (
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  activeMutation.mutate({ id: row.id, active: !row.active })
-                                }
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs font-medium"
+                            onClick={() => openEdit(row)}
+                          >
+                            Edit
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label={`Actions for ${row.name}`}
                               >
-                                {row.active ? "Disable" : "Enable"}
-                              </DropdownMenuItem>
-                            ) : null}
-                            {canEdit ? (
-                              <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
-                                Delete
-                              </DropdownMenuItem>
-                            ) : null}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => openEdit(row)}>Edit</DropdownMenuItem>
+                              {canEdit ? (
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    activeMutation.mutate({ id: row.id, active: !row.active })
+                                  }
+                                >
+                                  {row.active ? "Disable" : "Enable"}
+                                </DropdownMenuItem>
+                              ) : null}
+                              {canEdit ? (
+                                <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
+                                  Delete
+                                </DropdownMenuItem>
+                              ) : null}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -488,67 +617,117 @@ export function PmsCard4IdentityDocuments({
               </div>
             </section>
 
+            <section className="space-y-3">
+              <div>
+                <h3 className="text-sm font-medium text-[#251605]">Document Field Controls</h3>
+                <p className="text-xs text-muted-foreground">
+                  Control which fields are visible and which are mandatory when creating or editing guest identity documents.
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-[#DDD4C5] p-3 bg-[#FAF8F5]">
+                {(
+                  [
+                    {
+                      label: "Document Number",
+                      activeKey: "documentNumberActive" as const,
+                      reqKey: "documentNumberRequired" as const,
+                    },
+                    {
+                      label: "Issuing Country",
+                      activeKey: "issuingCountryActive" as const,
+                      reqKey: "issuingCountryRequired" as const,
+                    },
+                    {
+                      label: "Issue Date",
+                      activeKey: "issueDateActive" as const,
+                      reqKey: "issueDateRequired" as const,
+                    },
+                    {
+                      label: "Expiry Date",
+                      activeKey: "expiryDateActive" as const,
+                      reqKey: "expiryDateRequired" as const,
+                    },
+                    {
+                      label: "Issuing Authority",
+                      activeKey: "issuingAuthorityActive" as const,
+                      reqKey: "issuingAuthorityRequired" as const,
+                    },
+                    {
+                      label: "Front/Back Scan Images",
+                      activeKey: "scanImageAllowed" as const,
+                      reqKey: "scanImageRequired" as const,
+                    },
+                  ]
+                ).map(({ label, activeKey, reqKey }) => {
+                  const isActive = draft[activeKey];
+                  const isReq = draft[reqKey];
+                  return (
+                    <div
+                      key={activeKey}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-[#E8E4DC] bg-white px-3 py-2 text-xs"
+                    >
+                      <span className="font-medium text-[#251605]">{label}</span>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <Switch
+                            checked={isActive}
+                            disabled={!canEdit}
+                            onCheckedChange={(checked) => {
+                              setDraft((curr) => ({
+                                ...curr,
+                                [activeKey]: checked,
+                                ...(checked ? {} : { [reqKey]: false }),
+                              }));
+                              setDirty(true);
+                            }}
+                          />
+                          <span className="text-[11px] text-muted-foreground">
+                            {activeKey === "scanImageAllowed" ? "Allowed" : "Visible"}
+                          </span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <Switch
+                            checked={isReq}
+                            disabled={!canEdit || !isActive}
+                            onCheckedChange={(checked) => mark(reqKey, checked)}
+                          />
+                          <span className="text-[11px] text-muted-foreground">Required</span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
             <section className="space-y-2">
-              <h3 className="text-sm font-medium text-[#251605]">Requirements</h3>
-              {(
-                [
-                  ["issuingCountryRequired", "Issuing Country Required"],
-                  ["expiryDateRequired", "Expiry Date Required"],
-                  ["documentNumberRequired", "Document No. Required"],
-                  ["scanImageAllowed", "Scan/Image Allowed"],
-                  ["requiredAtCheckIn", "Required at Check-in"],
-                  ["active", "Active"],
-                ] as const
-              ).map(([key, label]) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between rounded-xl border px-3 py-2"
-                >
-                  <Label htmlFor={`doc-${key}`}>{label}</Label>
-                  <Switch
-                    id={`doc-${key}`}
-                    checked={draft[key]}
-                    disabled={!canEdit || (key === "requiredAtCheckIn" && !draft.active)}
-                    onCheckedChange={(checked) => mark(key, checked)}
-                  />
-                </div>
-              ))}
+              <h3 className="text-sm font-medium text-[#251605]">Operational Rules</h3>
+              <div className="flex items-center justify-between rounded-xl border px-3 py-2">
+                <Label htmlFor="doc-requiredAtCheckIn">Required at Check-in</Label>
+                <Switch
+                  id="doc-requiredAtCheckIn"
+                  checked={draft.requiredAtCheckIn}
+                  disabled={!canEdit || !draft.active}
+                  onCheckedChange={(checked) => mark("requiredAtCheckIn", checked)}
+                />
+              </div>
               {errorFor("requiredAtCheckIn") ? (
                 <p className="text-xs text-destructive">{errorFor("requiredAtCheckIn")}</p>
               ) : null}
+              <div className="flex items-center justify-between rounded-xl border px-3 py-2">
+                <Label htmlFor="doc-active">Document Type Active</Label>
+                <Switch
+                  id="doc-active"
+                  checked={draft.active}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => mark("active", checked)}
+                />
+              </div>
             </section>
 
             <section className="space-y-3">
               <h3 className="text-sm font-medium text-[#251605]">Additional Settings</h3>
-              <div className="space-y-2">
-                <Label>Valid for Guest Types *</Label>
-                <div className="space-y-2 rounded-xl border p-3">
-                  {profileTypes.map((profileType) => {
-                    const selected = draft.validForProfileTypeIds.includes(profileType.id);
-                    return (
-                      <label key={profileType.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={selected}
-                          disabled={!canEdit || (!profileType.active && !selected)}
-                          onCheckedChange={(checked) => {
-                            const next = checked
-                              ? [...draft.validForProfileTypeIds, profileType.id]
-                              : draft.validForProfileTypeIds.filter((id) => id !== profileType.id);
-                            mark("validForProfileTypeIds", next);
-                          }}
-                        />
-                        <span>{profileType.name}</span>
-                        {!profileType.active ? (
-                          <span className="text-xs text-muted-foreground">(Inactive)</span>
-                        ) : null}
-                      </label>
-                    );
-                  })}
-                </div>
-                {errorFor("validForProfileTypeIds") ? (
-                  <p className="text-xs text-destructive">{errorFor("validForProfileTypeIds")}</p>
-                ) : null}
-              </div>
               <div className="space-y-1">
                 <Label htmlFor="doc-order">Display Order *</Label>
                 <Input

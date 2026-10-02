@@ -391,7 +391,8 @@ export function GuestFieldCatalogSheet({
     retry: false,
   });
 
-  const fields = query.data?.fields ?? [];
+  const rawFields = query.data?.fields ?? [];
+  const fields = rawFields.filter((row) => row.code !== "IDENTITY_DOCUMENT");
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedField, setSelectedField] = useState<GuestFieldRecord | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);

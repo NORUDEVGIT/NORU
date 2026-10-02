@@ -119,7 +119,8 @@ export function PmsCard4RequiredFields({
     retry: false,
   });
 
-  const fields = query.data?.fields ?? [];
+  const rawFields = query.data?.fields ?? [];
+  const fields = rawFields.filter((row) => row.code !== "IDENTITY_DOCUMENT");
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<GuestFieldDraft>(emptyGuestFieldDraft());
   const [codeTouched, setCodeTouched] = useState(false);
@@ -282,6 +283,19 @@ export function PmsCard4RequiredFields({
             </Button>
           </div>
         ) : null}
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] px-4 py-3 text-xs">
+        <span className="text-muted-foreground">
+          Looking to configure identity document or passport requirements? Manage accepted document types and profile requirements in{" "}
+          <button
+            type="button"
+            onClick={onGoIdentityDocuments}
+            className="font-medium text-[#C89933] underline hover:text-[#C89933]/80"
+          >
+            Identity Documents
+          </button>.
+        </span>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">

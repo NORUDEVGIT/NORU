@@ -10,6 +10,7 @@ import {
   normalizeIdentityDocumentCode,
   normalizeIdentityDocumentName,
   validateIdentityDocumentTypeDraft,
+  type IdentityDocumentGlobalSettings,
   type IdentityDocumentProfileTypeOption,
   type IdentityDocumentTypeRecord,
   type IdentityDocumentTypeSnapshot,
@@ -28,10 +29,18 @@ const saveSchema = z
     name: z.string().max(80),
     code: z.string().max(20),
     description: z.string().max(400).optional().default(""),
-    issuingCountryRequired: z.boolean(),
-    expiryDateRequired: z.boolean(),
+    documentNumberActive: z.boolean().optional().default(true),
     documentNumberRequired: z.boolean(),
+    issuingCountryActive: z.boolean().optional().default(true),
+    issuingCountryRequired: z.boolean(),
+    issueDateActive: z.boolean().optional().default(true),
+    issueDateRequired: z.boolean().optional().default(false),
+    expiryDateActive: z.boolean().optional().default(true),
+    expiryDateRequired: z.boolean(),
+    issuingAuthorityActive: z.boolean().optional().default(true),
+    issuingAuthorityRequired: z.boolean().optional().default(false),
     scanImageAllowed: z.boolean(),
+    scanImageRequired: z.boolean().optional().default(false),
     requiredAtCheckIn: z.boolean(),
     active: z.boolean(),
     validForProfileTypeIds: z.array(idSchema).max(80),
@@ -53,10 +62,18 @@ function mapRow(row: {
   name: string;
   code: string;
   description: string | null;
-  issuing_country_required: boolean;
-  expiry_date_required: boolean;
+  document_number_active?: boolean;
   document_number_required: boolean;
+  issuing_country_active?: boolean;
+  issuing_country_required: boolean;
+  issue_date_active?: boolean;
+  issue_date_required?: boolean;
+  expiry_date_active?: boolean;
+  expiry_date_required: boolean;
+  issuing_authority_active?: boolean;
+  issuing_authority_required?: boolean;
   scan_image_allowed: boolean;
+  scan_image_required?: boolean;
   required_at_check_in: boolean;
   active: boolean;
   valid_for_profile_type_ids: string[] | null;
@@ -69,10 +86,18 @@ function mapRow(row: {
     name: row.name,
     code: row.code,
     description: row.description,
-    issuingCountryRequired: row.issuing_country_required,
-    expiryDateRequired: row.expiry_date_required,
+    documentNumberActive: row.document_number_active ?? true,
     documentNumberRequired: row.document_number_required,
+    issuingCountryActive: row.issuing_country_active ?? true,
+    issuingCountryRequired: row.issuing_country_required,
+    issueDateActive: row.issue_date_active ?? true,
+    issueDateRequired: row.issue_date_required ?? false,
+    expiryDateActive: row.expiry_date_active ?? true,
+    expiryDateRequired: row.expiry_date_required,
+    issuingAuthorityActive: row.issuing_authority_active ?? true,
+    issuingAuthorityRequired: row.issuing_authority_required ?? false,
     scanImageAllowed: row.scan_image_allowed,
+    scanImageRequired: row.scan_image_required ?? false,
     requiredAtCheckIn: row.required_at_check_in,
     active: row.active,
     validForProfileTypeIds: row.valid_for_profile_type_ids ?? [],
@@ -124,10 +149,18 @@ async function seedDefaults(
     name: row.name,
     code: row.code,
     description: row.description,
-    issuing_country_required: row.issuingCountryRequired,
-    expiry_date_required: row.expiryDateRequired,
+    document_number_active: row.documentNumberActive,
     document_number_required: row.documentNumberRequired,
+    issuing_country_active: row.issuingCountryActive,
+    issuing_country_required: row.issuingCountryRequired,
+    issue_date_active: row.issueDateActive,
+    issue_date_required: row.issueDateRequired,
+    expiry_date_active: row.expiryDateActive,
+    expiry_date_required: row.expiryDateRequired,
+    issuing_authority_active: row.issuingAuthorityActive,
+    issuing_authority_required: row.issuingAuthorityRequired,
     scan_image_allowed: row.scanImageAllowed,
+    scan_image_required: row.scanImageRequired,
     required_at_check_in: row.requiredAtCheckIn,
     active: true,
     valid_for_profile_type_ids: profileTypeIds,
@@ -162,7 +195,7 @@ async function loadSnapshot(
   const result = await db
     .from("pms_guest_id_types")
     .select(
-      "id, name, code, description, issuing_country_required, expiry_date_required, document_number_required, scan_image_allowed, required_at_check_in, active, valid_for_profile_type_ids, display_order, created_at, updated_at",
+      "id, name, code, description, document_number_active, document_number_required, issuing_country_active, issuing_country_required, issue_date_active, issue_date_required, expiry_date_active, expiry_date_required, issuing_authority_active, issuing_authority_required, scan_image_allowed, scan_image_required, required_at_check_in, active, valid_for_profile_type_ids, display_order, created_at, updated_at",
     )
     .eq("restaurant_id", restaurantId)
     .order("display_order")
@@ -176,15 +209,103 @@ async function loadSnapshot(
     return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
+  let identityGlobalSettings: IdentityDocumentGlobalSettings = {
+    active: true,
+    checkIn: true,
+    reservation: false,
+  };
+  let identityDocumentRequired = false;
+  try {
+    const idDocField = await db
+      .from("pms_guest_fields")
+      .select("active, check_in, reservation, required")
+      .eq("restaurant_id", restaurantId)
+      .eq("code", "IDENTITY_DOCUMENT")
+      .maybeSingle();
+    if (idDocField.data) {
+      identityGlobalSettings = {
+        active: Boolean(idDocField.data.active),
+        checkIn: Boolean(idDocField.data.check_in),
+        reservation: Boolean(idDocField.data.reservation),
+      };
+      identityDocumentRequired = Boolean(idDocField.data.required && idDocField.data.active);
+    }
+  } catch {
+    identityGlobalSettings = {
+      active: true,
+      checkIn: true,
+      reservation: false,
+    };
+    identityDocumentRequired = false;
+  }
+
   const documentTypes = (result.data ?? []).map(mapRow);
   const lastUpdatedAt = documentTypes.reduce<string | null>((latest, row) => {
     if (!latest || row.updatedAt > latest) return row.updatedAt;
     return latest;
   }, null);
-  return { documentTypes, profileTypes, lastUpdatedAt };
+  return { documentTypes, profileTypes, identityGlobalSettings, identityDocumentRequired, lastUpdatedAt };
 }
 
 export { loadSnapshot as loadIdentityDocumentsCard4Snapshot };
+
+export const setPmsCard4IdentityGlobalSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        active: z.boolean().optional(),
+        checkIn: z.boolean().optional(),
+        reservation: z.boolean().optional(),
+      })
+      .strict()
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+
+    const existing = await db
+      .from("pms_guest_fields")
+      .select("id, active, check_in, reservation")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("code", "IDENTITY_DOCUMENT")
+      .maybeSingle();
+
+    const payload = {
+      ...(data.active !== undefined ? { active: data.active } : {}),
+      ...(data.checkIn !== undefined ? { check_in: data.checkIn } : {}),
+      ...(data.reservation !== undefined ? { reservation: data.reservation } : {}),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existing?.data) {
+      const updateResult = await db
+        .from("pms_guest_fields")
+        .update(payload)
+        .eq("id", existing.data.id);
+      if (updateResult.error) unavailable(updateResult.error);
+    } else {
+      const insertResult = await db.from("pms_guest_fields").insert({
+        restaurant_id: data.restaurantId,
+        name: "ID / Passport",
+        code: "IDENTITY_DOCUMENT",
+        field_type: "document",
+        required: false,
+        check_in: data.checkIn ?? true,
+        reservation: data.reservation ?? false,
+        active: data.active ?? true,
+        display_order: 7,
+        updated_by: context.userId,
+      });
+      if (insertResult.error) unavailable(insertResult.error);
+    }
+    return { ok: true };
+  });
+
+export const setPmsCard4IdentityDocumentRequirement = setPmsCard4IdentityGlobalSettings;
 
 export const getPmsCard4IdentityDocumentTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -208,13 +329,24 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
       name: data.name,
       code: data.code,
       description: data.description,
-      issuingCountryRequired: data.issuingCountryRequired,
-      expiryDateRequired: data.expiryDateRequired,
+      documentNumberActive: data.documentNumberActive,
       documentNumberRequired: data.documentNumberRequired,
+      issuingCountryActive: data.issuingCountryActive,
+      issuingCountryRequired: data.issuingCountryRequired,
+      issueDateActive: data.issueDateActive,
+      issueDateRequired: data.issueDateRequired,
+      expiryDateActive: data.expiryDateActive,
+      expiryDateRequired: data.expiryDateRequired,
+      issuingAuthorityActive: data.issuingAuthorityActive,
+      issuingAuthorityRequired: data.issuingAuthorityRequired,
       scanImageAllowed: data.scanImageAllowed,
+      scanImageRequired: data.scanImageRequired,
       requiredAtCheckIn: data.requiredAtCheckIn,
       active: data.active,
-      validForProfileTypeIds: data.validForProfileTypeIds,
+      validForProfileTypeIds:
+        data.validForProfileTypeIds && data.validForProfileTypeIds.length > 0
+          ? data.validForProfileTypeIds
+          : snapshot.profileTypes.map((p) => p.id),
       displayOrder: data.displayOrder,
     };
     const errors = validateIdentityDocumentTypeDraft(
@@ -229,13 +361,21 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
       name: normalizeIdentityDocumentName(data.name),
       code: normalizeIdentityDocumentCode(data.code),
       description: data.description.trim() || null,
-      issuing_country_required: data.issuingCountryRequired,
-      expiry_date_required: data.expiryDateRequired,
+      document_number_active: data.documentNumberActive,
       document_number_required: data.documentNumberRequired,
+      issuing_country_active: data.issuingCountryActive,
+      issuing_country_required: data.issuingCountryRequired,
+      issue_date_active: data.issueDateActive,
+      issue_date_required: data.issueDateRequired,
+      expiry_date_active: data.expiryDateActive,
+      expiry_date_required: data.expiryDateRequired,
+      issuing_authority_active: data.issuingAuthorityActive,
+      issuing_authority_required: data.issuingAuthorityRequired,
       scan_image_allowed: data.scanImageAllowed,
+      scan_image_required: data.scanImageRequired,
       required_at_check_in: data.requiredAtCheckIn,
       active: data.active,
-      valid_for_profile_type_ids: data.validForProfileTypeIds,
+      valid_for_profile_type_ids: draft.validForProfileTypeIds,
       display_order: data.displayOrder,
       updated_by: context.userId,
     };

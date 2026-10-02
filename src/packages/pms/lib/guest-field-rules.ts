@@ -576,86 +576,91 @@ export function validateGuestCheckInRequirements(params: {
   const today = params.today ?? new Date().toISOString().slice(0, 10);
 
   // Identity document check-in requirement
-  const checkInDocTypes = (
-    config?.identityDocumentTypes ??
-    (config as unknown as { idDocs?: GuestWorkspaceIdentityDocTypeConfig[] })?.idDocs ??
-    []
-  ).filter(
-    (d: GuestWorkspaceIdentityDocTypeConfig) =>
-      d.active && d.requiredAtCheckIn && isDocumentTypeAllowedForProfileType(d, pType),
-  );
+  // When the global "Accept Identity Documents" switch is inactive, skip all document checks.
+  const globalIdentityActive = config?.identityDocumentActive !== false;
 
-  if (checkInDocTypes.length > 0) {
-    const matchingDocs = documents.filter((doc) =>
-      checkInDocTypes.some((t) => t.id === doc.typeId || t.code === doc.kind),
+  if (globalIdentityActive) {
+    const checkInDocTypes = (
+      config?.identityDocumentTypes ??
+      (config as unknown as { idDocs?: GuestWorkspaceIdentityDocTypeConfig[] })?.idDocs ??
+      []
+    ).filter(
+      (d: GuestWorkspaceIdentityDocTypeConfig) =>
+        d.active && d.requiredAtCheckIn && isDocumentTypeAllowedForProfileType(d, pType),
     );
 
-    if (matchingDocs.length === 0) {
-      missingFieldCodes.push("IDENTITY_DOCUMENT");
-      errors.push("An identity document is required for check-in.");
-    } else {
-      let hasValidDoc = false;
-      const failureReasons: Array<
-        "expired" | "missing_expiry" | "missing_country" | "missing_number"
-      > = [];
+    if (checkInDocTypes.length > 0) {
+      const matchingDocs = documents.filter((doc) =>
+        checkInDocTypes.some((t) => t.id === doc.typeId || t.code === doc.kind),
+      );
 
-      for (const doc of matchingDocs) {
-        const typeConfig = checkInDocTypes.find((t) => t.id === doc.typeId || t.code === doc.kind)!;
-        const hasNumber = Boolean(
-          (
-            doc.documentNumberMasked ??
-            doc.documentNumber ??
-            ((doc as Record<string, unknown>)["document_number"] as string | null)
-          )?.trim(),
-        );
-        const hasCountry = Boolean(
-          (
-            doc.issuingCountry ??
-            ((doc as Record<string, unknown>)["issuing_country"] as string | null)
-          )?.trim(),
-        );
-        const rawExpiry =
-          doc.expiryDate ?? ((doc as Record<string, unknown>)["expiry_date"] as string | null);
-        const expiry = typeof rawExpiry === "string" ? rawExpiry.trim() || null : null;
-
-        if (typeConfig.documentNumberRequired && !hasNumber) {
-          failureReasons.push("missing_number");
-          continue;
-        }
-        if (typeConfig.issuingCountryRequired && !hasCountry) {
-          failureReasons.push("missing_country");
-          continue;
-        }
-        if (typeConfig.expiryDateRequired && !expiry) {
-          failureReasons.push("missing_expiry");
-          continue;
-        }
-        if (expiry && expiry < today) {
-          failureReasons.push("expired");
-          continue;
-        }
-
-        hasValidDoc = true;
-        break;
-      }
-
-      if (!hasValidDoc) {
+      if (matchingDocs.length === 0) {
         missingFieldCodes.push("IDENTITY_DOCUMENT");
-        if (
-          failureReasons.includes("expired") &&
-          !failureReasons.some((r) => r.startsWith("missing_"))
-        ) {
-          errors.push("An unexpired identity document is required for check-in.");
-        } else if (failureReasons.includes("missing_number")) {
-          errors.push("Identity document number is required for check-in.");
-        } else if (failureReasons.includes("missing_country")) {
-          errors.push("Identity document issuing country is required for check-in.");
-        } else if (failureReasons.includes("missing_expiry")) {
-          errors.push("Identity document expiry date is required for check-in.");
-        } else if (failureReasons.includes("expired")) {
-          errors.push("An unexpired identity document is required for check-in.");
-        } else {
-          errors.push("An identity document is required for check-in.");
+        errors.push("An identity document is required for check-in.");
+      } else {
+        let hasValidDoc = false;
+        const failureReasons: Array<
+          "expired" | "missing_expiry" | "missing_country" | "missing_number"
+        > = [];
+
+        for (const doc of matchingDocs) {
+          const typeConfig = checkInDocTypes.find((t) => t.id === doc.typeId || t.code === doc.kind)!;
+          const hasNumber = Boolean(
+            (
+              doc.documentNumberMasked ??
+              doc.documentNumber ??
+              ((doc as Record<string, unknown>)["document_number"] as string | null)
+            )?.trim(),
+          );
+          const hasCountry = Boolean(
+            (
+              doc.issuingCountry ??
+              ((doc as Record<string, unknown>)["issuing_country"] as string | null)
+            )?.trim(),
+          );
+          const rawExpiry =
+            doc.expiryDate ?? ((doc as Record<string, unknown>)["expiry_date"] as string | null);
+          const expiry = typeof rawExpiry === "string" ? rawExpiry.trim() || null : null;
+
+          if (typeConfig.documentNumberRequired && !hasNumber) {
+            failureReasons.push("missing_number");
+            continue;
+          }
+          if (typeConfig.issuingCountryRequired && !hasCountry) {
+            failureReasons.push("missing_country");
+            continue;
+          }
+          if (typeConfig.expiryDateRequired && !expiry) {
+            failureReasons.push("missing_expiry");
+            continue;
+          }
+          if (expiry && expiry < today) {
+            failureReasons.push("expired");
+            continue;
+          }
+
+          hasValidDoc = true;
+          break;
+        }
+
+        if (!hasValidDoc) {
+          missingFieldCodes.push("IDENTITY_DOCUMENT");
+          if (
+            failureReasons.includes("expired") &&
+            !failureReasons.some((r) => r.startsWith("missing_"))
+          ) {
+            errors.push("An unexpired identity document is required for check-in.");
+          } else if (failureReasons.includes("missing_number")) {
+            errors.push("Identity document number is required for check-in.");
+          } else if (failureReasons.includes("missing_country")) {
+            errors.push("Identity document issuing country is required for check-in.");
+          } else if (failureReasons.includes("missing_expiry")) {
+            errors.push("Identity document expiry date is required for check-in.");
+          } else if (failureReasons.includes("expired")) {
+            errors.push("An unexpired identity document is required for check-in.");
+          } else {
+            errors.push("An identity document is required for check-in.");
+          }
         }
       }
     }
