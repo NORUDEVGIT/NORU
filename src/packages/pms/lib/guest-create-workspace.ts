@@ -90,6 +90,9 @@ export type GuestCreateDocumentDraft = {
   notes: string;
   hasFront: boolean;
   hasBack: boolean;
+  existingDocumentId?: string;
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
 };
 
 export type GuestCreateLinkDraft = {

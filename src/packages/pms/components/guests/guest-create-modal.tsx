@@ -83,13 +83,19 @@ import {
   createGuest,
   createGuestDocumentUpload,
   createGuestPhotoUpload,
+  deleteGuestDocument,
   findGuestDuplicates,
+  getGuestDocument,
+  listGuestDocuments,
   saveGuestConsent,
   saveGuestDocument,
   saveGuestDocumentImage,
   saveGuestPhoto,
   saveGuestPreferenceWorkspace,
   type GuestSummary,
+  type GuestProfile,
+  type GuestDocument,
+  updateGuest,
   addGuestNote,
 } from "@/packages/pms/lib/guests.functions";
 import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
@@ -115,7 +121,10 @@ import {
   resolveIndividualProfileType,
   type GuestFieldContext,
 } from "@/packages/pms/lib/guest-field-rules";
-import { saveGuestCustomFieldValues } from "@/packages/pms/lib/guest-custom-fields.functions";
+import {
+  listGuestCustomFieldValues,
+  saveGuestCustomFieldValues,
+} from "@/packages/pms/lib/guest-custom-fields.functions";
 import {
   ISO_COUNTRIES,
   countryCodeFromInput,
@@ -145,19 +154,106 @@ function hasNestedModalLayer(): boolean {
   return [...nodes].some((node) => node.dataset["testid"] !== MODAL_TEST_ID);
 }
 
+function guestProfileToCreateDraft(
+  guest: GuestProfile,
+  docTypes?: Array<{ id: string; code: string; name: string }>,
+): GuestCreateDraft {
+  const base = emptyGuestCreateDraft();
+  let emergencyContacts: GuestCreateEmergencyDraft[] = [];
+  if (Array.isArray(guest.emergencyContacts)) {
+    emergencyContacts = (guest.emergencyContacts as any[]).map((c) => ({
+      name: c?.name ?? "",
+      relationship: c?.relationship ?? "",
+      phone: c?.phone ?? "",
+      email: c?.email ?? "",
+    }));
+  }
+
+  let documents: GuestCreateDocumentDraft[] = [];
+  if (guest.idDocumentNumber || guest.idDocumentType) {
+    const norm = (guest.idDocumentType ?? "").toLowerCase();
+    const matched = docTypes?.find((t) => {
+      const code = (t.code ?? "").toLowerCase();
+      const name = (t.name ?? "").toLowerCase();
+      if (norm === "passport") return code.includes("pas") || name.includes("passport");
+      if (norm === "national_id") return code.includes("nid") || name.includes("national");
+      if (norm === "driving_licence") return code.includes("dl") || name.includes("driv");
+      return false;
+    }) ?? docTypes?.[0];
+
+    documents.push({
+      key: "initial-guest-doc",
+      idTypeId: matched?.id ?? "",
+      documentNumber: guest.idDocumentNumber ?? "",
+      issuingCountry: guest.country ?? "",
+      issueDate: "",
+      expiryDate: guest.idDocumentExpiry ?? "",
+      issuingAuthority: "",
+      notes: "",
+      hasFront: false,
+      hasBack: false,
+    });
+  }
+
+  return {
+    ...base,
+    title: (guest.title as any) ?? "",
+    firstName: guest.firstName ?? "",
+    middleName: guest.middleName ?? "",
+    lastName: guest.lastName ?? "",
+    preferredName: guest.preferredName ?? "",
+    dateOfBirth: guest.dateOfBirth ?? "",
+    gender: (guest.gender as any) ?? "",
+    nationality: guest.nationality ?? "",
+    language: guest.language ?? "",
+    country: guest.country ?? "",
+    region: guest.region ?? "",
+    city: guest.city ?? "",
+    addressLine1: guest.addressLine1 ?? "",
+    addressLine2: guest.addressLine2 ?? "",
+    postalCode: guest.postalCode ?? "",
+    phone: guest.phone ?? "",
+    phoneAlt: guest.phoneAlt ?? "",
+    email: guest.email ?? "",
+    emailAlt: guest.emailAlt ?? "",
+    preferredContactMethod: (guest.preferredContactMethod as any) ?? "",
+    preferredContactTime: (guest.preferredContactTime as any) ?? "",
+    vipStatus: Boolean(guest.vipStatus),
+    guestStatus: (guest.guestStatus as any) ?? "active",
+    position: guest.position ?? "",
+    department: guest.department ?? "",
+    sourceOfBusiness: guest.sourceOfBusiness ?? "",
+    notes: guest.notes ?? "",
+    restricted: Boolean(guest.restricted),
+    blacklisted: Boolean(guest.blacklisted),
+    restrictionSeverity: (guest.restrictionSeverity as any) ?? "",
+    restrictionReason: guest.restrictionReason ?? "",
+    restrictionUntil: guest.restrictionUntil ?? "",
+    emergencyContacts,
+    documents,
+  };
+}
+
 export function GuestCreateModal({
   restaurantId,
   open,
   onOpenChange,
   onCreated,
   onCancel,
+  mode = "create",
+  guest = null,
+  onSaved,
 }: {
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (guestId: string) => void;
   onCancel?: () => void;
+  mode?: "create" | "edit";
+  guest?: GuestProfile | null;
+  onSaved?: (guestId: string) => void;
 }) {
+  const isEdit = mode === "edit" || Boolean(guest);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const load = useServerFn(getGuestCreateContext);
@@ -165,6 +261,7 @@ export function GuestCreateModal({
   const saveDraft = useServerFn(saveGuestCreateDraft);
   const clearDraft = useServerFn(deleteGuestCreateDraft);
   const create = useServerFn(createGuest);
+  const updateGuestFn = useServerFn(updateGuest);
   const checkDuplicates = useServerFn(findGuestDuplicates);
   const persistDoc = useServerFn(saveGuestDocument);
   const startDocUpload = useServerFn(createGuestDocumentUpload);
@@ -176,15 +273,23 @@ export function GuestCreateModal({
   const startPhoto = useServerFn(createGuestPhotoUpload);
   const persistPhoto = useServerFn(saveGuestPhoto);
   const saveCustomValues = useServerFn(saveGuestCustomFieldValues);
+  const loadCustomValues = useServerFn(listGuestCustomFieldValues);
+  const loadDocs = useServerFn(listGuestDocuments);
+  const loadDocDetail = useServerFn(getGuestDocument);
+  const deleteDoc = useServerFn(deleteGuestDocument);
 
-  const localHold = useMemo(() => (open ? readGuestCreateHold(restaurantId) : null), [open, restaurantId]);
+  const localHold = useMemo(() => (!isEdit && open ? readGuestCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
   const [step, setStep] = useState<GuestCreateStepId>(() => localHold?.step ?? "basic");
-  const [draft, setDraft] = useState<GuestCreateDraft>(() => localHold?.draft ?? emptyGuestCreateDraft());
+  const [draft, setDraft] = useState<GuestCreateDraft>(() => {
+    if (isEdit && guest) return guestProfileToCreateDraft(guest);
+    return localHold?.draft ?? emptyGuestCreateDraft();
+  });
   const [touched] = useState(() => new Set<string>());
-  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
+  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold) || (isEdit && Boolean(guest)));
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [docFiles, setDocFiles] = useState<Record<string, File | undefined>>({});
+  const [deletedDocIds, setDeletedDocIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
@@ -211,14 +316,77 @@ export function GuestCreateModal({
   const individualType = resolveIndividualProfileType(configQuery.data);
   const isIndividualActive = !configQuery.data?.available || individualType?.active !== false;
 
-  const card4Context: GuestFieldContext = "profile_create";
+  const card4Context: GuestFieldContext = isEdit ? "profile_edit" : "profile_create";
   const dynamicFieldRules = useMemo(
     () => resolveGuestFieldRules(configQuery.data, individualType, card4Context),
-    [configQuery.data, individualType],
+    [configQuery.data, individualType, card4Context],
   );
 
   useEffect(() => {
     if (!open) return;
+    if (isEdit && guest) {
+      setDraft(guestProfileToCreateDraft(guest, context.data?.documentTypes));
+      setStep("basic");
+      setDefaultsApplied(true);
+      setDeletedDocIds([]);
+      void loadCustomValues({ data: { restaurantId, guestId: guest.id } })
+        .then((items) => {
+          const initial: Record<string, unknown> = {};
+          for (const item of items) {
+            initial[item.fieldId] = item.value;
+          }
+          setCustomValues(initial);
+        })
+        .catch(() => undefined);
+
+      void loadDocs({ data: { restaurantId, guestId: guest.id } })
+        .then(async (res) => {
+          if (!res.available || !res.documents || res.documents.length === 0) return;
+          const detailed = await Promise.all(
+            res.documents.map(async (doc) => {
+              try {
+                const detailRes = await loadDocDetail({
+                  data: { restaurantId, guestId: guest.id, documentId: doc.id },
+                });
+                if (detailRes.ok && detailRes.document) {
+                  return detailRes.document;
+                }
+              } catch {
+                // fallback
+              }
+              return doc;
+            }),
+          );
+          const mappedDocs: GuestCreateDocumentDraft[] = detailed.map((doc) => {
+            const docNum =
+              ("documentNumber" in doc && doc.documentNumber)
+                ? doc.documentNumber
+                : (doc.documentNumberMasked ?? guest.idDocumentNumber ?? "");
+            return {
+              key: doc.id,
+              existingDocumentId: doc.id,
+              idTypeId: doc.idTypeId ?? (context.data?.documentTypes?.[0]?.id ?? ""),
+              documentNumber: docNum,
+              issuingCountry: doc.issuingCountry ?? "",
+              issueDate: doc.issueDate ?? "",
+              expiryDate: doc.expiryDate ?? "",
+              issuingAuthority: doc.issuingAuthority ?? "",
+              notes: doc.notes ?? "",
+              hasFront: Boolean(doc.url || doc.storagePath),
+              hasBack: Boolean(doc.backUrl || doc.backStoragePath),
+              frontImageUrl: doc.url ?? null,
+              backImageUrl: doc.backUrl ?? null,
+            };
+          });
+          setDraft((curr) => ({
+            ...curr,
+            documents: mappedDocs,
+          }));
+        })
+        .catch(() => undefined);
+
+      return;
+    }
     if (!context.data || defaultsApplied) return;
     const local = readGuestCreateHold(restaurantId);
     if (local) {
@@ -237,15 +405,15 @@ export function GuestCreateModal({
       setDraft(initial);
     }
     setDefaultsApplied(true);
-  }, [context.data, defaultsApplied, open, restaurantId, touched]);
+  }, [context.data, defaultsApplied, isEdit, guest, open, restaurantId, touched, loadCustomValues]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created) return;
+    if (!open || !defaultsApplied || created || isEdit) return;
     writeGuestCreateHold(restaurantId, { step, draft });
-  }, [created, defaultsApplied, draft, open, restaurantId, step]);
+  }, [created, defaultsApplied, draft, isEdit, open, restaurantId, step]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created) return;
+    if (!open || !defaultsApplied || created || isEdit) return;
     if (!guestCreateHasChanges(draft, context.data?.profileType?.defaults)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
@@ -254,7 +422,7 @@ export function GuestCreateModal({
         .catch(() => setHoldState("idle"));
     }, GUEST_CREATE_HOLD_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [context.data?.profileType?.defaults, created, defaultsApplied, draft, open, restaurantId, saveDraft, step]);
+  }, [context.data?.profileType?.defaults, created, defaultsApplied, draft, isEdit, open, restaurantId, saveDraft, step]);
 
   const rules = useMemo(
     () => createFieldRules(context.data?.fields ?? [], context.data?.profileType ?? null),
@@ -317,6 +485,10 @@ export function GuestCreateModal({
   }
 
   function go(next: GuestCreateStepId) {
+    if (isEdit) {
+      setStep(next);
+      return;
+    }
     const blockers = issuesBeforeStep(fieldIssues, activeSteps, next);
     if (blockers.length) {
       markAttempted(step, ...blockers.map((issue) => issue.step));
@@ -525,8 +697,8 @@ export function GuestCreateModal({
           data: {
             restaurantId,
             guestId: createdGuest.id,
-            documentTypeId: document.idTypeId,
-            documentNumber: document.documentNumber,
+            idTypeId: document.idTypeId,
+            documentNumber: document.documentNumber || null,
             issuingCountry: document.issuingCountry || null,
             issueDate: document.issueDate || null,
             expiryDate: document.expiryDate || null,
@@ -534,6 +706,8 @@ export function GuestCreateModal({
             notes: document.notes || null,
           },
         });
+        if (!saved.ok) throw new Error(saved.message);
+        const docId = saved.documentId;
         const front = docFiles[`${document.key}-front`];
         const back = docFiles[`${document.key}-back`];
         if (type?.scanImageAllowed && (front || back)) {
@@ -555,7 +729,7 @@ export function GuestCreateModal({
               data: {
                 restaurantId,
                 guestId: createdGuest.id,
-                documentId: saved.id,
+                documentId: docId,
                 side,
                 filePath: started.path,
                 mimeType: file.type,
@@ -639,7 +813,187 @@ export function GuestCreateModal({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const saveEditMutation = useMutation({
+    mutationFn: async () => {
+      if (!guest) throw new Error("No guest selected to edit.");
+      if (!draft.firstName.trim()) throw new Error("First name is required.");
+      if (!draft.lastName.trim()) throw new Error("Last name is required.");
+
+      // Validate documents if identity feature is active
+      if (identityActive) {
+        const docTypes = context.data?.documentTypes ?? [];
+        for (let i = 0; i < draft.documents.length; i++) {
+          const doc = draft.documents[i];
+          const docType = docTypes.find((t) => t.id === doc.idTypeId);
+          if (!docType) continue;
+          if (docType.documentNumberActive !== false && docType.documentNumberRequired && !doc.documentNumber.trim()) {
+            throw new Error(`Document #${i + 1}: Document number is required.`);
+          }
+          if (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) {
+            throw new Error(`Document #${i + 1}: Issuing country is required.`);
+          }
+          if (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) {
+            throw new Error(`Document #${i + 1}: Issue date is required.`);
+          }
+          if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) {
+            throw new Error(`Document #${i + 1}: Expiry date is required.`);
+          }
+          if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) {
+            throw new Error(`Document #${i + 1}: Issuing authority is required.`);
+          }
+          if (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !docFiles[`${doc.key}-front`]) {
+            throw new Error(`Document #${i + 1}: Front document scan/image is required.`);
+          }
+        }
+      }
+
+      const firstDoc = draft.documents[0];
+      const firstDocType = firstDoc
+        ? (context.data?.documentTypes ?? []).find((t) => t.id === firstDoc.idTypeId)
+        : null;
+
+      const updated = await updateGuestFn({
+        data: {
+          restaurantId,
+          guestId: guest.id,
+          guest: {
+            title: draft.title || null,
+            firstName: draft.firstName.trim(),
+            middleName: draft.middleName.trim() || null,
+            lastName: draft.lastName.trim(),
+            preferredName: draft.preferredName.trim() || null,
+            gender: draft.gender || null,
+            dateOfBirth: draft.dateOfBirth || null,
+            nationality: draft.nationality || null,
+            language: draft.language || null,
+            vipStatus: draft.vipStatus,
+            phone: draft.phone || null,
+            phoneAlt: draft.phoneAlt || null,
+            email: draft.email || null,
+            emailAlt: draft.emailAlt || null,
+            preferredContactMethod: draft.preferredContactMethod || null,
+            preferredContactTime: draft.preferredContactTime || null,
+            addressLine1: draft.addressLine1 || null,
+            addressLine2: draft.addressLine2 || null,
+            city: draft.city || null,
+            region: draft.region || null,
+            country: draft.country || null,
+            postalCode: draft.postalCode || null,
+            position: draft.position || null,
+            department: draft.department || null,
+            sourceOfBusiness: draft.sourceOfBusiness || null,
+            notes: draft.notes || null,
+            restricted: draft.restricted,
+            blacklisted: draft.blacklisted,
+            restrictionSeverity: draft.restrictionSeverity || null,
+            restrictionReason: draft.restrictionReason || null,
+            restrictionUntil: draft.restrictionUntil || null,
+            emergencyContacts: draft.emergencyContacts,
+            idDocumentNumber: firstDoc?.documentNumber || null,
+            idDocumentExpiry: firstDoc?.expiryDate || null,
+            idDocumentType: firstDocType ? (kindFromTypeCode(firstDocType.name) as any) : null,
+          },
+        },
+      });
+
+      // Delete removed existing documents
+      for (const delId of deletedDocIds) {
+        try {
+          await deleteDoc({ data: { restaurantId, guestId: guest.id, documentId: delId } });
+        } catch {
+          // ignore if already deleted
+        }
+      }
+
+      // Persist documents in draft
+      for (const document of draft.documents) {
+        if (!document.idTypeId) continue;
+        const type = (context.data?.documentTypes ?? []).find((row) => row.id === document.idTypeId);
+        const saved = await persistDoc({
+          data: {
+            restaurantId,
+            guestId: guest.id,
+            documentId: document.existingDocumentId,
+            idTypeId: document.idTypeId,
+            documentNumber: document.documentNumber || null,
+            issuingCountry: document.issuingCountry || null,
+            issueDate: document.issueDate || null,
+            expiryDate: document.expiryDate || null,
+            issuingAuthority: document.issuingAuthority || null,
+            notes: document.notes || null,
+          },
+        });
+        if (!saved.ok) {
+          throw new Error(saved.message || "Failed to save identity document.");
+        }
+        const docId = saved.documentId;
+        const front = docFiles[`${document.key}-front`];
+        const back = docFiles[`${document.key}-back`];
+        if (type?.scanImageAllowed && (front || back)) {
+          for (const [side, file] of [["front", front], ["back", back]] as const) {
+            if (!file) continue;
+            const started = await startDocUpload({
+              data: {
+                restaurantId,
+                guestId: guest.id,
+                kind: kindFromTypeCode(type.name),
+                contentType: file.type as "image/jpeg" | "image/png" | "image/webp" | "application/pdf",
+                size: file.size,
+              },
+            });
+            if (!started.ok) throw new Error(started.message);
+            const uploaded = await supabase.storage.from("property-images").uploadToSignedUrl(started.path, started.token, file);
+            if (uploaded.error) throw uploaded.error;
+            await attachDocImage({
+              data: {
+                restaurantId,
+                guestId: guest.id,
+                documentId: docId,
+                side,
+                filePath: started.path,
+                mimeType: file.type,
+                byteSize: file.size,
+              },
+            });
+          }
+        }
+      }
+
+      if (Object.keys(customValues).length > 0) {
+        const formatted = Object.entries(customValues).map(([fieldId, value]) => ({
+          fieldId,
+          value_json: value,
+        }));
+        await saveCustomValues({
+          data: {
+            restaurantId,
+            guestId: guest.id,
+            values: formatted,
+          },
+        });
+      }
+
+      return updated;
+    },
+    onSuccess: (result) => {
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
+      void queryClient.invalidateQueries({ queryKey: ["guest", guest?.id] });
+      void queryClient.invalidateQueries({ queryKey: ["guest-documents", restaurantId, guest?.id] });
+      toast.success("Guest updated successfully.");
+      onOpenChange(false);
+      onSaved?.(result.id ?? guest?.id ?? "");
+    },
+    onError: (err: any) => {
+      toast.error(err instanceof Error ? err.message : "Failed to update guest.");
+    },
+  });
+
   function handleActualClose() {
+    if (isEdit) {
+      onOpenChange(false);
+      onCancel?.();
+      return;
+    }
     if (!created) writeGuestCreateHold(restaurantId, { step, draft });
     if (!created && guestCreateHasChanges(draft, context.data?.profileType?.defaults)) {
       toast.success(GUEST_CREATE_PROGRESS_KEPT);
@@ -653,6 +1007,10 @@ export function GuestCreateModal({
   }
 
   function handleAttemptClose() {
+    if (isEdit) {
+      handleActualClose();
+      return;
+    }
     if (guestCreateHasChanges(draft, context.data?.profileType?.defaults) && !created) {
       setDiscardConfirmOpen(true);
     } else {
@@ -733,10 +1091,12 @@ export function GuestCreateModal({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <DialogTitle className="font-display text-xl font-bold text-[#251605]">
-                  {GUEST_CREATE_TITLE}
+                  {isEdit ? `Edit Guest — ${guestDisplayName(draft) || "Guest"}` : GUEST_CREATE_TITLE}
                 </DialogTitle>
                 <DialogDescription className="mt-0.5 text-xs text-[#756A5B]">
-                  {GUEST_CREATE_COPY}
+                  {isEdit
+                    ? "Update guest details and click Save Changes when finished."
+                    : GUEST_CREATE_COPY}
                 </DialogDescription>
               </div>
 
@@ -874,11 +1234,12 @@ export function GuestCreateModal({
                 <IdentityStep
                   draft={draft}
                   setDraft={setDraft}
-                  types={(context.data?.documentTypes ?? []).filter((row) => row.active)}
+                  types={context.data?.documentTypes ?? []}
                   profileTypeId={context.data?.profileType?.id ?? null}
                   docFiles={docFiles}
                   setDocFiles={setDocFiles}
                   error={fieldError("IDENTITY_DOCUMENT", "identity")}
+                  onRemoveExistingDoc={(id) => setDeletedDocIds((prev) => [...prev, id])}
                 />
               ) : null}
 
@@ -1014,70 +1375,91 @@ export function GuestCreateModal({
 
           {/* Sticky Footer */}
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-white px-6 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-[#DDD4C5]"
-                data-testid="guest-create-start-over"
-                onClick={() => setStartOverOpen(true)}
-                disabled={!guestCreateHasChanges(draft, context.data?.profileType?.defaults)}
-              >
-                {GUEST_CREATE_START_OVER}
-              </Button>
-              {holdState === "saving" ? (
-                <span className="text-xs text-muted-foreground">Saving progress…</span>
-              ) : null}
-              {holdState === "saved" && guestCreateHasChanges(draft, context.data?.profileType?.defaults) ? (
-                <span className="text-xs text-muted-foreground">Progress saved</span>
-              ) : null}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-[#DDD4C5]"
-                onClick={() => draftMutation.mutate()}
-                disabled={draftMutation.isPending}
-              >
-                Save as Draft
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-[#DDD4C5]"
-                disabled={stepIndex === 0}
-                onClick={() => go(activeSteps[stepIndex - 1].id)}
-              >
-                ← Back
-              </Button>
-
-              {step === "review" ? (
-                <Button
-                  type="button"
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold shadow-sm"
-                  onClick={() => createMutation.mutate()}
-                  disabled={createMutation.isPending || !isIndividualActive}
-                  data-testid="create-guest-final"
-                >
-                  {createMutation.isPending ? "Creating Guest…" : "Create Guest"}
+            {isEdit ? (
+              <>
+                <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
+                  Cancel
                 </Button>
-              ) : (
-                <Button
-                  type="button"
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-medium shadow-sm"
-                  onClick={() => {
-                    if (validateCurrent()) go(activeSteps[stepIndex + 1].id);
-                  }}
-                >
-                  Next <ChevronRight className="ml-1 size-4" />
-                </Button>
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold shadow-sm"
+                    onClick={() => saveEditMutation.mutate()}
+                    disabled={saveEditMutation.isPending}
+                    data-testid="edit-guest-save-btn"
+                  >
+                    {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#DDD4C5]"
+                    data-testid="guest-create-start-over"
+                    onClick={() => setStartOverOpen(true)}
+                    disabled={!guestCreateHasChanges(draft, context.data?.profileType?.defaults)}
+                  >
+                    {GUEST_CREATE_START_OVER}
+                  </Button>
+                  {holdState === "saving" ? (
+                    <span className="text-xs text-muted-foreground">Saving progress…</span>
+                  ) : null}
+                  {holdState === "saved" && guestCreateHasChanges(draft, context.data?.profileType?.defaults) ? (
+                    <span className="text-xs text-muted-foreground">Progress saved</span>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#DDD4C5]"
+                    onClick={() => draftMutation.mutate()}
+                    disabled={draftMutation.isPending}
+                  >
+                    Save as Draft
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#DDD4C5]"
+                    disabled={stepIndex === 0}
+                    onClick={() => go(activeSteps[stepIndex - 1].id)}
+                  >
+                    ← Back
+                  </Button>
+
+                  {step === "review" ? (
+                    <Button
+                      type="button"
+                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold shadow-sm"
+                      onClick={() => createMutation.mutate()}
+                      disabled={createMutation.isPending || !isIndividualActive}
+                      data-testid="create-guest-final"
+                    >
+                      {createMutation.isPending ? "Creating Guest…" : "Create Guest"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-medium shadow-sm"
+                      onClick={() => {
+                        if (validateCurrent()) go(activeSteps[stepIndex + 1].id);
+                      }}
+                    >
+                      Next <ChevronRight className="ml-1 size-4" />
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1500,6 +1882,7 @@ function IdentityStep({
   docFiles,
   setDocFiles,
   error,
+  onRemoveExistingDoc,
 }: {
   draft: GuestCreateDraft;
   setDraft: React.Dispatch<React.SetStateAction<GuestCreateDraft>>;
@@ -1525,6 +1908,7 @@ function IdentityStep({
   docFiles: Record<string, File | undefined>;
   setDocFiles: React.Dispatch<React.SetStateAction<Record<string, File | undefined>>>;
   error?: string;
+  onRemoveExistingDoc?: (id: string) => void;
 }) {
   const available = types.filter(
     (type) =>
@@ -1549,7 +1933,7 @@ function IdentityStep({
     setDraft((current) => ({ ...current, documents: [...current.documents, next] }));
   }
 
-  if (available.length === 0) {
+  if (available.length === 0 && draft.documents.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-[#DDD4C5] bg-white p-6 text-center text-xs text-muted-foreground">
         {GUEST_CREATE_NO_DOC_TYPES}
@@ -1574,12 +1958,15 @@ function IdentityStep({
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                onClick={() =>
+                onClick={() => {
+                  if (document.existingDocumentId) {
+                    onRemoveExistingDoc?.(document.existingDocumentId);
+                  }
                   setDraft((curr) => ({
                     ...curr,
                     documents: curr.documents.filter((d) => d.key !== document.key),
-                  }))
-                }
+                  }));
+                }}
               >
                 Remove
               </Button>
@@ -1604,6 +1991,11 @@ function IdentityStep({
                         {row.name}
                       </SelectItem>
                     ))}
+                    {type && !available.some((row) => row.id === type.id) ? (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name} (Inactive)
+                      </SelectItem>
+                    ) : null}
                   </SelectContent>
                 </Select>
               </Field>
@@ -1696,7 +2088,7 @@ function IdentityStep({
               ) : null}
               {type?.scanImageAllowed ? (
                 <>
-                  <Field label="Front Scan/Image" required={type?.scanImageRequired}>
+                  <Field label="Front Scan/Image" required={type?.scanImageRequired && !document.hasFront}>
                     <Input
                       type="file"
                       accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -1712,6 +2104,21 @@ function IdentityStep({
                       }}
                       className={cn(MODAL_CONTROL_CLASS, "file:mr-2 file:h-7 file:rounded-[4px] file:border-0 file:bg-[#FAF8F5] file:px-2 file:text-xs file:font-medium file:text-[#251605]")}
                     />
+                    {document.hasFront ? (
+                      <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                        <span>✓ Front scan on file</span>
+                        {document.frontImageUrl ? (
+                          <a
+                            href={document.frontImageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline text-emerald-800 hover:text-emerald-950"
+                          >
+                            (View)
+                          </a>
+                        ) : null}
+                      </p>
+                    ) : null}
                   </Field>
                   <Field label="Back Scan/Image">
                     <Input
@@ -1729,6 +2136,21 @@ function IdentityStep({
                       }}
                       className={cn(MODAL_CONTROL_CLASS, "file:mr-2 file:h-7 file:rounded-[4px] file:border-0 file:bg-[#FAF8F5] file:px-2 file:text-xs file:font-medium file:text-[#251605]")}
                     />
+                    {document.hasBack ? (
+                      <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                        <span>✓ Back scan on file</span>
+                        {document.backImageUrl ? (
+                          <a
+                            href={document.backImageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline text-emerald-800 hover:text-emerald-950"
+                          >
+                            (View)
+                          </a>
+                        ) : null}
+                      </p>
+                    ) : null}
                   </Field>
                 </>
               ) : null}

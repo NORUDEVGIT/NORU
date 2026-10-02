@@ -13,6 +13,7 @@ export type ReservationsRouteSearch = {
   companyId?: string;
   travelAgentId?: string;
   groupId?: string;
+  returnTo?: string;
 };
 
 export const Route = createFileRoute("/restaurant/pms/reservations/")({
@@ -50,6 +51,12 @@ export const Route = createFileRoute("/restaurant/pms/reservations/")({
       UUID_REGEX.test(rawGroupId.trim())
     ) {
       result.groupId = rawGroupId.trim();
+    }
+    if (
+      typeof search["returnTo"] === "string" &&
+      search["returnTo"].trim().startsWith("/restaurant/")
+    ) {
+      result.returnTo = search["returnTo"].trim();
     }
     return result;
   },
@@ -104,6 +111,7 @@ function ReservationsPmsRoute() {
           initialCompanyId={search.companyId}
           initialTravelAgentId={search.travelAgentId}
           initialGroupId={search.groupId}
+          initialReturnTo={search.returnTo}
         />
       )}
     </RestaurantShell>

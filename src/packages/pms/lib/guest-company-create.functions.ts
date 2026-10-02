@@ -374,9 +374,11 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
-    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
-    await assertListingCreateAllowed(data.restaurantId, "company");
     const draft = data.draft;
+    if (!draft.accountId) {
+      const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+      await assertListingCreateAllowed(data.restaurantId, "company");
+    }
     if (data.mode === "draft" && !filled(draft.businessProfileTypeId)) {
       return { id: draft.accountId, contacts: draft.contacts, created: false as const };
     }
@@ -384,7 +386,7 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
     const completeStatus = createStatusFromAutoApproval(Boolean(snapshot?.settings.autoApproval));
     const account = {
       ...draftToCompanyAccountInput(draft),
-      accountStatus: data.mode === "draft" ? ("pending" as const) : completeStatus,
+      ...(draft.accountId ? {} : { accountStatus: data.mode === "draft" ? ("pending" as const) : completeStatus }),
     };
     let accountId = draft.accountId;
     if (accountId) {

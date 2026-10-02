@@ -89,6 +89,7 @@ import {
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/guest-create-step-issues";
 import { applyGroupTemplateToDraft, GROUP_TEMPLATE_COPY, listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
+import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
 
 const MODAL_CONTROL_CLASS =
   "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE]";
@@ -96,21 +97,103 @@ const MODAL_CONTROL_CLASS =
 const MODAL_SELECT_TRIGGER_CLASS =
   "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus:border-[#C89933] focus:outline-none focus:ring-1 focus:ring-[#C89933] justify-between";
 
+function groupDetailToDraft(group: any): GuestGroupCreateDraft {
+  const base = emptyGuestGroupCreateDraft();
+  let members: any[] = [];
+  if (Array.isArray(group.members)) {
+    members = group.members.map((m: any) => ({
+      key: m.key ?? m.id ?? Math.random().toString(),
+      id: m.id ?? null,
+      guestId: m.guestId ?? null,
+      guestName: m.guestName ?? m.name ?? "",
+      firstName: m.firstName ?? "",
+      lastName: m.lastName ?? "",
+      email: m.email ?? "",
+      phone: m.phone ?? "",
+      roomTypeId: m.roomTypeId ?? "",
+      ratePlanId: m.ratePlanId ?? "",
+      departureDate: m.departureDate ?? "",
+      notes: m.notes ?? "",
+      specialRequests: m.specialRequests ?? "",
+      isLeader: Boolean(m.isLeader),
+    }));
+  }
+  const ops = group.groupOperations ?? group.group_operations ?? {};
+  return {
+    ...base,
+    groupId: group.id,
+    code: group.code ?? "",
+    codeManual: Boolean(group.code),
+    name: group.name ?? "",
+    groupTypeId: group.groupTypeId ?? group.group_type_id ?? "",
+    marketSegmentId: group.marketSegmentId ?? group.market_segment_id ?? "",
+    companyMasterId: group.companyMasterId ?? group.company_master_id ?? "",
+    companyMasterName: group.companyMasterName ?? "",
+    travelAgentMasterId: group.travelAgentMasterId ?? group.travel_agent_master_id ?? "",
+    travelAgentMasterName: group.travelAgentMasterName ?? "",
+    primaryContactGuestId: group.primaryContactGuestId ?? group.primary_contact_guest_id ?? "",
+    primaryContactName: group.primaryContactName ?? group.primary_contact_name ?? "",
+    contactEmail: group.email ?? group.contactEmail ?? "",
+    contactPhone: group.phone ?? group.contactPhone ?? "",
+    notes: group.notes ?? "",
+    specialRequests: group.specialRequests ?? group.special_requests ?? "",
+    arrivalDate: group.arrivalDate ?? group.arrival_date ?? "",
+    departureDate: group.departureDate ?? group.departure_date ?? "",
+    expectedPax: group.expectedPax != null ? String(group.expectedPax) : (group.expected_pax != null ? String(group.expected_pax) : ""),
+    expectedRooms: group.expectedRooms != null ? String(group.expectedRooms) : (group.expected_rooms != null ? String(group.expected_rooms) : ""),
+    sourceCodeId: group.sourceCodeId ?? group.source_code_id ?? "",
+    channelId: group.channelId ?? group.channel_id ?? "",
+    members,
+    arrivalTime: ops.arrivalTime ?? "",
+    departureTime: ops.departureTime ?? "",
+    arrivalMethod: ops.arrivalMethod ?? "",
+    arrivalFrom: ops.arrivalFrom ?? "",
+    arrivalTo: ops.arrivalTo ?? "",
+    departureMethod: ops.departureMethod ?? "",
+    departureTo: ops.departureTo ?? "",
+    destinations: Array.isArray(ops.destinations) ? ops.destinations : [],
+    stayNotes: ops.stayNotes ?? "",
+    roomNeeds: Array.isArray(ops.roomNeeds) ? ops.roomNeeds : [],
+    ratePlanId: ops.ratePlanId ?? group.ratePlanId ?? "",
+    packageId: ops.packageId ?? group.packageId ?? "",
+    mealPlanId: ops.mealPlanId ?? group.mealPlanId ?? "",
+    currency: ops.currency ?? group.currency ?? "",
+    paymentMethodId: ops.paymentMethodId ?? group.paymentMethodId ?? "",
+    billingArrangement: ops.billingArrangement ?? group.billingArrangement ?? "",
+    depositRequired: Boolean(ops.depositRequired),
+    depositAmount: ops.depositAmount != null ? String(ops.depositAmount) : "",
+    depositPercent: ops.depositPercent != null ? String(ops.depositPercent) : "",
+    depositDueDate: ops.depositDueDate ?? "",
+    balanceDueDate: ops.balanceDueDate ?? "",
+    paymentTerms: ops.paymentTerms ?? group.paymentTerms ?? "",
+  };
+}
+
 export function GuestGroupCreateModal({
   restaurantId,
   open,
   onOpenChange,
   onCreated,
   onCancel,
+  mode = "create",
+  groupId = null,
+  group = null,
+  onSaved,
 }: {
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (id: string) => void;
   onCancel?: () => void;
+  mode?: "create" | "edit";
+  groupId?: string | null;
+  group?: any | null;
+  onSaved?: (groupId: string) => void;
 }) {
+  const isEdit = mode === "edit" || Boolean(groupId) || Boolean(group);
   const queryClient = useQueryClient();
   const load = useServerFn(getGroupCreateContext);
+  const fetchGroupWorkspace = useServerFn(getGroupDetailWorkspace);
   const saveDraftHold = useServerFn(saveGroupCreateDraft);
   const clearDraft = useServerFn(deleteGroupCreateDraft);
   const persist = useServerFn(persistGroupCreate);
@@ -118,10 +201,21 @@ export function GuestGroupCreateModal({
   const searchGuests = useServerFn(searchGuestsForGroup);
   const loadCredit = useServerFn(loadGroupCreateCredit);
 
-  const localHold = useMemo(() => (open ? readGuestGroupCreateHold(restaurantId) : null), [open, restaurantId]);
+  const groupQuery = useQuery({
+    queryKey: ["group-detail", restaurantId, groupId],
+    queryFn: () => fetchGroupWorkspace({ data: { restaurantId, groupId: groupId! } }),
+    enabled: open && isEdit && Boolean(groupId) && !group,
+    retry: false,
+  });
+  const currentGroup = group ?? groupQuery.data?.group ?? null;
+
+  const localHold = useMemo(() => (!isEdit && open ? readGuestGroupCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
   const [step, setStep] = useState<GuestGroupCreateStepId>(() => localHold?.step ?? "details");
-  const [draft, setDraft] = useState<GuestGroupCreateDraft>(() => localHold?.draft ?? emptyGuestGroupCreateDraft());
-  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
+  const [draft, setDraft] = useState<GuestGroupCreateDraft>(() => {
+    if (isEdit && currentGroup) return groupDetailToDraft(currentGroup);
+    return localHold?.draft ?? emptyGuestGroupCreateDraft();
+  });
+  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold) || (isEdit && Boolean(currentGroup)));
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
@@ -152,6 +246,14 @@ export function GuestGroupCreateModal({
 
   useEffect(() => {
     if (!open) return;
+    if (isEdit) {
+      if (currentGroup) {
+        setDraft(groupDetailToDraft(currentGroup));
+        setStep("details");
+        setDefaultsApplied(true);
+      }
+      return;
+    }
     if (!context.data || defaultsApplied) return;
     const local = readGuestGroupCreateHold(restaurantId);
     if (local) {
@@ -164,15 +266,15 @@ export function GuestGroupCreateModal({
       setDraft((current) => (current.currency ? current : { ...current, currency: context.data.defaultCurrency }));
     }
     setDefaultsApplied(true);
-  }, [context.data, defaultsApplied, open, restaurantId]);
+  }, [context.data, currentGroup, defaultsApplied, isEdit, open, restaurantId]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created) return;
+    if (isEdit || !open || !defaultsApplied || created) return;
     writeGuestGroupCreateHold(restaurantId, { step, draft });
-  }, [created, defaultsApplied, open, restaurantId, step, draft]);
+  }, [created, defaultsApplied, isEdit, open, restaurantId, step, draft]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created) return;
+    if (isEdit || !open || !defaultsApplied || created) return;
     if (!guestGroupCreateHasChanges(draft)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
@@ -181,7 +283,7 @@ export function GuestGroupCreateModal({
         .catch(() => setHoldState("idle"));
     }, GUEST_GROUP_CREATE_HOLD_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [created, defaultsApplied, draft, open, restaurantId, saveDraftHold, step]);
+  }, [created, defaultsApplied, draft, isEdit, open, restaurantId, saveDraftHold, step]);
 
   const catalogues = context.data?.catalogues;
   const companiesQuery = useQuery({
@@ -243,6 +345,10 @@ export function GuestGroupCreateModal({
   }
 
   function go(next: GuestGroupCreateStepId) {
+    if (isEdit) {
+      setStep(next);
+      return;
+    }
     const blockers = issuesBeforeStep(fieldIssues, GUEST_GROUP_CREATE_STEPS, next);
     if (blockers.length) {
       markAttempted(step, ...blockers.map((issue) => issue.step));
@@ -266,6 +372,28 @@ export function GuestGroupCreateModal({
     }
     return true;
   }
+
+  const saveEditMutation = useMutation({
+    mutationFn: async () => {
+      if (!draft.name?.trim()) throw new Error("Group name is required.");
+      if (!draft.groupTypeId) throw new Error("Group type is required.");
+      const targetId = groupId ?? currentGroup?.id ?? draft.groupId;
+      const payloadDraft = { ...draft, groupId: targetId };
+      const saved = await persist({ data: { restaurantId, draft: payloadDraft } });
+      return saved;
+    },
+    onSuccess: (result) => {
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
+      void queryClient.invalidateQueries({ queryKey: ["guest-accounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["group-accounts"] });
+      const targetId = groupId ?? currentGroup?.id ?? draft.groupId ?? result.id;
+      void queryClient.invalidateQueries({ queryKey: ["group-detail", restaurantId, targetId] });
+      toast.success("Group updated successfully.");
+      onOpenChange(false);
+      onSaved?.(targetId ?? "");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const holdMutation = useMutation({
     mutationFn: () => saveDraftHold({ data: { restaurantId, payload: { step, draft } as never } }),
@@ -344,12 +472,20 @@ export function GuestGroupCreateModal({
     },
   });
 
+  function handleActualClose() {
+    onOpenChange(false);
+    onCancel?.();
+  }
+
   function handleCloseRequest() {
+    if (isEdit) {
+      handleActualClose();
+      return;
+    }
     if (guestGroupCreateHasChanges(draft) && !created) {
       setDiscardConfirmOpen(true);
     } else {
-      onOpenChange(false);
-      if (onCancel) onCancel();
+      handleActualClose();
     }
   }
 
@@ -359,8 +495,7 @@ export function GuestGroupCreateModal({
       writeGuestGroupCreateHold(restaurantId, { step, draft });
       toast.success(GUEST_GROUP_CREATE_PROGRESS_KEPT);
     }
-    onOpenChange(false);
-    if (onCancel) onCancel();
+    handleActualClose();
   }
 
   function addExistingMember(guest: { id: string; name: string; email: string | null; phone: string | null }) {
@@ -424,10 +559,12 @@ export function GuestGroupCreateModal({
           <div className="flex items-center justify-between border-b border-[#EDE6D8] bg-[#FDFBF7] px-7 py-4">
             <div>
               <DialogTitle className="font-display text-xl font-semibold text-[#251605]">
-                {GUEST_GROUP_CREATE_TITLE}
+                {isEdit ? `Edit Group — ${draft.name || "Group"}` : GUEST_GROUP_CREATE_TITLE}
               </DialogTitle>
               <DialogDescription id="guest-group-create-description" className="text-xs text-[#756A5B]">
-                {GUEST_GROUP_CREATE_COPY}
+                {isEdit
+                  ? "Update group profile and save changes directly."
+                  : GUEST_GROUP_CREATE_COPY}
               </DialogDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -715,79 +852,105 @@ export function GuestGroupCreateModal({
 
           {/* Sticky Footer */}
           <div className="border-t border-[#EDE6D8] bg-[#FDFBF7] px-7 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleCloseRequest}
-                className="text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F2ECE1]"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                data-testid="group-create-start-over"
-                onClick={() => setStartOverOpen(true)}
-                disabled={!guestGroupCreateHasChanges(draft)}
-                className="text-xs border-[#E6E1D8] text-[#756A5B] hover:bg-[#FAF8F5]"
-              >
-                {GUEST_GROUP_CREATE_START_OVER}
-              </Button>
-              {holdState === "saving" ? (
-                <span className="text-xs text-[#A89F91]">Saving progress…</span>
-              ) : null}
-              {holdState === "saved" && guestGroupCreateHasChanges(draft) ? (
-                <span className="text-xs text-[#8A641A] font-medium">Progress saved</span>
-              ) : null}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                data-testid="group-create-save-draft"
-                onClick={() => draftMutation.mutate()}
-                disabled={isSavingDraft}
-                className="text-xs border-[#E6E1D8] text-[#251605] hover:bg-[#FAF8F5]"
-              >
-                {isSavingDraft ? "Saving…" : "Save as Draft"}
-              </Button>
-
-              {stepIndex > 0 ? (
+            {isEdit ? (
+              <>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => go(GUEST_GROUP_CREATE_STEPS[stepIndex - 1].id)}
-                  className="text-xs border-[#E6E1D8] text-[#251605] hover:bg-[#FAF8F5]"
+                  onClick={handleActualClose}
+                  className="border-[#DDD4C5] text-xs text-[#251605]"
                 >
-                  Back
+                  Cancel
                 </Button>
-              ) : null}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
+                    onClick={() => saveEditMutation.mutate()}
+                    disabled={saveEditMutation.isPending}
+                    data-testid="edit-group-save-btn"
+                  >
+                    {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleCloseRequest}
+                    className="text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F2ECE1]"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="group-create-start-over"
+                    onClick={() => setStartOverOpen(true)}
+                    disabled={!guestGroupCreateHasChanges(draft)}
+                    className="text-xs border-[#E6E1D8] text-[#756A5B] hover:bg-[#FAF8F5]"
+                  >
+                    {GUEST_GROUP_CREATE_START_OVER}
+                  </Button>
+                  {holdState === "saving" ? (
+                    <span className="text-xs text-[#A89F91]">Saving progress…</span>
+                  ) : null}
+                  {holdState === "saved" && guestGroupCreateHasChanges(draft) ? (
+                    <span className="text-xs text-[#8A641A] font-medium">Progress saved</span>
+                  ) : null}
+                </div>
 
-              {step !== "review" ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (validateCurrent()) go(GUEST_GROUP_CREATE_STEPS[stepIndex + 1].id);
-                  }}
-                  className="bg-[#251605] text-[#FAF8F5] hover:bg-[#3D2C1D] text-xs font-medium"
-                >
-                  <span>Continue</span>
-                  <ChevronRight className="ml-1 size-3.5" />
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  data-testid="group-create-complete"
-                  onClick={() => completeMutation.mutate()}
-                  disabled={isCompleting}
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
-                >
-                  {isCompleting ? "Registering…" : "Complete Registration"}
-                </Button>
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="group-create-save-draft"
+                    onClick={() => draftMutation.mutate()}
+                    disabled={isSavingDraft}
+                    className="text-xs border-[#E6E1D8] text-[#251605] hover:bg-[#FAF8F5]"
+                  >
+                    {isSavingDraft ? "Saving…" : "Save as Draft"}
+                  </Button>
+
+                  {stepIndex > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => go(GUEST_GROUP_CREATE_STEPS[stepIndex - 1].id)}
+                      className="text-xs border-[#E6E1D8] text-[#251605] hover:bg-[#FAF8F5]"
+                    >
+                      Back
+                    </Button>
+                  ) : null}
+
+                  {step !== "review" ? (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (validateCurrent()) go(GUEST_GROUP_CREATE_STEPS[stepIndex + 1].id);
+                      }}
+                      className="bg-[#251605] text-[#FAF8F5] hover:bg-[#3D2C1D] text-xs font-medium"
+                    >
+                      <span>Continue</span>
+                      <ChevronRight className="ml-1 size-3.5" />
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      data-testid="group-create-complete"
+                      onClick={() => completeMutation.mutate()}
+                      disabled={isCompleting}
+                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
+                    >
+                      {isCompleting ? "Registering…" : "Complete Registration"}
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

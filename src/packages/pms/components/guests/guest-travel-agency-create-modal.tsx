@@ -100,6 +100,7 @@ import {
   saveTravelAgentCreateDraft,
   type TravelAgentCreateContext,
 } from "@/packages/pms/lib/guest-travel-agent-create.functions";
+import { getGuestAccount, type GuestAccountProfile } from "@/packages/pms/lib/guest-accounts.functions";
 
 const MODAL_CONTROL_CLASS =
   "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
@@ -120,32 +121,137 @@ function hasNestedModalLayer(): boolean {
   return [...nodes].some((node) => node.dataset["testid"] !== MODAL_TEST_ID);
 }
 
+function agencyProfileToCreateDraft(account: GuestAccountProfile): GuestTravelAgentCreateDraft {
+  const base = emptyGuestTravelAgentCreateDraft();
+  let contacts: any[] = [];
+  if (Array.isArray((account as any).contacts)) {
+    contacts = (account as any).contacts.map((c: any) => ({
+      key: c?.id ?? Math.random().toString(),
+      id: c?.id ?? null,
+      name: c?.name ?? "",
+      position: c?.position ?? "",
+      email: c?.email ?? "",
+      phone: c?.phone ?? "",
+      whatsapp: c?.whatsapp ?? "",
+      isPrimary: Boolean(c?.isPrimary),
+      preferredMethod: c?.preferredMethod ?? "",
+      notes: c?.notes ?? "",
+    }));
+  }
+  if (!contacts.length) {
+    if (account.primaryContactName || (account as any).email || (account as any).phone) {
+      contacts.push({
+        key: "primary-contact",
+        id: null,
+        name: account.primaryContactName ?? "",
+        position: (account as any).primaryContactTitle ?? "",
+        email: (account as any).email ?? "",
+        phone: (account as any).phone ?? "",
+        whatsapp: "",
+        isPrimary: true,
+        preferredMethod: "",
+        notes: "",
+      });
+    } else {
+      contacts.push(emptyAccountCreateContact(true));
+    }
+  }
+  return {
+    ...base,
+    accountId: account.id,
+    name: account.name ?? "",
+    tradeName: (account as any).tradeName ?? (account as any).trade_name ?? "",
+    code: account.code ?? "",
+    agencyType: (account as any).agencyType ?? (account as any).agency_type ?? "",
+    agencyTypeOther: (account as any).agencyTypeOther ?? "",
+    accountStatus: (account.accountStatus as any) ?? "active",
+    iataLicenseNumber: (account as any).iataLicenseNumber ?? "",
+    licenseExpiryDate: (account as any).licenseExpiryDate ?? "",
+    website: (account as any).website ?? "",
+    notes: account.notes ?? "",
+    contacts,
+    addressLine1: account.addressLine1 ?? "",
+    addressLine2: (account as any).addressLine2 ?? "",
+    city: account.city ?? "",
+    region: (account as any).region ?? "",
+    postalCode: (account as any).postalCode ?? "",
+    country: account.country ? countryCodeFromInput(account.country) : "",
+    taxId: (account as any).taxId ?? "",
+    registrationNumber: (account as any).businessRegistrationNumber ?? (account as any).registrationNumber ?? "",
+    marketSegmentId: (account as any).marketSegmentId ?? "",
+    sourceCodeId: (account as any).sourceCodeId ?? "",
+    sourceOfBusiness: (account as any).sourceOfBusiness ?? "",
+    accountManagerId: (account as any).accountManagerId ?? "",
+    ratePlanId: (account as any).ratePlanId ?? "",
+    packageId: (account as any).packageId ?? "",
+    mealPlanId: (account as any).mealPlanId ?? "",
+    contractReference: (account as any).contractReference ?? "",
+    contractStartDate: (account as any).contractStartDate ?? "",
+    contractEndDate: (account as any).contractEndDate ?? "",
+    billingArrangement: (account as any).billingArrangement ?? "",
+    billingContactName: (account as any).billingContactName ?? "",
+    billingEmail: (account as any).billingEmail ?? "",
+    paymentMethodId: (account as any).paymentMethodId ?? "",
+    currency: (account as any).currency ?? "",
+    paymentTerms: (account as any).paymentTerms ?? "",
+    billingInstruction: (account as any).billingInstruction ?? "",
+    creditLimitAmount: (account as any).creditLimitAmount != null ? String((account as any).creditLimitAmount) : "",
+    creditLimitNote: (account as any).creditLimitNote ?? "",
+    commissionEnabled: Boolean((account as any).commissionEnabled ?? (account as any).commissionType),
+    commissionType: (account as any).commissionType ?? "",
+    commissionValue: (account as any).commissionValue != null ? String((account as any).commissionValue) : "",
+    commissionCurrency: (account as any).commissionCurrency ?? "",
+    commissionEffectiveOn: (account as any).commissionEffectiveOn ?? "",
+    commissionExpiresOn: (account as any).commissionExpiresOn ?? "",
+    commissionNotes: (account as any).commissionNotes ?? "",
+  };
+}
+
 export function GuestTravelAgencyCreateModal({
   restaurantId,
   open,
   onOpenChange,
   onCreated,
   onCancel,
+  mode = "create",
+  agencyId = null,
+  agency = null,
+  onSaved,
 }: {
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (agencyId: string) => void;
   onCancel?: () => void;
+  mode?: "create" | "edit";
+  agencyId?: string | null;
+  agency?: GuestAccountProfile | null;
+  onSaved?: (agencyId: string) => void;
 }) {
+  const isEdit = mode === "edit" || Boolean(agencyId) || Boolean(agency);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const load = useServerFn(getTravelAgentCreateContext);
+  const fetchAccount = useServerFn(getGuestAccount);
   const saveDraftHold = useServerFn(saveTravelAgentCreateDraft);
   const clearDraft = useServerFn(deleteTravelAgentCreateDraft);
   const persist = useServerFn(persistTravelAgentCreate);
 
-  const localHold = useMemo(() => readGuestTravelAgentCreateHold(restaurantId), [restaurantId]);
+  const accountQuery = useQuery({
+    queryKey: ["guest-account", restaurantId, agencyId],
+    queryFn: () => fetchAccount({ data: { restaurantId, accountId: agencyId! } }),
+    enabled: open && isEdit && Boolean(agencyId) && !agency,
+    retry: false,
+  });
+  const currentAgency = agency ?? accountQuery.data ?? null;
+
+  const localHold = useMemo(() => (!isEdit && open ? readGuestTravelAgentCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
   const [step, setStep] = useState<GuestTravelAgentCreateStepId>(() => localHold?.step ?? "details");
-  const [draft, setDraft] = useState<GuestTravelAgentCreateDraft>(
-    () => localHold?.draft ?? emptyGuestTravelAgentCreateDraft(),
-  );
-  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
+  const [draft, setDraft] = useState<GuestTravelAgentCreateDraft>(() => {
+    if (isEdit && currentAgency) return agencyProfileToCreateDraft(currentAgency);
+    return localHold?.draft ?? emptyGuestTravelAgentCreateDraft();
+  });
+  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold) || (isEdit && Boolean(currentAgency)));
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
@@ -158,6 +264,15 @@ export function GuestTravelAgencyCreateModal({
   });
 
   useEffect(() => {
+    if (!open) return;
+    if (isEdit) {
+      if (currentAgency) {
+        setDraft(agencyProfileToCreateDraft(currentAgency));
+        setStep("details");
+        setDefaultsApplied(true);
+      }
+      return;
+    }
     if (!context.data || defaultsApplied) return;
     const local = readGuestTravelAgentCreateHold(restaurantId);
     if (local) {
@@ -174,15 +289,15 @@ export function GuestTravelAgencyCreateModal({
       );
     }
     setDefaultsApplied(true);
-  }, [context.data, defaultsApplied, restaurantId]);
+  }, [context.data, currentAgency, defaultsApplied, isEdit, open, restaurantId]);
 
   useEffect(() => {
-    if (!defaultsApplied || created) return;
+    if (isEdit || !defaultsApplied || created) return;
     writeGuestTravelAgentCreateHold(restaurantId, { step, draft });
-  }, [created, defaultsApplied, restaurantId, step, draft]);
+  }, [created, defaultsApplied, isEdit, restaurantId, step, draft]);
 
   useEffect(() => {
-    if (!defaultsApplied || created) return;
+    if (isEdit || !defaultsApplied || created) return;
     if (!guestTravelAgentCreateHasChanges(draft)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
@@ -191,7 +306,7 @@ export function GuestTravelAgencyCreateModal({
         .catch(() => setHoldState("idle"));
     }, GUEST_TRAVEL_AGENT_CREATE_HOLD_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [created, defaultsApplied, draft, restaurantId, saveDraftHold, step]);
+  }, [created, defaultsApplied, draft, isEdit, restaurantId, saveDraftHold, step]);
 
   const catalogues = context.data?.catalogues;
   const catalogueIds = {
@@ -222,6 +337,10 @@ export function GuestTravelAgencyCreateModal({
   }
 
   function go(next: GuestTravelAgentCreateStepId) {
+    if (isEdit) {
+      setStep(next);
+      return;
+    }
     const blockers = issuesBeforeStep(fieldIssues, GUEST_TRAVEL_AGENT_CREATE_STEPS, next);
     if (blockers.length) {
       markAttempted(step, ...blockers.map((issue) => issue.step));
@@ -242,6 +361,30 @@ export function GuestTravelAgencyCreateModal({
     }
     return true;
   }
+
+  const saveEditMutation = useMutation({
+    mutationFn: async () => {
+      if (!draft.name?.trim()) throw new Error("Travel agency name is required.");
+      if (!draft.agencyType) throw new Error("Agency type is required.");
+      const targetId = agencyId ?? currentAgency?.id ?? draft.accountId;
+      const payloadDraft = { ...draft, accountId: targetId };
+      const saved = await persist({ data: { restaurantId, draft: payloadDraft, mode: "complete" } });
+      if (saved.error) throw new Error(saved.error);
+      return saved;
+    },
+    onSuccess: (result) => {
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
+      void queryClient.invalidateQueries({ queryKey: ["travel-agent-accounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["travel-agent-workspace-summary"] });
+      const targetId = agencyId ?? currentAgency?.id ?? draft.accountId ?? result.id;
+      void queryClient.invalidateQueries({ queryKey: ["guest-account", restaurantId, targetId] });
+      void queryClient.invalidateQueries({ queryKey: ["travel-agent-detail", restaurantId, targetId] });
+      toast.success("Travel agency updated successfully.");
+      onOpenChange(false);
+      onSaved?.(targetId ?? "");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const draftMutation = useMutation({
     mutationFn: async () => {
@@ -294,7 +437,16 @@ export function GuestTravelAgencyCreateModal({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  function handleActualClose() {
+    onOpenChange(false);
+    onCancel?.();
+  }
+
   function handleCloseRequest() {
+    if (isEdit) {
+      handleActualClose();
+      return;
+    }
     if (guestTravelAgentCreateHasChanges(draft) && !created) {
       setDiscardConfirmOpen(true);
     } else {
@@ -307,15 +459,7 @@ export function GuestTravelAgencyCreateModal({
     if (!created && guestTravelAgentCreateHasChanges(draft)) {
       toast.success(GUEST_TRAVEL_AGENT_CREATE_PROGRESS_KEPT);
     }
-    onOpenChange(false);
-    if (onCancel) {
-      onCancel();
-    } else {
-      void navigate({
-        to: GUEST_PROFILE_DIRECTORY_PATH,
-        search: guestProfileSearch({ type: "travel-agent" }),
-      });
-    }
+    handleActualClose();
   }
 
   function resetForm() {
@@ -383,13 +527,15 @@ export function GuestTravelAgencyCreateModal({
               </div>
               <div>
                 <DialogTitle className="font-sans text-xl font-semibold tracking-tight text-[#251605]">
-                  {GUEST_TRAVEL_AGENT_CREATE_TITLE}
+                  {isEdit ? `Edit Travel Agency — ${draft.name || "Agency"}` : GUEST_TRAVEL_AGENT_CREATE_TITLE}
                 </DialogTitle>
                 <DialogDescription
                   id="travel-agency-create-dialog-description"
                   className="font-sans text-xs text-[#756A5B]"
                 >
-                  {GUEST_TRAVEL_AGENT_CREATE_COPY}
+                  {isEdit
+                    ? "Update travel agency profile and save changes directly."
+                    : GUEST_TRAVEL_AGENT_CREATE_COPY}
                 </DialogDescription>
               </div>
             </div>
@@ -626,82 +772,110 @@ export function GuestTravelAgencyCreateModal({
 
           {/* Sticky Footer */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#EDE6D8] bg-white px-7 py-3.5">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleCloseRequest}
-                className="text-xs text-[#756A5B] hover:text-[#251605]"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="travel-agency-create-start-over"
-                onClick={() => setStartOverOpen(true)}
-                disabled={!guestTravelAgentCreateHasChanges(draft)}
-                className="text-xs border-[#DDD4C5] text-[#756A5B] hover:bg-[#FAF8F5]"
-              >
-                {GUEST_TRAVEL_AGENT_CREATE_START_OVER}
-              </Button>
-              {holdState === "saving" ? (
-                <span className="text-xs text-[#8A641A] font-medium ml-2">Saving progress…</span>
-              ) : null}
-              {holdState === "saved" && guestTravelAgentCreateHasChanges(draft) ? (
-                <span className="text-xs text-[#756A5B] ml-2">Progress saved</span>
-              ) : null}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="travel-agency-create-save-draft"
-                onClick={() => draftMutation.mutate()}
-                disabled={draftMutation.isPending || completeMutation.isPending}
-                className="text-xs border-[#C89933]/50 text-[#8A641A] hover:bg-[#FAF8F5]"
-              >
-                Save as Draft
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={stepIndex === 0}
-                onClick={() => go(GUEST_TRAVEL_AGENT_CREATE_STEPS[stepIndex - 1].id)}
-                className="text-xs border-[#DDD4C5] text-[#251605] hover:bg-[#FAF8F5]"
-              >
-                ← Back
-              </Button>
-
-              {step === "review" ? (
+            {isEdit ? (
+              <>
                 <Button
                   type="button"
+                  variant="outline"
                   size="sm"
-                  data-testid="create-travel-agency-final"
-                  onClick={() => completeMutation.mutate()}
-                  disabled={completeMutation.isPending}
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
+                  onClick={handleActualClose}
+                  className="border-[#DDD4C5] text-xs text-[#251605]"
                 >
-                  {completeMutation.isPending ? "Creating Travel Agency…" : "Create Travel Agency"}
+                  Cancel
                 </Button>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    if (validateCurrent()) go(GUEST_TRAVEL_AGENT_CREATE_STEPS[stepIndex + 1].id);
-                  }}
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-medium text-xs shadow-sm"
-                >
-                  Next <ChevronRight className="ml-1 size-3.5" />
-                </Button>
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
+                    onClick={() => saveEditMutation.mutate()}
+                    disabled={saveEditMutation.isPending}
+                    data-testid="edit-travel-agency-save-btn"
+                  >
+                    {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCloseRequest}
+                    className="text-xs text-[#756A5B] hover:text-[#251605]"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    data-testid="travel-agency-create-start-over"
+                    onClick={() => setStartOverOpen(true)}
+                    disabled={!guestTravelAgentCreateHasChanges(draft)}
+                    className="text-xs border-[#DDD4C5] text-[#756A5B] hover:bg-[#FAF8F5]"
+                  >
+                    {GUEST_TRAVEL_AGENT_CREATE_START_OVER}
+                  </Button>
+                  {holdState === "saving" ? (
+                    <span className="text-xs text-[#8A641A] font-medium ml-2">Saving progress…</span>
+                  ) : null}
+                  {holdState === "saved" && guestTravelAgentCreateHasChanges(draft) ? (
+                    <span className="text-xs text-[#756A5B] ml-2">Progress saved</span>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    data-testid="travel-agency-create-save-draft"
+                    onClick={() => draftMutation.mutate()}
+                    disabled={draftMutation.isPending || completeMutation.isPending}
+                    className="text-xs border-[#C89933]/50 text-[#8A641A] hover:bg-[#FAF8F5]"
+                  >
+                    Save as Draft
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={stepIndex === 0}
+                    onClick={() => go(GUEST_TRAVEL_AGENT_CREATE_STEPS[stepIndex - 1].id)}
+                    className="text-xs border-[#DDD4C5] text-[#251605] hover:bg-[#FAF8F5]"
+                  >
+                    ← Back
+                  </Button>
+
+                  {step === "review" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      data-testid="create-travel-agency-final"
+                      onClick={() => completeMutation.mutate()}
+                      disabled={completeMutation.isPending}
+                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
+                    >
+                      {completeMutation.isPending ? "Creating Travel Agency…" : "Create Travel Agency"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        if (validateCurrent()) go(GUEST_TRAVEL_AGENT_CREATE_STEPS[stepIndex + 1].id);
+                      }}
+                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-medium text-xs shadow-sm"
+                    >
+                      Next <ChevronRight className="ml-1 size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

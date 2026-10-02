@@ -16,6 +16,7 @@ import { GuestCompanyCommercialBillingView, GuestCompanyBilling } from "@/packag
 import { GuestCompanyActivityView } from "@/packages/pms/components/guests/guest-company-activity-view";
 import { GuestCompanyAdministrationView } from "@/packages/pms/components/guests/guest-company-administration-view";
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
+import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   guestProfileSearch,
@@ -269,14 +270,17 @@ export function GuestCompanyDetailWorkspace({
         />
       )}
 
-      <GuestCompanyFormDialog
+      <GuestCompanyCreateModal
         restaurantId={restaurantId}
         open={editOpen}
+        mode="edit"
+        companyId={companyId}
+        company={accountQuery.data}
         onOpenChange={setEditOpen}
-        account={accountQuery.data}
-        accountId={companyId}
         onSaved={() => {
+          setEditOpen(false);
           void query.refetch();
+          void accountQuery.refetch();
         }}
       />
     </div>

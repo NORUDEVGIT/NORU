@@ -313,9 +313,24 @@ export const persistGroupCreate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
-    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
-    await assertListingCreateAllowed(data.restaurantId, "group");
     const draft = data.draft;
+    if (!draft.groupId) {
+      const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+      await assertListingCreateAllowed(data.restaurantId, "group");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let accountStatus = "pending";
+    if (draft.groupId) {
+      const existing = await admin(supabaseAdmin)
+        .from("guest_account_masters")
+        .select("account_status")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", draft.groupId)
+        .maybeSingle();
+      if (existing.data?.account_status) {
+        accountStatus = existing.data.account_status;
+      }
+    }
     const saved = await saveGroupMaster({
       data: {
         restaurantId: data.restaurantId,
@@ -327,7 +342,7 @@ export const persistGroupCreate = createServerFn({ method: "POST" })
           phone: draft.contactPhone || null,
           notes: draft.notes || null,
           specialRequests: draft.specialRequests || null,
-          accountStatus: "pending",
+          accountStatus: accountStatus as any,
           groupTypeId: draft.groupTypeId || null,
           marketSegmentId: draft.marketSegmentId || null,
           sourceCodeId: draft.sourceCodeId || null,

@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
+import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
 import { GuestCompanyQuickViewDrawer } from "@/packages/pms/components/guests/guest-company-quick-view-drawer";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
@@ -773,14 +774,29 @@ export function GuestCompanyDirectory({
         </div>
       </div>
 
-      <GuestCompanyFormDialog
+      <GuestCompanyCreateModal
         restaurantId={restaurantId}
         open={formOpen}
-        accountId={editId}
-        defaultBusinessTypeId={defaultType}
-        focusCredit={creditFocus}
-        onOpenChange={setFormOpen}
-        onSaved={(id) => openCompany(id)}
+        mode={editId ? "edit" : "create"}
+        companyId={editId}
+        onOpenChange={(next) => {
+          setFormOpen(next);
+          if (!next) {
+            setEditId(null);
+            setCreditFocus(false);
+          }
+        }}
+        onSaved={() => {
+          setFormOpen(false);
+          setEditId(null);
+          setCreditFocus(false);
+          invalidate();
+        }}
+        onCancel={() => {
+          setFormOpen(false);
+          setEditId(null);
+          setCreditFocus(false);
+        }}
       />
 
       <GuestCompanyQuickViewDrawer

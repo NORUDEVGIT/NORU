@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { GuestTravelAgentQuickViewDrawer } from "@/packages/pms/components/guests/guest-travel-agent-quick-view-drawer";
-import { GuestTravelAgentFormDialog } from "@/packages/pms/components/guests/guest-travel-agent-form-dialog";
+import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
@@ -573,10 +573,11 @@ export function GuestTravelAgentDirectory({
       />
 
       {/* Focused Edit Dialog */}
-      <GuestTravelAgentFormDialog
+      <GuestTravelAgencyCreateModal
         restaurantId={restaurantId}
-        agencyId={editAgencyId ?? undefined}
+        agencyId={editAgencyId}
         open={Boolean(editAgencyId)}
+        mode="edit"
         onOpenChange={(open) => {
           if (!open) setEditAgencyId(null);
         }}

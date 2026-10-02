@@ -100,6 +100,7 @@ import {
   saveCompanyCreateDraft,
   type CompanyCreateContext,
 } from "@/packages/pms/lib/guest-company-create.functions";
+import { getGuestAccount, type GuestAccountProfile } from "@/packages/pms/lib/guest-accounts.functions";
 
 const MODAL_CONTROL_CLASS =
   "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
@@ -120,31 +121,117 @@ function hasNestedModalLayer(): boolean {
   return [...nodes].some((node) => node.dataset["testid"] !== MODAL_TEST_ID);
 }
 
+function companyProfileToCreateDraft(account: GuestAccountProfile): GuestCompanyCreateDraft {
+  const base = emptyGuestCompanyCreateDraft();
+  let contacts: any[] = [];
+  if (Array.isArray((account as any).contacts)) {
+    contacts = (account as any).contacts.map((c: any) => ({
+      key: c?.id ?? Math.random().toString(),
+      id: c?.id ?? null,
+      name: c?.name ?? "",
+      position: c?.position ?? "",
+      email: c?.email ?? "",
+      phone: c?.phone ?? "",
+      whatsapp: c?.whatsapp ?? "",
+      roleIds: Array.isArray(c?.roleIds) ? c.roleIds : [],
+      isPrimary: Boolean(c?.isPrimary),
+      preferredMethod: c?.preferredMethod ?? "",
+      notes: c?.notes ?? "",
+    }));
+  }
+  return {
+    ...base,
+    accountId: account.id,
+    name: account.name ?? "",
+    tradeName: (account as any).tradeName ?? (account as any).trade_name ?? "",
+    code: account.code ?? "",
+    businessProfileTypeId: account.businessProfileTypeId ?? "",
+    companyType: (account as any).companyType ?? (account as any).company_type ?? "",
+    companyTypeOther: (account as any).companyTypeOther ?? "",
+    accountStatus: (account.accountStatus as any) ?? "active",
+    industry: (account as any).industry ?? "",
+    taxId: (account as any).taxId ?? "",
+    registrationNumber: (account as any).businessRegistrationNumber ?? (account as any).registrationNumber ?? "",
+    website: (account as any).website ?? "",
+    notes: account.notes ?? "",
+    acknowledgeNameDuplicate: false,
+    contacts,
+    addressLine1: account.addressLine1 ?? "",
+    addressLine2: account.addressLine2 ?? "",
+    city: account.city ?? "",
+    region: account.region ?? "",
+    postalCode: account.postalCode ?? "",
+    country: account.country ? countryCodeFromInput(account.country) : "",
+    marketSegmentId: (account as any).marketSegmentId ?? "",
+    sourceCodeId: (account as any).sourceCodeId ?? "",
+    sourceOfBusiness: (account as any).sourceOfBusiness ?? "",
+    accountManagerId: (account as any).accountManagerId ?? "",
+    contractReference: (account as any).corporateAccountReference ?? (account as any).contractReference ?? "",
+    contractStartDate: (account as any).contractStartDate ?? "",
+    contractEndDate: (account as any).contractEndDate ?? "",
+    ratePlanId: (account as any).ratePlanId ?? "",
+    packageId: (account as any).packageId ?? "",
+    mealPlanId: (account as any).mealPlanId ?? "",
+    billingArrangement: (account as any).billingArrangement ?? "",
+    billingContactName: (account as any).billingContactName ?? "",
+    billingEmail: (account as any).billingEmail ?? "",
+    paymentMethodId: (account as any).paymentMethodId ?? "",
+    currency: (account as any).currency ?? "",
+    paymentTerms: (account as any).paymentTerms ?? "",
+    billingInstruction: (account as any).billingInstruction ?? "",
+    creditAccountEnabled: Boolean(account.creditAccountEnabled),
+    creditLimitNote: (account as any).creditLimitNote ?? "",
+    taxExemptionNote: (account as any).taxExemptionNote ?? "",
+    taxNote: (account as any).taxNote ?? "",
+  };
+}
+
 export function GuestCompanyCreateModal({
   restaurantId,
   open,
   onOpenChange,
   onCreated,
   onCancel,
+  mode = "create",
+  companyId = null,
+  company = null,
+  onSaved,
 }: {
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (companyId: string) => void;
   onCancel?: () => void;
+  mode?: "create" | "edit";
+  companyId?: string | null;
+  company?: GuestAccountProfile | null;
+  onSaved?: (companyId: string) => void;
 }) {
+  const isEdit = mode === "edit" || Boolean(companyId) || Boolean(company);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const load = useServerFn(getCompanyCreateContext);
+  const fetchAccount = useServerFn(getGuestAccount);
   const saveDraftHold = useServerFn(saveCompanyCreateDraft);
   const clearDraft = useServerFn(deleteCompanyCreateDraft);
   const persist = useServerFn(persistCompanyCreate);
   const fetchDuplicates = useServerFn(findCompanyDuplicates);
 
-  const localHold = useMemo(() => readGuestCompanyCreateHold(restaurantId), [restaurantId]);
+  const accountQuery = useQuery({
+    queryKey: ["guest-account", restaurantId, companyId],
+    queryFn: () => fetchAccount({ data: { restaurantId, accountId: companyId! } }),
+    enabled: open && isEdit && Boolean(companyId) && !company,
+    retry: false,
+  });
+  const currentCompany = company ?? accountQuery.data ?? null;
+
+  const localHold = useMemo(() => (!isEdit && open ? readGuestCompanyCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
   const [step, setStep] = useState<GuestCompanyCreateStepId>(() => localHold?.step ?? "details");
-  const [draft, setDraft] = useState<GuestCompanyCreateDraft>(() => localHold?.draft ?? emptyGuestCompanyCreateDraft());
-  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
+  const [draft, setDraft] = useState<GuestCompanyCreateDraft>(() => {
+    if (isEdit && currentCompany) return companyProfileToCreateDraft(currentCompany);
+    return localHold?.draft ?? emptyGuestCompanyCreateDraft();
+  });
+  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold) || (isEdit && Boolean(currentCompany)));
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
@@ -157,6 +244,15 @@ export function GuestCompanyCreateModal({
   });
 
   useEffect(() => {
+    if (!open) return;
+    if (isEdit) {
+      if (currentCompany) {
+        setDraft(companyProfileToCreateDraft(currentCompany));
+        setStep("details");
+        setDefaultsApplied(true);
+      }
+      return;
+    }
     if (!context.data || defaultsApplied) return;
     const local = readGuestCompanyCreateHold(restaurantId);
     if (local) {
@@ -181,15 +277,15 @@ export function GuestCompanyCreateModal({
       });
     }
     setDefaultsApplied(true);
-  }, [context.data, defaultsApplied, restaurantId]);
+  }, [context.data, currentCompany, defaultsApplied, isEdit, open, restaurantId]);
 
   useEffect(() => {
-    if (!defaultsApplied || created) return;
+    if (!open || !defaultsApplied || created || isEdit) return;
     writeGuestCompanyCreateHold(restaurantId, { step, draft });
-  }, [created, defaultsApplied, restaurantId, step, draft]);
+  }, [created, defaultsApplied, draft, isEdit, open, restaurantId, step]);
 
   useEffect(() => {
-    if (!defaultsApplied || created) return;
+    if (!open || !defaultsApplied || created || isEdit) return;
     if (!guestCompanyCreateHasChanges(draft)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
@@ -198,7 +294,7 @@ export function GuestCompanyCreateModal({
         .catch(() => setHoldState("idle"));
     }, GUEST_COMPANY_CREATE_HOLD_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [created, defaultsApplied, draft, restaurantId, saveDraftHold, step]);
+  }, [created, defaultsApplied, draft, isEdit, open, restaurantId, saveDraftHold, step]);
 
   const catalogues = context.data?.catalogues;
   const selectedType = (catalogues?.businessTypes ?? []).find((row) => row.id === draft.businessProfileTypeId);
@@ -268,6 +364,10 @@ export function GuestCompanyCreateModal({
   }
 
   function go(next: GuestCompanyCreateStepId) {
+    if (isEdit) {
+      setStep(next);
+      return;
+    }
     const blockers = issuesBeforeStep(fieldIssues, GUEST_COMPANY_CREATE_STEPS, next);
     if (blockers.length) {
       markAttempted(step, ...blockers.map((issue) => issue.step));
@@ -289,17 +389,44 @@ export function GuestCompanyCreateModal({
     return true;
   }
 
+  const saveEditMutation = useMutation({
+    mutationFn: async () => {
+      if (!draft.name?.trim()) throw new Error("Company name is required.");
+      if (!draft.businessProfileTypeId) throw new Error("Company type is required.");
+      const targetId = companyId ?? currentCompany?.id ?? draft.accountId;
+      const payloadDraft = { ...draft, accountId: targetId };
+      const saved = await persist({ data: { restaurantId, draft: payloadDraft, mode: "complete" } });
+      if (saved.error) throw new Error(saved.error);
+      return saved;
+    },
+    onSuccess: (result) => {
+      invalidateGuestWorkspaceQueries(queryClient, restaurantId);
+      void queryClient.invalidateQueries({ queryKey: ["company-workspace"] });
+      const targetId = companyId ?? currentCompany?.id ?? draft.accountId ?? result.id;
+      void queryClient.invalidateQueries({ queryKey: ["guest-account", restaurantId, targetId] });
+      void queryClient.invalidateQueries({ queryKey: ["company-detail", restaurantId, targetId] });
+      toast.success("Company updated successfully.");
+      onOpenChange(false);
+      onSaved?.(targetId ?? "");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  function handleActualClose() {
+    onOpenChange(false);
+    onCancel?.();
+  }
+
   function handleAttemptClose() {
+    if (isEdit) {
+      handleActualClose();
+      return;
+    }
     if (guestCompanyCreateHasChanges(draft) && !created) {
       setDiscardConfirmOpen(true);
     } else {
       handleActualClose();
     }
-  }
-
-  function handleActualClose() {
-    onOpenChange(false);
-    onCancel?.();
   }
 
   function resetForm() {
@@ -422,10 +549,12 @@ export function GuestCompanyCreateModal({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <DialogTitle className="font-display text-xl font-bold text-[#251605]">
-                  Create Company
+                  {isEdit ? `Edit Company — ${draft.name || "Company"}` : "Create Company"}
                 </DialogTitle>
                 <DialogDescription className="mt-0.5 text-xs text-[#756A5B]">
-                  Create a new company profile and commercial account.
+                  {isEdit
+                    ? "Update company profile and save changes directly."
+                    : "Create a new company profile and commercial account."}
                 </DialogDescription>
               </div>
 
@@ -683,71 +812,92 @@ export function GuestCompanyCreateModal({
 
           {/* Sticky Footer */}
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-white px-6 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-[#DDD4C5]"
-                data-testid="company-create-start-over"
-                onClick={() => setStartOverOpen(true)}
-                disabled={!guestCompanyCreateHasChanges(draft)}
-              >
-                {GUEST_COMPANY_CREATE_START_OVER}
-              </Button>
-              {holdState === "saving" ? (
-                <span className="text-xs text-muted-foreground">Saving progress…</span>
-              ) : null}
-              {holdState === "saved" && guestCompanyCreateHasChanges(draft) ? (
-                <span className="text-xs text-muted-foreground">Progress saved</span>
-              ) : null}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-[#DDD4C5]"
-                data-testid="company-create-save-draft"
-                onClick={() => draftMutation.mutate()}
-                disabled={draftMutation.isPending || completeMutation.isPending}
-              >
-                Save as Draft
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-[#DDD4C5]"
-                disabled={stepIndex === 0}
-                onClick={() => go(GUEST_COMPANY_CREATE_STEPS[stepIndex - 1].id)}
-              >
-                ← Back
-              </Button>
-
-              {step === "review" ? (
-                <Button
-                  type="button"
-                  className="bg-[#C89933] font-semibold text-[#251605] shadow-sm hover:bg-[#B98B2D]"
-                  onClick={() => completeMutation.mutate()}
-                  disabled={completeMutation.isPending}
-                  data-testid="create-company-final"
-                >
-                  {completeMutation.isPending ? "Creating Company…" : "Create Company"}
+            {isEdit ? (
+              <>
+                <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
+                  Cancel
                 </Button>
-              ) : (
-                <Button
-                  type="button"
-                  className="bg-[#C89933] font-medium text-[#251605] shadow-sm hover:bg-[#B98B2D]"
-                  onClick={() => {
-                    if (validateCurrent()) go(GUEST_COMPANY_CREATE_STEPS[stepIndex + 1].id);
-                  }}
-                >
-                  Next <ChevronRight className="ml-1 size-4" />
-                </Button>
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    className="bg-[#C89933] text-[#251605] hover:bg-[#B3882E] font-semibold shadow-sm"
+                    onClick={() => saveEditMutation.mutate()}
+                    disabled={saveEditMutation.isPending}
+                    data-testid="edit-company-save-btn"
+                  >
+                    {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#DDD4C5]"
+                    data-testid="company-create-start-over"
+                    onClick={() => setStartOverOpen(true)}
+                    disabled={!guestCompanyCreateHasChanges(draft)}
+                  >
+                    {GUEST_COMPANY_CREATE_START_OVER}
+                  </Button>
+                  {holdState === "saving" ? (
+                    <span className="text-xs text-muted-foreground">Saving progress…</span>
+                  ) : null}
+                  {holdState === "saved" && guestCompanyCreateHasChanges(draft) ? (
+                    <span className="text-xs text-muted-foreground">Progress saved</span>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#DDD4C5]"
+                    data-testid="company-create-save-draft"
+                    onClick={() => draftMutation.mutate()}
+                    disabled={draftMutation.isPending || completeMutation.isPending}
+                  >
+                    Save as Draft
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#DDD4C5]"
+                    disabled={stepIndex === 0}
+                    onClick={() => go(GUEST_COMPANY_CREATE_STEPS[stepIndex - 1].id)}
+                  >
+                    ← Back
+                  </Button>
+
+                  {step === "review" ? (
+                    <Button
+                      type="button"
+                      className="bg-[#C89933] font-semibold text-[#251605] shadow-sm hover:bg-[#B98B2D]"
+                      onClick={() => completeMutation.mutate()}
+                      disabled={completeMutation.isPending}
+                      data-testid="create-company-final"
+                    >
+                      {completeMutation.isPending ? "Creating Company…" : "Create Company"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="bg-[#C89933] font-medium text-[#251605] shadow-sm hover:bg-[#B98B2D]"
+                      onClick={() => {
+                        if (validateCurrent()) go(GUEST_COMPANY_CREATE_STEPS[stepIndex + 1].id);
+                      }}
+                    >
+                      Next <ChevronRight className="ml-1 size-4" />
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

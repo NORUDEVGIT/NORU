@@ -508,7 +508,7 @@ export async function loadGuestWorkspaceConfig(
     ...groupTypes.map((g) => g.updatedAt),
   ].filter(Boolean) as string[];
 
-  const lastUpdatedAt = timestamps.length > 0 ? timestamps.sort().reverse()[0] : null;
+  const lastUpdatedAt = timestamps.length > 0 ? (timestamps.sort().reverse()[0] ?? null) : null;
 
   // Derive global identity-document active flag from the IDENTITY_DOCUMENT required-field row
   const identityDocField = requiredFields.find((f) => f.code === "IDENTITY_DOCUMENT");

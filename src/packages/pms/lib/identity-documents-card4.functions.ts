@@ -203,7 +203,19 @@ async function loadSnapshot(
   if (result.error) unavailable(result.error);
 
   if ((result.data ?? []).length === 0) {
-    if (!seedMissing) return { documentTypes: [], profileTypes, lastUpdatedAt: null };
+    if (!seedMissing) {
+      return {
+        documentTypes: [],
+        profileTypes,
+        identityGlobalSettings: {
+          active: true,
+          checkIn: true,
+          reservation: false,
+        },
+        identityDocumentRequired: false,
+        lastUpdatedAt: null,
+      };
+    }
     if (seeded) throw new Error("Could not seed default identity document types.");
     await seedDefaults(db, restaurantId, userId, profileTypes);
     return loadSnapshot(db, restaurantId, userId, true, seedMissing);

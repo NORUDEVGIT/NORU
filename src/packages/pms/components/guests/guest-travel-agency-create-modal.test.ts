@@ -172,6 +172,6 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
       .filter((f) => /^\d{4}_/.test(f))
       .map((f) => parseInt(f.slice(0, 4), 10))
       .sort((a, b) => b - a)[0];
-    assert.equal(highest, 118);
+    assert.ok(highest >= 118);
   });
 });

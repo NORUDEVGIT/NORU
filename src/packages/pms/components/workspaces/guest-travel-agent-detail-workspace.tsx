@@ -15,7 +15,7 @@ import { GuestTravelAgentDocumentsView } from "@/packages/pms/components/guests/
 import { GuestTravelAgentCommunicationNotesView } from "@/packages/pms/components/guests/guest-travel-agent-communication-notes-view";
 import { GuestTravelAgentActivityView } from "@/packages/pms/components/guests/guest-travel-agent-activity-view";
 import { GuestTravelAgentSettingsView } from "@/packages/pms/components/guests/guest-travel-agent-settings-view";
-import { GuestTravelAgentFormDialog } from "@/packages/pms/components/guests/guest-travel-agent-form-dialog";
+import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
 
 // Canonical views preserve and map:
 // GuestTravelAgentOverview
@@ -282,14 +282,16 @@ export function GuestTravelAgentDetailWorkspace({
       )}
 
       {/* Canonical Edit Flow: Single canonical modal dialog */}
-      <GuestTravelAgentFormDialog
+      <GuestTravelAgencyCreateModal
         restaurantId={restaurantId}
         open={editOpen}
         onOpenChange={setEditOpen}
-        account={accountQuery.data}
-        accountId={agencyId}
+        mode="edit"
+        agencyId={agencyId}
+        agency={accountQuery.data}
         onSaved={() => {
           void query.refetch();
+          void accountQuery.refetch();
         }}
       />
     </div>

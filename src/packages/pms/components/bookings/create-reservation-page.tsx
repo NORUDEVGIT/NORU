@@ -149,6 +149,7 @@ export function CreateReservationPage({
   initialGroupMasterId = null,
   pmsGroupId = null,
   pmsGroupBlockId = null,
+  returnToLabel,
   onCancel,
   onCreated,
   onOpenCreatedReservation,
@@ -162,6 +163,7 @@ export function CreateReservationPage({
   initialGroupMasterId?: string | null;
   pmsGroupId?: string | null;
   pmsGroupBlockId?: string | null;
+  returnToLabel?: string | undefined;
   onCancel?: () => void;
   onCreated?: (reservationId: string) => void;
   onOpenCreatedReservation?: (reservationId: string) => void;
@@ -624,6 +626,7 @@ export function CreateReservationPage({
         view={createdView}
         onOpenReservation={onOpenCreatedReservation}
         onReturnToDesk={onReturnToDesk}
+        returnToLabel={returnToLabel}
         onCreateAnother={embedded ? () => setCreatedView(null) : undefined}
       />
     );
