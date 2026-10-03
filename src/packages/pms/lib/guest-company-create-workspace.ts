@@ -170,7 +170,7 @@ export function inferGuestCompanyCreateStep(draft: GuestCompanyCreateDraft): Gue
   if (filled(draft.billingArrangement) || draft.creditAccountEnabled || filled(draft.paymentMethodId)) {
     return "billing";
   }
-  if (filled(draft.addressLine1) || filled(draft.marketSegmentId) || filled(draft.contractReference)) {
+  if (filled(draft.marketSegmentId) || filled(draft.contractReference)) {
     return "business";
   }
   return "basic";

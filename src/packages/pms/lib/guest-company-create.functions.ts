@@ -98,6 +98,7 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       restaurant,
       draft,
       businessSettingsRes,
+      existingCodesRes,
     ] = await Promise.all([
       loadOptionalOptions(
         db,

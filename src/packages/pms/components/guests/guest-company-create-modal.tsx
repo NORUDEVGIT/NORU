@@ -1041,6 +1041,18 @@ function BasicStep({
   );
   const contactsError = fieldError("contacts", "basic");
 
+  const countryOptions = useMemo(
+    () => ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name })),
+    [],
+  );
+  const countryCode = countryCodeFromInput(draft.country) || (draft.country ? draft.country : "");
+  const availableRegions = regionsForCountry(draft.country);
+  const regionOptions = useMemo(
+    () => availableRegions.map((region) => ({ value: region, label: region })),
+    [availableRegions],
+  );
+  const layout = addressLayoutForCountry(draft.country);
+
   return (
     <div className="space-y-4">
       {/* Company Details Card */}
@@ -1161,6 +1173,86 @@ function BasicStep({
             placeholder="General internal notes for this company account"
           />
         </Field>
+      </section>
+
+      {/* Company Address */}
+      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+        <div className="border-b border-[#E8E4DC] pb-3">
+          <h2 className="font-display text-base font-semibold text-[#251605]">Company Address</h2>
+          <p className="text-xs text-muted-foreground">Registered address and regional location details.</p>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Country" error={fieldError("country", "basic")}>
+            <SearchableSelect
+              id="company-create-country"
+              value={countryCode}
+              options={countryOptions}
+              placeholder="Select country"
+              searchPlaceholder="Search countries..."
+              className={MODAL_SELECT_TRIGGER_CLASS}
+              onChange={(code) => {
+                const name = countryNameFromInput(code);
+                set("country", name);
+                if (!isRegionValidForCountry(name, draft.region)) {
+                  set("region", "");
+                }
+              }}
+            />
+          </Field>
+          <Field label={layout.regionLabel || "Region / State"} error={fieldError("region", "basic")}>
+            {availableRegions.length > 0 ? (
+              <SearchableSelect
+                id="company-create-region"
+                value={draft.region}
+                options={regionOptions}
+                placeholder={`Select ${(layout.regionLabel || "region").toLowerCase()}`}
+                searchPlaceholder={`Search ${(layout.regionLabel || "regions").toLowerCase()}...`}
+                className={MODAL_SELECT_TRIGGER_CLASS}
+                onChange={(val) => set("region", val)}
+              />
+            ) : (
+              <Input
+                id="company-create-region"
+                value={draft.region}
+                placeholder={layout.regionLabel || "Region / State / Province"}
+                onChange={(event) => set("region", event.target.value)}
+                className={MODAL_CONTROL_CLASS}
+              />
+            )}
+          </Field>
+          <Field label="City" error={fieldError("city", "basic")}>
+            <Input
+              value={draft.city}
+              onChange={(event) => set("city", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="City or locality"
+            />
+          </Field>
+          <Field label="Address Line 1" error={fieldError("addressLine1", "basic")}>
+            <Input
+              value={draft.addressLine1}
+              onChange={(event) => set("addressLine1", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="Street and building number"
+            />
+          </Field>
+          <Field label="Address Line 2" error={fieldError("addressLine2", "basic")}>
+            <Input
+              value={draft.addressLine2}
+              onChange={(event) => set("addressLine2", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="Suite, floor, unit"
+            />
+          </Field>
+          <Field label="Postal Code" error={fieldError("postalCode", "basic")}>
+            <Input
+              value={draft.postalCode}
+              onChange={(event) => set("postalCode", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="ZIP or postal code"
+            />
+          </Field>
+        </div>
       </section>
 
       {/* Contact Information Card */}
@@ -1341,100 +1433,8 @@ function BusinessStep({
   catalogues?: CompanyCreateContext["catalogues"];
   fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
 }) {
-  const countryOptions = useMemo(
-    () => ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name })),
-    [],
-  );
-  const countryCode = countryCodeFromInput(draft.country) || (draft.country ? draft.country : "");
-  const availableRegions = regionsForCountry(draft.country);
-  const regionOptions = useMemo(
-    () => availableRegions.map((region) => ({ value: region, label: region })),
-    [availableRegions],
-  );
-  const layout = addressLayoutForCountry(draft.country);
-
   return (
     <div className="space-y-4">
-      {/* Address */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-        <div className="border-b border-[#E8E4DC] pb-3">
-          <h2 className="font-display text-base font-semibold text-[#251605]">Company Address</h2>
-          <p className="text-xs text-muted-foreground">Registered address and regional location details.</p>
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Country" error={fieldError("country", "business")}>
-            <SearchableSelect
-              id="company-create-country"
-              value={countryCode}
-              options={countryOptions}
-              placeholder="Select country"
-              searchPlaceholder="Search countries..."
-              className={MODAL_SELECT_TRIGGER_CLASS}
-              onChange={(code) => {
-                const name = countryNameFromInput(code);
-                set("country", name);
-                if (!isRegionValidForCountry(name, draft.region)) {
-                  set("region", "");
-                }
-              }}
-            />
-          </Field>
-          <Field label={layout.regionLabel || "Region / State"} error={fieldError("region", "business")}>
-            {availableRegions.length > 0 ? (
-              <SearchableSelect
-                id="company-create-region"
-                value={draft.region}
-                options={regionOptions}
-                placeholder={`Select ${(layout.regionLabel || "region").toLowerCase()}`}
-                searchPlaceholder={`Search ${(layout.regionLabel || "regions").toLowerCase()}...`}
-                className={MODAL_SELECT_TRIGGER_CLASS}
-                onChange={(val) => set("region", val)}
-              />
-            ) : (
-              <Input
-                id="company-create-region"
-                value={draft.region}
-                placeholder={layout.regionLabel || "Region / State / Province"}
-                onChange={(event) => set("region", event.target.value)}
-                className={MODAL_CONTROL_CLASS}
-              />
-            )}
-          </Field>
-          <Field label="City" error={fieldError("city", "business")}>
-            <Input
-              value={draft.city}
-              onChange={(event) => set("city", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="City or locality"
-            />
-          </Field>
-          <Field label="Address Line 1" error={fieldError("addressLine1", "business")}>
-            <Input
-              value={draft.addressLine1}
-              onChange={(event) => set("addressLine1", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Street and building number"
-            />
-          </Field>
-          <Field label="Address Line 2" error={fieldError("addressLine2", "business")}>
-            <Input
-              value={draft.addressLine2}
-              onChange={(event) => set("addressLine2", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Suite, floor, unit"
-            />
-          </Field>
-          <Field label="Postal Code" error={fieldError("postalCode", "business")}>
-            <Input
-              value={draft.postalCode}
-              onChange={(event) => set("postalCode", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="ZIP or postal code"
-            />
-          </Field>
-        </div>
-      </section>
-
       {/* Commercial Defaults */}
       <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
         <div className="border-b border-[#E8E4DC] pb-3">
@@ -1714,6 +1714,10 @@ function ReviewStep({
           <p><span className="text-muted-foreground">Industry:</span> {draft.industry || "—"}</p>
           <p><span className="text-muted-foreground">Website:</span> {draft.website || "—"}</p>
           <p className="sm:col-span-2">
+            <span className="text-muted-foreground">Address:</span>{" "}
+            {[draft.addressLine1, draft.city, draft.region, draft.country].filter(Boolean).join(", ") || "—"}
+          </p>
+          <p className="sm:col-span-2">
             <span className="text-muted-foreground">Primary Contact:</span>{" "}
             {primary?.name ? `${primary.name} · ${primary.email || "No email"} · ${primary.phone || "No phone"}` : "None"}
           </p>
@@ -1726,7 +1730,6 @@ function ReviewStep({
 
       <ReviewCard title="Business & Commercial" onEdit={() => onEdit("business")}>
         <div className="grid gap-2 text-xs sm:grid-cols-2">
-          <p><span className="text-muted-foreground">Address:</span> {[draft.addressLine1, draft.city, draft.region, draft.country].filter(Boolean).join(", ") || "—"}</p>
           <p><span className="text-muted-foreground">Market Segment:</span> {optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</p>
           <p><span className="text-muted-foreground">Source Code:</span> {optionLabel(catalogues?.sourceCodes ?? [], draft.sourceCodeId) || draft.sourceOfBusiness || "—"}</p>
           <p><span className="text-muted-foreground">Account Manager:</span> {optionLabel(catalogues?.staff ?? [], draft.accountManagerId) || "—"}</p>

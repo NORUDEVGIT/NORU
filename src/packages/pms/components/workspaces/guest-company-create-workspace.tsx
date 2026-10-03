@@ -107,6 +107,12 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
       if (context.data.defaultCurrency) {
         setDraft((current) => (current.currency ? current : { ...current, currency: context.data.defaultCurrency }));
       }
+      if (context.data.defaultBusinessTypeId) {
+        setDraft((current) => (current.businessProfileTypeId ? current : { ...current, businessProfileTypeId: context.data.defaultBusinessTypeId }));
+      }
+      if (context.data.autoApproval === false) {
+        setDraft((current) => (current.accountStatus === "active" ? { ...current, accountStatus: "pending" } : current));
+      }
       if (context.data.nextCompanyCode) {
         setDraft((current) => (current.code && current.code !== "COM-0001" ? current : { ...current, code: context.data.nextCompanyCode }));
       }
@@ -635,6 +641,35 @@ function BasicStep({
         ) : null}
       </section>
 
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
+        <h2 className="font-display text-lg">Company Address</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Country">
+            <NoneSelect
+              value={draft.country}
+              onChange={(value) => set("country", value)}
+              options={ISO_COUNTRIES.map((row) => ({ id: row.code, name: row.name }))}
+              placeholder="Select country"
+            />
+          </Field>
+          <Field label="Region">
+            <Input value={draft.region} onChange={(event) => set("region", event.target.value)} />
+          </Field>
+          <Field label="City">
+            <Input value={draft.city} onChange={(event) => set("city", event.target.value)} />
+          </Field>
+          <Field label="Address line 1">
+            <Input value={draft.addressLine1} onChange={(event) => set("addressLine1", event.target.value)} />
+          </Field>
+          <Field label="Address line 2">
+            <Input value={draft.addressLine2} onChange={(event) => set("addressLine2", event.target.value)} />
+          </Field>
+          <Field label="Postal code">
+            <Input value={draft.postalCode} onChange={(event) => set("postalCode", event.target.value)} />
+          </Field>
+        </div>
+      </section>
+
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className={contactsError ? "font-display text-lg text-destructive" : "font-display text-lg"}>Contacts</h2>
@@ -779,29 +814,6 @@ function BusinessStep({
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <h2 className="font-display text-lg">Business & Commercial</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Address line 1">
-          <Input value={draft.addressLine1} onChange={(event) => set("addressLine1", event.target.value)} />
-        </Field>
-        <Field label="Address line 2">
-          <Input value={draft.addressLine2} onChange={(event) => set("addressLine2", event.target.value)} />
-        </Field>
-        <Field label="City">
-          <Input value={draft.city} onChange={(event) => set("city", event.target.value)} />
-        </Field>
-        <Field label="Region">
-          <Input value={draft.region} onChange={(event) => set("region", event.target.value)} />
-        </Field>
-        <Field label="Postal code">
-          <Input value={draft.postalCode} onChange={(event) => set("postalCode", event.target.value)} />
-        </Field>
-        <Field label="Country">
-          <NoneSelect
-            value={draft.country}
-            onChange={(value) => set("country", value)}
-            options={ISO_COUNTRIES.map((row) => ({ id: row.code, name: row.name }))}
-            placeholder="Select country"
-          />
-        </Field>
         <Field label="Market segment">
           <NoneSelect value={draft.marketSegmentId} onChange={(value) => set("marketSegmentId", value)} options={catalogues?.marketSegments ?? []} placeholder="Select segment" />
         </Field>
@@ -965,11 +977,11 @@ function ReviewStep({
         <p>Status: {ACCOUNT_CREATE_STATUS_LABELS[draft.accountStatus]}</p>
         <p>TIN Number: {draft.taxId || "—"}</p>
         <p>Registration: {draft.registrationNumber || "—"}</p>
+        <p>Address: {[draft.addressLine1, draft.city, draft.country].filter(Boolean).join(", ") || "—"}</p>
         <p>Primary: {primary?.name || "—"} · {primary?.email || "—"} · {primary?.phone || "—"}</p>
         <p>Total contacts: {draft.contacts.filter((row) => filled(row.name)).length}</p>
       </ReviewCard>
       <ReviewCard title="Business & Commercial" onEdit={() => onEdit("business")}>
-        <p>Address: {[draft.addressLine1, draft.city, draft.country].filter(Boolean).join(", ") || "—"}</p>
         <p>Market segment: {optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</p>
         <p>Contract: {draft.contractReference || "—"} {draft.contractStartDate} {draft.contractEndDate}</p>
         <p className="text-muted-foreground">{COMPANY_CREATE_CONTRACT_COPY}</p>
