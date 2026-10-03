@@ -48,6 +48,9 @@ const RATE_ERRORS: Record<string, string> = {
   CLOSED_TO_DEPARTURE: "Departures are closed on that date for this rate plan.",
   STOP_SELL: "One or more nights of this stay are on stop sell for this rate plan.",
   INVALID_DATES: "Departure must be after arrival.",
+  FX_RATE_NOT_FOUND: "No exchange rate is saved for that currency on or before today.",
+  ROOMS_INVALID: "At least one room is required to quote this stay.",
+  OCCUPANCY_INVALID: "Occupancy must be a valid adult, child, and infant count.",
   RESERVATION_NOT_FOUND: "Reservation not found for this property.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",
   ROOM_NOT_ASSIGNABLE:
@@ -161,6 +164,10 @@ export function rateError(message: string): Error {
   if (min) return new Error(`This rate plan needs a minimum stay of ${min[1]} night(s).`);
   const max = /MAX_STAY_(\d+)/.exec(message);
   if (max) return new Error(`This rate plan allows a maximum stay of ${max[1]} night(s).`);
+  const advMin = /ADVANCE_BOOKING_MIN_(\d+)/.exec(message);
+  if (advMin) return new Error(`This rate plan requires booking at least ${advMin[1]} day(s) in advance.`);
+  const advMax = /ADVANCE_BOOKING_MAX_(\d+)/.exec(message);
+  if (advMax) return new Error(`This rate plan must be booked no more than ${advMax[1]} day(s) in advance.`);
   for (const [code, text] of Object.entries(RATE_ERRORS)) {
     if (message.includes(code)) return new Error(text);
   }
@@ -178,6 +185,7 @@ export interface StayQuote {
   ratePlanName: string;
   currency: string;
   nights: number;
+  rooms: number;
   subtotal: number;
   nightly: NightlyRate[];
 }
@@ -188,6 +196,7 @@ type PricingJson = {
   rate_plan_name: string;
   currency: string;
   nights: number;
+  rooms?: number | string;
   subtotal: number | string;
   nightly: { date: string; rate: number | string }[];
 };
@@ -200,6 +209,7 @@ export function toQuote(raw: unknown): StayQuote {
     ratePlanName: p.rate_plan_name,
     currency: p.currency,
     nights: Number(p.nights),
+    rooms: Number(p.rooms ?? 1),
     subtotal: Number(p.subtotal),
     nightly: (p.nightly ?? []).map((n) => ({ date: n.date, rate: Number(n.rate) })),
   };

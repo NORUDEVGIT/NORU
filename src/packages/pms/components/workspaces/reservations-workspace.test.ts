@@ -25,7 +25,6 @@ describe("UI-01 Reservation Desk workspace", () => {
     );
     for (const section of [
       "Booking Calendar",
-      "Reservation List",
       "Arrivals & Departures",
       "Exceptions",
       "Groups & Blocks",
@@ -33,6 +32,7 @@ describe("UI-01 Reservation Desk workspace", () => {
     ]) {
       expect(workspace).toContain(`"${section}"`);
     }
+    expect(workspace).not.toContain('"Reservation List"');
   });
 
   it("loads the workspace exclusively through getReservationDesk", () => {
@@ -157,7 +157,12 @@ describe("UI-01 Reservation Desk workspace", () => {
     expect(workspace).toContain("countActiveAdvancedFilters");
     expect(workspace).not.toContain("Reservation Type");
     expect(workspace).toContain("<Sheet");
-    expect(workspace).toContain("xl:grid-cols-[190px_minmax(0,1fr)_300px]");
-    expect(workspace).toContain("overflow-x-auto");
+    expect(workspace).toContain("xl:grid-cols-[180px_minmax(0,1fr)_300px]");
+    expect(workspace).toContain("xl:grid-cols-[56px_minmax(0,1fr)_56px]");
+    expect(workspace).toContain("max-lg:overflow-x-auto");
+    expect(workspace).toContain("lg:overflow-x-hidden");
+    expect(workspace).not.toContain("min-w-[1120px]");
+    expect(workspace).toContain("2xl:table-cell");
+    expect(workspace).toContain("xl:hidden min-[1760px]:table-cell");
   });
 });

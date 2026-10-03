@@ -105,7 +105,8 @@ describe("Guest preference workspace lock", () => {
   it("saves catalogue values and profile contact defaults separately", () => {
     const functions = readRel("./guests.functions.ts");
     const card = readRel("../components/guests/guest-preferences-card.tsx");
-    const booking = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const booking = readRel("../components/bookings/create-reservation-booking-details.tsx");
+    const helpers = readRel("./guest-preferences-workspace.ts");
     assert.match(functions, /export const listGuestPreferenceWorkspace/);
     assert.match(functions, /export const saveGuestPreferenceWorkspace/);
     assert.match(functions, /from\("guest_preference_values"\)/);
@@ -117,6 +118,7 @@ describe("Guest preference workspace lock", () => {
     assert.match(card, /Apply to Future Reservations/);
     assert.doesNotMatch(card, /Recent Activity/);
     assert.doesNotMatch(card, /CATALOGUE_FIELDS/);
+    assert.match(helpers, /applyPreferenceDefaults/);
     assert.match(booking, /applyPreferenceDefaults/);
     assert.match(booking, /getGuestReservationPreferenceDefaults/);
   });

@@ -18,6 +18,7 @@ import { accountListItems } from "@/packages/pms/lib/guest-profile-wave4";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { cn } from "@/shared/lib/utils";
 
 const KIND_COPY: Record<
   CreateReservationMasterKind,
@@ -72,14 +73,22 @@ export function CreateReservationMasterPicker({
   canCreate,
   master,
   onMasterChange,
+  hideCreate = false,
+  compact = false,
+  disabled = false,
 }: {
   restaurantId: string;
   kind: CreateReservationMasterKind;
   canCreate: boolean;
   master: PickedReservationMaster | null;
   onMasterChange: (master: PickedReservationMaster | null) => void;
+  /** Step 3 Booking Details hides master-data create; companies/agencies are created elsewhere. */
+  hideCreate?: boolean;
+  compact?: boolean;
+  disabled?: boolean;
 }) {
   const copy = KIND_COPY[kind];
+  const showCreate = canCreate && !hideCreate;
   const fetchAccounts = useServerFn(listGuestAccounts);
   const fetchAccount = useServerFn(getGuestAccount);
   const [search, setSearch] = useState("");
@@ -114,27 +123,37 @@ export function CreateReservationMasterPicker({
       const profile = await fetchAccount({ data: { restaurantId, accountId } });
       onMasterChange(toPickedReservationMaster(profile));
     } catch {
-      const match = accountListItems(accountsQuery.data).find((row) => row.id === accountId) ?? null;
+      const match =
+        accountListItems(accountsQuery.data).find((row) => row.id === accountId) ?? null;
       onMasterChange(match ? toPickedReservationMaster(match) : null);
     }
   }
 
   return (
-    <div className="mt-3 space-y-2" data-testid={copy.testId}>
+    <div
+      className={cn(
+        compact ? "space-y-1" : "mt-3 space-y-2",
+        disabled && "pointer-events-none opacity-60",
+      )}
+      data-testid={copy.testId}
+    >
       <Label>{copy.label}</Label>
       {master ? (
         <div
-          className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"
+          className={cn(
+            "flex flex-wrap items-center gap-2 rounded-xl border border-border",
+            compact ? "p-2" : "gap-3 p-3",
+          )}
           data-testid={copy.selectedTestId}
         >
           <div className="min-w-0">
-            <p className="font-medium">
+            <p className={cn("font-medium", compact && "text-sm")}>
               {master.name}
               {master.code ? (
                 <span className="ml-2 text-xs text-muted-foreground">{master.code}</span>
               ) : null}
             </p>
-            {canCreate ? (
+            {showCreate && !compact ? (
               <>
                 {master.paymentTerms ? (
                   <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
@@ -154,8 +173,9 @@ export function CreateReservationMasterPicker({
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto"
+            className="ml-auto h-7"
             data-testid={copy.changeTestId}
+            disabled={disabled}
             onClick={() => {
               onMasterChange(null);
               setSearch("");
@@ -165,19 +185,20 @@ export function CreateReservationMasterPicker({
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative min-w-56 flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className={cn(compact ? "space-y-2" : "space-y-3")}>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="pl-9"
+                className={cn("pl-9", compact && "h-8")}
                 data-testid={copy.searchTestId}
                 placeholder={copy.searchPlaceholder}
                 value={search}
+                disabled={disabled}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {canCreate ? (
+            {showCreate ? (
               <Button
                 type="button"
                 variant="outline"
@@ -206,7 +227,7 @@ export function CreateReservationMasterPicker({
             ))}
             {accountsQuery.data?.length === 0 ? (
               <li className="text-sm text-muted-foreground">
-                {canCreate
+                {showCreate
                   ? copy.empty
                   : kind === "company"
                     ? "No matching companies."
@@ -214,7 +235,7 @@ export function CreateReservationMasterPicker({
               </li>
             ) : null}
           </ul>
-          {canCreate ? (
+          {showCreate ? (
             <p className="text-xs text-muted-foreground">
               {CREATE_RESERVATION_MASTER_CONFIRM_COPY}
             </p>
@@ -222,21 +243,22 @@ export function CreateReservationMasterPicker({
         </div>
       )}
 
-      {kind === "company" ? (
+      {showCreate && kind === "company" ? (
         <GuestCompanyFormDialog
           restaurantId={restaurantId}
           open={formOpen}
           onOpenChange={setFormOpen}
           onSaved={(accountId) => void selectById(accountId)}
         />
-      ) : (
+      ) : null}
+      {showCreate && kind === "travel_agent" ? (
         <GuestTravelAgentFormDialog
           restaurantId={restaurantId}
           open={formOpen}
           onOpenChange={setFormOpen}
           onSaved={(accountId) => void selectById(accountId)}
         />
-      )}
+      ) : null}
     </div>
   );
 }

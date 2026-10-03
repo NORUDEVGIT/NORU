@@ -15,10 +15,12 @@ import {
   List,
   LogIn,
   LogOut,
+  PanelRight,
   RefreshCw,
   Search,
   SlidersHorizontal,
   TriangleAlert,
+  Users,
   X,
 } from "lucide-react";
 
@@ -93,6 +95,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
@@ -112,7 +115,6 @@ const RESERVATION_SECTIONS = [
   "Booking Calendar",
   "Groups & Blocks",
   "Waitlist",
-  "Reservation List",
   "Arrivals & Departures",
   "Exceptions",
 ] as const;
@@ -121,14 +123,15 @@ const VIEWS: Array<{
   id: OperationalReservationView;
   label: string;
   note?: string;
+  icon: typeof ClipboardList;
 }> = [
-  { id: "all", label: "All Reservations" },
-  { id: "arrivals", label: "Arrivals" },
-  { id: "departures", label: "Departures" },
-  { id: "in_house", label: "In-House" },
-  { id: "unassigned", label: "Unassigned" },
-  { id: "pending", label: "Pending" },
-  { id: "groups", label: "Groups", note: "Linked masters" },
+  { id: "all", label: "All Reservations", icon: ClipboardList },
+  { id: "arrivals", label: "Arrivals", icon: LogIn },
+  { id: "departures", label: "Departures", icon: LogOut },
+  { id: "in_house", label: "In-House", icon: House },
+  { id: "unassigned", label: "Unassigned", icon: DoorOpen },
+  { id: "pending", label: "Pending", icon: TriangleAlert },
+  { id: "groups", label: "Groups", note: "Linked masters", icon: Users },
 ];
 
 function formatDate(value: string): string {
@@ -136,6 +139,14 @@ function formatDate(value: string): string {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatDeskDate(value: string): string {
+  return new Date(`${value}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
     timeZone: "UTC",
   });
 }
@@ -282,6 +293,9 @@ export function ReservationsWorkspace({
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [viewsCollapsed, setViewsCollapsed] = useState(false);
+  const [quickViewCollapsed, setQuickViewCollapsed] = useState(true);
+  const [amendRequest, setAmendRequest] = useState(0);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [actionDialog, setActionDialog] = useState<{
     kind: ReservationActionDialog;
@@ -453,6 +467,10 @@ export function ReservationsWorkspace({
   }, [debouncedSearch]);
 
   useEffect(() => {
+    if (selectedId) setQuickViewCollapsed(false);
+  }, [selectedId]);
+
+  useEffect(() => {
     if (!selectedId) return;
     if (deskQuery.data?.rows.some((row) => row.reservationId === selectedId)) return;
     if (calendarRow?.reservationId === selectedId) return;
@@ -525,8 +543,16 @@ export function ReservationsWorkspace({
   ) {
     switch (actionId) {
       case "open":
-      case "edit":
         openReservation(row.reservationId);
+        return;
+      case "edit":
+        if (
+          overlay?.type !== "reservation-detail" ||
+          overlay.reservationId !== row.reservationId
+        ) {
+          setOverlay({ type: "reservation-detail", reservationId: row.reservationId });
+        }
+        setAmendRequest((current) => current + 1);
         return;
       case "copy":
         copyMutation.mutate(row.reservationId);
@@ -578,7 +604,7 @@ export function ReservationsWorkspace({
         setSearch(value);
       }}
     >
-      <div className="min-w-0 bg-[#F7F4EE]" data-testid="reservation-desk">
+      <div className="w-full min-w-0 bg-[#F7F4EE]" data-testid="reservation-desk">
         <header className="border-b border-border bg-background">
           <div className="px-5 pt-4 sm:px-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -647,7 +673,7 @@ export function ReservationsWorkspace({
           </nav>
         </header>
 
-        <main className="space-y-4 p-4 sm:p-5 lg:p-6">
+        <main className="min-w-0 w-full space-y-4 p-4 sm:p-5 lg:p-6">
           {workspaceSection === "groups" ||
           workspaceSection === "waitlist" ||
           workspaceSection === "arrivals-departures" ||
@@ -705,8 +731,8 @@ export function ReservationsWorkspace({
 
           {workspaceSection === "desk" ? (
           <>
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-            <div className="flex flex-wrap items-end gap-3">
+          <section className="w-full min-w-0 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
+            <div className="flex min-w-0 flex-wrap items-end gap-3">
               <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
                 Arrival From
                 <Input
@@ -855,38 +881,25 @@ export function ReservationsWorkspace({
             ) : null}
           </section>
 
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[190px_minmax(0,1fr)_300px]">
-            <aside className="rounded-xl border border-[#DDD4C5] bg-white p-2 shadow-sm">
-              <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Operational views
-              </p>
-              <nav className="space-y-1" aria-label="Operational reservation views">
-                {VIEWS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-current={view === item.id ? "page" : undefined}
-                    onClick={() => selectView(item.id)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                      view === item.id
-                        ? "bg-[#F4E9D0] font-medium text-[#251605]"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                    )}
-                  >
-                    <span>
-                      {item.label}
-                      {item.note ? (
-                        <span className="block text-[10px] font-normal text-muted-foreground">
-                          {item.note}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="text-xs tabular-nums">{viewCount(item.id, snapshot)}</span>
-                  </button>
-                ))}
-              </nav>
-            </aside>
+          <div
+            className={cn(
+              "grid w-full min-w-0 gap-4",
+              viewsCollapsed
+                ? quickViewCollapsed
+                  ? "xl:grid-cols-[56px_minmax(0,1fr)_56px]"
+                  : "xl:grid-cols-[56px_minmax(0,1fr)_300px]"
+                : quickViewCollapsed
+                  ? "xl:grid-cols-[180px_minmax(0,1fr)_56px]"
+                  : "xl:grid-cols-[180px_minmax(0,1fr)_300px]",
+            )}
+          >
+            <OperationalViewsRail
+              collapsed={viewsCollapsed}
+              onToggle={() => setViewsCollapsed((current) => !current)}
+              view={view}
+              snapshot={snapshot}
+              onSelect={selectView}
+            />
 
             <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
               <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-3">
@@ -997,7 +1010,9 @@ export function ReservationsWorkspace({
             </section>
 
             <aside className="hidden min-w-0 xl:block">
-              <ReservationQuickViewPanel
+              <QuickViewRail
+                collapsed={quickViewCollapsed}
+                onToggle={() => setQuickViewCollapsed((current) => !current)}
                 row={selectedRow}
                 loading={quickViewQuery.isLoading}
                 error={quickViewQuery.isError}
@@ -1047,7 +1062,14 @@ export function ReservationsWorkspace({
             onOpenReservation={openReservation}
           />
           ) : (
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div
+            className={cn(
+              "grid min-w-0 gap-4",
+              quickViewCollapsed
+                ? "xl:grid-cols-[minmax(0,1fr)_56px]"
+                : "xl:grid-cols-[minmax(0,1fr)_300px]",
+            )}
+          >
             <BookingCalendarPanel
               restaurantId={restaurantId}
               canManage={canManageActions}
@@ -1061,7 +1083,9 @@ export function ReservationsWorkspace({
               onAction={handleReservationAction}
             />
             <aside className="hidden min-w-0 xl:block">
-              <ReservationQuickViewPanel
+              <QuickViewRail
+                collapsed={quickViewCollapsed}
+                onToggle={() => setQuickViewCollapsed((current) => !current)}
                 row={selectedRow}
                 loading={quickViewQuery.isLoading}
                 error={quickViewQuery.isError}
@@ -1166,6 +1190,7 @@ export function ReservationsWorkspace({
             membership={membership}
             reservationId={overlay.reservationId}
             embedded
+            amendRequest={amendRequest}
             onCopiedReservation={(reservationId) => {
               setSelectedId(reservationId);
               setOverlay({ type: "reservation-detail", reservationId });
@@ -1205,6 +1230,210 @@ function FilterSelect({
         </SelectContent>
       </Select>
     </label>
+  );
+}
+
+function OperationalViewsRail({
+  collapsed,
+  onToggle,
+  view,
+  snapshot,
+  onSelect,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  view: OperationalReservationView;
+  snapshot: ReservationDeskSnapshot | undefined;
+  onSelect: (id: OperationalReservationView) => void;
+}) {
+  return (
+    <aside
+      className={cn(
+        "relative min-w-0 overflow-visible rounded-xl border border-[#DDD4C5] bg-white shadow-sm",
+        collapsed ? "w-14 p-1" : "p-2",
+      )}
+    >
+      {collapsed ? null : (
+        <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Operational views
+        </p>
+      )}
+      <nav className="space-y-1" aria-label="Operational reservation views">
+        {VIEWS.map((item) => {
+          const Icon = item.icon;
+          const active = view === item.id;
+          const count = viewCount(item.id, snapshot);
+          const button = (
+            <button
+              type="button"
+              aria-current={active ? "page" : undefined}
+              aria-label={item.label}
+              onClick={() => onSelect(item.id)}
+              className={cn(
+                "flex w-full items-center rounded-lg text-left text-sm transition-colors",
+                collapsed ? "h-11 justify-center px-0 py-1" : "justify-between px-3 py-2",
+                active
+                  ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+              )}
+            >
+              {collapsed ? (
+                <span className="flex flex-col items-center gap-0.5">
+                  <Icon className="size-4" />
+                  <span className="text-[9px] font-semibold tabular-nums leading-none text-[#251605]">
+                    {count}
+                  </span>
+                </span>
+              ) : (
+                <>
+                  <span className="flex items-center gap-2">
+                    <Icon className="size-4 shrink-0" />
+                    <span>
+                      {item.label}
+                      {item.note ? (
+                        <span className="block text-[10px] font-normal text-muted-foreground">
+                          {item.note}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                  <span className="text-xs tabular-nums">{count}</span>
+                </>
+              )}
+            </button>
+          );
+          return collapsed ? (
+            <Tooltip key={item.id}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent>
+                {item.label}
+                {item.note ? ` · ${item.note}` : ""} · {count}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <span key={item.id}>{button}</span>
+          );
+        })}
+      </nav>
+      <button
+        type="button"
+        aria-label={collapsed ? "Expand operational views" : "Collapse operational views"}
+        onClick={onToggle}
+        className="absolute -right-2.5 top-6 z-20 hidden size-5 items-center justify-center rounded-full border border-[#DDD4C5] bg-white text-[#6B6256] shadow-sm xl:inline-flex"
+      >
+        {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
+      </button>
+    </aside>
+  );
+}
+
+function QuickViewRail({
+  collapsed,
+  onToggle,
+  row,
+  loading,
+  error,
+  quickView,
+  onRetry,
+  businessDate,
+  canManage,
+  onAction,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  row: ReservationDeskRow | null;
+  loading: boolean;
+  error: boolean;
+  quickView: ReservationQuickView | undefined;
+  onRetry: () => void;
+  businessDate: string;
+  canManage: boolean;
+  onAction: (actionId: ReservationContextActionId) => void;
+}) {
+  if (collapsed) {
+    return (
+      <aside className="relative flex min-h-[520px] w-14 flex-col items-center gap-3 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white py-3 shadow-sm">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={row ? `Quick View for ${row.confirmationNumber}` : "Quick View"}
+              onClick={onToggle}
+              className="rounded-lg p-2 text-[#6B4A0A] hover:bg-[#F4E9D0]"
+            >
+              <PanelRight className="size-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{row ? `${row.guestName} · ${row.confirmationNumber}` : "Quick View"}</TooltipContent>
+        </Tooltip>
+        {row ? <CollapsedStatusMark status={row.status} /> : null}
+        <button
+          type="button"
+          aria-label="Expand Quick View"
+          onClick={onToggle}
+          className="absolute left-0.5 top-6 z-20 hidden size-5 items-center justify-center rounded-full border border-[#DDD4C5] bg-white text-[#6B6256] shadow-sm xl:inline-flex"
+        >
+          <ChevronLeft className="size-3.5" />
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        aria-label="Collapse Quick View"
+        onClick={onToggle}
+        className="absolute -left-2.5 top-6 z-20 hidden size-5 items-center justify-center rounded-full border border-[#DDD4C5] bg-white text-[#6B6256] shadow-sm xl:inline-flex"
+      >
+        <ChevronRight className="size-3.5" />
+      </button>
+      <ReservationQuickViewPanel
+        row={row}
+        loading={loading}
+        error={error}
+        quickView={quickView}
+        onRetry={onRetry}
+        businessDate={businessDate}
+        canManage={canManage}
+        onAction={onAction}
+      />
+    </div>
+  );
+}
+
+function CollapsedStatusMark({ status }: { status: ReservationDeskRow["status"] }) {
+  const tone =
+    status === "checked_in"
+      ? "bg-blue-600"
+      : status === "confirmed"
+        ? "bg-emerald-600"
+        : status === "pending"
+          ? "bg-amber-500"
+          : status === "cancelled" || status === "no_show"
+            ? "bg-rose-600"
+            : "bg-[#8A8176]";
+  const label =
+    status === "checked_in"
+      ? "In-House"
+      : status === "checked_out"
+        ? "Checked Out"
+        : status === "no_show"
+          ? "No-Show"
+          : status.replaceAll("_", " ");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="grid size-7 place-items-center rounded-full bg-[#F7F4EE]"
+          aria-label={label}
+        >
+          <span className={cn("size-2.5 rounded-full", tone)} />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -1256,31 +1485,35 @@ function ReservationTable({
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-[1120px] w-full text-sm">
+    <div className="min-w-0 max-lg:overflow-x-auto lg:overflow-x-hidden">
+      <table className="w-full table-fixed text-sm max-lg:min-w-[760px]">
         <thead className="bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
           <tr>
-            <th className="w-10 px-3 py-2.5">
+            <th className="w-9 px-2 py-2.5">
               <span className="sr-only">Select</span>
             </th>
-            <th className="px-3 py-2.5">Res. No.</th>
-            <th className="px-3 py-2.5">Guest Name</th>
-            <th className="px-3 py-2.5">Room Type</th>
-            <th className="px-3 py-2.5">Arrival</th>
-            <th className="px-3 py-2.5">Departure</th>
-            <th className="px-3 py-2.5 text-center">Nights</th>
-            <th className="px-3 py-2.5 text-center">Adults</th>
-            <th className="px-3 py-2.5 text-center">Children</th>
-            <th className="px-3 py-2.5">Status</th>
-            <th className="px-3 py-2.5">Source</th>
-            <th className="px-3 py-2.5">Rate Plan</th>
-            <th className="px-3 py-2.5 text-right">Total Amount</th>
-            <th className="px-3 py-2.5 text-right">Actions</th>
+            <th className="w-[6.5rem] px-2 py-2.5">Res. No.</th>
+            <th className="w-[16%] px-2 py-2.5">Guest Name</th>
+            <th className="w-[14%] px-2 py-2.5">Room Type</th>
+            <th className="w-[6.75rem] whitespace-nowrap px-2 py-2.5">Arrival</th>
+            <th className="w-[6.75rem] whitespace-nowrap px-2 py-2.5">Departure</th>
+            <th className="w-12 whitespace-nowrap px-2 py-2.5 text-center">Nights</th>
+            <th className="hidden w-12 whitespace-nowrap px-2 py-2.5 text-center 2xl:table-cell">Adults</th>
+            <th className="hidden w-14 whitespace-nowrap px-2 py-2.5 text-center 2xl:table-cell">Children</th>
+            <th className="w-[7.25rem] whitespace-nowrap px-2 py-2.5">Status</th>
+            <th className="hidden w-[5.75rem] px-2 py-2.5 lg:table-cell xl:hidden 2xl:table-cell">Source</th>
+            <th className="hidden w-[9%] px-2 py-2.5 lg:table-cell xl:hidden min-[1760px]:table-cell">Rate Plan</th>
+            <th className="hidden w-[6.75rem] px-2 py-2.5 text-right lg:table-cell xl:hidden min-[1760px]:table-cell">
+              Total Amount
+            </th>
+            <th className="w-14 py-2.5 pl-2 pr-4 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => {
             const selected = selectedId === row.reservationId;
+            const source = sourceLabel(row.source);
+            const room = row.roomNumber ?? "Unassigned";
             return (
               <tr
                 key={row.reservationId}
@@ -1290,17 +1523,18 @@ function ReservationTable({
                   selected && "bg-[#F4E9D0]/70",
                 )}
               >
-                <td className="px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
+                <td className="px-2 py-2.5" onClick={(event) => event.stopPropagation()}>
                   <Checkbox
                     checked={selected}
                     onCheckedChange={() => onSelect(row)}
                     aria-label={`Select reservation ${row.confirmationNumber}`}
                   />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5">
+                <td className="px-2 py-2.5">
                   <button
                     type="button"
-                    className="font-semibold text-[#765719] underline-offset-2 hover:underline"
+                    title={row.confirmationNumber}
+                    className="block max-w-full truncate text-left font-semibold text-[#765719] underline-offset-2 hover:underline"
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpen(row.reservationId);
@@ -1309,33 +1543,45 @@ function ReservationTable({
                     {row.confirmationNumber}
                   </button>
                 </td>
-                <td className="max-w-44 truncate px-3 py-2.5 font-medium">{row.guestName}</td>
-                <td className="max-w-36 truncate px-3 py-2.5 text-muted-foreground">
-                  {row.roomTypeName}
-                  <span className="block text-[10px]">{row.roomNumber ?? "Unassigned"}</span>
+                <td className="px-2 py-2.5 font-medium">
+                  <span className="block truncate" title={row.guestName}>
+                    {row.guestName}
+                  </span>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                  {formatDate(row.arrivalDate)}
+                <td className="px-2 py-2.5 text-muted-foreground">
+                  <span className="block truncate" title={row.roomTypeName}>
+                    {row.roomTypeName}
+                  </span>
+                  <span className="block truncate text-[10px]" title={room}>
+                    {room}
+                  </span>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                  {formatDate(row.departureDate)}
+                <td className="whitespace-nowrap px-2 py-2.5 text-muted-foreground" title={formatDate(row.arrivalDate)}>
+                  {formatDeskDate(row.arrivalDate)}
                 </td>
-                <td className="px-3 py-2.5 text-center tabular-nums">{row.nights}</td>
-                <td className="px-3 py-2.5 text-center tabular-nums">{row.adults}</td>
-                <td className="px-3 py-2.5 text-center tabular-nums">{row.children}</td>
-                <td className="px-3 py-2.5">
+                <td className="whitespace-nowrap px-2 py-2.5 text-muted-foreground" title={formatDate(row.departureDate)}>
+                  {formatDeskDate(row.departureDate)}
+                </td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">{row.nights}</td>
+                <td className="hidden whitespace-nowrap px-2 py-2.5 text-center tabular-nums 2xl:table-cell">{row.adults}</td>
+                <td className="hidden whitespace-nowrap px-2 py-2.5 text-center tabular-nums 2xl:table-cell">{row.children}</td>
+                <td className="whitespace-nowrap px-2 py-2.5">
                   <ReservationStatusBadge status={row.status} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                  {sourceLabel(row.source)}
+                <td className="hidden px-2 py-2.5 text-muted-foreground lg:table-cell xl:hidden 2xl:table-cell">
+                  <span className="block truncate" title={source}>
+                    {source}
+                  </span>
                 </td>
-                <td className="max-w-32 truncate px-3 py-2.5 text-muted-foreground">
-                  {row.ratePlanName ?? "—"}
+                <td className="hidden px-2 py-2.5 text-muted-foreground lg:table-cell xl:hidden min-[1760px]:table-cell">
+                  <span className="block truncate" title={row.ratePlanName ?? undefined}>
+                    {row.ratePlanName ?? "—"}
+                  </span>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right font-medium tabular-nums">
+                <td className="hidden px-2 py-2.5 text-right font-medium tabular-nums lg:table-cell xl:hidden min-[1760px]:table-cell">
                   {formatMoney(row.roomSubtotal, row.currency)}
                 </td>
-                <td className="px-3 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
+                <td className="py-2.5 pl-2 pr-4 text-right" onClick={(event) => event.stopPropagation()}>
                   <ReservationContextMenu
                     context={{
                       status: row.status,

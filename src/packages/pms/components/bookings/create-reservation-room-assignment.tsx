@@ -20,6 +20,7 @@ export function CreateReservationRoomAssignment({
   roomId,
   unassignedValue,
   onSelect,
+  compact = false,
 }: {
   title?: string;
   emptyCopy?: string;
@@ -30,16 +31,29 @@ export function CreateReservationRoomAssignment({
   roomId: string;
   unassignedValue: string;
   onSelect: (roomId: string) => void;
+  compact?: boolean;
 }) {
   const ready = datesValid && !!roomTypeId;
   const showEmpty = ready && !loading && rooms.length === 0;
 
   return (
     <section
-      className="rounded-2xl border border-border bg-card p-4"
+      className={cn(
+        compact
+          ? "rounded-lg border border-[#E7E0D4] bg-[#FBF8F2] p-2"
+          : "rounded-2xl border border-border bg-card p-4",
+      )}
       data-testid="create-reservation-room-assignment"
     >
-      <h2 className="font-display text-lg">{title}</h2>
+      <h2
+        className={cn(
+          compact
+            ? "text-[11px] font-medium uppercase tracking-wide text-[#6B5E4E]"
+            : "font-display text-lg",
+        )}
+      >
+        {title}
+      </h2>
       {/* CREATE_RESERVATION_SECTION6_SCOPE */}
 
       {!ready ? (
@@ -51,14 +65,18 @@ export function CreateReservationRoomAssignment({
           {CREATE_RESERVATION_ROOM_CHECKING}
         </p>
       ) : (
-        <ul className="mt-3 grid gap-3 md:grid-cols-2" data-testid="room-assignment-list">
+        <ul
+          className={cn(compact ? "mt-1 grid gap-1" : "mt-3 grid gap-3 md:grid-cols-2")}
+          data-testid="room-assignment-list"
+        >
           <li>
             <button
               type="button"
               data-testid="room-assignment-unassigned"
               onClick={() => onSelect(unassignedValue)}
               className={cn(
-                "w-full rounded-xl border p-3 text-left transition-colors",
+                "w-full rounded-xl border text-left transition-colors",
+                compact ? "px-2 py-1.5" : "p-3",
                 roomId === unassignedValue
                   ? "border-primary bg-primary/5"
                   : "border-border hover:bg-accent/40",
@@ -70,7 +88,11 @@ export function CreateReservationRoomAssignment({
                   <Check className="ml-auto size-4 text-primary" />
                 ) : null}
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">Unassigned — bind a room later.</p>
+              {compact ? null : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Unassigned — bind a room later.
+                </p>
+              )}
             </button>
           </li>
           {rooms.map((room) => {
@@ -82,7 +104,8 @@ export function CreateReservationRoomAssignment({
                   data-testid={`room-assignment-${room.id}`}
                   onClick={() => onSelect(room.id)}
                   className={cn(
-                    "w-full rounded-xl border p-3 text-left transition-colors",
+                    "w-full rounded-xl border text-left transition-colors",
+                    compact ? "px-2 py-1.5" : "p-3",
                     selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
                   )}
                 >
