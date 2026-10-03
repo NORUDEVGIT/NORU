@@ -7,7 +7,8 @@ export const COMPANY_DETAIL_CANONICAL_VIEWS = [
   // Primary Tabs
   { id: "overview", label: "Overview", group: "primary" },
   { id: "details", label: "Company Details", group: "primary" },
-  { id: "contacts-travelers", label: "Contacts & Travelers", group: "primary" },
+  { id: "contacts", label: "Contact Persons", group: "primary" },
+  { id: "travelers", label: "Linked Travelers", group: "primary" },
   { id: "reservations", label: "Reservations", group: "primary" },
   { id: "commercial-billing", label: "Commercial & Billing", group: "primary" },
   // More Dropdown Items
@@ -55,10 +56,13 @@ export function resolveCanonicalCompanyNavId(
     case "corporate":
     case "travel-agent-settings":
       return "details";
-    case "contacts-travelers":
     case "contacts":
+      return "contacts";
     case "travelers":
-      return "contacts-travelers";
+    case "link-travelers":
+      return "travelers";
+    case "contacts-travelers":
+      return "contacts";
     case "reservations":
       return "reservations";
     case "commercial-billing":

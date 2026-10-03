@@ -10,6 +10,7 @@ import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-
 
 export const GUEST_COMPANY_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
+// Legacy step titles: "Company Details", "Contacts", "Business & Commercial", "Billing & Credit", "Review & Confirm"
 export const GUEST_COMPANY_CREATE_STEPS = [
   { id: "basic", number: 1, title: "Basic Information" },
   { id: "business", number: 2, title: "Business & Commercial" },

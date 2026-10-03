@@ -29,12 +29,13 @@ function readRel(rel: string) {
 }
 
 describe("Phase 5: Company Detail View Registry & Navigation Topology", () => {
-  it("defines exactly 5 canonical primary views", () => {
-    assert.equal(COMPANY_DETAIL_PRIMARY_TABS.length, 5);
+  it("defines exactly 6 canonical primary views", () => {
+    assert.equal(COMPANY_DETAIL_PRIMARY_TABS.length, 6);
     const expected = [
       "overview",
       "details",
-      "contacts-travelers",
+      "contacts",
+      "travelers",
       "reservations",
       "commercial-billing",
     ];
@@ -60,10 +61,10 @@ describe("Phase 5: Company Detail View Registry & Navigation Topology", () => {
   });
 
   it("partitions canonical views into primary and more without overlap", () => {
-    assert.equal(COMPANY_DETAIL_CANONICAL_VIEWS.length, 10);
+    assert.equal(COMPANY_DETAIL_CANONICAL_VIEWS.length, 11);
     const ids = COMPANY_DETAIL_CANONICAL_VIEWS.map((v) => v.id);
     const uniqueIds = new Set(ids);
-    assert.equal(uniqueIds.size, 10);
+    assert.equal(uniqueIds.size, 11);
   });
 
   it("correctly identifies items belonging to the More dropdown", () => {
@@ -79,7 +80,8 @@ describe("Phase 5: Company Detail View Registry & Navigation Topology", () => {
     const labels = COMPANY_DETAIL_CANONICAL_VIEWS.map((v) => v.label);
     assert.ok(labels.includes("Overview"));
     assert.ok(labels.includes("Company Details"));
-    assert.ok(labels.includes("Contacts & Travelers"));
+    assert.ok(labels.includes("Contact Persons"));
+    assert.ok(labels.includes("Linked Travelers"));
     assert.ok(labels.includes("Reservations"));
     assert.ok(labels.includes("Commercial & Billing"));
     assert.ok(labels.includes("Contracts & Agreements"));
@@ -145,14 +147,12 @@ describe("Phase 5: Legacy Navigation Resolution & URL Normalization", () => {
     assert.equal(resolveCanonicalCompanyNavId("CORPORATE"), "details");
   });
 
-  it("resolves legacy contacts to contacts-travelers", () => {
-    assert.equal(resolveCanonicalCompanyNavId("contacts"), "contacts-travelers");
-    assert.equal(resolveCanonicalCompanyNavId("CONTACTS"), "contacts-travelers");
-  });
-
-  it("resolves legacy travelers to contacts-travelers", () => {
-    assert.equal(resolveCanonicalCompanyNavId("travelers"), "contacts-travelers");
-    assert.equal(resolveCanonicalCompanyNavId("TRAVELERS"), "contacts-travelers");
+  it("resolves contacts and travelers to their respective canonical views", () => {
+    assert.equal(resolveCanonicalCompanyNavId("contacts"), "contacts");
+    assert.equal(resolveCanonicalCompanyNavId("CONTACTS"), "contacts");
+    assert.equal(resolveCanonicalCompanyNavId("travelers"), "travelers");
+    assert.equal(resolveCanonicalCompanyNavId("TRAVELERS"), "travelers");
+    assert.equal(resolveCanonicalCompanyNavId("contacts-travelers"), "contacts");
   });
 
   it("resolves legacy credit to commercial-billing", () => {
@@ -178,7 +178,8 @@ describe("Phase 5: Legacy Navigation Resolution & URL Normalization", () => {
     const canonicals: CanonicalCompanyViewId[] = [
       "overview",
       "details",
-      "contacts-travelers",
+      "contacts",
+      "travelers",
       "reservations",
       "commercial-billing",
       "contracts",

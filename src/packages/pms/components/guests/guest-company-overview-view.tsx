@@ -318,7 +318,7 @@ export function GuestCompanyOverviewView({
               variant="ghost"
               size="sm"
               className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigate("contacts-travelers")}
+              onClick={() => onNavigate("contacts")}
             >
               <Pencil className="mr-1 size-3" /> Manage
             </Button>
@@ -500,7 +500,7 @@ export function GuestCompanyOverviewView({
               variant="ghost"
               size="sm"
               className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigate("contacts-travelers")}
+              onClick={() => onNavigate("travelers")}
             >
               Manage
             </Button>

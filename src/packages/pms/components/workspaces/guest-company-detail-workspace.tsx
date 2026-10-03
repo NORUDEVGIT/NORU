@@ -7,6 +7,8 @@ import { ChevronDown } from "lucide-react";
 import { GuestCompanyHeader } from "@/packages/pms/components/guests/guest-company-header";
 import { GuestCompanyOverviewView } from "@/packages/pms/components/guests/guest-company-overview-view";
 import { GuestCompanyDetailsView, GuestCompanyCorporate } from "@/packages/pms/components/guests/guest-company-details-view";
+import { GuestCompanyContacts } from "@/packages/pms/components/guests/guest-company-contacts";
+import { GuestCompanyTravelers } from "@/packages/pms/components/guests/guest-company-travelers";
 import { GuestCompanyContactsTravelersView } from "@/packages/pms/components/guests/guest-company-contacts-travelers-view";
 import { GuestCompanyContractsView } from "@/packages/pms/components/guests/guest-company-contracts-view";
 import { GuestCompanyReservationsView } from "@/packages/pms/components/guests/guest-company-reservations-view";
@@ -203,6 +205,24 @@ export function GuestCompanyDetailWorkspace({
           restaurantId={restaurantId}
           companyId={companyId}
           onOpenEditDialog={() => setEditOpen(true)}
+        />
+      )}
+
+      {canonicalNavId === "contacts" && (
+        <GuestCompanyContacts
+          restaurantId={restaurantId}
+          companyId={companyId}
+          companyName={data.company.name}
+          contactRequired={Boolean(data.businessType?.contactRequired)}
+          onEditCompany={() => setEditOpen(true)}
+        />
+      )}
+
+      {canonicalNavId === "travelers" && (
+        <GuestCompanyTravelers
+          restaurantId={restaurantId}
+          companyId={companyId}
+          initialLinkOpen={navProp === "link-travelers" || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "link")}
         />
       )}
 

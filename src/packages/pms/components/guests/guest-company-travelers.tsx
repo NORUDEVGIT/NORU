@@ -38,8 +38,10 @@ import {
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { GuestCompanyGuestLinks } from "@/packages/pms/components/guests/guest-company-guest-links";
 import { listCompanyTravelers } from "@/packages/pms/lib/guest-company-detail.functions";
-import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
+import { linkGuestAccount, listGuestAccountLinks, unlinkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { listGuestDocuments } from "@/packages/pms/lib/guests.functions";
+import { clearGuestCreateHold } from "@/packages/pms/lib/guest-create-workspace";
+import { cn } from "@/shared/lib/utils";
 import {
   COMPANY_RATE_NO,
   COMPANY_RATE_YES,
@@ -54,13 +56,17 @@ import {
 export function GuestCompanyTravelers({
   restaurantId,
   companyId,
+  initialLinkOpen,
 }: {
   restaurantId: string;
   companyId: string;
+  initialLinkOpen?: boolean;
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(listCompanyTravelers);
   const link = useServerFn(linkGuestAccount);
+  const unlink = useServerFn(unlinkGuestAccount);
+  const fetchLinks = useServerFn(listGuestAccountLinks);
   const loadDocs = useServerFn(listGuestDocuments);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
@@ -69,7 +75,8 @@ export function GuestCompanyTravelers({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
+  const [createKey, setCreateKey] = useState(0);
+  const [linkOpen, setLinkOpen] = useState(() => Boolean(initialLinkOpen));
   const [tab, setTab] = useState<"history" | "reservations" | "notes" | "documents">("history");
 
   const query = useQuery({
@@ -85,13 +92,32 @@ export function GuestCompanyTravelers({
     enabled: Boolean(selected?.id) && tab === "documents",
   });
 
+  const linksQuery = useQuery({
+    queryKey: ["guest-account-links", restaurantId, null, companyId],
+    queryFn: () => fetchLinks({ data: { restaurantId, accountId: companyId } }),
+  });
+
   const linkCreated = useMutation({
     mutationFn: (guestId: string) =>
       link({ data: { restaurantId, guestId, accountId: companyId, role: "employer" } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["company-travelers", restaurantId, companyId] });
+      await queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId, null, companyId] });
       await queryClient.invalidateQueries({ queryKey: ["company-detail", restaurantId, companyId] });
-      toast.success("Traveler linked to this company.");
+      await queryClient.refetchQueries({ queryKey: ["company-travelers", restaurantId, companyId] });
+      await queryClient.refetchQueries({ queryKey: ["guest-account-links", restaurantId, null, companyId] });
+      toast.success("Traveler registered and linked to this company.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const unlinkMutation = useMutation({
+    mutationFn: (linkId: string) => unlink({ data: { restaurantId, linkId } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["company-travelers", restaurantId, companyId] });
+      await queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId, null, companyId] });
+      await queryClient.invalidateQueries({ queryKey: ["company-detail", restaurantId, companyId] });
+      toast.success("Traveler unlinked from this company.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -107,18 +133,26 @@ export function GuestCompanyTravelers({
         <div className="flex items-center gap-2">
           <Button
             type="button"
-            variant="outline"
+            variant={linkOpen ? "secondary" : "outline"}
             size="sm"
-            className="border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
+            className={cn(
+              "border-[#DDD4C5] text-[#251605]",
+              linkOpen ? "bg-[#FAF8F5] border-[#8A641A] font-semibold text-[#8A641A]" : "hover:bg-[#F7F4EE]",
+            )}
             onClick={() => setLinkOpen((open) => !open)}
           >
-            Link Existing Guest
+            <UserCheck className="mr-1.5 size-3.5 text-[#8A641A]" />
+            {linkOpen ? "Close Guest Directory" : "Link Existing Guest"}
           </Button>
           <Button
             type="button"
             size="sm"
             className="bg-[#C89933] text-[#251605] hover:bg-[#B88928] font-medium"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => {
+              clearGuestCreateHold(restaurantId);
+              setCreateKey((k) => k + 1);
+              setCreateOpen(true);
+            }}
           >
             <Plus className="mr-1.5 size-3.5" />
             Register New Traveler
@@ -214,8 +248,16 @@ export function GuestCompanyTravelers({
       </div>
 
       {linkOpen ? (
-        <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-          <GuestCompanyGuestLinks restaurantId={restaurantId} accountId={companyId} />
+        <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="company-travelers-link-wrapper">
+          <GuestCompanyGuestLinks
+            restaurantId={restaurantId}
+            accountId={companyId}
+            autoOpenPicker={true}
+            onClose={() => setLinkOpen(false)}
+            onLinked={() => {
+              void queryClient.invalidateQueries({ queryKey: ["company-travelers", restaurantId, companyId] });
+            }}
+          />
         </div>
       ) : null}
 
@@ -276,7 +318,18 @@ export function GuestCompanyTravelers({
                   </TableCell>
                   <TableCell className="py-2.5 text-[#756A5B]">{row.nationality ?? "—"}</TableCell>
                   <TableCell className="py-2.5 font-mono text-[#756A5B]">{row.passportMasked ?? "—"}</TableCell>
-                  <TableCell className="py-2.5 text-[#756A5B]">{row.travelerType}</TableCell>
+                  <TableCell className="py-2.5">
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                        (row as any).role === "bill_to"
+                          ? "bg-blue-50 text-blue-800 border-blue-200"
+                          : "bg-amber-50 text-amber-800 border-amber-200",
+                      )}
+                    >
+                      {(row as any).roleLabel ?? ((row as any).role === "bill_to" ? "Bill To" : "Employer")}
+                    </span>
+                  </TableCell>
                   <TableCell className="py-2.5 font-mono text-[#8A641A] font-semibold">{row.upcomingTrips}</TableCell>
                   <TableCell className="py-2.5 text-[#756A5B]">{row.lastStay ?? "—"}</TableCell>
                   <TableCell className="py-2.5">
@@ -309,6 +362,19 @@ export function GuestCompanyTravelers({
                           >
                             Full Guest Profile
                           </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const linkId = linksQuery.data?.find((l) => l.guestId === row.id)?.id;
+                            if (linkId) {
+                              unlinkMutation.mutate(linkId);
+                            } else {
+                              toast.error("Relationship record not found.");
+                            }
+                          }}
+                          className="cursor-pointer text-rose-700 focus:text-rose-800"
+                        >
+                          Unlink from Company
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -424,12 +490,14 @@ export function GuestCompanyTravelers({
       </Sheet>
 
       <GuestFormDialog
+        key={`create-traveler-${createKey}`}
         restaurantId={restaurantId}
         open={createOpen}
+        ignoreDraft={true}
         onOpenChange={setCreateOpen}
-        onSaved={(guestId) => {
+        onSaved={async (guestId) => {
           setCreateOpen(false);
-          linkCreated.mutate(guestId);
+          await linkCreated.mutateAsync(guestId);
         }}
       />
     </div>

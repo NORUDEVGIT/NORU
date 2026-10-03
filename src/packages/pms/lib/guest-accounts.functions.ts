@@ -868,26 +868,71 @@ type LinkRow = {
   master_id: string;
   role: string;
   created_at: string;
-  guest_profiles: { first_name: string; last_name: string | null } | null;
-  guest_account_masters: { name: string; account_type: string } | null;
+  guest_profiles: {
+    first_name: string;
+    last_name: string | null;
+    email?: string | null;
+    phone?: string | null;
+    nationality?: string | null;
+    guest_status?: string | null;
+    vip_status?: boolean | null;
+  } | null;
+  guest_account_masters: {
+    name: string;
+    code?: string | null;
+    account_type: string;
+    account_status?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    payment_terms?: string | null;
+    credit_account_enabled?: boolean | null;
+    credit_limit_note?: string | null;
+    primary_contact_name?: string | null;
+  } | null;
 };
 
 const LINK_SELECT = `
   id, guest_id, master_id, role, created_at,
+  guest_profiles!guest_account_links_guest_same_property ( first_name, last_name, email, phone, nationality, guest_status, vip_status ),
+  guest_account_masters!guest_account_links_master_same_property ( name, code, account_type, account_status, email, phone, payment_terms, credit_account_enabled, credit_limit_note, primary_contact_name )
+`;
+
+const LINK_SELECT_BASIC = `
+  id, guest_id, master_id, role, created_at,
   guest_profiles!guest_account_links_guest_same_property ( first_name, last_name ),
-  guest_account_masters!guest_account_links_master_same_property ( name, account_type )
+  guest_account_masters!guest_account_links_master_same_property ( name, code, account_type, account_status, email, phone )
 `;
 
 function toLink(row: LinkRow): GuestAccountLink {
   const guest = row.guest_profiles;
   const master = row.guest_account_masters;
+  const guestName = [guest?.first_name, guest?.last_name].filter(Boolean).join(" ").trim() || "Guest";
+  const masterName = master?.name ?? "Account";
+  const masterType = (master?.account_type ?? "company") as GuestAccountType;
   return {
     id: row.id,
     guestId: row.guest_id,
-    guestName: [guest?.first_name, guest?.last_name].filter(Boolean).join(" ").trim() || "Guest",
+    guestName,
+    guestFullName: guestName,
+    guestEmail: guest?.email ?? null,
+    guestPhone: guest?.phone ?? null,
+    guestNationality: guest?.nationality ?? null,
+    guestStatus: guest?.guest_status ?? null,
+    guestVip: Boolean(guest?.vip_status),
     masterId: row.master_id,
-    masterName: master?.name ?? "Account",
-    masterType: (master?.account_type ?? "company") as GuestAccountType,
+    masterName,
+    masterType,
+    masterCode: master?.code ?? null,
+    masterStatus: master?.account_status ?? "active",
+    masterEmail: master?.email ?? null,
+    masterPhone: master?.phone ?? null,
+    paymentTerms: master?.payment_terms ?? null,
+    creditAccountEnabled: Boolean(master?.credit_account_enabled),
+    creditLimitNote: master?.credit_limit_note ?? null,
+    primaryContactName: master?.primary_contact_name ?? null,
+    accountId: row.master_id,
+    accountName: masterName,
+    accountType: masterType,
     role: row.role as GuestRelationshipRole,
     createdAt: row.created_at,
   };
@@ -916,7 +961,22 @@ export const listGuestAccountLinks = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false });
     if (data.guestId) query = query.eq("guest_id", data.guestId);
     if (data.accountId) query = query.eq("master_id", data.accountId);
-    const result = await query;
+    let result = await query;
+    if (
+      result.error &&
+      (result.error.code === "42703" ||
+        result.error.code === "PGRST204" ||
+        result.error.message?.includes("column"))
+    ) {
+      let fallbackQuery = db(context)
+        .from("guest_account_links")
+        .select(LINK_SELECT_BASIC)
+        .eq("restaurant_id", data.restaurantId)
+        .order("created_at", { ascending: false });
+      if (data.guestId) fallbackQuery = fallbackQuery.eq("guest_id", data.guestId);
+      if (data.accountId) fallbackQuery = fallbackQuery.eq("master_id", data.accountId);
+      result = await fallbackQuery;
+    }
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
     return ((result.data ?? []) as unknown as LinkRow[]).map(toLink);

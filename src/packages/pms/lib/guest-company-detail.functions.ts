@@ -1200,6 +1200,11 @@ export const listCompanyTravelers = createServerFn({ method: "POST" })
         .map((row) => row.photo_storage_path)
         .filter((path): path is string => Boolean(path)),
     );
+    const linkByGuest = new Map<string, { id: string; role: string; createdAt: string }>();
+    for (const row of linkRows) {
+      linkByGuest.set(row.guest_id, { id: row.id, role: row.role, createdAt: row.created_at });
+    }
+
     const q = data.q?.trim().toLowerCase();
     const items = ((guests.data ?? []) as Array<{
       id: string;
@@ -1223,8 +1228,14 @@ export const listCompanyTravelers = createServerFn({ method: "POST" })
           isUpcomingStay(stay.status as never, stay.arrival, today),
         ).length;
         const name = [guest.first_name, guest.last_name].filter(Boolean).join(" ").trim();
+        const linkInfo = linkByGuest.get(guest.id);
+        const role = (linkInfo?.role ?? "employer") as "employer" | "bill_to";
         return {
           id: guest.id,
+          linkId: linkInfo?.id ?? null,
+          role,
+          roleLabel: role === "bill_to" ? "Bill To" : "Employer",
+          linkedAt: linkInfo?.createdAt ?? null,
           name,
           email: guest.email,
           phone: guest.phone,

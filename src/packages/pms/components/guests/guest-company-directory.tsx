@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Search,
+  UserCheck,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -211,6 +212,20 @@ export function GuestCompanyDirectory({
         section: "companies",
         type: "company",
         nav: "overview",
+      }),
+    });
+  }
+
+  function openCompanyTravelersLink(id: string) {
+    void navigate({
+      to: GUEST_PROFILE_DETAIL_PATH,
+      params: { guestId: id },
+      search: guestProfileSearch({
+        card: returnCard,
+        section: "companies",
+        type: "company",
+        nav: "travelers",
+        tab: "link",
       }),
     });
   }
@@ -712,6 +727,7 @@ export function GuestCompanyDirectory({
                     )
                   }
                   onView={() => openCompany(row.id)}
+                  onLinkGuest={() => openCompanyTravelersLink(row.id)}
                   onQuickView={() => setPreviewCompanyId(row.id)}
                   onEdit={() => {
                     setEditId(row.id);
@@ -819,6 +835,7 @@ function CompanyRow({
   checked,
   onCheck,
   onView,
+  onLinkGuest,
   onQuickView,
   onEdit,
   onCredit,
@@ -828,6 +845,7 @@ function CompanyRow({
   checked: boolean;
   onCheck: (checked: boolean) => void;
   onView: () => void;
+  onLinkGuest: () => void;
   onQuickView: () => void;
   onEdit: () => void;
   onCredit: () => void;
@@ -934,6 +952,10 @@ function CompanyRow({
             <DropdownMenuItem onClick={onView} className="cursor-pointer">
               <ExternalLink className="mr-1.5 size-3.5 text-[#8A641A]" />
               View Full Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onLinkGuest} className="cursor-pointer" data-testid="company-action-link-guest">
+              <UserCheck className="mr-1.5 size-3.5 text-[#8A641A]" />
+              Link Guest
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
               <Pencil className="mr-1.5 size-3.5 text-[#8A641A]" />

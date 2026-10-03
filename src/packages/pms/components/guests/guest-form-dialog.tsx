@@ -282,6 +282,7 @@ export function GuestFormDialog(props: {
   onOpenExisting?: (guestId: string) => void;
   /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
   onMergeRequested?: (duplicateId: string) => void;
+  ignoreDraft?: boolean;
 }) {
   if (!props.guest) {
     return (
@@ -290,6 +291,7 @@ export function GuestFormDialog(props: {
         open={props.open}
         onOpenChange={props.onOpenChange}
         mode="create"
+        ignoreDraft={props.ignoreDraft}
         onCreated={(id) => props.onSaved?.(id)}
         onCancel={() => props.onOpenChange(false)}
       />

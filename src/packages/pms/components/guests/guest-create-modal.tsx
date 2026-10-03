@@ -243,6 +243,7 @@ export function GuestCreateModal({
   mode = "create",
   guest = null,
   onSaved,
+  ignoreDraft = false,
 }: {
   restaurantId: string;
   open: boolean;
@@ -252,6 +253,7 @@ export function GuestCreateModal({
   mode?: "create" | "edit";
   guest?: GuestProfile | null;
   onSaved?: (guestId: string) => void;
+  ignoreDraft?: boolean;
 }) {
   const isEdit = mode === "edit" || Boolean(guest);
   const navigate = useNavigate();
@@ -278,14 +280,19 @@ export function GuestCreateModal({
   const loadDocDetail = useServerFn(getGuestDocument);
   const deleteDoc = useServerFn(deleteGuestDocument);
 
-  const localHold = useMemo(() => (!isEdit && open ? readGuestCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
+  const localHold = useMemo(
+    () => (!isEdit && open && !ignoreDraft ? readGuestCreateHold(restaurantId) : null),
+    [isEdit, open, restaurantId, ignoreDraft],
+  );
   const [step, setStep] = useState<GuestCreateStepId>(() => localHold?.step ?? "basic");
   const [draft, setDraft] = useState<GuestCreateDraft>(() => {
     if (isEdit && guest) return guestProfileToCreateDraft(guest);
     return localHold?.draft ?? emptyGuestCreateDraft();
   });
   const [touched] = useState(() => new Set<string>());
-  const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold) || (isEdit && Boolean(guest)));
+  const [defaultsApplied, setDefaultsApplied] = useState(
+    () => (!ignoreDraft && Boolean(localHold)) || (isEdit && Boolean(guest)),
+  );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [docFiles, setDocFiles] = useState<Record<string, File | undefined>>({});
@@ -388,6 +395,18 @@ export function GuestCreateModal({
       return;
     }
     if (!context.data || defaultsApplied) return;
+    if (ignoreDraft) {
+      const initial = applyCreateDefaults(
+        emptyGuestCreateDraft(context.data.profileType?.defaults),
+        context.data.profileType?.defaults,
+        touched,
+      );
+      initial.dataProcessingConsent = "granted";
+      setDraft(initial);
+      setStep("basic");
+      setDefaultsApplied(true);
+      return;
+    }
     const local = readGuestCreateHold(restaurantId);
     if (local) {
       setDraft(local.draft);
@@ -405,15 +424,15 @@ export function GuestCreateModal({
       setDraft(initial);
     }
     setDefaultsApplied(true);
-  }, [context.data, defaultsApplied, isEdit, guest, open, restaurantId, touched, loadCustomValues]);
+  }, [context.data, defaultsApplied, isEdit, guest, open, restaurantId, touched, loadCustomValues, ignoreDraft]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created || isEdit) return;
+    if (!open || !defaultsApplied || created || isEdit || ignoreDraft) return;
     writeGuestCreateHold(restaurantId, { step, draft });
-  }, [created, defaultsApplied, draft, isEdit, open, restaurantId, step]);
+  }, [created, defaultsApplied, draft, isEdit, open, restaurantId, step, ignoreDraft]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created || isEdit) return;
+    if (!open || !defaultsApplied || created || isEdit || ignoreDraft) return;
     if (!guestCreateHasChanges(draft, context.data?.profileType?.defaults)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {
