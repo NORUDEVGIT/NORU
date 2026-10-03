@@ -22,7 +22,6 @@ import {
   getReservationContextActions,
   type ReservationContextActionId,
 } from "@/packages/pms/components/reservations/reservation-context-actions";
-import { ReservationContextMenu } from "@/packages/pms/components/reservations/reservation-context-menu";
 import type {
   QuickViewExceptionKey,
   ReservationDeskRow,
@@ -94,7 +93,14 @@ export function ReservationQuickViewPanel({
       : {}),
   };
   const actions = getReservationContextActions(actionContext);
-  const visibleActions = new Set(actions.map((action) => action.id));
+  const primaryLabels: Record<string, string> = {
+    check_in: "Check In",
+    check_out: "Check Out",
+    assign_room: "Assign Room",
+  };
+  const primaryShortcut = ["check_in", "check_out", "assign_room", "open_folio"]
+    .map((id) => actions.find((action) => action.id === id))
+    .find((action) => action !== undefined);
 
   return (
     <aside
@@ -115,11 +121,6 @@ export function ReservationQuickViewPanel({
           </div>
           <div className="flex items-center gap-1">
             <ReservationStatusBadge status={quickView?.stay.status ?? row.status} />
-            <ReservationContextMenu
-              context={actionContext}
-              onAction={onAction}
-              triggerLabel={`Actions for reservation ${row.confirmationNumber}`}
-            />
           </div>
         </div>
 
@@ -168,59 +169,18 @@ export function ReservationQuickViewPanel({
           <ExternalLink className="size-4" />
           Open Reservation
         </Button>
-        {quickView ? (
-          <div className="grid grid-cols-2 gap-2">
-            {visibleActions.has("assign_room") ? (
-              <Button
-                variant="outline"
-                className="justify-start text-xs"
-                onClick={() => onAction("assign_room")}
-              >
-                <BedDouble className="size-3.5" />
-                Assign Room
-              </Button>
-            ) : null}
-            {visibleActions.has("change_room") ? (
-              <Button
-                variant="outline"
-                className="justify-start text-xs"
-                onClick={() => onAction("change_room")}
-              >
-                <DoorOpen className="size-3.5" />
-                Change Room
-              </Button>
-            ) : null}
-            {visibleActions.has("check_in") ? (
-              <Button
-                variant="outline"
-                className="justify-start text-xs"
-                onClick={() => onAction("check_in")}
-              >
-                <LogIn className="size-3.5" />
-                Check In
-              </Button>
-            ) : null}
-            {visibleActions.has("check_out") ? (
-              <Button
-                variant="outline"
-                className="justify-start text-xs"
-                onClick={() => onAction("check_out")}
-              >
-                <LogOut className="size-3.5" />
-                Check Out
-              </Button>
-            ) : null}
-            {visibleActions.has("open_folio") ? (
-              <Button
-                variant="outline"
-                className="justify-start text-xs"
-                onClick={() => onAction("open_folio")}
-              >
-                <Banknote className="size-3.5" />
-                Open Folio
-              </Button>
-            ) : null}
-          </div>
+        {primaryShortcut ? (
+          <Button
+            variant="outline"
+            className="justify-start text-xs"
+            onClick={() => onAction(primaryShortcut.id)}
+          >
+            {primaryShortcut.id === "check_in" ? <LogIn className="size-3.5" /> : null}
+            {primaryShortcut.id === "check_out" ? <LogOut className="size-3.5" /> : null}
+            {primaryShortcut.id === "assign_room" ? <BedDouble className="size-3.5" /> : null}
+            {primaryShortcut.id === "open_folio" ? <Banknote className="size-3.5" /> : null}
+            {primaryLabels[primaryShortcut.id] ?? primaryShortcut.label}
+          </Button>
         ) : null}
       </div>
     </aside>

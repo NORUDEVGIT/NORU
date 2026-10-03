@@ -17,6 +17,7 @@ import { requireModuleRole } from "@/core/lib/module-access.server";
 import { REPORTS_ROLES } from "@/core/lib/module-access";
 import { requireReservationManager } from "./reservations.server";
 import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
+import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
 
 const idSchema = z.string().uuid();
 
@@ -46,6 +47,10 @@ export interface RatePlan {
   baseRate: number;
   validFrom: string | null;
   validTo: string | null;
+  cancellationPolicyId: string | null;
+  refundabilityId: string | null;
+  minAdvanceDays: number | null;
+  maxAdvanceDays: number | null;
   active: boolean;
 }
 
@@ -159,7 +164,7 @@ export const saveRateCategory = createServerFn({ method: "POST" })
 
 const PLAN_SELECT = `
   id, code, name, description, rate_category_id, room_type_id, currency, base_rate,
-  valid_from, valid_to, active,
+  valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active,
   hotel_rate_categories!hotel_rate_plans_category_same_property ( name ),
   room_types!hotel_rate_plans_type_same_property ( name )
 `;
@@ -175,6 +180,10 @@ type PlanRow = {
   base_rate: number | string;
   valid_from: string | null;
   valid_to: string | null;
+  cancellation_policy_id: string | null;
+  refundability_id: string | null;
+  min_advance_days: number | null;
+  max_advance_days: number | null;
   active: boolean;
   hotel_rate_categories: { name: string } | null;
   room_types: { name: string } | null;
@@ -194,6 +203,10 @@ function toPlan(row: PlanRow): RatePlan {
     baseRate: Number(row.base_rate),
     validFrom: row.valid_from,
     validTo: row.valid_to,
+    cancellationPolicyId: row.cancellation_policy_id,
+    refundabilityId: row.refundability_id,
+    minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
+    maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
     active: row.active,
   };
 }
@@ -239,6 +252,10 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         baseRate: z.number().min(0).max(10_000_000),
         validFrom: dateSchema.nullable().optional(),
         validTo: dateSchema.nullable().optional(),
+        cancellationPolicyId: idSchema.nullable().optional(),
+        refundabilityId: idSchema.nullable().optional(),
+        minAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
+        maxAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
         active: z.boolean().optional(),
       })
       .parse(input),
@@ -276,6 +293,10 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       base_rate: data.baseRate,
       valid_from: data.validFrom ?? null,
       valid_to: data.validTo ?? null,
+      cancellation_policy_id: data.cancellationPolicyId ?? null,
+      refundability_id: data.refundabilityId ?? null,
+      min_advance_days: data.minAdvanceDays ?? null,
+      max_advance_days: data.maxAdvanceDays ?? null,
       active: data.active ?? true,
     };
 
@@ -526,8 +547,13 @@ export const saveRateRestriction = createServerFn({ method: "POST" })
 export interface RatePlanQuote {
   plan: RatePlan;
   quote: StayQuote | null;
-  /** Why this plan can't be sold for the requested stay, if it can't. */
   unavailableReason: string | null;
+  breakfastLabel: string;
+  includedServicesLabel: string;
+  restrictionSummary: string | null;
+  cancellationLabel: string;
+  refundabilityLabel: string;
+  refundabilityKind: string | null;
 }
 
 /** Authoritative server pricing for every plan of a room type across a stay. */
@@ -541,12 +567,15 @@ export const quoteStay = createServerFn({ method: "POST" })
         arrival: dateSchema,
         departure: dateSchema,
         ratePlanId: idSchema.optional(),
+        rooms: z.number().int().min(1).max(20).optional(),
+        adults: z.number().int().min(1).max(20).optional(),
+        children: z.number().int().min(0).max(20).optional(),
+        infants: z.number().int().min(0).max(20).optional(),
+        quoteCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RatePlanQuote[]> => {
-    // Create UX quoting is for reservation managers including receptionist.
-    // Rate admin writers stay owner/manager-only. Unpriced Pending stays manager-only.
     await requireReservationManager(context as never, data.restaurantId);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
 
@@ -564,24 +593,218 @@ export const quoteStay = createServerFn({ method: "POST" })
     const plans = ((rows ?? []) as unknown as PlanRow[]).map(toPlan);
     if (plans.length === 0) return [];
 
+    const policyLabels = new Map<
+      string,
+      { cancellationLabel: string; refundabilityLabel: string; refundabilityKind: string | null }
+    >();
+    const cancelIds = [...new Set(plans.map((plan) => plan.cancellationPolicyId).filter((id): id is string => Boolean(id)))];
+    const refundIds = [...new Set(plans.map((plan) => plan.refundabilityId).filter((id): id is string => Boolean(id)))];
+    const cancelNames = new Map<string, string>();
+    const refundNames = new Map<string, string>();
+    const refundKinds = new Map<string, string>();
+    if (cancelIds.length > 0) {
+      const { data: cancelRows } = await context.supabase
+        .from("pms_rate_cancellation_policies")
+        .select("id, name")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", cancelIds);
+      for (const row of cancelRows ?? []) cancelNames.set(row.id, row.name);
+    }
+    if (refundIds.length > 0) {
+      const { data: refundRows } = await context.supabase
+        .from("pms_rate_refundability_codes")
+        .select("id, name, kind")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", refundIds);
+      for (const row of refundRows ?? []) {
+        refundNames.set(row.id, row.name);
+        refundKinds.set(row.id, String(row.kind ?? ""));
+      }
+    }
+    for (const plan of plans) {
+      policyLabels.set(plan.id, {
+        cancellationLabel: plan.cancellationPolicyId ? cancelNames.get(plan.cancellationPolicyId) ?? "—" : "—",
+        refundabilityLabel: plan.refundabilityId ? refundNames.get(plan.refundabilityId) ?? "—" : "—",
+        refundabilityKind: plan.refundabilityId ? refundKinds.get(plan.refundabilityId) || null : null,
+      });
+    }
+
+    const merchandising = await loadQuoteMerchandising(
+      context.supabase as never,
+      data.restaurantId,
+      plans.map((plan) => plan.id),
+      data.arrival,
+      data.departure,
+      policyLabels,
+    );
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const out: RatePlanQuote[] = [];
     for (const plan of plans) {
+      const extra = merchandising.get(plan.id);
       const { data: pricing, error: priceError } = await supabaseAdmin.rpc("price_hotel_stay", {
         _restaurant_id: data.restaurantId,
         _rate_plan_id: plan.id,
         _room_type_id: data.roomTypeId,
         _arrival: data.arrival,
         _departure: data.departure,
+        _rooms: data.rooms ?? 1,
+        _adults: data.adults ?? 1,
+        _children: data.children ?? 0,
+        _infants: data.infants ?? 0,
+        _quote_currency: data.quoteCurrency ?? undefined,
       });
       if (priceError) {
-        out.push({ plan, quote: null, unavailableReason: rateError(priceError.message).message });
+        out.push({
+          plan,
+          quote: null,
+          unavailableReason: rateError(priceError.message).message,
+          breakfastLabel: extra?.breakfastLabel ?? "—",
+          includedServicesLabel: extra?.includedServicesLabel ?? "—",
+          restrictionSummary: extra?.restrictionSummary ?? null,
+          cancellationLabel: extra?.cancellationLabel ?? "—",
+          refundabilityLabel: extra?.refundabilityLabel ?? "—",
+          refundabilityKind: extra?.refundabilityKind ?? null,
+        });
         continue;
       }
-      out.push({ plan, quote: toQuote(pricing), unavailableReason: null });
+      out.push({
+        plan,
+        quote: toQuote(pricing),
+        unavailableReason: null,
+        breakfastLabel: extra?.breakfastLabel ?? "—",
+        includedServicesLabel: extra?.includedServicesLabel ?? "—",
+        restrictionSummary: extra?.restrictionSummary ?? null,
+        cancellationLabel: extra?.cancellationLabel ?? "—",
+        refundabilityLabel: extra?.refundabilityLabel ?? "—",
+        refundabilityKind: extra?.refundabilityKind ?? null,
+      });
     }
     return out;
+  });
+
+export type FlexibleStayWindow = {
+  arrival: string;
+  departure: string;
+  offsetDays: number;
+  subtotal: number | null;
+  currency: string | null;
+  available: boolean;
+};
+
+/** Adjacent-date quotes for one selected plan. Does not invent a yield engine. */
+export const quoteFlexibleStay = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        roomTypeId: idSchema,
+        ratePlanId: idSchema,
+        arrival: dateSchema,
+        departure: dateSchema,
+        rooms: z.number().int().min(1).max(20).optional(),
+        adults: z.number().int().min(1).max(20).optional(),
+        children: z.number().int().min(0).max(20).optional(),
+        infants: z.number().int().min(0).max(20).optional(),
+        quoteCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ windows: FlexibleStayWindow[] }> => {
+    await requireReservationManager(context as never, data.restaurantId);
+    if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
+    const { addDaysIso, FLEXIBLE_DATE_OFFSETS } = await import("./create-reservation-step3");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const windows: FlexibleStayWindow[] = [];
+    for (const offsetDays of FLEXIBLE_DATE_OFFSETS) {
+      const arrival = addDaysIso(data.arrival, offsetDays);
+      const departure = addDaysIso(data.departure, offsetDays);
+      const { data: pricing, error } = await supabaseAdmin.rpc("price_hotel_stay", {
+        _restaurant_id: data.restaurantId,
+        _rate_plan_id: data.ratePlanId,
+        _room_type_id: data.roomTypeId,
+        _arrival: arrival,
+        _departure: departure,
+        _rooms: data.rooms ?? 1,
+        _adults: data.adults ?? 1,
+        _children: data.children ?? 0,
+        _infants: data.infants ?? 0,
+        _quote_currency: data.quoteCurrency ?? undefined,
+      });
+      const quote = error || pricing == null ? null : toQuote(pricing);
+      windows.push({
+        arrival,
+        departure,
+        offsetDays,
+        subtotal: quote?.subtotal ?? null,
+        currency: quote?.currency ?? null,
+        available: quote != null,
+      });
+    }
+    return { windows };
+  });
+
+export type AccountRatePlanHint = {
+  planId: string | null;
+  label: string;
+  matched: boolean;
+};
+
+/** Maps company/agency setup references onto existing hotel_rate_plans. Does not invent prices. */
+export const listAccountRatePlanHints = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        accountId: idSchema,
+        roomTypeId: idSchema.optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ hints: AccountRatePlanHint[] }> => {
+    await requireReservationManager(context as never, data.restaurantId);
+    const { data: account } = await context.supabase
+      .from("guest_account_masters")
+      .select("id, name, code, negotiated_rate_reference")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.accountId)
+      .maybeSingle();
+    if (!account) return { hints: [] };
+    let plansQuery = context.supabase
+      .from("hotel_rate_plans")
+      .select("id, code, name")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("active", true);
+    if (data.roomTypeId) plansQuery = plansQuery.eq("room_type_id", data.roomTypeId);
+    const { data: plans } = await plansQuery;
+    const rows = (plans ?? []) as Array<{ id: string; code: string; name: string }>;
+    const needle = String(account.negotiated_rate_reference ?? account.code ?? "")
+      .trim()
+      .toLowerCase();
+    const hints: AccountRatePlanHint[] = [];
+    if (needle) {
+      for (const plan of rows) {
+        const hay = `${plan.code} ${plan.name}`.toLowerCase();
+        if (hay.includes(needle) || needle.includes(plan.code.toLowerCase())) {
+          hints.push({
+            planId: plan.id,
+            label: `${plan.code} · ${plan.name}`,
+            matched: true,
+          });
+        }
+      }
+    }
+    if (hints.length === 0 && account.negotiated_rate_reference) {
+      hints.push({
+        planId: null,
+        label: String(account.negotiated_rate_reference),
+        matched: false,
+      });
+    }
+    return { hints };
   });
 
 /* --------------------------------------------------------------- repricing */

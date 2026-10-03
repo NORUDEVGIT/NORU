@@ -4,10 +4,12 @@ import { formatStayDate } from "@/packages/pms/components/bookings/reservation-b
 import {
   CREATE_RESERVATION_QUOTE_SERVER_COPY,
   CREATE_RESERVATION_UNPRICED_BADGE,
+  formatRatePlanValidity,
   fromNightlyRate,
   rateCatalogueCopy,
   type CreateRateQuoteRow,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
+import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 
 export function CreateReservationRate({
@@ -19,6 +21,7 @@ export function CreateReservationRate({
   ratePlanId,
   canCreateUnpriced,
   money,
+  nights,
   onSelect,
 }: {
   datesValid: boolean;
@@ -29,6 +32,7 @@ export function CreateReservationRate({
   ratePlanId: string;
   canCreateUnpriced: boolean;
   money: (value: number) => string;
+  nights: number;
   onSelect: (ratePlanId: string) => void;
 }) {
   const catalogue = rateCatalogueCopy({
@@ -42,88 +46,121 @@ export function CreateReservationRate({
   const selected = quotes.find((row) => row.plan.id === ratePlanId) ?? null;
 
   return (
-    <section
-      className="rounded-2xl border border-border bg-card p-4"
-      data-testid="create-reservation-rate"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-lg">Rate plan</h2>
-        {!selected?.quote ? (
-          <span
-            data-testid="rate-unpriced-badge"
-            className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800"
-          >
-            {CREATE_RESERVATION_UNPRICED_BADGE}
-          </span>
-        ) : null}
-      </div>
+    <div className="min-w-0" data-testid="create-reservation-rate">
       {/* CREATE_RESERVATION_SECTION5_SCOPE */}
+      {!selected?.quote && selected ? (
+        <span
+          data-testid="rate-unpriced-badge"
+          className="mb-2 inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800"
+        >
+          {CREATE_RESERVATION_UNPRICED_BADGE}
+        </span>
+      ) : null}
 
       {catalogue ? (
-        <p className="mt-3 text-sm text-muted-foreground" data-testid="rate-catalogue-copy">
+        <p className="px-3 py-4 text-sm text-muted-foreground" data-testid="rate-catalogue-copy">
           {catalogue}
         </p>
       ) : (
-        <ul className="mt-3 grid gap-3 md:grid-cols-2" data-testid="rate-plan-list">
-          {quotes.map((row) => {
-            const isSelected = row.plan.id === ratePlanId;
-            const disabled = !row.quote;
-            const fromRate = row.quote ? fromNightlyRate(row.quote) : null;
-            return (
-              <li key={row.plan.id}>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  data-testid={`rate-plan-${row.plan.code}`}
-                  data-rate-available={row.quote ? "priced" : "unavailable"}
-                  onClick={() => onSelect(isSelected ? "" : row.plan.id)}
-                  className={cn(
-                    "w-full rounded-xl border p-3 text-left transition-colors",
-                    isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
-                    disabled && "cursor-not-allowed opacity-60",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{row.plan.name}</span>
-                    <span className="text-xs text-muted-foreground">{row.plan.code}</span>
-                    {isSelected ? <Check className="ml-auto size-4 text-primary" /> : null}
-                  </div>
-                  {row.quote ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {fromRate != null ? (
-                        <>
-                          From {money(fromRate)} / night · total{" "}
-                          <span className="font-medium text-foreground">
-                            {money(row.quote.subtotal)}
-                          </span>{" "}
-                          for {row.quote.nights} night{row.quote.nights === 1 ? "" : "s"}
-                        </>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Rate Plan</th>
+                <th className="px-3 py-2">Cancellation Policy</th>
+                <th className="px-3 py-2">Breakfast</th>
+                <th className="px-3 py-2 text-right">Rate Per Night</th>
+                <th className="px-3 py-2 text-right">
+                  Total{nights > 0 ? ` (${nights} night${nights === 1 ? "" : "s"})` : ""}
+                </th>
+                <th className="px-3 py-2 text-right">Select</th>
+              </tr>
+            </thead>
+            <tbody data-testid="rate-plan-list">
+              {quotes.map((row) => {
+                const isSelected = row.plan.id === ratePlanId;
+                const disabled = !row.quote;
+                const fromRate = row.quote ? fromNightlyRate(row.quote) : null;
+                return (
+                  <tr
+                    key={row.plan.id}
+                    className={cn(
+                      "border-t border-[#E7E0D4]",
+                      isSelected && "bg-[#F4E9D0]/80",
+                    )}
+                  >
+                    <td className="px-3 py-2.5">
+                      <p className="font-medium text-[#251605]">{row.plan.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{row.plan.code}</p>
+                      {row.plan.description ? (
+                        <p className="mt-1 text-[11px] text-muted-foreground">{row.plan.description}</p>
+                      ) : null}
+                      {formatRatePlanValidity(row.plan) ? (
+                        <p className="text-[11px] text-muted-foreground">{formatRatePlanValidity(row.plan)}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                      {row.quote
+                        ? `${row.cancellationLabel}${row.refundabilityLabel !== "—" ? ` · ${row.refundabilityLabel}` : ""}`
+                        : row.unavailableReason ?? "—"}
+                      {row.restrictionSummary ? (
+                        <p className="mt-1 text-[11px]">{row.restrictionSummary}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                      <p>{row.breakfastLabel}</p>
+                      {row.includedServicesLabel !== "—" ? (
+                        <p className="mt-1 text-[11px]">{row.includedServicesLabel}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {row.quote && fromRate != null ? (
+                        money(fromRate)
+                      ) : row.quote ? (
+                        "—"
                       ) : (
-                        <>
-                          Stay total{" "}
-                          <span className="font-medium text-foreground">
-                            {money(row.quote.subtotal)}
-                          </span>
-                        </>
+                        <span className="text-xs text-muted-foreground">
+                          {/* TODO: obtain authoritative stay quote from Rate & Revenue */}
+                          Price unavailable
+                        </span>
                       )}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-destructive">{row.unavailableReason}</p>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-medium tabular-nums text-[#251605]">
+                      {row.quote ? money(row.quote.subtotal) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={disabled}
+                        data-testid={`rate-plan-${row.plan.code}`}
+                        data-rate-available={row.quote ? "priced" : "unavailable"}
+                        onClick={() => onSelect(isSelected ? "" : row.plan.id)}
+                        className={cn(
+                          "h-8 min-w-20 bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]",
+                          disabled && "cursor-not-allowed opacity-60",
+                          isSelected && "ring-1 ring-[#C89933]",
+                        )}
+                      >
+                        {isSelected ? <Check className="size-4" /> : null}
+                        {isSelected ? "Selected" : "Select"}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {selected?.quote ? (
         <div
-          className="mt-4 overflow-x-auto rounded-xl border border-border"
+          className="mt-3 overflow-x-auto border-t border-[#E7E0D4]"
           data-testid="rate-nightly-table"
         >
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-[#FAF8F4] text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Night</th>
                 <th className="px-3 py-2 text-right">Rate</th>
@@ -142,11 +179,9 @@ export function CreateReservationRate({
               </tr>
             </tbody>
           </table>
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {CREATE_RESERVATION_QUOTE_SERVER_COPY}
-          </p>
+          <p className="px-3 py-2 text-xs text-muted-foreground">{CREATE_RESERVATION_QUOTE_SERVER_COPY}</p>
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }

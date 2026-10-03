@@ -11,7 +11,9 @@ import {
   type Card2RoomTypeRef,
   type RateCalendarRow,
   type RateCategoryRow,
+  type RateCancellationPolicyRow,
   type RatePlanRow,
+  type RateRefundabilityRow,
   type RatesCard3Snapshot,
 } from "./rates-card3.server";
 
@@ -40,8 +42,30 @@ const planSchema = z.object({
   roomTypeId: idSchema,
   code: setupCode,
   name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(1000).nullable().optional(),
   baseRate: z.number().min(0).max(10_000_000),
+  validFrom: dateSchema.nullable().optional(),
+  validTo: dateSchema.nullable().optional(),
+  cancellationPolicyId: idSchema.nullable().optional(),
+  refundabilityId: idSchema.nullable().optional(),
+  minAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
+  maxAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
   active: z.boolean(),
+}).superRefine((value, ctx) => {
+  if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["validTo"],
+      message: "Valid until cannot be before valid from.",
+    });
+  }
+  if (value.minAdvanceDays != null && value.maxAdvanceDays != null && value.maxAdvanceDays < value.minAdvanceDays) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["maxAdvanceDays"],
+      message: "Maximum advance booking cannot be before the minimum.",
+    });
+  }
 });
 
 const overrideSchema = z.object({
@@ -99,12 +123,14 @@ function mapCategory(row: any): RateCategoryRow {
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCard3Snapshot> {
-  const [types, categories, plans, calendar] = await Promise.all([
+  const [types, categories, plans, calendar, cancellation, refundability] = await Promise.all([
     db.from("room_types").select("id, code, name, active").eq("restaurant_id", restaurantId).order("code"),
     db.from("hotel_rate_categories").select("id, code, name, active").eq("restaurant_id", restaurantId).order("code"),
     db
       .from("hotel_rate_plans")
-      .select("id, code, name, rate_category_id, room_type_id, currency, base_rate, active")
+      .select(
+        "id, code, name, description, rate_category_id, room_type_id, currency, base_rate, valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active",
+      )
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
@@ -113,14 +139,52 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       .eq("restaurant_id", restaurantId)
       .order("rate_date", { ascending: false })
       .limit(120),
+    db
+      .from("pms_rate_cancellation_policies")
+      .select("id, code, name, description, deadline_hours, penalty_type, penalty_value, active")
+      .eq("restaurant_id", restaurantId)
+      .order("code"),
+    db
+      .from("pms_rate_refundability_codes")
+      .select("id, code, name, description, kind, active")
+      .eq("restaurant_id", restaurantId)
+      .order("code"),
   ]);
   for (const result of [types, categories, plans, calendar]) {
     if (result.error) unavailable(result.error);
+  }
+  if (cancellation.error && cancellation.error.code !== "42P01" && cancellation.error.code !== "PGRST205") {
+    unavailable(cancellation.error);
+  }
+  if (refundability.error && refundability.error.code !== "42P01" && refundability.error.code !== "PGRST205") {
+    unavailable(refundability.error);
   }
   const roomTypes = (types.data ?? []).map(mapRoomType);
   const categoryRows = (categories.data ?? []).map(mapCategory);
   const typeById = new Map(roomTypes.map((row) => [row.id, row]));
   const categoryById = new Map(categoryRows.map((row) => [row.id, row]));
+  const cancellationPolicies: RateCancellationPolicyRow[] = (cancellation.data ?? []).map((row: any) => ({
+    id: row.id,
+    code: String(row.code ?? "").toUpperCase(),
+    name: String(row.name ?? ""),
+    description: typeof row.description === "string" ? row.description : null,
+    deadlineHours: row.deadline_hours == null ? null : Number(row.deadline_hours),
+    penaltyType: (["none", "percent", "nights", "fixed"].includes(String(row.penalty_type))
+      ? row.penalty_type
+      : "none") as RateCancellationPolicyRow["penaltyType"],
+    penaltyValue: Number(row.penalty_value ?? 0),
+    active: row.active !== false,
+  }));
+  const refundabilityCodes: RateRefundabilityRow[] = (refundability.data ?? []).map((row: any) => ({
+    id: row.id,
+    code: String(row.code ?? "").toUpperCase(),
+    name: String(row.name ?? ""),
+    description: typeof row.description === "string" ? row.description : null,
+    kind: (["refundable", "non_refundable", "partial"].includes(String(row.kind))
+      ? row.kind
+      : "refundable") as RateRefundabilityRow["kind"],
+    active: row.active !== false,
+  }));
   const planRows: RatePlanRow[] = (plans.data ?? []).map((row: any) => {
     const type = typeById.get(row.room_type_id);
     const category = categoryById.get(row.rate_category_id);
@@ -128,6 +192,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       id: row.id,
       code: String(row.code ?? "").toUpperCase(),
       name: String(row.name ?? ""),
+      description: typeof row.description === "string" && row.description.trim() ? String(row.description) : null,
       categoryId: row.rate_category_id,
       categoryName: category?.name ?? "",
       roomTypeId: row.room_type_id,
@@ -135,6 +200,12 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       roomTypeName: type?.name ?? "",
       currency: String(row.currency ?? ""),
       baseRate: Number(row.base_rate ?? 0),
+      validFrom: row.valid_from ? String(row.valid_from) : null,
+      validTo: row.valid_to ? String(row.valid_to) : null,
+      cancellationPolicyId: row.cancellation_policy_id ?? null,
+      refundabilityId: row.refundability_id ?? null,
+      minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
+      maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
       active: row.active !== false,
     };
   });
@@ -151,6 +222,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
     categories: categoryRows,
     plans: planRows,
     calendar: calendarRows,
+    cancellationPolicies,
+    refundabilityCodes,
   };
 }
 
@@ -239,8 +312,15 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
       room_type_id: data.roomTypeId,
       code: data.code,
       name: data.name,
+      description: data.description?.trim() ? data.description.trim() : null,
       currency: String(restaurant.data?.currency_code ?? "USD"),
       base_rate: data.baseRate,
+      valid_from: data.validFrom ?? null,
+      valid_to: data.validTo ?? null,
+      cancellation_policy_id: data.cancellationPolicyId ?? null,
+      refundability_id: data.refundabilityId ?? null,
+      min_advance_days: data.minAdvanceDays ?? null,
+      max_advance_days: data.maxAdvanceDays ?? null,
       active: data.active,
     };
     if (data.id) {
@@ -286,6 +366,80 @@ export const saveRateOverrideCard3 = createServerFn({ method: "POST" })
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_rate_override_saved", {
       detail: `${data.rateDate} ${data.nightlyRate}`,
+    });
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
+  });
+
+const cancellationSchema = z.object({
+  restaurantId: idSchema,
+  id: idSchema.optional(),
+  code: setupCode,
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).nullable().optional(),
+  deadlineHours: z.number().int().min(0).max(24 * 365).nullable().optional(),
+  penaltyType: z.enum(["none", "percent", "nights", "fixed"]),
+  penaltyValue: z.number().min(0).max(10_000_000),
+  active: z.boolean(),
+});
+
+const refundabilitySchema = z.object({
+  restaurantId: idSchema,
+  id: idSchema.optional(),
+  code: setupCode,
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).nullable().optional(),
+  kind: z.enum(["refundable", "non_refundable", "partial"]),
+  active: z.boolean(),
+});
+
+export const saveRateCancellationPolicyCard3 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => cancellationSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const payload = {
+      restaurant_id: data.restaurantId,
+      code: data.code,
+      name: data.name,
+      description: data.description?.trim() ? data.description.trim() : null,
+      deadline_hours: data.deadlineHours ?? null,
+      penalty_type: data.penaltyType,
+      penalty_value: data.penaltyValue,
+      active: data.active,
+    };
+    const result = data.id
+      ? await db.from("pms_rate_cancellation_policies").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      : await db.from("pms_rate_cancellation_policies").insert(payload);
+    if (result.error) unavailable(result.error);
+    await writeAudit(db, data.restaurantId, context.userId, "card3_rate_cancellation_policy_saved", {
+      detail: `${data.code} ${data.name}`,
+    });
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
+  });
+
+export const saveRateRefundabilityCard3 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => refundabilitySchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const payload = {
+      restaurant_id: data.restaurantId,
+      code: data.code,
+      name: data.name,
+      description: data.description?.trim() ? data.description.trim() : null,
+      kind: data.kind,
+      active: data.active,
+    };
+    const result = data.id
+      ? await db.from("pms_rate_refundability_codes").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      : await db.from("pms_rate_refundability_codes").insert(payload);
+    if (result.error) unavailable(result.error);
+    await writeAudit(db, data.restaurantId, context.userId, "card3_rate_refundability_saved", {
+      detail: `${data.code} ${data.name}`,
     });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };

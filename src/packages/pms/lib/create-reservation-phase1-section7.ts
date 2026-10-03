@@ -169,11 +169,12 @@ export type GuaranteeMethodOption = {
   value: string;
   label: string;
   origin: "setup" | "cashier";
+  typeClass?: string;
 };
 
 export type GuaranteeCatalogueSnapshot = {
   paymentMethodsAvailable: boolean;
-  paymentMethods: Array<{ code: string; name: string; active: boolean }>;
+  paymentMethods: Array<{ code: string; name: string; active: boolean; typeClass?: string }>;
 };
 
 export function section7PersistApplied(): boolean {
@@ -187,17 +188,22 @@ export function resolveGuaranteeMethodOptions(
   if (snapshot?.paymentMethodsAvailable) {
     const active = snapshot.paymentMethods.filter((row) => row.active);
     if (active.length > 0) {
-      return active.map((row) => ({
-        value: row.code,
-        label: row.name,
-        origin: "setup" as const,
-      }));
+      return active.map((row) => {
+        const typeClass = row.typeClass?.trim();
+        return {
+          value: row.code,
+          label: row.name,
+          origin: "setup" as const,
+          ...(typeClass ? { typeClass } : {}),
+        };
+      });
     }
   }
   return FALLBACK_CASHIERING_TENDERS.map((row) => ({
     value: row.code,
     label: row.name,
     origin: "cashier" as const,
+    typeClass: row.code === "card" ? "card" : row.code,
   }));
 }
 

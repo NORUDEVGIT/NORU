@@ -180,3 +180,12 @@ export function reservationDefaultsFromWorkspace(input: {
   }
   return { specialRequests, roomTypeId };
 }
+
+export function applyPreferenceDefaults(input: {
+  currentSpecialRequests: string;
+  defaults: { specialRequests: string | null } | undefined;
+}): string | null {
+  const text = input.defaults?.specialRequests?.trim();
+  if (!text || input.currentSpecialRequests.trim()) return null;
+  return text;
+}

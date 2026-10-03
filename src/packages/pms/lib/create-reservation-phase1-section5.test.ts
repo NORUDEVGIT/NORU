@@ -101,7 +101,8 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     const functions = readRel("./rates.functions.ts");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /quoteStay/);
-    assert.match(page, /\["stay-quotes", restaurantId, roomTypeId, arrival, departure\]/);
+    assert.match(page, /"stay-quotes"/);
+    assert.match(page, /roomsRequested/);
     assert.match(page, /CreateReservationRate/);
     assert.match(rate, /data-testid="create-reservation-rate"/);
     assert.match(rate, /data-testid="rate-plan-list"/);

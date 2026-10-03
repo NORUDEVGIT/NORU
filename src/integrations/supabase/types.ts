@@ -2751,14 +2751,18 @@ export type Database = {
         Row: {
           active: boolean
           base_rate: number
+          cancellation_policy_id: string | null
           code: string
           created_at: string
           created_by_membership_id: string | null
           currency: string
           description: string | null
           id: string
+          max_advance_days: number | null
+          min_advance_days: number | null
           name: string
           rate_category_id: string
+          refundability_id: string | null
           restaurant_id: string
           room_type_id: string
           updated_at: string
@@ -2768,14 +2772,18 @@ export type Database = {
         Insert: {
           active?: boolean
           base_rate: number
+          cancellation_policy_id?: string | null
           code: string
           created_at?: string
           created_by_membership_id?: string | null
           currency: string
           description?: string | null
           id?: string
+          max_advance_days?: number | null
+          min_advance_days?: number | null
           name: string
           rate_category_id: string
+          refundability_id?: string | null
           restaurant_id: string
           room_type_id: string
           updated_at?: string
@@ -2785,14 +2793,18 @@ export type Database = {
         Update: {
           active?: boolean
           base_rate?: number
+          cancellation_policy_id?: string | null
           code?: string
           created_at?: string
           created_by_membership_id?: string | null
           currency?: string
           description?: string | null
           id?: string
+          max_advance_days?: number | null
+          min_advance_days?: number | null
           name?: string
           rate_category_id?: string
+          refundability_id?: string | null
           restaurant_id?: string
           room_type_id?: string
           updated_at?: string
@@ -2800,6 +2812,13 @@ export type Database = {
           valid_to?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "hotel_rate_plans_cancellation_policy_fk"
+            columns: ["cancellation_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_rate_cancellation_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
           {
             foreignKeyName: "hotel_rate_plans_category_same_property"
             columns: ["rate_category_id", "restaurant_id"]
@@ -2813,6 +2832,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurant_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_plans_refundability_fk"
+            columns: ["refundability_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_rate_refundability_codes"
+            referencedColumns: ["id", "restaurant_id"]
           },
           {
             foreignKeyName: "hotel_rate_plans_restaurant_id_fkey"
@@ -2985,9 +3011,12 @@ export type Database = {
         Row: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -2995,13 +3024,18 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
           expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
+          booker_guest_id: string | null
+          billing_rule_id: string | null
           id: string
+          infants: number
           late_checkout_granted: boolean
           late_checkout_note: string | null
           late_checkout_until: string | null
@@ -3011,24 +3045,31 @@ export type Database = {
           priced_at: string | null
           pms_group_block_id: string | null
           pms_group_id: string | null
+          purpose_of_stay: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
         Insert: {
           adults?: number
           arrival_date: string
+          cancellation_policy_snapshot?: Json | null
           cancellation_reason?: string | null
           children?: number
           commercial_booking_source?: string | null
+          commercial_sales_channel?: string | null
+          company_contact_id?: string | null
           company_master_id?: string | null
           company_name?: string | null
           confirmation_number: string
@@ -3036,13 +3077,18 @@ export type Database = {
           created_by_staff_membership_id?: string | null
           currency?: string | null
           departure_date: string
+          deposit_policy_id?: string | null
+          deposit_requirement_snapshot?: Json | null
           expected_arrival_at?: string | null
           external_reference?: string | null
           group_account_master_id?: string | null
           group_name?: string | null
           guarantee_method?: string | null
           guest_id: string
+          booker_guest_id?: string | null
+          billing_rule_id?: string | null
           id?: string
+          infants?: number
           late_checkout_granted?: boolean
           late_checkout_note?: string | null
           late_checkout_until?: string | null
@@ -3052,24 +3098,31 @@ export type Database = {
           priced_at?: string | null
           pms_group_block_id?: string | null
           pms_group_id?: string | null
+          purpose_of_stay?: string | null
           rate_plan_id?: string | null
+          refundability_snapshot?: Json | null
           restaurant_id: string
           room_id?: string | null
           room_subtotal?: number | null
           room_type_id: string
+          rooms_requested?: number
           source?: string
           special_request_category?: string | null
           special_requests?: string | null
           status?: string
+          travel_agent_contact_id?: string | null
           travel_agent_master_id?: string | null
           updated_at?: string
         }
         Update: {
           adults?: number
           arrival_date?: string
+          cancellation_policy_snapshot?: Json | null
           cancellation_reason?: string | null
           children?: number
           commercial_booking_source?: string | null
+          commercial_sales_channel?: string | null
+          company_contact_id?: string | null
           company_master_id?: string | null
           company_name?: string | null
           confirmation_number?: string
@@ -3077,13 +3130,18 @@ export type Database = {
           created_by_staff_membership_id?: string | null
           currency?: string | null
           departure_date?: string
+          deposit_policy_id?: string | null
+          deposit_requirement_snapshot?: Json | null
           expected_arrival_at?: string | null
           external_reference?: string | null
           group_account_master_id?: string | null
           group_name?: string | null
           guarantee_method?: string | null
           guest_id?: string
+          booker_guest_id?: string | null
+          billing_rule_id?: string | null
           id?: string
+          infants?: number
           late_checkout_granted?: boolean
           late_checkout_note?: string | null
           late_checkout_until?: string | null
@@ -3093,15 +3151,19 @@ export type Database = {
           priced_at?: string | null
           pms_group_block_id?: string | null
           pms_group_id?: string | null
+          purpose_of_stay?: string | null
           rate_plan_id?: string | null
+          refundability_snapshot?: Json | null
           restaurant_id?: string
           room_id?: string | null
           room_subtotal?: number | null
           room_type_id?: string
+          rooms_requested?: number
           source?: string
           special_request_category?: string | null
           special_requests?: string | null
           status?: string
+          travel_agent_contact_id?: string | null
           travel_agent_master_id?: string | null
           updated_at?: string
         }
@@ -3160,6 +3222,13 @@ export type Database = {
             columns: ["travel_agent_master_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "guest_account_masters"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_deposit_policy_same_property"
+            columns: ["deposit_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_deposit_policies"
             referencedColumns: ["id", "restaurant_id"]
           },
           {
@@ -10787,6 +10856,100 @@ export type Database = {
           },
         ]
       }
+      pms_rate_cancellation_policies: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          deadline_hours: number | null
+          description: string | null
+          id: string
+          name: string
+          penalty_type: string
+          penalty_value: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          deadline_hours?: number | null
+          description?: string | null
+          id?: string
+          name: string
+          penalty_type?: string
+          penalty_value?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          deadline_hours?: number | null
+          description?: string | null
+          id?: string
+          name?: string
+          penalty_type?: string
+          penalty_value?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_rate_cancellation_policies_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_rate_refundability_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          kind: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_rate_refundability_codes_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_property_areas: {
         Row: {
           active: boolean
@@ -14219,6 +14382,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -14240,10 +14404,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -14276,6 +14442,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -14297,10 +14464,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -14493,6 +14662,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -14514,10 +14684,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -14542,6 +14714,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -14563,10 +14736,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -14590,6 +14765,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -14611,10 +14787,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -14891,6 +15069,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -14912,10 +15091,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -14954,6 +15135,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -14975,10 +15157,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -15004,13 +15188,16 @@ export type Database = {
           _external_reference?: string
           _guarantee_method?: string
           _guest_id: string
+          _infants?: number
           _market_segment?: string
           _membership_id: string
           _notes: string
+          _quote_currency?: string
           _rate_plan_id: string
           _restaurant_id: string
           _room_id: string
           _room_type_id: string
+          _rooms?: number
           _special_requests: string
           _status: string
           _travel_agent_master_id?: string
@@ -15018,6 +15205,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -15039,10 +15227,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -15141,6 +15331,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -15162,10 +15353,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -15191,6 +15384,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -15212,10 +15406,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null
@@ -15568,11 +15764,17 @@ export type Database = {
       }
       price_hotel_stay: {
         Args: {
+          _adults?: number
           _arrival: string
+          _booking_date?: string
+          _children?: number
           _departure: string
+          _infants?: number
+          _quote_currency?: string
           _rate_plan_id: string
           _restaurant_id: string
           _room_type_id: string
+          _rooms?: number
         }
         Returns: Json
       }
@@ -15678,6 +15880,7 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
@@ -15699,10 +15902,12 @@ export type Database = {
           notes: string | null
           priced_at: string | null
           rate_plan_id: string | null
+          refundability_snapshot: Json | null
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
+          rooms_requested: number
           source: string
           special_request_category: string | null
           special_requests: string | null

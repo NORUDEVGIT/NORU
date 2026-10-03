@@ -50,6 +50,7 @@ export function CreateReservationGuest({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [peekOpen, setPeekOpen] = useState(false);
+  const [bookerOnly, setBookerOnly] = useState(false);
 
   useEffect(() => {
     const handle = window.setTimeout(
@@ -108,7 +109,7 @@ export function CreateReservationGuest({
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
             <Button variant="outline" size="sm" data-testid="view-guest" onClick={() => setPeekOpen(true)}>
-              View guest
+              View Full Profile
             </Button>
             <Button
               variant="outline"
@@ -119,7 +120,7 @@ export function CreateReservationGuest({
                 setGuestSearch("");
               }}
             >
-              Change guest
+              Clear selection
             </Button>
           </div>
         </div>
@@ -134,10 +135,14 @@ export function CreateReservationGuest({
           <div className="flex flex-wrap gap-3">
             <div className="relative min-w-56 flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <label className="sr-only" htmlFor="guest-search">
+                Search guests by name, phone or email
+              </label>
               <Input
+                id="guest-search"
                 className="pl-9"
                 data-testid="guest-search"
-                placeholder="Search guests by name, phone or email"
+                placeholder="Search guest by name, phone, email, ID or profile number"
                 value={guestSearch}
                 onChange={(e) => setGuestSearch(e.target.value)}
               />
@@ -145,33 +150,67 @@ export function CreateReservationGuest({
             {canCreateGuest ? (
               <Button type="button" variant="outline" data-testid="create-guest-inline" onClick={() => setFormOpen(true)}>
                 <UserPlus className="size-4 sm:mr-2" />
-                <span className="hidden sm:inline">Create guest</span>
+                <span className="hidden sm:inline">Create New Guest</span>
+                <span className="sr-only">Create guest</span>
               </Button>
             ) : null}
+            <Button
+              type="button"
+              variant={bookerOnly ? "default" : "outline"}
+              aria-pressed={bookerOnly}
+              onClick={() => setBookerOnly((current) => !current)}
+            >
+              Booker Only
+            </Button>
           </div>
-          <ul className="space-y-2" data-testid="guest-search-results">
-            {guestListItems(guestsQuery.data).map((row) => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  onClick={() => onGuestChange(toPickedGuest(row))}
-                  className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
-                >
-                  <span className="inline-flex flex-wrap items-center gap-2 font-medium">
-                    {row.fullName}
-                    {row.vipStatus ? <VipBadge /> : null}
-                    <GuestRestrictionBadges guest={row} />
-                  </span>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {[row.phone, row.email].filter(Boolean).join(" · ")}
-                  </span>
-                </button>
-              </li>
-            ))}
-            {guestListItems(guestsQuery.data).length === 0 ? (
-              <li className="text-sm text-muted-foreground">No matching guests — create one without leaving this page.</li>
-            ) : null}
-          </ul>
+          {bookerOnly ? (
+            <p className="text-xs text-muted-foreground">
+              Booker-only stays on this draft. Guest Profile remains the guest master.
+            </p>
+          ) : null}
+          <div className="overflow-x-auto rounded-xl border border-[#E7E0D4]" data-testid="guest-search-results">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-[#FAF8F4] text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Guest Name</th>
+                  <th className="px-3 py-2">Phone</th>
+                  <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2">Profile No.</th>
+                  <th className="px-3 py-2">Last Stay</th>
+                  <th className="px-3 py-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {guestListItems(guestsQuery.data).map((row) => (
+                  <tr key={row.id} className="border-t border-border">
+                    <td className="px-3 py-2 font-medium">
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        {row.fullName}
+                        {row.vipStatus ? <VipBadge /> : null}
+                        <GuestRestrictionBadges guest={row} />
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{row.phone ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{row.email ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{row.profileNumber ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{row.lastStayAt ?? "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Button type="button" size="sm" variant="outline" onClick={() => onGuestChange(toPickedGuest(row))}>
+                        Select
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {guestListItems(guestsQuery.data).length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-3 text-sm text-muted-foreground">
+                      No matching guests — create one without leaving this page.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
 

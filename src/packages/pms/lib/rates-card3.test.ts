@@ -29,6 +29,8 @@ function snapshot(partial?: Partial<RatesCard3Snapshot>): RatesCard3Snapshot {
     categories: [],
     plans: [],
     calendar: [],
+    cancellationPolicies: [],
+    refundabilityCodes: [],
     ...partial,
   };
 }
@@ -51,6 +53,13 @@ describe("Card 3 Phase 3 rates readiness", () => {
             roomTypeName: "Deluxe",
             currency: "ETB",
             baseRate: 0,
+            description: null,
+            validFrom: null,
+            validTo: null,
+            cancellationPolicyId: null,
+            refundabilityId: null,
+            minAdvanceDays: null,
+            maxAdvanceDays: null,
             active: true,
           },
         ],
@@ -71,6 +80,13 @@ describe("Card 3 Phase 3 rates readiness", () => {
             roomTypeName: "Deluxe",
             currency: "ETB",
             baseRate: 2500,
+            description: "Best available",
+            validFrom: "2026-01-01",
+            validTo: "2026-12-31",
+            cancellationPolicyId: null,
+            refundabilityId: null,
+            minAdvanceDays: null,
+            maxAdvanceDays: null,
             active: true,
           },
         ],
@@ -85,7 +101,7 @@ describe("Card 3 Phase 3 rates readiness", () => {
     assert.match(fns, /from\("room_types"\)/);
     assert.match(fns, /from\("hotel_rate_plans"\)/);
     assert.match(fns, /from\("hotel_rate_calendar"\)/);
-    assert.doesNotMatch(fns, /from\("pms_rate/);
+    assert.doesNotMatch(fns, /from\("pms_rate_calendar"\)/);
     assert.doesNotMatch(fns, /insert\(\{[^}]*room_types/);
     assert.doesNotMatch(fns, /from\("pms_inventory_rules"\)/);
     assert.doesNotMatch(fns, /from\("hotel_reservations"\)/);
@@ -122,5 +138,20 @@ describe("Card 3 Phase 3 rates readiness", () => {
     );
     assert.match(section, /PmsPropertySetupCard3Meals/);
     assert.doesNotMatch(ui, /Meal Plans & Packages/);
+  });
+
+  it("exposes description and validity on Card 3 rate plans without a new column", () => {
+    assert.match(fns, /valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days/);
+    assert.match(fns, /description: data\.description/);
+    assert.match(fns, /valid_from: data\.validFrom/);
+    assert.match(fns, /valid_to: data\.validTo/);
+    assert.match(fns, /Valid until cannot be before valid from/);
+    assert.match(ui, /id="plan-description"/);
+    assert.match(ui, /id="plan-valid-from"/);
+    assert.match(ui, /id="plan-valid-until"/);
+    assert.match(fns, /pms_rate_cancellation_policies/);
+    assert.match(fns, /min_advance_days/);
+    assert.match(ui, /id="plan-min-advance"/);
+    assert.match(ui, /Cancellation policies/);
   });
 });

@@ -147,10 +147,33 @@ export type CreateStayQuoteView = {
 };
 
 export type CreateRateQuoteRow = {
-  plan: { id: string; code: string; name: string };
+  plan: {
+    id: string;
+    code: string;
+    name: string;
+    description: string | null;
+    validFrom: string | null;
+    validTo: string | null;
+  };
   quote: CreateStayQuoteView | null;
   unavailableReason: string | null;
+  breakfastLabel: string;
+  includedServicesLabel: string;
+  restrictionSummary: string | null;
+  cancellationLabel: string;
+  refundabilityLabel: string;
+  refundabilityKind: string | null;
 };
+
+export const CREATE_RATE_QUOTE_UNSPECIFIED = "—";
+
+export function formatRatePlanValidity(plan: {
+  validFrom: string | null;
+  validTo: string | null;
+}): string | null {
+  if (!plan.validFrom && !plan.validTo) return null;
+  return `${plan.validFrom ?? "Any"} → ${plan.validTo ?? "Any"}`;
+}
 
 export type CreatePricingState =
   | { kind: "needs_context" }

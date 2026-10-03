@@ -25,6 +25,15 @@ import {
   section7PersistApplied,
 } from "./create-reservation-phase1-section7";
 import {
+  asDepositPolicyType,
+  assertReservationTenderCode,
+  buildDepositRequirementSnapshot,
+} from "./create-reservation-step4";
+import { DEPOSIT_POLICY_TYPE_LABELS, type DepositPolicyCard3Row } from "./payments-card3.server";
+import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
+import { isMissingSchemaError } from "./pms-set2-structure";
+import type { Json } from "@/integrations/supabase/types";
+import {
   getAssignmentEligibilityCompat,
   getRoomTypeAvailabilityCompat,
   type AssignmentEligibilityResult,
@@ -609,6 +618,95 @@ export const getReservation = createServerFn({ method: "POST" })
 
 /* ------------------------------------------------------------------ create */
 
+function toDepositPolicyCard3(row: {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  required: boolean | null;
+  deposit_type: string;
+  deposit_value: number | string;
+  is_default: boolean | null;
+  active: boolean | null;
+}): DepositPolicyCard3Row {
+  const depositType = asDepositPolicyType(row.deposit_type);
+  return {
+    id: row.id,
+    code: String(row.code ?? "").toUpperCase(),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    required: row.required === true,
+    depositType,
+    depositTypeLabel: DEPOSIT_POLICY_TYPE_LABELS[depositType],
+    depositValue: Number(row.deposit_value ?? 0),
+    isDefault: row.is_default === true,
+    active: row.active !== false,
+  };
+}
+
+async function persistDepositRequirementSnapshot(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  input: {
+    restaurantId: string;
+    reservationId: string;
+    depositPolicyId: string | null;
+    depositTenderCode: string | null;
+    guaranteeMethod: string | null;
+    roomSubtotal: number | null;
+    currency: string | null;
+    nightly: Array<{ date: string; rate: number }>;
+  },
+): Promise<void> {
+  const polish = await loadPolish1Snapshot(supabaseAdmin, input.restaurantId);
+  const activeTenderCodes = polish.paymentMethodsAvailable
+    ? polish.paymentMethods.filter((row) => row.active).map((row) => row.code)
+    : null;
+  if (input.guaranteeMethod) assertReservationTenderCode(input.guaranteeMethod, activeTenderCodes);
+  if (input.depositTenderCode) assertReservationTenderCode(input.depositTenderCode, activeTenderCodes);
+
+  const policies = await supabaseAdmin
+    .from("pms_deposit_policies")
+    .select("id, code, name, description, required, deposit_type, deposit_value, is_default, active")
+    .eq("restaurant_id", input.restaurantId);
+  if (policies.error) {
+    if (isMissingSchemaError(policies.error)) return;
+    throw new Error(policies.error.message);
+  }
+  const rows = ((policies.data ?? []) as Array<Parameters<typeof toDepositPolicyCard3>[0]>).map(
+    toDepositPolicyCard3,
+  );
+  const selected = input.depositPolicyId
+    ? rows.find((row) => row.id === input.depositPolicyId) ?? null
+    : rows.find((row) => row.active && row.isDefault) ?? null;
+  if (input.depositPolicyId && !selected) {
+    throw new Error("That deposit policy doesn't belong to this property.");
+  }
+  if (selected && !selected.active) {
+    throw new Error("That deposit policy is not active.");
+  }
+  if (!selected) return;
+
+  const snapshot = buildDepositRequirementSnapshot({
+    policy: selected,
+    quote: {
+      subtotal: input.roomSubtotal,
+      nightly: input.nightly,
+      currency: input.currency,
+    },
+    currency: input.currency ?? "",
+    intendedTenderCode: input.depositTenderCode,
+  });
+  const { error } = await supabaseAdmin
+    .from("hotel_reservations")
+    .update({
+      deposit_policy_id: selected.id,
+      deposit_requirement_snapshot: snapshot as unknown as Json,
+    })
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.reservationId);
+  if (error && !isMissingSchemaError(error)) throw new Error(error.message);
+}
+
 const stayInputSchema = z.object({
   restaurantId: idSchema,
   guestId: idSchema,
@@ -618,6 +716,9 @@ const stayInputSchema = z.object({
   departure: dateSchema,
   adults: z.number().int().min(1).max(20),
   children: z.number().int().min(0).max(20),
+  infants: z.number().int().min(0).max(20).optional(),
+  rooms: z.number().int().min(1).max(20).optional(),
+  quoteCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable().optional(),
   specialRequests: z.string().max(2000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   /** Pricing is re-derived server-side from this plan; browser totals are ignored. */
@@ -645,6 +746,14 @@ export const createReservation = createServerFn({ method: "POST" })
         packageActivationIds: z.array(idSchema).optional(),
         /** Channel origin on hotel_reservations.source — not commercial_booking_source. */
         source: z.enum(["walk_in"]).optional(),
+        commercialSalesChannel: z.string().max(40).nullable().optional(),
+        purposeOfStay: z.string().max(40).nullable().optional(),
+        billingRuleId: idSchema.nullable().optional(),
+        companyContactId: idSchema.nullable().optional(),
+        travelAgentContactId: idSchema.nullable().optional(),
+        bookerGuestId: idSchema.nullable().optional(),
+        depositPolicyId: idSchema.nullable().optional(),
+        depositTenderCode: z.string().max(80).nullable().optional(),
       })
       .parse(input),
   )
@@ -729,6 +838,9 @@ export const createReservation = createServerFn({ method: "POST" })
       _status: status,
       _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
       _membership_id: me.id,
+      _rooms: data.rooms ?? 1,
+      _infants: data.infants ?? 0,
+      ...(data.quoteCurrency ? { _quote_currency: data.quoteCurrency } : {}),
       ...(data.companyMasterId ? { _company_master_id: data.companyMasterId } : {}),
       ...(data.travelAgentMasterId ? { _travel_agent_master_id: data.travelAgentMasterId } : {}),
       ...(persistApplied
@@ -759,6 +871,8 @@ export const createReservation = createServerFn({ method: "POST" })
       id: string;
       confirmation_number: string;
       room_subtotal: number | string | null;
+      currency: string | null;
+      nightly_rate_snapshot: unknown;
     };
     if (groupLink) {
       const { attachReservationToGroup } = await import("./groups.functions");
@@ -785,6 +899,33 @@ export const createReservation = createServerFn({ method: "POST" })
         .eq("id", row.id);
       if (groupError) throw new Error(groupError.message);
     }
+    const step3Patch: Record<string, string | null> = {};
+    if (data.commercialSalesChannel) step3Patch.commercial_sales_channel = data.commercialSalesChannel;
+    if (data.purposeOfStay) step3Patch.purpose_of_stay = data.purposeOfStay;
+    if (data.billingRuleId) step3Patch.billing_rule_id = data.billingRuleId;
+    if (data.companyContactId) step3Patch.company_contact_id = data.companyContactId;
+    if (data.travelAgentContactId) step3Patch.travel_agent_contact_id = data.travelAgentContactId;
+    if (data.bookerGuestId) step3Patch.booker_guest_id = data.bookerGuestId;
+    if (Object.keys(step3Patch).length > 0) {
+      const { error: step3Error } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update(step3Patch)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.id);
+        if (step3Error && !/column|schema cache|does not exist/i.test(step3Error.message)) {
+        throw new Error(step3Error.message);
+      }
+    }
+    await persistDepositRequirementSnapshot(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      reservationId: row.id,
+      depositPolicyId: data.depositPolicyId ?? null,
+      depositTenderCode: blankToNull(data.depositTenderCode),
+      guaranteeMethod: persistApplied ? blankToNull(data.guaranteeMethod) : null,
+      roomSubtotal: row.room_subtotal == null ? null : Number(row.room_subtotal),
+      currency: row.currency,
+      nightly: parseSnapshot(row.nightly_rate_snapshot),
+    });
     if (data.travelAgentMasterId) {
       const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
       const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");

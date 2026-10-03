@@ -22,7 +22,7 @@ export function CreateReservationConfirmation({
       className="create-reservation-confirmation rounded-2xl border border-border bg-card p-6"
       data-testid="create-reservation-confirmation"
     >
-      <h1 className="font-display text-2xl">Reservation created</h1>
+      <h1 className="font-display text-2xl">Reservation Created Successfully</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Confirmation {view.confirmationNumber}. Print this page for the guest —{" "}
         {"email and SMS are not sent from create."}
@@ -30,7 +30,7 @@ export function CreateReservationConfirmation({
 
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Confirmation</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Reservation number</dt>
           <dd data-testid="confirmation-number">{view.confirmationNumber}</dd>
         </div>
         <div>
@@ -38,6 +38,14 @@ export function CreateReservationConfirmation({
           <dd data-testid="confirmation-status">
             {view.status === "confirmed" ? "Confirmed" : "Pending"}
           </dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created at</dt>
+          <dd>Not returned by the create writer</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created by</dt>
+          <dd>Not returned by the create writer</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
@@ -113,7 +121,7 @@ export function CreateReservationConfirmation({
 
       <div className="create-reservation-confirmation-actions mt-6 flex flex-wrap gap-3">
         <Button type="button" data-testid="create-reservation-print" onClick={() => window.print()}>
-          {CREATE_RESERVATION_PRINT_LABEL}
+          {CREATE_RESERVATION_PRINT_LABEL} Confirmation
         </Button>
         {onOpenReservation ? (
           <Button
@@ -145,6 +153,10 @@ export function CreateReservationConfirmation({
             New Reservation
           </Button>
         ) : null}
+        <Button type="button" variant="outline" disabled title="Email delivery is not connected">
+          {/* TODO: wire to an outbound confirmation sender. Do not mark mail as sent. */}
+          Send Confirmation
+        </Button>
       </div>
 
       <style>{`
