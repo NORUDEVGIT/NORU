@@ -92,11 +92,13 @@ export function ReservationDetailWorkspace({
   membership,
   reservationId,
   embedded = false,
+  amendRequest = 0,
   onCopiedReservation,
 }: {
   membership: RestaurantMembership;
   reservationId: string;
   embedded?: boolean;
+  amendRequest?: number;
   onCopiedReservation?: (reservationId: string) => void;
 }) {
   const restaurantId = membership.restaurant.id;
@@ -119,6 +121,10 @@ export function ReservationDetailWorkspace({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [foAction, setFoAction] = useState<FrontOfficeAction | null>(null);
   const [detailTab, setDetailTab] = useState<DetailWorkspaceTab>("overview");
+
+  useEffect(() => {
+    if (amendRequest > 0) setAmendOpen(true);
+  }, [amendRequest]);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],

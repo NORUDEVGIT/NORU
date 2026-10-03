@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { addDays, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   CREATE_RESERVATION_MIN_NIGHTS,
@@ -7,6 +7,72 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
+
+export function StayCountInput({
+  id,
+  value,
+  min,
+  max,
+  disabled,
+  onCommit,
+  "data-testid": testId,
+}: {
+  id: string;
+  value: number;
+  min: number;
+  max?: number;
+  disabled?: boolean;
+  onCommit: (value: number) => void;
+  "data-testid"?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(null);
+  }, [value]);
+
+  function clamp(raw: string): number {
+    const parsed = Number(raw);
+    const next = Number.isFinite(parsed) ? Math.floor(parsed) : min;
+    if (max == null) return Math.max(min, next);
+    return Math.min(max, Math.max(min, next));
+  }
+
+  return (
+    <Input
+      id={id}
+      data-testid={testId}
+      type="number"
+      min={min}
+      max={max}
+      disabled={disabled}
+      className="h-9 tabular-nums"
+      value={draft ?? String(value)}
+      onChange={(event) => {
+        const raw = event.target.value;
+        if (raw === "") {
+          setDraft("");
+          return;
+        }
+        setDraft(raw);
+        const parsed = Number(raw);
+        if (!Number.isFinite(parsed)) return;
+        const next = Math.floor(parsed);
+        if (next < min) return;
+        if (max != null && next > max) {
+          setDraft(String(max));
+          onCommit(max);
+          return;
+        }
+        onCommit(next);
+      }}
+      onBlur={() => {
+        onCommit(clamp(draft ?? String(value)));
+        setDraft(null);
+      }}
+    />
+  );
+}
 
 export function CreateReservationStay({
   arrival,
@@ -17,6 +83,11 @@ export function CreateReservationStay({
   children,
   specialRequests,
   notes,
+  showNotes = true,
+  title = "Stay",
+  rooms = 1,
+  onRoomsChange,
+  requestExtras,
   occupancyWarn,
   onArrivalChange,
   onDepartureChange,
@@ -34,6 +105,11 @@ export function CreateReservationStay({
   children: number;
   specialRequests: string;
   notes: string;
+  showNotes?: boolean;
+  title?: string;
+  rooms?: number;
+  onRoomsChange?: (rooms: number) => void;
+  requestExtras?: ReactNode;
   occupancyWarn: ReactNode;
   onArrivalChange: (value: string) => void;
   onDepartureChange: (value: string) => void;
@@ -47,63 +123,88 @@ export function CreateReservationStay({
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4" data-testid="create-reservation-stay">
-      <h2 className="font-display text-lg">Stay</h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-1">
-          <Label htmlFor="arrival">Arrival</Label>
+      <h2 className="font-display text-lg">{title}</h2>
+      <div className="mt-3 grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="min-w-0 space-y-1">
+          <Label htmlFor="arrival">Arrival Date</Label>
           <Input
             id="arrival"
             data-testid="stay-arrival"
             type="date"
             required
+            className="h-9"
             value={arrival}
             onChange={(e) => onArrivalChange(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="nights">Nights</Label>
-          <Input
-            id="nights"
-            data-testid="stay-nights"
-            type="number"
-            min={CREATE_RESERVATION_MIN_NIGHTS}
-            value={nights}
-            onChange={(e) => onNightsChange(Number(e.target.value))}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="departure">Departure</Label>
+        <div className="min-w-0 space-y-1">
+          <Label htmlFor="departure">Departure Date</Label>
           <Input
             id="departure"
             data-testid="stay-departure"
             type="date"
             min={departureMin}
+            className="h-9"
             value={departure}
             onChange={(e) => onDepartureChange(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="adults">Adults</Label>
-          <Input
-            id="adults"
-            data-testid="stay-adults"
-            type="number"
-            min={1}
-            max={20}
-            value={adults}
-            onChange={(e) => onAdultsChange(Math.max(1, Number(e.target.value) || 1))}
+        <div className="min-w-0 space-y-1">
+          <Label htmlFor="nights">Nights</Label>
+          <StayCountInput
+            id="nights"
+            data-testid="stay-nights"
+            value={nights}
+            min={CREATE_RESERVATION_MIN_NIGHTS}
+            onCommit={onNightsChange}
           />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
+          <Label htmlFor="rooms-requested">Rooms</Label>
+          <StayCountInput
+            id="rooms-requested"
+            value={rooms}
+            min={1}
+            max={20}
+            disabled={!onRoomsChange}
+            onCommit={(next) => onRoomsChange?.(next)}
+          />
+          {/* TODO: wire to Rooms & Inventory — room count is not on the create payload */}
+        </div>
+        <div className="min-w-0 space-y-1">
+          <Label htmlFor="adults">Adults</Label>
+          <StayCountInput
+            id="adults"
+            data-testid="stay-adults"
+            value={adults}
+            min={1}
+            max={20}
+            onCommit={onAdultsChange}
+          />
+        </div>
+        <div className="min-w-0 space-y-1">
           <Label htmlFor="children">Children</Label>
-          <Input
+          <StayCountInput
             id="children"
             data-testid="stay-children"
-            type="number"
+            value={children}
             min={0}
             max={20}
-            value={children}
-            onChange={(e) => onChildrenChange(Math.max(0, Number(e.target.value) || 0))}
+            onCommit={onChildrenChange}
+          />
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+        {requestExtras}
+        <div className="min-w-0 space-y-1 sm:col-span-2 xl:col-span-1">
+          <Label htmlFor="requests">Special Request</Label>
+          <Input
+            id="requests"
+            data-testid="stay-special-requests"
+            className="h-9"
+            placeholder="e.g. High floor, airport pickup, extra bed..."
+            value={specialRequests}
+            onChange={(e) => onSpecialRequestsChange(e.target.value)}
           />
         </div>
       </div>
@@ -119,18 +220,8 @@ export function CreateReservationStay({
 
       {occupancyWarn ? <div className="mt-3">{occupancyWarn}</div> : null}
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor="requests">Special requests</Label>
-          <Textarea
-            id="requests"
-            data-testid="stay-special-requests"
-            rows={3}
-            value={specialRequests}
-            onChange={(e) => onSpecialRequestsChange(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
+      {showNotes ? (
+        <div className="mt-4 space-y-1">
           <Label htmlFor="notes">Internal notes</Label>
           <Textarea
             id="notes"
@@ -140,7 +231,7 @@ export function CreateReservationStay({
             onChange={(e) => onNotesChange(e.target.value)}
           />
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

@@ -25,6 +25,15 @@ import {
   section7PersistApplied,
 } from "./create-reservation-phase1-section7";
 import {
+  asDepositPolicyType,
+  assertReservationTenderCode,
+  buildDepositRequirementSnapshot,
+} from "./create-reservation-step4";
+import { DEPOSIT_POLICY_TYPE_LABELS, type DepositPolicyCard3Row } from "./payments-card3.server";
+import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
+import { isMissingSchemaError } from "./pms-set2-structure";
+import type { Json } from "@/integrations/supabase/types";
+import {
   getAssignmentEligibilityCompat,
   getRoomTypeAvailabilityCompat,
   type AssignmentEligibilityResult,
@@ -259,10 +268,7 @@ async function resolveReservationActorNames(
   supabase: {
     from: (table: string) => {
       select: (columns: string) => {
-        eq: (
-          column: string,
-          value: string,
-        ) => {
+        eq: (column: string, value: string) => {
           in: (column: string, values: string[]) => PromiseLike<{ data: unknown }>;
         };
         in: (column: string, values: string[]) => PromiseLike<{ data: unknown }>;
@@ -573,9 +579,7 @@ export const getReservation = createServerFn({ method: "POST" })
 
       const { data: events } = await context.supabase
         .from("hotel_reservation_history")
-        .select(
-          "id, event_type, previous_values, new_values, notes, created_at, actor_membership_id",
-        )
+        .select("id, event_type, previous_values, new_values, notes, created_at, actor_membership_id")
         .eq("restaurant_id", data.restaurantId)
         .eq("reservation_id", data.reservationId)
         .order("created_at", { ascending: false })
@@ -614,6 +618,95 @@ export const getReservation = createServerFn({ method: "POST" })
 
 /* ------------------------------------------------------------------ create */
 
+function toDepositPolicyCard3(row: {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  required: boolean | null;
+  deposit_type: string;
+  deposit_value: number | string;
+  is_default: boolean | null;
+  active: boolean | null;
+}): DepositPolicyCard3Row {
+  const depositType = asDepositPolicyType(row.deposit_type);
+  return {
+    id: row.id,
+    code: String(row.code ?? "").toUpperCase(),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    required: row.required === true,
+    depositType,
+    depositTypeLabel: DEPOSIT_POLICY_TYPE_LABELS[depositType],
+    depositValue: Number(row.deposit_value ?? 0),
+    isDefault: row.is_default === true,
+    active: row.active !== false,
+  };
+}
+
+async function persistDepositRequirementSnapshot(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  input: {
+    restaurantId: string;
+    reservationId: string;
+    depositPolicyId: string | null;
+    depositTenderCode: string | null;
+    guaranteeMethod: string | null;
+    roomSubtotal: number | null;
+    currency: string | null;
+    nightly: Array<{ date: string; rate: number }>;
+  },
+): Promise<void> {
+  const polish = await loadPolish1Snapshot(supabaseAdmin, input.restaurantId);
+  const activeTenderCodes = polish.paymentMethodsAvailable
+    ? polish.paymentMethods.filter((row) => row.active).map((row) => row.code)
+    : null;
+  if (input.guaranteeMethod) assertReservationTenderCode(input.guaranteeMethod, activeTenderCodes);
+  if (input.depositTenderCode) assertReservationTenderCode(input.depositTenderCode, activeTenderCodes);
+
+  const policies = await supabaseAdmin
+    .from("pms_deposit_policies")
+    .select("id, code, name, description, required, deposit_type, deposit_value, is_default, active")
+    .eq("restaurant_id", input.restaurantId);
+  if (policies.error) {
+    if (isMissingSchemaError(policies.error)) return;
+    throw new Error(policies.error.message);
+  }
+  const rows = ((policies.data ?? []) as Array<Parameters<typeof toDepositPolicyCard3>[0]>).map(
+    toDepositPolicyCard3,
+  );
+  const selected = input.depositPolicyId
+    ? rows.find((row) => row.id === input.depositPolicyId) ?? null
+    : rows.find((row) => row.active && row.isDefault) ?? null;
+  if (input.depositPolicyId && !selected) {
+    throw new Error("That deposit policy doesn't belong to this property.");
+  }
+  if (selected && !selected.active) {
+    throw new Error("That deposit policy is not active.");
+  }
+  if (!selected) return;
+
+  const snapshot = buildDepositRequirementSnapshot({
+    policy: selected,
+    quote: {
+      subtotal: input.roomSubtotal,
+      nightly: input.nightly,
+      currency: input.currency,
+    },
+    currency: input.currency ?? "",
+    intendedTenderCode: input.depositTenderCode,
+  });
+  const { error } = await supabaseAdmin
+    .from("hotel_reservations")
+    .update({
+      deposit_policy_id: selected.id,
+      deposit_requirement_snapshot: snapshot as unknown as Json,
+    })
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.reservationId);
+  if (error && !isMissingSchemaError(error)) throw new Error(error.message);
+}
+
 const stayInputSchema = z.object({
   restaurantId: idSchema,
   guestId: idSchema,
@@ -623,6 +716,9 @@ const stayInputSchema = z.object({
   departure: dateSchema,
   adults: z.number().int().min(1).max(20),
   children: z.number().int().min(0).max(20),
+  infants: z.number().int().min(0).max(20).optional(),
+  rooms: z.number().int().min(1).max(20).optional(),
+  quoteCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable().optional(),
   specialRequests: z.string().max(2000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   /** Pricing is re-derived server-side from this plan; browser totals are ignored. */
@@ -650,223 +746,219 @@ export const createReservation = createServerFn({ method: "POST" })
         packageActivationIds: z.array(idSchema).optional(),
         /** Channel origin on hotel_reservations.source — not commercial_booking_source. */
         source: z.enum(["walk_in"]).optional(),
+        commercialSalesChannel: z.string().max(40).nullable().optional(),
+        purposeOfStay: z.string().max(40).nullable().optional(),
+        billingRuleId: idSchema.nullable().optional(),
+        companyContactId: idSchema.nullable().optional(),
+        travelAgentContactId: idSchema.nullable().optional(),
+        bookerGuestId: idSchema.nullable().optional(),
+        depositPolicyId: idSchema.nullable().optional(),
+        depositTenderCode: z.string().max(80).nullable().optional(),
       })
       .parse(input),
   )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<{
-      id: string;
-      confirmationNumber: string;
-      roomSubtotal: number | null;
-      promotionDiscount: number;
-      roomSubtotalAfterPromotion: number | null;
-      packagesSubtotal: number;
-      grandCommercialSubtotal: number | null;
-    }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
-      const status = data.status ?? "pending";
-      if (status === "confirmed") {
-        const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
-        const { validateReservationGuestRequirements } = await import("./guest-field-rules");
-        const { data: guestProfile } = await context.supabase
-          .from("guest_profiles")
-          .select("*")
-          .eq("restaurant_id", data.restaurantId)
-          .eq("id", data.guestId)
-          .maybeSingle();
-        if (!guestProfile) throw new Error("Guest profile not found.");
-        const { data: customFieldRows } = await context.supabase
-          .from("guest_custom_field_values")
-          .select("field_id, value_json")
-          .eq("restaurant_id", data.restaurantId)
-          .eq("guest_id", data.guestId);
-        const customValues: Record<string, unknown> = {};
-        if (customFieldRows) {
-          for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
-            customValues[row.field_id] = row.value_json;
+  .handler(async ({ data, context }): Promise<{
+    id: string;
+    confirmationNumber: string;
+    roomSubtotal: number | null;
+    promotionDiscount: number;
+    roomSubtotalAfterPromotion: number | null;
+    packagesSubtotal: number;
+    grandCommercialSubtotal: number | null;
+  }> => {
+    const me = await requireReservationManager(context as never, data.restaurantId);
+    const status = data.status ?? "pending";
+    assertCreateReservationPricing({
+      role: me.role,
+      status,
+      ratePlanId: data.ratePlanId ?? null,
+    });
+    const persistApplied = section7PersistApplied();
+    assertCreateReservationSection7({
+      status,
+      requireGuarantee: data.requireGuarantee === true,
+      guaranteeMethod: data.guaranteeMethod ?? null,
+      commercialBookingSource: data.commercialBookingSource ?? null,
+      marketSegment: data.marketSegment ?? null,
+      persistApplied,
+      reservationType: data.reservationType ?? null,
+      companyMasterId: data.companyMasterId ?? null,
+      travelAgentMasterId: data.travelAgentMasterId ?? null,
+    });
+    const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+
+    const { data: roomType, error: occupancyError } = await context.supabase
+      .from("room_types")
+      .select("max_occupancy")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.roomTypeId)
+      .maybeSingle();
+    if (occupancyError) throw new Error(occupancyError.message);
+    if (!roomType) throw new Error("Room type not found for this property.");
+    assertRoomTypeOccupancy(data.adults, data.children, roomType.max_occupancy);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let groupLink: { groupId: string; blockId: string | null } | null = null;
+    if (data.pmsGroupBlockId || data.pmsGroupId) {
+      const { assertGroupStayPickup } = await import("./groups.functions");
+      groupLink = await assertGroupStayPickup(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        pmsGroupId: data.pmsGroupId ?? null,
+        pmsGroupBlockId: data.pmsGroupBlockId ?? null,
+        roomTypeId: data.roomTypeId,
+        proposed: {
+          arrivalDate: arrival,
+          departureDate: departure,
+          status,
+        },
+      });
+    }
+    if (data.travelAgentMasterId) {
+      const { enforceTravelAgentBooking } = await import("./guest-travel-agent-booking");
+      await enforceTravelAgentBooking({
+        db: supabaseAdmin as never,
+        restaurantId: data.restaurantId,
+        agencyId: data.travelAgentMasterId,
+        arrival,
+        departure,
+        roomTypeId: data.roomTypeId,
+      });
+    }
+    const pricedArgs = {
+      _restaurant_id: data.restaurantId,
+      _guest_id: data.guestId,
+      _room_type_id: data.roomTypeId,
+      _room_id: (data.roomId ?? null) as unknown as string,
+      _arrival: arrival,
+      _departure: departure,
+      _adults: data.adults,
+      _children: data.children,
+      _special_requests: blankToNull(data.specialRequests) as unknown as string,
+      _notes: blankToNull(data.notes) as unknown as string,
+      _status: status,
+      _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
+      _membership_id: me.id,
+      _rooms: data.rooms ?? 1,
+      _infants: data.infants ?? 0,
+      ...(data.quoteCurrency ? { _quote_currency: data.quoteCurrency } : {}),
+      ...(data.companyMasterId ? { _company_master_id: data.companyMasterId } : {}),
+      ...(data.travelAgentMasterId ? { _travel_agent_master_id: data.travelAgentMasterId } : {}),
+      ...(persistApplied
+        ? {
+            _commercial_booking_source: blankToNull(
+              data.commercialBookingSource,
+            ) as unknown as string,
+            _market_segment: blankToNull(data.marketSegment) as unknown as string,
+            _external_reference: blankToNull(data.externalReference) as unknown as string,
+            _guarantee_method: blankToNull(data.guaranteeMethod) as unknown as string,
           }
-        }
-        const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
-        const resValidation = validateReservationGuestRequirements(
-          guestProfile,
-          workspaceConfig,
-          null,
-          customValues,
-        );
-        if (!resValidation.valid) {
-          throw new Error(`Reservation confirmation blocked: ${resValidation.errors.join("; ")}`);
-        }
-      }
-      assertCreateReservationPricing({
-        role: me.role,
-        status,
-        ratePlanId: data.ratePlanId ?? null,
-      });
-      const persistApplied = section7PersistApplied();
-      assertCreateReservationSection7({
-        status,
-        requireGuarantee: data.requireGuarantee === true,
-        guaranteeMethod: data.guaranteeMethod ?? null,
-        commercialBookingSource: data.commercialBookingSource ?? null,
-        marketSegment: data.marketSegment ?? null,
-        persistApplied,
-        reservationType: data.reservationType ?? null,
-        companyMasterId: data.companyMasterId ?? null,
-        travelAgentMasterId: data.travelAgentMasterId ?? null,
-      });
-      const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+        : {}),
+    };
+    const hasCommercialSelection =
+      Boolean(data.promotionActivationId) || (data.packageActivationIds?.length ?? 0) > 0;
+    const { data: created, error } = hasCommercialSelection
+      ? await (supabaseAdmin as never as {
+          rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+        }).rpc("create_hotel_reservation_priced_commercial", {
+          ...pricedArgs,
+          _promotion_activation_id: data.promotionActivationId ?? null,
+          _package_activation_ids: data.packageActivationIds ?? null,
+        })
+      : await supabaseAdmin.rpc("create_hotel_reservation_priced", pricedArgs);
+    if (error) throw rateError(reservationError(error.message).message);
 
-      const { data: roomType, error: occupancyError } = await context.supabase
-        .from("room_types")
-        .select("max_occupancy")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.roomTypeId)
-        .maybeSingle();
-      if (occupancyError) throw new Error(occupancyError.message);
-      if (!roomType) throw new Error("Room type not found for this property.");
-      assertRoomTypeOccupancy(data.adults, data.children, roomType.max_occupancy);
-
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      let groupLink: { groupId: string; blockId: string | null } | null = null;
-      if (data.pmsGroupBlockId || data.pmsGroupId) {
-        const { assertGroupStayPickup } = await import("./groups.functions");
-        groupLink = await assertGroupStayPickup(supabaseAdmin, {
-          restaurantId: data.restaurantId,
-          pmsGroupId: data.pmsGroupId ?? null,
-          pmsGroupBlockId: data.pmsGroupBlockId ?? null,
-          roomTypeId: data.roomTypeId,
-          proposed: {
-            arrivalDate: arrival,
-            departureDate: departure,
-            status,
-          },
-        });
-      }
-      if (data.travelAgentMasterId) {
-        const { enforceTravelAgentBooking } = await import("./guest-travel-agent-booking");
-        await enforceTravelAgentBooking({
-          db: supabaseAdmin as never,
-          restaurantId: data.restaurantId,
-          agencyId: data.travelAgentMasterId,
-          arrival,
-          departure,
-          roomTypeId: data.roomTypeId,
-        });
-      }
-      const pricedArgs = {
-        _restaurant_id: data.restaurantId,
-        _guest_id: data.guestId,
-        _room_type_id: data.roomTypeId,
-        _room_id: (data.roomId ?? null) as unknown as string,
-        _arrival: arrival,
-        _departure: departure,
-        _adults: data.adults,
-        _children: data.children,
-        _special_requests: blankToNull(data.specialRequests) as unknown as string,
-        _notes: blankToNull(data.notes) as unknown as string,
-        _status: status,
-        _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
-        _membership_id: me.id,
-        ...(data.companyMasterId ? { _company_master_id: data.companyMasterId } : {}),
-        ...(data.travelAgentMasterId ? { _travel_agent_master_id: data.travelAgentMasterId } : {}),
-        ...(persistApplied
-          ? {
-              _commercial_booking_source: blankToNull(
-                data.commercialBookingSource,
-              ) as unknown as string,
-              _market_segment: blankToNull(data.marketSegment) as unknown as string,
-              _external_reference: blankToNull(data.externalReference) as unknown as string,
-              _guarantee_method: blankToNull(data.guaranteeMethod) as unknown as string,
-            }
-          : {}),
-      };
-      const hasCommercialSelection =
-        Boolean(data.promotionActivationId) || (data.packageActivationIds?.length ?? 0) > 0;
-      const { data: created, error } = hasCommercialSelection
-        ? await (
-            supabaseAdmin as never as {
-              rpc: (
-                name: string,
-                args: Record<string, unknown>,
-              ) => Promise<{ data: unknown; error: { message: string } | null }>;
-            }
-          ).rpc("create_hotel_reservation_priced_commercial", {
-            ...pricedArgs,
-            _promotion_activation_id: data.promotionActivationId ?? null,
-            _package_activation_ids: data.packageActivationIds ?? null,
-          })
-        : await supabaseAdmin.rpc("create_hotel_reservation_priced", pricedArgs);
-      if (error) throw rateError(reservationError(error.message).message);
-
-      const row = created as unknown as {
-        id: string;
-        confirmation_number: string;
-        room_subtotal: number | string | null;
-      };
-      if (groupLink) {
-        const { attachReservationToGroup } = await import("./groups.functions");
-        await attachReservationToGroup(supabaseAdmin, me.id, {
-          restaurantId: data.restaurantId,
-          reservationId: row.id,
-          groupId: groupLink.groupId,
-          blockId: groupLink.blockId,
-        });
-      }
-      if (data.source === "walk_in") {
-        const { error: sourceError } = await supabaseAdmin
-          .from("hotel_reservations")
-          .update({ source: "walk_in" })
-          .eq("restaurant_id", data.restaurantId)
-          .eq("id", row.id);
-        if (sourceError) throw new Error(sourceError.message);
-      }
-      if (data.groupAccountMasterId) {
-        const { error: groupError } = await supabaseAdmin
-          .from("hotel_reservations")
-          .update({ group_account_master_id: data.groupAccountMasterId })
-          .eq("restaurant_id", data.restaurantId)
-          .eq("id", row.id);
-        if (groupError) throw new Error(groupError.message);
-      }
-      if (data.travelAgentMasterId) {
-        const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
-        const { notifyTravelAgentBookingEvent } =
-          await import("./guest-travel-agent-detail.functions");
-        await syncTravelAgentCommission({
-          db: supabaseAdmin as never,
-          restaurantId: data.restaurantId,
-          reservationId: row.id,
-          actorMembershipId: me.id,
-        });
-        await notifyTravelAgentBookingEvent({
-          restaurantId: data.restaurantId,
-          agencyId: data.travelAgentMasterId,
-          eventKey: "booking_confirmation",
-          body: `Reservation ${row.confirmation_number} was created for this travel agency.`,
-        });
-      }
-      const roomSubtotal = row.room_subtotal == null ? null : Number(row.room_subtotal);
-      const { getReservationCommercialAttribution } =
-        await import("./revenue/commercial-package.server");
-      const commercial = await getReservationCommercialAttribution(supabaseAdmin, {
+    const row = created as unknown as {
+      id: string;
+      confirmation_number: string;
+      room_subtotal: number | string | null;
+      currency: string | null;
+      nightly_rate_snapshot: unknown;
+    };
+    if (groupLink) {
+      const { attachReservationToGroup } = await import("./groups.functions");
+      await attachReservationToGroup(supabaseAdmin, me.id, {
         restaurantId: data.restaurantId,
         reservationId: row.id,
-        roomSubtotal,
+        groupId: groupLink.groupId,
+        blockId: groupLink.blockId,
       });
-      return {
-        id: row.id,
-        confirmationNumber: row.confirmation_number,
-        roomSubtotal,
-        promotionDiscount: commercial.promotionDiscount,
-        roomSubtotalAfterPromotion: commercial.roomSubtotalAfterPromotion,
-        packagesSubtotal: commercial.packagesSubtotal,
-        grandCommercialSubtotal: commercial.grandCommercialSubtotal,
-      };
-    },
-  );
+    }
+    if (data.source === "walk_in") {
+      const { error: sourceError } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update({ source: "walk_in" })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.id);
+      if (sourceError) throw new Error(sourceError.message);
+    }
+    if (data.groupAccountMasterId) {
+      const { error: groupError } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update({ group_account_master_id: data.groupAccountMasterId })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.id);
+      if (groupError) throw new Error(groupError.message);
+    }
+    const step3Patch: Record<string, string | null> = {};
+    if (data.commercialSalesChannel) step3Patch.commercial_sales_channel = data.commercialSalesChannel;
+    if (data.purposeOfStay) step3Patch.purpose_of_stay = data.purposeOfStay;
+    if (data.billingRuleId) step3Patch.billing_rule_id = data.billingRuleId;
+    if (data.companyContactId) step3Patch.company_contact_id = data.companyContactId;
+    if (data.travelAgentContactId) step3Patch.travel_agent_contact_id = data.travelAgentContactId;
+    if (data.bookerGuestId) step3Patch.booker_guest_id = data.bookerGuestId;
+    if (Object.keys(step3Patch).length > 0) {
+      const { error: step3Error } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update(step3Patch)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", row.id);
+        if (step3Error && !/column|schema cache|does not exist/i.test(step3Error.message)) {
+        throw new Error(step3Error.message);
+      }
+    }
+    await persistDepositRequirementSnapshot(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      reservationId: row.id,
+      depositPolicyId: data.depositPolicyId ?? null,
+      depositTenderCode: blankToNull(data.depositTenderCode),
+      guaranteeMethod: persistApplied ? blankToNull(data.guaranteeMethod) : null,
+      roomSubtotal: row.room_subtotal == null ? null : Number(row.room_subtotal),
+      currency: row.currency,
+      nightly: parseSnapshot(row.nightly_rate_snapshot),
+    });
+    if (data.travelAgentMasterId) {
+      const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
+      const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");
+      await syncTravelAgentCommission({
+        db: supabaseAdmin as never,
+        restaurantId: data.restaurantId,
+        reservationId: row.id,
+        actorMembershipId: me.id,
+      });
+      await notifyTravelAgentBookingEvent({
+        restaurantId: data.restaurantId,
+        agencyId: data.travelAgentMasterId,
+        eventKey: "booking_confirmation",
+        body: `Reservation ${row.confirmation_number} was created for this travel agency.`,
+      });
+    }
+    const roomSubtotal = row.room_subtotal == null ? null : Number(row.room_subtotal);
+    const { getReservationCommercialAttribution } = await import("./revenue/commercial-package.server");
+    const commercial = await getReservationCommercialAttribution(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      reservationId: row.id,
+      roomSubtotal,
+    });
+    return {
+      id: row.id,
+      confirmationNumber: row.confirmation_number,
+      roomSubtotal,
+      promotionDiscount: commercial.promotionDiscount,
+      roomSubtotalAfterPromotion: commercial.roomSubtotalAfterPromotion,
+      packagesSubtotal: commercial.packagesSubtotal,
+      grandCommercialSubtotal: commercial.grandCommercialSubtotal,
+    };
+  });
 
 export const copyReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -952,8 +1044,9 @@ export const amendReservation = createServerFn({ method: "POST" })
     if (!roomType) throw new Error("Room type not found for this property.");
     assertRoomTypeOccupancy(data.adults, data.children, roomType.max_occupancy);
 
-    const travelAgentMasterId = (existing as { travel_agent_master_id?: string | null })
-      .travel_agent_master_id;
+    const travelAgentMasterId = (
+      existing as { travel_agent_master_id?: string | null }
+    ).travel_agent_master_id;
     if (travelAgentMasterId) {
       const { enforceTravelAgentBooking } = await import("./guest-travel-agent-booking");
       await enforceTravelAgentBooking({
@@ -1043,8 +1136,7 @@ export const amendReservation = createServerFn({ method: "POST" })
     const amendedId = (updated as unknown as { id: string }).id;
     if (travelAgentMasterId) {
       const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
-      const { notifyTravelAgentBookingEvent } =
-        await import("./guest-travel-agent-detail.functions");
+      const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");
       await syncTravelAgentCommission({
         db: supabaseAdmin as never,
         restaurantId: data.restaurantId,
@@ -1132,7 +1224,7 @@ export const setReservationStatus = createServerFn({ method: "POST" })
 
     const { data: existing, error: readError } = await context.supabase
       .from("hotel_reservations")
-      .select("id, status, room_type_id, room_id, arrival_date, departure_date, guest_id")
+      .select("id, status, room_type_id, room_id, arrival_date, departure_date")
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.reservationId)
       .maybeSingle();
@@ -1142,40 +1234,6 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       return { id: existing.id, status: data.status as ReservationStatus };
 
     assertBookingStatusTransition(existing.status, data.status);
-
-    if (data.status === "confirmed") {
-      const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
-      const { validateReservationGuestRequirements } = await import("./guest-field-rules");
-      const targetGuestId = (existing as { guest_id: string }).guest_id;
-      const { data: guestProfile } = await context.supabase
-        .from("guest_profiles")
-        .select("*")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("id", targetGuestId)
-        .maybeSingle();
-      if (!guestProfile) throw new Error("Guest profile not found.");
-      const { data: customFieldRows } = await context.supabase
-        .from("guest_custom_field_values")
-        .select("field_id, value_json")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("guest_id", targetGuestId);
-      const customValues: Record<string, unknown> = {};
-      if (customFieldRows) {
-        for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
-          customValues[row.field_id] = row.value_json;
-        }
-      }
-      const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
-      const resValidation = validateReservationGuestRequirements(
-        guestProfile,
-        workspaceConfig,
-        null,
-        customValues,
-      );
-      if (!resValidation.valid) {
-        throw new Error(`Reservation confirmation blocked: ${resValidation.errors.join("; ")}`);
-      }
-    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -1225,12 +1283,10 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.reservationId)
       .maybeSingle();
-    const agencyId = (bound.data as { travel_agent_master_id?: string | null } | null)
-      ?.travel_agent_master_id;
+    const agencyId = (bound.data as { travel_agent_master_id?: string | null } | null)?.travel_agent_master_id;
     if (agencyId) {
       const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
-      const { notifyTravelAgentBookingEvent } =
-        await import("./guest-travel-agent-detail.functions");
+      const { notifyTravelAgentBookingEvent } = await import("./guest-travel-agent-detail.functions");
       await syncTravelAgentCommission({
         db: supabaseAdmin as never,
         restaurantId: data.restaurantId,

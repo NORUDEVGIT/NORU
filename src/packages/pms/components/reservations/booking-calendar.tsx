@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -47,6 +47,7 @@ import type {
 } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { amendReservation, getReservation } from "@/packages/pms/lib/reservations.functions";
 import { Button } from "@/shared/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   Dialog,
@@ -78,6 +79,25 @@ type ProposedMove = {
   arrivalDate: string;
   departureDate: string;
 };
+
+function ToolbarGroup({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-end gap-1.5", className)}>
+      <span className="w-full text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8A8176]">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
 
 export function BookingCalendarPanel({
   restaurantId,
@@ -252,7 +272,8 @@ export function BookingCalendarPanel({
 
   return (
     <div className="space-y-3" data-testid="reservation-booking-calendar">
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
+        <ToolbarGroup label="Navigation">
         <Button
           type="button"
           variant="outline"
@@ -279,6 +300,8 @@ export function BookingCalendarPanel({
           Next
           <ChevronRight className="size-4" />
         </Button>
+        </ToolbarGroup>
+        <ToolbarGroup label="Date range">
         <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
           Start date
           <Input
@@ -290,6 +313,8 @@ export function BookingCalendarPanel({
             }}
           />
         </label>
+        </ToolbarGroup>
+        <ToolbarGroup label="View">
         <div className="flex gap-1">
           {HORIZONS.map((item) => (
             <Button
@@ -324,6 +349,8 @@ export function BookingCalendarPanel({
             <SelectItem value="spacious">Spacious</SelectItem>
           </SelectContent>
         </Select>
+        </ToolbarGroup>
+        <ToolbarGroup label="Filters">
         <Select value={roomTypeId} onValueChange={setRoomTypeId}>
           <SelectTrigger className="h-9 w-44" aria-label="Room type filter">
             <SelectValue placeholder="All room types" />
@@ -360,8 +387,10 @@ export function BookingCalendarPanel({
             placeholder="Optional"
           />
         </label>
+        </ToolbarGroup>
+        <ToolbarGroup label="Search" className="min-w-52 flex-1">
         <label className="grid min-w-52 flex-1 gap-1 text-[11px] font-medium text-muted-foreground">
-          Search
+          Guest, confirmation or room
           <span className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -387,6 +416,8 @@ export function BookingCalendarPanel({
         >
           Find
         </Button>
+        </ToolbarGroup>
+        <ToolbarGroup label="Utilities">
         <Button
           type="button"
           variant="ghost"
@@ -397,17 +428,97 @@ export function BookingCalendarPanel({
         >
           <RefreshCw className={cn("size-4", calendarQuery.isFetching && "animate-spin")} />
         </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="border border-dashed border-[#C89933]/70 bg-[#FBF7EF] text-[#6B4A0A] hover:bg-[#F4E9D0]"
+            >
+              Exceptions {exceptionsQuery.data?.items.length ?? 0}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Exceptions
+            </p>
+            {exceptionsQuery.isError ? (
+              <p className="mt-2 text-xs text-destructive">Could not load exceptions.</p>
+            ) : (exceptionsQuery.data?.items.length ?? 0) === 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">No operational exceptions on the business date.</p>
+            ) : (
+              <ul className="mt-2 max-h-72 space-y-2 overflow-y-auto">
+                {(exceptionsQuery.data?.items ?? []).slice(0, 12).map((item) => (
+                  <li key={`${item.key}-${item.reservationId ?? item.summary}`}>
+                    <button
+                      type="button"
+                      className="w-full rounded-lg border border-[#DDD4C5] px-2 py-1.5 text-left text-xs hover:bg-[#F7F4EE]"
+                      disabled={!item.reservationId}
+                      onClick={() => {
+                        if (!item.reservationId || !snapshot) return;
+                        const found = [...snapshot.bars, ...snapshot.unassigned].find(
+                          (bar) => bar.reservationId === item.reservationId,
+                        );
+                        if (found) selectBar(found);
+                        else onOpen(item.reservationId);
+                      }}
+                    >
+                      <span className="font-medium text-foreground">{item.summary}</span>
+                      <span className="mt-0.5 block text-muted-foreground">
+                        {item.confirmationNumber ?? "Property"} · {item.key.replaceAll("_", " ")}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="border border-dashed border-[#C89933]/70 bg-[#FBF7EF] text-[#6B4A0A] hover:bg-[#F4E9D0]"
+            >
+              Availability
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Availability
+            </p>
+            {snapshot?.availability?.length ? (
+              <ul className="mt-2 space-y-1 text-xs">
+                {snapshot.availability.slice(0, 8).map((type) => (
+                  <li key={type.roomTypeId} className="flex justify-between gap-2">
+                    <span className="truncate">{type.roomTypeName}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {type.available ?? "—"} avail
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">No availability rows for this window.</p>
+            )}
+          </PopoverContent>
+        </Popover>
+        </ToolbarGroup>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        <label className="inline-flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#E7E0D4] bg-[#FAF8F4] px-3 py-2 text-xs text-[#6B6256]">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8A8176]">Legend</span>
+        <label className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E0D4] bg-white px-2.5 py-1">
           <Checkbox
             checked={display.guestName}
             onCheckedChange={(value) => setDisplay((current) => ({ ...current, guestName: value === true }))}
           />
           Guest name
         </label>
-        <label className="inline-flex items-center gap-1.5">
+        <label className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E0D4] bg-white px-2.5 py-1">
           <Checkbox
             checked={display.confirmationNumber}
             onCheckedChange={(value) =>
@@ -416,7 +527,7 @@ export function BookingCalendarPanel({
           />
           Confirmation
         </label>
-        <label className="inline-flex items-center gap-1.5">
+        <label className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E0D4] bg-white px-2.5 py-1">
           <Checkbox
             checked={display.housekeepingStatus}
             onCheckedChange={(value) =>
@@ -425,14 +536,14 @@ export function BookingCalendarPanel({
           />
           Housekeeping
         </label>
-        <label className="inline-flex items-center gap-1.5">
+        <label className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E0D4] bg-white px-2.5 py-1">
           <Checkbox
             checked={display.roomStatus}
             onCheckedChange={(value) => setDisplay((current) => ({ ...current, roomStatus: value === true }))}
           />
           Room status
         </label>
-        <label className="inline-flex items-center gap-1.5">
+        <label className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E0D4] bg-white px-2.5 py-1">
           <Checkbox checked={showUnassigned} onCheckedChange={(value) => setShowUnassigned(value === true)} />
           Unassigned lane
         </label>
@@ -470,8 +581,7 @@ export function BookingCalendarPanel({
           <p className="font-medium">No rooms to display</p>
         </div>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
-          <CalendarBoard
+        <CalendarBoard
             snapshot={snapshot}
             days={days}
             rowHeight={rowHeight}
@@ -486,59 +596,6 @@ export function BookingCalendarPanel({
             onAction={onAction}
             onDrop={handleDrop}
           />
-          <aside className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Exceptions
-            </p>
-            {exceptionsQuery.isError ? (
-              <p className="mt-2 text-xs text-destructive">Could not load exceptions.</p>
-            ) : (exceptionsQuery.data?.items.length ?? 0) === 0 ? (
-              <p className="mt-2 text-xs text-muted-foreground">No operational exceptions on the business date.</p>
-            ) : (
-              <ul className="mt-2 space-y-2">
-                {(exceptionsQuery.data?.items ?? []).slice(0, 12).map((item) => (
-                  <li key={`${item.key}-${item.reservationId ?? item.summary}`}>
-                    <button
-                      type="button"
-                      className="w-full rounded-lg border border-[#DDD4C5] px-2 py-1.5 text-left text-xs hover:bg-[#F7F4EE]"
-                      disabled={!item.reservationId}
-                      onClick={() => {
-                        if (!item.reservationId) return;
-                        const found = [...snapshot.bars, ...snapshot.unassigned].find(
-                          (bar) => bar.reservationId === item.reservationId,
-                        );
-                        if (found) selectBar(found);
-                        else onOpen(item.reservationId);
-                      }}
-                    >
-                      <span className="font-medium text-foreground">{item.summary}</span>
-                      <span className="mt-0.5 block text-muted-foreground">
-                        {item.confirmationNumber ?? "Property"} · {item.key.replaceAll("_", " ")}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {snapshot.availability?.length ? (
-              <div className="mt-4 border-t border-border pt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Availability
-                </p>
-                <ul className="mt-2 space-y-1 text-xs">
-                  {snapshot.availability.slice(0, 8).map((type) => (
-                    <li key={type.roomTypeId} className="flex justify-between gap-2">
-                      <span className="truncate">{type.roomTypeName}</span>
-                      <span className="tabular-nums text-muted-foreground">
-                        {type.available ?? "—"} avail
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </aside>
-        </div>
       )}
 
       {proposed && snapshot ? (
@@ -614,13 +671,21 @@ function CalendarBoard({
   return (
     <div className="overflow-auto rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
       {showUnassigned ? (
-        <div className="border-b border-amber-200 bg-amber-50/70 p-2">
-          <p className="mb-1 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-900">
+        <div className={cn(
+          "border-b border-amber-200 bg-amber-50/70",
+          snapshot.unassigned.length === 0 ? "flex items-center px-2 py-1" : "p-2",
+        )}>
+          <p className={cn(
+            "inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-900",
+            snapshot.unassigned.length === 0 ? "mr-2" : "mb-1",
+          )}>
             <TriangleAlert className="size-3.5" />
             Unassigned
           </p>
           {snapshot.unassigned.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No unassigned pending or confirmed stays in this window.</p>
+            <p className="inline-flex items-center gap-2 text-[11px] text-amber-900/80">
+              None in this window
+            </p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {snapshot.unassigned.map((bar) => (
@@ -643,15 +708,15 @@ function CalendarBoard({
 
       <div
         className="grid min-w-[720px]"
-        style={{ gridTemplateColumns: `160px repeat(${days.length}, minmax(72px, 1fr))` }}
+        style={{ gridTemplateColumns: `208px repeat(${days.length}, minmax(72px, 1fr))` }}
       >
-        <div className="sticky left-0 z-10 border-b border-border bg-[#F7F4EE] px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="sticky left-0 top-0 z-30 border-b border-border bg-[#F7F4EE] px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {mode === "room" ? "Room" : "Room type"}
         </div>
         {days.map((day) => (
           <div
             key={day}
-            className="border-b border-l border-border px-1 py-2 text-center text-[11px] font-medium"
+            className="sticky top-0 z-20 border-b border-l border-border bg-[#F7F4EE] px-1 py-2 text-center text-[11px] font-medium"
           >
             {new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
               weekday: "short",

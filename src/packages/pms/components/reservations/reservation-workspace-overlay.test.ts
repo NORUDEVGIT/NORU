@@ -123,10 +123,11 @@ describe("Phase 1 workspace overlay routing", () => {
   });
 
   it("uses a five-step New Reservation workflow in the overlay", () => {
-    expect(createPage).toContain("Stay Details");
-    expect(createPage).toContain("Guest and Contact");
-    expect(createPage).toContain("Room and Rate");
-    expect(createPage).toContain("Add-ons and Services");
+    expect(createPage).toContain("Guest & Stay");
+    expect(createPage).toContain("Availability");
+    expect(createPage).toContain("Booking Details");
+    expect(createPage).toContain("Policies & Guarantee");
+    expect(createPage).toContain("Review & Confirm");
     expect(createPage).toContain("Review and Confirm");
     expect(createPage).toContain('data-testid="create-reservation-stepper"');
     expect(createPage).toContain("CREATE_RESERVATION_PENDING_LABEL");

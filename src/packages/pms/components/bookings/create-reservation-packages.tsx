@@ -14,12 +14,14 @@ export function CreateReservationPackages({
   packagesAvailable,
   activePackageCount,
   canEditSet3,
+  operational = false,
 }: {
   loading: boolean;
   error: boolean;
   packagesAvailable: boolean;
   activePackageCount: number;
   canEditSet3: boolean;
+  operational?: boolean;
 }) {
   const view = resolveCreatePackagesGateView({
     loading,
@@ -27,7 +29,7 @@ export function CreateReservationPackages({
     packagesAvailable,
     activePackageCount,
   });
-  const showSettings = canShowPackagesSettingsLink(canEditSet3);
+  const showSettings = !operational && canShowPackagesSettingsLink(canEditSet3);
   const detectKind = view.kind;
 
   return (
