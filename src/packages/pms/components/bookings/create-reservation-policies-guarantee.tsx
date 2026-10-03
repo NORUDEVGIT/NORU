@@ -13,7 +13,7 @@ import {
 import {
   DEPOSIT_POLICY_TYPE_LABELS,
   type DepositPolicyCard3Row,
-} from "@/packages/pms/lib/payments-card3.server";
+} from "@/packages/pms/lib/payments-card3";
 import { cn } from "@/shared/lib/utils";
 
 const CONTROL =

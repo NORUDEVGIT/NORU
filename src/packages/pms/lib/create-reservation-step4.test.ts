@@ -13,7 +13,7 @@ import {
   quotedNonRefundable,
   resolveDepositTenderCode,
 } from "./create-reservation-step4.ts";
-import type { DepositPolicyCard3Row } from "./payments-card3.server.ts";
+import type { DepositPolicyCard3Row } from "./payments-card3.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
