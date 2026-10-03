@@ -34,23 +34,35 @@ function filledDraft() {
 }
 
 describe("Company create workflow helpers", () => {
-  it("keeps exactly five dedicated steps", () => {
+  it("keeps exactly four dedicated steps", () => {
     assert.deepEqual(
       GUEST_COMPANY_CREATE_STEPS.map((step) => step.id),
-      ["details", "contacts", "business", "billing", "review"],
+      ["basic", "business", "billing", "review"],
     );
-    assert.equal(GUEST_COMPANY_CREATE_STEPS.length, 5);
+    assert.equal(GUEST_COMPANY_CREATE_STEPS.length, 4);
   });
 
   it("requires name and company type, and keeps later fields", () => {
     const draft = emptyGuestCompanyCreateDraft();
     draft.addressLine1 = "Bole Road";
-    assert.match(companyCreateStepErrors("details", draft)[0] ?? "", /Company name/);
+    assert.match(companyCreateStepErrors("basic", draft)[0] ?? "", /Company name/);
     draft.name = "Noru Holdings";
-    assert.match(companyCreateStepErrors("details", draft).join(" "), /Company type/);
+    assert.match(companyCreateStepErrors("basic", draft).join(" "), /Company type/);
     draft.businessProfileTypeId = "11111111-1111-4111-8111-111111111111";
-    assert.equal(companyCreateStepErrors("details", draft).length, 0);
+    assert.equal(companyCreateStepErrors("basic", draft).length, 0);
     assert.equal(draft.addressLine1, "Bole Road");
+  });
+
+  it("validates phone formats indicator +251, 09, 07", () => {
+    const draft = filledDraft();
+    draft.contacts[0].phone = "not-a-phone";
+    assert.match(companyCreateStepErrors("basic", draft).join(" "), /valid phone number/);
+    draft.contacts[0].phone = "+251911234567";
+    assert.equal(companyCreateStepErrors("basic", draft).length, 0);
+    draft.contacts[0].phone = "0911234567";
+    assert.equal(companyCreateStepErrors("basic", draft).length, 0);
+    draft.contacts[0].phone = "0711234567";
+    assert.equal(companyCreateStepErrors("basic", draft).length, 0);
   });
 
   it("blocks inverted contract dates", () => {
@@ -72,26 +84,33 @@ describe("Company create workflow helpers", () => {
 
   it("names the missing field and the step that holds it", () => {
     const issues = companyCreateFieldIssues(emptyGuestCompanyCreateDraft());
-    assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
+    assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "basic"));
     assert.match(
       formatCreateIssuesByStep(issues, GUEST_COMPANY_CREATE_STEPS),
-      /Company Details — Company name is required/,
+      /Basic Information — Company name is required/,
     );
-    assert.equal(issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "details").length, 0);
+    assert.equal(issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "basic").length, 0);
     assert.ok(
-      issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contacts").some(
+      issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "business").some(
         (issue) => issue.key === "name",
       ),
     );
   });
 
-  it("restores the held step and draft", () => {
+  it("restores the held step and draft, normalizing legacy steps", () => {
     const draft = filledDraft();
     draft.billingArrangement = "company_master";
     const held = parseGuestCompanyCreateHold({ step: "billing", draft });
     assert.equal(held?.step, "billing");
     assert.equal(held?.draft.name, "Noru Holdings");
     assert.equal(inferGuestCompanyCreateStep(draft), "billing");
+
+    // Legacy details or contacts maps to basic
+    const legacyHeld = parseGuestCompanyCreateHold({ step: "details", draft });
+    assert.equal(legacyHeld?.step, "basic");
+    const legacyContacts = parseGuestCompanyCreateHold({ step: "contacts", draft });
+    assert.equal(legacyContacts?.step, "basic");
+
     assert.equal(
       guestCompanyCreateHoldKey("rest-1"),
       `${GUEST_COMPANY_CREATE_HOLD_KEY_PREFIX}:rest-1`,

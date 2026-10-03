@@ -131,6 +131,7 @@ export function GuestFieldEditorSheet({
     }
   }, [field, open]);
 
+  const isSystemField = draft.code === "FIRST_NAME" || field?.code === "FIRST_NAME";
   const errors = validateGuestFieldDraft(draft, fields);
   const errorFor = (f: string) => errors.find((row) => row.field === f)?.message ?? null;
 
@@ -157,6 +158,9 @@ export function GuestFieldEditorSheet({
       }),
     onSuccess: async (res) => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({
+        queryKey: ["pms-card4-profile-types", restaurantId],
+      });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       toast.success("Guest field saved successfully.");
       onOpenChange(false);
@@ -216,15 +220,21 @@ export function GuestFieldEditorSheet({
           className="mt-4 space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if (isSystemField) return;
             saveMutation.mutate();
           }}
         >
+          {isSystemField ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 font-medium">
+              First Name is a core system-required field and cannot be customized.
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="gfd-name">Field Name *</Label>
             <Input
               id="gfd-name"
               value={draft.name}
-              disabled={!canEdit}
+              disabled={!canEdit || isSystemField}
               onChange={(e) => mark("name", e.target.value)}
             />
             {errorFor("name") ? <p className="text-xs text-destructive">{errorFor("name")}</p> : null}
@@ -273,7 +283,7 @@ export function GuestFieldEditorSheet({
 
           <div className="grid grid-cols-2 gap-3 pt-2">
             <div className="flex items-center justify-between border rounded-lg p-2.5">
-              <Label htmlFor="gfd-req" className="text-xs">Global Required</Label>
+              <Label htmlFor="gfd-req" className="text-xs">Required</Label>
               <Switch
                 id="gfd-req"
                 checked={draft.required}
@@ -356,7 +366,7 @@ export function GuestFieldEditorSheet({
 
           <Button
             type="submit"
-            disabled={!canEdit || saveMutation.isPending || errors.length > 0}
+            disabled={!canEdit || isSystemField || saveMutation.isPending || errors.length > 0}
             className="w-full bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 mt-4"
           >
             {saveMutation.isPending ? "Saving…" : draft.id ? "Update Field" : "Create Field"}
@@ -409,6 +419,9 @@ export function GuestFieldCatalogSheet({
     }) => setFlags({ data: { restaurantId, ...input } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({
+        queryKey: ["pms-card4-profile-types", restaurantId],
+      });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -429,6 +442,9 @@ export function GuestFieldCatalogSheet({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({
+        queryKey: ["pms-card4-profile-types", restaurantId],
+      });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setPendingDelete(null);
       toast.success("Field deleted from catalog.");
@@ -482,64 +498,82 @@ export function GuestFieldCatalogSheet({
               <TableRow>
                 <TableHead>Field</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Global Req</TableHead>
+                <TableHead>Required</TableHead>
                 <TableHead>Check-in</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fields.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                  <TableCell>{GUEST_FIELD_TYPE_LABELS[row.fieldType]}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={row.required}
-                      disabled={!canEdit || flagsMutation.isPending || !row.active}
-                      onCheckedChange={(required) => flagsMutation.mutate({ id: row.id, required })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={row.checkIn}
-                      disabled={!canEdit || flagsMutation.isPending}
-                      onCheckedChange={(checkIn) => flagsMutation.mutate({ id: row.id, checkIn })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={row.active}
-                      disabled={!canEdit || flagsMutation.isPending}
-                      onCheckedChange={(active) => flagsMutation.mutate({ id: row.id, active })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setSelectedField(row);
-                            setEditorOpen(true);
-                          }}
-                        >
-                          Edit
-                        </DropdownMenuItem>
-                        {canEdit ? (
-                          <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
-                            Delete
-                          </DropdownMenuItem>
+              {fields.map((row) => {
+                const isSystemRequired = row.code === "FIRST_NAME";
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium text-[#251605]">
+                      <div className="flex items-center gap-2">
+                        <span>{row.name}</span>
+                        {isSystemRequired ? (
+                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                            System Required
+                          </span>
                         ) : null}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>{GUEST_FIELD_TYPE_LABELS[row.fieldType]}</TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={isSystemRequired ? true : row.required}
+                        disabled={isSystemRequired || !canEdit || flagsMutation.isPending || !row.active}
+                        title={isSystemRequired ? "First Name is system required" : undefined}
+                        onCheckedChange={(required) => flagsMutation.mutate({ id: row.id, required })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={row.checkIn}
+                        disabled={!canEdit || flagsMutation.isPending}
+                        onCheckedChange={(checkIn) => flagsMutation.mutate({ id: row.id, checkIn })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={isSystemRequired ? true : row.active}
+                        disabled={isSystemRequired || !canEdit || flagsMutation.isPending}
+                        title={isSystemRequired ? "First Name cannot be deactivated" : undefined}
+                        onCheckedChange={(active) => flagsMutation.mutate({ id: row.id, active })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {isSystemRequired ? (
+                        <span className="text-[11px] text-muted-foreground italic px-2">Locked</span>
+                      ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setSelectedField(row);
+                                setEditorOpen(true);
+                              }}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            {canEdit ? (
+                              <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
+                                Delete
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

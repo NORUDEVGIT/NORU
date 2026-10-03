@@ -50,6 +50,7 @@ export type CompanyCreateContext = {
   defaultCurrency: string;
   defaultBusinessTypeId?: string | null;
   autoApproval?: boolean;
+  nextCompanyCode: string;
   draft: { id: string; payload: GuestCompanyCreateDraft; step: GuestCompanyCreateStepId } | null;
 };
 
@@ -129,7 +130,28 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
         .select("default_business_type_id, auto_approval")
         .eq("restaurant_id", data.restaurantId)
         .maybeSingle(),
+      db
+        .from("guest_account_masters")
+        .select("code")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("account_type", "company")
+        .not("code", "is", null),
     ]);
+
+    let maxSeq = 0;
+    const existingCompanyCodes = existingCodesRes.data as Array<{ code?: string | null }> | null;
+    if (Array.isArray(existingCompanyCodes)) {
+      for (const row of existingCompanyCodes) {
+        const match = String(row.code ?? "").trim().match(/^COM-(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!Number.isNaN(num) && num > maxSeq) {
+            maxSeq = num;
+          }
+        }
+      }
+    }
+    const nextCompanyCode = `COM-${String(maxSeq + 1).padStart(4, "0")}`;
 
     let savedDraft: { id: string; payload: GuestCompanyCreateDraft; step: GuestCompanyCreateStepId } | null = null;
     if (!draft.error && draft.data) {
@@ -232,6 +254,7 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       defaultCurrency,
       defaultBusinessTypeId,
       autoApproval,
+      nextCompanyCode,
       draft: savedDraft,
     };
   });
@@ -374,7 +397,33 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
-    const draft = data.draft;
+    const draft = { ...data.draft };
+    if (!draft.accountId && !draft.code?.trim()) {
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const existingCodesRes = await admin(supabaseAdmin)
+          .from("guest_account_masters")
+          .select("code")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("account_type", "company")
+          .not("code", "is", null);
+        let maxSeq = 0;
+        if (Array.isArray(existingCodesRes.data)) {
+          for (const row of existingCodesRes.data) {
+            const match = String(row.code ?? "").trim().match(/^COM-(\d+)$/i);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (!Number.isNaN(num) && num > maxSeq) {
+                maxSeq = num;
+              }
+            }
+          }
+        }
+        draft.code = `COM-${String(maxSeq + 1).padStart(4, "0")}`;
+      } catch {
+        draft.code = "COM-0001";
+      }
+    }
     if (!draft.accountId) {
       const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
       await assertListingCreateAllowed(data.restaurantId, "company");

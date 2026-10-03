@@ -231,5 +231,105 @@ test("NORU PMS — Guest Profile: Edit Mode Guarantees Across All 4 Profile Type
     assert.ok(confirmationSrc.includes("returnToLabel?: string | undefined"));
     assert.ok(confirmationSrc.includes('{returnToLabel || "Return to Reservation Desk"}'));
   });
+
+  await t.test("10. Card 4 Fields tab shows individual creation fields and manage drawer, hiding them for non-individual types", () => {
+    const card4Src = fs.readFileSync(
+      path.join(root, "src/packages/pms/components/settings/pms-card4-profile-types.tsx"),
+      "utf8",
+    );
+    const drawerSrc = fs.readFileSync(
+      path.join(
+        root,
+        "src/packages/pms/components/settings/catalog-sheets/manage-guest-fields-drawer.tsx",
+      ),
+      "utf8",
+    );
+    const defsSrc = fs.readFileSync(
+      path.join(root, "src/packages/pms/lib/guest-creation-field-definitions.ts"),
+      "utf8",
+    );
+
+    // Definitions include basic step fields (personal, contact, address) and essential flags
+    assert.ok(defsSrc.includes('"FIRST_NAME"'));
+    assert.ok(defsSrc.includes('"LAST_NAME"'));
+    assert.ok(defsSrc.includes('"PHONE"'));
+    assert.ok(defsSrc.includes('"EMAIL"'));
+    assert.ok(defsSrc.includes('"NATIONALITY"'));
+    assert.ok(defsSrc.includes('"DATE_OF_BIRTH"'));
+    assert.ok(defsSrc.includes('"COUNTRY"'));
+    assert.ok(defsSrc.includes('"CITY"'));
+    assert.ok(defsSrc.includes('"MIDDLE_NAME"'));
+    assert.ok(defsSrc.includes('"TITLE"'));
+    assert.ok(defsSrc.includes('"PREFERRED_NAME"'));
+    assert.ok(defsSrc.includes('"GENDER"'));
+    assert.ok(defsSrc.includes('"LANGUAGE"'));
+    assert.ok(defsSrc.includes('"PHONE_ALT"'));
+    assert.ok(defsSrc.includes('"EMAIL_ALT"'));
+    assert.ok(defsSrc.includes('"REGION"'));
+    assert.ok(defsSrc.includes('"POSTAL_CODE"'));
+    assert.ok(defsSrc.includes('"ADDRESS_LINE1"'));
+    assert.ok(defsSrc.includes("essential: true"));
+    assert.ok(defsSrc.includes("essential: false"));
+
+    // Card 4 isolates individual guest fields and hides them for non-individual types
+    assert.ok(card4Src.includes("const isIndividual ="));
+    assert.ok(card4Src.includes("!isIndividual"));
+    assert.ok(card4Src.includes("No Individual Guest Fields"));
+    assert.ok(card4Src.includes('data-testid="non-individual-fields-notice"'));
+
+    // Card 4 mounts ManageGuestFieldsDrawer and has Manage Fields button
+    assert.ok(card4Src.includes("<ManageGuestFieldsDrawer"));
+    assert.ok(card4Src.includes('data-testid="manage-fields-btn"'));
+    assert.ok(card4Src.includes("Manage Fields"));
+
+    // Card 4 table controls requirements for individual guest
+    assert.ok(card4Src.includes("Required for"));
+    assert.ok(card4Src.includes("System required"));
+    assert.ok(card4Src.includes("mark("));
+    assert.ok(card4Src.includes('"requiredFieldIds"'));
+
+    // Drawer provides checkboxes for selection and marks essential fields
+    assert.ok(drawerSrc.includes("data-testid=\"manage-guest-fields-drawer\""));
+    assert.ok(drawerSrc.includes("isEssential || selectedCodes.has(def.code)"));
+    assert.ok(drawerSrc.includes("disabled={!canEdit || isEssential}"));
+    assert.ok(drawerSrc.includes("Essential"));
+    assert.ok(drawerSrc.includes("onToggleCode(def.code, checked === true)"));
+  });
+
+  await t.test("11. Field catalog 'Required' toggle is synced with Individual Profile Type requirements and avoids 'Global Req'", () => {
+    const catalogSheetSrc = fs.readFileSync(
+      path.join(root, "src/packages/pms/components/settings/catalog-sheets/guest-field-catalog-sheet.tsx"),
+      "utf8",
+    );
+    const card4FnSrc = fs.readFileSync(
+      path.join(root, "src/packages/pms/lib/required-fields-card4.functions.ts"),
+      "utf8",
+    );
+    const profileTypeFnSrc = fs.readFileSync(
+      path.join(root, "src/packages/pms/lib/profile-types-card4.functions.ts"),
+      "utf8",
+    );
+
+    // Global Req is removed in favor of standard Required toggle in catalog
+    assert.ok(!catalogSheetSrc.includes("<TableHead>Global Req</TableHead>"));
+    assert.ok(!catalogSheetSrc.includes("Global Required"));
+    assert.ok(catalogSheetSrc.includes("<TableHead>Required</TableHead>"));
+
+    // Catalog mutations invalidate profile-types query
+    assert.ok(catalogSheetSrc.includes('"pms-card4-profile-types"'));
+
+    // Server functions synchronize pms_guest_fields.required and pms_guest_profile_types.required_field_ids
+    assert.ok(card4FnSrc.includes("pms_guest_profile_types"));
+    assert.ok(card4FnSrc.includes("required_field_ids"));
+    assert.ok(profileTypeFnSrc.includes("pms_guest_fields"));
+    assert.ok(profileTypeFnSrc.includes("required: shouldBeReq"));
+
+    // First Name is system required and locked from customization, deactivation, and deletion
+    assert.ok(catalogSheetSrc.includes('row.code === "FIRST_NAME"'));
+    assert.ok(catalogSheetSrc.includes("System Required"));
+    assert.ok(catalogSheetSrc.includes("Locked"));
+    assert.ok(card4FnSrc.includes('currentField?.code === "FIRST_NAME"'));
+    assert.ok(card4FnSrc.includes('fieldToCheck.data?.code === "FIRST_NAME"'));
+  });
 });
 

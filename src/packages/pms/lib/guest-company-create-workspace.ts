@@ -11,11 +11,10 @@ import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-
 export const GUEST_COMPANY_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
 export const GUEST_COMPANY_CREATE_STEPS = [
-  { id: "details", number: 1, title: "Company Details" },
-  { id: "contacts", number: 2, title: "Contacts" },
-  { id: "business", number: 3, title: "Business & Commercial" },
-  { id: "billing", number: 4, title: "Billing & Credit" },
-  { id: "review", number: 5, title: "Review & Confirm" },
+  { id: "basic", number: 1, title: "Basic Information" },
+  { id: "business", number: 2, title: "Business & Commercial" },
+  { id: "billing", number: 3, title: "Billing & Credit" },
+  { id: "review", number: 4, title: "Review & Confirm" },
 ] as const;
 
 export type GuestCompanyCreateStepId = (typeof GUEST_COMPANY_CREATE_STEPS)[number]["id"];
@@ -146,7 +145,8 @@ export function isGuestCompanyCreateStepId(value: string | undefined): value is 
 }
 
 export function guestCompanyCreateStep(id: string | undefined): GuestCompanyCreateStepId {
-  return isGuestCompanyCreateStepId(id) ? id : "details";
+  if (id === "details" || id === "contacts") return "basic";
+  return isGuestCompanyCreateStepId(id) ? id : "basic";
 }
 
 export function guestCompanyCreateHoldKey(restaurantId: string): string {
@@ -173,18 +173,22 @@ export function inferGuestCompanyCreateStep(draft: GuestCompanyCreateDraft): Gue
   if (filled(draft.addressLine1) || filled(draft.marketSegmentId) || filled(draft.contractReference)) {
     return "business";
   }
-  if (draft.contacts.some((row) => filled(row.name))) return "contacts";
-  return "details";
+  return "basic";
 }
 
 export function parseGuestCompanyCreateHold(payload: unknown): GuestCompanyCreateHold | null {
   if (!payload || typeof payload !== "object") return null;
   const record = payload as { step?: unknown; draft?: unknown };
   if (isGuestCompanyCreateDraftShape(record.draft)) {
+    const rawStep = String(record.step ?? "");
+    const normalizedStep: GuestCompanyCreateStepId =
+      rawStep === "details" || rawStep === "contacts"
+        ? "basic"
+        : isGuestCompanyCreateStepId(rawStep)
+          ? rawStep
+          : inferGuestCompanyCreateStep(record.draft);
     return {
-      step: isGuestCompanyCreateStepId(String(record.step ?? ""))
-        ? (record.step as GuestCompanyCreateStepId)
-        : inferGuestCompanyCreateStep(record.draft),
+      step: normalizedStep,
       draft: normalizeCompanyCreateDraft(record.draft),
     };
   }
@@ -308,6 +312,36 @@ function contractDateError(start: string, end: string): string | null {
   return null;
 }
 
+export function isValidCompanyPhone(value: string): boolean {
+  if (!value || !value.trim()) return true;
+  const trimmed = value.trim();
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  // Ethiopian mobile: +251 9... / +251 7...
+  if (/^(\+?251)[79]\d{8}$/.test(trimmed.replace(/[\s\-\(\)]/g, ""))) {
+    return true;
+  }
+  // Ethiopian local: 09... / 07...
+  if (/^0[79]\d{8}$/.test(trimmed.replace(/[\s\-\(\)]/g, ""))) {
+    return true;
+  }
+  // International E.164 with +
+  if (/^\+[1-9]\d{6,14}$/.test(trimmed.replace(/[\s\-\(\)]/g, ""))) {
+    return true;
+  }
+  // Generic numeric between 9 and 15 digits
+  if (digitsOnly.length >= 9 && digitsOnly.length <= 15) {
+    return true;
+  }
+  return false;
+}
+
+export function validateCompanyPhone(phone: string): string | null {
+  if (!phone || !phone.trim()) return null;
+  return isValidCompanyPhone(phone)
+    ? null
+    : "Enter a valid phone number (+251..., 09..., or 07...)";
+}
+
 export type CompanyCreateFieldIssue = CreateFieldIssue<GuestCompanyCreateStepId>;
 
 export function companyCreateFieldIssues(
@@ -321,18 +355,12 @@ export function companyCreateFieldIssues(
 ): CompanyCreateFieldIssue[] {
   const issues: CompanyCreateFieldIssue[] = [];
   const typeIds = options?.businessProfileTypeIds;
-  if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "details" });
+  if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "basic" });
   if (!filled(draft.businessProfileTypeId)) {
-    issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "details" });
+    issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "basic" });
   }
   if (filled(draft.businessProfileTypeId) && typeIds && !typeIds.includes(draft.businessProfileTypeId)) {
-    issues.push({ key: "businessProfileTypeId", message: "Select a configured company type.", step: "details" });
-  }
-  if (filled(draft.companyType) && !isCompanyType(draft.companyType)) {
-    issues.push({ key: "companyType", message: "Select a recognised legal form.", step: "details" });
-  }
-  if (draft.companyType === "other" && !filled(draft.companyTypeOther)) {
-    issues.push({ key: "companyTypeOther", message: "Describe the legal form when Other is selected.", step: "details" });
+    issues.push({ key: "businessProfileTypeId", message: "Select a configured company type.", step: "basic" });
   }
   const named = draft.contacts.filter((row) => filled(row.name));
   const primaries = named.filter((row) => row.isPrimary);
@@ -340,12 +368,24 @@ export function companyCreateFieldIssues(
     issues.push({
       key: "contacts",
       message: "Exactly one primary contact is required when contacts are entered.",
-      step: "contacts",
+      step: "basic",
     });
   }
   for (const contact of named) {
     if (!validEmail(contact.email)) {
-      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
+      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "basic" });
+    }
+    const phoneErr = validateCompanyPhone(contact.phone);
+    if (phoneErr) {
+      issues.push({ key: "contacts", message: phoneErr, step: "basic" });
+    }
+  }
+  for (const contact of draft.contacts) {
+    if (!filled(contact.name) && filled(contact.phone)) {
+      const phoneErr = validateCompanyPhone(contact.phone);
+      if (phoneErr) {
+        issues.push({ key: "contacts", message: phoneErr, step: "basic" });
+      }
     }
   }
   const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
@@ -410,14 +450,14 @@ export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
       label: "Company identity",
       complete: filled(draft.name) && filled(draft.businessProfileTypeId),
       requiredRemaining: !filled(draft.name) || !filled(draft.businessProfileTypeId),
-      step: "details",
+      step: "basic",
     },
     {
       id: "contacts",
       label: "Contacts",
       complete: draft.contacts.some((row) => filled(row.name) && row.isPrimary) || draft.contacts.every((row) => !filled(row.name)),
       requiredRemaining: false,
-      step: "contacts",
+      step: "basic",
     },
     {
       id: "business",

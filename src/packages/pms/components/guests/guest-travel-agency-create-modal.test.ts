@@ -12,7 +12,7 @@ import {
   travelAgentCreateFieldIssues,
   guestTravelAgentCreateCompletion,
   guestTravelAgentCreateHasChanges,
-} from "@/packages/pms/lib/guest-travel-agent-create-workspace";
+} from "../../lib/guest-travel-agent-create-workspace.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

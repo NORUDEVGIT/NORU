@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { MoreHorizontal, Plus, Building, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -44,7 +44,10 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import { GUEST_PROFILE_TYPES } from "@/packages/pms/lib/guest-profile-wave1";
-import { getPmsCard4RequiredFields } from "@/packages/pms/lib/required-fields-card4.functions";
+import {
+  getPmsCard4RequiredFields,
+  setPmsCard4RequiredFieldFlags,
+} from "@/packages/pms/lib/required-fields-card4.functions";
 import { getPmsCard4IdentityDocumentTypes } from "@/packages/pms/lib/identity-documents-card4.functions";
 import { getPmsCard4Preferences } from "@/packages/pms/lib/preferences-card4.functions";
 import {
@@ -89,6 +92,11 @@ import {
   PreferenceCatalogSheet,
   PreferenceTypeEditorSheet,
 } from "./catalog-sheets/preference-catalog-sheet";
+import {
+  INDIVIDUAL_GUEST_CREATION_FIELDS,
+  ESSENTIAL_GUEST_FIELD_CODES,
+} from "@/packages/pms/lib/guest-creation-field-definitions";
+import { ManageGuestFieldsDrawer } from "./catalog-sheets/manage-guest-fields-drawer";
 
 function recordToDraft(row: ProfileTypeRecord): ProfileTypeDraft {
   return {
@@ -137,6 +145,7 @@ export function PmsCard4ProfileTypes({
   const save = useServerFn(savePmsCard4ProfileType);
   const setActive = useServerFn(setPmsCard4ProfileTypeActive);
   const remove = useServerFn(deletePmsCard4ProfileType);
+  const setFieldFlags = useServerFn(setPmsCard4RequiredFieldFlags);
 
   const queryKey = ["pms-card4-profile-types", restaurantId];
   const query = useQuery({
@@ -180,7 +189,36 @@ export function PmsCard4ProfileTypes({
   // Sheets state for catalog management & item editors
   const [fieldEditorOpen, setFieldEditorOpen] = useState(false);
   const [fieldCatalogOpen, setFieldCatalogOpen] = useState(false);
+  const [manageFieldsDrawerOpen, setManageFieldsDrawerOpen] = useState(false);
+  const [selectedAdditionalCodes, setSelectedAdditionalCodes] = useState<Set<string>>(new Set());
   const [selectedField, setSelectedField] = useState<GuestFieldRecord | null>(null);
+
+  useEffect(() => {
+    const matchingCodes = allFields
+      .filter((f) => draft.requiredFieldIds.includes(f.id) || f.required)
+      .map((f) => f.code.toUpperCase())
+      .filter((code) => !ESSENTIAL_GUEST_FIELD_CODES.has(code));
+    if (matchingCodes.length > 0) {
+      setSelectedAdditionalCodes((prev) => new Set([...prev, ...matchingCodes]));
+    }
+  }, [draft.requiredFieldIds, allFields]);
+
+  const isIndividual =
+    draft.code === "IND" ||
+    draft.code === "INDIVIDUAL" ||
+    draft.name.toLowerCase().includes("individual");
+
+  const displayedFields = useMemo(() => {
+    if (!isIndividual) return [];
+    return INDIVIDUAL_GUEST_CREATION_FIELDS.filter((def) => {
+      if (def.essential) return true;
+      const matched = allFields.find((f) => f.code.toUpperCase() === def.code.toUpperCase());
+      const isRequiredInDraft = Boolean(
+        matched && (draft.requiredFieldIds.includes(matched.id) || matched.required),
+      );
+      return selectedAdditionalCodes.has(def.code) || isRequiredInDraft;
+    });
+  }, [isIndividual, allFields, draft.requiredFieldIds, selectedAdditionalCodes]);
 
   const [docEditorOpen, setDocEditorOpen] = useState(false);
   const [docCatalogOpen, setDocCatalogOpen] = useState(false);
@@ -198,12 +236,18 @@ export function PmsCard4ProfileTypes({
 
   useEffect(() => {
     if (!query.data) return;
-    if (selectedId && query.data.types.some((row) => row.id === selectedId)) return;
+    if (selectedId && query.data.types.some((row) => row.id === selectedId)) {
+      if (!dirty) {
+        const cur = query.data.types.find((row) => row.id === selectedId);
+        if (cur) setDraft(recordToDraft(cur));
+      }
+      return;
+    }
     const first = query.data.types[0] ?? null;
     setSelectedId(first?.id ?? null);
     setDraft(first ? recordToDraft(first) : emptyProfileTypeDraft());
     setDirty(false);
-  }, [query.data, selectedId]);
+  }, [query.data, selectedId, dirty]);
 
   function applyRecord(row: ProfileTypeRecord | null) {
     setSelectedId(row?.id ?? null);
@@ -262,6 +306,19 @@ export function PmsCard4ProfileTypes({
       onSaved(thenNextRef.current);
     },
     onError: (error: Error) => toast.error(error.message || "Unable to save profile type."),
+  });
+
+  const fieldFlagsMutation = useMutation({
+    mutationFn: (input: { id: string; required?: boolean }) =>
+      setFieldFlags({ data: { restaurantId, ...input } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["pms-card4-required-fields", restaurantId],
+      });
+      await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
+    },
+    onError: (err: Error) => toast.error(err.message || "Unable to update field requirement."),
   });
 
   const toggleMutation = useMutation({
@@ -492,133 +549,177 @@ export function PmsCard4ProfileTypes({
 
           {/* TAB: FIELDS */}
           <TabsContent value="fields" className="space-y-4 pt-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-              <div>
-                <p className="text-xs font-medium text-[#251605]">
-                  Configure fields for {draft.name || "this profile type"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Global required fields are enforced by system baseline. Profile-specific required fields apply when creating this profile type.
+            {!isIndividual ? (
+              <div
+                className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-8 text-center"
+                data-testid="non-individual-fields-notice"
+              >
+                <div className="mx-auto flex size-11 items-center justify-center rounded-full bg-[#EFE8DC] text-[#756A5B]">
+                  <Building className="size-5" />
+                </div>
+                <h4 className="mt-3 font-display text-base font-semibold text-[#251605]">
+                  No Individual Guest Fields
+                </h4>
+                <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
+                  Field requirements and catalog configurations in this tab apply specifically to Individual Guest profiles. {draft.name || "This profile type"} operates under its dedicated account and entity structure.
                 </p>
               </div>
-              {canEdit ? (
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => setFieldCatalogOpen(true)}
-                  >
-                    Manage Field Catalog
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-[#C89933] text-[#251605] text-xs h-7"
-                    onClick={() => {
-                      setSelectedField(null);
-                      setFieldEditorOpen(true);
-                    }}
-                  >
-                    <Plus className="mr-1 size-3" /> Add Field
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-
-            {allFields.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No guest fields are available in the catalog yet. Use "+ Add Field" above to create one.
-              </p>
             ) : (
-              <div className="border rounded-xl overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Field</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Global Requirement</TableHead>
-                      <TableHead>Required for {draft.name || "Type"}</TableHead>
-                      <TableHead className="w-10" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allFields.map((field) => {
-                      const isGlobalRequired = field.required;
-                      return (
-                        <TableRow
-                          key={field.id}
-                          className={cn(!field.active && "opacity-70 bg-muted/20")}
-                        >
-                          <TableCell className="font-medium text-[#251605]">
-                            <div className="flex items-center gap-2">
-                              <span>{field.name}</span>
-                              {!field.active ? (
-                                <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
-                                  Inactive
-                                </span>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {GUEST_FIELD_TYPE_LABELS[field.fieldType]}
-                          </TableCell>
-                          <TableCell>
-                            {isGlobalRequired ? (
-                              <span className="inline-flex items-center text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                                Required Globally
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-[#251605]">
+                      Configure fields for {draft.name || "Individual Guest"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Essential fields from the guest creation wizard are listed by default. Select additional fields via Manage Fields and control their requirements below.
+                    </p>
+                  </div>
+                  {canEdit ? (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 border-[#DDD4C5]"
+                        onClick={() => setManageFieldsDrawerOpen(true)}
+                        data-testid="manage-fields-btn"
+                      >
+                        <SlidersHorizontal className="mr-1.5 size-3" /> Manage Fields
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 text-[#756A5B]"
+                        onClick={() => setFieldCatalogOpen(true)}
+                      >
+                        Field Catalog
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="border rounded-xl overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Tier</TableHead>
+                        <TableHead>Required for {draft.name || "Individual Guest"}</TableHead>
+                        <TableHead className="w-16" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedFields.map((def) => {
+                        const matched = allFields.find(
+                          (f) => f.code.toUpperCase() === def.code.toUpperCase(),
+                        );
+                        const isRequired =
+                          def.systemRequired ||
+                          Boolean(matched && draft.requiredFieldIds.includes(matched.id));
+
+                        return (
+                          <TableRow key={def.code}>
+                            <TableCell className="font-medium text-[#251605]">
+                              <div>
+                                <span className="text-xs font-semibold">{def.name}</span>
+                                <p className="text-[10px] text-muted-foreground truncate max-w-[220px]">
+                                  {def.description}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-[11px] text-[#756A5B] font-medium">
+                                {def.categoryLabel}
                               </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Optional Globally</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {isGlobalRequired ? (
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Checkbox checked={true} disabled={true} />
-                                <span className="italic">System required</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  id={`field-${field.id}`}
-                                  checked={draft.requiredFieldIds.includes(field.id)}
-                                  disabled={!canEdit}
-                                  onCheckedChange={(checked) =>
-                                    mark(
-                                      "requiredFieldIds",
-                                      toggleId(draft.requiredFieldIds, field.id, checked === true),
-                                    )
-                                  }
-                                />
-                                <Label htmlFor={`field-${field.id}`} className="text-xs cursor-pointer font-normal">
-                                  Required for {draft.name}
-                                </Label>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {canEdit ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs px-2"
-                                onClick={() => {
-                                  setSelectedField(field);
-                                  setFieldEditorOpen(true);
-                                }}
-                              >
-                                Edit
-                              </Button>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {GUEST_FIELD_TYPE_LABELS[def.fieldType]}
+                            </TableCell>
+                            <TableCell>
+                              {def.essential ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  Essential
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-medium text-muted-foreground bg-[#FAF8F5] border border-[#DDD4C5] px-1.5 py-0.5 rounded">
+                                  Additional
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {def.systemRequired ? (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Switch checked={true} disabled={true} />
+                                  <span className="italic text-[11px] font-medium text-amber-900">System required</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2.5">
+                                  <Switch
+                                    id={`field-req-${def.code}`}
+                                    checked={isRequired}
+                                    disabled={!canEdit || !matched || fieldFlagsMutation.isPending}
+                                    onCheckedChange={(checked) => {
+                                      if (!matched) return;
+                                      const nextRequiredIds = toggleId(
+                                        draft.requiredFieldIds,
+                                        matched.id,
+                                        checked === true,
+                                      );
+                                      mark("requiredFieldIds", nextRequiredIds);
+                                      fieldFlagsMutation.mutate({
+                                        id: matched.id,
+                                        required: checked,
+                                      });
+                                    }}
+                                  />
+                                  <Label
+                                    htmlFor={`field-req-${def.code}`}
+                                    className={cn(
+                                      "text-xs cursor-pointer font-medium select-none",
+                                      isRequired ? "text-[#C89933] font-semibold" : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {isRequired ? "Required" : "Optional"}
+                                  </Label>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {!def.essential && canEdit ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs text-muted-foreground hover:text-destructive px-2"
+                                  onClick={() => {
+                                    setSelectedAdditionalCodes((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(def.code);
+                                      return next;
+                                    });
+                                    if (matched && draft.requiredFieldIds.includes(matched.id)) {
+                                      mark(
+                                        "requiredFieldIds",
+                                        draft.requiredFieldIds.filter((id) => id !== matched.id),
+                                      );
+                                    }
+                                  }}
+                                  title="Remove from listed fields"
+                                >
+                                  Remove
+                                </Button>
+                              ) : null}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
           </TabsContent>
@@ -924,6 +1025,30 @@ export function PmsCard4ProfileTypes({
         onOpenChange={setFieldCatalogOpen}
         restaurantId={restaurantId}
         canEdit={canEdit}
+      />
+      <ManageGuestFieldsDrawer
+        open={manageFieldsDrawerOpen}
+        onOpenChange={setManageFieldsDrawerOpen}
+        canEdit={canEdit}
+        allFields={allFields}
+        selectedCodes={selectedAdditionalCodes}
+        onToggleCode={(code, active) => {
+          setSelectedAdditionalCodes((prev) => {
+            const next = new Set(prev);
+            if (active) next.add(code);
+            else next.delete(code);
+            return next;
+          });
+          if (!active) {
+            const matched = allFields.find((f) => f.code.toUpperCase() === code.toUpperCase());
+            if (matched && draft.requiredFieldIds.includes(matched.id)) {
+              mark(
+                "requiredFieldIds",
+                draft.requiredFieldIds.filter((id) => id !== matched.id),
+              );
+            }
+          }
+        }}
       />
 
       <IdentityDocumentEditorSheet

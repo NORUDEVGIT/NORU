@@ -20,6 +20,7 @@ import {
   type GuestFieldType,
   type NamedOption,
 } from "./required-fields-card4.server";
+import { INDIVIDUAL_GUEST_CREATION_FIELDS } from "./guest-creation-field-definitions";
 
 // Generated schema predates 0078.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,6 +192,46 @@ async function loadSnapshot(
     return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
+  const existingCodes = new Set(
+    (fieldsRes.data ?? []).map((row: { code: string }) => row.code.toUpperCase()),
+  );
+  const missingDefs = INDIVIDUAL_GUEST_CREATION_FIELDS.filter(
+    (def) => !existingCodes.has(def.code.toUpperCase()) && def.code !== "ADDRESS",
+  );
+  if (missingDefs.length > 0 && userId) {
+    const nextOrder = (fieldsRes.data ?? []).length;
+    const payload = missingDefs.map((def, index) => ({
+      restaurant_id: restaurantId,
+      name: def.name,
+      code: def.code,
+      field_type: def.fieldType,
+      description: def.description,
+      options: [],
+      required: false,
+      check_in: false,
+      reservation: false,
+      active: true,
+      display_order: nextOrder + index,
+      lookup_source: def.code === "COMPANY" ? "company" : null,
+      document_type_ids: [],
+      min_value: null,
+      max_value: null,
+      updated_by: userId,
+    }));
+    await db.from("pms_guest_fields").insert(payload);
+    const refreshed = await db
+      .from("pms_guest_fields")
+      .select(
+        "id, name, code, field_type, description, options, required, check_in, reservation, active, display_order, lookup_source, document_type_ids, min_value, max_value, created_at, updated_at",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("display_order")
+      .order("name");
+    if (!refreshed.error && refreshed.data) {
+      fieldsRes.data = refreshed.data;
+    }
+  }
+
   const docsRes = await db
     .from("pms_guest_id_types")
     .select("id, name")
@@ -285,6 +326,9 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
     let id = data.id;
     if (data.id) {
       const currentField = snapshot.fields.find((row) => row.id === data.id);
+      if (currentField?.code === "FIRST_NAME") {
+        throw new Error("First Name is a system-required field and cannot be customized.");
+      }
       if (currentField && (currentField.code !== code || currentField.fieldType !== data.fieldType)) {
         const hasValues = await supabaseAdmin
           .from("guest_custom_field_values")
@@ -316,6 +360,27 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
       id = result.data?.id;
     }
     if (!id) throw new Error("Could not save the field.");
+    if (data.required !== undefined && id) {
+      const indTypes = await db
+        .from("pms_guest_profile_types")
+        .select("id, required_field_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", ["IND", "INDIVIDUAL"]);
+      if (indTypes.data && indTypes.data.length > 0) {
+        for (const indType of indTypes.data) {
+          const currentIds: string[] = Array.isArray(indType.required_field_ids)
+            ? indType.required_field_ids
+            : [];
+          const nextIds = data.required
+            ? [...new Set([...currentIds, id])]
+            : currentIds.filter((fid) => fid !== id);
+          await db
+            .from("pms_guest_profile_types")
+            .update({ required_field_ids: nextIds, updated_by: context.userId })
+            .eq("id", indType.id);
+        }
+      }
+    }
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_guest_field_saved", {
       id,
       code,
@@ -349,12 +414,20 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
     const db = supabaseAdmin as DbClient;
     const current = await db
       .from("pms_guest_fields")
-      .select("id, required, check_in, reservation, active")
+      .select("id, code, required, check_in, reservation, active")
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId)
       .maybeSingle();
     if (current.error) unavailable(current.error);
     if (!current.data) throw new Error("That field no longer exists.");
+    if (current.data.code === "FIRST_NAME") {
+      if (data.required === false) {
+        throw new Error("First Name is system-required and cannot be made optional.");
+      }
+      if (data.active === false) {
+        throw new Error("First Name is system-required and cannot be deactivated.");
+      }
+    }
     const active = data.active ?? current.data.active;
     const required = flagsForActiveChange(active, data.required ?? current.data.required).required;
     if (!active && required) throw new Error("An inactive field cannot be required.");
@@ -373,6 +446,27 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
       .select("id")
       .maybeSingle();
     if (result.error) unavailable(result.error);
+    if (data.required !== undefined) {
+      const indTypes = await db
+        .from("pms_guest_profile_types")
+        .select("id, required_field_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", ["IND", "INDIVIDUAL"]);
+      if (indTypes.data && indTypes.data.length > 0) {
+        for (const indType of indTypes.data) {
+          const currentIds: string[] = Array.isArray(indType.required_field_ids)
+            ? indType.required_field_ids
+            : [];
+          const nextIds = required
+            ? [...new Set([...currentIds, data.id])]
+            : currentIds.filter((fid) => fid !== data.id);
+          await db
+            .from("pms_guest_profile_types")
+            .update({ required_field_ids: nextIds, updated_by: context.userId })
+            .eq("id", indType.id);
+        }
+      }
+    }
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_guest_field_toggled", {
       id: data.id,
       ...patch,
@@ -421,6 +515,15 @@ export const deletePmsCard4RequiredField = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const fieldToCheck = await supabaseAdmin
+      .from("pms_guest_fields")
+      .select("code")
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (fieldToCheck.data?.code === "FIRST_NAME") {
+      throw new Error("First Name is a system-required field and cannot be deleted.");
+    }
     const referenced = await supabaseAdmin
       .from("pms_guest_profile_types")
       .select("id")

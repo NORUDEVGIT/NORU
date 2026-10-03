@@ -12,7 +12,8 @@ import {
   companyCreateFieldIssues,
   guestCompanyCreateCompletion,
   guestCompanyCreateHasChanges,
-} from "@/packages/pms/lib/guest-company-create-workspace";
+  validateCompanyPhone,
+} from "../../lib/guest-company-create-workspace.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +21,7 @@ function readRel(rel: string) {
   return readFileSync(join(here, rel), "utf8");
 }
 
-describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (5-Step Architecture)", () => {
+describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-Step Architecture)", () => {
   const modalCode = readRel("./guest-company-create-modal.tsx");
   const shellCode = readRel("../workspaces/guest-profile-workspace.tsx");
   const directoryCode = readRel("./guest-company-directory.tsx");
@@ -39,17 +40,16 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (5-St
     );
   });
 
-  it("3. Modal has compact 5-step horizontal navigation matching established business steps", () => {
-    assert.equal(GUEST_COMPANY_CREATE_STEPS.length, 5);
+  it("3. Modal has compact 4-step horizontal navigation with merged Basic step", () => {
+    assert.equal(GUEST_COMPANY_CREATE_STEPS.length, 4);
     assert.deepEqual(
       GUEST_COMPANY_CREATE_STEPS.map((s) => s.id),
-      ["details", "contacts", "business", "billing", "review"],
+      ["basic", "business", "billing", "review"],
     );
     assert.deepEqual(
       GUEST_COMPANY_CREATE_STEPS.map((s) => s.title),
       [
-        "Company Details",
-        "Contacts",
+        "Basic Information",
         "Business & Commercial",
         "Billing & Credit",
         "Review & Confirm",
@@ -59,22 +59,25 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (5-St
     assert.match(modalCode, /GUEST_COMPANY_CREATE_STEPS\.map/);
   });
 
-  it("4. Next and Back navigation works across the 5 steps", () => {
+  it("4. Next and Back navigation works across the 4 steps", () => {
     assert.match(modalCode, /go\(GUEST_COMPANY_CREATE_STEPS\[stepIndex - 1\]\.id\)/);
     assert.match(modalCode, /go\(GUEST_COMPANY_CREATE_STEPS\[stepIndex \+ 1\]\.id\)/);
     assert.match(modalCode, /validateCurrent\(\)/);
   });
 
-  it("5. Core company, contact, address, business, and billing fields are preserved", () => {
+  it("5. Fields reflect updated specifications: TIN Number, auto-generated code, phone indicator, and removed trade name/legal form", () => {
     assert.match(modalCode, /Profile Type/);
     assert.match(modalCode, /Company \(COM\)/);
     assert.match(modalCode, /draft\.name/);
-    assert.match(modalCode, /draft\.tradeName/);
     assert.match(modalCode, /draft\.businessProfileTypeId/);
-    assert.match(modalCode, /draft\.companyType/);
     assert.match(modalCode, /draft\.code/);
-    assert.match(modalCode, /draft\.accountStatus/);
+    assert.match(modalCode, /Auto-generated/);
+    assert.match(modalCode, /TIN Number/);
     assert.match(modalCode, /draft\.taxId/);
+    assert.doesNotMatch(modalCode, /draft\.tradeName/);
+    assert.doesNotMatch(modalCode, /draft\.companyType/);
+    assert.match(modalCode, /\+251 9\.\.\. or 09\.\.\. \/ 07\.\.\./);
+    assert.match(modalCode, /draft\.accountStatus/);
     assert.match(modalCode, /draft\.registrationNumber/);
     assert.match(modalCode, /draft\.website/);
     assert.match(modalCode, /draft\.contacts/);
@@ -89,6 +92,15 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (5-St
     assert.match(modalCode, /draft\.billingArrangement/);
     assert.match(modalCode, /draft\.paymentMethodId/);
     assert.match(modalCode, /draft\.creditAccountEnabled/);
+  });
+
+  it("5b. Phone validator accepts Ethiopian formats and flags invalid numbers", () => {
+    assert.equal(validateCompanyPhone(""), null);
+    assert.equal(validateCompanyPhone("+251911234567"), null);
+    assert.equal(validateCompanyPhone("0911234567"), null);
+    assert.equal(validateCompanyPhone("0711234567"), null);
+    assert.match(validateCompanyPhone("12345") ?? "", /valid phone number/);
+    assert.match(validateCompanyPhone("abc") ?? "", /valid phone number/);
   });
 
   it("6. Canonical persistCompanyCreate function is used for persistence", () => {

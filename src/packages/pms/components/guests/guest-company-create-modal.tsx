@@ -89,6 +89,7 @@ import {
   optionLabel,
   primaryCompanyContact,
   readGuestCompanyCreateHold,
+  validateCompanyPhone,
   writeGuestCompanyCreateHold,
   type GuestCompanyCreateDraft,
   type GuestCompanyCreateStepId,
@@ -226,7 +227,7 @@ export function GuestCompanyCreateModal({
   const currentCompany = company ?? accountQuery.data ?? null;
 
   const localHold = useMemo(() => (!isEdit && open ? readGuestCompanyCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
-  const [step, setStep] = useState<GuestCompanyCreateStepId>(() => localHold?.step ?? "details");
+  const [step, setStep] = useState<GuestCompanyCreateStepId>(() => localHold?.step ?? "basic");
   const [draft, setDraft] = useState<GuestCompanyCreateDraft>(() => {
     if (isEdit && currentCompany) return companyProfileToCreateDraft(currentCompany);
     return localHold?.draft ?? emptyGuestCompanyCreateDraft();
@@ -248,7 +249,7 @@ export function GuestCompanyCreateModal({
     if (isEdit) {
       if (currentCompany) {
         setDraft(companyProfileToCreateDraft(currentCompany));
-        setStep("details");
+        setStep("basic");
         setDefaultsApplied(true);
       }
       return;
@@ -272,6 +273,9 @@ export function GuestCompanyCreateModal({
         }
         if (context.data?.autoApproval === false && next.accountStatus === "active") {
           next.accountStatus = "pending";
+        }
+        if (context.data?.nextCompanyCode && !next.accountId && (!next.code || next.code === "COM-0001")) {
+          next.code = context.data.nextCompanyCode;
         }
         return next;
       });
@@ -320,7 +324,7 @@ export function GuestCompanyCreateModal({
           excludeId: draft.accountId || undefined,
         },
       }),
-    enabled: filled(draft.name) && (step === "details" || step === "review"),
+    enabled: filled(draft.name) && (step === "basic" || step === "review"),
   });
 
   const duplicateMutation = useMutation({
@@ -432,8 +436,9 @@ export function GuestCompanyCreateModal({
   function resetForm() {
     const next = emptyGuestCompanyCreateDraft();
     if (context.data?.defaultCurrency) next.currency = context.data.defaultCurrency;
+    if (context.data?.nextCompanyCode) next.code = context.data.nextCompanyCode;
     setDraft(next);
-    setStep("details");
+    setStep("basic");
     setHoldState("idle");
     setCreated(null);
     setAttemptedSteps(new Set());
@@ -671,21 +676,13 @@ export function GuestCompanyCreateModal({
                 </section>
               ) : null}
 
-              {step === "details" ? (
-                <DetailsStep
+              {step === "basic" ? (
+                <BasicStep
                   draft={draft}
                   set={set}
                   catalogues={catalogues}
                   fieldError={fieldError}
-                />
-              ) : null}
-
-              {step === "contacts" ? (
-                <ContactsStep
-                  draft={draft}
-                  set={set}
-                  catalogues={catalogues}
-                  error={fieldError("contacts", "contacts")}
+                  nextCompanyCode={context.data?.nextCompanyCode}
                 />
               ) : null}
 
@@ -793,8 +790,7 @@ export function GuestCompanyCreateModal({
               <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
                 <h3 className="font-display text-sm font-semibold text-[#251605]">Step Guidance</h3>
                 <p className="mt-2 text-xs leading-relaxed text-[#756A5B]">
-                  {step === "details" && "Enter the company's legal and primary identification information."}
-                  {step === "contacts" && "Add the company's contact persons, roles, and communication preferences."}
+                  {step === "basic" && "Enter the company's identification information, auto-generated code, and contact details."}
                   {step === "business" && "Connect the company to commercial defaults and contract references used by this property."}
                   {step === "billing" && "Configure the billing arrangements and credit settings that apply to this company."}
                   {step === "review" && "Confirm the company profile before creating it."}
@@ -1027,333 +1023,310 @@ function NoneSelect({
   );
 }
 
-function DetailsStep({
+function BasicStep({
   draft,
   set,
   catalogues,
   fieldError,
+  nextCompanyCode,
 }: {
   draft: GuestCompanyCreateDraft;
   set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
   catalogues?: CompanyCreateContext["catalogues"];
   fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
+  nextCompanyCode?: string;
 }) {
   const types = (catalogues?.businessTypes ?? []).filter(
     (row) => row.active !== false || row.id === draft.businessProfileTypeId,
   );
+  const contactsError = fieldError("contacts", "basic");
+
   return (
-    <section className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-      <div className="border-b border-[#E8E4DC] pb-3">
-        <h2 className="font-display text-base font-semibold text-[#251605]">Company Details</h2>
-        <p className="text-xs text-muted-foreground">
-          Enter the company&apos;s legal identification and commercial classification.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Profile Type">
-          <Input
-            value="Company (COM)"
-            disabled
-            readOnly
-            className={cn(MODAL_CONTROL_CLASS, "font-medium text-[#765719]")}
-          />
-        </Field>
-        <Field label="Company Name" required error={fieldError("name", "details")}>
-          <Input
-            data-testid="company-create-name"
-            value={draft.name}
-            onChange={(event) => set("name", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Official company name"
-          />
-        </Field>
-        <Field label="Trade Name">
-          <Input
-            value={draft.tradeName}
-            onChange={(event) => set("tradeName", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Doing business as (DBA)"
-          />
-        </Field>
-        <Field label="Company Type" required error={fieldError("businessProfileTypeId", "details")}>
-          <Select
-            value={draft.businessProfileTypeId || undefined}
-            onValueChange={(val) => set("businessProfileTypeId", val === "__none" ? "" : val)}
-          >
-            <SelectTrigger data-testid="company-create-type" className={MODAL_SELECT_TRIGGER_CLASS}>
-              <SelectValue placeholder={types.length ? "Select company type" : "Configure company types in settings"} />
-            </SelectTrigger>
-            <SelectContent>
-              {types.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code && row.code !== row.name ? `${row.code} — ${row.name}` : row.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Legal Form" error={fieldError("companyType", "details")}>
-          <NoneSelect
-            value={draft.companyType}
-            onChange={(value) => set("companyType", value)}
-            options={COMPANY_TYPES.map((id) => ({ id, name: COMPANY_TYPE_LABELS[id] }))}
-            placeholder="Select legal form"
-          />
-        </Field>
-        {draft.companyType === "other" ? (
-          <Field label="Legal Form Description" error={fieldError("companyTypeOther", "details")}>
-            <Input
-              value={draft.companyTypeOther}
-              onChange={(event) => set("companyTypeOther", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Describe legal form"
-            />
-          </Field>
-        ) : null}
-        <Field label="Company Code">
-          <Input
-            value={draft.code}
-            onChange={(event) => set("code", event.target.value)}
-            placeholder="Optional staff code"
-            className={MODAL_CONTROL_CLASS}
-          />
-        </Field>
-        <Field label="Account Status">
-          <Select
-            value={draft.accountStatus}
-            onValueChange={(value) => set("accountStatus", value as GuestCompanyCreateDraft["accountStatus"])}
-          >
-            <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {GUEST_ACCOUNT_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {ACCOUNT_CREATE_STATUS_LABELS[status]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Industry">
-          <Input
-            value={draft.industry}
-            onChange={(event) => set("industry", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="e.g. Technology, Finance"
-          />
-        </Field>
-        <Field label="Tax ID / VAT">
-          <Input
-            value={draft.taxId}
-            onChange={(event) => set("taxId", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Tax registration number"
-          />
-        </Field>
-        <Field label="Registration Number">
-          <Input
-            value={draft.registrationNumber}
-            onChange={(event) => set("registrationNumber", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Business registry code"
-          />
-        </Field>
-        <Field label="Website">
-          <Input
-            value={draft.website}
-            onChange={(event) => set("website", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="https://example.com"
-          />
-        </Field>
-      </div>
-
-      <Field label="Notes">
-        <Textarea
-          value={draft.notes}
-          onChange={(event) => set("notes", event.target.value)}
-          className={MODAL_TEXTAREA_CLASS}
-          rows={3}
-          placeholder="General internal notes for this company account"
-        />
-      </Field>
-    </section>
-  );
-}
-
-function ContactsStep({
-  draft,
-  set,
-  catalogues,
-  error,
-}: {
-  draft: GuestCompanyCreateDraft;
-  set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
-  catalogues?: CompanyCreateContext["catalogues"];
-  error?: string;
-}) {
-  return (
-    <section className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-[#E8E4DC] pb-3">
-        <div>
-          <h2 className={cn("font-display text-base font-semibold", error ? "text-destructive" : "text-[#251605]")}>
-            Contacts
-          </h2>
+    <div className="space-y-4">
+      {/* Company Details Card */}
+      <section className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+        <div className="border-b border-[#E8E4DC] pb-3">
+          <h2 className="font-display text-base font-semibold text-[#251605]">Company Details</h2>
           <p className="text-xs text-muted-foreground">
-            Add primary and secondary contact persons for this corporate account.
+            Enter the company&apos;s legal identification and commercial classification.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="border-[#DDD4C5] text-xs"
-          onClick={() => set("contacts", [...draft.contacts, emptyAccountCreateContact()])}
-        >
-          <Plus className="mr-1 size-3.5" /> Add Contact
-        </Button>
-      </div>
 
-      {error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
-
-      <div className="space-y-3">
-        {draft.contacts.map((contact, index) => (
-          <div
-            key={contact.key}
-            className="rounded-lg border border-[#E8E4DC] bg-[#FAF8F5]/50 p-4 transition-colors hover:border-[#DDD4C5]"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <label className="flex items-center gap-2 text-xs font-semibold text-[#251605]">
-                <input
-                  type="checkbox"
-                  checked={contact.isPrimary}
-                  onChange={(event) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => ({
-                        ...row,
-                        isPrimary: event.target.checked ? i === index : i === index ? false : row.isPrimary,
-                      })),
-                    )
-                  }
-                  className="rounded border-[#CCCCCC]"
-                />
-                Primary Contact
-              </label>
-
-              {draft.contacts.length > 1 ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-7 text-[#756A5B] hover:text-destructive"
-                  onClick={() => set("contacts", draft.contacts.filter((_, i) => i !== index))}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              ) : null}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Profile Type">
+            <Input
+              value="Company (COM)"
+              disabled
+              readOnly
+              className={cn(MODAL_CONTROL_CLASS, "font-medium text-[#765719]")}
+            />
+          </Field>
+          <Field label="Company Name" required error={fieldError("name", "basic")}>
+            <Input
+              data-testid="company-create-name"
+              value={draft.name}
+              onChange={(event) => set("name", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="Official company name"
+            />
+          </Field>
+          <Field label="Company Type" required error={fieldError("businessProfileTypeId", "basic")}>
+            <Select
+              value={draft.businessProfileTypeId || undefined}
+              onValueChange={(val) => set("businessProfileTypeId", val === "__none" ? "" : val)}
+            >
+              <SelectTrigger data-testid="company-create-type" className={MODAL_SELECT_TRIGGER_CLASS}>
+                <SelectValue placeholder={types.length ? "Select company type" : "Configure company types in settings"} />
+              </SelectTrigger>
+              <SelectContent>
+                {types.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code && row.code !== row.name ? `${row.code} — ${row.name}` : row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Company Code">
+            <div className="relative">
+              <Input
+                value={draft.code || nextCompanyCode || "COM-0001"}
+                readOnly
+                disabled
+                className={cn(MODAL_CONTROL_CLASS, "bg-[#FAF8F5] font-mono text-[#765719] pr-24")}
+                placeholder={nextCompanyCode || "COM-0001"}
+              />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-medium text-[#765719]">
+                Auto-generated
+              </span>
             </div>
+          </Field>
+          <Field label="Account Status">
+            <Select
+              value={draft.accountStatus}
+              onValueChange={(value) => set("accountStatus", value as GuestCompanyCreateDraft["accountStatus"])}
+            >
+              <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {GUEST_ACCOUNT_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {ACCOUNT_CREATE_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="TIN Number">
+            <Input
+              value={draft.taxId}
+              onChange={(event) => set("taxId", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="e.g. 0012345678"
+            />
+          </Field>
+          <Field label="Registration Number">
+            <Input
+              value={draft.registrationNumber}
+              onChange={(event) => set("registrationNumber", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="Business registry code"
+            />
+          </Field>
+          <Field label="Industry">
+            <Input
+              value={draft.industry}
+              onChange={(event) => set("industry", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="e.g. Technology, Finance"
+            />
+          </Field>
+          <Field label="Website">
+            <Input
+              value={draft.website}
+              onChange={(event) => set("website", event.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="https://example.com"
+            />
+          </Field>
+        </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Full Name">
-                <Input
-                  value={contact.name}
-                  onChange={(event) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, name: event.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="Contact person name"
-                />
-              </Field>
-              <Field label="Job Title / Position">
-                <Input
-                  value={contact.position}
-                  onChange={(event) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, position: event.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="e.g. Travel Manager"
-                />
-              </Field>
-              <Field label="Email">
-                <Input
-                  type="email"
-                  value={contact.email}
-                  onChange={(event) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, email: event.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="name@company.com"
-                />
-              </Field>
-              <Field label="Phone">
-                <Input
-                  value={contact.phone}
-                  onChange={(event) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, phone: event.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="+1 (555) 000-0000"
-                />
-              </Field>
-              <Field label="WhatsApp">
-                <Input
-                  value={contact.whatsapp}
-                  onChange={(event) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp: event.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="+1 (555) 000-0000"
-                />
-              </Field>
-              <Field label="Preferred Method">
-                <NoneSelect
-                  value={contact.preferredMethod}
-                  onChange={(value) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, preferredMethod: value } : row)),
-                    )
-                  }
-                  options={CONTACT_PREFERRED_METHODS.map((row) => ({ id: row.id, name: row.label }))}
-                  placeholder="Select method"
-                />
-              </Field>
-              <Field label="Contact Role">
-                <NoneSelect
-                  value={contact.roleIds[0] ?? ""}
-                  onChange={(value) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, roleIds: value ? [value] : [] } : row)),
-                    )
-                  }
-                  options={catalogues?.contactRoles ?? []}
-                  placeholder="Select contact role"
-                />
-              </Field>
-            </div>
+        <Field label="Notes">
+          <Textarea
+            value={draft.notes}
+            onChange={(event) => set("notes", event.target.value)}
+            className={MODAL_TEXTAREA_CLASS}
+            rows={3}
+            placeholder="General internal notes for this company account"
+          />
+        </Field>
+      </section>
+
+      {/* Contact Information Card */}
+      <section className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-2 border-b border-[#E8E4DC] pb-3">
+          <div>
+            <h2 className={cn("font-display text-base font-semibold", contactsError ? "text-destructive" : "text-[#251605]")}>
+              Contact Information
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Add primary and secondary contact persons for this corporate account.
+            </p>
           </div>
-        ))}
-      </div>
-    </section>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-[#DDD4C5] text-xs"
+            onClick={() => set("contacts", [...draft.contacts, emptyAccountCreateContact()])}
+          >
+            <Plus className="mr-1 size-3.5" /> Add Contact
+          </Button>
+        </div>
+
+        {contactsError ? <p className="text-xs font-medium text-destructive">{contactsError}</p> : null}
+
+        <div className="space-y-3">
+          {draft.contacts.map((contact, index) => {
+            const phoneError = contact.phone ? validateCompanyPhone(contact.phone) : null;
+            return (
+              <div
+                key={contact.key}
+                className="rounded-lg border border-[#E8E4DC] bg-[#FAF8F5]/50 p-4 transition-colors hover:border-[#DDD4C5]"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-[#251605]">
+                    <input
+                      type="checkbox"
+                      checked={contact.isPrimary}
+                      onChange={(event) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => ({
+                            ...row,
+                            isPrimary: event.target.checked ? i === index : i === index ? false : row.isPrimary,
+                          })),
+                        )
+                      }
+                      className="rounded border-[#CCCCCC]"
+                    />
+                    Primary Contact
+                  </label>
+
+                  {draft.contacts.length > 1 ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 text-[#756A5B] hover:text-destructive"
+                      onClick={() => set("contacts", draft.contacts.filter((_, i) => i !== index))}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="Full Name">
+                    <Input
+                      value={contact.name}
+                      onChange={(event) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => (i === index ? { ...row, name: event.target.value } : row)),
+                        )
+                      }
+                      className={MODAL_CONTROL_CLASS}
+                      placeholder="Contact person name"
+                    />
+                  </Field>
+                  <Field label="Job Title / Position">
+                    <Input
+                      value={contact.position}
+                      onChange={(event) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => (i === index ? { ...row, position: event.target.value } : row)),
+                        )
+                      }
+                      className={MODAL_CONTROL_CLASS}
+                      placeholder="e.g. Travel Manager"
+                    />
+                  </Field>
+                  <Field label="Email">
+                    <Input
+                      type="email"
+                      value={contact.email}
+                      onChange={(event) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => (i === index ? { ...row, email: event.target.value } : row)),
+                        )
+                      }
+                      className={MODAL_CONTROL_CLASS}
+                      placeholder="name@company.com"
+                    />
+                  </Field>
+                  <Field label="Phone" error={phoneError || undefined}>
+                    <Input
+                      value={contact.phone}
+                      onChange={(event) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => (i === index ? { ...row, phone: event.target.value } : row)),
+                        )
+                      }
+                      className={MODAL_CONTROL_CLASS}
+                      placeholder="+251 9... or 09... / 07..."
+                    />
+                  </Field>
+                  <Field label="WhatsApp">
+                    <Input
+                      value={contact.whatsapp}
+                      onChange={(event) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp: event.target.value } : row)),
+                        )
+                      }
+                      className={MODAL_CONTROL_CLASS}
+                      placeholder="+251 9... or 09... / 07..."
+                    />
+                  </Field>
+                  <Field label="Preferred Method">
+                    <NoneSelect
+                      value={contact.preferredMethod}
+                      onChange={(value) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => (i === index ? { ...row, preferredMethod: value } : row)),
+                        )
+                      }
+                      options={CONTACT_PREFERRED_METHODS.map((row) => ({ id: row.id, name: row.label }))}
+                      placeholder="Select method"
+                    />
+                  </Field>
+                  <Field label="Contact Role">
+                    <NoneSelect
+                      value={contact.roleIds[0] ?? ""}
+                      onChange={(value) =>
+                        set(
+                          "contacts",
+                          draft.contacts.map((row, i) => (i === index ? { ...row, roleIds: value ? [value] : [] } : row)),
+                        )
+                      }
+                      options={catalogues?.contactRoles ?? []}
+                      placeholder="Select contact role"
+                    />
+                  </Field>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1730,24 +1703,21 @@ function ReviewStep({
         </section>
       ) : null}
 
-      <ReviewCard title="Company Details" onEdit={() => onEdit("details")}>
+      <ReviewCard title="Basic Information" onEdit={() => onEdit("basic")}>
         <div className="grid gap-2 text-xs sm:grid-cols-2">
           <p><span className="text-muted-foreground">Name:</span> {draft.name || "—"}</p>
           <p><span className="text-muted-foreground">Type:</span> {optionLabel(catalogues?.businessTypes ?? [], draft.businessProfileTypeId) || "—"}</p>
-          <p><span className="text-muted-foreground">Legal Form:</span> {companyTypeLabel(draft.companyType) || "—"}</p>
           <p><span className="text-muted-foreground">Code:</span> {draft.code || "—"}</p>
           <p><span className="text-muted-foreground">Status:</span> {ACCOUNT_CREATE_STATUS_LABELS[draft.accountStatus]}</p>
-          <p><span className="text-muted-foreground">Tax ID:</span> {draft.taxId || "—"}</p>
-        </div>
-      </ReviewCard>
-
-      <ReviewCard title="Contacts" onEdit={() => onEdit("contacts")}>
-        <div className="space-y-1 text-xs">
-          <p>
-            <span className="text-muted-foreground">Primary:</span>{" "}
+          <p><span className="text-muted-foreground">TIN Number:</span> {draft.taxId || "—"}</p>
+          <p><span className="text-muted-foreground">Registration:</span> {draft.registrationNumber || "—"}</p>
+          <p><span className="text-muted-foreground">Industry:</span> {draft.industry || "—"}</p>
+          <p><span className="text-muted-foreground">Website:</span> {draft.website || "—"}</p>
+          <p className="sm:col-span-2">
+            <span className="text-muted-foreground">Primary Contact:</span>{" "}
             {primary?.name ? `${primary.name} · ${primary.email || "No email"} · ${primary.phone || "No phone"}` : "None"}
           </p>
-          <p>
+          <p className="sm:col-span-2">
             <span className="text-muted-foreground">Total Contacts:</span>{" "}
             {draft.contacts.filter((row) => filled(row.name)).length}
           </p>

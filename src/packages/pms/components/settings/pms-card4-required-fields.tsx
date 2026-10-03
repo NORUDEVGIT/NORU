@@ -327,68 +327,86 @@ export function PmsCard4RequiredFields({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fields.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                  <TableCell>{GUEST_FIELD_TYPE_LABELS[row.fieldType]}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={row.required}
-                      disabled={!canEdit || flagsMutation.isPending || !row.active}
-                      onCheckedChange={(required) => flagsMutation.mutate({ id: row.id, required })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={row.checkIn}
-                      disabled={!canEdit || flagsMutation.isPending}
-                      onCheckedChange={(checkIn) => flagsMutation.mutate({ id: row.id, checkIn })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={row.reservation}
-                      disabled={!canEdit || flagsMutation.isPending}
-                      onCheckedChange={(reservation) =>
-                        flagsMutation.mutate({ id: row.id, reservation })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={row.active}
-                      disabled={!canEdit || flagsMutation.isPending}
-                      onCheckedChange={(active) => flagsMutation.mutate({ id: row.id, active })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => openEdit(row)}>Edit</DropdownMenuItem>
-                        {canEdit ? (
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              flagsMutation.mutate({ id: row.id, active: !row.active })
-                            }
-                          >
-                            {row.active ? "Disable" : "Enable"}
-                          </DropdownMenuItem>
+              {fields.map((row) => {
+                const isSystemRequired = row.code === "FIRST_NAME";
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium text-[#251605]">
+                      <div className="flex items-center gap-2">
+                        <span>{row.name}</span>
+                        {isSystemRequired ? (
+                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                            System Required
+                          </span>
                         ) : null}
-                        {canEdit ? (
-                          <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
-                            Delete
-                          </DropdownMenuItem>
-                        ) : null}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>{GUEST_FIELD_TYPE_LABELS[row.fieldType]}</TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={isSystemRequired ? true : row.required}
+                        disabled={isSystemRequired || !canEdit || flagsMutation.isPending || !row.active}
+                        title={isSystemRequired ? "First Name is system required" : undefined}
+                        onCheckedChange={(required) => flagsMutation.mutate({ id: row.id, required })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={row.checkIn}
+                        disabled={!canEdit || flagsMutation.isPending}
+                        onCheckedChange={(checkIn) => flagsMutation.mutate({ id: row.id, checkIn })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={row.reservation}
+                        disabled={!canEdit || flagsMutation.isPending}
+                        onCheckedChange={(reservation) =>
+                          flagsMutation.mutate({ id: row.id, reservation })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={isSystemRequired ? true : row.active}
+                        disabled={isSystemRequired || !canEdit || flagsMutation.isPending}
+                        title={isSystemRequired ? "First Name cannot be deactivated" : undefined}
+                        onCheckedChange={(active) => flagsMutation.mutate({ id: row.id, active })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {isSystemRequired ? (
+                        <span className="text-[11px] text-muted-foreground italic px-2">Locked</span>
+                      ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => openEdit(row)}>Edit</DropdownMenuItem>
+                            {canEdit ? (
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  flagsMutation.mutate({ id: row.id, active: !row.active })
+                                }
+                              >
+                                {row.active ? "Disable" : "Enable"}
+                              </DropdownMenuItem>
+                            ) : null}
+                            {canEdit ? (
+                              <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
+                                Delete
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
