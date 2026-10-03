@@ -112,6 +112,21 @@ export const COMPANY_CREATE_CREDIT_COPY =
 export const COMPANY_CREATE_TAX_COPY =
   "Tax exemption notes are stored as defaults. They do not change folio tax.";
 
+export const COMPANY_BILLING_TIMINGS = [
+  { id: "due_on_arrival", label: "Due on Arrival" },
+  { id: "due_on_departure", label: "Due on Departure" },
+  { id: "prepaid", label: "Prepaid" },
+  { id: "credit_terms", label: "Credit Terms / On Invoice" },
+] as const;
+export type CompanyBillingTiming = (typeof COMPANY_BILLING_TIMINGS)[number]["id"];
+
+export const COMPANY_CREDIT_STATUSES = [
+  { id: "pending_approval", label: "Pending Approval" },
+  { id: "approved", label: "Approved" },
+  { id: "suspended", label: "Suspended" },
+] as const;
+export type CompanyCreditStatus = (typeof COMPANY_CREDIT_STATUSES)[number]["id"];
+
 export const ACCOUNT_BILLING_ARRANGEMENTS = [
   { id: "company_master", label: "Company Master" },
   { id: "individual", label: "Individual Guests" },
@@ -187,6 +202,20 @@ export type GuestCompanyCreateDraft = {
   ratePlanId: string;
   packageId: string;
   mealPlanId: string;
+  // Step 3: Structured Billing & Credit
+  defaultBillingRuleId: string | null;
+  defaultPaymentMethodId: string | null;
+  billingCurrencyCode: string;
+  paymentTiming: CompanyBillingTiming | null;
+  creditDays: number | null;
+  creditStatus: CompanyCreditStatus | null;
+  creditLimitAmount: number | null;
+  taxExempt: boolean;
+  taxExemptionRuleId: string | null;
+  taxExemptionCertificateNumber: string;
+  taxExemptionValidTo: string | null;
+
+  // Legacy compatibility fields (kept for read compatibility)
   billingArrangement: string;
   billingContactName: string;
   billingEmail: string;
@@ -245,7 +274,14 @@ export function inferGuestCompanyCreateStep(draft: GuestCompanyCreateDraft): Gue
   if (filled(draft.contract?.name) || draft.contract?.contractTypeId) {
     return "contracts";
   }
-  if (filled(draft.billingArrangement) || draft.creditAccountEnabled || filled(draft.paymentMethodId)) {
+  if (
+    filled(draft.defaultBillingRuleId) ||
+    draft.paymentTiming ||
+    draft.creditAccountEnabled ||
+    draft.taxExempt ||
+    filled(draft.billingArrangement) ||
+    filled(draft.paymentMethodId)
+  ) {
     return "billing";
   }
   if (draft.contacts.some((row) => filled(row.name))) {
@@ -345,6 +381,19 @@ export function emptyGuestCompanyCreateDraft(): GuestCompanyCreateDraft {
     ratePlanId: "",
     packageId: "",
     mealPlanId: "",
+    // Step 3 structured fields
+    defaultBillingRuleId: null,
+    defaultPaymentMethodId: null,
+    billingCurrencyCode: "",
+    paymentTiming: null,
+    creditDays: null,
+    creditStatus: null,
+    creditLimitAmount: null,
+    taxExempt: false,
+    taxExemptionRuleId: null,
+    taxExemptionCertificateNumber: "",
+    taxExemptionValidTo: null,
+    // Legacy fields
     billingArrangement: "",
     billingContactName: "",
     billingEmail: "",
@@ -371,6 +420,18 @@ export function normalizeCompanyCreateDraft(draft: GuestCompanyCreateDraft): Gue
     ...emptyGuestCompanyCreateDraft(),
     ...draft,
     accountStatus: status,
+    defaultBillingRuleId: draft.defaultBillingRuleId ?? null,
+    defaultPaymentMethodId: draft.defaultPaymentMethodId ?? (draft.paymentMethodId || null),
+    billingCurrencyCode: draft.billingCurrencyCode || draft.currency || "",
+    paymentTiming: draft.paymentTiming ?? null,
+    creditDays: typeof draft.creditDays === "number" ? draft.creditDays : draft.creditDays ? Number(draft.creditDays) : null,
+    creditStatus: draft.creditStatus ?? null,
+    creditLimitAmount: typeof draft.creditLimitAmount === "number" ? draft.creditLimitAmount : draft.creditLimitAmount ? Number(draft.creditLimitAmount) : null,
+    taxExempt: Boolean(draft.taxExempt),
+    taxExemptionRuleId: draft.taxExemptionRuleId ?? null,
+    taxExemptionCertificateNumber: draft.taxExemptionCertificateNumber ?? "",
+    taxExemptionValidTo: draft.taxExemptionValidTo ?? null,
+    creditAccountEnabled: Boolean(draft.creditAccountEnabled),
     contract:
       draft.contract && typeof draft.contract === "object" && !Array.isArray(draft.contract)
         ? {
@@ -453,6 +514,8 @@ export function companyCreateFieldIssues(
     currencyCodes?: string[];
     creditAccountAllowed?: boolean;
     contractDocumentTypes?: Array<{ id: string; name: string; required?: boolean; active?: boolean }>;
+    billingRuleIds?: string[];
+    taxExemptionRules?: Array<{ id: string; name?: string; documentationRequired?: boolean; active?: boolean }>;
   },
 ): CompanyCreateFieldIssue[] {
   const issues: CompanyCreateFieldIssue[] = [];
@@ -496,6 +559,77 @@ export function companyCreateFieldIssues(
   }
 
   // Step 3: Billing & Credit
+  // Section 1: Billing Configuration
+  if (!filled(draft.defaultBillingRuleId)) {
+    issues.push({ key: "defaultBillingRuleId", message: "Default billing rule is required.", step: "billing" });
+  }
+
+  if (filled(draft.defaultPaymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.defaultPaymentMethodId)) {
+    issues.push({ key: "defaultPaymentMethodId", message: "Select a configured payment method.", step: "billing" });
+  }
+
+  if (filled(draft.billingCurrencyCode) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.billingCurrencyCode)) {
+    issues.push({ key: "billingCurrencyCode", message: "Select a configured billing currency.", step: "billing" });
+  }
+
+  if (!draft.paymentTiming) {
+    issues.push({ key: "paymentTiming", message: "Payment timing is required.", step: "billing" });
+  }
+
+  // Cross-conditional: Payment Timing = Credit Terms requires Credit enabled and credit days
+  if (draft.paymentTiming === "credit_terms") {
+    if (!draft.creditAccountEnabled) {
+      issues.push({
+        key: "creditAccountEnabled",
+        message: "Enable Credit Facility to use Credit Terms.",
+        step: "billing",
+      });
+    }
+    if (draft.creditDays === null || draft.creditDays === undefined || draft.creditDays <= 0) {
+      issues.push({
+        key: "creditDays",
+        message: "Credit days are required when credit terms are selected.",
+        step: "billing",
+      });
+    }
+  }
+
+  // Section 2: Credit Facility
+  if (draft.creditAccountEnabled) {
+    if (options?.creditAccountAllowed === false) {
+      issues.push({ key: "creditAccountEnabled", message: "This company type does not allow a credit account.", step: "billing" });
+    }
+
+    if (!draft.creditStatus) {
+      issues.push({ key: "creditStatus", message: "Credit status is required when credit is enabled.", step: "billing" });
+    }
+
+    if (draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && draft.creditLimitAmount < 0) {
+      issues.push({ key: "creditLimitAmount", message: "Credit limit must be 0 or greater.", step: "billing" });
+    }
+
+    if (draft.creditDays !== null && draft.creditDays !== undefined && draft.creditDays < 0) {
+      issues.push({ key: "creditDays", message: "Credit days must be 0 or greater.", step: "billing" });
+    }
+  }
+
+  // Section 3: Tax Exemption
+  if (draft.taxExempt) {
+    if (!filled(draft.taxExemptionRuleId)) {
+      issues.push({ key: "taxExemptionRuleId", message: "Tax exemption rule is required when tax exempt is enabled.", step: "billing" });
+    } else if (options?.taxExemptionRules) {
+      const selectedRule = options.taxExemptionRules.find((r) => r.id === draft.taxExemptionRuleId);
+      if (selectedRule?.documentationRequired && !filled(draft.taxExemptionCertificateNumber)) {
+        issues.push({
+          key: "taxExemptionCertificateNumber",
+          message: "Certificate or reference number is required for this exemption rule.",
+          step: "billing",
+        });
+      }
+    }
+  }
+
+  // Legacy field validation (fallback compatibility if legacy fields are still populated)
   if (
     filled(draft.billingArrangement) &&
     !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
@@ -510,9 +644,6 @@ export function companyCreateFieldIssues(
   }
   if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
     issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "billing" });
-  }
-  if (draft.creditAccountEnabled && options?.creditAccountAllowed === false) {
-    issues.push({ key: "creditAccountEnabled", message: "This company type does not allow a credit account.", step: "billing" });
   }
 
   // Step 4: Contracts & Agreements
@@ -667,8 +798,8 @@ export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
     {
       id: "billing",
       label: "Billing & credit",
-      complete: true,
-      requiredRemaining: false,
+      complete: filled(draft.defaultBillingRuleId) && Boolean(draft.paymentTiming),
+      requiredRemaining: !filled(draft.defaultBillingRuleId) || !draft.paymentTiming,
       step: "billing",
     },
     {
@@ -714,8 +845,17 @@ export function primaryCompanyContact(draft: GuestCompanyCreateDraft): AccountCr
   return draft.contacts.find((row) => row.isPrimary && filled(row.name)) ?? draft.contacts.find((row) => filled(row.name));
 }
 
+export function paymentTimingLabel(id?: string | null): string {
+  return COMPANY_BILLING_TIMINGS.find((t) => t.id === id)?.label || id || "—";
+}
+
+export function creditStatusLabel(id?: string | null): string {
+  return COMPANY_CREDIT_STATUSES.find((s) => s.id === id)?.label || id || "—";
+}
+
 export function draftToCompanyAccountInput(draft: GuestCompanyCreateDraft) {
   const primary = primaryCompanyContact(draft);
+  const creditEnabled = Boolean(draft.creditAccountEnabled);
   return {
     name: draft.name,
     code: blank(draft.code),
@@ -743,8 +883,21 @@ export function draftToCompanyAccountInput(draft: GuestCompanyCreateDraft) {
     paymentTerms: blank(draft.paymentTerms),
     creditLimitNote: blank(draft.creditLimitNote),
     billingInstruction: blank(draft.billingInstruction),
-    creditAccountEnabled: draft.creditAccountEnabled,
+    creditAccountEnabled: creditEnabled,
     acknowledgeNameDuplicate: draft.acknowledgeNameDuplicate,
+
+    // Step 3 Structured fields for guest_account_masters
+    defaultBillingRuleId: blank(draft.defaultBillingRuleId),
+    defaultPaymentMethodId: blank(draft.defaultPaymentMethodId) || blank(draft.paymentMethodId),
+    billingCurrencyCode: blank(draft.billingCurrencyCode) || blank(draft.currency),
+    paymentTiming: draft.paymentTiming || null,
+    creditLimitAmount: creditEnabled && draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined ? Number(draft.creditLimitAmount) : null,
+    creditDays: creditEnabled && draft.creditDays !== null && draft.creditDays !== undefined ? Number(draft.creditDays) : null,
+    creditStatus: creditEnabled ? (draft.creditStatus || "pending_approval") : null,
+    taxExempt: Boolean(draft.taxExempt),
+    taxExemptionRuleId: draft.taxExempt ? blank(draft.taxExemptionRuleId) : null,
+    taxExemptionCertificateNumber: draft.taxExempt ? blank(draft.taxExemptionCertificateNumber) : null,
+    taxExemptionValidTo: draft.taxExempt ? blank(draft.taxExemptionValidTo) : null,
   };
 }
 

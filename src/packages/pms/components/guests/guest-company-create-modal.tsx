@@ -107,7 +107,16 @@ import {
   getCompanyContractCreateConfig,
   type CompanyContractCreateConfig,
 } from "@/packages/pms/lib/corporate-contracts.functions";
+import {
+  getCompanyBillingCreditCreateConfig,
+  type CompanyBillingCreditCreateConfig,
+} from "@/packages/pms/lib/guest-company-create.functions";
 import { CompanyContractsStep } from "./company-contracts-step";
+import { CompanyBillingStep } from "./company-billing-step";
+import {
+  paymentTimingLabel,
+  creditStatusLabel,
+} from "@/packages/pms/lib/guest-company-create-workspace";
 import type { CompanyContractDraft } from "@/packages/pms/lib/guest-company-create-workspace";
 
 const MODAL_CONTROL_CLASS =
@@ -226,10 +235,17 @@ export function GuestCompanyCreateModal({
   const fetchDuplicates = useServerFn(findCompanyDuplicates);
   const fetchContractConfig = useServerFn(getCompanyContractCreateConfig);
   const fetchNextContractCode = useServerFn(getNextCorporateContractCode);
+  const fetchBillingCreditConfig = useServerFn(getCompanyBillingCreditCreateConfig);
 
   const contractConfig = useQuery({
     queryKey: ["company-contract-create-config", restaurantId],
     queryFn: () => fetchContractConfig({ data: { restaurantId } }),
+    enabled: open,
+  });
+
+  const billingCreditConfig = useQuery({
+    queryKey: ["company-billing-credit-create-config", restaurantId],
+    queryFn: () => fetchBillingCreditConfig({ data: { restaurantId } }),
     enabled: open,
   });
 
@@ -368,10 +384,12 @@ export function GuestCompanyCreateModal({
   const selectedType = (catalogues?.businessTypes ?? []).find((row) => row.id === draft.businessProfileTypeId);
   const catalogueIds = {
     businessProfileTypeIds: (catalogues?.businessTypes ?? []).map((row) => row.id),
-    paymentMethodIds: (catalogues?.paymentMethods ?? []).map((row) => row.id),
-    currencyCodes: contractConfig.data?.currencies.map((c) => c.code) ?? catalogues?.currencies ?? [],
+    paymentMethodIds: (billingCreditConfig.data?.paymentMethods ?? catalogues?.paymentMethods ?? []).map((row) => row.id),
+    currencyCodes: billingCreditConfig.data?.currencies.map((c) => c.code) ?? contractConfig.data?.currencies.map((c) => c.code) ?? catalogues?.currencies ?? [],
     creditAccountAllowed: selectedType?.creditAccountAllowed,
     contractDocumentTypes: contractConfig.data?.contractDocumentTypes,
+    billingRuleIds: billingCreditConfig.data?.billingRules.map((r) => r.id),
+    taxExemptionRules: billingCreditConfig.data?.taxExemptionRules,
   };
   const completion = guestCompanyCreateCompletion(draft);
   const stepIndex = GUEST_COMPANY_CREATE_STEPS.findIndex((item) => item.id === step);
@@ -799,12 +817,14 @@ export function GuestCompanyCreateModal({
               ) : null}
 
               {step === "billing" ? (
-                <BillingStep
+                // Step 3: CompanyBillingStep (replaces legacy draft.billingArrangement and draft.paymentMethodId with structured defaults)
+                <CompanyBillingStep
                   draft={draft}
                   set={set}
-                  catalogues={catalogues}
+                  config={billingCreditConfig.data}
                   creditAllowed={selectedType?.creditAccountAllowed}
                   fieldError={fieldError}
+                  isLoadingConfig={billingCreditConfig.isLoading}
                 />
               ) : null}
 
@@ -825,6 +845,7 @@ export function GuestCompanyCreateModal({
                   draft={draft}
                   catalogues={catalogues}
                   contractConfig={contractConfig.data}
+                  billingCreditConfig={billingCreditConfig.data}
                   issues={fieldIssues}
                   onEdit={go}
                 />
@@ -1556,148 +1577,18 @@ function ContactsStep({
 }
 
 
-function BillingStep({
-  draft,
-  set,
-  catalogues,
-  creditAllowed,
-  fieldError,
-}: {
-  draft: GuestCompanyCreateDraft;
-  set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
-  catalogues?: CompanyCreateContext["catalogues"];
-  creditAllowed?: boolean;
-  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
-}) {
-  return (
-    <section className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-      <div className="border-b border-[#E8E4DC] pb-3">
-        <h2 className="font-display text-base font-semibold text-[#251605]">Billing & Credit</h2>
-        <p className="text-xs text-muted-foreground">
-          Define financial routing, credit facility flags, and invoice instructions.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Billing Arrangement" error={fieldError("billingArrangement", "billing")}>
-          <NoneSelect
-            value={draft.billingArrangement}
-            onChange={(value) => set("billingArrangement", value)}
-            options={ACCOUNT_BILLING_ARRANGEMENTS.map((row) => ({ id: row.id, name: row.label }))}
-            placeholder="Select arrangement"
-          />
-        </Field>
-        <Field label="Payment Method" error={fieldError("paymentMethodId", "billing")}>
-          <NoneSelect
-            value={draft.paymentMethodId}
-            onChange={(value) => set("paymentMethodId", value)}
-            options={catalogues?.paymentMethods ?? []}
-            placeholder="Select method"
-          />
-        </Field>
-        <Field label="Currency" error={fieldError("currency", "billing")}>
-          <NoneSelect
-            value={draft.currency}
-            onChange={(value) => set("currency", value)}
-            options={(catalogues?.currencies ?? []).map((code) => ({ id: code, name: code }))}
-            placeholder="Property currency"
-          />
-        </Field>
-        <Field label="Billing Contact Name">
-          <Input
-            value={draft.billingContactName}
-            onChange={(event) => set("billingContactName", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Accounts contact"
-          />
-        </Field>
-        <Field label="Billing Email" error={fieldError("billingEmail", "billing")}>
-          <Input
-            type="email"
-            value={draft.billingEmail}
-            onChange={(event) => set("billingEmail", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="invoices@company.com"
-          />
-        </Field>
-        <Field label="Payment Terms">
-          <Input
-            value={draft.paymentTerms}
-            onChange={(event) => set("paymentTerms", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="e.g. Net 30 days"
-          />
-        </Field>
-      </div>
-
-      <Field label="Billing Instructions">
-        <Textarea
-          value={draft.billingInstruction}
-          onChange={(event) => set("billingInstruction", event.target.value)}
-          className={MODAL_TEXTAREA_CLASS}
-          rows={2}
-          placeholder="Special folio handling instructions or voucher notes"
-        />
-      </Field>
-
-      <div className="space-y-1">
-        <div className="flex items-center justify-between rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-3">
-          <div>
-            <Label className={cn("text-xs font-semibold text-[#251605]", fieldError("creditAccountEnabled", "billing") && "text-destructive")}>
-              Credit Account Allowed
-            </Label>
-            <p className="text-[11px] text-muted-foreground">
-              {creditAllowed === false
-                ? "This company type disallows credit facility accounts in Property Setup."
-                : "Enable this corporate account to carry charges on direct bill credit."}
-            </p>
-          </div>
-          <Switch
-            checked={draft.creditAccountEnabled}
-            disabled={creditAllowed === false}
-            onCheckedChange={(checked) => set("creditAccountEnabled", Boolean(checked))}
-          />
-        </div>
-        {fieldError("creditAccountEnabled", "billing") ? (
-          <p className="text-xs text-destructive">{fieldError("creditAccountEnabled", "billing")}</p>
-        ) : null}
-      </div>
-
-      <p className="text-xs text-muted-foreground">{COMPANY_CREATE_CREDIT_COPY}</p>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Credit Limit Note">
-          <Input
-            value={draft.creditLimitNote}
-            onChange={(event) => set("creditLimitNote", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Approved credit ceiling note"
-          />
-        </Field>
-        <Field label="Tax Exemption Note">
-          <Input
-            value={draft.taxExemptionNote}
-            onChange={(event) => set("taxExemptionNote", event.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Tax exemption or VAT certificate reference"
-          />
-        </Field>
-      </div>
-      <p className="text-xs text-muted-foreground">{COMPANY_CREATE_TAX_COPY}</p>
-    </section>
-  );
-}
-
 function ReviewStep({
   draft,
   catalogues,
   contractConfig,
+  billingCreditConfig,
   issues,
   onEdit,
 }: {
   draft: GuestCompanyCreateDraft;
   catalogues?: CompanyCreateContext["catalogues"];
   contractConfig?: CompanyContractCreateConfig;
+  billingCreditConfig?: CompanyBillingCreditCreateConfig | null;
   issues: Array<{ key: string; message: string; step: GuestCompanyCreateStepId }>;
   onEdit: (step: GuestCompanyCreateStepId) => void;
 }) {
@@ -1716,6 +1607,10 @@ function ReviewStep({
   const guaranteePolicy = contractConfig?.guaranteePolicies.find((p) => p.id === contract.depositPolicyId);
   const cancellationPolicy = contractConfig?.cancellationPolicies.find((p) => p.id === contract.cancellationPolicyId);
   const noShowPolicy = contractConfig?.noShowPolicies.find((p) => p.id === contract.noShowPolicyId);
+
+  const selectedBillingRule = billingCreditConfig?.billingRules.find((r) => r.id === draft.defaultBillingRuleId);
+  const selectedPaymentMethod = billingCreditConfig?.paymentMethods.find((m) => m.id === draft.defaultPaymentMethodId);
+  const selectedExemptionRule = billingCreditConfig?.taxExemptionRules.find((r) => r.id === draft.taxExemptionRuleId);
 
   const missingRequiredDocs = (contractConfig?.contractDocumentTypes ?? [])
     .filter((dt) => dt.required && dt.active)
@@ -1778,14 +1673,49 @@ function ReviewStep({
       </ReviewCard>
 
       <ReviewCard title="Billing & Credit" onEdit={() => onEdit("billing")}>
-        <div className="grid gap-2 text-xs sm:grid-cols-2">
-          <p><span className="text-muted-foreground">Arrangement:</span> {billingArrangementLabel(draft.billingArrangement) || "—"}</p>
-          <p><span className="text-muted-foreground">Payment Method:</span> {optionLabel(catalogues?.paymentMethods ?? [], draft.paymentMethodId) || "—"}</p>
-          <p><span className="text-muted-foreground">Credit:</span> {draft.creditAccountEnabled ? "Enabled" : "Off"}</p>
-          <p><span className="text-muted-foreground">Currency:</span> {draft.currency || "—"}</p>
-          <p><span className="text-muted-foreground">Terms:</span> {draft.paymentTerms || "—"}</p>
-          <p><span className="text-muted-foreground">Billing Contact:</span> {draft.billingContactName || "—"}</p>
-          <p><span className="text-muted-foreground">Billing Email:</span> {draft.billingEmail || "—"}</p>
+        <div className="space-y-2 text-xs">
+          <div>
+            <p className="font-semibold text-[#8A641A]">Billing Configuration</p>
+            <p>Billing Rule: {selectedBillingRule?.name || draft.defaultBillingRuleId || "—"}</p>
+            <p>Settlement Method: {selectedPaymentMethod?.name || "No preference"}</p>
+            <p>Billing Currency: {draft.billingCurrencyCode || "—"}</p>
+            <p>Payment Timing: {paymentTimingLabel(draft.paymentTiming)}</p>
+          </div>
+          <div className="border-t border-[#E8E4DC] pt-1.5">
+            <p className="font-semibold text-[#8A641A]">Credit Facility</p>
+            <p>Credit: {draft.creditAccountEnabled ? "Enabled" : "Off"}</p>
+            {draft.creditAccountEnabled ? (
+              <>
+                <p>
+                  Limit:{" "}
+                  {draft.creditLimitAmount != null
+                    ? `${draft.creditLimitAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${draft.billingCurrencyCode || ""}`
+                    : "None (Uncapped)"}
+                </p>
+                <p>Days / Terms: {draft.creditDays != null ? `${draft.creditDays} Days` : "—"}</p>
+                <p>Status: {creditStatusLabel(draft.creditStatus)}</p>
+              </>
+            ) : null}
+          </div>
+          <div className="border-t border-[#E8E4DC] pt-1.5">
+            <p className="font-semibold text-[#8A641A]">Tax Exemption</p>
+            <p>Status: {draft.taxExempt ? "Exempt" : "Standard (Non-Exempt)"}</p>
+            {draft.taxExempt ? (
+              <>
+                <p>Rule: {selectedExemptionRule?.name || "—"}</p>
+                {draft.taxExemptionCertificateNumber ? (
+                  <p>Certificate / Reference: {draft.taxExemptionCertificateNumber}</p>
+                ) : null}
+                {draft.taxExemptionValidTo ? <p>Valid Until: {draft.taxExemptionValidTo}</p> : null}
+              </>
+            ) : null}
+          </div>
+          {draft.billingInstruction ? (
+            <div className="border-t border-[#E8E4DC] pt-1.5">
+              <p className="font-semibold text-[#8A641A]">Billing Instructions</p>
+              <p className="italic">{draft.billingInstruction}</p>
+            </div>
+          ) : null}
         </div>
       </ReviewCard>
 

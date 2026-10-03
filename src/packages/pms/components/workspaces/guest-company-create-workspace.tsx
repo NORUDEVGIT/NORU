@@ -76,7 +76,16 @@ import {
   getCompanyContractCreateConfig,
   type CompanyContractCreateConfig,
 } from "@/packages/pms/lib/corporate-contracts.functions";
+import {
+  getCompanyBillingCreditCreateConfig,
+  type CompanyBillingCreditCreateConfig,
+} from "@/packages/pms/lib/guest-company-create.functions";
 import { CompanyContractsStep } from "@/packages/pms/components/guests/company-contracts-step";
+import { CompanyBillingStep } from "@/packages/pms/components/guests/company-billing-step";
+import {
+  paymentTimingLabel,
+  creditStatusLabel,
+} from "@/packages/pms/lib/guest-company-create-workspace";
 
 export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: string }) {
   const navigate = useNavigate();
@@ -88,6 +97,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   const fetchDuplicates = useServerFn(findCompanyDuplicates);
   const fetchContractConfig = useServerFn(getCompanyContractCreateConfig);
   const fetchNextContractCode = useServerFn(getNextCorporateContractCode);
+  const fetchBillingCreditConfig = useServerFn(getCompanyBillingCreditCreateConfig);
 
   const localHold = useMemo(() => readGuestCompanyCreateHold(restaurantId), [restaurantId]);
   const [step, setStep] = useState<GuestCompanyCreateStepId>(() => (localHold?.step === "basic" ? "details" : (localHold?.step === "business" ? "contracts" : (localHold?.step ?? "details"))));
@@ -106,6 +116,11 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   const contractConfig = useQuery({
     queryKey: ["company-contract-create-config", restaurantId],
     queryFn: () => fetchContractConfig({ data: { restaurantId } }),
+  });
+
+  const billingCreditConfig = useQuery({
+    queryKey: ["company-billing-credit-create-config", restaurantId],
+    queryFn: () => fetchBillingCreditConfig({ data: { restaurantId } }),
   });
 
   useEffect(() => {
@@ -199,10 +214,12 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   const selectedType = (catalogues?.businessTypes ?? []).find((row) => row.id === draft.businessProfileTypeId);
   const catalogueIds = {
     businessProfileTypeIds: (catalogues?.businessTypes ?? []).map((row) => row.id),
-    paymentMethodIds: (catalogues?.paymentMethods ?? []).map((row) => row.id),
-    currencyCodes: contractConfig.data?.currencies.map((c) => c.code) ?? catalogues?.currencies ?? [],
+    paymentMethodIds: (billingCreditConfig.data?.paymentMethods ?? catalogues?.paymentMethods ?? []).map((row) => row.id),
+    currencyCodes: billingCreditConfig.data?.currencies.map((c) => c.code) ?? contractConfig.data?.currencies.map((c) => c.code) ?? catalogues?.currencies ?? [],
     creditAccountAllowed: selectedType?.creditAccountAllowed,
     contractDocumentTypes: contractConfig.data?.contractDocumentTypes,
+    billingRuleIds: billingCreditConfig.data?.billingRules.map((r) => r.id),
+    taxExemptionRules: billingCreditConfig.data?.taxExemptionRules,
   };
   const completion = guestCompanyCreateCompletion(draft);
   const stepIndex = GUEST_COMPANY_CREATE_STEPS.findIndex((item) => item.id === step);
@@ -485,7 +502,14 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
             <ContactsStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
           ) : null}
           {step === "billing" ? (
-            <BillingStep draft={draft} set={set} catalogues={catalogues} creditAllowed={selectedType?.creditAccountAllowed} fieldError={fieldError} />
+            <CompanyBillingStep
+              draft={draft}
+              set={set}
+              config={billingCreditConfig.data}
+              creditAllowed={selectedType?.creditAccountAllowed}
+              fieldError={fieldError}
+              isLoadingConfig={billingCreditConfig.isLoading}
+            />
           ) : null}
           {step === "contracts" ? (
             <CompanyContractsStep
@@ -499,7 +523,14 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
             />
           ) : null}
           {step === "review" ? (
-            <ReviewStep draft={draft} catalogues={catalogues} contractConfig={contractConfig.data} issues={fieldIssues} onEdit={go} />
+            <ReviewStep
+              draft={draft}
+              catalogues={catalogues}
+              contractConfig={contractConfig.data}
+              billingCreditConfig={billingCreditConfig.data}
+              issues={fieldIssues}
+              onEdit={go}
+            />
           ) : null}
         </div>
 
@@ -932,12 +963,14 @@ function ReviewStep({
   draft,
   catalogues,
   contractConfig,
+  billingCreditConfig,
   issues,
   onEdit,
 }: {
   draft: GuestCompanyCreateDraft;
   catalogues?: CompanyCreateContext["catalogues"];
   contractConfig?: CompanyContractCreateConfig;
+  billingCreditConfig?: CompanyBillingCreditCreateConfig | null;
   issues: Array<{ key: string; message: string; step: GuestCompanyCreateStepId }>;
   onEdit: (step: GuestCompanyCreateStepId) => void;
 }) {
@@ -956,6 +989,10 @@ function ReviewStep({
   const guaranteePolicy = contractConfig?.guaranteePolicies.find((p) => p.id === contract.depositPolicyId);
   const cancellationPolicy = contractConfig?.cancellationPolicies.find((p) => p.id === contract.cancellationPolicyId);
   const noShowPolicy = contractConfig?.noShowPolicies.find((p) => p.id === contract.noShowPolicyId);
+
+  const selectedBillingRule = billingCreditConfig?.billingRules.find((r) => r.id === draft.defaultBillingRuleId);
+  const selectedPaymentMethod = billingCreditConfig?.paymentMethods.find((m) => m.id === draft.defaultPaymentMethodId);
+  const selectedExemptionRule = billingCreditConfig?.taxExemptionRules.find((r) => r.id === draft.taxExemptionRuleId);
 
   const missingRequiredDocs = (contractConfig?.contractDocumentTypes ?? [])
     .filter((dt) => dt.required && dt.active)
@@ -996,10 +1033,50 @@ function ReviewStep({
         <p>Total contacts: {draft.contacts.filter((row) => filled(row.name)).length}</p>
       </ReviewCard>
       <ReviewCard title="Billing & Credit" onEdit={() => onEdit("billing")}>
-        <p>Arrangement: {billingArrangementLabel(draft.billingArrangement) || "—"}</p>
-        <p>Credit: {draft.creditAccountEnabled ? "Enabled" : "Off"}</p>
-        <p>Credit note: {draft.creditLimitNote || "—"}</p>
-        <p className="text-muted-foreground">{COMPANY_CREATE_CREDIT_COPY}</p>
+        <div className="space-y-2 text-xs">
+          <div>
+            <p className="font-semibold text-[#8A641A]">Billing Configuration</p>
+            <p>Billing Rule: {selectedBillingRule?.name || draft.defaultBillingRuleId || "—"}</p>
+            <p>Settlement Method: {selectedPaymentMethod?.name || "No preference"}</p>
+            <p>Billing Currency: {draft.billingCurrencyCode || "—"}</p>
+            <p>Payment Timing: {paymentTimingLabel(draft.paymentTiming)}</p>
+          </div>
+          <div className="border-t border-border pt-1.5">
+            <p className="font-semibold text-[#8A641A]">Credit Facility</p>
+            <p>Credit: {draft.creditAccountEnabled ? "Enabled" : "Off"}</p>
+            {draft.creditAccountEnabled ? (
+              <>
+                <p>
+                  Limit:{" "}
+                  {draft.creditLimitAmount != null
+                    ? `${draft.creditLimitAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${draft.billingCurrencyCode || ""}`
+                    : "None (Uncapped)"}
+                </p>
+                <p>Days / Terms: {draft.creditDays != null ? `${draft.creditDays} Days` : "—"}</p>
+                <p>Status: {creditStatusLabel(draft.creditStatus)}</p>
+              </>
+            ) : null}
+          </div>
+          <div className="border-t border-border pt-1.5">
+            <p className="font-semibold text-[#8A641A]">Tax Exemption</p>
+            <p>Status: {draft.taxExempt ? "Exempt" : "Standard (Non-Exempt)"}</p>
+            {draft.taxExempt ? (
+              <>
+                <p>Rule: {selectedExemptionRule?.name || "—"}</p>
+                {draft.taxExemptionCertificateNumber ? (
+                  <p>Certificate / Reference: {draft.taxExemptionCertificateNumber}</p>
+                ) : null}
+                {draft.taxExemptionValidTo ? <p>Valid Until: {draft.taxExemptionValidTo}</p> : null}
+              </>
+            ) : null}
+          </div>
+          {draft.billingInstruction ? (
+            <div className="border-t border-border pt-1.5">
+              <p className="font-semibold text-[#8A641A]">Billing Instructions</p>
+              <p className="italic">{draft.billingInstruction}</p>
+            </div>
+          ) : null}
+        </div>
       </ReviewCard>
       <ReviewCard title="Contracts & Agreements" onEdit={() => onEdit("contracts")}>
         <p>Contract Type: {contractType?.name || "—"}</p>

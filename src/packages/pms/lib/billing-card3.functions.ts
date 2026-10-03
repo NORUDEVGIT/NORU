@@ -7,6 +7,7 @@ import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   BILLING_PAYER_KIND_LABELS,
   BILLING_PAYER_KINDS,
+  CANONICAL_BILLING_RULES,
   CARD3_BILLING_AUDIT_SECTION,
   CARD3_BILLING_UNAVAILABLE,
   INVOICE_FORMAT_LABELS,
@@ -18,6 +19,8 @@ import {
   type BillingCard3Snapshot,
   type BillingPayerKind,
   type BillingRuleCard3Row,
+  type BillingRuleOperationalStatus,
+  type CanonicalBillingRuleCode,
   type InvoiceFormat,
   type InvoiceSettingsCard3,
   type InvoiceTaxDisplay,
@@ -33,7 +36,7 @@ const setupCode = z
   .string()
   .trim()
   .transform((value) => value.toUpperCase())
-  .refine((value) => /^[A-Z0-9_]{1,20}$/.test(value), "Use 1–20 letters, numbers, or underscores.");
+  .refine((value) => /^[A-Z0-9_]{1,50}$/.test(value), "Use 1–50 letters, numbers, or underscores.");
 const descriptionSchema = z.string().trim().max(500).optional();
 
 const invoiceSettingsSchema = z.object({
@@ -53,6 +56,7 @@ const billingRuleSchema = z
     restaurantId: idSchema,
     id: idSchema.optional(),
     code: setupCode,
+    systemCode: z.string().trim().optional().nullable(),
     name: z.string().trim().min(1).max(120),
     description: descriptionSchema,
     payerKind: z.enum(BILLING_PAYER_KINDS),
@@ -60,6 +64,9 @@ const billingRuleSchema = z
     paymentTerms: z.string().trim().max(80).optional(),
     isDefault: z.boolean(),
     active: z.boolean(),
+    isSystem: z.boolean().optional(),
+    operationalStatus: z.enum(["active", "planned", "intent_only", "deprecated"]).optional(),
+    applicableProfileTypes: z.array(z.string()).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.payerKind === "split") {
@@ -156,11 +163,67 @@ function mapInvoiceSettings(row: any): InvoiceSettingsCard3 {
   };
 }
 
+export async function ensureMissingBillingRuleDefaults(
+  db: DbClient,
+  restaurantId: string,
+) {
+  try {
+    const existingRes = await db
+      .from("pms_billing_rules")
+      .select("code, system_code, is_default")
+      .eq("restaurant_id", restaurantId);
+    if (existingRes.error) return;
+
+    const existingCodes = new Set(
+      (existingRes.data ?? []).flatMap((r: any) => [
+        String(r.code ?? "").toLowerCase(),
+        String(r.system_code ?? "").toLowerCase(),
+      ]),
+    );
+
+    const missing = CANONICAL_BILLING_RULES.filter(
+      (rule) =>
+        !existingCodes.has(rule.code.toLowerCase()) &&
+        !existingCodes.has(rule.systemCode.toLowerCase()),
+    );
+
+    if (missing.length === 0) return;
+
+    const hasDefault = (existingRes.data ?? []).some((r: any) => r.is_default === true);
+
+    const payload = missing.map((rule) => ({
+      restaurant_id: restaurantId,
+      code: rule.code,
+      system_code: rule.systemCode,
+      name: rule.name,
+      description: rule.description,
+      payer_kind: rule.payerKind,
+      split_guest_percent: rule.splitGuestPercent,
+      payment_terms: rule.paymentTerms,
+      is_default: !hasDefault && rule.isDefault === true,
+      active: true,
+      is_system: true,
+      operational_status: rule.operationalStatus,
+      applicable_profile_types: [...rule.applicableProfileTypes],
+    }));
+
+    await db.from("pms_billing_rules").insert(payload);
+  } catch (err) {
+    console.warn("[card3-billing] ensureMissingBillingRuleDefaults fail-soft:", err);
+  }
+}
+
 function mapBillingRule(row: any): BillingRuleCard3Row {
   const payerKind = asPayerKind(row.payer_kind);
+  const matchingCanonical = CANONICAL_BILLING_RULES.find(
+    (c) =>
+      (row.system_code && c.systemCode === row.system_code) ||
+      c.code.toLowerCase() === String(row.code ?? "").toLowerCase(),
+  );
   return {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
+    systemCode: (row.system_code as CanonicalBillingRuleCode) || matchingCanonical?.systemCode || null,
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
     payerKind,
@@ -169,10 +232,19 @@ function mapBillingRule(row: any): BillingRuleCard3Row {
     paymentTerms: String(row.payment_terms ?? ""),
     isDefault: row.is_default === true,
     active: row.active !== false,
+    isSystem: row.is_system === true || Boolean(matchingCanonical),
+    operationalStatus: (row.operational_status as BillingRuleOperationalStatus) || matchingCanonical?.operationalStatus || "active",
+    operationalStatusNote: matchingCanonical?.operationalStatusNote ?? null,
+    applicableProfileTypes: Array.isArray(row.applicable_profile_types)
+      ? row.applicable_profile_types
+      : matchingCanonical
+      ? [...matchingCanonical.applicableProfileTypes]
+      : ["company", "travel_agent", "group", "individual"],
   };
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<BillingCard3Snapshot> {
+  await ensureMissingBillingRuleDefaults(db, restaurantId);
   const [restaurant, settings, rules] = await Promise.all([
     db
       .from("restaurants")
@@ -185,7 +257,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Billing
     db
       .from("pms_billing_rules")
       .select(
-        "id, code, name, description, payer_kind, split_guest_percent, payment_terms, is_default, active",
+        "id, code, system_code, name, description, payer_kind, split_guest_percent, payment_terms, is_default, active, is_system, operational_status, applicable_profile_types",
       )
       .eq("restaurant_id", restaurantId)
       .order("code"),
@@ -291,6 +363,21 @@ export const saveBillingRuleCard3 = createServerFn({ method: "POST" })
         "That billing rule doesn't belong to this property.",
       );
     }
+
+    const matchingCanonical = CANONICAL_BILLING_RULES.find(
+      (c) =>
+        (data.systemCode && c.systemCode === data.systemCode) ||
+        c.code.toLowerCase() === data.code.toLowerCase() ||
+        c.systemCode.toLowerCase() === data.code.toLowerCase(),
+    );
+
+    const isSystem = data.isSystem ?? Boolean(matchingCanonical);
+    const systemCode = data.systemCode || matchingCanonical?.systemCode || null;
+
+    if (!matchingCanonical && !systemCode && data.code.toUpperCase() !== "CUSTOM_OTHER") {
+      throw new Error("Billing rules must correspond to a predefined canonical NORU billing rule type.");
+    }
+
     if (data.isDefault) {
       let clear = db
         .from("pms_billing_rules")
@@ -304,13 +391,17 @@ export const saveBillingRuleCard3 = createServerFn({ method: "POST" })
     const payload = {
       restaurant_id: data.restaurantId,
       code: data.code,
+      system_code: systemCode,
       name: data.name,
       description: data.description?.trim() ? data.description.trim() : null,
-      payer_kind: data.payerKind,
+      payer_kind: matchingCanonical ? matchingCanonical.payerKind : data.payerKind,
       split_guest_percent: data.payerKind === "split" ? (data.splitGuestPercent ?? null) : null,
       payment_terms: data.paymentTerms?.trim() ? data.paymentTerms.trim() : null,
       is_default: data.isDefault,
       active: data.active,
+      is_system: isSystem,
+      operational_status: matchingCanonical?.operationalStatus || data.operationalStatus || "active",
+      applicable_profile_types: data.applicableProfileTypes || (matchingCanonical ? [...matchingCanonical.applicableProfileTypes] : ["company", "travel_agent", "group", "individual"]),
     };
     const result = data.id
       ? await db

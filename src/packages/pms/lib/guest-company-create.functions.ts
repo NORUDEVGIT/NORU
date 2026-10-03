@@ -24,6 +24,12 @@ import {
   type GuestCompanyCreateStepId,
 } from "./guest-company-create-workspace";
 import { validateCorporateAgreementPayload } from "./corporate-contracts.server";
+import {
+  CANONICAL_BILLING_RULES,
+  isBillingRuleApplicableToProfile,
+  type CanonicalBillingRuleCode,
+} from "./billing-card3.server";
+import { ensureMissingBillingRuleDefaults } from "./billing-card3.functions";
 
 const idSchema = z.string().uuid();
 
@@ -47,6 +53,8 @@ export type CompanyCreateContext = {
     mealPlans: AccountCreateCatalogueOption[];
     packages: AccountCreateCatalogueOption[];
     paymentMethods: AccountCreateCatalogueOption[];
+    billingRules?: AccountCreateCatalogueOption[];
+    taxExemptionRules?: AccountCreateCatalogueOption[];
     staff: AccountCreateCatalogueOption[];
     currencies: string[];
   };
@@ -98,6 +106,8 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       mealPlans,
       packages,
       paymentMethods,
+      billingRules,
+      taxExemptionRules,
       staff,
       restaurant,
       draft,
@@ -118,6 +128,8 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       loadOptionalOptions(db, "pms_meal_plans", data.restaurantId),
       loadOptionalOptions(db, "pms_packages", data.restaurantId),
       loadOptionalOptions(db, "pms_payment_methods", data.restaurantId),
+      loadOptionalOptions(db, "pms_billing_rules", data.restaurantId, "id, name, code, active"),
+      loadOptionalOptions(db, "pms_tax_exemption_rules", data.restaurantId, "id, name, code, active"),
       db
         .from("restaurant_memberships")
         .select("id, display_name, email, role")
@@ -255,6 +267,8 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
         mealPlans,
         packages,
         paymentMethods,
+        billingRules,
+        taxExemptionRules,
         staff: staffRows,
         currencies,
       },
@@ -263,6 +277,169 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       autoApproval,
       nextCompanyCode,
       draft: savedDraft,
+    };
+  });
+
+export interface CompanyBillingCreditCreateConfig {
+  billingRules: Array<{
+    id: string;
+    code: string;
+    systemCode?: string | null;
+    name: string;
+    description: string | null;
+    payerKind: string;
+    splitGuestPercent: number | null;
+    paymentTerms: string | null;
+    isDefault: boolean;
+    active: boolean;
+    operationalStatus?: string;
+    operationalStatusNote?: string | null;
+    applicableProfileTypes?: string[];
+  }>;
+  paymentMethods: Array<{
+    id: string;
+    code: string;
+    name: string;
+    typeClass: string;
+    active: boolean;
+  }>;
+  taxExemptionRules: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string | null;
+    reasonCategory: string;
+    documentationRequired: boolean;
+    approvalRequired: boolean;
+    active: boolean;
+  }>;
+  currencies: Array<{
+    code: string;
+    isBase: boolean;
+  }>;
+  baseCurrency: string;
+}
+
+export const getCompanyBillingCreditCreateConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<CompanyBillingCreditCreateConfig> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    let db: any = context.supabase;
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      if (supabaseAdmin) db = supabaseAdmin;
+    } catch {
+      // Fallback
+    }
+
+    // Ensure property has canonical billing rules catalogue provisioned
+    await ensureMissingBillingRuleDefaults(db, data.restaurantId);
+
+    const [billingRulesRes, paymentMethodsRes, taxExemptionRulesRes, restRes, propCurrenciesRes] =
+      await Promise.all([
+        db
+          .from("pms_billing_rules")
+          .select("id, code, system_code, name, description, payer_kind, split_guest_percent, payment_terms, is_default, active, operational_status, applicable_profile_types")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("active", true)
+          .order("is_default", { ascending: false })
+          .order("name", { ascending: true }),
+        db
+          .from("pms_payment_methods")
+          .select("id, code, name, type_class, active")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("active", true)
+          .order("name", { ascending: true }),
+        db
+          .from("pms_tax_exemption_rules")
+          .select("id, code, name, description, reason_category, documentation_required, approval_required, active")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("active", true)
+          .order("name", { ascending: true }),
+        db
+          .from("restaurants")
+          .select("currency_code")
+          .eq("id", data.restaurantId)
+          .maybeSingle(),
+        db
+          .from("pms_property_currencies")
+          .select("code, active")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("active", true),
+      ]);
+
+    const baseCurrency = String((restRes.data as any)?.currency_code ?? "").trim().toUpperCase() || "USD";
+
+    const configuredCurrencyCodes = Array.isArray(propCurrenciesRes?.data)
+      ? propCurrenciesRes.data.map((c: any) => String(c.code ?? "").trim().toUpperCase()).filter(Boolean)
+      : [];
+
+    const currencyCodeSet = new Set([baseCurrency, ...configuredCurrencyCodes, "USD", "EUR", "GBP", "ETB"].filter(Boolean));
+    const currencies = Array.from(currencyCodeSet).map((code) => ({
+      code,
+      isBase: code === baseCurrency,
+    }));
+
+    const allBillingRules = (billingRulesRes?.data ?? []).map((r: any) => {
+      const matchingCanonical = CANONICAL_BILLING_RULES.find(
+        (c) =>
+          (r.system_code && c.systemCode === r.system_code) ||
+          c.code.toLowerCase() === String(r.code ?? "").toLowerCase(),
+      );
+      const systemCode = (r.system_code as CanonicalBillingRuleCode) || matchingCanonical?.systemCode || null;
+      return {
+        id: String(r.id),
+        code: String(r.code ?? "").toUpperCase(),
+        systemCode,
+        name: String(r.name ?? ""),
+        description: r.description ? String(r.description) : (matchingCanonical?.description ?? null),
+        payerKind: String(r.payer_kind ?? matchingCanonical?.payerKind ?? "company"),
+        splitGuestPercent: r.split_guest_percent != null ? Number(r.split_guest_percent) : null,
+        paymentTerms: r.payment_terms ? String(r.payment_terms) : null,
+        isDefault: Boolean(r.is_default),
+        active: Boolean(r.active),
+        operationalStatus: String(r.operational_status || matchingCanonical?.operationalStatus || "active"),
+        operationalStatusNote: matchingCanonical?.operationalStatusNote ?? null,
+        applicableProfileTypes: Array.isArray(r.applicable_profile_types)
+          ? r.applicable_profile_types
+          : matchingCanonical
+          ? [...matchingCanonical.applicableProfileTypes]
+          : ["company", "travel_agent", "group", "individual"],
+      };
+    });
+
+    // Profile applicability: For COMPANY registration, filter to sensible rules
+    // (excludes travel_agency and tour_operator which belong to travel agent flows)
+    const billingRules = allBillingRules.filter((r: any) =>
+      isBillingRuleApplicableToProfile(r, "company"),
+    );
+
+    const paymentMethods = (paymentMethodsRes?.data ?? []).map((r: any) => ({
+      id: String(r.id),
+      code: String(r.code ?? "").toUpperCase(),
+      name: String(r.name ?? ""),
+      typeClass: String(r.type_class ?? ""),
+      active: Boolean(r.active),
+    }));
+
+    const taxExemptionRules = (taxExemptionRulesRes?.data ?? []).map((r: any) => ({
+      id: String(r.id),
+      code: String(r.code ?? "").toUpperCase(),
+      name: String(r.name ?? ""),
+      description: r.description ? String(r.description) : null,
+      reasonCategory: String(r.reason_category ?? "other"),
+      documentationRequired: Boolean(r.documentation_required),
+      approvalRequired: Boolean(r.approval_required),
+      active: Boolean(r.active),
+    }));
+
+    return {
+      billingRules,
+      paymentMethods,
+      taxExemptionRules,
+      currencies,
+      baseCurrency,
     };
   });
 
@@ -438,6 +615,101 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
     if (data.mode === "draft" && !filled(draft.businessProfileTypeId)) {
       return { id: draft.accountId, contacts: draft.contacts, created: false as const };
     }
+    // Authoritative Server Validation for Step 3 in complete mode
+    if (data.mode === "complete") {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const db = admin(supabaseAdmin);
+
+      // Validate default billing rule belongs to property
+      if (!draft.defaultBillingRuleId) {
+        throw new Error("Default billing rule is required.");
+      }
+      const billingRuleCheck = await db
+        .from("pms_billing_rules")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", draft.defaultBillingRuleId)
+        .maybeSingle();
+      if (!billingRuleCheck.data) {
+        throw new Error("Selected billing rule does not belong to this property.");
+      }
+
+      // Validate payment method belongs to property if provided
+      if (draft.defaultPaymentMethodId) {
+        const pmCheck = await db
+          .from("pms_payment_methods")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", draft.defaultPaymentMethodId)
+          .maybeSingle();
+        if (!pmCheck.data) {
+          throw new Error("Selected payment method does not belong to this property.");
+        }
+      }
+
+      // Validate payment timing
+      if (!draft.paymentTiming) {
+        throw new Error("Payment timing is required.");
+      }
+      if (!["due_on_arrival", "due_on_departure", "prepaid", "credit_terms"].includes(draft.paymentTiming)) {
+        throw new Error("Invalid payment timing.");
+      }
+      if (draft.paymentTiming === "credit_terms") {
+        if (!draft.creditAccountEnabled) {
+          throw new Error("Enable Credit Facility to use Credit Terms.");
+        }
+        if (draft.creditDays === null || draft.creditDays === undefined || draft.creditDays <= 0) {
+          throw new Error("Credit days are required when credit terms are selected.");
+        }
+      }
+
+      // Validate credit facility
+      if (draft.creditAccountEnabled) {
+        if (draft.businessProfileTypeId) {
+          const typeCheck = await db
+            .from("pms_business_profile_types")
+            .select("credit_account_allowed")
+            .eq("restaurant_id", data.restaurantId)
+            .eq("id", draft.businessProfileTypeId)
+            .maybeSingle();
+          if (typeCheck.data && typeCheck.data.credit_account_allowed === false) {
+            throw new Error("This company type does not allow a credit account.");
+          }
+        }
+        if (!draft.creditStatus) {
+          throw new Error("Credit status is required when credit is enabled.");
+        }
+        if (!["pending_approval", "approved", "suspended"].includes(draft.creditStatus)) {
+          throw new Error("Invalid credit status.");
+        }
+        if (draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && draft.creditLimitAmount < 0) {
+          throw new Error("Credit limit must be 0 or greater.");
+        }
+        if (draft.creditDays !== null && draft.creditDays !== undefined && draft.creditDays < 0) {
+          throw new Error("Credit days must be 0 or greater.");
+        }
+      }
+
+      // Validate tax exemption
+      if (draft.taxExempt) {
+        if (!draft.taxExemptionRuleId) {
+          throw new Error("Tax exemption rule is required when tax exempt is enabled.");
+        }
+        const taxRuleCheck = await db
+          .from("pms_tax_exemption_rules")
+          .select("id, documentation_required")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", draft.taxExemptionRuleId)
+          .maybeSingle();
+        if (!taxRuleCheck.data) {
+          throw new Error("Selected tax exemption rule does not belong to this property.");
+        }
+        if (taxRuleCheck.data.documentation_required && !draft.taxExemptionCertificateNumber?.trim()) {
+          throw new Error("Certificate or reference number is required for this exemption rule.");
+        }
+      }
+    }
+
     const snapshot = await loadBusinessSnapshot(data.restaurantId);
     const completeStatus = createStatusFromAutoApproval(Boolean(snapshot?.settings.autoApproval));
     const account = {
@@ -458,6 +730,48 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
         await forcePending(data.restaurantId, accountId);
       }
     }
+
+    // Persist structured Step 3 fields directly to guest_account_masters
+    const structuredBilling = {
+      default_billing_rule_id: draft.defaultBillingRuleId || null,
+      default_payment_method_id: draft.defaultPaymentMethodId || draft.paymentMethodId || null,
+      billing_currency_code: draft.billingCurrencyCode || draft.currency || null,
+      payment_timing: draft.paymentTiming || null,
+      credit_account_enabled: Boolean(draft.creditAccountEnabled),
+      credit_limit_amount:
+        draft.creditAccountEnabled && draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined
+          ? Number(draft.creditLimitAmount)
+          : null,
+      credit_days:
+        draft.creditAccountEnabled && draft.creditDays !== null && draft.creditDays !== undefined
+          ? Number(draft.creditDays)
+          : null,
+      credit_status: draft.creditAccountEnabled ? (draft.creditStatus || "pending_approval") : null,
+      tax_exempt: Boolean(draft.taxExempt),
+      tax_exemption_rule_id: draft.taxExempt ? (draft.taxExemptionRuleId || null) : null,
+      tax_exemption_certificate_number: draft.taxExempt ? (draft.taxExemptionCertificateNumber?.trim() || null) : null,
+      tax_exemption_valid_to: draft.taxExempt ? (draft.taxExemptionValidTo || null) : null,
+      billing_instruction: draft.billingInstruction?.trim() || null,
+    };
+
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const updateResult = await admin(supabaseAdmin)
+        .from("guest_account_masters")
+        .update(structuredBilling)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", accountId)
+        .eq("account_type", "company");
+      if (updateResult.error && !isMissingSchemaError(updateResult.error) && updateResult.error.code !== "42703") {
+        throw new Error(updateResult.error.message);
+      }
+    } catch (caught) {
+      if (data.mode === "complete") {
+        const msg = caught instanceof Error ? caught.message : "Failed to persist billing and credit defaults.";
+        throw new Error(msg);
+      }
+    }
+
     await persistAccountOperations(data.restaurantId, accountId, draft);
     let contacts = draft.contacts;
     let error: string | undefined;

@@ -71,9 +71,171 @@ export type InvoiceSettingsCard3 = {
   invoiceFormatLabel: string;
 };
 
+export type CanonicalBillingRuleCode =
+  | "none"
+  | "company_master"
+  | "individual_guest"
+  | "split_billing"
+  | "third_party"
+  | "direct_bill_city_ledger"
+  | "travel_agency"
+  | "tour_operator"
+  | "government_organization"
+  | "custom_other";
+
+export type BillingRuleOperationalStatus = "active" | "planned" | "intent_only" | "deprecated";
+
+export type CanonicalBillingRuleDef = {
+  systemCode: CanonicalBillingRuleCode;
+  code: string;
+  name: string;
+  description: string;
+  payerKind: BillingPayerKind;
+  splitGuestPercent: number | null;
+  paymentTerms: string | null;
+  operationalStatus: BillingRuleOperationalStatus;
+  operationalStatusNote?: string;
+  applicableProfileTypes: readonly string[];
+  isDefault?: boolean;
+};
+
+export const CANONICAL_BILLING_RULES: readonly CanonicalBillingRuleDef[] = [
+  {
+    systemCode: "none",
+    code: "NONE",
+    name: "None",
+    description: "No pre-assigned billing rule. Settlement details determined at reservation or check-in.",
+    payerKind: "guest",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    applicableProfileTypes: ["company", "travel_agent", "group", "individual"],
+  },
+  {
+    systemCode: "company_master",
+    code: "COMPANY_MASTER",
+    name: "Company Master",
+    description: "All agreed room and tax charges billed directly to company master account.",
+    payerKind: "company",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    applicableProfileTypes: ["company"],
+    isDefault: true,
+  },
+  {
+    systemCode: "individual_guest",
+    code: "INDIVIDUAL_GUEST",
+    name: "Individual Guest",
+    description: "Guest settles folio directly upon departure.",
+    payerKind: "guest",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    applicableProfileTypes: ["company", "travel_agent", "group", "individual"],
+  },
+  {
+    systemCode: "split_billing",
+    code: "SPLIT_BILLING",
+    name: "Split Billing",
+    description: "Company and guest share billing responsibility according to reservation/folio rules.",
+    payerKind: "split",
+    splitGuestPercent: 50,
+    paymentTerms: null,
+    operationalStatus: "intent_only",
+    operationalStatusNote: "Financial intent only. Folio charge routing will be active when folio management is configured.",
+    applicableProfileTypes: ["company", "travel_agent", "group"],
+  },
+  {
+    systemCode: "third_party",
+    code: "THIRD_PARTY",
+    name: "Third Party",
+    description: "Designated third-party organization or sponsor covers charges.",
+    payerKind: "company",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    applicableProfileTypes: ["company", "group"],
+  },
+  {
+    systemCode: "direct_bill_city_ledger",
+    code: "DIRECT_BILL_CITY_LEDGER",
+    name: "Direct Bill / City Ledger",
+    description: "Direct billing to approved city ledger account. (Commercial agreement; operational AR pending).",
+    payerKind: "company",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "planned",
+    operationalStatusNote: "City ledger accounting is planned; currently records financial billing relationship without active AR posting.",
+    applicableProfileTypes: ["company", "travel_agent", "group"],
+  },
+  {
+    systemCode: "travel_agency",
+    code: "TRAVEL_AGENCY",
+    name: "Travel Agency",
+    description: "Travel agency vouchers or credit arrangement settles authorized charges.",
+    payerKind: "company",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    applicableProfileTypes: ["travel_agent"],
+  },
+  {
+    systemCode: "tour_operator",
+    code: "TOUR_OPERATOR",
+    name: "Tour Operator",
+    description: "Contracted tour operator account settles package or group allocations.",
+    payerKind: "company",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    applicableProfileTypes: ["travel_agent", "group"],
+  },
+  {
+    systemCode: "government_organization",
+    code: "GOVERNMENT_ORGANIZATION",
+    name: "Government / Organization",
+    description: "Official government purchase order or embassy letter of guarantee.",
+    payerKind: "company",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    applicableProfileTypes: ["company"],
+  },
+  {
+    systemCode: "custom_other",
+    code: "CUSTOM_OTHER",
+    name: "Custom / Other",
+    description: "Custom or non-standard billing instructions defined in descriptive metadata.",
+    payerKind: "company",
+    splitGuestPercent: null,
+    paymentTerms: null,
+    operationalStatus: "active",
+    operationalStatusNote: "Descriptive only; does not define operational folio routing logic.",
+    applicableProfileTypes: ["company", "travel_agent", "group", "individual"],
+  },
+] as const;
+
+export function isBillingRuleApplicableToProfile(
+  rule: { applicableProfileTypes?: readonly string[] | null; systemCode?: string | null; code?: string | null },
+  profileType: string,
+): boolean {
+  if (Array.isArray(rule.applicableProfileTypes) && rule.applicableProfileTypes.length > 0) {
+    return rule.applicableProfileTypes.includes(profileType);
+  }
+  const matchingCanonical = CANONICAL_BILLING_RULES.find(
+    (c) => c.systemCode === rule.systemCode || c.code.toLowerCase() === (rule.code ?? "").toLowerCase(),
+  );
+  if (matchingCanonical) {
+    return matchingCanonical.applicableProfileTypes.includes(profileType);
+  }
+  return true;
+}
+
 export type BillingRuleCard3Row = {
   id: string;
   code: string;
+  systemCode?: CanonicalBillingRuleCode | null;
   name: string;
   description: string;
   payerKind: BillingPayerKind;
@@ -82,6 +244,10 @@ export type BillingRuleCard3Row = {
   paymentTerms: string;
   isDefault: boolean;
   active: boolean;
+  isSystem?: boolean;
+  operationalStatus?: BillingRuleOperationalStatus;
+  operationalStatusNote?: string | null;
+  applicableProfileTypes?: string[];
 };
 
 export type BillingCard3Snapshot = {

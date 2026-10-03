@@ -10,14 +10,14 @@ import {
   companyCreateStepErrors,
   emptyCompanyContractDraft,
   type GuestCompanyCreateDraft,
-} from "../../lib/guest-company-create-workspace";
+} from "../../lib/guest-company-create-workspace.ts";
 import {
   validateCorporateAgreementPayload,
   buildCancellationPolicyPreview,
   buildNoShowPolicyPreview,
   getCorporateAgreementExpiryState,
   type CorporateAgreementPayload,
-} from "../../lib/corporate-contracts.server";
+} from "../../lib/corporate-contracts.server.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

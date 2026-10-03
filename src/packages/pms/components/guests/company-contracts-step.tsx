@@ -27,7 +27,7 @@ import {
 } from "@/packages/pms/lib/guest-company-create-workspace";
 
 export const MODAL_CONTROL_CLASS =
-  "h-9 rounded-[6px] border-[#CCCCCC] bg-white text-xs text-[#251605] placeholder:text-[#A0988A] focus-visible:ring-[#8A641A] focus-visible:border-[#8A641A]";
+  "h-9 rounded-none border-[#CCCCCC] bg-white text-xs text-[#251605] placeholder:text-[#A0988A] focus-visible:ring-[#8A641A] focus-visible:border-[#8A641A]";
 
 function Field({
   label,
@@ -379,7 +379,7 @@ export function CompanyContractsStep({
   return (
     <div className="space-y-6" data-testid="company-contracts-step">
       {/* SECTION 1: Contract Setup */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
+      <section className="rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
         <div className="border-b border-[#E8E4DC] pb-3">
           <h2 className="font-display text-base font-semibold text-[#251605]">Section 1 — Contract Setup</h2>
           <p className="text-xs text-[#756A5B]">
@@ -389,7 +389,7 @@ export function CompanyContractsStep({
 
         {/* Empty Contract Types Warning Banner */}
         {(!config?.contractTypes || config.contractTypes.length === 0) && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
+          <div className="rounded-none border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
             <AlertCircle className="size-4 text-amber-700 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">No Contract Types Configured</p>
@@ -510,7 +510,7 @@ export function CompanyContractsStep({
                 type="button"
                 onClick={() => setContract("status", "active")}
                 className={cn(
-                  "flex-1 rounded-[6px] border py-1.5 text-xs font-semibold transition-colors",
+                  "flex-1 rounded-none border py-1.5 text-xs font-semibold transition-colors",
                   contract?.status === "active"
                     ? "border-emerald-600 bg-emerald-50 text-emerald-800 shadow-sm"
                     : "border-[#CCCCCC] bg-white text-[#756A5B] hover:bg-[#F7F4EE]",
@@ -522,7 +522,7 @@ export function CompanyContractsStep({
                 type="button"
                 onClick={() => setContract("status", "draft")}
                 className={cn(
-                  "flex-1 rounded-[6px] border py-1.5 text-xs font-semibold transition-colors",
+                  "flex-1 rounded-none border py-1.5 text-xs font-semibold transition-colors",
                   contract?.status === "draft"
                     ? "border-amber-600 bg-amber-50 text-amber-800 shadow-sm"
                     : "border-[#CCCCCC] bg-white text-[#756A5B] hover:bg-[#F7F4EE]",
@@ -536,7 +536,7 @@ export function CompanyContractsStep({
       </section>
 
       {/* SECTION 2: Commercial Pricing */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
+      <section className="rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
         <div className="border-b border-[#E8E4DC] pb-3">
           <h2 className="font-display text-base font-semibold text-[#251605]">Section 2 — Commercial Pricing</h2>
           <p className="text-xs text-[#756A5B]">
@@ -550,7 +550,7 @@ export function CompanyContractsStep({
             type="button"
             onClick={() => handlePricingMethodChange("rate_plan")}
             className={cn(
-              "flex flex-col text-left rounded-xl border p-3.5 transition-all",
+              "flex flex-col text-left rounded-none border p-3.5 transition-all",
               contract?.pricingMethod === "rate_plan"
                 ? "border-[#8A641A] bg-[#FAF8F5] ring-1 ring-[#8A641A] shadow-sm"
                 : "border-[#DDD4C5] bg-white hover:bg-[#FBF9F6]",
@@ -574,7 +574,7 @@ export function CompanyContractsStep({
             type="button"
             onClick={() => handlePricingMethodChange("rate_plan_discount")}
             className={cn(
-              "flex flex-col text-left rounded-xl border p-3.5 transition-all",
+              "flex flex-col text-left rounded-none border p-3.5 transition-all",
               contract?.pricingMethod === "rate_plan_discount"
                 ? "border-[#8A641A] bg-[#FAF8F5] ring-1 ring-[#8A641A] shadow-sm"
                 : "border-[#DDD4C5] bg-white hover:bg-[#FBF9F6]",
@@ -598,7 +598,7 @@ export function CompanyContractsStep({
             type="button"
             onClick={() => handlePricingMethodChange("contracted_rates")}
             className={cn(
-              "flex flex-col text-left rounded-xl border p-3.5 transition-all",
+              "flex flex-col text-left rounded-none border p-3.5 transition-all",
               contract?.pricingMethod === "contracted_rates"
                 ? "border-[#8A641A] bg-[#FAF8F5] ring-1 ring-[#8A641A] shadow-sm"
                 : "border-[#DDD4C5] bg-white hover:bg-[#FBF9F6]",
@@ -621,9 +621,9 @@ export function CompanyContractsStep({
 
         {/* Method A: Configured Rate Plan */}
         {contract?.pricingMethod === "rate_plan" && (
-          <div className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-4 space-y-4">
+          <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-4 space-y-4">
             {availableRatePlans.length === 0 ? (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-none p-2">
                 No active rate plans available. Configure Rate Plans in Settings before selecting this pricing method.
               </p>
             ) : (
@@ -641,7 +641,7 @@ export function CompanyContractsStep({
                       type="button"
                       onClick={() => setScope("all")}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all",
+                        "flex items-center gap-2.5 rounded-none border p-3 text-left transition-all",
                         currentRatePlanScope === "all"
                           ? "border-[#8A641A] bg-white ring-1 ring-[#8A641A] shadow-sm"
                           : "border-[#DDD4C5] bg-white/60 hover:bg-white",
@@ -660,7 +660,7 @@ export function CompanyContractsStep({
                       type="button"
                       onClick={() => setScope("selected")}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all",
+                        "flex items-center gap-2.5 rounded-none border p-3 text-left transition-all",
                         currentRatePlanScope === "selected"
                           ? "border-[#8A641A] bg-white ring-1 ring-[#8A641A] shadow-sm"
                           : "border-[#DDD4C5] bg-white/60 hover:bg-white",
@@ -679,7 +679,7 @@ export function CompanyContractsStep({
 
                 {/* When All Rate Plans */}
                 {currentRatePlanScope === "all" && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs text-emerald-900 flex items-start gap-2.5">
+                  <div className="rounded-none border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs text-emerald-900 flex items-start gap-2.5">
                     <CheckCircle2 className="size-4 text-emerald-700 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold">All Active Property Rate Plans Included</p>
@@ -690,7 +690,7 @@ export function CompanyContractsStep({
                         {availableRatePlans.map((rp) => (
                           <span
                             key={rp.id}
-                            className="inline-flex items-center rounded-md bg-white border border-emerald-300 px-2 py-0.5 text-[11px] font-medium text-emerald-900"
+                            className="inline-flex items-center rounded-none bg-white border border-emerald-300 px-2 py-0.5 text-[11px] font-medium text-emerald-900"
                           >
                             {rp.name} ({rp.roomTypeName})
                           </span>
@@ -715,7 +715,7 @@ export function CompanyContractsStep({
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-6 text-[11px] text-[#8A641A] hover:bg-[#FAF8F5]"
+                          className="h-6 text-[11px] text-[#8A641A] hover:bg-[#FAF8F5] rounded-none"
                           onClick={selectAllPlans}
                         >
                           Select All
@@ -725,7 +725,7 @@ export function CompanyContractsStep({
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-6 text-[11px] text-[#756A5B] hover:bg-[#FAF8F5]"
+                          className="h-6 text-[11px] text-[#756A5B] hover:bg-[#FAF8F5] rounded-none"
                           onClick={deselectAllPlans}
                         >
                           Clear All
@@ -737,7 +737,7 @@ export function CompanyContractsStep({
                       <p className="text-[11px] text-destructive">{fieldError("ratePlanId", "contracts")}</p>
                     )}
 
-                    <div className="grid gap-2 sm:grid-cols-2 max-h-[300px] overflow-y-auto rounded-lg border border-[#DDD4C5] bg-white p-2.5">
+                    <div className="grid gap-2 sm:grid-cols-2 max-h-[300px] overflow-y-auto rounded-none border border-[#DDD4C5] bg-white p-2.5">
                       {availableRatePlans.map((rp) => {
                         const checked = selectedPlanIds.has(rp.id);
                         return (
@@ -745,7 +745,7 @@ export function CompanyContractsStep({
                             key={rp.id}
                             onClick={() => togglePlan(rp.id)}
                             className={cn(
-                              "flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-colors select-none",
+                              "flex items-start gap-2.5 rounded-none border p-2.5 cursor-pointer transition-colors select-none",
                               checked
                                 ? "border-[#8A641A] bg-[#FAF8F5]"
                                 : "border-[#E8E4DC] hover:bg-[#FAF8F5]/50",
@@ -755,7 +755,7 @@ export function CompanyContractsStep({
                               type="checkbox"
                               checked={checked}
                               onChange={() => {}}
-                              className="mt-0.5 rounded border-[#CCCCCC] text-[#8A641A] focus:ring-[#8A641A]"
+                              className="mt-0.5 rounded-none border-[#CCCCCC] text-[#8A641A] focus:ring-[#8A641A]"
                             />
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-semibold text-[#251605] truncate">{rp.name}</p>
@@ -776,9 +776,9 @@ export function CompanyContractsStep({
 
         {/* Method B: Discount From Rate Plan */}
         {contract?.pricingMethod === "rate_plan_discount" && (
-          <div className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-4 space-y-4">
+          <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-4 space-y-4">
             {availableRatePlans.length === 0 ? (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-none p-2">
                 No active rate plans available. Configure Rate Plans in Settings before selecting this pricing method.
               </p>
             ) : (
@@ -796,7 +796,7 @@ export function CompanyContractsStep({
                       type="button"
                       onClick={() => setScope("all")}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all",
+                        "flex items-center gap-2.5 rounded-none border p-3 text-left transition-all",
                         currentRatePlanScope === "all"
                           ? "border-[#8A641A] bg-white ring-1 ring-[#8A641A] shadow-sm"
                           : "border-[#DDD4C5] bg-white/60 hover:bg-white",
@@ -815,7 +815,7 @@ export function CompanyContractsStep({
                       type="button"
                       onClick={() => setScope("selected")}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all",
+                        "flex items-center gap-2.5 rounded-none border p-3 text-left transition-all",
                         currentRatePlanScope === "selected"
                           ? "border-[#8A641A] bg-white ring-1 ring-[#8A641A] shadow-sm"
                           : "border-[#DDD4C5] bg-white/60 hover:bg-white",
@@ -847,7 +847,7 @@ export function CompanyContractsStep({
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-6 text-[11px] text-[#8A641A] hover:bg-[#FAF8F5]"
+                          className="h-6 text-[11px] text-[#8A641A] hover:bg-[#FAF8F5] rounded-none"
                           onClick={selectAllPlans}
                         >
                           Select All
@@ -857,7 +857,7 @@ export function CompanyContractsStep({
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-6 text-[11px] text-[#756A5B] hover:bg-[#FAF8F5]"
+                          className="h-6 text-[11px] text-[#756A5B] hover:bg-[#FAF8F5] rounded-none"
                           onClick={deselectAllPlans}
                         >
                           Clear All
@@ -869,7 +869,7 @@ export function CompanyContractsStep({
                       <p className="text-[11px] text-destructive">{fieldError("ratePlanId", "contracts")}</p>
                     )}
 
-                    <div className="grid gap-2 sm:grid-cols-2 max-h-[220px] overflow-y-auto rounded-lg border border-[#DDD4C5] bg-white p-2.5">
+                    <div className="grid gap-2 sm:grid-cols-2 max-h-[220px] overflow-y-auto rounded-none border border-[#DDD4C5] bg-white p-2.5">
                       {availableRatePlans.map((rp) => {
                         const checked = selectedPlanIds.has(rp.id);
                         return (
@@ -877,7 +877,7 @@ export function CompanyContractsStep({
                             key={rp.id}
                             onClick={() => togglePlan(rp.id)}
                             className={cn(
-                              "flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-colors select-none",
+                              "flex items-start gap-2.5 rounded-none border p-2.5 cursor-pointer transition-colors select-none",
                               checked
                                 ? "border-[#8A641A] bg-[#FAF8F5]"
                                 : "border-[#E8E4DC] hover:bg-[#FAF8F5]/50",
@@ -887,7 +887,7 @@ export function CompanyContractsStep({
                               type="checkbox"
                               checked={checked}
                               onChange={() => {}}
-                              className="mt-0.5 rounded border-[#CCCCCC] text-[#8A641A] focus:ring-[#8A641A]"
+                              className="mt-0.5 rounded-none border-[#CCCCCC] text-[#8A641A] focus:ring-[#8A641A]"
                             />
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-semibold text-[#251605] truncate">{rp.name}</p>
@@ -912,7 +912,7 @@ export function CompanyContractsStep({
                       type="button"
                       onClick={() => setContract("discountApplication", "uniform")}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all",
+                        "flex items-center gap-2.5 rounded-none border p-3 text-left transition-all",
                         currentDiscountApp === "uniform"
                           ? "border-[#8A641A] bg-white ring-1 ring-[#8A641A] shadow-sm"
                           : "border-[#DDD4C5] bg-white/60 hover:bg-white",
@@ -931,7 +931,7 @@ export function CompanyContractsStep({
                       type="button"
                       onClick={() => setContract("discountApplication", "custom")}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all",
+                        "flex items-center gap-2.5 rounded-none border p-3 text-left transition-all",
                         currentDiscountApp === "custom"
                           ? "border-[#8A641A] bg-white ring-1 ring-[#8A641A] shadow-sm"
                           : "border-[#DDD4C5] bg-white/60 hover:bg-white",
@@ -950,7 +950,7 @@ export function CompanyContractsStep({
 
                 {/* 3A. Uniform Discount Inputs */}
                 {currentDiscountApp === "uniform" && (
-                  <div className="grid gap-3 sm:grid-cols-2 max-w-md rounded-lg border border-[#DDD4C5] bg-white p-3.5">
+                  <div className="grid gap-3 sm:grid-cols-2 max-w-md rounded-none border border-[#DDD4C5] bg-white p-3.5">
                     <div>
                       <Field label="Discount Type" required error={fieldError("discountType", "contracts")}>
                         <Select
@@ -1012,11 +1012,11 @@ export function CompanyContractsStep({
                     </div>
 
                     {eligiblePlansForDiscount.length === 0 ? (
-                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2.5">
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-none p-2.5">
                         Please select at least one rate plan above to configure its discount.
                       </p>
                     ) : (
-                      <div className="space-y-2 rounded-lg border border-[#DDD4C5] bg-white p-3 max-h-[360px] overflow-y-auto">
+                      <div className="space-y-2 rounded-none border border-[#DDD4C5] bg-white p-3 max-h-[360px] overflow-y-auto">
                         {eligiblePlansForDiscount.map((rp) => {
                           const planDisc = getPlanDiscount(rp.id);
                           const planError = fieldError(`ratePlanDiscounts.${rp.id}`, "contracts");
@@ -1024,7 +1024,7 @@ export function CompanyContractsStep({
                             <div
                               key={rp.id}
                               className={cn(
-                                "flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-2.5 transition-colors",
+                                "flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-none border p-2.5 transition-colors",
                                 planError ? "border-destructive bg-destructive/5" : "border-[#E8E4DC] bg-[#FAF8F5]/60 hover:bg-[#FAF8F5]",
                               )}
                             >
@@ -1043,7 +1043,7 @@ export function CompanyContractsStep({
                                     updatePlanDiscount(rp.id, { discountType: val })
                                   }
                                 >
-                                  <SelectTrigger className="h-8 w-28 text-xs border-[#CCCCCC] bg-white">
+                                  <SelectTrigger className="h-8 w-28 text-xs border-[#CCCCCC] bg-white rounded-none">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1064,7 +1064,7 @@ export function CompanyContractsStep({
                                         discountValue: e.target.value === "" ? null : Number(e.target.value),
                                       })
                                     }
-                                    className="h-8 pr-7 text-xs border-[#CCCCCC] bg-white"
+                                    className="h-8 pr-7 text-xs border-[#CCCCCC] bg-white rounded-none"
                                     placeholder={planDisc.discountType === "fixed" ? "500" : "15"}
                                   />
                                   <span className="absolute right-2 top-1.5 text-[10px] font-semibold text-[#756A5B]">
@@ -1086,7 +1086,7 @@ export function CompanyContractsStep({
 
         {/* Method C: Contracted Room Rates */}
         {contract?.pricingMethod === "contracted_rates" && (
-          <div className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-4 space-y-3">
+          <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-display text-xs font-bold text-[#251605]">Negotiated Room Rates</h3>
@@ -1098,7 +1098,7 @@ export function CompanyContractsStep({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs border-[#DDD4C5] text-[#251605] hover:bg-white"
+                className="h-7 text-xs border-[#DDD4C5] text-[#251605] hover:bg-white rounded-none"
                 onClick={addContractRateRow}
               >
                 <Plus className="mr-1 size-3.5" /> Add Room Type Rate
@@ -1109,7 +1109,7 @@ export function CompanyContractsStep({
               <p className="text-[11px] text-destructive">{fieldError("contractRates", "contracts")}</p>
             )}
 
-            <div className="overflow-hidden rounded-lg border border-[#DDD4C5] bg-white">
+            <div className="overflow-hidden rounded-none border border-[#DDD4C5] bg-white">
               <table className="w-full text-left text-xs">
                 <thead className="bg-[#FAF8F5] border-b border-[#DDD4C5] text-[#756A5B] font-semibold">
                   <tr>
@@ -1183,7 +1183,7 @@ export function CompanyContractsStep({
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="size-7 text-[#756A5B] hover:text-destructive"
+                              className="size-7 text-[#756A5B] hover:text-destructive rounded-none"
                               onClick={() => removeContractRateRow(index)}
                             >
                               <Trash2 className="size-3.5" />
@@ -1201,7 +1201,7 @@ export function CompanyContractsStep({
       </section>
 
       {/* SECTION 3: Booking Conditions */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
+      <section className="rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
         <div className="border-b border-[#E8E4DC] pb-3">
           <h2 className="font-display text-base font-semibold text-[#251605]">Section 3 — Booking Conditions</h2>
           <p className="text-xs text-[#756A5B]">
@@ -1231,7 +1231,7 @@ export function CompanyContractsStep({
               </Select>
             </Field>
             {depositPreview && (
-              <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
                 {depositPreview}
               </div>
             )}
@@ -1258,7 +1258,7 @@ export function CompanyContractsStep({
               </Select>
             </Field>
             {cancellationPreview && (
-              <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
                 {cancellationPreview}
               </div>
             )}
@@ -1285,7 +1285,7 @@ export function CompanyContractsStep({
               </Select>
             </Field>
             {noShowPreview && (
-              <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
                 {noShowPreview}
               </div>
             )}
@@ -1294,7 +1294,7 @@ export function CompanyContractsStep({
       </section>
 
       {/* SECTION 4: Contract Documents */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
+      <section className="rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
         <div className="border-b border-[#E8E4DC] pb-3">
           <h2 className="font-display text-base font-semibold text-[#251605]">Section 4 — Contract Documents</h2>
           <p className="text-xs text-[#756A5B]">
@@ -1303,7 +1303,7 @@ export function CompanyContractsStep({
         </div>
 
         {(!config?.contractDocumentTypes || config.contractDocumentTypes.length === 0) ? (
-          <p className="text-xs text-[#756A5B] italic p-3 text-center bg-[#FAF8F5] rounded-lg">
+          <p className="text-xs text-[#756A5B] italic p-3 text-center bg-[#FAF8F5] rounded-none">
             No contract document types are currently configured in Settings → Card 4.
           </p>
         ) : (
@@ -1316,7 +1316,7 @@ export function CompanyContractsStep({
                 <div
                   key={docType.id}
                   className={cn(
-                    "flex flex-col justify-between rounded-xl border p-3.5 transition-colors",
+                    "flex flex-col justify-between rounded-none border p-3.5 transition-colors",
                     docError
                       ? "border-destructive bg-destructive/5"
                       : uploadedDoc
@@ -1331,7 +1331,7 @@ export function CompanyContractsStep({
                       </span>
                       <span
                         className={cn(
-                          "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                          "rounded-none px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                           docType.required
                             ? "border border-amber-300 bg-amber-100 text-amber-900"
                             : "border border-stone-200 bg-stone-100 text-stone-600",
@@ -1358,7 +1358,7 @@ export function CompanyContractsStep({
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-xs text-[#756A5B] hover:text-destructive shrink-0"
+                          className="h-7 text-xs text-[#756A5B] hover:text-destructive shrink-0 rounded-none"
                           onClick={() => removeDocument(docType.id)}
                         >
                           Remove
@@ -1390,7 +1390,7 @@ export function CompanyContractsStep({
       </section>
 
       {/* SECTION 5: Contract Notes */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
+      <section className="rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
         <div className="border-b border-[#E8E4DC] pb-3">
           <h2 className="font-display text-base font-semibold text-[#251605]">Section 5 — Contract Notes</h2>
           <p className="text-xs text-[#756A5B]">
@@ -1402,7 +1402,7 @@ export function CompanyContractsStep({
           <Textarea
             value={contract?.notes || ""}
             onChange={(e) => setContract("notes", e.target.value)}
-            className="min-h-[80px] rounded-[6px] border-[#CCCCCC] bg-white text-xs text-[#251605]"
+            className="min-h-[80px] rounded-none border-[#CCCCCC] bg-white text-xs text-[#251605]"
             placeholder="Enter any internal contract notes, special billing exceptions, or agreed clauses..."
           />
         </Field>

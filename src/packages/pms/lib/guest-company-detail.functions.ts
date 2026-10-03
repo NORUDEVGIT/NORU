@@ -1490,15 +1490,46 @@ export const listCompanyBilling = createServerFn({ method: "POST" })
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
-    const company = await db
+    let companyRes = await db
       .from("guest_account_masters")
-      .select("id, name, account_status, payment_terms, credit_limit_note, credit_account_enabled, primary_contact_name, billing_contact_name")
+      .select("id, name, account_status, payment_terms, credit_limit_note, billing_instruction, credit_account_enabled, credit_limit_amount, credit_days, credit_status, default_billing_rule_id, default_payment_method_id, billing_currency_code, payment_timing, tax_exempt, tax_exemption_rule_id, tax_exemption_certificate_number, tax_exemption_valid_to, primary_contact_name, billing_contact_name, account_operations")
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.companyId)
       .eq("account_type", "company")
       .maybeSingle();
-    if (company.error) throw new Error(company.error.message);
-    if (!company.data) throw new Error("That company could not be found.");
+
+    if (companyRes.error && (isMissingSchemaError(companyRes.error) || companyRes.error.code === "42703")) {
+      companyRes = await db
+        .from("guest_account_masters")
+        .select("id, name, account_status, payment_terms, credit_limit_note, credit_account_enabled, primary_contact_name, billing_contact_name")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.companyId)
+        .eq("account_type", "company")
+        .maybeSingle();
+    }
+
+    if (companyRes.error) throw new Error(companyRes.error.message);
+    if (!companyRes.data) throw new Error("That company could not be found.");
+    const company = companyRes;
+    const companyData = companyRes.data as any;
+
+    let defaultBillingRuleName: string | null = null;
+    if (companyData.default_billing_rule_id) {
+      const br = await db.from("pms_billing_rules").select("name").eq("id", companyData.default_billing_rule_id).maybeSingle();
+      defaultBillingRuleName = br.data?.name ?? null;
+    }
+
+    let defaultPaymentMethodName: string | null = null;
+    if (companyData.default_payment_method_id) {
+      const pm = await db.from("pms_payment_methods").select("name").eq("id", companyData.default_payment_method_id).maybeSingle();
+      defaultPaymentMethodName = pm.data?.name ?? null;
+    }
+
+    let taxExemptionRuleName: string | null = null;
+    if (companyData.tax_exemption_rule_id) {
+      const tr = await db.from("pms_tax_exemption_rules").select("name").eq("id", companyData.tax_exemption_rule_id).maybeSingle();
+      taxExemptionRuleName = tr.data?.name ?? null;
+    }
     const access = guestStayAccessForRole(me.role);
     const moneyAvailable = access.folio;
     const reservations = await loadCompanyReservations(db, data.restaurantId, data.companyId);
@@ -1585,13 +1616,25 @@ export const listCompanyBilling = createServerFn({ method: "POST" })
     );
     return {
       summary: {
-        accountStatus: company.data.account_status,
-        paymentTerms: (company.data as { payment_terms?: string | null }).payment_terms ?? null,
-        creditAccountEnabled: Boolean((company.data as { credit_account_enabled?: boolean }).credit_account_enabled),
-        creditLimitNote: (company.data as { credit_limit_note?: string | null }).credit_limit_note ?? null,
+        accountStatus: companyData.account_status,
+        paymentTerms: companyData.payment_terms ?? null,
+        creditAccountEnabled: Boolean(companyData.credit_account_enabled),
+        creditLimitNote: companyData.credit_limit_note ?? null,
+        creditLimitAmount: companyData.credit_limit_amount != null ? Number(companyData.credit_limit_amount) : null,
+        creditDays: companyData.credit_days != null ? Number(companyData.credit_days) : null,
+        creditStatus: companyData.credit_status ?? null,
+        defaultBillingRule: defaultBillingRuleName,
+        defaultPaymentMethod: defaultPaymentMethodName,
+        billingCurrency: companyData.billing_currency_code ?? null,
+        paymentTiming: companyData.payment_timing ?? null,
+        taxExempt: Boolean(companyData.tax_exempt),
+        taxExemptionRule: taxExemptionRuleName,
+        taxExemptionCertificateNumber: companyData.tax_exemption_certificate_number ?? null,
+        taxExemptionValidTo: companyData.tax_exemption_valid_to ?? null,
+        billingInstruction: companyData.billing_instruction ?? null,
         billingContact:
-          (company.data as { billing_contact_name?: string | null }).billing_contact_name ||
-          company.data.primary_contact_name ||
+          companyData.billing_contact_name ||
+          companyData.primary_contact_name ||
           null,
         moneyAvailable,
         canOperate: moneyAvailable,
