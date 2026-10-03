@@ -198,7 +198,7 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
   },
   {
     id: "commercial",
-    label: "Commercial Overview",
+    label: "Overview",
     section: "commercial",
     description:
       "Monitor active promotions, packages, commercial scope, and post-launch performance.",
@@ -226,7 +226,7 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
   },
   {
     id: "commercial-history",
-    label: "Commercial History",
+    label: "History",
     section: "commercial",
     description: "Review operational commercial activation changes.",
     implemented: true,
@@ -236,7 +236,7 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
   {
     id: "competitor-setup",
     label: "Competitor Setup",
-    section: "commercial",
+    section: "more",
     description: "Configure competitor hotels and mappings for future rate shopping.",
     implemented: true,
     sources: ["hotel_competitors"],
@@ -245,7 +245,7 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
   {
     id: "market-intelligence",
     label: "Market Intelligence",
-    section: "commercial",
+    section: "more",
     description: "Competitor and market-position decision support.",
     implemented: false,
     plannedCapability: "Market rate comparison once an approved data source exists.",
@@ -255,7 +255,7 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
   {
     id: "approvals",
     label: "Approvals",
-    section: "commercial",
+    section: "more",
     description: "Review and approve commercial rate or restriction changes.",
     implemented: true,
     sources: ["Rate Calendar", "Restrictions", "Commercial"],
@@ -302,7 +302,6 @@ export const REVENUE_PRIMARY_SECTIONS: Array<{
   { id: "revenue-control", label: "Revenue Control" },
   { id: "rates", label: "Rates" },
   { id: "restrictions", label: "Restrictions" },
-  { id: "demand-forecast", label: "Demand & Forecast" },
   { id: "commercial", label: "Commercial" },
   { id: "more", label: "More" },
 ];
@@ -406,14 +405,33 @@ export const REVENUE_UI_SCREEN_MAP: Array<{
 
 const VALID_VIEWS = new Set<RevenueWorkspaceView>(REVENUE_VIEW_DEFINITIONS.map((view) => view.id));
 
+/**
+ * Demand & Forecast views are retained in codebase for future reactivation,
+ * but demoted/disabled from normal user navigation and direct URL entry.
+ */
+export const DEMOTED_DEMAND_VIEWS: readonly RevenueWorkspaceView[] = [
+  "demand-forecast",
+  "pickup-pace",
+  "forecast-detail",
+  "demand-calendar",
+  "forecast-history",
+];
+
+export function isDemotedDemandView(input?: string | null): boolean {
+  return Boolean(input && (DEMOTED_DEMAND_VIEWS as readonly string[]).includes(input));
+}
+
 export function isRevenueWorkspaceView(value: string): value is RevenueWorkspaceView {
   return VALID_VIEWS.has(value as RevenueWorkspaceView);
 }
 
 export function normalizeRevenueView(input?: string): RevenueWorkspaceView {
   if (!input) return REVENUE_DEFAULT_VIEW;
+  if (isDemotedDemandView(input)) return REVENUE_DEFAULT_VIEW;
   if (isRevenueWorkspaceView(input)) return input;
-  return LEGACY_REVENUE_TAB_MAP[input] ?? REVENUE_DEFAULT_VIEW;
+  const legacy = LEGACY_REVENUE_TAB_MAP[input];
+  if (legacy && !isDemotedDemandView(legacy)) return legacy;
+  return REVENUE_DEFAULT_VIEW;
 }
 
 export function revenueViewDefinition(view: RevenueWorkspaceView): RevenueViewDefinition {

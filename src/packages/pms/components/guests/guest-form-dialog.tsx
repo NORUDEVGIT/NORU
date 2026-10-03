@@ -1,4 +1,4 @@
-import { cloneElement, useEffect, useId, useState, type ReactNode } from "react";
+import { cloneElement, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -35,14 +35,32 @@ import {
   createGuest,
   createGuestDocumentUpload,
   findGuestDuplicates,
+  listGuestPreferenceRegistrationCatalogue,
   registerGuestDocument,
+  saveGuestPreferenceAnswers,
   updateGuest,
   type GuestProfile,
   type GuestSummary,
 } from "@/packages/pms/lib/guests.functions";
+import { validatePreferenceAnswer } from "@/packages/pms/lib/guest-preferences-workspace";
+import {
+  listGuestCustomFieldValues,
+  saveGuestCustomFieldValues,
+} from "@/packages/pms/lib/guest-custom-fields.functions";
+import { GuestDynamicFieldsSection } from "@/packages/pms/components/guests/guest-dynamic-fields-section";
+import { GuestRegistrationPreferences } from "@/packages/pms/components/guests/guest-registration-preferences";
+import { GuestCreateModal } from "./guest-create-modal";
 import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { guestCreateBlocked } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
+import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
+import {
+  resolveIndividualProfileType,
+  resolveGuestFieldRules,
+  validateGuestFields,
+  resolveFallbackOptionsForField,
+  type GuestFieldContext,
+} from "@/packages/pms/lib/guest-field-rules";
 import {
   GUEST_GENDER_LABELS,
   GUEST_GENDERS,
@@ -253,7 +271,33 @@ function Section({
   );
 }
 
-export function GuestFormDialog({
+export function GuestFormDialog(props: {
+  restaurantId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Present when editing an existing guest. */
+  guest?: GuestProfile | null;
+  onSaved?: (guestId: string) => void;
+  /** Called when staff choose an existing duplicate instead of creating a new guest. */
+  onOpenExisting?: (guestId: string) => void;
+  /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
+  onMergeRequested?: (duplicateId: string) => void;
+}) {
+  if (!props.guest) {
+    return (
+      <GuestCreateModal
+        restaurantId={props.restaurantId}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        onCreated={(id) => props.onSaved?.(id)}
+        onCancel={() => props.onOpenChange(false)}
+      />
+    );
+  }
+  return <GuestEditFormDialog {...props} guest={props.guest} />;
+}
+
+function GuestEditFormDialog({
   restaurantId,
   open,
   onOpenChange,
@@ -265,12 +309,9 @@ export function GuestFormDialog({
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Present when editing an existing guest. */
-  guest?: GuestProfile | null;
+  guest: GuestProfile;
   onSaved?: (guestId: string) => void;
-  /** Called when staff choose an existing duplicate instead of creating a new guest. */
   onOpenExisting?: (guestId: string) => void;
-  /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
   onMergeRequested?: (duplicateId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -291,12 +332,61 @@ export function GuestFormDialog({
     ? rulesQuery.data.snapshot.guestRules
     : null;
 
+  const loadConfig = useServerFn(getGuestWorkspaceConfig);
+  const configQuery = useQuery({
+    queryKey: ["guest-workspace-config", restaurantId],
+    queryFn: () => loadConfig({ data: { restaurantId } }),
+    retry: false,
+    enabled: open,
+  });
+
+  const individualType = resolveIndividualProfileType(configQuery.data);
+  const isIndividualActive = !configQuery.data?.available || individualType?.active !== false;
+
+  const context: GuestFieldContext = guest ? "profile_edit" : "profile_create";
+  const fieldRules = useMemo(
+    () => resolveGuestFieldRules(configQuery.data, individualType, context),
+    [configQuery.data, individualType, context],
+  );
+
+  const fieldRuleMap = useMemo(() => {
+    const map = new Map<string, (typeof fieldRules)[0]>();
+    for (const rule of fieldRules) {
+      if (rule.canonicalKey) map.set(rule.canonicalKey, rule);
+      map.set(rule.code, rule);
+    }
+    return map;
+  }, [fieldRules]);
+
   const [form, setForm] = useState<GuestFormValues>(EMPTY);
+  const [customValues, setCustomValues] = useState<Record<string, unknown>>({});
+  const [preferenceAnswers, setPreferenceAnswers] = useState<Record<string, string[]>>({});
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
   const [stagedFiles, setStagedFiles] = useState<StagedIdentityFile[]>([]);
   const [stagedLinks, setStagedLinks] = useState<StagedMasterLink[]>([]);
   const [createdGuestId, setCreatedGuestId] = useState<string | null>(null);
   const [followupErrors, setFollowupErrors] = useState<string[]>([]);
+
+  const loadCustomValues = useServerFn(listGuestCustomFieldValues);
+  const customValuesQuery = useQuery({
+    queryKey: ["guest-custom-fields", restaurantId, guest?.id],
+    queryFn: () =>
+      guest
+        ? loadCustomValues({ data: { restaurantId, guestId: guest.id } })
+        : Promise.resolve([]),
+    enabled: open && Boolean(guest?.id),
+    staleTime: 0,
+  });
+
+  const saveCustomValues = useServerFn(saveGuestCustomFieldValues);
+  const savePreferences = useServerFn(saveGuestPreferenceAnswers);
+  const loadPrefCatalogue = useServerFn(listGuestPreferenceRegistrationCatalogue);
+  const prefCatalogueQuery = useQuery({
+    queryKey: ["guest-preferences-catalogue", restaurantId],
+    queryFn: () => loadPrefCatalogue({ data: { restaurantId } }),
+    enabled: open && !guest,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (open) {
@@ -306,8 +396,22 @@ export function GuestFormDialog({
       setStagedLinks([]);
       setCreatedGuestId(null);
       setFollowupErrors([]);
+      setPreferenceAnswers({});
+      if (!guest) {
+        setCustomValues({});
+      }
     }
   }, [open, guest]);
+
+  useEffect(() => {
+    if (open && guest && customValuesQuery.data) {
+      const initial: Record<string, unknown> = {};
+      for (const item of customValuesQuery.data) {
+        initial[item.fieldId] = item.value;
+      }
+      setCustomValues(initial);
+    }
+  }, [open, guest, customValuesQuery.data]);
 
   function set<K extends keyof GuestFormValues>(key: K, value: GuestFormValues[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -400,24 +504,68 @@ export function GuestFormDialog({
 
   const save = useMutation({
     mutationFn: async () => {
+      let activeGuestId: string;
       if (guest) {
         await update({ data: { restaurantId, guestId: guest.id, guest: payload } });
-        return { id: guest.id, complete: true as const };
+        activeGuestId = guest.id;
+      } else {
+        activeGuestId = createdGuestId
+          ? createdGuestId
+          : (await create({ data: { restaurantId, guest: payload } })).id;
+        setCreatedGuestId(activeGuestId);
       }
-      const guestId = createdGuestId
-        ? createdGuestId
-        : (await create({ data: { restaurantId, guest: payload } })).id;
-      setCreatedGuestId(guestId);
-      const complete = await applyStagedFollowups(guestId);
-      return { id: guestId, complete };
+
+      const errors: string[] = [];
+      let customFieldsSuccess = true;
+      let preferencesSuccess = true;
+
+      // Save custom field values
+      if (Object.keys(customValues).length > 0) {
+        try {
+          await saveCustomValues({
+            data: { restaurantId, guestId: activeGuestId, values: customValues },
+          });
+        } catch (err) {
+          customFieldsSuccess = false;
+          const msg = err instanceof Error ? err.message : "Failed to save some additional fields";
+          errors.push(msg);
+        }
+      }
+
+      // Save preference answers (at registration)
+      const prefEntries = Object.entries(preferenceAnswers)
+        .filter(([_, vals]) => vals && vals.length > 0)
+        .map(([typeId, values]) => ({ typeId, values }));
+      if (prefEntries.length > 0) {
+        try {
+          const res = await savePreferences({
+            data: { restaurantId, guestId: activeGuestId, answers: prefEntries },
+          });
+          if (res && !res.ok) {
+            preferencesSuccess = false;
+            errors.push(res.message);
+          }
+        } catch (err) {
+          preferencesSuccess = false;
+          const msg = err instanceof Error ? err.message : "Failed to save some preferences";
+          errors.push(msg);
+        }
+      }
+
+      const followupsComplete = guest ? true : await applyStagedFollowups(activeGuestId);
+      const complete = customFieldsSuccess && preferencesSuccess && followupsComplete;
+      return { id: activeGuestId, complete, errors };
     },
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-documents", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["guest-custom-fields", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["guest-preference-workspace", restaurantId] });
       if (!result.complete) {
-        toast.error(INDIVIDUAL_PARTIAL_CREATE_COPY);
+        const errorDetail = result.errors.length > 0 ? result.errors.join("; ") : null;
+        toast.error(errorDetail ? `${INDIVIDUAL_PARTIAL_CREATE_COPY} ${errorDetail}` : INDIVIDUAL_PARTIAL_CREATE_COPY);
         return;
       }
       toast.success(guest ? "Guest updated." : "Guest created.");
@@ -430,6 +578,9 @@ export function GuestFormDialog({
   const submit = useMutation({
     mutationFn: async () => {
       if (createdGuestId) return [] as GuestSummary[];
+      if (!guest && !isIndividualActive) {
+        throw new Error("Individual guest profile type is inactive in Property Setup.");
+      }
       if (form.firstName.trim() === "") throw new Error("First name is required.");
       const emergencyError = validateEmergencyContacts(form.emergencyContacts);
       if (emergencyError) throw new Error(emergencyError);
@@ -439,8 +590,36 @@ export function GuestFormDialog({
         form.restrictionReason,
       );
       if (restrictionError) throw new Error(restrictionError);
-      const rulesBlock = guestCreateBlocked(savedRules, form);
-      if (rulesBlock) throw new Error(rulesBlock);
+
+      const fieldValidation = validateGuestFields(
+        payload,
+        fieldRules,
+        context,
+        savedRules,
+        customValues,
+      );
+      if (!fieldValidation.valid) {
+        throw new Error(fieldValidation.errors[0]);
+      }
+
+      // Validate required preferences for Individual profile before guest creation
+      if (!guest && prefCatalogueQuery.data?.categories) {
+        const allowedSet =
+          individualType?.preferenceTypeIds && individualType.preferenceTypeIds.length > 0
+            ? new Set(individualType.preferenceTypeIds)
+            : null;
+        for (const cat of prefCatalogueQuery.data.categories) {
+          if (!cat.active) continue;
+          for (const t of cat.types) {
+            if (!t.active) continue;
+            if (allowedSet && !allowedSet.has(t.id)) continue;
+            const answers = preferenceAnswers[t.id] ?? [];
+            const error = validatePreferenceAnswer(t, answers);
+            if (error) throw new Error(error);
+          }
+        }
+      }
+
       const matches = await checkDuplicates({
         data: {
           restaurantId,
@@ -469,11 +648,20 @@ export function GuestFormDialog({
         <DialogHeader>
           <DialogTitle>{guest ? "Edit guest" : "New guest"}</DialogTitle>
           <DialogDescription>
-            {savedRules
-              ? "First name plus a phone number or email address are required after guest rules were saved."
-              : "Only a first name is required — walk-in guests often have incomplete details."}
+            {fieldRules.some((r) => r.requiredForContext && !r.isTechnicalMinimum)
+              ? "Required fields are configured in Property Setup for guest profiles."
+              : savedRules
+                ? "First name plus a phone number or email address are required after guest rules were saved."
+                : "Only a first name is required — walk-in guests often have incomplete details."}
           </DialogDescription>
         </DialogHeader>
+
+        {!guest && !isIndividualActive ? (
+          <div className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertTriangle className="size-4 shrink-0" />
+            <span>Individual guest profile creation is currently inactive in Property Setup.</span>
+          </div>
+        ) : null}
 
         {duplicates && duplicates.length > 0 ? (
           <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
@@ -541,46 +729,60 @@ export function GuestFormDialog({
           <Section id="basic" title="Basic" defaultOpen>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label>Title</Label>
+                <Label>{fieldRuleMap.get("title")?.label ?? "Title"}</Label>
                 <Select
                   value={form.title || "__none"}
-                  onValueChange={(value) => set("title", value === "__none" ? "" : (value as GuestTitle))}
+                  onValueChange={(value) =>
+                    set("title", value === "__none" ? "" : (value as GuestTitle))
+                  }
                 >
                   <SelectTrigger data-testid="individual-title">
                     <SelectValue placeholder="Not recorded" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none">Not recorded</SelectItem>
-                    {GUEST_TITLES.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {GUEST_TITLE_LABELS[item]}
+                    {(fieldRuleMap.get("title")?.options?.length
+                      ? fieldRuleMap.get("title")!.options
+                      : resolveFallbackOptionsForField("TITLE")
+                    ).map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <Field label="First name" required>
+              <Field
+                label={fieldRuleMap.get("firstName")?.label ?? "First name"}
+                required={fieldRuleMap.get("firstName")?.requiredForContext ?? true}
+              >
                 <Input
                   data-testid="individual-first-name"
                   value={form.firstName}
                   onChange={(e) => set("firstName", e.target.value)}
                 />
               </Field>
-              <Field label="Middle name">
+              <Field label={fieldRuleMap.get("middleName")?.label ?? "Middle name"}>
                 <Input
                   data-testid="individual-middle-name"
                   value={form.middleName}
                   onChange={(e) => set("middleName", e.target.value)}
                 />
               </Field>
-              <Field label="Last name" required={Boolean(savedRules?.requiredFields.lastName)}>
+              <Field
+                label={fieldRuleMap.get("lastName")?.label ?? "Last name"}
+                required={
+                  fieldRuleMap.get("lastName")?.requiredForContext ??
+                  Boolean(savedRules?.requiredFields.lastName)
+                }
+              >
                 <Input
                   data-testid="individual-last-name"
                   value={form.lastName}
                   onChange={(e) => set("lastName", e.target.value)}
                 />
               </Field>
-              <Field label="Preferred name">
+              <Field label={fieldRuleMap.get("preferredName")?.label ?? "Preferred name"}>
                 <Input
                   data-testid="individual-preferred-name"
                   value={form.preferredName}
@@ -588,7 +790,7 @@ export function GuestFormDialog({
                 />
               </Field>
               <div>
-                <Label>Gender</Label>
+                <Label>{fieldRuleMap.get("gender")?.label ?? "Gender"}</Label>
                 <Select
                   value={form.gender || "__none"}
                   onValueChange={(value) =>
@@ -600,15 +802,21 @@ export function GuestFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none">Not recorded</SelectItem>
-                    {GUEST_GENDERS.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {GUEST_GENDER_LABELS[item]}
+                    {(fieldRuleMap.get("gender")?.options?.length
+                      ? fieldRuleMap.get("gender")!.options
+                      : resolveFallbackOptionsForField("GENDER")
+                    ).map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <Field label="Date of birth">
+              <Field
+                label={fieldRuleMap.get("dateOfBirth")?.label ?? "Date of birth"}
+                required={fieldRuleMap.get("dateOfBirth")?.requiredForContext ?? false}
+              >
                 <Input
                   type="date"
                   data-testid="individual-dob"
@@ -616,10 +824,19 @@ export function GuestFormDialog({
                   onChange={(e) => set("dateOfBirth", e.target.value)}
                 />
               </Field>
-              <Field label="Nationality">
-                <Input value={form.nationality} onChange={(e) => set("nationality", e.target.value)} />
+              <Field
+                label={fieldRuleMap.get("nationality")?.label ?? "Nationality"}
+                required={fieldRuleMap.get("nationality")?.requiredForContext ?? false}
+              >
+                <Input
+                  value={form.nationality}
+                  onChange={(e) => set("nationality", e.target.value)}
+                />
               </Field>
-              <Field label="Language">
+              <Field
+                label={fieldRuleMap.get("language")?.label ?? "Language"}
+                required={fieldRuleMap.get("language")?.requiredForContext ?? false}
+              >
                 <Input value={form.language} onChange={(e) => set("language", e.target.value)} />
               </Field>
               <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
@@ -653,21 +870,27 @@ export function GuestFormDialog({
 
           <Section id="contact" title="Contact">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Primary phone" required={Boolean(savedRules)}>
+              <Field
+                label={fieldRuleMap.get("phone")?.label ?? "Primary phone"}
+                required={fieldRuleMap.get("phone")?.requiredForContext ?? Boolean(savedRules)}
+              >
                 <Input
                   data-testid="individual-phone"
                   value={form.phone}
                   onChange={(e) => set("phone", e.target.value)}
                 />
               </Field>
-              <Field label="Alternate phone">
+              <Field label={fieldRuleMap.get("phoneAlt")?.label ?? "Alternate phone"}>
                 <Input
                   data-testid="individual-phone-alt"
                   value={form.phoneAlt}
                   onChange={(e) => set("phoneAlt", e.target.value)}
                 />
               </Field>
-              <Field label="Primary email" required={Boolean(savedRules)}>
+              <Field
+                label={fieldRuleMap.get("email")?.label ?? "Primary email"}
+                required={fieldRuleMap.get("email")?.requiredForContext ?? Boolean(savedRules)}
+              >
                 <Input
                   type="email"
                   data-testid="individual-email"
@@ -675,7 +898,7 @@ export function GuestFormDialog({
                   onChange={(e) => set("email", e.target.value)}
                 />
               </Field>
-              <Field label="Alternate email">
+              <Field label={fieldRuleMap.get("emailAlt")?.label ?? "Alternate email"}>
                 <Input
                   type="email"
                   data-testid="individual-email-alt"
@@ -684,7 +907,9 @@ export function GuestFormDialog({
                 />
               </Field>
               <div>
-                <Label>Preferred contact</Label>
+                <Label>
+                  {fieldRuleMap.get("preferredContactMethod")?.label ?? "Preferred contact"}
+                </Label>
                 <Select
                   value={form.preferredContactMethod || "__none"}
                   onValueChange={(value) =>
@@ -699,16 +924,19 @@ export function GuestFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none">Not recorded</SelectItem>
-                    {PREFERRED_CONTACT_METHODS.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {PREFERRED_CONTACT_METHOD_LABELS[item]}
+                    {(fieldRuleMap.get("preferredContactMethod")?.options?.length
+                      ? fieldRuleMap.get("preferredContactMethod")!.options
+                      : resolveFallbackOptionsForField("PREFERRED_CONTACT_METHOD")
+                    ).map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Preferred time</Label>
+                <Label>{fieldRuleMap.get("preferredContactTime")?.label ?? "Preferred time"}</Label>
                 <Select
                   value={form.preferredContactTime || "__none"}
                   onValueChange={(value) =>
@@ -723,9 +951,12 @@ export function GuestFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none">Not recorded</SelectItem>
-                    {PREFERRED_CONTACT_TIMES.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {PREFERRED_CONTACT_TIME_LABELS[item]}
+                    {(fieldRuleMap.get("preferredContactTime")?.options?.length
+                      ? fieldRuleMap.get("preferredContactTime")!.options
+                      : resolveFallbackOptionsForField("PREFERRED_CONTACT_TIME")
+                    ).map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -760,7 +991,10 @@ export function GuestFormDialog({
                 <Input value={form.country} onChange={(e) => set("country", e.target.value)} />
               </Field>
               <Field label="Postal code">
-                <Input value={form.postalCode} onChange={(e) => set("postalCode", e.target.value)} />
+                <Input
+                  value={form.postalCode}
+                  onChange={(e) => set("postalCode", e.target.value)}
+                />
               </Field>
             </div>
           </Section>
@@ -909,6 +1143,37 @@ export function GuestFormDialog({
             </Button>
           </Section>
 
+          {fieldRules.some((r) => r.category === "custom_value") ? (
+            <Section
+              id="additional"
+              title="Additional Information"
+              defaultOpen={fieldRules.some(
+                (r) => r.category === "custom_value" && r.requiredForContext,
+              )}
+            >
+              <GuestDynamicFieldsSection
+                fields={fieldRules}
+                values={customValues}
+                onChange={(fieldId, val) =>
+                  setCustomValues((prev) => ({ ...prev, [fieldId]: val }))
+                }
+                isCreateMode={!guest}
+              />
+            </Section>
+          ) : null}
+
+          {!guest ? (
+            <Section id="preferences" title="Preferences">
+              <GuestRegistrationPreferences
+                restaurantId={restaurantId}
+                answers={preferenceAnswers}
+                onChange={(typeId, values) =>
+                  setPreferenceAnswers((prev) => ({ ...prev, [typeId]: values }))
+                }
+              />
+            </Section>
+          ) : null}
+
           <Section id="notes" title="Notes">
             <Field label="Notes">
               <Textarea
@@ -1042,7 +1307,11 @@ export function GuestFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button data-testid="guest-form-save" onClick={() => submit.mutate()} disabled={busy}>
+          <Button
+            data-testid="guest-form-save"
+            onClick={() => submit.mutate()}
+            disabled={busy || (!guest && !isIndividualActive)}
+          >
             {busy
               ? "Saving…"
               : guest

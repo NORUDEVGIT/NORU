@@ -124,18 +124,18 @@ export type CompetitorRateObservation = {
 export type CreateHotelCompetitorInput = {
   restaurantId: string;
   name: string;
-  locationLabel?: string | null;
-  notes?: string | null;
-  active?: boolean;
+  locationLabel?: string | null | undefined;
+  notes?: string | null | undefined;
+  active?: boolean | undefined;
 };
 
 export type UpdateHotelCompetitorInput = {
   restaurantId: string;
   competitorId: string;
-  name?: string;
-  locationLabel?: string | null;
-  notes?: string | null;
-  active?: boolean;
+  name?: string | undefined;
+  locationLabel?: string | null | undefined;
+  notes?: string | null | undefined;
+  active?: boolean | undefined;
 };
 
 export type CreateCompetitorProviderMappingInput = {
@@ -143,17 +143,17 @@ export type CreateCompetitorProviderMappingInput = {
   competitorId: string;
   provider: string;
   externalPropertyId: string;
-  externalPropertyName?: string | null;
-  active?: boolean;
+  externalPropertyName?: string | null | undefined;
+  active?: boolean | undefined;
 };
 
 export type UpdateCompetitorProviderMappingInput = {
   restaurantId: string;
   mappingId: string;
-  provider?: string;
-  externalPropertyId?: string;
-  externalPropertyName?: string | null;
-  active?: boolean;
+  provider?: string | undefined;
+  externalPropertyId?: string | undefined;
+  externalPropertyName?: string | null | undefined;
+  active?: boolean | undefined;
 };
 
 export type CreateCompetitorRoomMappingInput = {
@@ -162,20 +162,20 @@ export type CreateCompetitorRoomMappingInput = {
   provider: string;
   ourRoomTypeId: string;
   externalRoomId: string;
-  externalRoomName?: string | null;
-  notes?: string | null;
-  active?: boolean;
+  externalRoomName?: string | null | undefined;
+  notes?: string | null | undefined;
+  active?: boolean | undefined;
 };
 
 export type UpdateCompetitorRoomMappingInput = {
   restaurantId: string;
   mappingId: string;
-  provider?: string;
-  ourRoomTypeId?: string;
-  externalRoomId?: string;
-  externalRoomName?: string | null;
-  notes?: string | null;
-  active?: boolean;
+  provider?: string | undefined;
+  ourRoomTypeId?: string | undefined;
+  externalRoomId?: string | undefined;
+  externalRoomName?: string | null | undefined;
+  notes?: string | null | undefined;
+  active?: boolean | undefined;
 };
 
 export type RateShoppingRoomType = {

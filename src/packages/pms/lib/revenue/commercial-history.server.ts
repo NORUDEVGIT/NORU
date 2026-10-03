@@ -101,14 +101,14 @@ function applyHistoryFilters(
   request: ReturnType<DbClient["from"]>,
   query: {
     restaurantId: string;
-    from?: string;
-    to?: string;
-    entityType?: CommercialEntityType;
-    actionType?: CommercialActionType;
-    actorId?: string;
-    search?: string;
-    masterId?: string;
-    entityId?: string;
+    from?: string | undefined;
+    to?: string | undefined;
+    entityType?: CommercialEntityType | undefined;
+    actionType?: CommercialActionType | undefined;
+    actorId?: string | undefined;
+    search?: string | undefined;
+    masterId?: string | undefined;
+    entityId?: string | undefined;
   },
 ) {
   let next = request.eq("restaurant_id", query.restaurantId);
@@ -139,16 +139,16 @@ export async function listCommercialChangeHistory(
   db: DbClient,
   query: {
     restaurantId: string;
-    from?: string;
-    to?: string;
-    entityType?: CommercialEntityType;
-    actionType?: CommercialActionType;
-    actorId?: string;
-    search?: string;
-    masterId?: string;
-    entityId?: string;
-    page?: number;
-    pageSize?: number;
+    from?: string | undefined;
+    to?: string | undefined;
+    entityType?: CommercialEntityType | undefined;
+    actionType?: CommercialActionType | undefined;
+    actorId?: string | undefined;
+    search?: string | undefined;
+    masterId?: string | undefined;
+    entityId?: string | undefined;
+    page?: number | undefined;
+    pageSize?: number | undefined;
   },
 ): Promise<CommercialHistoryPage> {
   const page = query.page ?? 1;
@@ -175,9 +175,9 @@ export async function listCommercialHistoryActors(
   db: DbClient,
   query: {
     restaurantId: string;
-    from?: string;
-    to?: string;
-    entityType?: CommercialEntityType;
+    from?: string | undefined;
+    to?: string | undefined;
+    entityType?: CommercialEntityType | undefined;
   },
 ): Promise<Array<{ id: string; name: string }>> {
   let request = db

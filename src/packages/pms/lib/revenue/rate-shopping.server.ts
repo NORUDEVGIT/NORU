@@ -40,94 +40,95 @@ function throwDb(error: { message?: string } | null) {
 
 function mapCompetitor(row: Record<string, unknown>): HotelCompetitor {
   return {
-    id: String(row.id),
-    restaurantId: String(row.restaurant_id),
-    name: String(row.name),
-    active: row.active !== false,
-    locationLabel: typeof row.location_label === "string" ? row.location_label : null,
-    notes: typeof row.notes === "string" ? row.notes : null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    id: String(row["id"]),
+    restaurantId: String(row["restaurant_id"]),
+    name: String(row["name"]),
+    active: row["active"] !== false,
+    locationLabel: typeof row["location_label"] === "string" ? row["location_label"] : null,
+    notes: typeof row["notes"] === "string" ? row["notes"] : null,
+    createdAt: String(row["created_at"]),
+    updatedAt: String(row["updated_at"]),
   };
 }
 
 function mapProviderMapping(row: Record<string, unknown>): CompetitorProviderMapping {
   return {
-    id: String(row.id),
-    restaurantId: String(row.restaurant_id),
-    competitorId: String(row.competitor_id),
-    provider: String(row.provider),
-    externalPropertyId: String(row.external_property_id),
+    id: String(row["id"]),
+    restaurantId: String(row["restaurant_id"]),
+    competitorId: String(row["competitor_id"]),
+    provider: String(row["provider"]),
+    externalPropertyId: String(row["external_property_id"]),
     externalPropertyName:
-      typeof row.external_property_name === "string" ? row.external_property_name : null,
-    active: row.active !== false,
-    lastVerifiedAt: typeof row.last_verified_at === "string" ? row.last_verified_at : null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+      typeof row["external_property_name"] === "string" ? row["external_property_name"] : null,
+    active: row["active"] !== false,
+    lastVerifiedAt: typeof row["last_verified_at"] === "string" ? row["last_verified_at"] : null,
+    createdAt: String(row["created_at"]),
+    updatedAt: String(row["updated_at"]),
   };
 }
 
 function mapRoomMapping(row: Record<string, unknown>): CompetitorRoomMapping {
   return {
-    id: String(row.id),
-    restaurantId: String(row.restaurant_id),
-    competitorId: String(row.competitor_id),
-    provider: String(row.provider),
-    ourRoomTypeId: String(row.our_room_type_id),
-    externalRoomId: String(row.external_room_id),
-    externalRoomName: typeof row.external_room_name === "string" ? row.external_room_name : null,
-    active: row.active !== false,
+    id: String(row["id"]),
+    restaurantId: String(row["restaurant_id"]),
+    competitorId: String(row["competitor_id"]),
+    provider: String(row["provider"]),
+    ourRoomTypeId: String(row["our_room_type_id"]),
+    externalRoomId: String(row["external_room_id"]),
+    externalRoomName: typeof row["external_room_name"] === "string" ? row["external_room_name"] : null,
+    active: row["active"] !== false,
     mappingStatus: "manual",
-    notes: typeof row.notes === "string" ? row.notes : null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    notes: typeof row["notes"] === "string" ? row["notes"] : null,
+    createdAt: String(row["created_at"]),
+    updatedAt: String(row["updated_at"]),
   };
 }
 
 function mapFetchRun(row: Record<string, unknown>): RateShoppingFetchRun {
-  const status = String(row.status);
+  const status = String(row["status"]);
   return {
-    id: String(row.id),
-    restaurantId: String(row.restaurant_id),
-    provider: String(row.provider),
-    startedAt: String(row.started_at),
-    finishedAt: typeof row.finished_at === "string" ? row.finished_at : null,
+    id: String(row["id"]),
+    restaurantId: String(row["restaurant_id"]),
+    provider: String(row["provider"]),
+    startedAt: String(row["started_at"]),
+    finishedAt: typeof row["finished_at"] === "string" ? row["finished_at"] : null,
     status: isRateShoppingFetchRunStatus(status) ? status : "failed",
-    requestedStayFrom: String(row.requested_stay_from),
-    requestedStayTo: String(row.requested_stay_to),
-    competitorCount: Number(row.competitor_count ?? 0),
-    observationCount: Number(row.observation_count ?? 0),
-    errorCount: Number(row.error_count ?? 0),
-    errorSummary: typeof row.error_summary === "string" ? row.error_summary : null,
-    createdAt: String(row.created_at),
+    requestedStayFrom: String(row["requested_stay_from"]),
+    requestedStayTo: String(row["requested_stay_to"]),
+    competitorCount: Number(row["competitor_count"] ?? 0),
+    observationCount: Number(row["observation_count"] ?? 0),
+    errorCount: Number(row["error_count"] ?? 0),
+    errorSummary: typeof row["error_summary"] === "string" ? row["error_summary"] : null,
+    createdAt: String(row["created_at"]),
   };
 }
 
 function mapObservation(row: Record<string, unknown>): CompetitorRateObservation {
-  const tax = String(row.tax_basis ?? "unknown");
-  const availability = String(row.availability_status ?? "unknown");
+  const tax = String(row["tax_basis"] ?? "unknown");
+  const availability = String(row["availability_status"] ?? "unknown");
   return {
-    id: String(row.id),
-    restaurantId: String(row.restaurant_id),
-    competitorId: String(row.competitor_id),
-    provider: String(row.provider),
-    providerPropertyId: String(row.provider_property_id),
-    fetchRunId: String(row.fetch_run_id),
-    observedAt: String(row.observed_at),
-    stayDate: String(row.stay_date),
-    externalRoomId: typeof row.external_room_id === "string" ? row.external_room_id : null,
-    externalRoomName: typeof row.external_room_name === "string" ? row.external_room_name : null,
-    externalRatePlanId: typeof row.external_rate_plan_id === "string" ? row.external_rate_plan_id : null,
+    id: String(row["id"]),
+    restaurantId: String(row["restaurant_id"]),
+    competitorId: String(row["competitor_id"]),
+    provider: String(row["provider"]),
+    providerPropertyId: String(row["provider_property_id"]),
+    fetchRunId: String(row["fetch_run_id"]),
+    observedAt: String(row["observed_at"]),
+    stayDate: String(row["stay_date"]),
+    externalRoomId: typeof row["external_room_id"] === "string" ? row["external_room_id"] : null,
+    externalRoomName: typeof row["external_room_name"] === "string" ? row["external_room_name"] : null,
+    externalRatePlanId:
+      typeof row["external_rate_plan_id"] === "string" ? row["external_rate_plan_id"] : null,
     externalRatePlanName:
-      typeof row.external_rate_plan_name === "string" ? row.external_rate_plan_name : null,
-    occupancyAdults: row.occupancy_adults == null ? null : Number(row.occupancy_adults),
-    occupancyChildren: row.occupancy_children == null ? null : Number(row.occupancy_children),
-    currency: normalizeCurrencyCode(typeof row.currency === "string" ? row.currency : null),
-    rateAmount: row.rate_amount == null ? null : Number(row.rate_amount),
+      typeof row["external_rate_plan_name"] === "string" ? row["external_rate_plan_name"] : null,
+    occupancyAdults: row["occupancy_adults"] == null ? null : Number(row["occupancy_adults"]),
+    occupancyChildren: row["occupancy_children"] == null ? null : Number(row["occupancy_children"]),
+    currency: normalizeCurrencyCode(typeof row["currency"] === "string" ? row["currency"] : null),
+    rateAmount: row["rate_amount"] == null ? null : Number(row["rate_amount"]),
     taxBasis: isCompetitorTaxBasis(tax) ? tax : "unknown",
     availabilityStatus: isCompetitorAvailabilityStatus(availability) ? availability : "unknown",
-    sourceHash: typeof row.source_hash === "string" ? row.source_hash : null,
-    createdAt: String(row.created_at),
+    sourceHash: typeof row["source_hash"] === "string" ? row["source_hash"] : null,
+    createdAt: String(row["created_at"]),
   };
 }
 
@@ -194,10 +195,10 @@ export async function updateHotelCompetitor(
   });
   if (!current) throw new Error("COMPETITOR_NOT_FOUND");
   const patch: Record<string, unknown> = {};
-  if (input.name !== undefined) patch.name = validateCompetitorName(input.name);
-  if (input.locationLabel !== undefined) patch.location_label = blankToNull(input.locationLabel);
-  if (input.notes !== undefined) patch.notes = blankToNull(input.notes);
-  if (input.active !== undefined) patch.active = input.active;
+  if (input.name !== undefined) patch["name"] = validateCompetitorName(input.name);
+  if (input.locationLabel !== undefined) patch["location_label"] = blankToNull(input.locationLabel);
+  if (input.notes !== undefined) patch["notes"] = blankToNull(input.notes);
+  if (input.active !== undefined) patch["active"] = input.active;
   if (Object.keys(patch).length === 0) return current;
   const result = await db
     .from("hotel_competitors")
@@ -214,7 +215,7 @@ export async function updateHotelCompetitor(
 
 export async function listCompetitorProviderMappings(
   db: DbClient,
-  input: { restaurantId: string; competitorId?: string },
+  input: { restaurantId: string; competitorId?: string | undefined },
 ): Promise<CompetitorProviderMapping[]> {
   let query = db
     .from("hotel_competitor_provider_mappings")
@@ -284,17 +285,17 @@ export async function updateCompetitorProviderMapping(
   if (input.provider !== undefined) {
     const provider = normalizeProviderId(input.provider);
     if (!provider) throw new Error("PROVIDER_REQUIRED");
-    patch.provider = provider;
+    patch["provider"] = provider;
   }
   if (input.externalPropertyId !== undefined) {
     const externalPropertyId = normalizeExternalId(input.externalPropertyId);
     if (!externalPropertyId) throw new Error("EXTERNAL_PROPERTY_ID_REQUIRED");
-    patch.external_property_id = externalPropertyId;
+    patch["external_property_id"] = externalPropertyId;
   }
   if (input.externalPropertyName !== undefined) {
-    patch.external_property_name = blankToNull(input.externalPropertyName);
+    patch["external_property_name"] = blankToNull(input.externalPropertyName);
   }
-  if (input.active !== undefined) patch.active = input.active;
+  if (input.active !== undefined) patch["active"] = input.active;
   if (Object.keys(patch).length === 0) return mapProviderMapping(current.data as Record<string, unknown>);
   const result = await db
     .from("hotel_competitor_provider_mappings")
@@ -311,7 +312,7 @@ export async function updateCompetitorProviderMapping(
 
 export async function listCompetitorRoomMappings(
   db: DbClient,
-  input: { restaurantId: string; competitorId?: string },
+  input: { restaurantId: string; competitorId?: string | undefined },
 ): Promise<CompetitorRoomMapping[]> {
   let query = db
     .from("hotel_competitor_room_mappings")
@@ -411,12 +412,12 @@ export async function updateCompetitorRoomMapping(
   }
   if (input.ourRoomTypeId) await requireRoomType(db, input.restaurantId, nextRoomTypeId);
   const patch: Record<string, unknown> = {};
-  if (input.provider !== undefined) patch.provider = nextProvider;
-  if (input.ourRoomTypeId !== undefined) patch.our_room_type_id = nextRoomTypeId;
-  if (input.externalRoomId !== undefined) patch.external_room_id = nextExternalRoomId;
-  if (input.externalRoomName !== undefined) patch.external_room_name = blankToNull(input.externalRoomName);
-  if (input.notes !== undefined) patch.notes = blankToNull(input.notes);
-  if (input.active !== undefined) patch.active = input.active;
+  if (input.provider !== undefined) patch["provider"] = nextProvider;
+  if (input.ourRoomTypeId !== undefined) patch["our_room_type_id"] = nextRoomTypeId;
+  if (input.externalRoomId !== undefined) patch["external_room_id"] = nextExternalRoomId;
+  if (input.externalRoomName !== undefined) patch["external_room_name"] = blankToNull(input.externalRoomName);
+  if (input.notes !== undefined) patch["notes"] = blankToNull(input.notes);
+  if (input.active !== undefined) patch["active"] = input.active;
   if (Object.keys(patch).length === 0) return mapped;
   const result = await db
     .from("hotel_competitor_room_mappings")
@@ -504,9 +505,9 @@ async function finishFetchRun(
     restaurantId: string;
     fetchRunId: string;
     status: RateShoppingFetchRunStatus;
-    observationCount?: number;
-    errorCount?: number;
-    errorSummary?: string | null;
+    observationCount?: number | undefined;
+    errorCount?: number | undefined;
+    errorSummary?: string | null | undefined;
   },
 ): Promise<RateShoppingFetchRun> {
   if (input.status === "running") throw new Error("FETCH_RUN_STATUS_INVALID");
@@ -536,8 +537,8 @@ export async function completeRateShoppingFetchRun(
     fetchRunId: string;
     status: Extract<RateShoppingFetchRunStatus, "success" | "partial">;
     observationCount: number;
-    errorCount?: number;
-    errorSummary?: string | null;
+    errorCount?: number | undefined;
+    errorSummary?: string | null | undefined;
   },
 ): Promise<RateShoppingFetchRun> {
   return finishFetchRun(db, input);
@@ -545,7 +546,12 @@ export async function completeRateShoppingFetchRun(
 
 export async function failRateShoppingFetchRun(
   db: DbClient,
-  input: { restaurantId: string; fetchRunId: string; errorSummary?: string | null; errorCount?: number },
+  input: {
+    restaurantId: string;
+    fetchRunId: string;
+    errorSummary?: string | null | undefined;
+    errorCount?: number | undefined;
+  },
 ): Promise<RateShoppingFetchRun> {
   return finishFetchRun(db, {
     restaurantId: input.restaurantId,

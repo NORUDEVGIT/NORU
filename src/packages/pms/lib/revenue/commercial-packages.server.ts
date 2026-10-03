@@ -29,10 +29,10 @@ type DbClient = any;
 
 export type PackagesWorkspaceQuery = {
   restaurantId: string;
-  fromDate?: string | null;
-  toDate?: string | null;
-  roomTypeId?: string | null;
-  ratePlanId?: string | null;
+  fromDate?: string | null | undefined;
+  toDate?: string | null | undefined;
+  roomTypeId?: string | null | undefined;
+  ratePlanId?: string | null | undefined;
 };
 
 type PackageAttributionStay = {
@@ -301,7 +301,7 @@ export async function loadPackagesWorkspace(
 
 export async function loadPackagePerformanceSummary(
   db: DbClient,
-  query: PackagesWorkspaceQuery & { packageId?: string; activationId?: string },
+  query: PackagesWorkspaceQuery & { packageId?: string | undefined; activationId?: string | undefined },
 ): Promise<PackagePerformanceSummary> {
   const stays = filterPackageStays(await loadPackageAttributedStays(db, query.restaurantId), query).filter(
     (row) =>

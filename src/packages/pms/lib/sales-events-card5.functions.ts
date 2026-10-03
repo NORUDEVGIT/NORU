@@ -23,6 +23,7 @@ import {
   CARD5_SALES_AUDIT,
   CARD5_SALES_AUDIT_SECTION,
   CARD5_SALES_UNAVAILABLE,
+  codeFromPipelineStageName,
   emptySalesSnapshot,
   evaluateCard5SalesReadiness,
   type Card5FunctionSpace,
@@ -153,7 +154,9 @@ export async function loadCard5SalesSnapshot(
       .eq("restaurant_id", restaurantId),
     db
       .from("pms_sales_pipeline_stages")
-      .select("id, code, name, sort_order, is_terminal, active")
+      .select(
+        "id, restaurant_id, code, name, description, default_probability, sort_order, is_terminal, active, created_at, updated_at",
+      )
       .eq("restaurant_id", restaurantId)
       .order("sort_order"),
     db
@@ -260,8 +263,15 @@ export async function loadCard5SalesSnapshot(
       outletIds: outletsByLabel.get(String(row.id)) ?? [],
     })),
     pipelineStages: ((stages.data ?? []) as any[]).map((row): Card5PipelineStage => ({
-      ...mapOrdered(row),
+      id: String(row.id),
+      code: String(row.code ?? ""),
+      name: String(row.name ?? ""),
+      description: row.description == null ? null : String(row.description),
+      sortOrder: Number(row.sort_order ?? 0),
       isTerminal: row.is_terminal === true,
+      defaultProbability:
+        row.default_probability == null ? null : Number(row.default_probability),
+      active: row.active !== false,
     })),
     packageTemplates: ((templates.data ?? []) as any[]).map((row): Card5PackageTemplate => ({
       id: String(row.id),
@@ -330,22 +340,57 @@ const catalogueSchema = z.object({
   active: z.boolean(),
 });
 
-const orderedSchema = z.object({
-  restaurantId: idSchema,
-  kind: z.enum(["event_status", "pipeline_stage"]),
-  id: idSchema.optional(),
-  code: z
-    .string()
-    .trim()
-    .min(1)
-    .max(20)
-    .transform((value) => value.toUpperCase()),
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(500).optional(),
-  sortOrder: z.number().int(),
-  isTerminal: z.boolean().optional(),
-  active: z.boolean(),
-});
+const orderedSchema = z
+  .object({
+    restaurantId: idSchema,
+    kind: z.enum(["event_status", "pipeline_stage"]),
+    id: idSchema.optional(),
+    code: z
+      .string()
+      .trim()
+      .max(20)
+      .transform((value) => value.toUpperCase())
+      .optional(),
+    name: z.string().trim().min(1).max(80),
+    description: z.string().trim().max(500).optional().nullable(),
+    defaultProbability: z.number().int().min(0).max(100).optional().nullable(),
+    sortOrder: z.number().int(),
+    isTerminal: z.boolean().optional(),
+    active: z.boolean(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.kind === "pipeline_stage") {
+      if (!val.description || val.description.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Description is required for pipeline stage.",
+          path: ["description"],
+        });
+      }
+      if (val.defaultProbability === undefined || val.defaultProbability === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Default probability is required for pipeline stage.",
+          path: ["defaultProbability"],
+        });
+      }
+      if (val.sortOrder < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Display order must be at least 1.",
+          path: ["sortOrder"],
+        });
+      }
+    } else {
+      if (!val.code || val.code.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Code is required for event status.",
+          path: ["code"],
+        });
+      }
+    }
+  });
 
 const functionSpaceSchema = z.object({
   restaurantId: idSchema,
@@ -538,24 +583,65 @@ export const saveCard5SalesOrdered = createServerFn({ method: "POST" })
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5SalesSnapshot(db, data.restaurantId);
     const table = data.kind === "event_status" ? "pms_event_statuses" : "pms_sales_pipeline_stages";
-    const payload =
-      data.kind === "event_status"
-        ? {
-            restaurant_id: data.restaurantId,
-            code: data.code,
-            name: data.name,
-            description: blankToNull(data.description),
-            sort_order: data.sortOrder,
-            active: data.active,
-          }
-        : {
-            restaurant_id: data.restaurantId,
-            code: data.code,
-            name: data.name,
-            sort_order: data.sortOrder,
-            is_terminal: data.isTerminal === true,
-            active: data.active,
-          };
+    let payload: Record<string, any>;
+
+    if (data.kind === "event_status") {
+      payload = {
+        restaurant_id: data.restaurantId,
+        code: data.code,
+        name: data.name,
+        description: blankToNull(data.description),
+        sort_order: data.sortOrder,
+        active: data.active,
+      };
+    } else {
+      let stageCode = (data.code ?? "").trim().toUpperCase();
+      let terminal = data.isTerminal === true;
+
+      if (data.id) {
+        const existing = await db
+          .from("pms_sales_pipeline_stages")
+          .select("code, is_terminal")
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+          .maybeSingle();
+        if (existing.data) {
+          stageCode = existing.data.code;
+          terminal = existing.data.is_terminal === true;
+        }
+      } else {
+        if (!stageCode) {
+          stageCode = codeFromPipelineStageName(data.name);
+        }
+        terminal = false;
+      }
+
+      if (data.active) {
+        const dupOrder = await db
+          .from("pms_sales_pipeline_stages")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("sort_order", data.sortOrder)
+          .eq("active", true)
+          .neq("id", data.id ?? "00000000-0000-0000-0000-000000000000")
+          .maybeSingle();
+        if (dupOrder.data) {
+          throw new Error("Another active pipeline stage already uses this display order.");
+        }
+      }
+
+      payload = {
+        restaurant_id: data.restaurantId,
+        code: stageCode,
+        name: data.name.trim(),
+        description: data.description ? data.description.trim() : null,
+        default_probability: data.defaultProbability ?? null,
+        sort_order: data.sortOrder,
+        is_terminal: terminal,
+        active: data.active,
+      };
+    }
+
     const result = data.id
       ? await db
           .from(table)

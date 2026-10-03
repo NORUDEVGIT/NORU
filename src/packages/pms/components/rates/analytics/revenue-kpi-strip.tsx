@@ -14,7 +14,7 @@ export function RevenueKpiStrip({
   overview: RevenuePerformanceOverview;
   formatCurrency: (value: number) => string;
 }) {
-  const isInventoryMeaningful = overview.inventoryMetricSupport === "SUPPORTED";
+  const isInventoryMeaningful = overview.summary.inventoryMetricSupport === "SUPPORTED";
 
   const kpis = [
     {
@@ -30,8 +30,8 @@ export function RevenueKpiStrip({
       value: overview.summary.soldRoomNights.toLocaleString(),
       formula: "Sum of occupied room nights across active stay dates.",
       sub:
-        overview.summary.unpricedSoldNights > 0
-          ? `${overview.summary.unpricedSoldNights} unpriced`
+        overview.warnings.unpricedSoldNights > 0
+          ? `${overview.warnings.unpricedSoldNights} unpriced`
           : undefined,
     },
     {
@@ -83,9 +83,9 @@ export function RevenueKpiStrip({
     {
       id: "pricedShare",
       label: "Priced Share",
-      value: `${overview.summary.pricedSharePct}%`,
+      value: `${overview.summary.pricedShare}%`,
       formula: "Percentage of sold nights with an authoritative pricing snapshot.",
-      sub: overview.summary.pricedSharePct === 100 ? "100% priced" : "Partial pricing",
+      sub: overview.summary.pricedShare === 100 ? "100% priced" : "Partial pricing",
     },
   ];
 

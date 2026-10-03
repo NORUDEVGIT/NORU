@@ -10,23 +10,62 @@ export const COMPANY_DETAIL_MIGRATION_FILE = "0091_pms_guest_company_detail.sql"
 export const COMPANY_CONTACT_WHATSAPP_MIGRATION_FILE = "0092_pms_guest_company_contact_whatsapp.sql";
 export const COMPANY_PHASE1_MIGRATION_FILE = "0094_pms_company_profile_phase1.sql";
 
+import {
+  resolveCanonicalCompanyNavId,
+  resolveInitialContactsTravelersSubTab,
+  isMoreCompanyView,
+  COMPANY_DETAIL_CANONICAL_VIEWS,
+  COMPANY_DETAIL_PRIMARY_TABS,
+  COMPANY_DETAIL_MORE_ITEMS,
+  type CanonicalCompanyViewId,
+  type CompanyContactsTravelersSubTab,
+} from "./guest-company-detail-view.ts";
+
+export {
+  resolveCanonicalCompanyNavId,
+  resolveInitialContactsTravelersSubTab,
+  isMoreCompanyView,
+  COMPANY_DETAIL_CANONICAL_VIEWS,
+  COMPANY_DETAIL_PRIMARY_TABS,
+  COMPANY_DETAIL_MORE_ITEMS,
+  type CanonicalCompanyViewId,
+  type CompanyContactsTravelersSubTab,
+};
+
 export const COMPANY_DETAIL_NAV = [
   { id: "overview", title: "Overview", live: true },
-  { id: "corporate", title: "Corporate Details", live: true },
-  { id: "contacts", title: "Contact Persons", live: true },
-  { id: "travelers", title: "Travelers", live: true },
-  { id: "contracts", title: "Contracts & Agreements", live: true },
+  { id: "details", title: "Company Details", live: true },
+  { id: "contacts-travelers", title: "Contacts & Travelers", live: true },
   { id: "reservations", title: "Reservations", live: true },
-  { id: "notes", title: "Notes", live: true },
-  { id: "history", title: "History", live: true },
+  { id: "commercial-billing", title: "Commercial & Billing", live: true },
+  { id: "credit", title: "Billing & Credit", live: true },
+  { id: "contracts", title: "Contracts & Agreements", live: true },
   { id: "documents", title: "Documents", live: true },
-  { id: "credit", title: "Billing", live: true },
-  { id: "travel-agent-settings", title: "Travel Agent Settings", live: false, requiresTravelAgent: true },
+  { id: "communication-notes", title: "Communication & Notes", live: true },
+  { id: "activity", title: "Activity / History", live: true },
+  { id: "administration", title: "Administration", live: true },
+  // Legacy compatibility: { id: "travel-agent-settings", title: "Travel Agent Settings", live: false },
 ] as const;
 
-export type CompanyDetailNavId = (typeof COMPANY_DETAIL_NAV)[number]["id"];
+export type CompanyDetailNavId =
+  | (typeof COMPANY_DETAIL_NAV)[number]["id"]
+  | "corporate"
+  | "contacts"
+  | "travelers"
+  | "credit"
+  | "notes"
+  | "history"
+  | "travel-agent-settings";
 
-export const COMPANY_DETAIL_NAV_IDS = COMPANY_DETAIL_NAV.map((item) => item.id);
+export const COMPANY_DETAIL_NAV_IDS = [
+  ...COMPANY_DETAIL_NAV.map((item) => item.id),
+  "corporate",
+  "contacts",
+  "travelers",
+  "credit",
+  "notes",
+  "history",
+];
 
 export const COMPANY_CONTACT_STATUSES = ["active", "inactive"] as const;
 export type CompanyContactStatus = (typeof COMPANY_CONTACT_STATUSES)[number];
@@ -59,7 +98,7 @@ export function isCompanyDetailNavId(value: string | undefined): value is Compan
 }
 
 export function companyDetailNav(id: string | undefined): CompanyDetailNavId {
-  return isCompanyDetailNavId(id) ? id : "overview";
+  return resolveCanonicalCompanyNavId(id);
 }
 
 export function isTravelAgencyBusinessType(type: { code: string; name: string } | null | undefined): boolean {
@@ -74,14 +113,11 @@ export function companyHasCompanyRate(negotiatedRateReference: string | null | u
   return Boolean(negotiatedRateReference?.trim());
 }
 
-export function visibleCompanyNav(options: {
-  creditAccountAllowed: boolean;
-  travelAgency: boolean;
+export function visibleCompanyNav(_options?: {
+  creditAccountAllowed?: boolean;
+  travelAgency?: boolean;
 }): Array<(typeof COMPANY_DETAIL_NAV)[number]> {
-  return COMPANY_DETAIL_NAV.filter((item) => {
-    if ("requiresTravelAgent" in item && item.requiresTravelAgent && !options.travelAgency) return false;
-    return true;
-  });
+  return [...COMPANY_DETAIL_NAV];
 }
 
 export function roleAssignableForNew(role: { active: boolean }, assigned: boolean): boolean {

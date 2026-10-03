@@ -24,7 +24,6 @@ export type ExemptionReason = (typeof EXEMPTION_REASONS)[number];
 export const CARD3_TAXES_TABS = [
   { id: "overview", label: "Overview" },
   { id: "taxes", label: "Taxes" },
-  { id: "tax-groups", label: "Tax Groups" },
   { id: "service-charges", label: "Service Charges" },
   { id: "fees", label: "Fees" },
   { id: "exemptions", label: "Exemptions" },
@@ -124,7 +123,7 @@ export type ExemptionRuleRow = {
 
 export type TaxesCard3Snapshot = {
   taxes: TaxRow[];
-  groups: TaxGroupRow[];
+  groups?: TaxGroupRow[];
   serviceCharges: ServiceChargeRow[];
   fees: FeeRow[];
   exemptionRules: ExemptionRuleRow[];
@@ -151,16 +150,13 @@ export function evaluateTaxesCard3Readiness(snapshot: TaxesCard3Snapshot): Taxes
   const { taxes, groups, serviceCharges, fees, exemptionRules } = snapshot;
   const hasRows =
     taxes.length > 0 ||
-    groups.length > 0 ||
+    (groups != null && groups.length > 0) ||
     serviceCharges.length > 0 ||
     fees.length > 0 ||
     exemptionRules.length > 0;
 
   const activeTaxes = taxes.filter((row) => row.active);
   if (activeTaxes.length === 0) blockers.push("Save at least one active tax.");
-
-  const mappedGroup = groups.find((row) => row.active && row.taxIds.length > 0);
-  if (!mappedGroup) blockers.push("Save an active tax group with at least one assigned tax.");
 
   if (!serviceCharges.some((row) => row.active)) blockers.push("Save at least one active service charge.");
   if (!fees.some((row) => row.active)) blockers.push("Save at least one active fee.");

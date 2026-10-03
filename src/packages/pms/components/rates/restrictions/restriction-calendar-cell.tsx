@@ -1,30 +1,27 @@
 import type { RestrictionCalendarCell as RestrictionCalendarCellModel } from "@/packages/pms/lib/revenue/restriction-calendar";
-
 import {
   RESTRICTION_CALENDAR_OPEN_LABEL,
   restrictionMarkClass,
 } from "@/packages/pms/lib/revenue/restriction-calendar";
 
-function restrictionCardClass(cell: RestrictionCalendarCellModel) {
+function restrictionCardClass(cell: RestrictionCalendarCellModel, selected: boolean) {
+  if (selected) {
+    return "z-10 border-[#C89933] bg-[#FDF5E2] shadow-md ring-2 ring-[#C89933]";
+  }
+
   if (cell.restriction.stopSell) {
-    return "border-red-300 bg-red-50 hover:border-red-400 hover:bg-red-100";
+    return "border-rose-400 border-l-4 border-l-rose-600 bg-rose-50/95 hover:border-rose-500 hover:bg-rose-100/90";
   }
 
-  if (
-    cell.restriction.closedToArrival ||
-    cell.restriction.closedToDeparture
-  ) {
-    return "border-amber-300 bg-amber-50 hover:border-amber-400 hover:bg-amber-100";
+  if (cell.restriction.closedToArrival || cell.restriction.closedToDeparture) {
+    return "border-amber-400 border-l-4 border-l-amber-500 bg-amber-50/95 hover:border-amber-500 hover:bg-amber-100/90";
   }
 
-  if (
-    cell.restriction.minStay != null ||
-    cell.restriction.maxStay != null
-  ) {
-    return "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100";
+  if (cell.restriction.minStay != null || cell.restriction.maxStay != null) {
+    return "border-indigo-300 border-l-4 border-l-indigo-600 bg-indigo-50/85 hover:border-indigo-400 hover:bg-indigo-100/80";
   }
 
-  return "border-[#E8E1D7] bg-[#FBF9F5] hover:border-[#C89933]/60 hover:bg-[#FFFDF8]";
+  return "border-emerald-200 bg-emerald-50/50 hover:border-[#C89933]/70 hover:bg-emerald-50/90";
 }
 
 export function RestrictionCalendarCell({
@@ -49,36 +46,32 @@ export function RestrictionCalendarCell({
     <button
       type="button"
       title={title}
+      aria-label={`${cell.date}: ${title}`}
+      aria-pressed={selected}
       onClick={onSelect}
       className={[
-        "relative flex h-[68px] min-w-[96px] flex-col items-start justify-center rounded-lg border px-2 py-2 text-left transition-all",
-        restrictionCardClass(cell),
-
-        selected
-          ? "z-10 border-[#C89933] shadow-sm ring-2 ring-[#C89933]"
-          : "",
-
+        "relative flex h-[72px] min-w-[104px] w-full cursor-pointer flex-col items-start justify-between rounded-lg border px-2.5 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+        restrictionCardClass(cell, selected),
         !cell.planActive || cell.outsideValidity ? "opacity-60" : "",
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {cell.hasRestriction ? (
         <div className="flex flex-wrap gap-1">
           {cell.marks.map((mark) => (
-            <span
-              key={mark.key}
-              className={restrictionMarkClass(mark.kind)}
-            >
+            <span key={mark.key} className={restrictionMarkClass(mark.kind)}>
               {mark.label}
             </span>
           ))}
         </div>
       ) : (
-        <span className="text-[11px] font-medium text-[#6F665D]">
+        <span className="inline-flex items-center rounded bg-emerald-100/90 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">
           {RESTRICTION_CALENDAR_OPEN_LABEL}
         </span>
       )}
 
-      <span className="mt-1.5 text-[9px] text-muted-foreground">
+      <span className="mt-1 text-[11px] font-semibold text-[#5A4833]">
         {cell.inventory.occupancyPercent}% occ
       </span>
     </button>

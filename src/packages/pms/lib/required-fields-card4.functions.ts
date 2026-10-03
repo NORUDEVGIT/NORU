@@ -284,6 +284,19 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
 
     let id = data.id;
     if (data.id) {
+      const currentField = snapshot.fields.find((row) => row.id === data.id);
+      if (currentField && (currentField.code !== code || currentField.fieldType !== data.fieldType)) {
+        const hasValues = await supabaseAdmin
+          .from("guest_custom_field_values")
+          .select("id")
+          .eq("field_id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+          .limit(1);
+        if (hasValues.data && hasValues.data.length > 0) {
+          throw new Error("Field code and type cannot be changed after operational guest data has been recorded.");
+        }
+      }
+
       const result = await db
         .from("pms_guest_fields")
         .update(payload)
@@ -417,6 +430,16 @@ export const deletePmsCard4RequiredField = createServerFn({ method: "POST" })
     if (referenced.error && referenced.error.code !== "42P01") unavailable(referenced.error);
     if ((referenced.data ?? []).length > 0) {
       throw new Error("This field is used by a profile type. Disable it instead of deleting.");
+    }
+    const hasValues = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("id")
+      .eq("field_id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .limit(1);
+    if (hasValues.error && hasValues.error.code !== "42P01") unavailable(hasValues.error);
+    if ((hasValues.data ?? []).length > 0) {
+      throw new Error("This field already has guest data. Disable it instead of deleting it.");
     }
     const result = await supabaseAdmin
       .from("pms_guest_fields")

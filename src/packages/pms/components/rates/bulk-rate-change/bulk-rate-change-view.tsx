@@ -21,7 +21,10 @@ import {
 } from "@/packages/pms/lib/revenue/bulk-rate-change";
 import { getRevenueRateCalendar } from "@/packages/pms/lib/revenue/rate-calendar.functions";
 import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
-import { applyRateChanges, previewRateChanges } from "@/packages/pms/lib/revenue/rate-change.functions";
+import {
+  applyRateChanges,
+  previewRateChanges,
+} from "@/packages/pms/lib/revenue/rate-change.functions";
 import {
   approvalRequestSearch,
   handleRevenueMutationResult,
@@ -29,9 +32,19 @@ import {
 } from "@/packages/pms/lib/revenue/revenue-approval-ui";
 import type { RateChangePreview, RateChangeRule } from "@/packages/pms/lib/revenue/rate-change";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
-import { serializeRevenueSearch, type RevenueContext, type RevenueSearchParams } from "@/packages/pms/lib/revenue/revenue-context";
-import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenue/revenue-config.types";
-import { RATE_CALENDAR_LOAD_ERROR, revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
+import {
+  serializeRevenueSearch,
+  type RevenueContext,
+  type RevenueSearchParams,
+} from "@/packages/pms/lib/revenue/revenue-context";
+import type {
+  RevenueRatePlan,
+  RevenueRoomType,
+} from "@/packages/pms/lib/revenue/revenue-config.types";
+import {
+  RATE_CALENDAR_LOAD_ERROR,
+  revenueUiError,
+} from "@/packages/pms/lib/revenue/revenue-read-error";
 import { useMoney } from "@/core/state/property-format";
 import { BulkDefineStep } from "./bulk-define-step";
 import { BulkRateChangePanel } from "./bulk-rate-change-panel";
@@ -42,13 +55,13 @@ import { BulkReviewPanel } from "../impact-review/bulk-review-panel";
 
 function goldButton(disabled?: boolean) {
   return [
-    "inline-flex h-8 items-center rounded-md bg-[#C89933] px-2.5 text-[10px] font-medium text-[#251605] hover:bg-[#B5882D] disabled:opacity-50",
+    "inline-flex h-9 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] disabled:opacity-50",
     disabled ? "opacity-50" : "",
   ].join(" ");
 }
 
 function secondaryButton() {
-  return "inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-[10px] text-[#251605] hover:bg-[#F8F1E5] disabled:opacity-50";
+  return "inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#FAF6F0] disabled:opacity-50";
 }
 
 export function BulkRateChangeView({
@@ -73,10 +86,17 @@ export function BulkRateChangeView({
 
   const [submittedRequest, setSubmittedRequest] = useState<RevenueSearchParams | null>(null);
   const [step, setStep] = useState<BulkWizardStep>(1);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [fromDate, setFromDate] = useState(context.fromDate);
   const [toDate, setToDate] = useState(context.toDate);
-  const [roomTypeIds, setRoomTypeIds] = useState<string[]>(context.roomTypeId ? [context.roomTypeId] : []);
+  const [roomTypeIds, setRoomTypeIds] = useState<string[]>(
+    context.roomTypeId ? [context.roomTypeId] : [],
+  );
   const [planIds, setPlanIds] = useState<string[]>(context.ratePlanId ? [context.ratePlanId] : []);
+  const [selectedCell, setSelectedCell] = useState<
+    import("@/packages/pms/lib/revenue/rate-calendar").RateCalendarCell | null
+  >(null);
+  const [selectedRowPlanId, setSelectedRowPlanId] = useState<string | null>(null);
   const [action, setAction] = useState<RateChangeRule["type"]>("SET_RATE");
   const [value, setValue] = useState("");
   const [sourceDate, setSourceDate] = useState("");
@@ -95,8 +115,8 @@ export function BulkRateChangeView({
     [planIds, fromDate, toDate],
   );
   const mixedSetRate = action === "SET_RATE" && uniquePlanCurrencies(selectedPlans).length > 1;
-  const calendarFilter = roomTypeIds.length === 1 ? roomTypeIds[0] : null;
-  const planFilter = planIds.length === 1 ? planIds[0] : null;
+  const calendarFilter = null;
+  const planFilter = null;
 
   const calendarQuery = useQuery({
     queryKey: ["revenue-rate-calendar", restaurantId, fromDate, toDate, calendarFilter, planFilter],
@@ -120,7 +140,9 @@ export function BulkRateChangeView({
   const summary = useMemo(() => (preview ? summarizeBulkPreview(preview.items) : null), [preview]);
 
   function failMessage(message: string) {
-    return isBulkStaleMessage(message) ? BULK_RATE_CHANGE_STALE_COPY : humanizeRateChangeValidation(message);
+    return isBulkStaleMessage(message)
+      ? BULK_RATE_CHANGE_STALE_COPY
+      : humanizeRateChangeValidation(message);
   }
 
   function requestPayload() {
@@ -142,7 +164,14 @@ export function BulkRateChangeView({
     mutationFn: () => previewFn({ data: { ...requestPayload(), expectedVersions: undefined } }),
     onSuccess: (data) => {
       setPreview(data);
-      setError(data.valid ? null : failMessage(data.items.find((item) => item.validationStatus === "invalid")?.validationMessages[0] ?? "Preview is not valid."));
+      setError(
+        data.valid
+          ? null
+          : failMessage(
+              data.items.find((item) => item.validationStatus === "invalid")
+                ?.validationMessages[0] ?? "Preview is not valid.",
+            ),
+      );
     },
     onError: (err: Error) => {
       setPreview(null);
@@ -156,7 +185,9 @@ export function BulkRateChangeView({
       setError(null);
       const handled = handleRevenueMutationResult(result);
       if (handled.submitted) {
-        setSubmittedRequest(handled.approvalRequestId ? approvalRequestSearch(handled.approvalRequestId) : {});
+        setSubmittedRequest(
+          handled.approvalRequestId ? approvalRequestSearch(handled.approvalRequestId) : {},
+        );
         setSuccess(false);
         invalidateRevenueApprovals(queryClient, restaurantId);
         return;
@@ -177,7 +208,32 @@ export function BulkRateChangeView({
     },
   });
 
-  function updateScope(patch: { fromDate?: string; toDate?: string; roomTypeIds?: string[]; planIds?: string[] }) {
+  const approveImmediateMutation = useMutation({
+    mutationFn: () => applyFn({ data: { ...requestPayload(), applyImmediately: true } }),
+    onSuccess: (result) => {
+      setError(null);
+      setSubmittedRequest(null);
+      setSuccess(true);
+      setAppliedCount("appliedCount" in result ? result.appliedCount : null);
+      void queryClient.invalidateQueries({ queryKey: ["revenue-rate-calendar"] });
+      void queryClient.invalidateQueries({ queryKey: ["revenue-control"] });
+      void queryClient.invalidateQueries({ queryKey: ["rate-change-history"] });
+      void queryClient.invalidateQueries({ queryKey: ["bulk-rate-preview"] });
+    },
+    onError: (err: Error) => {
+      const message = failMessage(err.message);
+      setError(message);
+      setSuccess(false);
+      if (isBulkStaleMessage(err.message)) setStep(3);
+    },
+  });
+
+  function updateScope(patch: {
+    fromDate?: string;
+    toDate?: string;
+    roomTypeIds?: string[];
+    planIds?: string[];
+  }) {
     if (patch.fromDate != null) setFromDate(patch.fromDate);
     if (patch.toDate != null) setToDate(patch.toDate);
     if (patch.roomTypeIds) {
@@ -185,6 +241,8 @@ export function BulkRateChangeView({
       setPlanIds(prunePlanIdsForRoomTypes(planIds, ratePlans, patch.roomTypeIds));
     }
     if (patch.planIds) setPlanIds(patch.planIds);
+    setSelectedCell(null);
+    setSelectedRowPlanId(null);
     setPreview(null);
     setError(null);
     setSuccess(false);
@@ -192,6 +250,9 @@ export function BulkRateChangeView({
 
   function cancelWizard() {
     setStep(1);
+    setDrawerOpen(false);
+    setSelectedCell(null);
+    setSelectedRowPlanId(null);
     setPreview(null);
     setError(null);
     setSuccess(false);
@@ -199,26 +260,39 @@ export function BulkRateChangeView({
     setSubmittedRequest(null);
     previewMutation.reset();
     applyMutation.reset();
+    approveImmediateMutation.reset();
+  }
+
+  function openWorkflowDrawer() {
+    if (!expansion.ok) return;
+    if (step === 1) {
+      setStep(2);
+    }
+    setDrawerOpen(true);
   }
 
   const canEdit = access.canEditDailyRates;
   const calendarSearch = serializeRevenueSearch("rate-calendar", context);
   const historySearch = serializeRevenueSearch("rate-history", context);
 
-  let body = (
-    <BulkScopeStep
-      fromDate={fromDate}
-      toDate={toDate}
-      roomTypeIds={roomTypeIds}
-      planIds={planIds}
-      roomTypes={roomTypes}
-      ratePlans={ratePlans}
-      expansion={expansion}
-      onChange={updateScope}
-    />
+  const scopeSummaryCard = (
+    <div className="rounded-xl border border-[#DDD4C5] bg-white px-4 py-3 text-xs text-[#251605]">
+      <p className="font-semibold uppercase tracking-wider text-[#8A641A]">Selected Scope</p>
+      <p className="mt-1 text-sm font-semibold text-[#251605]">
+        {fromDate === toDate ? `Specific Date: ${fromDate}` : `${fromDate} – ${toDate}`}
+      </p>
+      <p className="mt-0.5 text-xs text-[#5A4833]">
+        {roomTypeIds.length || roomTypes.length} room type
+        {(roomTypeIds.length || roomTypes.length) === 1 ? "" : "s"} · {planIds.length} rate plan
+        {planIds.length === 1 ? "" : "s"} ·{" "}
+        {expansion.ok ? `${expansion.targetCount} selected rate cells` : "0 selected rate cells"}
+      </p>
+    </div>
   );
-  if (step === 2) {
-    body = (
+
+  let drawerBody = (
+    <div className="space-y-4">
+      {scopeSummaryCard}
       <BulkDefineStep
         action={action}
         value={value}
@@ -235,134 +309,274 @@ export function BulkRateChangeView({
           setSuccess(false);
         }}
       />
-    );
-  } else if (step === 3) {
-    body = (
-      <BulkReviewPanel
-        rows={reviewRows}
-        summary={summary}
-        loading={previewMutation.isPending}
-        error={error}
-        money={money}
-      />
+      {error ? <p className="text-xs font-medium text-[#6B4A0A]">{error}</p> : null}
+    </div>
+  );
+
+  if (step === 3) {
+    drawerBody = (
+      <div className="space-y-4">
+        {scopeSummaryCard}
+        <BulkReviewPanel
+          rows={reviewRows}
+          summary={summary}
+          loading={previewMutation.isPending}
+          error={error}
+          money={money}
+        />
+      </div>
     );
   } else if (step === 4) {
-    body = (
-      <BulkConfirmApply
-        summary={summary}
-        reason={reason.trim() || null}
-        canEdit={canEdit}
-        applying={applyMutation.isPending}
-        error={error}
-        success={success}
-        appliedCount={appliedCount}
-        calendarSearch={calendarSearch}
-        historySearch={historySearch}
-        requestSearch={submittedRequest ?? undefined}
-        submitted={Boolean(submittedRequest)}
-        submitForApproval={policyQuery.data?.enabled === true}
-        onApply={() => applyMutation.mutate()}
-      />
+    drawerBody = (
+      <div className="space-y-4">
+        {scopeSummaryCard}
+        <BulkConfirmApply
+          summary={summary}
+          reason={reason.trim() || null}
+          canEdit={canEdit}
+          applying={applyMutation.isPending || approveImmediateMutation.isPending}
+          error={error}
+          success={success}
+          appliedCount={appliedCount}
+          calendarSearch={calendarSearch}
+          historySearch={historySearch}
+          requestSearch={submittedRequest ?? undefined}
+          submitted={Boolean(submittedRequest)}
+          submitForApproval={policyQuery.data?.enabled === true}
+          onApply={() => applyMutation.mutate()}
+          onApproveImmediate={() => approveImmediateMutation.mutate()}
+        />
+      </div>
     );
   }
 
-  const footer = success || submittedRequest ? null : (
-    <>
-      <button type="button" className={secondaryButton()} onClick={cancelWizard}>
-        Cancel
-      </button>
-      {step > 1 ? (
-        <button type="button" className={secondaryButton()} onClick={() => setStep((current) => (current - 1) as BulkWizardStep)}>
-          Back
+  const footer =
+    success || submittedRequest ? null : (
+      <>
+        <button type="button" className={secondaryButton()} onClick={cancelWizard}>
+          Cancel
         </button>
-      ) : null}
-      {step === 1 ? (
-        <button
-          type="button"
-          className={goldButton()}
-          disabled={!expansion.ok}
-          onClick={() => setStep(2)}
-        >
-          Next
-        </button>
-      ) : null}
-      {step === 2 ? (
-        <button
-          type="button"
-          className={goldButton()}
-          disabled={mixedSetRate || selectedPlans.length === 0}
-          onClick={() => {
-            const rule = buildBulkRule({ type: action, value, sourceDate });
-            if ("ok" in rule && rule.ok === false) {
-              setError(rule.message);
-              return;
-            }
-            setError(null);
-            setStep(3);
-            previewMutation.mutate();
-          }}
-        >
-          Review
-        </button>
-      ) : null}
-      {step === 3 ? (
-        <button
-          type="button"
-          className={goldButton()}
-          disabled={previewMutation.isPending || !preview}
-          onClick={() => setStep(4)}
-        >
-          Confirm
-        </button>
-      ) : null}
-    </>
-  );
+        {step === 2 ? (
+          <button
+            type="button"
+            className={secondaryButton()}
+            onClick={() => {
+              setStep(1);
+              setDrawerOpen(false);
+            }}
+          >
+            Back to Selection
+          </button>
+        ) : step > 2 ? (
+          <button
+            type="button"
+            className={secondaryButton()}
+            onClick={() => setStep((current) => (current - 1) as BulkWizardStep)}
+          >
+            Back
+          </button>
+        ) : null}
+        {step === 2 ? (
+          <button
+            type="button"
+            className={goldButton()}
+            disabled={mixedSetRate || selectedPlans.length === 0}
+            onClick={() => {
+              const rule = buildBulkRule({ type: action, value, sourceDate });
+              if ("ok" in rule && rule.ok === false) {
+                setError(rule.message);
+                return;
+              }
+              setError(null);
+              setStep(3);
+              previewMutation.mutate();
+            }}
+          >
+            Review Bulk Change
+          </button>
+        ) : null}
+        {step === 3 ? (
+          <button
+            type="button"
+            className={goldButton()}
+            disabled={previewMutation.isPending || !preview}
+            onClick={() => setStep(4)}
+          >
+            Confirm
+          </button>
+        ) : null}
+      </>
+    );
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0 space-y-2">
-          <div className="rounded-xl border border-[#E8E1D7] bg-card p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Selected scope
-            </p>
-            <p className="mt-1 text-xs text-[#251605]">
-              {fromDate} – {toDate} · {roomTypeIds.length || "all"} room type
-              {roomTypeIds.length === 1 ? "" : "s"} · {planIds.length} plan{planIds.length === 1 ? "" : "s"}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+    <div className="min-w-0 space-y-3">
+      {/* Compact Selected Scope Bar + Primary Workflow Trigger */}
+      <div className="flex flex-col gap-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8A641A]">
+            Selected Scope
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold text-[#251605]">
+            <span>
+              {fromDate === toDate ? `Specific Date: ${fromDate}` : `${fromDate} – ${toDate}`}
+            </span>
+            <span className="text-[#756A5B]">·</span>
+            <span>
+              {roomTypeIds.length || roomTypes.length} room type
+              {(roomTypeIds.length || roomTypes.length) === 1 ? "" : "s"}
+            </span>
+            <span className="text-[#756A5B]">·</span>
+            <span>
+              {planIds.length} rate plan{planIds.length === 1 ? "" : "s"}
+            </span>
+            <span className="text-[#756A5B]">·</span>
+            <span className="text-[#8A641A]">
               {expansion.ok
-                ? `${expansion.targetCount} planned changes. Calendar preview shows the first 14 days; the wizard uses the full range.`
-                : "Choose dates and rate plans in the Bulk Rate Change panel."}
-            </p>
-            {plansForSelectedRoomTypes(ratePlans, roomTypeIds).length === 0 && ratePlans.length === 0 ? (
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                No rate plans are configured. Configure them in Property Setup.
-              </p>
-            ) : null}
+                ? `${expansion.targetCount} selected rate cells`
+                : "0 selected rate cells"}
+            </span>
           </div>
-
-          {calendarQuery.isLoading ? (
-            <div className="hidden h-64 animate-pulse rounded-xl border border-[#E8E1D7] bg-card xl:block" />
-          ) : calendarQuery.isError ? (
-            <div className="hidden xl:block">
-              <InventoryState
-                state="error"
-                title={RATE_CALENDAR_LOAD_ERROR}
-                description={revenueUiError(calendarQuery.error, RATE_CALENDAR_LOAD_ERROR)}
-                onRetry={() => void calendarQuery.refetch()}
-              />
-            </div>
-          ) : calendarQuery.data && calendarQuery.data.groups.length > 0 ? (
-            <div className="hidden space-y-2 xl:block">
-              <RateCalendarGrid data={calendarQuery.data} selected={null} onSelect={() => undefined} />
-              <RateCalendarLegend />
-            </div>
+          {plansForSelectedRoomTypes(ratePlans, roomTypeIds).length === 0 &&
+          ratePlans.length === 0 ? (
+            <p className="mt-1 text-xs text-[#756A5B]">
+              No rate plans are configured. Configure them in Property Setup.
+            </p>
           ) : null}
         </div>
 
-        <BulkRateChangePanel step={step} progress={!success && !submittedRequest} body={body} footer={footer} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={goldButton(!expansion.ok)}
+            disabled={!expansion.ok}
+            onClick={openWorkflowDrawer}
+          >
+            {step > 1 ? "Resume Bulk Rate Change" : "Set Rate for Selected Scope"}
+          </button>
+        </div>
       </div>
+
+      {/* Step 1 Full-Width Scope Filter Toolbar */}
+      <BulkScopeStep
+        fromDate={fromDate}
+        toDate={toDate}
+        roomTypeIds={roomTypeIds}
+        planIds={planIds}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
+        expansion={expansion}
+        onChange={updateScope}
+      />
+
+      {/* Full-Width Calendar Preview Grid */}
+      {calendarQuery.isLoading ? (
+        <div className="h-64 animate-pulse rounded-xl border border-[#DDD4C5] bg-white" />
+      ) : calendarQuery.isError ? (
+        <InventoryState
+          state="error"
+          title={RATE_CALENDAR_LOAD_ERROR}
+          description={revenueUiError(calendarQuery.error, RATE_CALENDAR_LOAD_ERROR)}
+          onRetry={() => void calendarQuery.refetch()}
+        />
+      ) : calendarQuery.data && calendarQuery.data.groups.length > 0 ? (
+        <div className="space-y-3">
+          <RateCalendarLegend />
+          <RateCalendarGrid
+            data={calendarQuery.data}
+            selected={selectedCell}
+            selectedRowPlanId={selectedRowPlanId}
+            selectedPlanIds={planIds}
+            onTogglePlan={(planId) => {
+              const nextPlans = planIds.includes(planId)
+                ? planIds.filter((id) => id !== planId)
+                : [...planIds, planId];
+              const nextRoomTypes = Array.from(
+                new Set(
+                  ratePlans
+                    .filter((plan) => nextPlans.includes(plan.id))
+                    .map((plan) => plan.roomTypeId),
+                ),
+              );
+              setPlanIds(nextPlans);
+              setRoomTypeIds(nextRoomTypes);
+              setSelectedCell(null);
+              setSelectedRowPlanId(null);
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+            }}
+            onToggleRoomType={(roomTypeId, planIdsInGroup) => {
+              const allGroupChecked =
+                planIdsInGroup.length > 0 && planIdsInGroup.every((id) => planIds.includes(id));
+              const nextPlans = allGroupChecked
+                ? planIds.filter((id) => !planIdsInGroup.includes(id))
+                : Array.from(new Set([...planIds, ...planIdsInGroup]));
+              const nextRoomTypes = allGroupChecked
+                ? roomTypeIds.filter((id) => id !== roomTypeId)
+                : Array.from(new Set([...roomTypeIds, roomTypeId]));
+              setPlanIds(nextPlans);
+              setRoomTypeIds(nextRoomTypes);
+              setSelectedCell(null);
+              setSelectedRowPlanId(null);
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+            }}
+            onToggleAllPlans={(allPlanIds) => {
+              const allChecked =
+                allPlanIds.length > 0 && allPlanIds.every((id) => planIds.includes(id));
+              const nextPlans = allChecked ? [] : allPlanIds;
+              const nextRoomTypes = allChecked ? [] : roomTypes.map((rt) => rt.id);
+              setPlanIds(nextPlans);
+              setRoomTypeIds(nextRoomTypes);
+              setSelectedCell(null);
+              setSelectedRowPlanId(null);
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+            }}
+            onSelect={(cell) => {
+              setSelectedCell(cell);
+              setSelectedRowPlanId(null);
+              setFromDate(cell.date);
+              setToDate(cell.date);
+              setRoomTypeIds([cell.roomTypeId]);
+              setPlanIds([cell.ratePlanId]);
+              setValue(String(cell.effectiveRate));
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+              setStep(2);
+              setDrawerOpen(true);
+            }}
+            onSelectRow={(row, roomType) => {
+              setSelectedCell(null);
+              setSelectedRowPlanId(row.plan.id);
+              setRoomTypeIds([roomType.id]);
+              setPlanIds([row.plan.id]);
+              if (row.cells[0]) {
+                setValue(String(row.cells[0].effectiveRate));
+              }
+              setPreview(null);
+              setError(null);
+              setSuccess(false);
+              setStep(2);
+              setDrawerOpen(true);
+            }}
+          />
+        </div>
+      ) : null}
+
+      {/* On-Demand Right-Side Workflow Drawer (Steps 2–4) */}
+      <BulkRateChangePanel
+        open={drawerOpen}
+        step={step}
+        subtitle={`${fromDate === toDate ? fromDate : `${fromDate} – ${toDate}`} · ${planIds.length} rate plan${planIds.length === 1 ? "" : "s"}`}
+        progress={!success && !submittedRequest}
+        body={drawerBody}
+        footer={footer}
+        onClose={() => setDrawerOpen(false)}
+      />
     </div>
   );
 }

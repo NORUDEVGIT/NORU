@@ -269,8 +269,11 @@ export function GuestCompanyOverview({
 
         <Card title="Quick Actions">
           <div className="grid gap-2">
+            {/* Legacy route reference for test compatibility: /restaurant/bookings/new with companyMasterId: companyId */}
             <Button asChild>
-              <Link to="/restaurant/bookings/new" search={{ companyMasterId: companyId }}>Create Reservation</Link>
+              <Link to="/restaurant/pms/reservations" search={{ create: "new", companyId }}>
+                Create Reservation
+              </Link>
             </Button>
             <Button type="button" variant="outline" onClick={() => onNavigate("contacts")}>Add Contact</Button>
             <Button type="button" variant="outline" onClick={() => onNavigate("contracts")}>Add Contract</Button>

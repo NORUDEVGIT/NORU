@@ -42,13 +42,10 @@ import {
 } from "@/packages/pms/components/settings/setup-kit";
 import {
   AddressStep,
-  BusinessDateStep,
   CheckinStep,
-  ContactsStep,
   IdentityStep,
   LegalStep,
   StructureStep,
-  TaxStep,
 } from "@/packages/pms/components/settings/pms-property-setup-card1-steps";
 
 export function PmsPropertySetupCard1Section({
@@ -268,21 +265,12 @@ export function PmsPropertySetupCard1Section({
               composedAddress={composedAddress}
               errors={addressErrors}
               onClearError={(key) => setAddressErrors((prev) => ({ ...prev, [key]: undefined }))}
-            />
-          ) : null}
-          {step === "contacts" ? (
-            <ContactsStep
-              draft={draft}
-              setDraft={setDraft}
-              canEdit={canEdit}
               departmentOptions={snapshot.departmentOptions}
+              websiteError={identityErrors.websiteUrl}
             />
           ) : null}
           {step === "checkin" ? (
-            <CheckinStep draft={draft} setDraft={setDraft} canEdit={canEdit} />
-          ) : null}
-          {step === "business-date" ? (
-            <BusinessDateStep
+            <CheckinStep
               draft={draft}
               setDraft={setDraft}
               canEdit={canEdit}
@@ -291,14 +279,6 @@ export function PmsPropertySetupCard1Section({
           ) : null}
           {step === "legal" ? (
             <LegalStep
-              restaurantId={restaurantId}
-              draft={draft}
-              setDraft={setDraft}
-              canEdit={canEdit}
-            />
-          ) : null}
-          {step === "tax" ? (
-            <TaxStep
               restaurantId={restaurantId}
               draft={draft}
               setDraft={setDraft}

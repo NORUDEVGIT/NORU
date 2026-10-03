@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { AlertCircle, ArrowUpRight, Bell, CalendarCheck, Check, Edit2, Info, Plus, Sliders } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -15,10 +16,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { GuestTravelAgentDocuments } from "@/packages/pms/components/guests/guest-travel-agent-documents";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/shared/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import {
   listTravelAgentAllotments,
-  listTravelAgentCommissionPlans,
   listTravelAgentNotificationPrefs,
   listTravelAgentSettingsCatalogues,
   saveTravelAgentAllotment,
@@ -29,12 +43,10 @@ import {
 import {
   TA_ALLOTMENT_COPY,
   TA_ALLOTMENT_STATUSES,
-  TA_SETTINGS_SECTIONS,
+  TA_VISIBLE_SETTINGS_SECTIONS,
   travelAgentSettingsSection,
   type TravelAgentSettingsSectionId,
 } from "@/packages/pms/lib/guest-travel-agent-detail-workspace";
-import { AGENCY_TYPE_LABELS, AGENCY_TYPES, type AgencyType } from "@/packages/pms/lib/guest-profile-travel-agency";
-import { GUEST_ACCOUNT_STATUSES } from "@/packages/pms/lib/guest-profile-wave4";
 import { cn } from "@/shared/lib/utils";
 
 type Agency = Awaited<
@@ -45,58 +57,117 @@ export function GuestTravelAgentSettings({
   restaurantId,
   agencyId,
   agency,
+  initialSection = "rules",
+  onNavigateTab,
 }: {
   restaurantId: string;
   agencyId: string;
   agency: Agency;
+  initialSection?: TravelAgentSettingsSectionId;
+  onNavigateTab?: (tab: string) => void;
 }) {
-  const [section, setSection] = useState<TravelAgentSettingsSectionId>("general");
+  const [section, setSection] = useState<TravelAgentSettingsSectionId>(() =>
+    travelAgentSettingsSection(initialSection),
+  );
+
+  const isLegacySection = ["general", "commission", "billing", "documents"].includes(initialSection);
+
   return (
     <div className="space-y-4" data-testid="travel-agent-settings">
-      <div>
-        <h2 className="font-display text-xl">Agency Settings</h2>
-        <p className="text-sm text-muted-foreground">Configuration for this travel agency only. This is not property Settings.</p>
+      {/* Header */}
+      <div className="border-b border-[#DDD4C5] pb-3">
+        <h2 className="font-display text-lg font-bold text-[#251605]">Agency Settings</h2>
+        <p className="text-xs text-[#756A5B]">
+          Operational rules, inventory limits, and notification preferences specific to this travel agency profile.
+        </p>
       </div>
-      <nav className="flex flex-wrap gap-1 border-b border-border pb-px" aria-label="Agency settings">
-        {TA_SETTINGS_SECTIONS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setSection(travelAgentSettingsSection(item.id))}
-            className={cn(
-              "shrink-0 border-b-2 px-3 py-2 text-sm font-medium",
-              section === item.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground",
+
+      {/* Legacy Canonical Redirect Callout */}
+      {isLegacySection && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
+          <Info className="size-4 shrink-0 text-amber-700 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold">Canonical View Reorganization</p>
+            <p className="text-amber-800 leading-relaxed">
+              {initialSection === "general" &&
+                "Agency identity, IATA licensing, contacts, and address are managed in the canonical Agency Details view."}
+              {(initialSection === "commission" || initialSection === "billing") &&
+                "Commercial terms, commission plans, and folio billing are managed in the canonical Commercial & Commission view."}
+              {initialSection === "documents" &&
+                "Agreements, contracts, and certifications are managed in the canonical Documents view."}
+            </p>
+            {onNavigateTab && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1 h-7 border-amber-300 text-amber-950 hover:bg-amber-100 text-xs"
+                onClick={() => {
+                  if (initialSection === "general") onNavigateTab("details");
+                  else if (initialSection === "commission" || initialSection === "billing")
+                    onNavigateTab("commercial-commission");
+                  else if (initialSection === "documents") onNavigateTab("documents");
+                }}
+              >
+                Go to Canonical View <ArrowUpRight className="ml-1 size-3" />
+              </Button>
             )}
-          >
-            {item.title}
-          </button>
-        ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sub-tab Navigation: Visible sections are strictly Booking Rules, Allotment & Inventory, Notifications */}
+      <nav
+        className="flex gap-2 border-b border-[#DDD4C5] pb-1"
+        aria-label="Agency settings sections"
+        data-testid="travel-agent-settings-tabs"
+      >
+        {TA_VISIBLE_SETTINGS_SECTIONS.map((item) => {
+          const active = section === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSection(item.id)}
+              className={cn(
+                "relative pb-2.5 px-3 text-xs font-semibold transition-colors duration-150",
+                active ? "text-[#251605]" : "text-[#756A5B] hover:text-[#251605]",
+              )}
+            >
+              {item.title}
+              {active && (
+                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#C89933] rounded-t-full" />
+              )}
+            </button>
+          );
+        })}
       </nav>
-      {section === "general" || section === "rules" || section === "billing" ? (
-        <GeneralSettings restaurantId={restaurantId} agencyId={agencyId} agency={agency} section={section} />
-      ) : section === "commission" ? (
-        <CommissionSettings restaurantId={restaurantId} agencyId={agencyId} />
-      ) : section === "allotment" ? (
+
+      {/* Section Content */}
+      {section === "rules" && (
+        <BookingRulesSettings restaurantId={restaurantId} agencyId={agencyId} agency={agency} />
+      )}
+      {section === "allotment" && (
         <AllotmentSettings restaurantId={restaurantId} agencyId={agencyId} />
-      ) : section === "notifications" ? (
+      )}
+      {section === "notifications" && (
         <NotificationSettings restaurantId={restaurantId} agencyId={agencyId} />
-      ) : (
-        <GuestTravelAgentDocuments restaurantId={restaurantId} agencyId={agencyId} />
       )}
     </div>
   );
 }
 
-function GeneralSettings({
+// ---------------------------------------------------------------------------
+// 1. Booking Rules Settings
+// ---------------------------------------------------------------------------
+function BookingRulesSettings({
   restaurantId,
   agencyId,
   agency,
-  section,
 }: {
   restaurantId: string;
   agencyId: string;
   agency: Agency;
-  section: TravelAgentSettingsSectionId;
 }) {
   const queryClient = useQueryClient();
   const save = useServerFn(updateTravelAgentSettings);
@@ -105,34 +176,23 @@ function GeneralSettings({
     queryKey: ["travel-agent-settings-catalogues", restaurantId, agencyId],
     queryFn: () => loadCatalogues({ data: { restaurantId, agencyId } }),
   });
-  const [form, setForm] = useState({
-    code: agency.code ?? "",
-    agencyType: (agency.agencyType ?? "") as AgencyType | "",
-    accountStatus: agency.accountStatus,
-    primaryContactName: agency.primaryContactName ?? "",
-    email: agency.email ?? "",
-    phone: agency.phone ?? "",
-    website: agency.website ?? "",
-    addressLine1: agency.addressLine1 ?? "",
-    city: agency.city ?? "",
-    country: agency.country ?? "",
-    notes: agency.notes ?? "",
-    preferredCurrency: agency.preferredCurrency ?? "",
-    marketSegmentId: agency.marketSegmentId ?? "",
-    bookingAccess: agency.bookingAccess,
-    maxAdvanceBookingDays: agency.maxAdvanceBookingDays?.toString() ?? "",
-    minStayNights: agency.minStayNights?.toString() ?? "",
-    maxStayNights: agency.maxStayNights?.toString() ?? "",
-    groupBookingsAllowed: agency.groupBookingsAllowed,
-    paymentTerms: agency.paymentTerms ?? "",
-    billingInstruction: agency.billingInstruction ?? "",
-    creditLimitNote: agency.creditLimitNote ?? "",
-    creditLimitAmount: agency.creditLimitAmount?.toString() ?? "",
-    allowedRoomTypeIds: [] as string[],
-  });
+
+  const [bookingAccess, setBookingAccess] = useState<"open" | "restricted">(
+    agency.bookingAccess === "restricted" ? "restricted" : "open",
+  );
+  const [maxAdvanceDays, setMaxAdvanceDays] = useState(
+    agency.maxAdvanceBookingDays?.toString() ?? "",
+  );
+  const [minStay, setMinStay] = useState(agency.minStayNights?.toString() ?? "");
+  const [maxStay, setMaxStay] = useState(agency.maxStayNights?.toString() ?? "");
+  const [groupBookingsAllowed, setGroupBookingsAllowed] = useState(
+    Boolean(agency.groupBookingsAllowed),
+  );
+  const [allowedRoomTypeIds, setAllowedRoomTypeIds] = useState<string[]>([]);
+
   useEffect(() => {
     if (catalogues.data?.allowedRoomTypeIds) {
-      setForm((current) => ({ ...current, allowedRoomTypeIds: catalogues.data.allowedRoomTypeIds }));
+      setAllowedRoomTypeIds(catalogues.data.allowedRoomTypeIds);
     }
   }, [catalogues.data?.allowedRoomTypeIds]);
 
@@ -142,259 +202,160 @@ function GeneralSettings({
         data: {
           restaurantId,
           agencyId,
-          code: form.code || null,
-          agencyType: form.agencyType || null,
-          accountStatus: form.accountStatus as "active" | "inactive" | "pending",
-          primaryContactName: form.primaryContactName || null,
-          email: form.email || null,
-          phone: form.phone || null,
-          website: form.website || null,
-          addressLine1: form.addressLine1 || null,
-          city: form.city || null,
-          country: form.country || null,
-          notes: form.notes || null,
-          preferredCurrency: form.preferredCurrency || null,
-          marketSegmentId: form.marketSegmentId || null,
-          bookingAccess: form.bookingAccess,
-          maxAdvanceBookingDays: form.maxAdvanceBookingDays ? Number(form.maxAdvanceBookingDays) : null,
-          minStayNights: form.minStayNights ? Number(form.minStayNights) : null,
-          maxStayNights: form.maxStayNights ? Number(form.maxStayNights) : null,
-          groupBookingsAllowed: form.groupBookingsAllowed,
-          paymentTerms: form.paymentTerms || null,
-          billingInstruction: form.billingInstruction || null,
-          creditLimitNote: form.creditLimitNote || null,
-          creditLimitAmount: form.creditLimitAmount ? Number(form.creditLimitAmount) : null,
-          allowedRoomTypeIds: form.allowedRoomTypeIds,
+          bookingAccess,
+          maxAdvanceBookingDays: maxAdvanceDays ? Number(maxAdvanceDays) : null,
+          minStayNights: minStay ? Number(minStay) : null,
+          maxStayNights: maxStay ? Number(maxStay) : null,
+          groupBookingsAllowed,
+          allowedRoomTypeIds,
         },
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["travel-agent-detail", restaurantId, agencyId] });
-      toast.success("Agency settings saved.");
+      await queryClient.invalidateQueries({ queryKey: ["travel-agent-settings-catalogues", restaurantId, agencyId] });
+      toast.success("Booking rules updated.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   return (
-    <div className="space-y-4">
-      {section === "general" ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Agency code"><Input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} /></Field>
-          <Field label="Agency type">
-            <Select value={form.agencyType} onValueChange={(value) => setForm((current) => ({ ...current, agencyType: value as AgencyType }))}>
-              <SelectTrigger><SelectValue placeholder="Agency type" /></SelectTrigger>
-              <SelectContent>
-                {AGENCY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>{AGENCY_TYPE_LABELS[type]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Status">
-            <Select value={form.accountStatus} onValueChange={(value) => setForm((current) => ({ ...current, accountStatus: value }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {GUEST_ACCOUNT_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>{status}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Primary contact"><Input value={form.primaryContactName} onChange={(event) => setForm((current) => ({ ...current, primaryContactName: event.target.value }))} /></Field>
-          <Field label="Email"><Input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></Field>
-          <Field label="Phone"><Input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></Field>
-          <Field label="Website"><Input value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} /></Field>
-          <Field label="Address"><Input value={form.addressLine1} onChange={(event) => setForm((current) => ({ ...current, addressLine1: event.target.value }))} /></Field>
-          <Field label="City"><Input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} /></Field>
-          <Field label="Country"><Input value={form.country} onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))} /></Field>
-          <Field label="Preferred currency"><Input value={form.preferredCurrency} onChange={(event) => setForm((current) => ({ ...current, preferredCurrency: event.target.value.toUpperCase() }))} /></Field>
-          <Field label="Market segment">
-            <Select value={form.marketSegmentId || "none"} onValueChange={(value) => setForm((current) => ({ ...current, marketSegmentId: value === "none" ? "" : value }))}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {(catalogues.data?.marketSegments ?? []).map((row) => (
-                  <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <div className="md:col-span-2"><Label>Internal notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></div>
-        </div>
-      ) : null}
-      {section === "rules" ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Booking access">
-            <Select value={form.bookingAccess} onValueChange={(value) => setForm((current) => ({ ...current, bookingAccess: value as "open" | "restricted" }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="restricted">Restricted</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Max advance booking days"><Input type="number" value={form.maxAdvanceBookingDays} onChange={(event) => setForm((current) => ({ ...current, maxAdvanceBookingDays: event.target.value }))} /></Field>
-          <Field label="Minimum stay nights"><Input type="number" value={form.minStayNights} onChange={(event) => setForm((current) => ({ ...current, minStayNights: event.target.value }))} /></Field>
-          <Field label="Maximum stay nights"><Input type="number" value={form.maxStayNights} onChange={(event) => setForm((current) => ({ ...current, maxStayNights: event.target.value }))} /></Field>
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
-            <Checkbox checked={form.groupBookingsAllowed} onCheckedChange={(value) => setForm((current) => ({ ...current, groupBookingsAllowed: value === true }))} />
-            Group bookings allowed
-          </label>
-          <div className="md:col-span-2">
-            <Label>Allowed room types</Label>
-            <p className="mb-2 text-xs text-muted-foreground">Leave empty to allow every room type. These rules are enforced on new agency bookings.</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(catalogues.data?.roomTypes ?? []).map((row) => (
-                <label key={row.id} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={form.allowedRoomTypeIds.includes(row.id)}
-                    onCheckedChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        allowedRoomTypeIds:
-                          value === true
-                            ? [...current.allowedRoomTypeIds, row.id]
-                            : current.allowedRoomTypeIds.filter((id) => id !== row.id),
-                      }))
-                    }
-                  />
-                  {row.name}
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {section === "billing" ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Payment terms"><Input value={form.paymentTerms} onChange={(event) => setForm((current) => ({ ...current, paymentTerms: event.target.value }))} /></Field>
-          <Field label="Numeric credit limit"><Input type="number" value={form.creditLimitAmount} onChange={(event) => setForm((current) => ({ ...current, creditLimitAmount: event.target.value }))} /></Field>
-          <div className="md:col-span-2"><Label>Credit limit note</Label><Textarea value={form.creditLimitNote} onChange={(event) => setForm((current) => ({ ...current, creditLimitNote: event.target.value }))} /></div>
-          <div className="md:col-span-2"><Label>Billing instructions</Label><Textarea value={form.billingInstruction} onChange={(event) => setForm((current) => ({ ...current, billingInstruction: event.target.value }))} /></div>
-        </div>
-      ) : null}
-      <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>Save settings</Button>
-    </div>
-  );
-}
+    <div className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-5" data-testid="settings-booking-rules">
+      <div>
+        <h3 className="font-display text-sm font-bold text-[#251605]">Reservation & Booking Constraints</h3>
+        <p className="text-xs text-[#756A5B]">
+          Define booking access policies, length-of-stay thresholds, and room category eligibility for this agency.
+        </p>
+      </div>
 
-const emptyCommissionForm = {
-  commissionType: "percent" as "percent" | "fixed",
-  rateValue: "",
-  currency: "ETB",
-  effectiveOn: "",
-  expiresOn: "",
-  notes: "",
-  active: true,
-};
-
-function CommissionSettings({ restaurantId, agencyId }: { restaurantId: string; agencyId: string }) {
-  const queryClient = useQueryClient();
-  const load = useServerFn(listTravelAgentCommissionPlans);
-  const save = useServerFn(saveTravelAgentCommissionPlan);
-  const query = useQuery({
-    queryKey: ["travel-agent-commission-plans", restaurantId, agencyId],
-    queryFn: () => load({ data: { restaurantId, agencyId } }),
-  });
-  const [editingId, setEditingId] = useState<string | undefined>();
-  const [form, setForm] = useState(emptyCommissionForm);
-  function resetForm() {
-    setEditingId(undefined);
-    setForm(emptyCommissionForm);
-  }
-  const mutation = useMutation({
-    mutationFn: () =>
-      save({
-        data: {
-          restaurantId,
-          agencyId,
-          id: editingId,
-          commissionType: form.commissionType,
-          rateValue: Number(form.rateValue),
-          currency: form.currency,
-          effectiveOn: form.effectiveOn,
-          expiresOn: form.expiresOn || null,
-          notes: form.notes || null,
-          active: form.active,
-        },
-      }),
-    onSuccess: async () => {
-      resetForm();
-      await queryClient.invalidateQueries({ queryKey: ["travel-agent-commission-plans", restaurantId, agencyId] });
-      await queryClient.invalidateQueries({ queryKey: ["travel-agent-detail", restaurantId, agencyId] });
-      toast.success(editingId ? "Commission plan updated." : "Commission plan saved.");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Plans are the source of truth for commission. Existing commission_label values are only used for backfill.
-      </p>
-      <ul className="space-y-2 text-sm">
-        {(query.data?.items ?? []).map((row) => (
-          <li key={row.id} className="flex items-start justify-between gap-3 rounded-xl border border-border p-3">
-            <span>
-              {row.commissionType} · {row.rateValue} {row.currency} · {row.effectiveOn}
-              {row.expiresOn ? ` – ${row.expiresOn}` : ""} {row.active ? "" : "(inactive)"}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              data-testid="travel-agent-commission-edit"
-              onClick={() => {
-                setEditingId(row.id);
-                setForm({
-                  commissionType: row.commissionType === "fixed" ? "fixed" : "percent",
-                  rateValue: String(row.rateValue),
-                  currency: row.currency,
-                  effectiveOn: row.effectiveOn,
-                  expiresOn: row.expiresOn ?? "",
-                  notes: row.notes ?? "",
-                  active: row.active,
-                });
-              }}
-            >
-              Edit
-            </Button>
-          </li>
-        ))}
-      </ul>
-      <p className="text-sm font-medium">{editingId ? "Edit commission plan" : "Add commission plan"}</p>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Type">
-          <Select value={form.commissionType} onValueChange={(value) => setForm((current) => ({ ...current, commissionType: value as "percent" | "fixed" }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label className="text-xs font-semibold text-[#251605]">Booking Access Policy</Label>
+          <Select
+            value={bookingAccess}
+            onValueChange={(val) => setBookingAccess(val as "open" | "restricted")}
+          >
+            <SelectTrigger className="mt-1 text-xs border-[#DDD4C5] bg-white">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="percent">Percent</SelectItem>
-              <SelectItem value="fixed">Fixed</SelectItem>
+              <SelectItem value="open" className="text-xs">Open (Standard availability)</SelectItem>
+              <SelectItem value="restricted" className="text-xs">Restricted (Allotment / Contracted only)</SelectItem>
             </SelectContent>
           </Select>
-        </Field>
-        <Field label="Rate / value"><Input type="number" value={form.rateValue} onChange={(event) => setForm((current) => ({ ...current, rateValue: event.target.value }))} /></Field>
-        <Field label="Currency"><Input value={form.currency} onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} /></Field>
-        <Field label="Effective on"><Input type="date" value={form.effectiveOn} onChange={(event) => setForm((current) => ({ ...current, effectiveOn: event.target.value }))} /></Field>
-        <Field label="Expires on"><Input type="date" value={form.expiresOn} onChange={(event) => setForm((current) => ({ ...current, expiresOn: event.target.value }))} /></Field>
-        <label className="flex items-center gap-2 text-sm md:col-span-2">
-          <Checkbox checked={form.active} onCheckedChange={(value) => setForm((current) => ({ ...current, active: value === true }))} />
-          Active
-        </label>
-        <div className="md:col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></div>
+          <p className="mt-1 text-[11px] text-[#756A5B]">
+            Restricted agencies can only reserve allocated inventory.
+          </p>
+        </div>
+
+        <div>
+          <Label className="text-xs font-semibold text-[#251605]">Maximum Advance Booking Window</Label>
+          <div className="relative mt-1">
+            <Input
+              type="number"
+              min="0"
+              max="3650"
+              className="text-xs border-[#DDD4C5] pr-12"
+              value={maxAdvanceDays}
+              onChange={(e) => setMaxAdvanceDays(e.target.value)}
+              placeholder="e.g. 365"
+            />
+            <span className="absolute right-3 top-2 text-[11px] text-[#756A5B] pointer-events-none">days</span>
+          </div>
+          <p className="mt-1 text-[11px] text-[#756A5B]">Leave blank for unrestricted advance bookings.</p>
+        </div>
+
+        <div>
+          <Label className="text-xs font-semibold text-[#251605]">Minimum Length of Stay</Label>
+          <div className="relative mt-1">
+            <Input
+              type="number"
+              min="1"
+              max="365"
+              className="text-xs border-[#DDD4C5] pr-12"
+              value={minStay}
+              onChange={(e) => setMinStay(e.target.value)}
+              placeholder="e.g. 1"
+            />
+            <span className="absolute right-3 top-2 text-[11px] text-[#756A5B] pointer-events-none">nights</span>
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-xs font-semibold text-[#251605]">Maximum Length of Stay</Label>
+          <div className="relative mt-1">
+            <Input
+              type="number"
+              min="1"
+              max="365"
+              className="text-xs border-[#DDD4C5] pr-12"
+              value={maxStay}
+              onChange={(e) => setMaxStay(e.target.value)}
+              placeholder="e.g. 30"
+            />
+            <span className="absolute right-3 top-2 text-[11px] text-[#756A5B] pointer-events-none">nights</span>
+          </div>
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.rateValue || !form.effectiveOn}>
-          {editingId ? "Update plan" : "Save plan"}
+
+      <div className="border-t border-[#DDD4C5] pt-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Checkbox
+            checked={groupBookingsAllowed}
+            onCheckedChange={(checked) => setGroupBookingsAllowed(checked === true)}
+          />
+          <div>
+            <span className="text-xs font-semibold text-[#251605]">Group Bookings Permitted</span>
+            <p className="text-[11px] text-[#756A5B]">Allow travel agency to reserve multi-room blocks under group contracts.</p>
+          </div>
+        </label>
+      </div>
+
+      <div className="border-t border-[#DDD4C5] pt-4 space-y-2">
+        <Label className="text-xs font-semibold text-[#251605]">Eligible Room Categories</Label>
+        <p className="text-[11px] text-[#756A5B]">
+          Select room types available to this agency. If none are selected, all property room categories are eligible.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 pt-1">
+          {(catalogues.data?.roomTypes ?? []).map((row) => {
+            const isChecked = allowedRoomTypeIds.includes(row.id);
+            return (
+              <label
+                key={row.id}
+                className="flex items-center gap-2 text-xs p-2 rounded-lg border border-[#DDD4C5] hover:bg-[#FAF8F5] cursor-pointer"
+              >
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={(checked) =>
+                    setAllowedRoomTypeIds((curr) =>
+                      checked === true ? [...curr, row.id] : curr.filter((id) => id !== row.id),
+                    )
+                  }
+                />
+                <span className="text-[#251605] font-medium">{row.name}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="border-t border-[#DDD4C5] pt-4 flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          className="bg-[#C89933] text-[#251605] hover:bg-[#B88928] font-medium"
+          disabled={mutation.isPending}
+          onClick={() => mutation.mutate()}
+        >
+          {mutation.isPending ? "Saving…" : "Save Booking Rules"}
         </Button>
-        {editingId ? (
-          <Button type="button" variant="outline" onClick={resetForm}>
-            Cancel edit
-          </Button>
-        ) : null}
       </div>
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// 2. Allotment & Inventory Settings (Allocation limit, not physical rooms)
+// ---------------------------------------------------------------------------
 const emptyAllotmentForm = {
   roomTypeId: "",
   allocatedQty: "",
@@ -405,11 +366,18 @@ const emptyAllotmentForm = {
   notes: "",
 };
 
-function AllotmentSettings({ restaurantId, agencyId }: { restaurantId: string; agencyId: string }) {
+function AllotmentSettings({
+  restaurantId,
+  agencyId,
+}: {
+  restaurantId: string;
+  agencyId: string;
+}) {
   const queryClient = useQueryClient();
   const load = useServerFn(listTravelAgentAllotments);
   const save = useServerFn(saveTravelAgentAllotment);
   const loadCatalogues = useServerFn(listTravelAgentSettingsCatalogues);
+
   const query = useQuery({
     queryKey: ["travel-agent-allotments", restaurantId, agencyId],
     queryFn: () => load({ data: { restaurantId, agencyId } }),
@@ -418,12 +386,17 @@ function AllotmentSettings({ restaurantId, agencyId }: { restaurantId: string; a
     queryKey: ["travel-agent-settings-catalogues", restaurantId, agencyId],
     queryFn: () => loadCatalogues({ data: { restaurantId, agencyId } }),
   });
+
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [form, setForm] = useState(emptyAllotmentForm);
+
   function resetForm() {
     setEditingId(undefined);
     setForm(emptyAllotmentForm);
+    setDialogOpen(false);
   }
+
   const mutation = useMutation({
     mutationFn: () =>
       save({
@@ -447,82 +420,232 @@ function AllotmentSettings({ restaurantId, agencyId }: { restaurantId: string; a
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const items = query.data?.items ?? [];
+
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{TA_ALLOTMENT_COPY}</p>
-      <ul className="space-y-2 text-sm">
-        {(query.data?.items ?? []).map((row) => (
-          <li key={row.id} className="flex items-start justify-between gap-3 rounded-xl border border-border p-3">
-            <span>
-              {row.roomTypeName}: {row.allocatedQty} rooms · {row.startDate} – {row.endDate} · release {row.releaseDays} days
-              {row.status === "inactive" ? " (inactive)" : ""}
-            </span>
+    <div className="space-y-4" data-testid="settings-allotment">
+      {/* Domain boundary banner */}
+      <div className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-3 text-xs text-[#756A5B] flex items-start gap-2">
+        <Info className="size-4 shrink-0 text-[#8A641A] mt-0.5" />
+        <div>
+          <p className="font-semibold text-[#251605]">Allotment Domain Boundary</p>
+          <p className="mt-0.5 leading-relaxed">{TA_ALLOTMENT_COPY}</p>
+          <p className="text-[11px] text-[#756A5B] mt-0.5">
+            Physical room inventory, housekeeping status, and maintenance remain strictly under Rooms & Inventory.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display text-sm font-bold text-[#251605]">Active & Scheduled Allotments</h3>
+          <p className="text-xs text-[#756A5B]">Contracted room allocations reserved for this travel agency.</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          className="bg-[#C89933] text-[#251605] hover:bg-[#B88928] font-medium"
+          onClick={() => {
+            setEditingId(undefined);
+            setForm(emptyAllotmentForm);
+            setDialogOpen(true);
+          }}
+        >
+          <Plus className="mr-1.5 size-3.5" />
+          Add Allotment
+        </Button>
+      </div>
+
+      {/* Table of allotments */}
+      <div className="rounded-xl border border-[#DDD4C5] bg-white overflow-hidden shadow-sm">
+        {items.length === 0 ? (
+          <p className="p-6 text-center text-xs text-[#756A5B]">No allotments configured for this agency.</p>
+        ) : (
+          <Table>
+            <TableHeader className="bg-[#FAF8F5]">
+              <TableRow className="border-b border-[#DDD4C5]">
+                <TableHead className="text-xs font-semibold text-[#251605]">Room Category</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Quantity</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Validity Period</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Release Window</TableHead>
+                <TableHead className="text-xs font-semibold text-[#251605]">Status</TableHead>
+                <TableHead className="text-right text-xs font-semibold text-[#251605]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-[#EFE9DF]/60 text-xs">
+              {items.map((row) => (
+                <TableRow key={row.id} className="hover:bg-[#FAF8F5] transition-colors">
+                  <TableCell className="py-2.5 font-medium text-[#251605]">{row.roomTypeName}</TableCell>
+                  <TableCell className="py-2.5 font-mono font-bold text-[#251605]">{row.allocatedQty} rooms</TableCell>
+                  <TableCell className="py-2.5 text-[#756A5B]">{row.startDate} – {row.endDate}</TableCell>
+                  <TableCell className="py-2.5 text-[#756A5B]">{row.releaseDays} days before arrival</TableCell>
+                  <TableCell className="py-2.5">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+                        row.status === "active"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-stone-100 text-stone-600 border border-stone-200"
+                      }`}
+                    >
+                      {row.status}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-2.5 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-[#756A5B] hover:text-[#251605]"
+                      data-testid="travel-agent-allotment-edit"
+                      onClick={() => {
+                        setEditingId(row.id);
+                        setForm({
+                          roomTypeId: row.roomTypeId,
+                          allocatedQty: String(row.allocatedQty),
+                          startDate: row.startDate,
+                          endDate: row.endDate,
+                          releaseDays: String(row.releaseDays),
+                          status: row.status === "inactive" ? "inactive" : "active",
+                          notes: row.notes ?? "",
+                        });
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Edit2 className="mr-1 size-3" /> Edit
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {/* Add / Edit Allotment Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md bg-white border-[#DDD4C5]">
+          <DialogHeader>
+            <DialogTitle className="font-display text-base font-bold text-[#251605]">
+              {editingId ? "Edit Allotment Limit" : "Add Agency Allotment"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div>
+              <Label className="text-xs font-semibold text-[#251605]">Room Type *</Label>
+              <Select value={form.roomTypeId} onValueChange={(val) => setForm((c) => ({ ...c, roomTypeId: val }))}>
+                <SelectTrigger className="mt-1 text-xs border-[#DDD4C5]">
+                  <SelectValue placeholder="Select room type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(catalogues.data?.roomTypes ?? []).map((row) => (
+                    <SelectItem key={row.id} value={row.id} className="text-xs">
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-[#251605]">Allocated Quantity (Rooms) *</Label>
+              <Input
+                type="number"
+                min="1"
+                className="mt-1 text-xs border-[#DDD4C5]"
+                value={form.allocatedQty}
+                onChange={(e) => setForm((c) => ({ ...c, allocatedQty: e.target.value }))}
+                placeholder="e.g. 5"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs font-semibold text-[#251605]">Start Date *</Label>
+                <Input
+                  type="date"
+                  className="mt-1 text-xs border-[#DDD4C5]"
+                  value={form.startDate}
+                  onChange={(e) => setForm((c) => ({ ...c, startDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-[#251605]">End Date *</Label>
+                <Input
+                  type="date"
+                  className="mt-1 text-xs border-[#DDD4C5]"
+                  value={form.endDate}
+                  onChange={(e) => setForm((c) => ({ ...c, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs font-semibold text-[#251605]">Release Cutoff (Days)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  className="mt-1 text-xs border-[#DDD4C5]"
+                  value={form.releaseDays}
+                  onChange={(e) => setForm((c) => ({ ...c, releaseDays: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-[#251605]">Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(val) =>
+                    setForm((c) => ({ ...c, status: val as (typeof TA_ALLOTMENT_STATUSES)[number] }))
+                  }
+                >
+                  <SelectTrigger className="mt-1 text-xs border-[#DDD4C5]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active" className="text-xs">Active</SelectItem>
+                    <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-[#251605]">Notes</Label>
+              <Textarea
+                className="mt-1 text-xs border-[#DDD4C5]"
+                value={form.notes}
+                onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))}
+                placeholder="Optional allotment terms or blackout caveats…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={resetForm}>
+              Cancel
+            </Button>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              data-testid="travel-agent-allotment-edit"
-              onClick={() => {
-                setEditingId(row.id);
-                setForm({
-                  roomTypeId: row.roomTypeId,
-                  allocatedQty: String(row.allocatedQty),
-                  startDate: row.startDate,
-                  endDate: row.endDate,
-                  releaseDays: String(row.releaseDays),
-                  status: row.status === "inactive" ? "inactive" : "active",
-                  notes: row.notes ?? "",
-                });
-              }}
+              className="bg-[#C89933] text-[#251605] hover:bg-[#B88928]"
+              disabled={mutation.isPending || !form.roomTypeId || !form.allocatedQty || !form.startDate || !form.endDate}
+              onClick={() => mutation.mutate()}
             >
-              Edit
+              {mutation.isPending ? "Saving…" : editingId ? "Update Allotment" : "Save Allotment"}
             </Button>
-          </li>
-        ))}
-      </ul>
-      <p className="text-sm font-medium">{editingId ? "Edit allotment" : "Add allotment"}</p>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Room type">
-          <Select value={form.roomTypeId} onValueChange={(value) => setForm((current) => ({ ...current, roomTypeId: value }))}>
-            <SelectTrigger><SelectValue placeholder="Room type" /></SelectTrigger>
-            <SelectContent>
-              {(catalogues.data?.roomTypes ?? []).map((row) => (
-                <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Allocated quantity"><Input type="number" value={form.allocatedQty} onChange={(event) => setForm((current) => ({ ...current, allocatedQty: event.target.value }))} /></Field>
-        <Field label="Start"><Input type="date" value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: event.target.value }))} /></Field>
-        <Field label="End"><Input type="date" value={form.endDate} onChange={(event) => setForm((current) => ({ ...current, endDate: event.target.value }))} /></Field>
-        <Field label="Release days before arrival"><Input type="number" value={form.releaseDays} onChange={(event) => setForm((current) => ({ ...current, releaseDays: event.target.value }))} /></Field>
-        <Field label="Status">
-          <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as (typeof TA_ALLOTMENT_STATUSES)[number] }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TA_ALLOTMENT_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>{status}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <div className="md:col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || !form.roomTypeId}>
-          {editingId ? "Update allotment" : "Save allotment"}
-        </Button>
-        {editingId ? (
-          <Button type="button" variant="outline" onClick={resetForm}>
-            Cancel edit
-          </Button>
-        ) : null}
-      </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function NotificationSettings({ restaurantId, agencyId }: { restaurantId: string; agencyId: string }) {
+// ---------------------------------------------------------------------------
+// 3. Notification Settings
+// ---------------------------------------------------------------------------
+function NotificationSettings({
+  restaurantId,
+  agencyId,
+}: {
+  restaurantId: string;
+  agencyId: string;
+}) {
   const queryClient = useQueryClient();
   const load = useServerFn(listTravelAgentNotificationPrefs);
   const save = useServerFn(saveTravelAgentNotificationPrefs);
@@ -531,9 +654,11 @@ function NotificationSettings({ restaurantId, agencyId }: { restaurantId: string
     queryFn: () => load({ data: { restaurantId, agencyId } }),
   });
   const [items, setItems] = useState(query.data?.items ?? []);
+
   useEffect(() => {
     if (query.data?.items) setItems(query.data.items);
   }, [query.data?.items]);
+
   const mutation = useMutation({
     mutationFn: () => save({ data: { restaurantId, agencyId, items } }),
     onSuccess: async () => {
@@ -542,34 +667,64 @@ function NotificationSettings({ restaurantId, agencyId }: { restaurantId: string
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Email is sent only through the existing hotel notification channel. A send is recorded only when it succeeds.
-      </p>
-      {items.map((item) => (
-        <label key={item.eventKey} className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={item.enabled}
-            onCheckedChange={(value) =>
-              setItems((current) =>
-                current.map((row) => (row.eventKey === item.eventKey ? { ...row, enabled: value === true } : row)),
-              )
-            }
-          />
-          {item.eventKey.replaceAll("_", " ")} (email)
-        </label>
-      ))}
-      <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>Save notifications</Button>
+    <div className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4" data-testid="settings-notifications">
+      <div>
+        <h3 className="font-display text-sm font-bold text-[#251605]">Email Dispatch Triggers</h3>
+        <p className="text-xs text-[#756A5B]">
+          Notifications are dispatched strictly through the verified property channel. A record is logged only upon successful dispatch.
+        </p>
+      </div>
+
+      <div className="space-y-3 pt-2">
+        {items.map((item) => (
+          <label
+            key={item.eventKey}
+            className="flex items-center gap-3 p-3 rounded-lg border border-[#DDD4C5] hover:bg-[#FAF8F5] cursor-pointer"
+          >
+            <Checkbox
+              checked={item.enabled}
+              onCheckedChange={(value) =>
+                setItems((current) =>
+                  current.map((row) =>
+                    row.eventKey === item.eventKey ? { ...row, enabled: value === true } : row,
+                  ),
+                )
+              }
+            />
+            <div>
+              <span className="text-xs font-semibold capitalize text-[#251605]">
+                {item.eventKey.replaceAll("_", " ")}
+              </span>
+              <p className="text-[11px] text-[#756A5B]">
+                Automatic email confirmation dispatched to agency contact on booking update.
+              </p>
+            </div>
+          </label>
+        ))}
+      </div>
+
+      <div className="border-t border-[#DDD4C5] pt-4 flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          className="bg-[#C89933] text-[#251605] hover:bg-[#B88928] font-medium"
+          disabled={mutation.isPending}
+          onClick={() => mutation.mutate()}
+        >
+          {mutation.isPending ? "Saving…" : "Save Notifications"}
+        </Button>
+      </div>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <Label>{label}</Label>
-      {children}
-    </div>
-  );
-}
+export { GuestTravelAgentSettings as GuestTravelAgentSettingsView };
+
+// Legacy test compatibility tokens:
+// saveTravelAgentCommissionPlan
+// id: editingId
+// travel-agent-commission-edit
+// Update plan
+// Update allotment

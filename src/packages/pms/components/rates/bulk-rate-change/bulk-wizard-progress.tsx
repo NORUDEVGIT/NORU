@@ -9,7 +9,7 @@ const STEPS: Array<{ id: BulkWizardStep; label: string }> = [
 
 export function BulkWizardProgress({ step }: { step: BulkWizardStep }) {
   return (
-    <ol className="grid grid-cols-4 gap-1">
+    <ol className="grid grid-cols-4 gap-2 rounded-xl border border-[#DDD4C5] bg-white p-3">
       {STEPS.map((item) => {
         const active = step === item.id;
         const done = step > item.id;
@@ -17,15 +17,15 @@ export function BulkWizardProgress({ step }: { step: BulkWizardStep }) {
           <li key={item.id} className="min-w-0">
             <p
               className={[
-                "truncate text-[10px] font-medium",
-                active ? "text-[#6B4A0A]" : done ? "text-[#251605]" : "text-muted-foreground",
+                "truncate text-xs font-semibold",
+                active ? "text-[#8A641A]" : done ? "text-[#251605]" : "text-[#756A5B]",
               ].join(" ")}
             >
-              {item.id} {item.label}
+              {item.id}. {item.label}
             </p>
             <span
               className={[
-                "mt-1 block h-0.5 rounded-full",
+                "mt-1.5 block h-1 rounded-full",
                 active ? "bg-[#C89933]" : done ? "bg-[#251605]" : "bg-[#E8E1D7]",
               ].join(" ")}
             />

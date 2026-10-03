@@ -127,7 +127,8 @@ describe("Card 3 Phase 3 rates readiness", () => {
       CARD3_RATES_TABS.map((tab) => tab.label),
       ["Overview", "Rate Plans", "Room Rates", "Rate Calendar"],
     );
-    assert.match(section, /PmsPropertySetupCard3Rates/);
+    assert.doesNotMatch(section, /PmsPropertySetupCard3Rates/);
+    assert.doesNotMatch(section, /"rates-pricing"/);
     assert.match(ui, /CARD3_RATES_DERIVED_COPY/);
     assert.match(ui, /CARD3_RATES_CARD2_COPY/);
     assert.match(ui, /Card3ListSection/);

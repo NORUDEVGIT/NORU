@@ -55,6 +55,7 @@ import {
   savePmsCard4RequiredField,
   setPmsCard4RequiredFieldFlags,
 } from "@/packages/pms/lib/required-fields-card4.functions";
+import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
   GUEST_FIELD_LOOKUP_LABELS,
   GUEST_FIELD_LOOKUP_SOURCES,
@@ -156,6 +157,7 @@ export function PmsCard4RequiredFields({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setEditorOpen(false);
       setDirty(false);
       toast.success("Required fields saved successfully.");
@@ -174,6 +176,7 @@ export function PmsCard4RequiredFields({
     }) => setFlags({ data: { restaurantId, ...input } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -182,6 +185,7 @@ export function PmsCard4RequiredFields({
     mutationFn: (ids: string[]) => reorder({ data: { restaurantId, ids } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setReorderOpen(false);
       toast.success("Required fields saved successfully.");
     },
@@ -192,6 +196,7 @@ export function PmsCard4RequiredFields({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setPendingDelete(null);
       toast.success("Field deleted.");
     },
@@ -251,8 +256,8 @@ export function PmsCard4RequiredFields({
         <div>
           <h2 className="font-display text-2xl text-[#251605]">Required Fields</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Select which fields will be mandatory in the guest profile. Configure separately for
-            check-in and reservation.
+            Configure the guest information fields available to the property. Fields can be required
+            during guest registration, reservation confirmation, or check-in.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
         </div>

@@ -20,10 +20,10 @@ export function PromotionApprovalProposal({
   reactivate,
 }: {
   proposal: Record<string, unknown>;
-  snapshot?: RevenueApprovalDisplaySnapshot | null;
-  reactivate?: boolean;
+  snapshot?: RevenueApprovalDisplaySnapshot | null | undefined;
+  reactivate?: boolean | undefined;
 }) {
-  const operation = String(proposal.operation ?? snapshot?.operationLabel ?? "EDIT");
+  const operation = String(proposal["operation"] ?? snapshot?.operationLabel ?? "EDIT");
   return (
     <div className="space-y-1.5">
       <Row label="Promotion" value={snapshot?.name || snapshot?.code || "Promotion"} />
@@ -33,20 +33,20 @@ export function PromotionApprovalProposal({
       />
       <Row
         label="Stay dates"
-        value={`${proposal.validFrom ?? snapshot?.dateFrom ?? "—"} – ${proposal.validTo ?? snapshot?.dateTo ?? "—"}`}
+        value={`${proposal["validFrom"] ?? snapshot?.dateFrom ?? "—"} – ${proposal["validTo"] ?? snapshot?.dateTo ?? "—"}`}
       />
       <Row
         label="Booking window"
-        value={`${proposal.bookingFrom ?? "—"} – ${proposal.bookingTo ?? "—"}`}
+        value={`${proposal["bookingFrom"] ?? "—"} – ${proposal["bookingTo"] ?? "—"}`}
       />
-      <Row label="Priority" value={proposal.priority == null ? "—" : String(proposal.priority)} />
+      <Row label="Priority" value={proposal["priority"] == null ? "—" : String(proposal["priority"])} />
       <Row
         label="Room scope"
-        value={snapshot?.roomTypeNames.join(", ") || idsCount(proposal.roomTypeIds)}
+        value={snapshot?.roomTypeNames.join(", ") || idsCount(proposal["roomTypeIds"])}
       />
       <Row
         label="Rate-plan scope"
-        value={snapshot?.ratePlanNames.join(", ") || idsCount(proposal.ratePlanIds)}
+        value={snapshot?.ratePlanNames.join(", ") || idsCount(proposal["ratePlanIds"])}
       />
       {snapshot?.code ? <Row label="Code" value={snapshot.code} /> : null}
     </div>

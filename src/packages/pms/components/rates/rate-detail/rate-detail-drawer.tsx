@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { X } from "lucide-react";
@@ -7,14 +6,18 @@ import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { listRateChangeHistory } from "@/packages/pms/lib/revenue/rate-change.functions";
 import { RATE_CALENDAR_HISTORY_EMPTY } from "@/packages/pms/lib/revenue/rate-calendar";
-import type { RateCalendarCell, RateCalendarPlan, RateCalendarRoomType } from "@/packages/pms/lib/revenue/rate-calendar";
+import type {
+  RateCalendarCell,
+  RateCalendarPlan,
+  RateCalendarRoomType,
+} from "@/packages/pms/lib/revenue/rate-calendar";
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { RateDetailHistory } from "./rate-detail-history";
 import { RateDetailOverview } from "./rate-detail-overview";
 import { RateDetailRestrictions } from "./rate-detail-restrictions";
-import { RateEditForm } from "./rate-edit-form";
+import { RateEditForm, type RateEditScope } from "./rate-edit-form";
 
 type DrawerTab = "overview" | "edit" | "restrictions" | "history";
 
@@ -23,6 +26,8 @@ function DrawerBody({
   cell,
   plan,
   roomType,
+  rowCells,
+  editScope,
   context,
   access,
   tab,
@@ -34,6 +39,8 @@ function DrawerBody({
   cell: RateCalendarCell;
   plan: RateCalendarPlan;
   roomType: RateCalendarRoomType;
+  rowCells: RateCalendarCell[];
+  editScope: RateEditScope;
   context: RevenueContext;
   access: RevenueAccess;
   tab: DrawerTab;
@@ -46,7 +53,13 @@ function DrawerBody({
     queryKey: ["rate-change-history", restaurantId, cell.ratePlanId, cell.date],
     queryFn: () =>
       fetchHistory({
-        data: { restaurantId, ratePlanId: cell.ratePlanId, stayDate: cell.date, page: 1, pageSize: 8 },
+        data: {
+          restaurantId,
+          ratePlanId: cell.ratePlanId,
+          stayDate: cell.date,
+          page: 1,
+          pageSize: 8,
+        },
       }),
     retry: false,
   });
@@ -60,37 +73,42 @@ function DrawerBody({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#F7F4EE]">
-      <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D7] px-4 py-3">
+      <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D7] bg-white px-5 py-4">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8A641A]">
             Rate Detail & Edit
           </p>
-          <h3 className="mt-1 font-display text-lg font-semibold text-[#251605]">{plan.code}</h3>
-          <p className="text-xs text-muted-foreground">
-            {roomType.name} · {formatStayDate(cell.date)}
+          <h3 className="mt-1 font-display text-lg font-semibold text-[#251605]">
+            {plan.code} — {plan.name}
+          </h3>
+          <p className="mt-0.5 text-xs font-medium text-[#5A4833]">
+            {roomType.name} ·{" "}
+            {editScope === "row"
+              ? `Whole Row (${context.fromDate} – ${context.toDate})`
+              : formatStayDate(cell.date)}
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-muted-foreground hover:bg-[#E8E1D7]"
+          className="rounded-lg p-1.5 text-[#756A5B] transition-colors hover:bg-[#F3ECE2] hover:text-[#251605]"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="flex gap-1 border-b border-[#E8E1D7] px-3">
+      <div className="flex gap-1 border-b border-[#E8E1D7] bg-white px-4">
         {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
             className={[
-              "h-9 px-2 text-[11px] font-medium",
+              "h-10 px-3 text-xs font-semibold transition-colors",
               tab === item.id
-                ? "border-b-2 border-[#C89933] text-[#6B4A0A]"
-                : "text-muted-foreground hover:text-[#251605]",
+                ? "border-b-2 border-[#C89933] text-[#251605]"
+                : "text-[#756A5B] hover:text-[#251605]",
             ].join(" ")}
           >
             {item.label}
@@ -98,7 +116,7 @@ function DrawerBody({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">
         {tab === "overview" ? (
           <RateDetailOverview
             cell={cell}
@@ -106,6 +124,7 @@ function DrawerBody({
             roomType={roomType}
             money={money}
             lastChange={historyQuery.data?.rows[0] ?? null}
+            onSelectTab={setTab}
           />
         ) : null}
         {tab === "edit" ? (
@@ -113,6 +132,10 @@ function DrawerBody({
             restaurantId={restaurantId}
             cell={cell}
             plan={plan}
+            rowCells={rowCells}
+            initialScope={editScope}
+            defaultFromDate={context.fromDate}
+            defaultToDate={context.toDate}
             canEdit={access.canEditDailyRates}
             money={money}
           />
@@ -120,7 +143,7 @@ function DrawerBody({
         {tab === "restrictions" ? <RateDetailRestrictions cell={cell} context={context} /> : null}
         {tab === "history" ? (
           historyQuery.isLoading ? (
-            <p className="text-xs text-muted-foreground">Loading history…</p>
+            <p className="text-sm text-[#756A5B]">Loading history…</p>
           ) : (
             <RateDetailHistory
               rows={historyQuery.data?.rows ?? []}
@@ -144,6 +167,8 @@ export function RateDetailDrawer({
   cell,
   plan,
   roomType,
+  rowCells = [],
+  editScope = "single",
   context,
   access,
   tab,
@@ -155,6 +180,8 @@ export function RateDetailDrawer({
   cell: RateCalendarCell | null;
   plan: RateCalendarPlan | null;
   roomType: RateCalendarRoomType | null;
+  rowCells?: RateCalendarCell[];
+  editScope?: RateEditScope;
   context: RevenueContext;
   access: RevenueAccess;
   tab: DrawerTab;
@@ -162,46 +189,34 @@ export function RateDetailDrawer({
   onClose: () => void;
   money: (value: number) => string;
 }) {
-  const [desktop, setDesktop] = useState(true);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1280px)");
-    const sync = () => setDesktop(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  const ready = cell && plan && roomType;
-  const body = ready ? (
-    <DrawerBody
-      restaurantId={restaurantId}
-      cell={cell}
-      plan={plan}
-      roomType={roomType}
-      context={context}
-      access={access}
-      tab={tab}
-      setTab={setTab}
-      onClose={onClose}
-      money={money}
-    />
-  ) : (
-    <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-      Select a rate cell to review or edit.
-    </div>
-  );
+  const ready = Boolean(cell && plan && roomType);
 
   return (
-    <>
-      <aside className="hidden h-full min-h-[32rem] overflow-hidden rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] xl:block">
-        {body}
-      </aside>
-      <Sheet open={!desktop && Boolean(ready)} onOpenChange={(open) => { if (!open) onClose(); }}>
-        <SheetContent side="right" className="w-[92vw] max-w-md p-0 xl:hidden">
-          {body}
-        </SheetContent>
-      </Sheet>
-    </>
+    <Sheet
+      open={ready}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <SheetContent side="right" className="w-[92vw] sm:max-w-[480px] p-0 [&>button]:hidden">
+        {cell && plan && roomType ? (
+          <DrawerBody
+            restaurantId={restaurantId}
+            cell={cell}
+            plan={plan}
+            roomType={roomType}
+            rowCells={rowCells}
+            editScope={editScope}
+            context={context}
+            access={access}
+            tab={tab}
+            setTab={setTab}
+            onClose={onClose}
+            money={money}
+          />
+        ) : null}
+      </SheetContent>
+    </Sheet>
   );
 }
 

@@ -37,9 +37,10 @@ export function ActivationValidation({
     return <p className="text-xs text-muted-foreground">Run validation to preview this activation.</p>;
   }
 
-  const status = activationWizardStatus(preview.errors, preview.warnings.length);
-  const duplicate = preview.errors.some((code) => isDuplicateActivationError(code));
-  const existingId = existingActivationIdFromErrors(preview.errors, preview.warnings);
+  const errors: readonly string[] = preview.errors;
+  const status = activationWizardStatus(errors, preview.warnings.length);
+  const duplicate = errors.some((code) => isDuplicateActivationError(code));
+  const existingId = existingActivationIdFromErrors(errors, preview.warnings);
   const overlap = preview.warnings.some((row) => "code" in row && row.code === "PROMOTION_ACTIVATION_OVERLAP");
 
   return (
@@ -52,12 +53,12 @@ export function ActivationValidation({
       </div>
       <StatusBanner status={status} />
       <Section title="Eligibility">
-        {preview.errors.includes("PROMOTION_KIND_UNSUPPORTED") ||
-        preview.errors.includes("PROMOTION_INACTIVE") ||
-        preview.errors.includes("PACKAGE_INACTIVE") ||
-        preview.errors.includes("PROMOTION_NOT_FOUND") ||
-        preview.errors.includes("PACKAGE_NOT_FOUND") ? (
-          <ErrorList codes={preview.errors.filter((code) =>
+        {errors.includes("PROMOTION_KIND_UNSUPPORTED") ||
+        errors.includes("PROMOTION_INACTIVE") ||
+        errors.includes("PACKAGE_INACTIVE") ||
+        errors.includes("PROMOTION_NOT_FOUND") ||
+        errors.includes("PACKAGE_NOT_FOUND") ? (
+          <ErrorList codes={errors.filter((code) =>
             [
               "PROMOTION_KIND_UNSUPPORTED",
               "PROMOTION_INACTIVE",
@@ -73,8 +74,8 @@ export function ActivationValidation({
         )}
       </Section>
       <Section title="Dates">
-        {preview.errors.includes("COMMERCIAL_DATES_INVALID") || preview.errors.includes("COMMERCIAL_MASTER_WINDOW_BROADEN") ? (
-          <ErrorList codes={preview.errors.filter((code) =>
+        {errors.includes("COMMERCIAL_DATES_INVALID") || errors.includes("COMMERCIAL_MASTER_WINDOW_BROADEN") ? (
+          <ErrorList codes={errors.filter((code) =>
             ["COMMERCIAL_DATES_INVALID", "COMMERCIAL_MASTER_WINDOW_BROADEN"].includes(code),
           )} />
         ) : (
@@ -82,10 +83,10 @@ export function ActivationValidation({
         )}
       </Section>
       <Section title="Scope">
-        {preview.errors.includes("PROMOTION_SCOPE_BROADEN") ||
-        preview.errors.includes("PACKAGE_SCOPE_BROADEN") ||
-        preview.errors.includes("COMMERCIAL_SCOPE_WRONG_PROPERTY") ? (
-          <ErrorList codes={preview.errors.filter((code) =>
+        {errors.includes("PROMOTION_SCOPE_BROADEN") ||
+        errors.includes("PACKAGE_SCOPE_BROADEN") ||
+        errors.includes("COMMERCIAL_SCOPE_WRONG_PROPERTY") ? (
+          <ErrorList codes={errors.filter((code) =>
             ["PROMOTION_SCOPE_BROADEN", "PACKAGE_SCOPE_BROADEN", "COMMERCIAL_SCOPE_WRONG_PROPERTY"].includes(code),
           )} />
         ) : (

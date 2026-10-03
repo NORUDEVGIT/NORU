@@ -39,8 +39,8 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function isReactivate(detail: RevenueApprovalDetail) {
-  const active = detail.proposal.active;
-  const previous = detail.proposal.previouslyActive ?? detail.proposal.currentActive;
+  const active = detail.proposal["active"];
+  const previous = detail.proposal["previouslyActive"] ?? detail.proposal["currentActive"];
   return detail.actionType === "EDIT" && active === true && previous === false;
 }
 
@@ -92,7 +92,7 @@ function DrawerBody({
   applyError: string | null;
   staleCopy: boolean;
   access: RevenueAccessResolution;
-  busy?: boolean;
+  busy?: boolean | undefined;
   onClose: () => void;
   onRetry: () => void;
   onApprove: () => void;
@@ -311,7 +311,7 @@ export function ApprovalDetailDrawer({
   applyError: string | null;
   staleCopy: boolean;
   access: RevenueAccessResolution;
-  busy?: boolean;
+  busy?: boolean | undefined;
   onClose: () => void;
   onRetry: () => void;
   onApprove: () => void;

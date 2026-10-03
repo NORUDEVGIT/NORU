@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, ChevronDown, HelpCircle, MoreHorizontal, Search } from "lucide-react";
 
@@ -15,6 +15,20 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 
+export const PMS_MODULE_NAV_ITEMS = [
+  { label: "Front Office", to: "/restaurant/pms/front-office" },
+  { label: "Reservations", to: "/restaurant/pms/reservations" },
+  { label: "Rooms & Inventory", to: "/restaurant/pms/room-inventory" },
+  { label: "Guest Profiles", to: "/restaurant/pms/guests" },
+  { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
+  { label: "F&B", to: "/restaurant/restaurant-management/dashboard" },
+  { label: "Reports", to: "/restaurant/pms/reports" },
+  { label: "Settings", to: "/restaurant/settings" },
+] as const;
+
+export type PmsModuleName = (typeof PMS_MODULE_NAV_ITEMS)[number]["label"];
+
+const NAV_ITEMS = PMS_MODULE_NAV_ITEMS;
 export function RoomInventoryChrome({
   membership,
   onRoomSearch,
@@ -22,6 +36,7 @@ export function RoomInventoryChrome({
   activeModule = "Rooms & Inventory",
   searchPlaceholder = "Search room…",
   searchTestId,
+  initialSearch = "",
   helpLabel = "Room & Inventory operational workspace",
   onHelpClick,
   overflowItems = [],
@@ -35,6 +50,7 @@ export function RoomInventoryChrome({
   activeModule?: PmsModuleNavLabel | null;
   searchPlaceholder?: string;
   searchTestId?: string;
+  initialSearch?: string;
   helpLabel?: string;
   onHelpClick?: () => void;
   overflowItems?: Array<{ label: string; onSelect: () => void; testId?: string }>;
@@ -46,7 +62,11 @@ export function RoomInventoryChrome({
     membership.restaurant.id,
     membership.restaurant.timezone,
   );
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+
+  useEffect(() => {
+    setSearch(initialSearch);
+  }, [initialSearch]);
 
   function submitSearch(event: FormEvent) {
     event.preventDefault();
@@ -98,11 +118,11 @@ export function RoomInventoryChrome({
         <div className="border-b border-border bg-card px-3 py-2 lg:hidden">
           <select
             aria-label="PMS module"
-            value={PMS_MODULE_NAV.find((item) => item.label === activeModule)?.to ?? ""}
+            value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
             onChange={(event) => window.location.assign(event.target.value)}
             className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
-            {PMS_MODULE_NAV.map((item) => (
+            {NAV_ITEMS.map((item) => (
               <option key={item.label} value={item.to}>
                 {item.label}
               </option>
@@ -170,7 +190,11 @@ export function RoomInventoryChrome({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {overflowItems.map((item) => (
-                <DropdownMenuItem key={item.label} data-testid={item.testId} onSelect={item.onSelect}>
+                <DropdownMenuItem
+                  key={item.label}
+                  data-testid={item.testId}
+                  onSelect={item.onSelect}
+                >
                   {item.label}
                 </DropdownMenuItem>
               ))}

@@ -94,7 +94,7 @@ export function CommercialPerformanceSection({
               </thead>
               <tbody className="divide-y divide-[#E8E1D7]/60">
                 {data.promotions.map((row) => (
-                  <tr key={row.promotionId} className="hover:bg-muted/20">
+                  <tr key={row.promotionActivationId} className="hover:bg-muted/20">
                     <td className="py-2.5 pl-4 pr-3 font-medium text-foreground">
                       {row.promotionName}
                     </td>
@@ -105,13 +105,13 @@ export function CommercialPerformanceSection({
                       {row.soldRoomNights.toLocaleString()}
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono">
-                      {formatCurrency(row.prePromotionAmount)}
+                      {formatCurrency(row.preCommercialRoomAmount)}
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-emerald-700 font-medium">
                       -{formatCurrency(row.discountAmount)}
                     </td>
                     <td className="py-2.5 pl-3 pr-4 text-right font-mono font-medium text-foreground">
-                      {formatCurrency(row.postPromotionAmount)}
+                      {formatCurrency(row.postPromotionRoomAmount)}
                     </td>
                   </tr>
                 ))}
@@ -148,7 +148,7 @@ export function CommercialPerformanceSection({
               </thead>
               <tbody className="divide-y divide-[#E8E1D7]/60">
                 {data.packages.map((row) => (
-                  <tr key={row.packageId} className="hover:bg-muted/20">
+                  <tr key={row.packageActivationId} className="hover:bg-muted/20">
                     <td className="py-2.5 pl-4 pr-3 font-medium text-foreground">
                       {row.packageName}
                     </td>
@@ -162,7 +162,7 @@ export function CommercialPerformanceSection({
                       {row.soldRoomNights.toLocaleString()}
                     </td>
                     <td className="py-2.5 pl-3 pr-4 text-right font-mono font-medium text-foreground">
-                      {formatCurrency(row.bookedPackageRevenue)}
+                      {formatCurrency(row.bookedPackageAmount)}
                     </td>
                   </tr>
                 ))}

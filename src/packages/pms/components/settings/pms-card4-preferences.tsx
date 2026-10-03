@@ -56,6 +56,7 @@ import {
   setPmsCard4PreferenceCategoryActive,
   setPmsCard4PreferenceTypeFlags,
 } from "@/packages/pms/lib/preferences-card4.functions";
+import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
   PREFERENCE_VALUE_TYPE_LABELS,
   PREFERENCE_VALUE_TYPES,
@@ -162,6 +163,7 @@ export function PmsCard4Preferences({
     await Promise.all([
       queryClient.invalidateQueries({ queryKey }),
       queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] }),
+      invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId),
     ]);
   };
 

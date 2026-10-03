@@ -11526,6 +11526,8 @@ export type Database = {
           active: boolean
           code: string
           created_at: string
+          default_probability: number | null
+          description: string | null
           id: string
           is_terminal: boolean
           name: string
@@ -11537,6 +11539,8 @@ export type Database = {
           active?: boolean
           code: string
           created_at?: string
+          default_probability?: number | null
+          description?: string | null
           id?: string
           is_terminal?: boolean
           name: string
@@ -11548,6 +11552,8 @@ export type Database = {
           active?: boolean
           code?: string
           created_at?: string
+          default_probability?: number | null
+          description?: string | null
           id?: string
           is_terminal?: boolean
           name?: string

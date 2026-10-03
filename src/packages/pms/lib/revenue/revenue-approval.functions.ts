@@ -61,10 +61,19 @@ export const submitRevenueApprovalRequestFn = createServerFn({ method: "POST" })
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
-      return await submitRevenueApprovalRequest(supabaseAdmin, data, {
-        membershipId: me.id,
-        userId: context.userId,
-      });
+      return await submitRevenueApprovalRequest(
+        supabaseAdmin,
+        {
+          restaurantId: data.restaurantId,
+          domain: data.domain,
+          proposal: data.proposal,
+          requestReason: data.requestReason,
+        },
+        {
+          membershipId: me.id,
+          userId: context.userId,
+        },
+      );
     } catch (error) {
       throw rateError(error instanceof Error ? error.message : String(error));
     }

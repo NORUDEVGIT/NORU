@@ -13,9 +13,9 @@ export function CreateReservationConfirmation({
   onCreateAnother,
 }: {
   view: CreatedReservationConfirmation;
-  onOpenReservation?: (reservationId: string) => void;
-  onReturnToDesk?: () => void;
-  onCreateAnother?: () => void;
+  onOpenReservation?: ((reservationId: string) => void) | undefined;
+  onReturnToDesk?: (() => void) | undefined;
+  onCreateAnother?: (() => void) | undefined;
 }) {
   return (
     <section

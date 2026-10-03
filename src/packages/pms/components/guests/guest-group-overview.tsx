@@ -64,19 +64,17 @@ export function GuestGroupOverview({
       <p className="text-sm text-muted-foreground">{GROUP_MASTER_COPY}</p>
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { label: "Members", value: `${data.kpis.members}${group.expectedPax != null ? ` / ${group.expectedPax} expected` : ""}`, nav: "members" as const },
-          { label: "Reservations", value: String(data.kpis.reservations), nav: "reservations" as const },
-          { label: "Rooms", value: `${data.kpis.assignedRooms} assigned · ${data.unassignedRooms ?? 0} open`, nav: "rooming" as const },
+          { label: "Members", value: `${data.kpis.members}${group.expectedPax != null ? ` / ${group.expectedPax} expected` : ""}` },
+          { label: "Reservations", value: String(data.kpis.reservations) },
+          { label: "Rooms", value: `${data.kpis.assignedRooms} assigned · ${data.unassignedRooms ?? 0} open` },
         ].map((item) => (
-          <button
+          <div
             key={item.label}
-            type="button"
             className="rounded-2xl border border-border bg-card p-4 text-left"
-            onClick={() => onNavigate(item.nav)}
           >
             <p className="text-sm text-muted-foreground">{item.label}</p>
             <p className="font-display text-2xl">{item.value}</p>
-          </button>
+          </div>
         ))}
       </div>
       {data.reservationStatus && Object.keys(data.reservationStatus).length > 0 ? (
@@ -97,15 +95,13 @@ export function GuestGroupOverview({
             { label: "Outstanding", value: financials.data.summary.outstandingBalance },
             { label: "Estimated", value: financials.data.summary.estimatedRevenue },
           ].map((item) => (
-            <button
+            <div
               key={item.label}
-              type="button"
               className="rounded-2xl border border-border bg-card p-4 text-left"
-              onClick={() => onNavigate("financial")}
             >
               <p className="text-sm text-muted-foreground">{item.label}</p>
               <p className="font-display text-2xl">{item.value.toFixed(2)}</p>
-            </button>
+            </div>
           ))}
         </div>
       ) : null}

@@ -10,6 +10,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 import { MANAGE_ROLES } from "@/core/lib/workforce.server";
 import {
   blankToNull,
@@ -501,6 +502,7 @@ const registrationSchema = z.object({
   country: z.string().max(120).optional().nullable(),
   adults: z.number().int().min(1).max(20),
   children: z.number().int().min(0).max(20),
+  customFields: z.record(z.unknown()).optional(),
 });
 
 export const saveCheckInRegistration = createServerFn({ method: "POST" })
@@ -585,6 +587,18 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
         newValues: profileDiff.next,
         actorMembershipId: me.id,
       });
+    }
+
+    if (data.customFields && Object.keys(data.customFields).length > 0) {
+      const { persistGuestCustomFieldValues } = await import("./guest-custom-fields.functions");
+      await persistGuestCustomFieldValues(
+        supabaseAdmin,
+        data.restaurantId,
+        loaded.guestId,
+        context.userId,
+        data.customFields,
+        me.id,
+      );
     }
 
     if (data.adults !== loaded.stay.adults || data.children !== loaded.stay.children) {
@@ -867,6 +881,84 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       throw new Error("Only confirmed stays can be checked in.");
     }
     if (!loaded.stay.roomId) throw new Error("Assign a room before completing check-in.");
+
+    const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
+    const { validateGuestCheckInRequirements, resolveIndividualProfileType } =
+      await import("./guest-field-rules");
+    const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
+    const individualType = resolveIndividualProfileType(workspaceConfig);
+
+    const { data: guestProfile } = await supabaseAdmin
+      .from("guest_profiles")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", loaded.guestId)
+      .maybeSingle();
+
+    const { data: guestDocuments } = await supabaseAdmin
+      .from("guest_documents")
+      .select("id, id_type_id, kind, document_number, issuing_country, expiry_date, file_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", loaded.guestId);
+
+    const checkInDocs = (guestDocuments ?? []).map(
+      (doc: {
+        id: string;
+        id_type_id: string;
+        kind: string;
+        document_number: string | null;
+        issuing_country: string | null;
+        expiry_date: string | null;
+        file_path: string | null;
+      }) => ({
+        id: doc.id,
+        typeId: doc.id_type_id,
+        kind: doc.kind,
+        documentNumberMasked: doc.document_number,
+        issuingCountry: doc.issuing_country,
+        expiryDate: doc.expiry_date,
+        status: "valid" as const,
+        hasImage: Boolean(doc.file_path),
+        filePath: doc.file_path,
+      }),
+    );
+
+    const { data: propRow } = await supabaseAdmin
+      .from("restaurants")
+      .select("timezone, business_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const { resolvePropertyBusinessDate } = await import("./reservation-workspace/business-date");
+    const today = resolvePropertyBusinessDate(
+      (propRow as { business_date?: string | null } | null)?.business_date ?? null,
+      (propRow as { timezone?: string } | null)?.timezone ?? "UTC",
+    );
+
+    const { data: customFieldRows } = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("field_id, value_json")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", loaded.guestId);
+    const customValues: Record<string, unknown> = {};
+    if (customFieldRows) {
+      for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
+        customValues[row.field_id] = row.value_json;
+      }
+    }
+
+    const checkInValidation = validateGuestCheckInRequirements({
+      guest: guestProfile,
+      documents: checkInDocs,
+      config: workspaceConfig,
+      profileType: individualType,
+      today,
+      customFieldValues: customValues,
+    });
+    if (!checkInValidation.valid) {
+      throw new Error(
+        `Check-in blocked by guest requirements: ${checkInValidation.errors.join("; ")}`,
+      );
+    }
 
     const { data: roomRow } = await supabaseAdmin
       .from("hotel_rooms")

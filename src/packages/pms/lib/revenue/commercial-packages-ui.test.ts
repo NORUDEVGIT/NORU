@@ -246,5 +246,17 @@ describe("RR-P5-UI-02 packages workspace", () => {
     assert.match(overview, /Package Performance/);
     assert.match(overview, /Package Bookings/);
     assert.match(overview, /Package Revenue/);
+
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_420px\]/);
+    assert.doesNotMatch(view, /text-\[9px\]|text-\[10px\]/);
+    assert.match(view, /PACKAGE_PAGE_SIZES/);
+    assert.match(view, /role="button"/);
+    assert.match(view, /Filter/);
+    assert.match(view, /Configure in Property Setup/);
+
+    assert.doesNotMatch(drawer, /<aside/);
+    assert.doesNotMatch(drawer, /text-\[9px\]|text-\[10px\]/);
+    assert.match(drawer, /SheetContent/);
+    assert.match(drawer, /Package Details/);
   });
 });

@@ -39,12 +39,17 @@ import { CreateReservationContext } from "@/packages/pms/components/bookings/cre
 import { CreateReservationAssociations } from "@/packages/pms/components/bookings/create-reservation-associations";
 import {
   CreateReservationGuest,
+  toPickedGuest,
   type PickedReservationGuest,
 } from "@/packages/pms/components/bookings/create-reservation-guest";
 import { CreateReservationStay } from "@/packages/pms/components/bookings/create-reservation-stay";
 import { CreateReservationSearchCriteria } from "@/packages/pms/components/bookings/create-reservation-search-criteria";
 import { CreateReservationAlternatives } from "@/packages/pms/components/bookings/create-reservation-alternatives";
-import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import {
+  getGuest,
+  getGuestReservationPreferenceDefaults,
+  getGuestsAccess,
+} from "@/packages/pms/lib/guests.functions";
 import {
   createReservation,
   getBookingsAccess,
@@ -156,6 +161,10 @@ const CREATE_WORKFLOW_STEPS = [
 export function CreateReservationPage({
   membership,
   embedded = false,
+  initialGuestId = null,
+  initialCompanyMasterId = null,
+  initialTravelAgentMasterId = null,
+  initialGroupMasterId = null,
   pmsGroupId = null,
   pmsGroupBlockId = null,
   onCancel,
@@ -165,6 +174,10 @@ export function CreateReservationPage({
 }: {
   membership: RestaurantMembership;
   embedded?: boolean;
+  initialGuestId?: string | null;
+  initialCompanyMasterId?: string | null;
+  initialTravelAgentMasterId?: string | null;
+  initialGroupMasterId?: string | null;
   pmsGroupId?: string | null;
   pmsGroupBlockId?: string | null;
   onCancel?: () => void;
@@ -178,6 +191,8 @@ export function CreateReservationPage({
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
+  const fetchGuest = useServerFn(getGuest);
+  const fetchGuestPrefDefaults = useServerFn(getGuestReservationPreferenceDefaults);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
   const fetchSet3 = useServerFn(getPmsSet3Snapshot);
   const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
@@ -201,8 +216,10 @@ export function CreateReservationPage({
   const [guest, setGuest] = useState<PickedReservationGuest | null>(null);
   const [companyMaster, setCompanyMaster] = useState<PickedReservationMaster | null>(null);
   const [travelAgentMaster, setTravelAgentMaster] = useState<PickedReservationMaster | null>(null);
+  const [groupMaster, setGroupMaster] = useState<PickedReservationMaster | null>(null);
   const [companyOverride, setCompanyOverride] = useState(false);
   const [travelAgentOverride, setTravelAgentOverride] = useState(false);
+  const [groupOverride, setGroupOverride] = useState(false);
   const [arrival, setArrival] = useState(today);
   const [departure, setDeparture] = useState(addDays(today, 1));
   const [adults, setAdults] = useState(1);
@@ -251,6 +268,121 @@ export function CreateReservationPage({
     enabled: canManage,
     retry: false,
   });
+
+  const initialGuestQuery = useQuery({
+    queryKey: ["initial-reservation-guest", restaurantId, initialGuestId],
+    queryFn: () => fetchGuest({ data: { restaurantId, guestId: initialGuestId! } }),
+    enabled: canManage && Boolean(initialGuestId) && !guest,
+    staleTime: 60_000,
+  });
+
+  const initialCompanyQuery = useQuery({
+    queryKey: ["initial-reservation-company", restaurantId, initialCompanyMasterId],
+    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialCompanyMasterId! } }),
+    enabled: canManage && Boolean(initialCompanyMasterId) && !companyMaster && !companyOverride,
+    staleTime: 60_000,
+  });
+
+  const initialTravelAgentQuery = useQuery({
+    queryKey: ["initial-reservation-travel-agent", restaurantId, initialTravelAgentMasterId],
+    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialTravelAgentMasterId! } }),
+    enabled: canManage && Boolean(initialTravelAgentMasterId) && !travelAgentMaster && !travelAgentOverride,
+    staleTime: 60_000,
+  });
+
+  const initialGroupQuery = useQuery({
+    queryKey: ["initial-reservation-group", restaurantId, initialGroupMasterId],
+    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialGroupMasterId! } }),
+    enabled: canManage && Boolean(initialGroupMasterId) && !groupMaster && !groupOverride,
+    staleTime: 60_000,
+  });
+
+  const initialPrefQuery = useQuery({
+    queryKey: ["initial-guest-preferences", restaurantId, guest?.id],
+    queryFn: () => fetchGuestPrefDefaults({ data: { restaurantId, guestId: guest!.id } }),
+    enabled: canManage && Boolean(guest?.id),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (initialGuestQuery.data?.guest && !guest) {
+      setGuest(toPickedGuest(initialGuestQuery.data.guest));
+    }
+  }, [initialGuestQuery.data, guest]);
+
+  useEffect(() => {
+    if (!initialCompanyMasterId || companyOverride || companyMaster) return;
+    const rawAccount = initialCompanyQuery.data;
+    if (!rawAccount) return;
+    const account: Omit<NonNullable<typeof rawAccount>, "accountStatus"> & {
+      accountStatus: string;
+    } = rawAccount;
+
+    const isCompanyType = account.accountType === "company";
+    const isNotAnonymized = !account.anonymisedAt;
+    const isOperational = account.accountStatus !== "deleted";
+
+    if (isCompanyType && isNotAnonymized && isOperational) {
+      setCompanyMaster(toPickedReservationMaster(account));
+      setReservationType((prev) => (prev === "individual" ? "corporate" : prev));
+    }
+  }, [
+    initialCompanyMasterId,
+    companyOverride,
+    companyMaster,
+    initialCompanyQuery.data,
+  ]);
+
+  useEffect(() => {
+    if (!initialTravelAgentMasterId || travelAgentOverride || travelAgentMaster) return;
+    const rawAccount = initialTravelAgentQuery.data;
+    if (!rawAccount) return;
+    const account: Omit<NonNullable<typeof rawAccount>, "accountStatus"> & {
+      accountStatus: string;
+    } = rawAccount;
+
+    const isTravelAgentType = account.accountType === "travel_agent";
+    const isNotAnonymized = !account.anonymisedAt;
+    const isOperational = account.accountStatus !== "deleted";
+
+    if (isTravelAgentType && isNotAnonymized && isOperational) {
+      setTravelAgentMaster(toPickedReservationMaster(account));
+      setReservationType((prev) => (prev === "individual" ? "travel_agency" : prev));
+    }
+  }, [
+    initialTravelAgentMasterId,
+    travelAgentOverride,
+    travelAgentMaster,
+    initialTravelAgentQuery.data,
+  ]);
+
+  useEffect(() => {
+    if (!initialGroupMasterId || groupOverride || groupMaster) return;
+    const rawAccount = initialGroupQuery.data;
+    if (!rawAccount) return;
+    const account: Omit<NonNullable<typeof rawAccount>, "accountStatus"> & {
+      accountStatus: string;
+    } = rawAccount;
+
+    const isGroupType = account.accountType === "group";
+    const isNotAnonymized = !account.anonymisedAt;
+    const isOperational = account.accountStatus !== "deleted" && account.accountStatus !== "inactive";
+
+    if (isGroupType && isNotAnonymized && isOperational) {
+      setGroupMaster(toPickedReservationMaster(account));
+    }
+  }, [
+    initialGroupMasterId,
+    groupOverride,
+    groupMaster,
+    initialGroupQuery.data,
+  ]);
+
+  useEffect(() => {
+    if (initialPrefQuery.data?.applyToFutureReservations && initialPrefQuery.data.specialRequests) {
+      setSpecialRequests((prev) => (prev ? prev : (initialPrefQuery.data.specialRequests ?? "")));
+    }
+  }, [initialPrefQuery.data]);
 
   const set6Query = useQuery({
     queryKey: ["pms-set6-snapshot", restaurantId, "create-reservation"],
@@ -588,6 +720,7 @@ export function CreateReservationPage({
           ratePlanId: ratePlanId || null,
           companyMasterId: boundMasters.companyMasterId,
           travelAgentMasterId: boundMasters.travelAgentMasterId,
+          groupAccountMasterId: groupMaster?.id ?? (initialGroupMasterId || null),
           commercialBookingSource: bookingSource.trim() || null,
           marketSegment: marketSegment.trim() || null,
           externalReference: externalReference.trim() || null,

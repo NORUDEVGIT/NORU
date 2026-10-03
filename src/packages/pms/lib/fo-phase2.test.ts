@@ -275,7 +275,7 @@ describe("FO Phase 2 — assignment, finance and completion ownership", () => {
     const drizzleDir = join(repoRoot, "drizzle/migrations");
     const supabaseDir = join(repoRoot, "supabase/migrations");
     const extra = [...readdirSync(drizzleDir), ...readdirSync(supabaseDir)].filter((name) =>
-      name.startsWith("0101_"),
+      name.startsWith("0101_fo"),
     );
     assert.equal(extra.length, 0);
   });

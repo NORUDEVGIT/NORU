@@ -385,4 +385,23 @@ describe("RR-P3-03 — wiring, apply and no fake product", () => {
     assert.doesNotMatch(view, /template_id|commercial_restriction_id/);
     assert.match(helper, /Template prefill is deferred/);
   });
+
+  it("enforces full-width selection, workflow drawer, whole-row selectable options, and yellow Filter button", () => {
+    assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
+    assert.doesNotMatch(panel, /<aside/);
+    assert.match(panel, /<Sheet/);
+    assert.match(view, /Continue to Restriction Rules/);
+    assert.match(view, /Review Restriction Changes/);
+    assert.match(view, /Back to Selection/);
+    assert.match(view, /onSelectRow/);
+    assert.match(scope, /cursor-pointer/);
+    assert.match(scope, /focus-within:ring-2/);
+    assert.match(scope, /Filter/);
+    assert.match(scope, /bg-\[#D5A62B\]/);
+    assert.match(confirm, /APPROVE_APPLY_LABEL/);
+    for (const source of [view, panel, scope, define, progress, review, table, confirm]) {
+      assert.doesNotMatch(source, /text-\[9px\]|text-\[10px\]/);
+    }
+  });
 });
+

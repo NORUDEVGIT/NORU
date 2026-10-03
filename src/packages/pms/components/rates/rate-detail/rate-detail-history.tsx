@@ -19,21 +19,21 @@ export function RateDetailHistory({
   const search = serializeRevenueSearch("rate-history", context);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {rows.length === 0 && !error ? (
-        <p className="text-xs text-muted-foreground">{RATE_CALENDAR_HISTORY_EMPTY}</p>
+        <p className="text-xs text-[#756A5B]">{RATE_CALENDAR_HISTORY_EMPTY}</p>
       ) : (
-        <ol className="space-y-2">
+        <ol className="space-y-2.5">
           {rows.map((row) => (
-            <li key={row.id} className="border-l-2 border-[#C89933]/50 pl-3">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            <li key={row.id} className="rounded-xl border border-[#DDD4C5] bg-white p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#8A641A]">
                 {row.actionType.replaceAll("_", " ")} · {new Date(row.createdAt).toLocaleString()}
               </p>
-              <p className="text-xs text-[#251605]">
+              <p className="mt-1 text-sm font-semibold text-[#251605]">
                 {money(row.previousEffectiveRate)} → {money(row.newEffectiveRate)}
               </p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="mt-0.5 text-xs text-[#756A5B]">
                 {row.source}
                 {row.reason ? ` · ${row.reason}` : ""}
               </p>
@@ -44,9 +44,9 @@ export function RateDetailHistory({
       <Link
         to="/restaurant/pms/rates-revenue"
         search={search}
-        className="inline-flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-2.5 text-[10px] text-[#251605] hover:bg-[#F8F1E5]"
+        className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#FAF6F0]"
       >
-        View full Rate History
+        View Rate History
       </Link>
     </div>
   );

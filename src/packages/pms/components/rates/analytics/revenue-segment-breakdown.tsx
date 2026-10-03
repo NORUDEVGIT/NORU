@@ -52,16 +52,16 @@ export function RevenueSegmentBreakdown({
               </thead>
               <tbody className="divide-y divide-[#E8E1D7]/60">
                 {marketSegments.map((row) => {
-                  const isLegacy = row.marketSegmentId === "unassigned";
+                  const isLegacy = row.marketSegment === "unassigned";
                   return (
                     <tr
-                      key={row.marketSegmentId}
+                      key={row.marketSegment}
                       onClick={() => setSelectedSegment(row)}
                       className="cursor-pointer hover:bg-muted/20 transition-colors"
                     >
                       <td className="py-2.5 pl-4 pr-3">
                         <div className="flex items-center gap-1.5 font-medium text-foreground">
-                          <span>{row.marketSegmentName}</span>
+                          <span>{row.marketSegmentLabel}</span>
                           {isLegacy && (
                             <span className="inline-flex items-center gap-1 rounded bg-amber-100/70 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
                               <AlertCircle className="h-2.5 w-2.5" />
@@ -87,9 +87,9 @@ export function RevenueSegmentBreakdown({
                       <td className="px-3 py-2.5 text-right font-mono">
                         {formatCurrency(row.adr)}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-mono">{row.revenueSharePct}%</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{row.shareOfRevenue}%</td>
                       <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">
-                        {row.pricedSoldNights}
+                        {row.soldRoomNights}
                       </td>
                       <td className="py-2.5 pl-2 pr-4 text-center">
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 inline" />
@@ -112,7 +112,7 @@ export function RevenueSegmentBreakdown({
           <SheetHeader className="border-b border-[#E8E1D7] pb-3">
             <div className="flex items-center justify-between">
               <SheetTitle className="font-display text-lg font-semibold text-foreground">
-                {selectedSegment?.marketSegmentName}
+                {selectedSegment?.marketSegmentLabel}
               </SheetTitle>
               <button
                 type="button"
@@ -141,7 +141,7 @@ export function RevenueSegmentBreakdown({
                     Revenue Share
                   </span>
                   <p className="mt-1 font-display text-base font-semibold text-foreground">
-                    {selectedSegment.revenueSharePct}%
+                    {selectedSegment.shareOfRevenue}%
                   </p>
                 </div>
                 <div className="rounded-lg border border-[#E8E1D7] bg-card p-3">
@@ -170,10 +170,10 @@ export function RevenueSegmentBreakdown({
                 </div>
                 <div className="rounded-lg border border-[#E8E1D7] bg-card p-3">
                   <span className="text-[10px] uppercase font-semibold text-muted-foreground">
-                    Priced Nights
+                    Sold Nights
                   </span>
                   <p className="mt-1 font-mono text-base font-semibold text-foreground">
-                    {selectedSegment.pricedSoldNights}
+                    {selectedSegment.soldRoomNights}
                   </p>
                 </div>
               </div>

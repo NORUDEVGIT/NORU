@@ -101,7 +101,7 @@ export function CompetitorSetupView({
 
   const competitorMutation = useMutation({
     mutationFn: async (input: {
-      competitorId?: string;
+      competitorId?: string | undefined;
       name: string;
       locationLabel: string;
       notes: string;
@@ -140,7 +140,7 @@ export function CompetitorSetupView({
 
   const providerMutation = useMutation({
     mutationFn: async (input: {
-      mappingId?: string;
+      mappingId?: string | undefined;
       provider: string;
       externalPropertyId: string;
       externalPropertyName: string;
@@ -180,7 +180,7 @@ export function CompetitorSetupView({
 
   const roomMutation = useMutation({
     mutationFn: async (input: {
-      mappingId?: string;
+      mappingId?: string | undefined;
       provider: string;
       ourRoomTypeId: string;
       externalRoomId: string;

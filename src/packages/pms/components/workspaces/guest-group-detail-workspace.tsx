@@ -2,24 +2,40 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { ChevronDown } from "lucide-react";
 
 import { GuestGroupHeader } from "@/packages/pms/components/guests/guest-group-header";
-import { GuestGroupOverview } from "@/packages/pms/components/guests/guest-group-overview";
-import { GuestGroupMembers } from "@/packages/pms/components/guests/guest-group-members";
-import { GuestGroupReservations } from "@/packages/pms/components/guests/guest-group-reservations";
-import { GuestGroupRooming } from "@/packages/pms/components/guests/guest-group-rooming";
-import { GuestGroupItinerary } from "@/packages/pms/components/guests/guest-group-itinerary";
-import { GuestGroupFinancials } from "@/packages/pms/components/guests/guest-group-financials";
-import { GuestGroupCommunication } from "@/packages/pms/components/guests/guest-group-communication";
-import { GuestGroupDocuments } from "@/packages/pms/components/guests/guest-group-documents";
+import { GuestGroupOverviewView } from "@/packages/pms/components/guests/guest-group-overview-view";
+import { GuestGroupMasterView } from "@/packages/pms/components/guests/guest-group-master-view";
+import { GuestGroupMembersView } from "@/packages/pms/components/guests/guest-group-members-view";
+import { GuestGroupReservationsView } from "@/packages/pms/components/guests/guest-group-reservations-view";
+import { GuestGroupRoomingView } from "@/packages/pms/components/guests/guest-group-rooming-view";
+import { GuestGroupCommunicationView } from "@/packages/pms/components/guests/guest-group-communication-view";
+import { GuestGroupFinancialView } from "@/packages/pms/components/guests/guest-group-financial-view";
+import { GuestGroupItineraryView } from "@/packages/pms/components/guests/guest-group-itinerary-view";
+import { GuestGroupDocumentsView } from "@/packages/pms/components/guests/guest-group-documents-view";
+import { GuestGroupActivityView } from "@/packages/pms/components/guests/guest-group-activity-view";
 import { GuestGroupFormDialog } from "@/packages/pms/components/guests/guest-group-form-dialog";
-import { GuestActivityHubCard } from "@/packages/pms/components/guests/guest-activity-hub-card";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   guestProfileSearch,
   type GroupDetailNavId,
 } from "@/packages/pms/lib/guest-profile-wave1";
-import { GROUP_DETAIL_NAV, groupDetailNav, isGroupCancelled } from "@/packages/pms/lib/guest-group-detail-workspace";
+import {
+  GROUP_DETAIL_PRIMARY_TABS,
+  GROUP_DETAIL_MORE_ITEMS,
+  resolveCanonicalGroupNavId,
+  isMoreGroupView,
+  type CanonicalGroupViewId,
+} from "@/packages/pms/lib/guest-group-detail-view";
+import { isGroupCancelled } from "@/packages/pms/lib/guest-group-detail-workspace";
 import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
 import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -35,8 +51,9 @@ export function GuestGroupDetailWorkspace({
 }) {
   const navigate = useNavigate();
   const restaurantId = membership.restaurant.id;
-  const navId = groupDetailNav(navProp);
+  const canonicalNavId = resolveCanonicalGroupNavId(navProp);
   const [editOpen, setEditOpen] = useState(false);
+
   const load = useServerFn(getGroupDetailWorkspace);
   const query = useQuery({
     queryKey: ["group-detail", restaurantId, groupId],
@@ -44,17 +61,18 @@ export function GuestGroupDetailWorkspace({
     retry: false,
   });
 
-  function selectNav(next: GroupDetailNavId) {
+  function selectNav(next: CanonicalGroupViewId | GroupDetailNavId) {
     void navigate({
       to: GUEST_PROFILE_DETAIL_PATH,
       params: { guestId: groupId },
-      search: guestProfileSearch({ nav: next, type: "group" }),
+      search: guestProfileSearch({ nav: next as GroupDetailNavId, type: "group" }),
     });
   }
 
   if (query.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading group…</p>;
   }
+
   if (query.error || !query.data) {
     const message = (query.error as Error | undefined)?.message;
     const missing = !message || /could not be found/i.test(message);
@@ -68,14 +86,18 @@ export function GuestGroupDetailWorkspace({
     );
   }
 
-  const data = query.data;
+  const data = query.data as any;
   const cancelled = isGroupCancelled(data.group.accountStatus);
   const canWrite = (membership.role === "owner" || membership.role === "manager") && !cancelled;
   const canManageRes =
     (membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist") && !cancelled;
 
+  const isMoreActive = isMoreGroupView(canonicalNavId);
+  const activeMoreItem = GROUP_DETAIL_MORE_ITEMS.find((item) => item.id === canonicalNavId);
+
   return (
     <div className="space-y-6" data-testid="group-detail-workspace">
+      {/* Modern Group Header */}
       <GuestGroupHeader
         restaurantId={restaurantId}
         group={data.group}
@@ -83,16 +105,18 @@ export function GuestGroupDetailWorkspace({
         onEdit={() => setEditOpen(true)}
         onNavigate={selectNav}
         canWrite={membership.role === "owner" || membership.role === "manager"}
-        canManageRes={membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist"}
+        canManageRes={canManageRes}
       />
+
+      {/* Modern 5-Primary + More Dropdown Tab Navigation */}
       <nav
         aria-label="Group sections"
-        className="flex w-full gap-1 overflow-x-auto border-b border-border pb-px"
+        className="flex w-full items-center gap-1 overflow-x-auto border-b border-[#DDD4C5] pb-px"
         role="tablist"
         data-testid="group-detail-nav"
       >
-        {GROUP_DETAIL_NAV.map((item) => {
-          const active = item.id === navId;
+        {GROUP_DETAIL_PRIMARY_TABS.map((item) => {
+          const active = item.id === canonicalNavId;
           return (
             <button
               key={item.id}
@@ -102,18 +126,57 @@ export function GuestGroupDetailWorkspace({
               data-testid={`group-nav-${item.id}`}
               onClick={() => selectNav(item.id)}
               className={cn(
-                "shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-                active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                "shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors",
+                active
+                  ? "border-[#C89933] text-[#251605] font-semibold"
+                  : "border-transparent text-[#756A5B] hover:text-[#251605]",
               )}
             >
-              {item.title}
+              {item.label}
             </button>
           );
         })}
+
+        {/* More ▾ Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isMoreActive}
+              data-testid="group-nav-more"
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors",
+                isMoreActive
+                  ? "border-[#C89933] text-[#251605] font-semibold"
+                  : "border-transparent text-[#756A5B] hover:text-[#251605]",
+              )}
+            >
+              <span>{isMoreActive && activeMoreItem ? activeMoreItem.label : "More"}</span>
+              <ChevronDown className="size-3.5 opacity-70" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            {GROUP_DETAIL_MORE_ITEMS.map((item) => (
+              <DropdownMenuItem
+                key={item.id}
+                onClick={() => selectNav(item.id)}
+                className={cn(
+                  "cursor-pointer text-xs font-medium",
+                  canonicalNavId === item.id ? "bg-[#F7F4EE] text-[#251605] font-bold" : "text-[#756A5B]",
+                )}
+                data-testid={`group-nav-${item.id}`}
+              >
+                {item.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </nav>
 
-      {navId === "overview" ? (
-        <GuestGroupOverview
+      {/* Render active canonical view */}
+      {canonicalNavId === "overview" && (
+        <GuestGroupOverviewView
           groupId={groupId}
           restaurantId={restaurantId}
           data={data}
@@ -121,37 +184,85 @@ export function GuestGroupDetailWorkspace({
           onEdit={() => setEditOpen(true)}
           canManageRes={canManageRes}
         />
-      ) : navId === "members" ? (
-        <GuestGroupMembers restaurantId={restaurantId} groupId={groupId} cancelled={cancelled} />
-      ) : navId === "reservations" ? (
-        <GuestGroupReservations restaurantId={restaurantId} groupId={groupId} canManage={canManageRes} />
-      ) : navId === "rooming" ? (
-        <GuestGroupRooming restaurantId={restaurantId} groupId={groupId} canAssign={canManageRes} />
-      ) : navId === "itinerary" ? (
-        <GuestGroupItinerary restaurantId={restaurantId} groupId={groupId} cancelled={cancelled} />
-      ) : navId === "financial" ? (
-        <GuestGroupFinancials restaurantId={restaurantId} groupId={groupId} />
-      ) : navId === "communication" ? (
-        <GuestGroupCommunication restaurantId={restaurantId} groupId={groupId} cancelled={cancelled} />
-      ) : navId === "documents" ? (
-        <GuestGroupDocuments restaurantId={restaurantId} groupId={groupId} />
-      ) : (
-        <GuestActivityHubCard
-          restaurantId={restaurantId}
-          accountId={groupId}
-          partyName={data.group.name}
-          showFilters
+      )}
+
+      {canonicalNavId === "master" && (
+        <GuestGroupMasterView
+          group={data.group}
+          canWrite={canWrite}
+          onEdit={() => setEditOpen(true)}
         />
       )}
 
-      {canWrite ? (
-        <GuestGroupFormDialog
+      {canonicalNavId === "members" && (
+        <GuestGroupMembersView
           restaurantId={restaurantId}
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          group={data.group}
+          groupId={groupId}
+          cancelled={cancelled}
         />
-      ) : null}
+      )}
+
+      {canonicalNavId === "reservations" && (
+        <GuestGroupReservationsView
+          restaurantId={restaurantId}
+          groupId={groupId}
+          canManage={canManageRes}
+        />
+      )}
+
+      {canonicalNavId === "rooming" && (
+        <GuestGroupRoomingView
+          restaurantId={restaurantId}
+          groupId={groupId}
+          canAssign={canManageRes}
+        />
+      )}
+
+      {canonicalNavId === "communication" && (
+        <GuestGroupCommunicationView
+          restaurantId={restaurantId}
+          groupId={groupId}
+          cancelled={cancelled}
+        />
+      )}
+
+      {canonicalNavId === "financial" && (
+        <GuestGroupFinancialView
+          restaurantId={restaurantId}
+          groupId={groupId}
+        />
+      )}
+
+      {canonicalNavId === "itinerary" && (
+        <GuestGroupItineraryView
+          restaurantId={restaurantId}
+          groupId={groupId}
+          cancelled={cancelled}
+        />
+      )}
+
+      {canonicalNavId === "documents" && (
+        <GuestGroupDocumentsView
+          restaurantId={restaurantId}
+          groupId={groupId}
+        />
+      )}
+
+      {canonicalNavId === "activity" && (
+        <GuestGroupActivityView
+          restaurantId={restaurantId}
+          groupId={groupId}
+          groupName={data.group.name}
+        />
+      )}
+
+      {/* Edit Group Dialog */}
+      <GuestGroupFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        restaurantId={restaurantId}
+        group={data.group}
+      />
     </div>
   );
 }

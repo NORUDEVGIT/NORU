@@ -21,19 +21,26 @@ export function BulkDefineStep({
   sourceDate: string;
   reason: string;
   selectedPlans: RevenueRatePlan[];
-  onChange: (patch: { action?: RateChangeRule["type"]; value?: string; sourceDate?: string; reason?: string }) => void;
+  onChange: (patch: {
+    action?: RateChangeRule["type"];
+    value?: string;
+    sourceDate?: string;
+    reason?: string;
+  }) => void;
 }) {
   const currencies = uniquePlanCurrencies(selectedPlans);
   const mixedCurrency = currencies.length > 1;
   const setRateBlocked = action === "SET_RATE" && mixedCurrency;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-4">
       <div>
-        <Label htmlFor="bulk-action">Change</Label>
+        <Label htmlFor="bulk-action" className="text-xs font-semibold text-[#5A4833]">
+          Change Operation
+        </Label>
         <select
           id="bulk-action"
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+          className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm font-medium text-[#251605]"
           value={action}
           onChange={(event) => onChange({ action: event.target.value as RateChangeRule["type"] })}
         >
@@ -47,7 +54,9 @@ export function BulkDefineStep({
 
       {action === "SET_RATE" ? (
         <div>
-          <Label htmlFor="bulk-value">New Rate{currencies.length === 1 ? ` (${currencies[0]})` : ""}</Label>
+          <Label htmlFor="bulk-value" className="text-xs font-semibold text-[#5A4833]">
+            New Rate{currencies.length === 1 ? ` (${currencies[0]})` : ""}
+          </Label>
           <Input
             id="bulk-value"
             type="number"
@@ -55,10 +64,12 @@ export function BulkDefineStep({
             value={value}
             disabled={setRateBlocked}
             onChange={(event) => onChange({ value: event.target.value })}
+            className="mt-1.5 h-10 text-sm text-[#251605]"
           />
           {setRateBlocked ? (
-            <p className="mt-1 text-[10px] text-[#6B4A0A]">
-              Selected plans use more than one currency. Choose plans that share a currency before setting a rate.
+            <p className="mt-1.5 text-xs font-medium text-[#6B4A0A]">
+              Selected plans use more than one currency. Choose plans that share a currency before
+              setting a rate.
             </p>
           ) : null}
         </div>
@@ -66,44 +77,54 @@ export function BulkDefineStep({
 
       {action === "PERCENT_INCREASE" || action === "PERCENT_DECREASE" ? (
         <div>
-          <Label htmlFor="bulk-percent">Percent</Label>
+          <Label htmlFor="bulk-percent" className="text-xs font-semibold text-[#5A4833]">
+            Percent
+          </Label>
           <Input
             id="bulk-percent"
             type="number"
             min={0}
             value={value}
             onChange={(event) => onChange({ value: event.target.value })}
+            className="mt-1.5 h-10 text-sm text-[#251605]"
           />
-          <p className="mt-1 text-[10px] text-muted-foreground">{BULK_RATE_CHANGE_PERCENT_COPY}</p>
+          <p className="mt-1.5 text-xs text-[#756A5B]">{BULK_RATE_CHANGE_PERCENT_COPY}</p>
         </div>
       ) : null}
 
       {action === "COPY_FROM_DATE" ? (
         <div>
-          <Label htmlFor="bulk-source">Source date</Label>
+          <Label htmlFor="bulk-source" className="text-xs font-semibold text-[#5A4833]">
+            Source date
+          </Label>
           <Input
             id="bulk-source"
             type="date"
             value={sourceDate}
             onChange={(event) => onChange({ sourceDate: event.target.value })}
+            className="mt-1.5 h-10 text-sm text-[#251605]"
           />
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            The server copies each plan&apos;s effective rate from that date. Do not enter a copied amount.
+          <p className="mt-1.5 text-xs text-[#756A5B]">
+            The server copies each plan&apos;s effective rate from that date. Do not enter a copied
+            amount.
           </p>
         </div>
       ) : null}
 
       {action === "RESET_OVERRIDE" ? (
-        <p className="text-[10px] text-muted-foreground">{BULK_RATE_CHANGE_RESET_COPY}</p>
+        <p className="text-xs text-[#756A5B]">{BULK_RATE_CHANGE_RESET_COPY}</p>
       ) : null}
 
       <div>
-        <Label htmlFor="bulk-reason">Reason for Change</Label>
+        <Label htmlFor="bulk-reason" className="text-xs font-semibold text-[#5A4833]">
+          Reason for Change
+        </Label>
         <Input
           id="bulk-reason"
           value={reason}
           onChange={(event) => onChange({ reason: event.target.value })}
           placeholder="Optional"
+          className="mt-1.5 h-10 text-sm text-[#251605]"
         />
       </div>
     </div>

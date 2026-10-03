@@ -30,7 +30,9 @@ function readRel(rel: string) {
   return readFileSync(join(here, rel), "utf8");
 }
 
-function field(partial: Partial<GuestFieldRecord> & { code: string; required: boolean }): GuestFieldRecord {
+function field(
+  partial: Partial<GuestFieldRecord> & { code: string; required: boolean },
+): GuestFieldRecord {
   return {
     id: partial.id ?? "00000000-0000-4000-8000-000000000001",
     name: partial.name ?? partial.code,
@@ -63,10 +65,30 @@ describe("Guest create workflow helpers", () => {
 
   it("applies profile defaults only when the user has not typed", () => {
     const draft = emptyGuestCreateDraft();
-    const next = applyCreateDefaults(draft, { countryId: "ET", languageId: "am", currencyId: null, communicationChannelId: "email", guestTypeId: null }, new Set());
+    const next = applyCreateDefaults(
+      draft,
+      {
+        countryId: "ET",
+        languageId: "am",
+        currencyId: null,
+        communicationChannelId: "email",
+        guestTypeId: null,
+      },
+      new Set(),
+    );
     assert.equal(next.country, "ET");
     assert.equal(next.language, "am");
-    const touched = applyCreateDefaults({ ...draft, country: "KE" }, { countryId: "ET", languageId: "am", currencyId: null, communicationChannelId: null, guestTypeId: null }, new Set(["country"]));
+    const touched = applyCreateDefaults(
+      { ...draft, country: "KE" },
+      {
+        countryId: "ET",
+        languageId: "am",
+        currencyId: null,
+        communicationChannelId: null,
+        guestTypeId: null,
+      },
+      new Set(["country"]),
+    );
     assert.equal(touched.country, "KE");
   });
 
@@ -82,15 +104,28 @@ describe("Guest create workflow helpers", () => {
 
   it("computes Card 4 required gaps from real field flags", () => {
     const rules = createFieldRules(
-      [field({ code: "FIRST_NAME", required: true }), field({ code: "PHONE", required: true }), field({ code: "COMPANY", required: true })],
+      [
+        field({ code: "FIRST_NAME", required: true }),
+        field({ code: "PHONE", required: true }),
+        field({ code: "COMPANY", required: true }),
+      ],
       null,
     );
     const draft = emptyGuestCreateDraft();
     draft.firstName = "Abebe";
     const gaps = card4CreateGaps(draft, rules);
-    assert.equal(gaps.some((gap) => gap.code === "PHONE"), true);
-    assert.equal(gaps.some((gap) => gap.code === "COMPANY"), true);
-    assert.equal(gaps.some((gap) => gap.code === "FIRST_NAME"), false);
+    assert.equal(
+      gaps.some((gap) => gap.code === "PHONE"),
+      true,
+    );
+    assert.equal(
+      gaps.some((gap) => gap.code === "COMPANY"),
+      true,
+    );
+    assert.equal(
+      gaps.some((gap) => gap.code === "FIRST_NAME"),
+      false,
+    );
   });
 
   it("does not hardcode completion at 30 percent", () => {
@@ -107,7 +142,9 @@ describe("Guest create workflow helpers", () => {
   it("restores the held step and draft without requiring a refresh wipe", () => {
     const draft = emptyGuestCreateDraft();
     draft.firstName = "Abebe";
-    draft.links = [{ key: "c1:employer", masterId: "c1", masterName: "Noru Hotels", role: "employer" }];
+    draft.links = [
+      { key: "c1:employer", masterId: "c1", masterName: "Noru Hotels", role: "employer" },
+    ];
     const held = parseGuestCreateHold({ step: "business", draft });
     assert.equal(held?.step, "business");
     assert.equal(held?.draft.firstName, "Abebe");
@@ -136,9 +173,16 @@ describe("Guest create workflow helpers", () => {
       dataProcessingRequired: false,
     });
     assert.ok(issues.some((issue) => issue.key === "FIRST_NAME" && issue.step === "basic"));
-    assert.match(formatCreateIssuesByStep(issues, GUEST_CREATE_STEPS), /Basic Information — First name is required/);
+    assert.match(
+      formatCreateIssuesByStep(issues, GUEST_CREATE_STEPS),
+      /Basic Information — First name is required/,
+    );
     assert.equal(issuesBeforeStep(issues, GUEST_CREATE_STEPS, "basic").length, 0);
-    assert.ok(issuesBeforeStep(issues, GUEST_CREATE_STEPS, "identity").some((issue) => issue.key === "FIRST_NAME"));
+    assert.ok(
+      issuesBeforeStep(issues, GUEST_CREATE_STEPS, "identity").some(
+        (issue) => issue.key === "FIRST_NAME",
+      ),
+    );
   });
 });
 
@@ -147,6 +191,7 @@ describe("Guest create honesty", () => {
     const workspace = readRel("../components/workspaces/guest-create-workspace.tsx");
     const functions = readRel("./guest-create.functions.ts");
     const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
+    const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const reservation = readRel("../components/bookings/create-reservation-guest.tsx");
     const dialog = readRel("../components/guests/guest-form-dialog.tsx");
     assert.match(workspace, /findGuestDuplicates/);
@@ -173,7 +218,7 @@ describe("Guest create honesty", () => {
     assert.match(functions, /pms_guest_profile_types/);
     assert.match(functions, /pms_guest_preference_types/);
     assert.match(functions, /pms_guest_id_types/);
-    assert.match(listing, /create: "individual"/);
+    assert.match(shell, /create: "individual"/);
     assert.match(reservation, /GuestFormDialog/);
     assert.match(dialog, /createGuest/);
     assert.doesNotMatch(workspace, /Airport Pickup|Laundry|Wake-up Call/);
