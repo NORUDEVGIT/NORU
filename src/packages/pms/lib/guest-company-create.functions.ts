@@ -19,9 +19,11 @@ import {
   parseGuestCompanyCreateHold,
   type AccountCreateCatalogueOption,
   type AccountCreateContactDraft,
+  type CompanyContractDraft,
   type GuestCompanyCreateDraft,
   type GuestCompanyCreateStepId,
 } from "./guest-company-create-workspace";
+import { validateCorporateAgreementPayload } from "./corporate-contracts.server";
 
 const idSchema = z.string().uuid();
 
@@ -41,6 +43,7 @@ export type CompanyCreateContext = {
     marketSegments: AccountCreateCatalogueOption[];
     sourceCodes: AccountCreateCatalogueOption[];
     ratePlans: AccountCreateCatalogueOption[];
+    roomTypes?: AccountCreateCatalogueOption[];
     mealPlans: AccountCreateCatalogueOption[];
     packages: AccountCreateCatalogueOption[];
     paymentMethods: AccountCreateCatalogueOption[];
@@ -91,6 +94,7 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       marketSegments,
       sourceCodes,
       ratePlans,
+      roomTypes,
       mealPlans,
       packages,
       paymentMethods,
@@ -110,6 +114,7 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       loadOptionalOptions(db, "pms_market_segments", data.restaurantId),
       loadOptionalOptions(db, "pms_source_codes", data.restaurantId),
       loadOptionalOptions(db, "hotel_rate_plans", data.restaurantId),
+      loadOptionalOptions(db, "room_types", data.restaurantId),
       loadOptionalOptions(db, "pms_meal_plans", data.restaurantId),
       loadOptionalOptions(db, "pms_packages", data.restaurantId),
       loadOptionalOptions(db, "pms_payment_methods", data.restaurantId),
@@ -246,6 +251,7 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
         marketSegments,
         sourceCodes,
         ratePlans,
+        roomTypes,
         mealPlans,
         packages,
         paymentMethods,
@@ -460,5 +466,267 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
     } catch (caught) {
       error = caught instanceof Error ? caught.message : "Contacts could not be saved.";
     }
-    return { id: accountId, contacts, created: true as const, error };
+
+    let agreementId: string | null = null;
+    if (draft.contract && (filled(draft.contract.name) || filled(draft.contract.contractTypeId))) {
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        agreementId = await persistCompanyContract(
+          admin(supabaseAdmin),
+          data.restaurantId,
+          accountId,
+          draft.contract,
+          me.id,
+        );
+      } catch (caught) {
+        const contractErr = caught instanceof Error ? caught.message : "Contract could not be saved.";
+        if (data.mode === "complete") {
+          throw new Error(contractErr);
+        } else {
+          error = error ? `${error} ${contractErr}` : contractErr;
+        }
+      }
+    }
+
+    return { id: accountId, contacts, agreementId, created: true as const, error };
   });
+
+export const getNextCorporateContractCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    const existingCodesRes = await db
+      .from("pms_corporate_agreements")
+      .select("code")
+      .eq("restaurant_id", data.restaurantId)
+      .not("code", "is", null);
+
+    let maxSeq = 0;
+    const year = new Date().getFullYear();
+    for (const row of existingCodesRes.data ?? []) {
+      const match = String(row.code ?? "").match(/^CORP-\d{4}-(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    }
+    return { code: `CORP-${year}-${String(maxSeq + 1).padStart(3, "0")}` };
+  });
+
+export async function persistCompanyContract(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  companyId: string,
+  contract: CompanyContractDraft,
+  membershipId: string,
+): Promise<string | null> {
+  if (!contract || !filled(contract.name) || !filled(contract.contractTypeId)) {
+    return null;
+  }
+
+  // Check code
+  let code = contract.code?.trim().toUpperCase();
+  if (!code) {
+    const existingCodesRes = await db
+      .from("pms_corporate_agreements")
+      .select("code")
+      .eq("restaurant_id", restaurantId)
+      .not("code", "is", null);
+    let maxSeq = 0;
+    const year = new Date().getFullYear();
+    for (const row of existingCodesRes.data ?? []) {
+      const match = String(row.code ?? "").match(/^CORP-\d{4}-(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    }
+    code = `CORP-${year}-${String(maxSeq + 1).padStart(3, "0")}`;
+  }
+
+  // Resolve currency from contract or property setting
+  let currencyCode = contract.currencyCode?.trim().toUpperCase();
+  if (!currencyCode) {
+    const propRes = await db
+      .from("restaurants")
+      .select("currency_code")
+      .eq("id", restaurantId)
+      .maybeSingle();
+    currencyCode = String(propRes.data?.currency_code ?? "").trim().toUpperCase() || "USD";
+  }
+
+  // 1. Validate boundary & payload
+  const primaryRatePlanId =
+    contract.pricingMethod !== "contracted_rates"
+      ? (contract.ratePlanScope === "all" ? null : (contract.ratePlanId || contract.ratePlanIds?.[0] || null))
+      : null;
+  const primaryDiscountType =
+    contract.pricingMethod === "rate_plan_discount"
+      ? (contract.discountApplication === "custom"
+          ? (contract.ratePlanDiscounts?.[0]?.discountType ?? "percent")
+          : (contract.discountType || "percent"))
+      : null;
+  const primaryDiscountValue =
+    contract.pricingMethod === "rate_plan_discount"
+      ? (contract.discountApplication === "custom"
+          ? (contract.ratePlanDiscounts?.[0]?.discountValue ?? 0)
+          : (contract.discountValue ?? 0))
+      : null;
+
+  const validation = validateCorporateAgreementPayload({
+    companyId,
+    code,
+    name: contract.name,
+    contractNumber: contract.contractNumber || code,
+    validFrom: contract.validFrom,
+    validTo: contract.validTo,
+    currencyCode,
+    contractTypeId: contract.contractTypeId,
+    status: contract.status,
+    pricingMethod: contract.pricingMethod,
+    ratePlanScope: contract.ratePlanScope,
+    ratePlanIds: contract.ratePlanIds,
+    ratePlanId: primaryRatePlanId,
+    discountApplication: contract.discountApplication,
+    discountType: contract.discountType,
+    discountValue: contract.discountValue,
+    ratePlanDiscounts: (contract.ratePlanDiscounts ?? []).map((d) => ({
+      ratePlanId: d.ratePlanId,
+      discountType: d.discountType,
+      discountValue: Number(d.discountValue ?? 0),
+    })),
+    depositPolicyId: contract.depositPolicyId,
+    cancellationPolicyId: contract.cancellationPolicyId,
+    noShowPolicyId: contract.noShowPolicyId,
+    contractRates: (contract.contractRates ?? []).map((cr) => ({
+      roomTypeId: cr.roomTypeId,
+      amount: Number(cr.amount ?? 0),
+      rateKind: "fixed",
+    })),
+  });
+
+  if (contract.status === "active" && !validation.valid) {
+    throw new Error(validation.errors.join(". "));
+  }
+
+  // 2. Validate contract type belongs to property
+  const typeRes = await db
+    .from("pms_contract_types")
+    .select("id, active")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", contract.contractTypeId)
+    .maybeSingle();
+
+  if (!typeRes.data) {
+    throw new Error("Selected contract type does not belong to this property.");
+  }
+
+  // 3. Insert real pms_corporate_agreements row
+  const agreementPayload: Record<string, any> = {
+    restaurant_id: restaurantId,
+    company_id: companyId,
+    contract_type_id: contract.contractTypeId,
+    name: contract.name.trim(),
+    code,
+    contract_number: (contract.contractNumber || code).trim(),
+    valid_from: contract.validFrom,
+    valid_to: contract.validTo,
+    currency_code: currencyCode,
+    status: contract.status || "active",
+    active: contract.status === "active",
+    pricing_method: contract.pricingMethod,
+    rate_plan_id: primaryRatePlanId,
+    rate_plan_scope: contract.ratePlanScope || (primaryRatePlanId ? "selected" : "all"),
+    rate_plan_ids: contract.ratePlanIds || (primaryRatePlanId ? [primaryRatePlanId] : []),
+    discount_application: contract.discountApplication || "uniform",
+    discount_type: primaryDiscountType,
+    discount_value: primaryDiscountValue,
+    rate_plan_discounts: contract.ratePlanDiscounts || [],
+    deposit_policy_id: contract.depositPolicyId || null,
+    cancellation_policy_id: contract.cancellationPolicyId || null,
+    no_show_policy_id: contract.noShowPolicyId || null,
+    description: contract.notes?.trim() || null,
+  };
+
+  let agreementInsert = await db
+    .from("pms_corporate_agreements")
+    .insert(agreementPayload)
+    .select("id")
+    .single();
+
+  if (agreementInsert.error) {
+    // If the live database does not have the extended columns yet, fallback seamlessly
+    const fallbackPayload = {
+      restaurant_id: restaurantId,
+      company_id: companyId,
+      contract_type_id: contract.contractTypeId,
+      name: contract.name.trim(),
+      code,
+      contract_number: (contract.contractNumber || code).trim(),
+      valid_from: contract.validFrom,
+      valid_to: contract.validTo,
+      currency_code: currencyCode,
+      status: contract.status || "active",
+      active: contract.status === "active",
+      pricing_method: contract.pricingMethod,
+      rate_plan_id: primaryRatePlanId,
+      discount_type: primaryDiscountType,
+      discount_value: primaryDiscountValue,
+      deposit_policy_id: contract.depositPolicyId || null,
+      cancellation_policy_id: contract.cancellationPolicyId || null,
+      no_show_policy_id: contract.noShowPolicyId || null,
+      description: contract.notes?.trim() || null,
+    };
+    agreementInsert = await db
+      .from("pms_corporate_agreements")
+      .insert(fallbackPayload)
+      .select("id")
+      .single();
+  }
+
+  if (agreementInsert.error) {
+    throw new Error(`Failed to create contract agreement: ${agreementInsert.error.message}`);
+  }
+
+  const agreementId = agreementInsert.data.id as string;
+
+  // 4. Method C: Persist pms_contract_rates
+  if (contract.pricingMethod === "contracted_rates" && contract.contractRates?.length > 0) {
+    const rateRows = contract.contractRates.map((cr) => ({
+      restaurant_id: restaurantId,
+      agreement_id: agreementId,
+      room_type_id: cr.roomTypeId,
+      rate_kind: "fixed",
+      amount: Number(cr.amount ?? 0),
+      valid_from: contract.validFrom,
+      valid_to: contract.validTo,
+      active: true,
+    }));
+    const rateInsert = await db.from("pms_contract_rates").insert(rateRows);
+    if (rateInsert.error) {
+      throw new Error(`Failed to persist contracted room rates: ${rateInsert.error.message}`);
+    }
+  }
+
+  // 5. Link contract documents
+  if (contract.documents && contract.documents.length > 0) {
+    const docRows = contract.documents.map((doc) => ({
+      restaurant_id: restaurantId,
+      company_master_id: companyId,
+      agreement_id: agreementId,
+      document_type_id: doc.documentTypeId,
+      name: doc.fileName,
+      storage_path: doc.fileStoragePath,
+      uploaded_by_membership_id: membershipId,
+      review_status: "verified",
+    }));
+    const docInsert = await db.from("guest_company_documents").insert(docRows);
+    if (docInsert.error && !isMissingSchemaError(docInsert.error)) {
+      console.error("Failed to link company contract documents:", docInsert.error.message);
+    }
+  }
+
+  return agreementId;
+}

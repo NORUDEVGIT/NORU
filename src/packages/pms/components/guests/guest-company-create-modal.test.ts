@@ -40,32 +40,33 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-St
     );
   });
 
-  it("3. Modal has compact 4-step horizontal navigation with merged Basic step", () => {
-    assert.equal(GUEST_COMPANY_CREATE_STEPS.length, 4);
+  it("3. Modal has compact 5-step horizontal navigation with dedicated Contracts & Agreements step", () => {
+    assert.equal(GUEST_COMPANY_CREATE_STEPS.length, 5);
     assert.deepEqual(
       GUEST_COMPANY_CREATE_STEPS.map((s) => s.id),
-      ["basic", "business", "billing", "review"],
+      ["details", "contacts", "billing", "contracts", "review"],
     );
     assert.deepEqual(
       GUEST_COMPANY_CREATE_STEPS.map((s) => s.title),
       [
-        "Basic Information",
-        "Business & Commercial",
+        "Company Information",
+        "Contacts",
         "Billing & Credit",
-        "Review & Confirm",
+        "Contracts & Agreements",
+        "Review & Save",
       ],
     );
     assert.match(modalCode, /data-testid="guest-company-create-stepper"/);
     assert.match(modalCode, /GUEST_COMPANY_CREATE_STEPS\.map/);
   });
 
-  it("4. Next and Back navigation works across the 4 steps", () => {
+  it("4. Next and Back navigation works across the 5 steps", () => {
     assert.match(modalCode, /go\(GUEST_COMPANY_CREATE_STEPS\[stepIndex - 1\]\.id\)/);
     assert.match(modalCode, /go\(GUEST_COMPANY_CREATE_STEPS\[stepIndex \+ 1\]\.id\)/);
     assert.match(modalCode, /validateCurrent\(\)/);
   });
 
-  it("5. Fields reflect updated specifications: TIN Number, auto-generated code, phone indicator, and removed trade name/legal form", () => {
+  it("5. Fields reflect updated specifications: TIN Number, auto-generated code, phone indicator, and contract domain integration", () => {
     assert.match(modalCode, /Profile Type/);
     assert.match(modalCode, /Company \(COM\)/);
     assert.match(modalCode, /draft\.name/);
@@ -84,14 +85,11 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-St
     assert.match(modalCode, /draft\.addressLine1/);
     assert.match(modalCode, /draft\.city/);
     assert.match(modalCode, /draft\.country/);
-    assert.match(modalCode, /draft\.marketSegmentId/);
-    assert.match(modalCode, /draft\.sourceCodeId/);
-    assert.match(modalCode, /draft\.contractReference/);
-    assert.match(modalCode, /draft\.contractStartDate/);
-    assert.match(modalCode, /draft\.contractEndDate/);
     assert.match(modalCode, /draft\.billingArrangement/);
     assert.match(modalCode, /draft\.paymentMethodId/);
     assert.match(modalCode, /draft\.creditAccountEnabled/);
+    assert.match(modalCode, /CompanyContractsStep/);
+    assert.match(modalCode, /draft\.contract/);
   });
 
   it("5b. Phone validator accepts Ethiopian formats and flags invalid numbers", () => {
@@ -165,18 +163,14 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-St
     assert.match(modalCode, /layout\.regionLabel/);
   });
 
-  it("15. Dropdowns are wired to Property Setup catalogues and format labels with codes", () => {
+  it("15. Dropdowns are wired to Property Setup catalogues and composite contract config", () => {
     assert.match(modalCode, /catalogues\?\.businessTypes/);
     assert.match(modalCode, /catalogues\?\.contactRoles/);
-    assert.match(modalCode, /catalogues\?\.marketSegments/);
-    assert.match(modalCode, /catalogues\?\.sourceCodes/);
-    assert.match(modalCode, /catalogues\?\.staff/);
-    assert.match(modalCode, /catalogues\?\.ratePlans/);
-    assert.match(modalCode, /catalogues\?\.packages/);
-    assert.match(modalCode, /catalogues\?\.mealPlans/);
     assert.match(modalCode, /catalogues\?\.paymentMethods/);
     assert.match(modalCode, /catalogues\?\.currencies/);
-    assert.match(modalCode, /row\.code && row\.code !== row\.name \? `\$\{row\.code\} — \$\{row\.name\}` : row\.name/);
+    assert.match(modalCode, /contractConfig/);
+    assert.match(modalCode, /getCompanyContractCreateConfig/);
+    assert.match(modalCode, /getNextCorporateContractCode/);
   });
 
   it("16. Settings defaults (default company type, currency, auto-approval status) are wired into draft initialization", () => {

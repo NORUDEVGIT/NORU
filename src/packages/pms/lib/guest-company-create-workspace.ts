@@ -12,17 +12,18 @@ export const GUEST_COMPANY_CREATE_MIGRATION_FILE = "0099_pms_account_create_draf
 
 // Legacy step titles: "Company Details", "Contacts", "Business & Commercial", "Billing & Credit", "Review & Confirm"
 export const GUEST_COMPANY_CREATE_STEPS = [
-  { id: "basic", number: 1, title: "Basic Information" },
-  { id: "business", number: 2, title: "Business & Commercial" },
+  { id: "details", number: 1, title: "Company Information" },
+  { id: "contacts", number: 2, title: "Contacts" },
   { id: "billing", number: 3, title: "Billing & Credit" },
-  { id: "review", number: 4, title: "Review & Confirm" },
+  { id: "contracts", number: 4, title: "Contracts & Agreements" },
+  { id: "review", number: 5, title: "Review & Save" },
 ] as const;
 
 export type GuestCompanyCreateStepId = (typeof GUEST_COMPANY_CREATE_STEPS)[number]["id"];
 
 export const GUEST_COMPANY_CREATE_TITLE = "Register New Company";
 export const GUEST_COMPANY_CREATE_COPY =
-  "Create a company master and keep commercial defaults in one place.";
+  "Create a company master and establish corporate contract terms.";
 export const GUEST_COMPANY_CREATE_DRAFT_SAVED =
   "Draft company saved. You can continue this registration later.";
 export const GUEST_COMPANY_CREATE_PROGRESS_KEPT =
@@ -32,6 +33,77 @@ export const GUEST_COMPANY_CREATE_START_OVER_COPY =
   "This clears the form and saved progress. A company already created is kept.";
 export const GUEST_COMPANY_CREATE_HOLD_KEY_PREFIX = "noru.company-create.hold";
 export const GUEST_COMPANY_CREATE_HOLD_DEBOUNCE_MS = 700;
+
+export type CompanyContractDocumentItem = {
+  documentTypeId: string;
+  fileStoragePath: string;
+  fileName: string;
+  fileSize?: number;
+  fileType?: string;
+};
+
+export type RatePlanDiscountItem = {
+  ratePlanId: string;
+  discountType: "percent" | "fixed";
+  discountValue: number | null;
+};
+
+export type CompanyContractDraft = {
+  contractTypeId: string | null;
+  name: string;
+  code: string;
+  contractNumber: string;
+  validFrom: string;
+  validTo: string;
+  currencyCode: string;
+  status: "draft" | "active";
+  pricingMethod: "rate_plan" | "rate_plan_discount" | "contracted_rates";
+  ratePlanScope: "all" | "selected";
+  ratePlanIds: string[];
+  ratePlanId: string | null;
+  discountApplication: "uniform" | "custom";
+  discountType: "percent" | "fixed" | null;
+  discountValue: number | null;
+  ratePlanDiscounts: RatePlanDiscountItem[];
+  contractRates: Array<{
+    roomTypeId: string;
+    amount: number | null;
+  }>;
+  depositPolicyId: string | null;
+  cancellationPolicyId: string | null;
+  noShowPolicyId: string | null;
+  documents: CompanyContractDocumentItem[];
+  notes: string;
+};
+
+export function emptyCompanyContractDraft(defaultCurrency = ""): CompanyContractDraft {
+  const today = new Date().toISOString().slice(0, 10);
+  const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return {
+    contractTypeId: null,
+    name: "",
+    code: "",
+    contractNumber: "",
+    validFrom: today,
+    validTo: oneYearLater,
+    currencyCode: defaultCurrency,
+    status: "active",
+    pricingMethod: "rate_plan",
+    ratePlanScope: "selected",
+    ratePlanIds: [],
+    ratePlanId: null,
+    discountApplication: "uniform",
+    discountType: null,
+    discountValue: null,
+    ratePlanDiscounts: [],
+    contractRates: [],
+    depositPolicyId: null,
+    cancellationPolicyId: null,
+    noShowPolicyId: null,
+    documents: [],
+    notes: "",
+  };
+}
 
 export const COMPANY_CREATE_CONTRACT_COPY =
   "Contract here is a reference default, not a signed agreement row.";
@@ -126,6 +198,7 @@ export type GuestCompanyCreateDraft = {
   creditLimitNote: string;
   taxExemptionNote: string;
   taxNote: string;
+  contract: CompanyContractDraft;
 };
 
 export type GuestCompanyCreateHold = {
@@ -146,8 +219,9 @@ export function isGuestCompanyCreateStepId(value: string | undefined): value is 
 }
 
 export function guestCompanyCreateStep(id: string | undefined): GuestCompanyCreateStepId {
-  if (id === "details" || id === "contacts") return "basic";
-  return isGuestCompanyCreateStepId(id) ? id : "basic";
+  if (id === "basic") return "details";
+  if (id === "business") return "contracts";
+  return isGuestCompanyCreateStepId(id) ? id : "details";
 }
 
 export function guestCompanyCreateHoldKey(restaurantId: string): string {
@@ -168,13 +242,16 @@ function isGuestCompanyCreateDraftShape(value: unknown): value is GuestCompanyCr
 }
 
 export function inferGuestCompanyCreateStep(draft: GuestCompanyCreateDraft): GuestCompanyCreateStepId {
+  if (filled(draft.contract?.name) || draft.contract?.contractTypeId) {
+    return "contracts";
+  }
   if (filled(draft.billingArrangement) || draft.creditAccountEnabled || filled(draft.paymentMethodId)) {
     return "billing";
   }
-  if (filled(draft.marketSegmentId) || filled(draft.contractReference)) {
-    return "business";
+  if (draft.contacts.some((row) => filled(row.name))) {
+    return "contacts";
   }
-  return "basic";
+  return "details";
 }
 
 export function parseGuestCompanyCreateHold(payload: unknown): GuestCompanyCreateHold | null {
@@ -183,11 +260,13 @@ export function parseGuestCompanyCreateHold(payload: unknown): GuestCompanyCreat
   if (isGuestCompanyCreateDraftShape(record.draft)) {
     const rawStep = String(record.step ?? "");
     const normalizedStep: GuestCompanyCreateStepId =
-      rawStep === "details" || rawStep === "contacts"
-        ? "basic"
-        : isGuestCompanyCreateStepId(rawStep)
-          ? rawStep
-          : inferGuestCompanyCreateStep(record.draft);
+      rawStep === "basic"
+        ? "details"
+        : rawStep === "business"
+          ? "contracts"
+          : isGuestCompanyCreateStepId(rawStep)
+            ? rawStep
+            : inferGuestCompanyCreateStep(record.draft);
     return {
       step: normalizedStep,
       draft: normalizeCompanyCreateDraft(record.draft),
@@ -277,6 +356,7 @@ export function emptyGuestCompanyCreateDraft(): GuestCompanyCreateDraft {
     creditLimitNote: "",
     taxExemptionNote: "",
     taxNote: "",
+    contract: emptyCompanyContractDraft(),
   };
 }
 
@@ -291,7 +371,27 @@ export function normalizeCompanyCreateDraft(draft: GuestCompanyCreateDraft): Gue
     ...emptyGuestCompanyCreateDraft(),
     ...draft,
     accountStatus: status,
-    contacts,
+    contract:
+      draft.contract && typeof draft.contract === "object" && !Array.isArray(draft.contract)
+        ? {
+            ...emptyCompanyContractDraft(),
+            ...draft.contract,
+            ratePlanScope:
+              draft.contract.ratePlanScope ||
+              ((draft.contract.ratePlanIds && draft.contract.ratePlanIds.length > 0) || draft.contract.ratePlanId
+                ? "selected"
+                : "all"),
+            ratePlanIds: Array.isArray(draft.contract.ratePlanIds)
+              ? draft.contract.ratePlanIds
+              : draft.contract.ratePlanId
+              ? [draft.contract.ratePlanId]
+              : [],
+            discountApplication: draft.contract.discountApplication || "uniform",
+            ratePlanDiscounts: Array.isArray(draft.contract.ratePlanDiscounts)
+              ? draft.contract.ratePlanDiscounts
+              : [],
+          }
+        : emptyCompanyContractDraft(),
   };
 }
 
@@ -352,48 +452,50 @@ export function companyCreateFieldIssues(
     paymentMethodIds?: string[];
     currencyCodes?: string[];
     creditAccountAllowed?: boolean;
+    contractDocumentTypes?: Array<{ id: string; name: string; required?: boolean; active?: boolean }>;
   },
 ): CompanyCreateFieldIssue[] {
   const issues: CompanyCreateFieldIssue[] = [];
   const typeIds = options?.businessProfileTypeIds;
-  if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "basic" });
+
+  // Step 1: Company Information
+  if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "details" });
   if (!filled(draft.businessProfileTypeId)) {
-    issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "basic" });
+    issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "details" });
   }
   if (filled(draft.businessProfileTypeId) && typeIds && !typeIds.includes(draft.businessProfileTypeId)) {
-    issues.push({ key: "businessProfileTypeId", message: "Select a configured company type.", step: "basic" });
+    issues.push({ key: "businessProfileTypeId", message: "Select a configured company type.", step: "details" });
   }
+
+  // Step 2: Contacts
   const named = draft.contacts.filter((row) => filled(row.name));
   const primaries = named.filter((row) => row.isPrimary);
   if (named.length > 0 && primaries.length !== 1) {
     issues.push({
       key: "contacts",
       message: "Exactly one primary contact is required when contacts are entered.",
-      step: "basic",
+      step: "contacts",
     });
   }
   for (const contact of named) {
     if (!validEmail(contact.email)) {
-      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "basic" });
+      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
     }
     const phoneErr = validateCompanyPhone(contact.phone);
     if (phoneErr) {
-      issues.push({ key: "contacts", message: phoneErr, step: "basic" });
+      issues.push({ key: "contacts", message: phoneErr, step: "contacts" });
     }
   }
   for (const contact of draft.contacts) {
     if (!filled(contact.name) && filled(contact.phone)) {
       const phoneErr = validateCompanyPhone(contact.phone);
       if (phoneErr) {
-        issues.push({ key: "contacts", message: phoneErr, step: "basic" });
+        issues.push({ key: "contacts", message: phoneErr, step: "contacts" });
       }
     }
   }
-  const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
-  if (dateError) {
-    issues.push({ key: "contractStartDate", message: dateError, step: "business" });
-    issues.push({ key: "contractEndDate", message: dateError, step: "business" });
-  }
+
+  // Step 3: Billing & Credit
   if (
     filled(draft.billingArrangement) &&
     !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
@@ -412,6 +514,108 @@ export function companyCreateFieldIssues(
   if (draft.creditAccountEnabled && options?.creditAccountAllowed === false) {
     issues.push({ key: "creditAccountEnabled", message: "This company type does not allow a credit account.", step: "billing" });
   }
+
+  // Step 4: Contracts & Agreements
+  const contract = draft.contract;
+  if (contract) {
+    if (!filled(contract.contractTypeId)) {
+      issues.push({ key: "contractTypeId", message: "Contract type is required.", step: "contracts" });
+    }
+    if (!filled(contract.name)) {
+      issues.push({ key: "contractName", message: "Contract name is required.", step: "contracts" });
+    }
+    if (!filled(contract.code)) {
+      issues.push({ key: "contractCode", message: "Contract code is required.", step: "contracts" });
+    }
+    if (!filled(contract.validFrom)) {
+      issues.push({ key: "validFrom", message: "Valid-from date is required.", step: "contracts" });
+    }
+    if (!filled(contract.validTo)) {
+      issues.push({ key: "validTo", message: "Valid-until date is required.", step: "contracts" });
+    }
+    if (filled(contract.validFrom) && filled(contract.validTo) && contract.validTo < contract.validFrom) {
+      issues.push({ key: "validTo", message: "Valid-until must be on or after valid-from date.", step: "contracts" });
+    }
+    if (!filled(contract.currencyCode)) {
+      issues.push({ key: "currencyCode", message: "Contract currency is required.", step: "contracts" });
+    } else if (options?.currencyCodes?.length && !options.currencyCodes.includes(contract.currencyCode)) {
+      issues.push({ key: "currencyCode", message: "Select a configured contract currency from settings.", step: "contracts" });
+    }
+
+    // Pricing Method validation
+    if (contract.pricingMethod === "rate_plan") {
+      const isSelected = contract.ratePlanScope === "selected" || !contract.ratePlanScope;
+      const hasPlan = (contract.ratePlanIds && contract.ratePlanIds.length > 0) || filled(contract.ratePlanId);
+      if (isSelected && !hasPlan) {
+        issues.push({ key: "ratePlanId", message: "Method A requires selecting an active Rate Plan.", step: "contracts" });
+      }
+    } else if (contract.pricingMethod === "rate_plan_discount") {
+      const isSelected = contract.ratePlanScope === "selected" || !contract.ratePlanScope;
+      const hasPlan = (contract.ratePlanIds && contract.ratePlanIds.length > 0) || filled(contract.ratePlanId);
+      if (isSelected && !hasPlan) {
+        issues.push({ key: "ratePlanId", message: "Method B requires selecting a base Rate Plan.", step: "contracts" });
+      }
+      if (contract.discountApplication === "custom") {
+        const discounts = contract.ratePlanDiscounts ?? [];
+        for (let i = 0; i < discounts.length; i++) {
+          const d = discounts[i];
+          if (d.discountValue === null || d.discountValue === undefined || d.discountValue < 0) {
+            issues.push({ key: `ratePlanDiscounts.${d.ratePlanId}`, message: "Enter a non-negative discount value.", step: "contracts" });
+          } else if (d.discountType === "percent" && d.discountValue > 100) {
+            issues.push({ key: `ratePlanDiscounts.${d.ratePlanId}`, message: "Percentage discount cannot exceed 100%.", step: "contracts" });
+          }
+        }
+      } else {
+        if (!filled(contract.discountType)) {
+          issues.push({ key: "discountType", message: "Select a discount type for Method B.", step: "contracts" });
+        }
+        if (contract.discountValue === null || contract.discountValue === undefined || contract.discountValue < 0) {
+          issues.push({ key: "discountValue", message: "Enter a non-negative discount value.", step: "contracts" });
+        } else if (contract.discountType === "percent" && contract.discountValue > 100) {
+          issues.push({ key: "discountValue", message: "Percentage discount cannot exceed 100%.", step: "contracts" });
+        }
+      }
+    } else if (contract.pricingMethod === "contracted_rates") {
+      const rates = contract.contractRates ?? [];
+      if (rates.length === 0) {
+        if (contract.status === "active") {
+          issues.push({ key: "contractRates", message: "At least one contracted room rate is required for Method C.", step: "contracts" });
+        }
+      } else {
+        const seen = new Set<string>();
+        for (let i = 0; i < rates.length; i++) {
+          const row = rates[i];
+          if (!filled(row.roomTypeId)) {
+            issues.push({ key: `contractRates.${i}.roomTypeId`, message: `Select a room type for line ${i + 1}.`, step: "contracts" });
+          } else if (seen.has(row.roomTypeId)) {
+            issues.push({ key: `contractRates.${i}.roomTypeId`, message: `Duplicate room type selected on line ${i + 1}.`, step: "contracts" });
+          } else {
+            seen.add(row.roomTypeId);
+          }
+          if (row.amount === null || row.amount === undefined || row.amount < 0) {
+            issues.push({ key: `contractRates.${i}.amount`, message: `Rate amount must be 0 or greater on line ${i + 1}.`, step: "contracts" });
+          }
+        }
+      }
+    }
+
+    // Required Contract Documents Validation (enforced for Active status)
+    if (contract.status === "active" && options?.contractDocumentTypes) {
+      for (const docType of options.contractDocumentTypes) {
+        if (docType.required && docType.active) {
+          const uploaded = contract.documents.some((d) => d.documentTypeId === docType.id);
+          if (!uploaded) {
+            issues.push({
+              key: `documents.${docType.id}`,
+              message: `${docType.name} is required for an active contract.`,
+              step: "contracts",
+            });
+          }
+        }
+      }
+    }
+  }
+
   return issues;
 }
 
@@ -451,21 +655,14 @@ export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
       label: "Company identity",
       complete: filled(draft.name) && filled(draft.businessProfileTypeId),
       requiredRemaining: !filled(draft.name) || !filled(draft.businessProfileTypeId),
-      step: "basic",
+      step: "details",
     },
     {
       id: "contacts",
       label: "Contacts",
       complete: draft.contacts.some((row) => filled(row.name) && row.isPrimary) || draft.contacts.every((row) => !filled(row.name)),
       requiredRemaining: false,
-      step: "basic",
-    },
-    {
-      id: "business",
-      label: "Business defaults",
-      complete: !contractDateError(draft.contractStartDate, draft.contractEndDate),
-      requiredRemaining: Boolean(contractDateError(draft.contractStartDate, draft.contractEndDate)),
-      step: "business",
+      step: "contacts",
     },
     {
       id: "billing",
@@ -473,6 +670,13 @@ export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
       complete: true,
       requiredRemaining: false,
       step: "billing",
+    },
+    {
+      id: "contracts",
+      label: "Contracts & agreements",
+      complete: Boolean(draft.contract && filled(draft.contract.name) && filled(draft.contract.contractTypeId)),
+      requiredRemaining: Boolean(!draft.contract || !filled(draft.contract.name) || !filled(draft.contract.contractTypeId)),
+      step: "contracts",
     },
   ];
   const done = items.filter((item) => item.complete && !item.requiredRemaining).length;
@@ -545,18 +749,24 @@ export function draftToCompanyAccountInput(draft: GuestCompanyCreateDraft) {
 }
 
 export function draftToAccountOperations(draft: GuestCompanyCreateDraft): Record<string, unknown> {
+  const hasNewContract = Boolean(
+    draft.contract && (filled(draft.contract.name) || filled(draft.contract.contractTypeId)),
+  );
   return {
     industry: blank(draft.industry),
     sourceCodeId: blank(draft.sourceCodeId),
     sourceOfBusiness: blank(draft.sourceOfBusiness),
     marketSegmentId: blank(draft.marketSegmentId),
     accountManagerMembershipId: blank(draft.accountManagerId),
-    contract: {
-      reference: blank(draft.contractReference),
-      startDate: blank(draft.contractStartDate),
-      endDate: blank(draft.contractEndDate),
-      copy: COMPANY_CREATE_CONTRACT_COPY,
-    },
+    // Rule 34: New contract data is authoritative in pms_corporate_agreements
+    contract: hasNewContract
+      ? null
+      : {
+          reference: blank(draft.contractReference),
+          startDate: blank(draft.contractStartDate),
+          endDate: blank(draft.contractEndDate),
+          copy: COMPANY_CREATE_CONTRACT_COPY,
+        },
     defaults: {
       ratePlanId: blank(draft.ratePlanId),
       packageId: blank(draft.packageId),

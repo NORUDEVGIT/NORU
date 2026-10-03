@@ -43,6 +43,7 @@ import {
 } from "./guest-company-detail-workspace";
 import { guestStayAccessForRole } from "./guests.functions";
 import { isUpcomingStay, knownMoneyTotal, mapReservationToStay } from "./guest-profile-wave3";
+import { getCorporateAgreementExpiryState } from "./corporate-contracts.server";
 import { nightsBetween } from "./reservation-dates";
 import { propertyToday } from "./reservations.server";
 import { maskIdNumber } from "./guest-profile-wave2";
@@ -1864,7 +1865,7 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
     let agreements = await db
       .from("pms_corporate_agreements")
       .select(
-        "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path",
+        "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path, contract_type_id, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, cancellation_policy_id, no_show_policy_id, rate_plan_scope, rate_plan_ids, discount_application, rate_plan_discounts",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("company_id", data.companyId)
@@ -1872,7 +1873,19 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
     if (agreements.error && (agreements.error.code === "42703" || agreements.error.code === "PGRST204")) {
       agreements = await db
         .from("pms_corporate_agreements")
-        .select("id, code, name, contract_number, valid_from, valid_to, currency_code, description, active")
+        .select(
+          "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path, contract_type_id, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, cancellation_policy_id, no_show_policy_id",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .eq("company_id", data.companyId)
+        .order("valid_from", { ascending: false });
+    }
+    if (agreements.error && (agreements.error.code === "42703" || agreements.error.code === "PGRST204")) {
+      agreements = await db
+        .from("pms_corporate_agreements")
+        .select(
+          "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path",
+        )
         .eq("restaurant_id", data.restaurantId)
         .eq("company_id", data.companyId)
         .order("valid_from", { ascending: false });
@@ -1882,6 +1895,11 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
     const items = ((agreements.data ?? []) as Array<Record<string, unknown>>).map((row) => {
       const status = agreementStatus(
         { active: row.active !== false, validFrom: String(row.valid_from ?? ""), validTo: String(row.valid_to ?? "") },
+        today,
+      );
+      const expiry = getCorporateAgreementExpiryState(
+        String(row.valid_from ?? ""),
+        String(row.valid_to ?? ""),
         today,
       );
       return {
@@ -1895,6 +1913,20 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
         description: String(row.description ?? ""),
         active: row.active !== false,
         status,
+        validityState: expiry.validityState,
+        daysUntilExpiry: expiry.daysUntilExpiry,
+        contractTypeId: row.contract_type_id ? String(row.contract_type_id) : null,
+        pricingMethod: String(row.pricing_method ?? "contracted_rates"),
+        ratePlanId: row.rate_plan_id ? String(row.rate_plan_id) : null,
+        ratePlanScope: String(row.rate_plan_scope ?? "selected"),
+        ratePlanIds: Array.isArray(row.rate_plan_ids) ? (row.rate_plan_ids as string[]) : [],
+        discountApplication: String(row.discount_application ?? "uniform"),
+        ratePlanDiscounts: Array.isArray(row.rate_plan_discounts) ? row.rate_plan_discounts : [],
+        discountType: row.discount_type ? String(row.discount_type) : null,
+        discountValue: row.discount_value != null ? Number(row.discount_value) : null,
+        depositPolicyId: row.deposit_policy_id ? String(row.deposit_policy_id) : null,
+        cancellationPolicyId: row.cancellation_policy_id ? String(row.cancellation_policy_id) : null,
+        noShowPolicyId: row.no_show_policy_id ? String(row.no_show_policy_id) : null,
         autoRenew: row.auto_renew === true,
         noticePeriodDays: row.notice_period_days == null ? null : Number(row.notice_period_days),
         signedAt: row.signed_at ? String(row.signed_at) : null,

@@ -62,14 +62,21 @@ import {
   writeGuestCompanyCreateHold,
   type GuestCompanyCreateDraft,
   type GuestCompanyCreateStepId,
+  type CompanyContractDraft,
 } from "@/packages/pms/lib/guest-company-create-workspace";
 import {
   deleteCompanyCreateDraft,
   getCompanyCreateContext,
+  getNextCorporateContractCode,
   persistCompanyCreate,
   saveCompanyCreateDraft,
   type CompanyCreateContext,
 } from "@/packages/pms/lib/guest-company-create.functions";
+import {
+  getCompanyContractCreateConfig,
+  type CompanyContractCreateConfig,
+} from "@/packages/pms/lib/corporate-contracts.functions";
+import { CompanyContractsStep } from "@/packages/pms/components/guests/company-contracts-step";
 
 export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: string }) {
   const navigate = useNavigate();
@@ -79,9 +86,11 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   const clearDraft = useServerFn(deleteCompanyCreateDraft);
   const persist = useServerFn(persistCompanyCreate);
   const fetchDuplicates = useServerFn(findCompanyDuplicates);
+  const fetchContractConfig = useServerFn(getCompanyContractCreateConfig);
+  const fetchNextContractCode = useServerFn(getNextCorporateContractCode);
 
   const localHold = useMemo(() => readGuestCompanyCreateHold(restaurantId), [restaurantId]);
-  const [step, setStep] = useState<GuestCompanyCreateStepId>(() => localHold?.step ?? "basic");
+  const [step, setStep] = useState<GuestCompanyCreateStepId>(() => (localHold?.step === "basic" ? "details" : (localHold?.step === "business" ? "contracts" : (localHold?.step ?? "details"))));
   const [draft, setDraft] = useState<GuestCompanyCreateDraft>(() => localHold?.draft ?? emptyGuestCompanyCreateDraft());
   const [defaultsApplied, setDefaultsApplied] = useState(() => Boolean(localHold));
   const [startOverOpen, setStartOverOpen] = useState(false);
@@ -94,15 +103,64 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
     queryFn: () => load({ data: { restaurantId } }),
   });
 
+  const contractConfig = useQuery({
+    queryKey: ["company-contract-create-config", restaurantId],
+    queryFn: () => fetchContractConfig({ data: { restaurantId } }),
+  });
+
+  useEffect(() => {
+    if (!restaurantId || draft.contract.code) return;
+    void fetchNextContractCode({ data: { restaurantId } })
+      .then((res) => {
+        if (res?.code) {
+          setDraft((curr) => (curr.contract.code ? curr : { ...curr, contract: { ...curr.contract, code: res.code } }));
+        }
+      })
+      .catch(() => undefined);
+  }, [restaurantId, draft.contract.code, fetchNextContractCode]);
+
+  useEffect(() => {
+    if (!contractConfig.data) return;
+    const settingCurrency =
+      contractConfig.data.baseCurrency ||
+      contractConfig.data.currencies.find((c) => c.isBase)?.code ||
+      context.data?.defaultCurrency ||
+      "";
+    setDraft((curr) => {
+      let nextContract = { ...curr.contract };
+      let changed = false;
+      if (!nextContract.currencyCode && settingCurrency) {
+        nextContract.currencyCode = settingCurrency;
+        changed = true;
+      }
+      const defaultDeposit = contractConfig.data.guaranteePolicies.find((p) => p.isDefault)?.id;
+      if (!nextContract.depositPolicyId && defaultDeposit) {
+        nextContract.depositPolicyId = defaultDeposit;
+        changed = true;
+      }
+      const defaultCancel = contractConfig.data.cancellationPolicies.find((p) => p.isDefault)?.id;
+      if (!nextContract.cancellationPolicyId && defaultCancel) {
+        nextContract.cancellationPolicyId = defaultCancel;
+        changed = true;
+      }
+      const defaultNoShow = contractConfig.data.noShowPolicies.find((p) => p.isDefault)?.id;
+      if (!nextContract.noShowPolicyId && defaultNoShow) {
+        nextContract.noShowPolicyId = defaultNoShow;
+        changed = true;
+      }
+      return changed ? { ...curr, contract: nextContract } : curr;
+    });
+  }, [contractConfig.data, context.data?.defaultCurrency]);
+
   useEffect(() => {
     if (!context.data || defaultsApplied) return;
     const local = readGuestCompanyCreateHold(restaurantId);
     if (local) {
       setDraft(local.draft);
-      setStep(local.step);
+      setStep(local.step === "basic" ? "details" : (local.step === "business" ? "contracts" : local.step));
     } else if (context.data.draft) {
       setDraft(context.data.draft.payload);
-      setStep(context.data.draft.step);
+      setStep(context.data.draft.step === "basic" ? "details" : (context.data.draft.step === "business" ? "contracts" : context.data.draft.step));
     } else {
       if (context.data.defaultCurrency) {
         setDraft((current) => (current.currency ? current : { ...current, currency: context.data.defaultCurrency }));
@@ -142,8 +200,9 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   const catalogueIds = {
     businessProfileTypeIds: (catalogues?.businessTypes ?? []).map((row) => row.id),
     paymentMethodIds: (catalogues?.paymentMethods ?? []).map((row) => row.id),
-    currencyCodes: catalogues?.currencies ?? [],
+    currencyCodes: contractConfig.data?.currencies.map((c) => c.code) ?? catalogues?.currencies ?? [],
     creditAccountAllowed: selectedType?.creditAccountAllowed,
+    contractDocumentTypes: contractConfig.data?.contractDocumentTypes,
   };
   const completion = guestCompanyCreateCompletion(draft);
   const stepIndex = GUEST_COMPANY_CREATE_STEPS.findIndex((item) => item.id === step);
@@ -177,6 +236,44 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
   function fieldError(key: string, stepId: GuestCompanyCreateStepId = step) {
     if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
     return fieldIssues.find((issue) => issue.key === key)?.message;
+  }
+
+  function setContract<K extends keyof CompanyContractDraft>(
+    keyOrPatch: K | Partial<CompanyContractDraft> | ((prev: CompanyContractDraft) => CompanyContractDraft),
+    possibleValue?: CompanyContractDraft[K],
+  ) {
+    setDraft((curr) => {
+      const existingContract: CompanyContractDraft =
+        curr.contract && typeof curr.contract === "object" && !Array.isArray(curr.contract)
+          ? curr.contract
+          : emptyCompanyContractDraft();
+
+      if (typeof keyOrPatch === "function") {
+        return {
+          ...curr,
+          contract: keyOrPatch(existingContract),
+        };
+      }
+      if (typeof keyOrPatch === "string") {
+        return {
+          ...curr,
+          contract: {
+            ...existingContract,
+            [keyOrPatch]: possibleValue,
+          },
+        };
+      }
+      if (typeof keyOrPatch === "object" && keyOrPatch !== null) {
+        return {
+          ...curr,
+          contract: {
+            ...existingContract,
+            ...keyOrPatch,
+          },
+        };
+      }
+      return curr;
+    });
   }
 
   function set<K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) {
@@ -374,8 +471,8 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
 
       <div className="grid min-h-0 flex-1 items-start gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(18rem,20rem)] sm:p-6">
         <div className="min-w-0 space-y-4">
-          {step === "basic" ? (
-            <BasicStep
+          {step === "details" ? (
+            <DetailsStep
               draft={draft}
               set={set}
               catalogues={catalogues}
@@ -384,11 +481,26 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
               nextCompanyCode={context.data?.nextCompanyCode}
             />
           ) : null}
-          {step === "business" ? <BusinessStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} /> : null}
+          {step === "contacts" ? (
+            <ContactsStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
+          ) : null}
           {step === "billing" ? (
             <BillingStep draft={draft} set={set} catalogues={catalogues} creditAllowed={selectedType?.creditAccountAllowed} fieldError={fieldError} />
           ) : null}
-          {step === "review" ? <ReviewStep draft={draft} catalogues={catalogues} issues={fieldIssues} onEdit={go} /> : null}
+          {step === "contracts" ? (
+            <CompanyContractsStep
+              draft={draft}
+              setContract={setContract}
+              config={contractConfig.data}
+              catalogues={catalogues}
+              isLoadingConfig={contractConfig.isLoading}
+              configError={contractConfig.error instanceof Error ? contractConfig.error.message : null}
+              fieldError={fieldError}
+            />
+          ) : null}
+          {step === "review" ? (
+            <ReviewStep draft={draft} catalogues={catalogues} contractConfig={contractConfig.data} issues={fieldIssues} onEdit={go} />
+          ) : null}
         </div>
 
         <aside className="space-y-4">
@@ -547,7 +659,7 @@ function NoneSelect({
   );
 }
 
-function BasicStep({
+function DetailsStep({
   draft,
   set,
   catalogues,
@@ -563,17 +675,16 @@ function BasicStep({
   nextCompanyCode?: string;
 }) {
   const types = (catalogues?.businessTypes ?? []).filter((row) => row.active !== false || row.id === draft.businessProfileTypeId);
-  const contactsError = fieldError("contacts", "basic");
 
   return (
     <div className="space-y-4">
       <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
         <h2 className="font-display text-lg">Company Details</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Company name" required error={fieldError("name", "basic")}>
+          <Field label="Company name" required error={fieldError("name", "details")}>
             <Input data-testid="company-create-name" value={draft.name} onChange={(event) => set("name", event.target.value)} />
           </Field>
-          <Field label="Company type" required error={fieldError("businessProfileTypeId", "basic")}>
+          <Field label="Company type" required error={fieldError("businessProfileTypeId", "details")}>
             <Select value={draft.businessProfileTypeId} onValueChange={(value) => set("businessProfileTypeId", value)}>
               <SelectTrigger data-testid="company-create-type">
                 <SelectValue placeholder={types.length ? "Select type" : "Configure company types in settings"} />
@@ -669,7 +780,25 @@ function BasicStep({
           </Field>
         </div>
       </section>
+    </div>
+  );
+}
 
+function ContactsStep({
+  draft,
+  set,
+  catalogues,
+  fieldError,
+}: {
+  draft: GuestCompanyCreateDraft;
+  set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
+  catalogues?: CompanyCreateContext["catalogues"];
+  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
+}) {
+  const contactsError = fieldError("contacts", "contacts");
+
+  return (
+    <div className="space-y-4">
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className={contactsError ? "font-display text-lg text-destructive" : "font-display text-lg"}>Contacts</h2>
@@ -799,145 +928,16 @@ function BasicStep({
   );
 }
 
-function BusinessStep({
-  draft,
-  set,
-  catalogues,
-  fieldError,
-}: {
-  draft: GuestCompanyCreateDraft;
-  set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
-  catalogues?: CompanyCreateContext["catalogues"];
-  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
-}) {
-  return (
-    <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
-      <h2 className="font-display text-lg">Business & Commercial</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Market segment">
-          <NoneSelect value={draft.marketSegmentId} onChange={(value) => set("marketSegmentId", value)} options={catalogues?.marketSegments ?? []} placeholder="Select segment" />
-        </Field>
-        <Field label="Source">
-          <NoneSelect
-            value={draft.sourceCodeId}
-            onChange={(value) => {
-              const selected = (catalogues?.sourceCodes ?? []).find((row) => row.id === value);
-              set("sourceCodeId", value);
-              set("sourceOfBusiness", selected?.code || selected?.name || "");
-            }}
-            options={catalogues?.sourceCodes ?? []}
-            placeholder="Select source"
-          />
-        </Field>
-        <Field label="Account manager">
-          <NoneSelect value={draft.accountManagerId} onChange={(value) => set("accountManagerId", value)} options={catalogues?.staff ?? []} placeholder="Select staff" />
-        </Field>
-        <Field label="Contract reference">
-          <Input value={draft.contractReference} onChange={(event) => set("contractReference", event.target.value)} />
-        </Field>
-        <Field label="Contract start" error={fieldError("contractStartDate", "business")}>
-          <Input type="date" value={draft.contractStartDate} onChange={(event) => set("contractStartDate", event.target.value)} />
-        </Field>
-        <Field label="Contract end" error={fieldError("contractEndDate", "business")}>
-          <Input type="date" value={draft.contractEndDate} onChange={(event) => set("contractEndDate", event.target.value)} />
-        </Field>
-        <Field label="Default rate plan">
-          <NoneSelect value={draft.ratePlanId} onChange={(value) => set("ratePlanId", value)} options={catalogues?.ratePlans ?? []} placeholder="Select rate plan" />
-        </Field>
-        <Field label="Default package">
-          <NoneSelect value={draft.packageId} onChange={(value) => set("packageId", value)} options={catalogues?.packages ?? []} placeholder="Select package" />
-        </Field>
-        <Field label="Default meal plan">
-          <NoneSelect value={draft.mealPlanId} onChange={(value) => set("mealPlanId", value)} options={catalogues?.mealPlans ?? []} placeholder="Select meal plan" />
-        </Field>
-      </div>
-      <p className="text-xs text-muted-foreground">{COMPANY_CREATE_CONTRACT_COPY}</p>
-    </section>
-  );
-}
-
-function BillingStep({
-  draft,
-  set,
-  catalogues,
-  creditAllowed,
-  fieldError,
-}: {
-  draft: GuestCompanyCreateDraft;
-  set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
-  catalogues?: CompanyCreateContext["catalogues"];
-  creditAllowed?: boolean;
-  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
-}) {
-  return (
-    <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
-      <h2 className="font-display text-lg">Billing & Credit</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Billing arrangement" error={fieldError("billingArrangement", "billing")}>
-          <NoneSelect
-            value={draft.billingArrangement}
-            onChange={(value) => set("billingArrangement", value)}
-            options={ACCOUNT_BILLING_ARRANGEMENTS.map((row) => ({ id: row.id, name: row.label }))}
-            placeholder="Select arrangement"
-          />
-        </Field>
-        <Field label="Payment method" error={fieldError("paymentMethodId", "billing")}>
-          <NoneSelect value={draft.paymentMethodId} onChange={(value) => set("paymentMethodId", value)} options={catalogues?.paymentMethods ?? []} placeholder="Select method" />
-        </Field>
-        <Field label="Currency" error={fieldError("currency", "billing")}>
-          <NoneSelect
-            value={draft.currency}
-            onChange={(value) => set("currency", value)}
-            options={(catalogues?.currencies ?? []).map((code) => ({ id: code, name: code }))}
-            placeholder="Property currency"
-          />
-        </Field>
-        <Field label="Billing contact">
-          <Input value={draft.billingContactName} onChange={(event) => set("billingContactName", event.target.value)} />
-        </Field>
-        <Field label="Billing email" error={fieldError("billingEmail", "billing")}>
-          <Input value={draft.billingEmail} onChange={(event) => set("billingEmail", event.target.value)} />
-        </Field>
-        <Field label="Payment terms">
-          <Input value={draft.paymentTerms} onChange={(event) => set("paymentTerms", event.target.value)} />
-        </Field>
-      </div>
-      <Field label="Billing instruction">
-        <Textarea value={draft.billingInstruction} onChange={(event) => set("billingInstruction", event.target.value)} />
-      </Field>
-      <div className="space-y-1">
-        <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-          <Label className={fieldError("creditAccountEnabled", "billing") ? "text-destructive" : undefined}>Credit account</Label>
-          <Switch
-            checked={draft.creditAccountEnabled}
-            disabled={creditAllowed === false}
-            onCheckedChange={(checked) => set("creditAccountEnabled", Boolean(checked))}
-          />
-        </div>
-        {fieldError("creditAccountEnabled", "billing") ? (
-          <p className="text-xs text-destructive">{fieldError("creditAccountEnabled", "billing")}</p>
-        ) : null}
-      </div>
-      <p className="text-xs text-muted-foreground">{COMPANY_CREATE_CREDIT_COPY}</p>
-      <Field label="Credit limit note">
-        <Input value={draft.creditLimitNote} onChange={(event) => set("creditLimitNote", event.target.value)} />
-      </Field>
-      <Field label="Tax exemption note">
-        <Textarea value={draft.taxExemptionNote} onChange={(event) => set("taxExemptionNote", event.target.value)} />
-      </Field>
-      <p className="text-xs text-muted-foreground">{COMPANY_CREATE_TAX_COPY}</p>
-    </section>
-  );
-}
-
 function ReviewStep({
   draft,
   catalogues,
+  contractConfig,
   issues,
   onEdit,
 }: {
   draft: GuestCompanyCreateDraft;
   catalogues?: CompanyCreateContext["catalogues"];
+  contractConfig?: CompanyContractCreateConfig;
   issues: Array<{ key: string; message: string; step: GuestCompanyCreateStepId }>;
   onEdit: (step: GuestCompanyCreateStepId) => void;
 }) {
@@ -949,6 +949,18 @@ function ReviewStep({
         step: item.step,
       }));
   const primary = primaryCompanyContact(draft);
+  const contract = draft.contract;
+
+  const contractType = contractConfig?.contractTypes.find((t) => t.id === contract.contractTypeId);
+  const selectedPlan = contractConfig?.ratePlans.find((p) => p.id === contract.ratePlanId);
+  const guaranteePolicy = contractConfig?.guaranteePolicies.find((p) => p.id === contract.depositPolicyId);
+  const cancellationPolicy = contractConfig?.cancellationPolicies.find((p) => p.id === contract.cancellationPolicyId);
+  const noShowPolicy = contractConfig?.noShowPolicies.find((p) => p.id === contract.noShowPolicyId);
+
+  const missingRequiredDocs = (contractConfig?.contractDocumentTypes ?? [])
+    .filter((dt) => dt.required && dt.active)
+    .filter((dt) => !contract.documents.some((d) => d.documentTypeId === dt.id));
+
   return (
     <div className="space-y-4">
       {remaining.length > 0 ? (
@@ -970,7 +982,7 @@ function ReviewStep({
           </ul>
         </section>
       ) : null}
-      <ReviewCard title="Basic Information" onEdit={() => onEdit("basic")}>
+      <ReviewCard title="Company Information" onEdit={() => onEdit("details")}>
         <p>Name: {draft.name || "—"}</p>
         <p>Type: {optionLabel(catalogues?.businessTypes ?? [], draft.businessProfileTypeId) || "—"}</p>
         <p>Code: {draft.code || "—"}</p>
@@ -978,19 +990,67 @@ function ReviewStep({
         <p>TIN Number: {draft.taxId || "—"}</p>
         <p>Registration: {draft.registrationNumber || "—"}</p>
         <p>Address: {[draft.addressLine1, draft.city, draft.country].filter(Boolean).join(", ") || "—"}</p>
+      </ReviewCard>
+      <ReviewCard title="Contacts" onEdit={() => onEdit("contacts")}>
         <p>Primary: {primary?.name || "—"} · {primary?.email || "—"} · {primary?.phone || "—"}</p>
         <p>Total contacts: {draft.contacts.filter((row) => filled(row.name)).length}</p>
-      </ReviewCard>
-      <ReviewCard title="Business & Commercial" onEdit={() => onEdit("business")}>
-        <p>Market segment: {optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</p>
-        <p>Contract: {draft.contractReference || "—"} {draft.contractStartDate} {draft.contractEndDate}</p>
-        <p className="text-muted-foreground">{COMPANY_CREATE_CONTRACT_COPY}</p>
       </ReviewCard>
       <ReviewCard title="Billing & Credit" onEdit={() => onEdit("billing")}>
         <p>Arrangement: {billingArrangementLabel(draft.billingArrangement) || "—"}</p>
         <p>Credit: {draft.creditAccountEnabled ? "Enabled" : "Off"}</p>
         <p>Credit note: {draft.creditLimitNote || "—"}</p>
         <p className="text-muted-foreground">{COMPANY_CREATE_CREDIT_COPY}</p>
+      </ReviewCard>
+      <ReviewCard title="Contracts & Agreements" onEdit={() => onEdit("contracts")}>
+        <p>Contract Type: {contractType?.name || "—"}</p>
+        <p>Contract Name: {contract.name || "—"}</p>
+        <p>Contract Code: {contract.code || "—"}</p>
+        <p>Validity: {contract.validFrom || "—"} to {contract.validTo || "—"}</p>
+        <p>Status: {contract.status}</p>
+        <p>Currency: {contract.currencyCode || "—"}</p>
+        <div className="mt-2 rounded border border-border p-2">
+          <p className="font-semibold">Pricing: {contract.pricingMethod === "rate_plan" ? "Method A (Existing Plan)" : contract.pricingMethod === "rate_plan_discount" ? "Method B (Plan Discount)" : "Method C (Contracted Rates)"}</p>
+          {contract.pricingMethod === "rate_plan" && (
+            <p>
+              Scope:{" "}
+              {contract.ratePlanScope === "all"
+                ? `All Active Rate Plans (${contractConfig?.ratePlans.length ?? 0} plans)`
+                : contract.ratePlanIds?.length
+                ? `${contract.ratePlanIds.length} plan(s) (${contract.ratePlanIds
+                    .map((id) => contractConfig?.ratePlans.find((p) => p.id === id)?.name || id)
+                    .join(", ")})`
+                : selectedPlan?.name || contract.ratePlanId || "—"}
+            </p>
+          )}
+          {contract.pricingMethod === "rate_plan_discount" && (
+            <div className="space-y-0.5">
+              <p>
+                Scope:{" "}
+                {contract.ratePlanScope === "all"
+                  ? `All Active Rate Plans (${contractConfig?.ratePlans.length ?? 0} plans)`
+                  : contract.ratePlanIds?.length
+                  ? `${contract.ratePlanIds.length} plan(s) (${contract.ratePlanIds
+                      .map((id) => contractConfig?.ratePlans.find((p) => p.id === id)?.name || id)
+                      .join(", ")})`
+                  : selectedPlan?.name || contract.ratePlanId || "—"}
+              </p>
+              <p>
+                {contract.discountApplication === "custom"
+                  ? `Discounts: Separate per plan (${contract.ratePlanDiscounts?.length ?? 0} configured)`
+                  : `Discount: Uniform ${contract.discountValue}${contract.discountType === "percent" ? "%" : ` ${contract.currencyCode || ""}`}`}
+              </p>
+            </div>
+          )}
+          {contract.pricingMethod === "contracted_rates" && <p>{contract.contractRates.length} negotiated rate(s) configured</p>}
+        </div>
+        <p>Guarantee: {guaranteePolicy?.name || "None"}</p>
+        <p>Cancellation: {cancellationPolicy?.name || "None"}</p>
+        <p>No-Show: {noShowPolicy?.name || "None"}</p>
+        <p>Documents: {contract.documents.length} uploaded</p>
+        {missingRequiredDocs.length > 0 && contract.status === "active" && (
+          <p className="text-destructive font-semibold">Missing required documents: {missingRequiredDocs.map((d) => d.name).join(", ")}</p>
+        )}
+        {contract.notes ? <p>Notes: {contract.notes}</p> : null}
       </ReviewCard>
     </div>
   );

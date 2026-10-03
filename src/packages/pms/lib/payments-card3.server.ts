@@ -9,6 +9,8 @@ export const CARD3_PAYMENTS_TABS = [
   { id: "overview", label: "Overview" },
   { id: "payment-methods", label: "Payment Methods" },
   { id: "deposit-policies", label: "Deposit Policies" },
+  { id: "cancellation-policies", label: "Cancellation Policies" },
+  { id: "no-show-policies", label: "No-Show Policies" },
 ] as const;
 export type Card3PaymentsTabId = (typeof CARD3_PAYMENTS_TABS)[number]["id"];
 

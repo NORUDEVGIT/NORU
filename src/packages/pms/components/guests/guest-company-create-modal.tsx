@@ -99,9 +99,16 @@ import {
   getCompanyCreateContext,
   persistCompanyCreate,
   saveCompanyCreateDraft,
+  getNextCorporateContractCode,
   type CompanyCreateContext,
 } from "@/packages/pms/lib/guest-company-create.functions";
 import { getGuestAccount, type GuestAccountProfile } from "@/packages/pms/lib/guest-accounts.functions";
+import {
+  getCompanyContractCreateConfig,
+  type CompanyContractCreateConfig,
+} from "@/packages/pms/lib/corporate-contracts.functions";
+import { CompanyContractsStep } from "./company-contracts-step";
+import type { CompanyContractDraft } from "@/packages/pms/lib/guest-company-create-workspace";
 
 const MODAL_CONTROL_CLASS =
   "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
@@ -217,6 +224,14 @@ export function GuestCompanyCreateModal({
   const clearDraft = useServerFn(deleteCompanyCreateDraft);
   const persist = useServerFn(persistCompanyCreate);
   const fetchDuplicates = useServerFn(findCompanyDuplicates);
+  const fetchContractConfig = useServerFn(getCompanyContractCreateConfig);
+  const fetchNextContractCode = useServerFn(getNextCorporateContractCode);
+
+  const contractConfig = useQuery({
+    queryKey: ["company-contract-create-config", restaurantId],
+    queryFn: () => fetchContractConfig({ data: { restaurantId } }),
+    enabled: open,
+  });
 
   const accountQuery = useQuery({
     queryKey: ["guest-account", restaurantId, companyId],
@@ -227,7 +242,7 @@ export function GuestCompanyCreateModal({
   const currentCompany = company ?? accountQuery.data ?? null;
 
   const localHold = useMemo(() => (!isEdit && open ? readGuestCompanyCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
-  const [step, setStep] = useState<GuestCompanyCreateStepId>(() => localHold?.step ?? "basic");
+  const [step, setStep] = useState<GuestCompanyCreateStepId>(() => (localHold?.step === "basic" ? "details" : (localHold?.step === "business" ? "contracts" : (localHold?.step ?? "details"))));
   const [draft, setDraft] = useState<GuestCompanyCreateDraft>(() => {
     if (isEdit && currentCompany) return companyProfileToCreateDraft(currentCompany);
     return localHold?.draft ?? emptyGuestCompanyCreateDraft();
@@ -265,8 +280,13 @@ export function GuestCompanyCreateModal({
     } else {
       setDraft((current) => {
         let next = { ...current };
-        if (context.data?.defaultCurrency && !next.currency) {
-          next.currency = context.data.defaultCurrency;
+        if (context.data?.defaultCurrency) {
+          if (!next.currency) {
+            next.currency = context.data.defaultCurrency;
+          }
+          if (!next.contract?.currencyCode) {
+            next.contract = { ...next.contract, currencyCode: context.data.defaultCurrency };
+          }
         }
         if (context.data?.defaultBusinessTypeId && !next.businessProfileTypeId) {
           next.businessProfileTypeId = context.data.defaultBusinessTypeId;
@@ -300,13 +320,58 @@ export function GuestCompanyCreateModal({
     return () => window.clearTimeout(handle);
   }, [created, defaultsApplied, draft, isEdit, open, restaurantId, saveDraftHold, step]);
 
+  useEffect(() => {
+    if (!open || !restaurantId || draft.contract.code) return;
+    void fetchNextContractCode({ data: { restaurantId } })
+      .then((res) => {
+        if (res?.code) {
+          setDraft((curr) => (curr.contract.code ? curr : { ...curr, contract: { ...curr.contract, code: res.code } }));
+        }
+      })
+      .catch(() => undefined);
+  }, [open, restaurantId, draft.contract.code, fetchNextContractCode]);
+
+  useEffect(() => {
+    if (!contractConfig.data) return;
+    const settingCurrency =
+      contractConfig.data.baseCurrency ||
+      contractConfig.data.currencies.find((c) => c.isBase)?.code ||
+      context.data?.defaultCurrency ||
+      "";
+    setDraft((curr) => {
+      let nextContract = { ...curr.contract };
+      let changed = false;
+      if (!nextContract.currencyCode && settingCurrency) {
+        nextContract.currencyCode = settingCurrency;
+        changed = true;
+      }
+      const defaultDeposit = contractConfig.data.guaranteePolicies.find((p) => p.isDefault)?.id;
+      if (!nextContract.depositPolicyId && defaultDeposit) {
+        nextContract.depositPolicyId = defaultDeposit;
+        changed = true;
+      }
+      const defaultCancel = contractConfig.data.cancellationPolicies.find((p) => p.isDefault)?.id;
+      if (!nextContract.cancellationPolicyId && defaultCancel) {
+        nextContract.cancellationPolicyId = defaultCancel;
+        changed = true;
+      }
+      const defaultNoShow = contractConfig.data.noShowPolicies.find((p) => p.isDefault)?.id;
+      if (!nextContract.noShowPolicyId && defaultNoShow) {
+        nextContract.noShowPolicyId = defaultNoShow;
+        changed = true;
+      }
+      return changed ? { ...curr, contract: nextContract } : curr;
+    });
+  }, [contractConfig.data, context.data?.defaultCurrency]);
+
   const catalogues = context.data?.catalogues;
   const selectedType = (catalogues?.businessTypes ?? []).find((row) => row.id === draft.businessProfileTypeId);
   const catalogueIds = {
     businessProfileTypeIds: (catalogues?.businessTypes ?? []).map((row) => row.id),
     paymentMethodIds: (catalogues?.paymentMethods ?? []).map((row) => row.id),
-    currencyCodes: catalogues?.currencies ?? [],
+    currencyCodes: contractConfig.data?.currencies.map((c) => c.code) ?? catalogues?.currencies ?? [],
     creditAccountAllowed: selectedType?.creditAccountAllowed,
+    contractDocumentTypes: contractConfig.data?.contractDocumentTypes,
   };
   const completion = guestCompanyCreateCompletion(draft);
   const stepIndex = GUEST_COMPANY_CREATE_STEPS.findIndex((item) => item.id === step);
@@ -324,7 +389,7 @@ export function GuestCompanyCreateModal({
           excludeId: draft.accountId || undefined,
         },
       }),
-    enabled: filled(draft.name) && (step === "basic" || step === "review"),
+    enabled: filled(draft.name) && (step === "details" || step === "review"),
   });
 
   const duplicateMutation = useMutation({
@@ -361,6 +426,44 @@ export function GuestCompanyCreateModal({
   function fieldError(key: string, stepId: GuestCompanyCreateStepId = step) {
     if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
     return fieldIssues.find((issue) => issue.key === key)?.message;
+  }
+
+  function setContract<K extends keyof CompanyContractDraft>(
+    keyOrPatch: K | Partial<CompanyContractDraft> | ((prev: CompanyContractDraft) => CompanyContractDraft),
+    possibleValue?: CompanyContractDraft[K],
+  ) {
+    setDraft((curr) => {
+      const existingContract: CompanyContractDraft =
+        curr.contract && typeof curr.contract === "object" && !Array.isArray(curr.contract)
+          ? curr.contract
+          : emptyCompanyContractDraft();
+
+      if (typeof keyOrPatch === "function") {
+        return {
+          ...curr,
+          contract: keyOrPatch(existingContract),
+        };
+      }
+      if (typeof keyOrPatch === "string") {
+        return {
+          ...curr,
+          contract: {
+            ...existingContract,
+            [keyOrPatch]: possibleValue,
+          },
+        };
+      }
+      if (typeof keyOrPatch === "object" && keyOrPatch !== null) {
+        return {
+          ...curr,
+          contract: {
+            ...existingContract,
+            ...keyOrPatch,
+          },
+        };
+      }
+      return curr;
+    });
   }
 
   function set<K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) {
@@ -676,8 +779,8 @@ export function GuestCompanyCreateModal({
                 </section>
               ) : null}
 
-              {step === "basic" ? (
-                <BasicStep
+              {step === "details" ? (
+                <DetailsStep
                   draft={draft}
                   set={set}
                   catalogues={catalogues}
@@ -686,8 +789,8 @@ export function GuestCompanyCreateModal({
                 />
               ) : null}
 
-              {step === "business" ? (
-                <BusinessStep
+              {step === "contacts" ? (
+                <ContactsStep
                   draft={draft}
                   set={set}
                   catalogues={catalogues}
@@ -705,10 +808,23 @@ export function GuestCompanyCreateModal({
                 />
               ) : null}
 
+              {step === "contracts" ? (
+                <CompanyContractsStep
+                  draft={draft}
+                  setContract={setContract}
+                  config={contractConfig.data}
+                  catalogues={catalogues}
+                  isLoadingConfig={contractConfig.isLoading}
+                  configError={contractConfig.error instanceof Error ? contractConfig.error.message : null}
+                  fieldError={fieldError}
+                />
+              ) : null}
+
               {step === "review" ? (
                 <ReviewStep
                   draft={draft}
                   catalogues={catalogues}
+                  contractConfig={contractConfig.data}
                   issues={fieldIssues}
                   onEdit={go}
                 />
@@ -790,10 +906,11 @@ export function GuestCompanyCreateModal({
               <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
                 <h3 className="font-display text-sm font-semibold text-[#251605]">Step Guidance</h3>
                 <p className="mt-2 text-xs leading-relaxed text-[#756A5B]">
-                  {step === "basic" && "Enter the company's identification information, auto-generated code, and contact details."}
-                  {step === "business" && "Connect the company to commercial defaults and contract references used by this property."}
-                  {step === "billing" && "Configure the billing arrangements and credit settings that apply to this company."}
-                  {step === "review" && "Confirm the company profile before creating it."}
+                  {step === "details" && "Enter the company's identification information, auto-generated code, and address."}
+                  {step === "contacts" && "Add primary and secondary contact persons for this corporate account."}
+                  {step === "billing" && "Configure billing arrangements, payment methods, and credit limits."}
+                  {step === "contracts" && "Set up corporate agreements, commercial pricing terms, policies, and contract documents."}
+                  {step === "review" && "Review and confirm the company profile and corporate agreement before creating."}
                 </p>
               </section>
 
@@ -1023,7 +1140,7 @@ function NoneSelect({
   );
 }
 
-function BasicStep({
+function DetailsStep({
   draft,
   set,
   catalogues,
@@ -1039,7 +1156,6 @@ function BasicStep({
   const types = (catalogues?.businessTypes ?? []).filter(
     (row) => row.active !== false || row.id === draft.businessProfileTypeId,
   );
-  const contactsError = fieldError("contacts", "basic");
 
   const countryOptions = useMemo(
     () => ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name })),
@@ -1073,7 +1189,7 @@ function BasicStep({
               className={cn(MODAL_CONTROL_CLASS, "font-medium text-[#765719]")}
             />
           </Field>
-          <Field label="Company Name" required error={fieldError("name", "basic")}>
+          <Field label="Company Name" required error={fieldError("name", "details")}>
             <Input
               data-testid="company-create-name"
               value={draft.name}
@@ -1082,7 +1198,7 @@ function BasicStep({
               placeholder="Official company name"
             />
           </Field>
-          <Field label="Company Type" required error={fieldError("businessProfileTypeId", "basic")}>
+          <Field label="Company Type" required error={fieldError("businessProfileTypeId", "details")}>
             <Select
               value={draft.businessProfileTypeId || undefined}
               onValueChange={(val) => set("businessProfileTypeId", val === "__none" ? "" : val)}
@@ -1182,7 +1298,7 @@ function BasicStep({
           <p className="text-xs text-muted-foreground">Registered address and regional location details.</p>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Country" error={fieldError("country", "basic")}>
+          <Field label="Country" error={fieldError("country", "details")}>
             <SearchableSelect
               id="company-create-country"
               value={countryCode}
@@ -1199,7 +1315,7 @@ function BasicStep({
               }}
             />
           </Field>
-          <Field label={layout.regionLabel || "Region / State"} error={fieldError("region", "basic")}>
+          <Field label={layout.regionLabel || "Region / State"} error={fieldError("region", "details")}>
             {availableRegions.length > 0 ? (
               <SearchableSelect
                 id="company-create-region"
@@ -1220,7 +1336,7 @@ function BasicStep({
               />
             )}
           </Field>
-          <Field label="City" error={fieldError("city", "basic")}>
+          <Field label="City" error={fieldError("city", "details")}>
             <Input
               value={draft.city}
               onChange={(event) => set("city", event.target.value)}
@@ -1228,7 +1344,7 @@ function BasicStep({
               placeholder="City or locality"
             />
           </Field>
-          <Field label="Address Line 1" error={fieldError("addressLine1", "basic")}>
+          <Field label="Address Line 1" error={fieldError("addressLine1", "details")}>
             <Input
               value={draft.addressLine1}
               onChange={(event) => set("addressLine1", event.target.value)}
@@ -1236,7 +1352,7 @@ function BasicStep({
               placeholder="Street and building number"
             />
           </Field>
-          <Field label="Address Line 2" error={fieldError("addressLine2", "basic")}>
+          <Field label="Address Line 2" error={fieldError("addressLine2", "details")}>
             <Input
               value={draft.addressLine2}
               onChange={(event) => set("addressLine2", event.target.value)}
@@ -1244,7 +1360,7 @@ function BasicStep({
               placeholder="Suite, floor, unit"
             />
           </Field>
-          <Field label="Postal Code" error={fieldError("postalCode", "basic")}>
+          <Field label="Postal Code" error={fieldError("postalCode", "details")}>
             <Input
               value={draft.postalCode}
               onChange={(event) => set("postalCode", event.target.value)}
@@ -1254,8 +1370,25 @@ function BasicStep({
           </Field>
         </div>
       </section>
+    </div>
+  );
+}
 
-      {/* Contact Information Card */}
+function ContactsStep({
+  draft,
+  set,
+  catalogues,
+  fieldError,
+}: {
+  draft: GuestCompanyCreateDraft;
+  set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
+  catalogues?: CompanyCreateContext["catalogues"];
+  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
+}) {
+  const contactsError = fieldError("contacts", "contacts");
+
+  return (
+    <div className="space-y-4">
       <section className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-2 border-b border-[#E8E4DC] pb-3">
           <div>
@@ -1422,108 +1555,6 @@ function BasicStep({
   );
 }
 
-function BusinessStep({
-  draft,
-  set,
-  catalogues,
-  fieldError,
-}: {
-  draft: GuestCompanyCreateDraft;
-  set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
-  catalogues?: CompanyCreateContext["catalogues"];
-  fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
-}) {
-  return (
-    <div className="space-y-4">
-      {/* Commercial Defaults */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-        <div className="border-b border-[#E8E4DC] pb-3">
-          <h2 className="font-display text-base font-semibold text-[#251605]">Business & Commercial Defaults</h2>
-          <p className="text-xs text-muted-foreground">Market segmentation, sales attribution, and rate defaults.</p>
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Market Segment">
-            <NoneSelect
-              value={draft.marketSegmentId}
-              onChange={(value) => set("marketSegmentId", value)}
-              options={catalogues?.marketSegments ?? []}
-              placeholder="Select segment"
-            />
-          </Field>
-          <Field label="Source Code">
-            <NoneSelect
-              value={draft.sourceCodeId}
-              onChange={(value) => {
-                const selected = (catalogues?.sourceCodes ?? []).find((row) => row.id === value);
-                set("sourceCodeId", value);
-                set("sourceOfBusiness", selected?.code || selected?.name || "");
-              }}
-              options={catalogues?.sourceCodes ?? []}
-              placeholder="Select source"
-            />
-          </Field>
-          <Field label="Account Manager">
-            <NoneSelect
-              value={draft.accountManagerId}
-              onChange={(value) => set("accountManagerId", value)}
-              options={catalogues?.staff ?? []}
-              placeholder="Select staff"
-            />
-          </Field>
-          <Field label="Contract Reference">
-            <Input
-              value={draft.contractReference}
-              onChange={(event) => set("contractReference", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Agreement reference code"
-            />
-          </Field>
-          <Field label="Contract Start" error={fieldError("contractStartDate", "business")}>
-            <Input
-              type="date"
-              value={draft.contractStartDate}
-              onChange={(event) => set("contractStartDate", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </Field>
-          <Field label="Contract End" error={fieldError("contractEndDate", "business")}>
-            <Input
-              type="date"
-              value={draft.contractEndDate}
-              onChange={(event) => set("contractEndDate", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </Field>
-          <Field label="Default Rate Plan">
-            <NoneSelect
-              value={draft.ratePlanId}
-              onChange={(value) => set("ratePlanId", value)}
-              options={catalogues?.ratePlans ?? []}
-              placeholder="Select rate plan"
-            />
-          </Field>
-          <Field label="Default Package">
-            <NoneSelect
-              value={draft.packageId}
-              onChange={(value) => set("packageId", value)}
-              options={catalogues?.packages ?? []}
-              placeholder="Select package"
-            />
-          </Field>
-          <Field label="Default Meal Plan">
-            <NoneSelect
-              value={draft.mealPlanId}
-              onChange={(value) => set("mealPlanId", value)}
-              options={catalogues?.mealPlans ?? []}
-              placeholder="Select meal plan"
-            />
-          </Field>
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">{COMPANY_CREATE_CONTRACT_COPY}</p>
-      </section>
-    </div>
-  );
-}
 
 function BillingStep({
   draft,
@@ -1660,11 +1691,13 @@ function BillingStep({
 function ReviewStep({
   draft,
   catalogues,
+  contractConfig,
   issues,
   onEdit,
 }: {
   draft: GuestCompanyCreateDraft;
   catalogues?: CompanyCreateContext["catalogues"];
+  contractConfig?: CompanyContractCreateConfig;
   issues: Array<{ key: string; message: string; step: GuestCompanyCreateStepId }>;
   onEdit: (step: GuestCompanyCreateStepId) => void;
 }) {
@@ -1676,6 +1709,17 @@ function ReviewStep({
         step: item.step,
       }));
   const primary = primaryCompanyContact(draft);
+  const contract = draft.contract;
+
+  const contractType = contractConfig?.contractTypes.find((t) => t.id === contract.contractTypeId);
+  const selectedPlan = contractConfig?.ratePlans.find((p) => p.id === contract.ratePlanId);
+  const guaranteePolicy = contractConfig?.guaranteePolicies.find((p) => p.id === contract.depositPolicyId);
+  const cancellationPolicy = contractConfig?.cancellationPolicies.find((p) => p.id === contract.cancellationPolicyId);
+  const noShowPolicy = contractConfig?.noShowPolicies.find((p) => p.id === contract.noShowPolicyId);
+
+  const missingRequiredDocs = (contractConfig?.contractDocumentTypes ?? [])
+    .filter((dt) => dt.required && dt.active)
+    .filter((dt) => !contract.documents.some((d) => d.documentTypeId === dt.id));
 
   return (
     <div className="space-y-4">
@@ -1703,7 +1747,7 @@ function ReviewStep({
         </section>
       ) : null}
 
-      <ReviewCard title="Basic Information" onEdit={() => onEdit("basic")}>
+      <ReviewCard title="Company Information" onEdit={() => onEdit("details")}>
         <div className="grid gap-2 text-xs sm:grid-cols-2">
           <p><span className="text-muted-foreground">Name:</span> {draft.name || "—"}</p>
           <p><span className="text-muted-foreground">Type:</span> {optionLabel(catalogues?.businessTypes ?? [], draft.businessProfileTypeId) || "—"}</p>
@@ -1717,26 +1761,19 @@ function ReviewStep({
             <span className="text-muted-foreground">Address:</span>{" "}
             {[draft.addressLine1, draft.city, draft.region, draft.country].filter(Boolean).join(", ") || "—"}
           </p>
-          <p className="sm:col-span-2">
-            <span className="text-muted-foreground">Primary Contact:</span>{" "}
-            {primary?.name ? `${primary.name} · ${primary.email || "No email"} · ${primary.phone || "No phone"}` : "None"}
-          </p>
-          <p className="sm:col-span-2">
-            <span className="text-muted-foreground">Total Contacts:</span>{" "}
-            {draft.contacts.filter((row) => filled(row.name)).length}
-          </p>
         </div>
       </ReviewCard>
 
-      <ReviewCard title="Business & Commercial" onEdit={() => onEdit("business")}>
-        <div className="grid gap-2 text-xs sm:grid-cols-2">
-          <p><span className="text-muted-foreground">Market Segment:</span> {optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</p>
-          <p><span className="text-muted-foreground">Source Code:</span> {optionLabel(catalogues?.sourceCodes ?? [], draft.sourceCodeId) || draft.sourceOfBusiness || "—"}</p>
-          <p><span className="text-muted-foreground">Account Manager:</span> {optionLabel(catalogues?.staff ?? [], draft.accountManagerId) || "—"}</p>
-          <p><span className="text-muted-foreground">Contract:</span> {draft.contractReference || "—"} {draft.contractStartDate ? `(${draft.contractStartDate} to ${draft.contractEndDate || "open"})` : ""}</p>
-          <p><span className="text-muted-foreground">Rate Plan:</span> {optionLabel(catalogues?.ratePlans ?? [], draft.ratePlanId) || "—"}</p>
-          <p><span className="text-muted-foreground">Package:</span> {optionLabel(catalogues?.packages ?? [], draft.packageId) || "—"}</p>
-          <p><span className="text-muted-foreground">Meal Plan:</span> {optionLabel(catalogues?.mealPlans ?? [], draft.mealPlanId) || "—"}</p>
+      <ReviewCard title="Contacts" onEdit={() => onEdit("contacts")}>
+        <div className="space-y-2 text-xs">
+          <p>
+            <span className="text-muted-foreground">Primary Contact:</span>{" "}
+            {primary?.name ? `${primary.name} · ${primary.email || "No email"} · ${primary.phone || "No phone"}` : "None"}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Total Contacts:</span>{" "}
+            {draft.contacts.filter((row) => filled(row.name)).length}
+          </p>
         </div>
       </ReviewCard>
 
@@ -1749,6 +1786,100 @@ function ReviewStep({
           <p><span className="text-muted-foreground">Terms:</span> {draft.paymentTerms || "—"}</p>
           <p><span className="text-muted-foreground">Billing Contact:</span> {draft.billingContactName || "—"}</p>
           <p><span className="text-muted-foreground">Billing Email:</span> {draft.billingEmail || "—"}</p>
+        </div>
+      </ReviewCard>
+
+      <ReviewCard title="Contracts & Agreements" onEdit={() => onEdit("contracts")}>
+        <div className="space-y-3 text-xs">
+          {/* Contract Setup */}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <p><span className="text-muted-foreground">Contract Type:</span> {contractType?.name || "—"}</p>
+            <p><span className="text-muted-foreground">Contract Name:</span> {contract.name || "—"}</p>
+            <p><span className="text-muted-foreground">Contract Code:</span> {contract.code || "—"}</p>
+            {contract.contractNumber ? (
+              <p><span className="text-muted-foreground">Ext Reference:</span> {contract.contractNumber}</p>
+            ) : null}
+            <p><span className="text-muted-foreground">Validity:</span> {contract.validFrom || "—"} to {contract.validTo || "—"}</p>
+            <p><span className="text-muted-foreground">Currency:</span> {contract.currencyCode || "—"}</p>
+            <p><span className="text-muted-foreground">Status:</span> <span className="font-semibold capitalize">{contract.status}</span></p>
+          </div>
+
+          {/* Commercial Pricing */}
+          <div className="rounded-lg border border-[#E8E4DC] bg-[#FAF8F5] p-2.5">
+            <p className="font-semibold text-[#251605]">Commercial Pricing</p>
+            <div className="mt-0.5 text-muted-foreground">
+              {contract.pricingMethod === "rate_plan" ? (
+                <p>
+                  <span className="font-medium text-[#251605]">Method A (Use Existing Rate Plan):</span>{" "}
+                  {contract.ratePlanScope === "all"
+                    ? `All Active Rate Plans (${contractConfig?.ratePlans.length ?? 0} plans)`
+                    : contract.ratePlanIds?.length
+                    ? `${contract.ratePlanIds.length} plan(s) (${contract.ratePlanIds
+                        .map((id) => contractConfig?.ratePlans.find((p) => p.id === id)?.name || id)
+                        .join(", ")})`
+                    : selectedPlan ? `${selectedPlan.name} — ${selectedPlan.roomTypeName || "Standard"}` : contract.ratePlanId || "—"}
+                </p>
+              ) : contract.pricingMethod === "rate_plan_discount" ? (
+                <div className="space-y-0.5">
+                  <p>
+                    <span className="font-medium text-[#251605]">Method B (Discount From Rate Plan):</span>{" "}
+                    {contract.ratePlanScope === "all"
+                      ? `All Active Rate Plans (${contractConfig?.ratePlans.length ?? 0} plans)`
+                      : contract.ratePlanIds?.length
+                      ? `${contract.ratePlanIds.length} plan(s) (${contract.ratePlanIds
+                          .map((id) => contractConfig?.ratePlans.find((p) => p.id === id)?.name || id)
+                          .join(", ")})`
+                      : selectedPlan ? `${selectedPlan.name} — ${selectedPlan.roomTypeName || "Standard"}` : contract.ratePlanId || "—"}
+                  </p>
+                  <p>
+                    {contract.discountApplication === "custom"
+                      ? `Discounts: Separate per plan (${contract.ratePlanDiscounts?.length ?? 0} configured)`
+                      : `Discount: Uniform ${contract.discountValue}${contract.discountType === "percent" ? "%" : ` ${contract.currencyCode || ""}`}`}
+                  </p>
+                </div>
+              ) : (
+                <p>
+                  <span className="font-medium text-[#251605]">Method C (Contracted Room Rates):</span>{" "}
+                  {contract.contractRates.length} room rate(s) configured
+                </p>
+              )}
+            </div>
+            {contract.pricingMethod === "contracted_rates" && contract.contractRates.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-[11px]">
+                {contract.contractRates.map((r, i) => {
+                  const room = (contractConfig?.roomTypes ?? []).find((rt) => rt.id === r.roomTypeId);
+                  return (
+                    <li key={r.roomTypeId || i} className="flex justify-between border-t border-[#E8E4DC] pt-1">
+                      <span>{room?.name || r.roomTypeId}</span>
+                      <span className="font-mono font-medium text-[#8A641A]">{contract.currencyCode} {r.amount}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </div>
+
+          {/* Booking Conditions */}
+          <div className="grid gap-2 sm:grid-cols-3">
+            <p><span className="text-muted-foreground">Guarantee:</span> {guaranteePolicy?.name || "None"}</p>
+            <p><span className="text-muted-foreground">Cancellation:</span> {cancellationPolicy?.name || "None"}</p>
+            <p><span className="text-muted-foreground">No-Show:</span> {noShowPolicy?.name || "None"}</p>
+          </div>
+
+          {/* Documents */}
+          <div>
+            <p><span className="text-muted-foreground">Documents:</span> {contract.documents.length} uploaded</p>
+            {missingRequiredDocs.length > 0 && contract.status === "active" ? (
+              <p className="mt-1 text-xs font-semibold text-destructive">
+                Missing required: {missingRequiredDocs.map((d) => d.name).join(", ")}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Notes */}
+          {contract.notes ? (
+            <p><span className="text-muted-foreground">Contract Notes:</span> {contract.notes}</p>
+          ) : null}
         </div>
       </ReviewCard>
     </div>
