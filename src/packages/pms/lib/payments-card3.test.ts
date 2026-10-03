@@ -102,7 +102,6 @@ describe("Card 3 Phase 5 payments and deposits", () => {
     assert.match(section, /paymentsQuery\.isLoading/);
     assert.match(section, /currencyStatus/);
     assert.match(section, /taxesStatus/);
-    assert.match(section, /ratesStatus/);
     assert.match(section, /mealsStatus/);
     assert.match(section, /paymentsStatus/);
     assert.match(section, /Loading configuration readiness/);

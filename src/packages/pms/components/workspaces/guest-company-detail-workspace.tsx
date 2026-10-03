@@ -7,6 +7,8 @@ import { ChevronDown } from "lucide-react";
 import { GuestCompanyHeader } from "@/packages/pms/components/guests/guest-company-header";
 import { GuestCompanyOverviewView } from "@/packages/pms/components/guests/guest-company-overview-view";
 import { GuestCompanyDetailsView, GuestCompanyCorporate } from "@/packages/pms/components/guests/guest-company-details-view";
+import { GuestCompanyContacts } from "@/packages/pms/components/guests/guest-company-contacts";
+import { GuestCompanyTravelers } from "@/packages/pms/components/guests/guest-company-travelers";
 import { GuestCompanyContactsTravelersView } from "@/packages/pms/components/guests/guest-company-contacts-travelers-view";
 import { GuestCompanyContractsView } from "@/packages/pms/components/guests/guest-company-contracts-view";
 import { GuestCompanyReservationsView } from "@/packages/pms/components/guests/guest-company-reservations-view";
@@ -16,6 +18,7 @@ import { GuestCompanyCommercialBillingView, GuestCompanyBilling } from "@/packag
 import { GuestCompanyActivityView } from "@/packages/pms/components/guests/guest-company-activity-view";
 import { GuestCompanyAdministrationView } from "@/packages/pms/components/guests/guest-company-administration-view";
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
+import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   guestProfileSearch,
@@ -205,6 +208,24 @@ export function GuestCompanyDetailWorkspace({
         />
       )}
 
+      {canonicalNavId === "contacts" && (
+        <GuestCompanyContacts
+          restaurantId={restaurantId}
+          companyId={companyId}
+          companyName={data.company.name}
+          contactRequired={Boolean(data.businessType?.contactRequired)}
+          onEditCompany={() => setEditOpen(true)}
+        />
+      )}
+
+      {canonicalNavId === "travelers" && (
+        <GuestCompanyTravelers
+          restaurantId={restaurantId}
+          companyId={companyId}
+          initialLinkOpen={navProp === "link-travelers" || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "link")}
+        />
+      )}
+
       {canonicalNavId === "contacts-travelers" && (
         <GuestCompanyContactsTravelersView
           restaurantId={restaurantId}
@@ -269,14 +290,17 @@ export function GuestCompanyDetailWorkspace({
         />
       )}
 
-      <GuestCompanyFormDialog
+      <GuestCompanyCreateModal
         restaurantId={restaurantId}
         open={editOpen}
+        mode="edit"
+        companyId={companyId}
+        company={accountQuery.data}
         onOpenChange={setEditOpen}
-        account={accountQuery.data}
-        accountId={companyId}
         onSaved={() => {
+          setEditOpen(false);
           void query.refetch();
+          void accountQuery.refetch();
         }}
       />
     </div>

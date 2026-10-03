@@ -272,9 +272,11 @@ export const persistTravelAgentCreate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
-    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
-    await assertListingCreateAllowed(data.restaurantId, "travel-agent");
     const draft = data.draft;
+    if (!draft.accountId) {
+      const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+      await assertListingCreateAllowed(data.restaurantId, "travel-agent");
+    }
     if (data.mode === "draft" && !filled(draft.agencyType)) {
       return { id: draft.accountId, contacts: draft.contacts, created: false as const };
     }

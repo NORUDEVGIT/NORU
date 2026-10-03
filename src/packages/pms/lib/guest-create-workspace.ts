@@ -31,6 +31,16 @@ export const GUEST_CREATE_STEPS = [
   { id: "review", number: 6, title: "Review & Save" },
 ] as const;
 
+export function resolveGuestCreateSteps(identityActive: boolean = true) {
+  const list = identityActive
+    ? GUEST_CREATE_STEPS
+    : GUEST_CREATE_STEPS.filter((item) => item.id !== "identity");
+  return list.map((item, index) => ({
+    ...item,
+    number: index + 1,
+  }));
+}
+
 export type GuestCreateStepId = (typeof GUEST_CREATE_STEPS)[number]["id"];
 
 export const GUEST_CREATE_TITLE = "Create New Guest";
@@ -80,6 +90,9 @@ export type GuestCreateDocumentDraft = {
   notes: string;
   hasFront: boolean;
   hasBack: boolean;
+  existingDocumentId?: string;
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
 };
 
 export type GuestCreateLinkDraft = {
@@ -237,9 +250,9 @@ export function emptyGuestCreateDraft(defaults?: ProfileTypeDefaults | null): Gu
     gender: "",
     nationality: "",
     language: defaults?.languageId ?? "",
-    country: defaults?.countryId ?? "",
-    region: "",
-    city: "",
+    country: defaults?.countryId ?? "Ethiopia",
+    region: "Addis Ababa",
+    city: "Addis Ababa",
     addressLine1: "",
     addressLine2: "",
     postalCode: "",
@@ -279,7 +292,7 @@ export function applyCreateDefaults(
   if (!defaults) return draft;
   const next = { ...draft };
   if (!touched.has("language") && !draft.language && defaults.languageId) next.language = defaults.languageId;
-  if (!touched.has("country") && !draft.country && defaults.countryId) next.country = defaults.countryId;
+  if (!touched.has("country") && (!draft.country || draft.country === "Ethiopia") && defaults.countryId) next.country = defaults.countryId;
   if (
     !touched.has("preferredContactMethod") &&
     !draft.preferredContactMethod &&
@@ -313,10 +326,11 @@ export function createFieldRule(
       label,
     };
   }
+  const isIdDoc = code === "IDENTITY_DOCUMENT";
   return {
     code,
     visible: alwaysVisible || field.active,
-    required: alwaysVisible || (field.active && (field.required || typeRequired)),
+    required: isIdDoc ? false : (alwaysVisible || (field.active && (field.required || typeRequired))),
     label: field.name || label,
   };
 }
@@ -365,7 +379,6 @@ export function card4CreateGaps(
   need("NATIONALITY", filled(draft.nationality), "basic");
   need("DATE_OF_BIRTH", filled(draft.dateOfBirth), "basic");
   need("ADDRESS", addressFilled(draft), "basic");
-  need("IDENTITY_DOCUMENT", draft.documents.some((row) => filled(row.documentNumber) || row.hasFront), "identity");
   need("COMPANY", draft.links.length > 0, "business");
   return gaps;
 }
@@ -462,13 +475,17 @@ export function guestCreateCompletion(
       requiredRemaining: Boolean(byCode.get("ADDRESS")?.required && !addressFilled(draft)),
       step: "basic",
     },
-    {
-      id: "identity",
-      label: "Identity Document",
-      complete: !byCode.get("IDENTITY_DOCUMENT")?.required || draft.documents.length > 0,
-      requiredRemaining: Boolean(byCode.get("IDENTITY_DOCUMENT")?.required && draft.documents.length === 0),
-      step: "identity",
-    },
+    ...(byCode.get("IDENTITY_DOCUMENT")?.visible !== false
+      ? [
+          {
+            id: "identity",
+            label: "Identity Document",
+            complete: !byCode.get("IDENTITY_DOCUMENT")?.required || draft.documents.length > 0,
+            requiredRemaining: Boolean(byCode.get("IDENTITY_DOCUMENT")?.required && draft.documents.length === 0),
+            step: "identity" as GuestCreateStepId,
+          },
+        ]
+      : []),
     {
       id: "preferences",
       label: "Preferences",

@@ -270,6 +270,35 @@ export function GuestIdentityCard({
       toast.error("Choose a document type.");
       return;
     }
+    if (selectedType) {
+      if (selectedType.documentNumberActive !== false && selectedType.documentNumberRequired && !form.documentNumber.trim()) {
+        toast.error("Document number is required.");
+        return;
+      }
+      if (selectedType.issuingCountryActive !== false && selectedType.issuingCountryRequired && !form.issuingCountry.trim()) {
+        toast.error("Issuing country is required.");
+        return;
+      }
+      if (selectedType.issueDateActive !== false && selectedType.issueDateRequired && !form.issueDate.trim()) {
+        toast.error("Issue date is required.");
+        return;
+      }
+      if (selectedType.expiryDateActive !== false && selectedType.expiryDateRequired && !form.expiryDate.trim()) {
+        toast.error("Expiry date is required.");
+        return;
+      }
+      if (selectedType.issuingAuthorityActive !== false && selectedType.issuingAuthorityRequired && !form.issuingAuthority.trim()) {
+        toast.error("Issuing authority is required.");
+        return;
+      }
+      if (selectedType.scanImageAllowed && selectedType.scanImageRequired) {
+        const hasFront = mode === "create" ? Boolean(form.pendingFront) : Boolean(selected?.url || form.pendingFront);
+        if (!hasFront) {
+          toast.error("Front document scan/image is required.");
+          return;
+        }
+      }
+    }
     setSaving(true);
     const result = await saveDocument({
       data: {
@@ -799,82 +828,96 @@ export function GuestIdentityCard({
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="identity-number">
-                Document number{selectedType?.documentNumberRequired ? " *" : ""}
-              </Label>
-              <Input
-                id="identity-number"
-                className="mt-1"
-                value={form.documentNumber}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, documentNumber: event.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="identity-country">
-                Issuing country{selectedType?.issuingCountryRequired ? " *" : ""}
-              </Label>
-              <Select
-                value={form.issuingCountry || "__none"}
-                onValueChange={(value) =>
-                  setForm((current) => ({
-                    ...current,
-                    issuingCountry: value === "__none" ? "" : value,
-                  }))
-                }
-              >
-                <SelectTrigger id="identity-country" className="mt-1">
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Not set</SelectItem>
-                  {ISO_COUNTRIES.map((country) => (
-                    <SelectItem key={country.code} value={country.code}>
-                      {country.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="identity-issue">Issue date</Label>
-              <Input
-                id="identity-issue"
-                type="date"
-                className="mt-1"
-                value={form.issueDate}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, issueDate: event.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="identity-expiry">
-                Expiry date{selectedType?.expiryDateRequired ? " *" : ""}
-              </Label>
-              <Input
-                id="identity-expiry"
-                type="date"
-                className="mt-1"
-                value={form.expiryDate}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, expiryDate: event.target.value }))
-                }
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="identity-authority">Issuing authority</Label>
-              <Input
-                id="identity-authority"
-                className="mt-1"
-                value={form.issuingAuthority}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, issuingAuthority: event.target.value }))
-                }
-              />
-            </div>
+            {selectedType?.documentNumberActive !== false ? (
+              <div>
+                <Label htmlFor="identity-number">
+                  Document number{selectedType?.documentNumberRequired ? " *" : ""}
+                </Label>
+                <Input
+                  id="identity-number"
+                  className="mt-1"
+                  value={form.documentNumber}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, documentNumber: event.target.value }))
+                  }
+                />
+              </div>
+            ) : null}
+            {selectedType?.issuingCountryActive !== false ? (
+              <div>
+                <Label htmlFor="identity-country">
+                  Issuing country{selectedType?.issuingCountryRequired ? " *" : ""}
+                </Label>
+                <Select
+                  value={form.issuingCountry || "__none"}
+                  onValueChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      issuingCountry: value === "__none" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="identity-country" className="mt-1">
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Not set</SelectItem>
+                    {ISO_COUNTRIES.map((country) => (
+                      <SelectItem key={country.code} value={country.code}>
+                        {country.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            {selectedType?.issueDateActive !== false ? (
+              <div>
+                <Label htmlFor="identity-issue">
+                  Issue date{selectedType?.issueDateRequired ? " *" : ""}
+                </Label>
+                <Input
+                  id="identity-issue"
+                  type="date"
+                  className="mt-1"
+                  value={form.issueDate}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, issueDate: event.target.value }))
+                  }
+                />
+              </div>
+            ) : null}
+            {selectedType?.expiryDateActive !== false ? (
+              <div>
+                <Label htmlFor="identity-expiry">
+                  Expiry date{selectedType?.expiryDateRequired ? " *" : ""}
+                </Label>
+                <Input
+                  id="identity-expiry"
+                  type="date"
+                  className="mt-1"
+                  value={form.expiryDate}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, expiryDate: event.target.value }))
+                  }
+                />
+              </div>
+            ) : null}
+            {selectedType?.issuingAuthorityActive !== false ? (
+              <div className="sm:col-span-2">
+                <Label htmlFor="identity-authority">
+                  Issuing authority{selectedType?.issuingAuthorityRequired ? " *" : ""}
+                </Label>
+                <Input
+                  id="identity-authority"
+                  className="mt-1"
+                  value={form.issuingAuthority}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, issuingAuthority: event.target.value }))
+                  }
+                />
+              </div>
+            ) : null}
             <div className="sm:col-span-2">
               <Label htmlFor="identity-notes">Notes</Label>
               <Textarea
@@ -891,7 +934,7 @@ export function GuestIdentityCard({
           {imagesAllowed ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
-                <Label>Front image</Label>
+                <Label>Front image{selectedType?.scanImageRequired ? " *" : ""}</Label>
                 <input
                   ref={frontRef}
                   type="file"

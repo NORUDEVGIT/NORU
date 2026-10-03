@@ -7,6 +7,13 @@
  */
 
 import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
+export {
+  PREDEFINED_RATE_CATEGORIES,
+  isPredefinedCategoryConfigured,
+  findMatchingPredefinedCategory,
+  normalizeCategoryKey,
+  type PredefinedRateCategory,
+} from "./rates-categories-catalogue";
 
 export const CARD2_RATES_AUDIT_SECTION = "card2-rates";
 export const CARD2_RATES_UNAVAILABLE =

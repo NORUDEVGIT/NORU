@@ -306,6 +306,25 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
       data.documentTypeIds,
       context.userId,
     );
+    if (code === "IND" || code === "INDIVIDUAL" || name.toLowerCase().includes("individual")) {
+      const requiredSet = new Set(data.requiredFieldIds);
+      const fieldsRes = await db
+        .from("pms_guest_fields")
+        .select("id, required")
+        .eq("restaurant_id", data.restaurantId);
+      if (fieldsRes.data) {
+        for (const f of fieldsRes.data) {
+          const shouldBeReq = requiredSet.has(f.id);
+          if (f.required !== shouldBeReq) {
+            await db
+              .from("pms_guest_fields")
+              .update({ required: shouldBeReq, updated_by: context.userId })
+              .eq("id", f.id)
+              .eq("restaurant_id", data.restaurantId);
+          }
+        }
+      }
+    }
     const next = await loadSnapshot(db, data.restaurantId, context.userId);
     return {
       ok: true as const,

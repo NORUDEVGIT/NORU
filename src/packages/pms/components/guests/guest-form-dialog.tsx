@@ -282,6 +282,7 @@ export function GuestFormDialog(props: {
   onOpenExisting?: (guestId: string) => void;
   /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
   onMergeRequested?: (duplicateId: string) => void;
+  ignoreDraft?: boolean;
 }) {
   if (!props.guest) {
     return (
@@ -289,6 +290,8 @@ export function GuestFormDialog(props: {
         restaurantId={props.restaurantId}
         open={props.open}
         onOpenChange={props.onOpenChange}
+        mode="create"
+        ignoreDraft={props.ignoreDraft}
         onCreated={(id) => props.onSaved?.(id)}
         onCancel={() => props.onOpenChange(false)}
       />
@@ -297,7 +300,29 @@ export function GuestFormDialog(props: {
   return <GuestEditFormDialog {...props} guest={props.guest} />;
 }
 
-function GuestEditFormDialog({
+function GuestEditFormDialog(props: {
+  restaurantId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  guest: GuestProfile;
+  onSaved?: (guestId: string) => void;
+  onOpenExisting?: (guestId: string) => void;
+  onMergeRequested?: (duplicateId: string) => void;
+}) {
+  return (
+    <GuestCreateModal
+      restaurantId={props.restaurantId}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      mode="edit"
+      guest={props.guest}
+      onSaved={props.onSaved}
+      onCancel={() => props.onOpenChange(false)}
+    />
+  );
+}
+
+function LegacyGuestEditFormDialog({
   restaurantId,
   open,
   onOpenChange,

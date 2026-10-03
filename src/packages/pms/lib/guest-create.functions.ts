@@ -113,7 +113,7 @@ export const getGuestCreateContext = createServerFn({ method: "POST" })
       db
         .from("pms_guest_id_types")
         .select(
-          "id, name, code, active, issuing_country_required, expiry_date_required, document_number_required, scan_image_allowed, valid_for_profile_type_ids",
+          "id, name, code, active, document_number_active, document_number_required, issuing_country_active, issuing_country_required, issue_date_active, issue_date_required, expiry_date_active, expiry_date_required, issuing_authority_active, issuing_authority_required, scan_image_allowed, scan_image_required, valid_for_profile_type_ids",
         )
         .eq("restaurant_id", data.restaurantId)
         .order("display_order"),
@@ -205,10 +205,18 @@ export const getGuestCreateContext = createServerFn({ method: "POST" })
               name: String(row.name),
               code: String(row.code),
               active: Boolean(row.active),
-              issuingCountryRequired: Boolean(row.issuing_country_required),
-              expiryDateRequired: Boolean(row.expiry_date_required),
+              documentNumberActive: Boolean(row.document_number_active ?? true),
               documentNumberRequired: Boolean(row.document_number_required),
+              issuingCountryActive: Boolean(row.issuing_country_active ?? true),
+              issuingCountryRequired: Boolean(row.issuing_country_required),
+              issueDateActive: Boolean(row.issue_date_active ?? true),
+              issueDateRequired: Boolean(row.issue_date_required ?? false),
+              expiryDateActive: Boolean(row.expiry_date_active ?? true),
+              expiryDateRequired: Boolean(row.expiry_date_required),
+              issuingAuthorityActive: Boolean(row.issuing_authority_active ?? true),
+              issuingAuthorityRequired: Boolean(row.issuing_authority_required ?? false),
               scanImageAllowed: Boolean(row.scan_image_allowed),
+              scanImageRequired: Boolean(row.scan_image_required ?? false),
               validForProfileTypeIds: Array.isArray(row.valid_for_profile_type_ids)
                 ? (row.valid_for_profile_type_ids as string[])
                 : [],

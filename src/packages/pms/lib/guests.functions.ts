@@ -3600,10 +3600,18 @@ export type GuestIdentityDocumentTypeOption = {
   name: string;
   code: string;
   active: boolean;
-  issuingCountryRequired: boolean;
-  expiryDateRequired: boolean;
+  documentNumberActive?: boolean;
   documentNumberRequired: boolean;
+  issuingCountryActive?: boolean;
+  issuingCountryRequired: boolean;
+  issueDateActive?: boolean;
+  issueDateRequired?: boolean;
+  expiryDateActive?: boolean;
+  expiryDateRequired: boolean;
+  issuingAuthorityActive?: boolean;
+  issuingAuthorityRequired?: boolean;
   scanImageAllowed: boolean;
+  scanImageRequired?: boolean;
   validForProfileTypeIds: string[];
 };
 
@@ -3643,7 +3651,7 @@ async function loadIdentityDocumentTypes(
   const result = await supabaseAdmin
     .from("pms_guest_id_types")
     .select(
-      "id, name, code, active, issuing_country_required, expiry_date_required, document_number_required, scan_image_allowed, valid_for_profile_type_ids",
+      "id, name, code, active, document_number_active, document_number_required, issuing_country_active, issuing_country_required, issue_date_active, issue_date_required, expiry_date_active, expiry_date_required, issuing_authority_active, issuing_authority_required, scan_image_allowed, scan_image_required, valid_for_profile_type_ids",
     )
     .eq("restaurant_id", restaurantId)
     .order("display_order");
@@ -3656,10 +3664,18 @@ async function loadIdentityDocumentTypes(
     name?: string | null;
     code?: string | null;
     active?: boolean | null;
-    issuing_country_required?: boolean | null;
-    expiry_date_required?: boolean | null;
+    document_number_active?: boolean | null;
     document_number_required?: boolean | null;
+    issuing_country_active?: boolean | null;
+    issuing_country_required?: boolean | null;
+    issue_date_active?: boolean | null;
+    issue_date_required?: boolean | null;
+    expiry_date_active?: boolean | null;
+    expiry_date_required?: boolean | null;
+    issuing_authority_active?: boolean | null;
+    issuing_authority_required?: boolean | null;
     scan_image_allowed?: boolean | null;
+    scan_image_required?: boolean | null;
     valid_for_profile_type_ids?: unknown;
   }
   return ((result.data ?? []) as IdentityDocTypeRow[]).map((row) => ({
@@ -3667,10 +3683,18 @@ async function loadIdentityDocumentTypes(
     name: String(row.name),
     code: String(row.code),
     active: Boolean(row.active),
-    issuingCountryRequired: Boolean(row.issuing_country_required),
-    expiryDateRequired: Boolean(row.expiry_date_required),
+    documentNumberActive: Boolean(row.document_number_active ?? true),
     documentNumberRequired: Boolean(row.document_number_required),
+    issuingCountryActive: Boolean(row.issuing_country_active ?? true),
+    issuingCountryRequired: Boolean(row.issuing_country_required),
+    issueDateActive: Boolean(row.issue_date_active ?? true),
+    issueDateRequired: Boolean(row.issue_date_required ?? false),
+    expiryDateActive: Boolean(row.expiry_date_active ?? true),
+    expiryDateRequired: Boolean(row.expiry_date_required),
+    issuingAuthorityActive: Boolean(row.issuing_authority_active ?? true),
+    issuingAuthorityRequired: Boolean(row.issuing_authority_required ?? false),
     scanImageAllowed: Boolean(row.scan_image_allowed),
+    scanImageRequired: Boolean(row.scan_image_required ?? false),
     validForProfileTypeIds: Array.isArray(row.valid_for_profile_type_ids)
       ? (row.valid_for_profile_type_ids as string[])
       : [],
@@ -3725,12 +3749,21 @@ export function validateDocumentFields(
   input: {
     documentNumber: string | null;
     issuingCountry: string | null;
+    issueDate?: string | null;
     expiryDate: string | null;
+    issuingAuthority?: string | null;
   },
 ): string | null {
-  if (type.documentNumberRequired && !input.documentNumber) return "Document number is required.";
-  if (type.issuingCountryRequired && !input.issuingCountry) return "Issuing country is required.";
-  if (type.expiryDateRequired && !input.expiryDate) return "Expiry date is required.";
+  if (type.documentNumberActive !== false && type.documentNumberRequired && !input.documentNumber)
+    return "Document number is required.";
+  if (type.issuingCountryActive !== false && type.issuingCountryRequired && !input.issuingCountry)
+    return "Issuing country is required.";
+  if (type.issueDateActive !== false && type.issueDateRequired && !input.issueDate)
+    return "Issue date is required.";
+  if (type.expiryDateActive !== false && type.expiryDateRequired && !input.expiryDate)
+    return "Expiry date is required.";
+  if (type.issuingAuthorityActive !== false && type.issuingAuthorityRequired && !input.issuingAuthority)
+    return "Issuing authority is required.";
   return null;
 }
 
@@ -4052,11 +4085,15 @@ export const saveGuestDocument = createServerFn({ method: "POST" })
 
       const documentNumber = blankToNull(data.documentNumber);
       const issuingCountry = blankToNull(data.issuingCountry);
+      const issueDate = blankToNull(data.issueDate);
       const expiryDate = blankToNull(data.expiryDate);
+      const issuingAuthority = blankToNull(data.issuingAuthority);
       const requiredError = validateDocumentFields(type, {
         documentNumber,
         issuingCountry,
+        issueDate,
         expiryDate,
+        issuingAuthority,
       });
       if (requiredError) return { ok: false as const, message: requiredError };
 

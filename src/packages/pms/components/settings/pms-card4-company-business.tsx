@@ -58,6 +58,12 @@ import {
   setPmsCard4BusinessTypeActive,
   setPmsCard4ContactRoleActive,
 } from "@/packages/pms/lib/company-business-card4.functions";
+import {
+  listPmsCompanyDocumentTypes,
+  savePmsCompanyDocumentType,
+  setPmsCompanyDocumentTypeActive,
+  type CompanyDocumentTypeRecord,
+} from "@/packages/pms/lib/corporate-contracts.functions";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
   emptyBusinessSettings,
@@ -178,6 +184,38 @@ export function PmsCard4CompanyBusiness({
   const [roleDraft, setRoleDraft] = useState<BusinessContactRoleDraft>(emptyContactRoleDraft());
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(0);
+
+  const fetchDocTypes = useServerFn(listPmsCompanyDocumentTypes);
+  const saveDocType = useServerFn(savePmsCompanyDocumentType);
+  const setDocTypeActive = useServerFn(setPmsCompanyDocumentTypeActive);
+
+  const docTypesQuery = useQuery({
+    queryKey: ["pms-company-document-types", restaurantId],
+    queryFn: () => fetchDocTypes({ data: { restaurantId } }),
+  });
+  const docTypes = docTypesQuery.data ?? [];
+  const [docTypeDraft, setDocTypeDraft] = useState<CompanyDocumentTypeRecord | "new" | null>(null);
+
+  const docTypeMutation = useMutation({
+    mutationFn: (input: { id?: string; name: string; code: string; description?: string; required: boolean; appliesToContract: boolean; appliesToCompany: boolean; displayOrder: number; active: boolean }) =>
+      saveDocType({ data: { restaurantId, ...input } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
+      setDocTypeDraft(null);
+      toast.success("Document type saved.");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to save document type."),
+  });
+
+  const docTypeActiveMutation = useMutation({
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setDocTypeActive({ data: { restaurantId, ...input } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
+      toast.success("Document type updated.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     if (!query.data) return;
@@ -741,6 +779,98 @@ export function PmsCard4CompanyBusiness({
         </Table>
       </section>
 
+      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-4" data-testid="card4-company-document-types">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl text-[#251605]">6.4 Company &amp; Contract Document Types</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Define document types required or applicable to corporate companies and contracts. Contract document types feed Step 4 of the Company creation wizard.
+            </p>
+          </div>
+          {canEdit ? (
+            <Button
+              type="button"
+              onClick={() => setDocTypeDraft("new")}
+              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            >
+              <Plus className="mr-1 size-4" /> Add Document Type
+            </Button>
+          ) : null}
+        </div>
+
+        {docTypes.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground border border-dashed rounded-xl">
+            No document types configured yet. Add document types such as Tax Certificate, Trade License, or Rate Agreement.
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Required</TableHead>
+                <TableHead>Contract</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Order</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {docTypes.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.code}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground max-w-xs truncate">{row.description || "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant={row.required ? "default" : "outline"} className={row.required ? "bg-amber-600" : ""}>
+                      {row.required ? "Mandatory" : "Optional"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={row.appliesToContract ? "secondary" : "outline"}>
+                      {row.appliesToContract ? "Yes" : "No"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={row.appliesToCompany ? "secondary" : "outline"}>
+                      {row.appliesToCompany ? "Yes" : "No"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">{row.displayOrder}</TableCell>
+                  <TableCell>
+                    <Badge variant={row.active ? "default" : "secondary"} className={row.active ? "bg-[#436436]" : ""}>
+                      {row.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={!canEdit}
+                      onClick={() => setDocTypeDraft(row)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={!canEdit}
+                      onClick={() => docTypeActiveMutation.mutate({ id: row.id, active: !row.active })}
+                    >
+                      {row.active ? "Deactivate" : "Activate"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </section>
+
       <Sheet
         open={editorOpen}
         onOpenChange={(open) => {
@@ -937,7 +1067,177 @@ export function PmsCard4CompanyBusiness({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CompanyDocumentTypeSheet
+        open={docTypeDraft !== null}
+        canEdit={canEdit}
+        value={docTypeDraft === "new" || docTypeDraft === null ? null : docTypeDraft}
+        pending={docTypeMutation.isPending}
+        onClose={() => setDocTypeDraft(null)}
+        onSave={docTypeMutation.mutate}
+      />
     </div>
+  );
+}
+
+function CompanyDocumentTypeSheet({
+  open,
+  canEdit,
+  value,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  canEdit: boolean;
+  value: CompanyDocumentTypeRecord | null;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (payload: { id?: string; name: string; code: string; description?: string; required: boolean; appliesToContract: boolean; appliesToCompany: boolean; displayOrder: number; active: boolean }) => void;
+}) {
+  const [name, setName] = useState(value?.name ?? "");
+  const [code, setCode] = useState(value?.code ?? "");
+  const [description, setDescription] = useState(value?.description ?? "");
+  const [required, setRequired] = useState(value?.required ?? false);
+  const [appliesToContract, setAppliesToContract] = useState(value?.appliesToContract ?? true);
+  const [appliesToCompany, setAppliesToCompany] = useState(value?.appliesToCompany ?? true);
+  const [displayOrder, setDisplayOrder] = useState(String(value?.displayOrder ?? 0));
+  const [active, setActive] = useState(value?.active ?? true);
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>{value ? "Edit Document Type" : "Add Document Type"}</SheetTitle>
+          <SheetDescription>
+            Configure document requirements and contract applicability.
+          </SheetDescription>
+        </SheetHeader>
+        <form
+          className="mt-4 space-y-4 px-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!canEdit || !name.trim() || !code.trim()) {
+              toast.error("Please enter a valid document name and code.");
+              return;
+            }
+            onSave({
+              ...(value ? { id: value.id } : {}),
+              name: name.trim(),
+              code: code.trim().toUpperCase(),
+              description: description.trim() || undefined,
+              required,
+              appliesToContract,
+              appliesToCompany,
+              displayOrder: Number(displayOrder) || 0,
+              active,
+            });
+          }}
+        >
+          <div className="space-y-1">
+            <Label htmlFor="dt-name">Document Name *</Label>
+            <Input
+              id="dt-name"
+              value={name}
+              disabled={!canEdit}
+              placeholder="e.g. Tax Registration Certificate"
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dt-code">Code *</Label>
+            <Input
+              id="dt-code"
+              value={code}
+              disabled={!canEdit}
+              placeholder="e.g. TAX_CERT, TRADE_LIC"
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dt-desc">Description</Label>
+            <Textarea
+              id="dt-desc"
+              value={description}
+              disabled={!canEdit}
+              maxLength={400}
+              placeholder="Operational instructions for verification"
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dt-order">Display Order</Label>
+            <Input
+              id="dt-order"
+              type="number"
+              min={0}
+              value={displayOrder}
+              disabled={!canEdit}
+              onChange={(e) => setDisplayOrder(e.target.value)}
+            />
+          </div>
+          <div className="space-y-3 pt-2 border-t">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="dt-required">Mandatory Requirement</Label>
+                <p className="text-xs text-muted-foreground">If enabled, active contract creation will require this document.</p>
+              </div>
+              <Switch
+                id="dt-required"
+                checked={required}
+                disabled={!canEdit}
+                onCheckedChange={setRequired}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="dt-applies-contract">Applies to Contracts</Label>
+                <p className="text-xs text-muted-foreground">Visible in Step 4 Contracts &amp; Agreements.</p>
+              </div>
+              <Switch
+                id="dt-applies-contract"
+                checked={appliesToContract}
+                disabled={!canEdit}
+                onCheckedChange={setAppliesToContract}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="dt-applies-company">Applies to Company Profile</Label>
+                <p className="text-xs text-muted-foreground">Visible in Company Profile Documents.</p>
+              </div>
+              <Switch
+                id="dt-applies-company"
+                checked={appliesToCompany}
+                disabled={!canEdit}
+                onCheckedChange={setAppliesToCompany}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="dt-active">Active</Label>
+              <Switch
+                id="dt-active"
+                checked={active}
+                disabled={!canEdit}
+                onCheckedChange={setActive}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={!canEdit || pending || !name.trim() || !code.trim()}
+              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            >
+              {pending ? "Saving…" : "Save Document Type"}
+            </Button>
+          </div>
+        </form>
+      </SheetContent>
+    </Sheet>
   );
 }
 

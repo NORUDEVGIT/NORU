@@ -7706,14 +7706,22 @@ export type Database = {
           created_at: string
           description: string | null
           display_order: number
+          document_number_active: boolean
           document_number_required: boolean
+          expiry_date_active: boolean
           expiry_date_required: boolean
           id: string
+          issue_date_active: boolean
+          issue_date_required: boolean
+          issuing_authority_active: boolean
+          issuing_authority_required: boolean
+          issuing_country_active: boolean
           issuing_country_required: boolean
           name: string
           required_at_check_in: boolean
           restaurant_id: string
           scan_image_allowed: boolean
+          scan_image_required: boolean
           updated_at: string
           updated_by: string | null
           valid_for_profile_type_ids: string[]
@@ -7724,14 +7732,22 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          document_number_active?: boolean
           document_number_required?: boolean
+          expiry_date_active?: boolean
           expiry_date_required?: boolean
           id?: string
+          issue_date_active?: boolean
+          issue_date_required?: boolean
+          issuing_authority_active?: boolean
+          issuing_authority_required?: boolean
+          issuing_country_active?: boolean
           issuing_country_required?: boolean
           name: string
           required_at_check_in?: boolean
           restaurant_id: string
           scan_image_allowed?: boolean
+          scan_image_required?: boolean
           updated_at?: string
           updated_by?: string | null
           valid_for_profile_type_ids?: string[]
@@ -7742,14 +7758,22 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          document_number_active?: boolean
           document_number_required?: boolean
+          expiry_date_active?: boolean
           expiry_date_required?: boolean
           id?: string
+          issue_date_active?: boolean
+          issue_date_required?: boolean
+          issuing_authority_active?: boolean
+          issuing_authority_required?: boolean
+          issuing_country_active?: boolean
           issuing_country_required?: boolean
           name?: string
           required_at_check_in?: boolean
           restaurant_id?: string
           scan_image_allowed?: boolean
+          scan_image_required?: boolean
           updated_at?: string
           updated_by?: string | null
           valid_for_profile_type_ids?: string[]

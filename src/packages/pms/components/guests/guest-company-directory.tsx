@@ -12,11 +12,13 @@ import {
   Pencil,
   Plus,
   Search,
+  UserCheck,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
+import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
 import { GuestCompanyQuickViewDrawer } from "@/packages/pms/components/guests/guest-company-quick-view-drawer";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
@@ -210,6 +212,20 @@ export function GuestCompanyDirectory({
         section: "companies",
         type: "company",
         nav: "overview",
+      }),
+    });
+  }
+
+  function openCompanyTravelersLink(id: string) {
+    void navigate({
+      to: GUEST_PROFILE_DETAIL_PATH,
+      params: { guestId: id },
+      search: guestProfileSearch({
+        card: returnCard,
+        section: "companies",
+        type: "company",
+        nav: "travelers",
+        tab: "link",
       }),
     });
   }
@@ -711,6 +727,7 @@ export function GuestCompanyDirectory({
                     )
                   }
                   onView={() => openCompany(row.id)}
+                  onLinkGuest={() => openCompanyTravelersLink(row.id)}
                   onQuickView={() => setPreviewCompanyId(row.id)}
                   onEdit={() => {
                     setEditId(row.id);
@@ -773,14 +790,29 @@ export function GuestCompanyDirectory({
         </div>
       </div>
 
-      <GuestCompanyFormDialog
+      <GuestCompanyCreateModal
         restaurantId={restaurantId}
         open={formOpen}
-        accountId={editId}
-        defaultBusinessTypeId={defaultType}
-        focusCredit={creditFocus}
-        onOpenChange={setFormOpen}
-        onSaved={(id) => openCompany(id)}
+        mode={editId ? "edit" : "create"}
+        companyId={editId}
+        onOpenChange={(next) => {
+          setFormOpen(next);
+          if (!next) {
+            setEditId(null);
+            setCreditFocus(false);
+          }
+        }}
+        onSaved={() => {
+          setFormOpen(false);
+          setEditId(null);
+          setCreditFocus(false);
+          invalidate();
+        }}
+        onCancel={() => {
+          setFormOpen(false);
+          setEditId(null);
+          setCreditFocus(false);
+        }}
       />
 
       <GuestCompanyQuickViewDrawer
@@ -803,6 +835,7 @@ function CompanyRow({
   checked,
   onCheck,
   onView,
+  onLinkGuest,
   onQuickView,
   onEdit,
   onCredit,
@@ -812,6 +845,7 @@ function CompanyRow({
   checked: boolean;
   onCheck: (checked: boolean) => void;
   onView: () => void;
+  onLinkGuest: () => void;
   onQuickView: () => void;
   onEdit: () => void;
   onCredit: () => void;
@@ -918,6 +952,10 @@ function CompanyRow({
             <DropdownMenuItem onClick={onView} className="cursor-pointer">
               <ExternalLink className="mr-1.5 size-3.5 text-[#8A641A]" />
               View Full Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onLinkGuest} className="cursor-pointer" data-testid="company-action-link-guest">
+              <UserCheck className="mr-1.5 size-3.5 text-[#8A641A]" />
+              Link Guest
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
               <Pencil className="mr-1.5 size-3.5 text-[#8A641A]" />

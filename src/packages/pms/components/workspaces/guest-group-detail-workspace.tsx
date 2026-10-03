@@ -15,7 +15,7 @@ import { GuestGroupFinancialView } from "@/packages/pms/components/guests/guest-
 import { GuestGroupItineraryView } from "@/packages/pms/components/guests/guest-group-itinerary-view";
 import { GuestGroupDocumentsView } from "@/packages/pms/components/guests/guest-group-documents-view";
 import { GuestGroupActivityView } from "@/packages/pms/components/guests/guest-group-activity-view";
-import { GuestGroupFormDialog } from "@/packages/pms/components/guests/guest-group-form-dialog";
+import { GuestGroupCreateModal } from "@/packages/pms/components/guests/guest-group-create-modal";
 
 import {
   DropdownMenu,
@@ -257,11 +257,16 @@ export function GuestGroupDetailWorkspace({
       )}
 
       {/* Edit Group Dialog */}
-      <GuestGroupFormDialog
+      <GuestGroupCreateModal
         open={editOpen}
         onOpenChange={setEditOpen}
         restaurantId={restaurantId}
+        mode="edit"
+        groupId={groupId}
         group={data.group}
+        onSaved={() => {
+          void query.refetch();
+        }}
       />
     </div>
   );

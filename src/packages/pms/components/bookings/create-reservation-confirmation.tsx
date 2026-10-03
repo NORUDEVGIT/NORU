@@ -11,11 +11,13 @@ export function CreateReservationConfirmation({
   onOpenReservation,
   onReturnToDesk,
   onCreateAnother,
+  returnToLabel,
 }: {
   view: CreatedReservationConfirmation;
   onOpenReservation?: ((reservationId: string) => void) | undefined;
   onReturnToDesk?: (() => void) | undefined;
   onCreateAnother?: (() => void) | undefined;
+  returnToLabel?: string | undefined;
 }) {
   return (
     <section
@@ -145,7 +147,7 @@ export function CreateReservationConfirmation({
         )}
         {onReturnToDesk ? (
           <Button type="button" variant="outline" onClick={onReturnToDesk}>
-            Return to Reservation Desk
+            {returnToLabel || "Return to Reservation Desk"}
           </Button>
         ) : null}
         {onCreateAnother ? (

@@ -136,10 +136,76 @@ export function GuestCompanyBilling({
         </div>
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
           <InfoRow label="Account Status" value={data.summary.accountStatus} />
+          <InfoRow
+            label="Default Billing Rule"
+            value={(data.summary as any).defaultBillingRule || "—"}
+          />
+          <InfoRow
+            label="Settlement Method"
+            value={(data.summary as any).defaultPaymentMethod || "No preference"}
+          />
+          <InfoRow
+            label="Billing Currency"
+            value={(data.summary as any).billingCurrency || "—"}
+          />
+          <InfoRow
+            label="Payment Timing"
+            value={
+              (data.summary as any).paymentTiming
+                ? String((data.summary as any).paymentTiming).replace(/_/g, " ")
+                : "—"
+            }
+          />
           <InfoRow label="Payment terms" value={data.summary.paymentTerms ?? "—"} />
           <InfoRow
             label="Credit Account"
             value={data.summary.creditAccountEnabled ? "Enabled" : "Off"}
+          />
+          {data.summary.creditAccountEnabled ? (
+            <>
+              <InfoRow
+                label="Credit Limit"
+                value={
+                  (data.summary as any).creditLimitAmount != null
+                    ? `${Number((data.summary as any).creditLimitAmount).toFixed(2)} ${(data.summary as any).billingCurrency || ""}`
+                    : "Uncapped"
+                }
+              />
+              <InfoRow
+                label="Credit Days"
+                value={
+                  (data.summary as any).creditDays != null
+                    ? `${(data.summary as any).creditDays} Days`
+                    : "—"
+                }
+              />
+              <InfoRow
+                label="Credit Status"
+                value={
+                  (data.summary as any).creditStatus
+                    ? String((data.summary as any).creditStatus).replace(/_/g, " ")
+                    : "—"
+                }
+              />
+            </>
+          ) : null}
+          <InfoRow
+            label="Tax Exemption"
+            value={
+              (data.summary as any).taxExempt
+                ? `${(data.summary as any).taxExemptionRule || "Exempt"}${(data.summary as any).taxExemptionCertificateNumber ? ` (${(data.summary as any).taxExemptionCertificateNumber})` : ""}`
+                : "Standard (Non-Exempt)"
+            }
+          />
+          {(data.summary as any).taxExemptionValidTo ? (
+            <InfoRow
+              label="Tax Exemption Valid To"
+              value={(data.summary as any).taxExemptionValidTo}
+            />
+          ) : null}
+          <InfoRow
+            label="Billing Instructions"
+            value={(data.summary as any).billingInstruction || "—"}
           />
           <InfoRow label="Billing Contact" value={data.summary.billingContact ?? "—"} />
           <InfoRow label="Credit limit note" value={data.summary.creditLimitNote ?? "—"} />

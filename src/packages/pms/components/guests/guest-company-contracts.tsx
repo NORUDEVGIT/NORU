@@ -468,11 +468,30 @@ export function GuestCompanyContracts({
                 <div className="space-y-2 rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] p-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[#756A5B]">Status</span>
-                    <span className="font-semibold capitalize text-[#251605]">{selected.status}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold capitalize text-[#251605]">{selected.status}</span>
+                      {selected.validityState === "expiring_soon" ? (
+                        <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                          Expires in {selected.daysUntilExpiry}d
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[#756A5B]">Validity</span>
                     <span className="font-medium text-[#251605]">{selected.validFrom} → {selected.validTo}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Pricing Method</span>
+                    <span className="font-semibold text-[#251605]">
+                      {selected.pricingMethod === "rate_plan"
+                        ? ((selected as { ratePlanScope?: string }).ratePlanScope === "all" ? "All Active Rate Plans" : "Selected Rate Plan(s)")
+                        : selected.pricingMethod === "rate_plan_discount"
+                        ? ((selected as { discountApplication?: string; ratePlanScope?: string }).discountApplication === "custom"
+                            ? `Plan Discounts (Separate · ${(selected as { ratePlanScope?: string }).ratePlanScope === "all" ? "All Plans" : "Selected Plans"})`
+                            : `Rate Plan Discount (${selected.discountValue}${selected.discountType === "percent" ? "%" : " " + (selected.currencyCode || "")} · ${(selected as { ratePlanScope?: string }).ratePlanScope === "all" ? "All Plans" : "Selected Plans"})`)
+                        : "Contracted Room Rates"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[#756A5B]">Currency</span>

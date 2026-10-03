@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { GuestGroupQuickViewDrawer } from "@/packages/pms/components/guests/guest-group-quick-view-drawer";
-import { GuestGroupFormDialog } from "@/packages/pms/components/guests/guest-group-form-dialog";
+import { GuestGroupCreateModal } from "@/packages/pms/components/guests/guest-group-create-modal";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
@@ -540,39 +540,16 @@ export function GuestGroupDirectory({
         onEditGroup={(id) => setEditingGroupId(id)}
       />
 
-      {/* Edit Group Form Dialog */}
+      {/* Edit Group Modal */}
       {editingGroupId ? (
-        <GuestGroupFormDialog
+        <GuestGroupCreateModal
           restaurantId={restaurantId}
           open={Boolean(editingGroupId)}
+          mode="edit"
+          groupId={editingGroupId}
           onOpenChange={(open) => {
             if (!open) setEditingGroupId(null);
           }}
-          group={
-            (() => {
-              const row = rawRows.find((r) => r.id === editingGroupId) as (GuestAccountSummary & Record<string, any>) | undefined;
-              if (!row) return undefined;
-              return {
-                id: editingGroupId,
-                name: row.name,
-                email: row.email,
-                phone: row.phone,
-                notes: null,
-                specialRequests: null,
-                groupTypeId: row.groupTypeId ?? null,
-                marketSegmentId: null,
-                sourceCodeId: null,
-                companyMasterId: null,
-                travelAgentMasterId: null,
-                primaryContactGuestId: null,
-                primaryContactName: row.primaryContactName ?? null,
-                arrivalDate: row.arrivalDate ?? null,
-                departureDate: row.departureDate ?? null,
-                expectedPax: row.expectedPax != null ? String(row.expectedPax) : null,
-                expectedRooms: row.expectedRooms != null ? String(row.expectedRooms) : null,
-              };
-            })()
-          }
           onSaved={() => {
             void queryClient.invalidateQueries({ queryKey });
             setEditingGroupId(null);

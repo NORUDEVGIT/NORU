@@ -236,6 +236,21 @@ function KpiCard({
   );
 }
 
+function navigateToReturnPath(navigate: ReturnType<typeof useNavigate>, returnUrl: string) {
+  const [pathname, searchStr] = returnUrl.split("?");
+  const search: Record<string, string> = {};
+  if (searchStr) {
+    const params = new URLSearchParams(searchStr);
+    for (const [key, val] of params.entries()) {
+      search[key] = val;
+    }
+  }
+  return navigate({
+    to: pathname as any,
+    search: Object.keys(search).length > 0 ? (search as any) : undefined,
+  });
+}
+
 export function ReservationsWorkspace({
   membership,
   initialTab,
@@ -244,6 +259,7 @@ export function ReservationsWorkspace({
   initialCompanyId,
   initialTravelAgentId,
   initialGroupId,
+  initialReturnTo,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
@@ -252,6 +268,7 @@ export function ReservationsWorkspace({
   initialCompanyId?: string | undefined;
   initialTravelAgentId?: string | undefined;
   initialGroupId?: string | undefined;
+  initialReturnTo?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -288,6 +305,30 @@ export function ReservationsWorkspace({
   const [workspaceSection, setWorkspaceSection] = useState<CalendarWorkspaceSection>(() =>
     workspaceSectionFromTab(initialTab),
   );
+
+  const returnTo = useMemo(() => {
+    if (initialReturnTo) return initialReturnTo;
+    if (initialGuestId) return `/restaurant/pms/guests/${initialGuestId}`;
+    if (initialCompanyId) {
+      return `/restaurant/pms/guests/${initialCompanyId}?section=companies&type=company&nav=overview`;
+    }
+    if (initialTravelAgentId) {
+      return `/restaurant/pms/guests/${initialTravelAgentId}?section=travel_agents&type=travel_agent&nav=overview`;
+    }
+    if (initialGroupId) {
+      return `/restaurant/pms/guests/${initialGroupId}?section=groups&type=group&nav=overview`;
+    }
+    return null;
+  }, [initialReturnTo, initialGuestId, initialCompanyId, initialTravelAgentId, initialGroupId]);
+
+  const returnToLabel = useMemo(() => {
+    if (initialGuestId) return "Return to Guest Profile";
+    if (initialCompanyId) return "Return to Company Profile";
+    if (initialTravelAgentId) return "Return to Travel Agency Profile";
+    if (initialGroupId) return "Return to Group Profile";
+    if (returnTo) return "Return to Previous Page";
+    return "Return to Reservation Desk";
+  }, [initialGuestId, initialCompanyId, initialTravelAgentId, initialGroupId, returnTo]);
 
   const hydratedCreateRef = useRef(false);
   useEffect(() => {
@@ -485,6 +526,14 @@ export function ReservationsWorkspace({
     setOverlay(null);
     setCreateGroupLink(null);
     invalidateReservationReads();
+    if (returnTo) {
+      void navigateToReturnPath(navigate, returnTo);
+    } else if (initialCreate) {
+      void navigate({
+        to: "/restaurant/pms/reservations",
+        search: { tab: tabFromWorkspaceSection(workspaceSection) },
+      });
+    }
   }
 
   function handleReservationAction(
@@ -1125,6 +1174,7 @@ export function ReservationsWorkspace({
             initialGroupMasterId={overlay.initialGroupMasterId ?? null}
             pmsGroupId={createGroupLink?.pmsGroupId ?? null}
             pmsGroupBlockId={createGroupLink?.pmsGroupBlockId ?? null}
+            returnToLabel={returnToLabel}
             onCancel={() => closeWorkspaceOverlay(false)}
             onCreated={() => invalidateReservationReads()}
             onOpenCreatedReservation={(reservationId) => {

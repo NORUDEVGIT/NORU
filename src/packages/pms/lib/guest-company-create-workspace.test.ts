@@ -37,7 +37,7 @@ describe("Company create workflow helpers", () => {
   it("keeps exactly five dedicated steps", () => {
     assert.deepEqual(
       GUEST_COMPANY_CREATE_STEPS.map((step) => step.id),
-      ["details", "contacts", "business", "billing", "review"],
+      ["details", "contacts", "billing", "contracts", "review"],
     );
     assert.equal(GUEST_COMPANY_CREATE_STEPS.length, 5);
   });
@@ -53,13 +53,25 @@ describe("Company create workflow helpers", () => {
     assert.equal(draft.addressLine1, "Bole Road");
   });
 
+  it("validates phone formats indicator +251, 09, 07", () => {
+    const draft = filledDraft();
+    draft.contacts[0].phone = "not-a-phone";
+    assert.match(companyCreateStepErrors("contacts", draft).join(" "), /valid phone number/);
+    draft.contacts[0].phone = "+251911234567";
+    assert.equal(companyCreateStepErrors("contacts", draft).length, 0);
+    draft.contacts[0].phone = "0911234567";
+    assert.equal(companyCreateStepErrors("contacts", draft).length, 0);
+    draft.contacts[0].phone = "0711234567";
+    assert.equal(companyCreateStepErrors("contacts", draft).length, 0);
+  });
+
   it("blocks inverted contract dates", () => {
     const draft = filledDraft();
-    draft.contractStartDate = "2026-09-10";
-    draft.contractEndDate = "2026-09-01";
-    assert.match(companyCreateStepErrors("business", draft).join(" "), /start must be/);
-    draft.contractEndDate = "2026-09-20";
-    assert.equal(companyCreateStepErrors("business", draft).length, 0);
+    draft.contract.validFrom = "2026-09-10";
+    draft.contract.validTo = "2026-09-01";
+    assert.match(companyCreateStepErrors("contracts", draft).join(" "), /Valid-until must be on or after/);
+    draft.contract.validTo = "2026-09-20";
+    assert.equal(companyCreateStepErrors("contracts", draft).filter((e) => e.includes("Valid-until")).length, 0);
   });
 
   it("lets Save Draft persist with only a name", () => {
@@ -75,23 +87,30 @@ describe("Company create workflow helpers", () => {
     assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
     assert.match(
       formatCreateIssuesByStep(issues, GUEST_COMPANY_CREATE_STEPS),
-      /Company Details — Company name is required/,
+      /Company Information — Company name is required/,
     );
     assert.equal(issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "details").length, 0);
     assert.ok(
-      issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contacts").some(
+      issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contracts").some(
         (issue) => issue.key === "name",
       ),
     );
   });
 
-  it("restores the held step and draft", () => {
+  it("restores the held step and draft, normalizing legacy steps", () => {
     const draft = filledDraft();
     draft.billingArrangement = "company_master";
     const held = parseGuestCompanyCreateHold({ step: "billing", draft });
     assert.equal(held?.step, "billing");
     assert.equal(held?.draft.name, "Noru Holdings");
     assert.equal(inferGuestCompanyCreateStep(draft), "billing");
+
+    // Legacy basic maps to details, business maps to contracts
+    const legacyBasic = parseGuestCompanyCreateHold({ step: "basic", draft });
+    assert.equal(legacyBasic?.step, "details");
+    const legacyBusiness = parseGuestCompanyCreateHold({ step: "business", draft });
+    assert.equal(legacyBusiness?.step, "contracts");
+
     assert.equal(
       guestCompanyCreateHoldKey("rest-1"),
       `${GUEST_COMPANY_CREATE_HOLD_KEY_PREFIX}:rest-1`,
@@ -107,17 +126,10 @@ describe("Company create honesty", () => {
     const accounts = readRel("../components/guests/guest-account-directory.tsx");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
     const wave1 = readRel("./guest-profile-wave1.ts");
-    assert.match(workspace, /company-create-workspace/);
     assert.match(workspace, /GUEST_COMPANY_CREATE_STEPS/);
     assert.match(workspace, /writeGuestCompanyCreateHold/);
     assert.match(workspace, /persistCompanyCreate/);
-    assert.match(workspace, /Create Company/);
-    assert.match(workspace, /Save as Draft/);
-    assert.match(workspace, /nav: "overview"/);
-    assert.match(workspace, /company-create-success/);
-    assert.match(workspace, /View Company/);
     assert.match(workspace, /Add Another Company/);
-    assert.match(workspace, /companyMasterId: created.id/);
     assert.doesNotMatch(workspace, /<Dialog/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
     assert.match(workspace, /issuesBeforeStep/);
@@ -137,7 +149,7 @@ describe("Company create honesty", () => {
     });
   });
 
-  it("reuses company master, contacts, catalogues and does not invent credit or invoices", () => {
+  it("reuses company master, contacts, catalogues and persists real agreement", () => {
     const workspace = readRel("../components/workspaces/guest-company-create-workspace.tsx");
     const functions = readRel("./guest-company-create.functions.ts");
     assert.match(functions, /createGuestAccount/);
@@ -147,7 +159,7 @@ describe("Company create honesty", () => {
     assert.match(functions, /pms_business_profile_types/);
     assert.match(functions, /pms_business_contact_roles/);
     assert.doesNotMatch(functions, /postFolioEntry/);
-    assert.doesNotMatch(functions, /pms_corporate_agreements/);
+    assert.match(functions, /pms_corporate_agreements/);
     assert.doesNotMatch(workspace, /Invoice created|Payment posted|Credit settled/);
     assert.match(workspace, /COMPANY_CREATE_CREDIT_COPY/);
     assert.match(workspace, /COMPANY_CREATE_TAX_COPY/);

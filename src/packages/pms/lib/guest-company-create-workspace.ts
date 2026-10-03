@@ -10,19 +10,20 @@ import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-
 
 export const GUEST_COMPANY_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
+// Legacy step titles: "Company Details", "Contacts", "Business & Commercial", "Billing & Credit", "Review & Confirm"
 export const GUEST_COMPANY_CREATE_STEPS = [
-  { id: "details", number: 1, title: "Company Details" },
+  { id: "details", number: 1, title: "Company Information" },
   { id: "contacts", number: 2, title: "Contacts" },
-  { id: "business", number: 3, title: "Business & Commercial" },
-  { id: "billing", number: 4, title: "Billing & Credit" },
-  { id: "review", number: 5, title: "Review & Confirm" },
+  { id: "billing", number: 3, title: "Billing & Credit" },
+  { id: "contracts", number: 4, title: "Contracts & Agreements" },
+  { id: "review", number: 5, title: "Review & Save" },
 ] as const;
 
 export type GuestCompanyCreateStepId = (typeof GUEST_COMPANY_CREATE_STEPS)[number]["id"];
 
 export const GUEST_COMPANY_CREATE_TITLE = "Register New Company";
 export const GUEST_COMPANY_CREATE_COPY =
-  "Create a company master and keep commercial defaults in one place.";
+  "Create a company master and establish corporate contract terms.";
 export const GUEST_COMPANY_CREATE_DRAFT_SAVED =
   "Draft company saved. You can continue this registration later.";
 export const GUEST_COMPANY_CREATE_PROGRESS_KEPT =
@@ -33,12 +34,98 @@ export const GUEST_COMPANY_CREATE_START_OVER_COPY =
 export const GUEST_COMPANY_CREATE_HOLD_KEY_PREFIX = "noru.company-create.hold";
 export const GUEST_COMPANY_CREATE_HOLD_DEBOUNCE_MS = 700;
 
+export type CompanyContractDocumentItem = {
+  documentTypeId: string;
+  fileStoragePath: string;
+  fileName: string;
+  fileSize?: number;
+  fileType?: string;
+};
+
+export type RatePlanDiscountItem = {
+  ratePlanId: string;
+  discountType: "percent" | "fixed";
+  discountValue: number | null;
+};
+
+export type CompanyContractDraft = {
+  contractTypeId: string | null;
+  name: string;
+  code: string;
+  contractNumber: string;
+  validFrom: string;
+  validTo: string;
+  currencyCode: string;
+  status: "draft" | "active";
+  pricingMethod: "rate_plan" | "rate_plan_discount" | "contracted_rates";
+  ratePlanScope: "all" | "selected";
+  ratePlanIds: string[];
+  ratePlanId: string | null;
+  discountApplication: "uniform" | "custom";
+  discountType: "percent" | "fixed" | null;
+  discountValue: number | null;
+  ratePlanDiscounts: RatePlanDiscountItem[];
+  contractRates: Array<{
+    roomTypeId: string;
+    amount: number | null;
+  }>;
+  depositPolicyId: string | null;
+  cancellationPolicyId: string | null;
+  noShowPolicyId: string | null;
+  documents: CompanyContractDocumentItem[];
+  notes: string;
+};
+
+export function emptyCompanyContractDraft(defaultCurrency = ""): CompanyContractDraft {
+  const today = new Date().toISOString().slice(0, 10);
+  const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return {
+    contractTypeId: null,
+    name: "",
+    code: "",
+    contractNumber: "",
+    validFrom: today,
+    validTo: oneYearLater,
+    currencyCode: defaultCurrency,
+    status: "active",
+    pricingMethod: "rate_plan",
+    ratePlanScope: "selected",
+    ratePlanIds: [],
+    ratePlanId: null,
+    discountApplication: "uniform",
+    discountType: null,
+    discountValue: null,
+    ratePlanDiscounts: [],
+    contractRates: [],
+    depositPolicyId: null,
+    cancellationPolicyId: null,
+    noShowPolicyId: null,
+    documents: [],
+    notes: "",
+  };
+}
+
 export const COMPANY_CREATE_CONTRACT_COPY =
   "Contract here is a reference default, not a signed agreement row.";
 export const COMPANY_CREATE_CREDIT_COPY =
   "Credit is stored on this company only. It does not enforce a credit limit or post to a ledger.";
 export const COMPANY_CREATE_TAX_COPY =
   "Tax exemption notes are stored as defaults. They do not change folio tax.";
+
+export const COMPANY_BILLING_TIMINGS = [
+  { id: "due_on_arrival", label: "Due on Arrival" },
+  { id: "due_on_departure", label: "Due on Departure" },
+  { id: "prepaid", label: "Prepaid" },
+  { id: "credit_terms", label: "Credit Terms / On Invoice" },
+] as const;
+export type CompanyBillingTiming = (typeof COMPANY_BILLING_TIMINGS)[number]["id"];
+
+export const COMPANY_CREDIT_STATUSES = [
+  { id: "pending_approval", label: "Pending Approval" },
+  { id: "approved", label: "Approved" },
+  { id: "suspended", label: "Suspended" },
+] as const;
+export type CompanyCreditStatus = (typeof COMPANY_CREDIT_STATUSES)[number]["id"];
 
 export const ACCOUNT_BILLING_ARRANGEMENTS = [
   { id: "company_master", label: "Company Master" },
@@ -115,6 +202,20 @@ export type GuestCompanyCreateDraft = {
   ratePlanId: string;
   packageId: string;
   mealPlanId: string;
+  // Step 3: Structured Billing & Credit
+  defaultBillingRuleId: string | null;
+  defaultPaymentMethodId: string | null;
+  billingCurrencyCode: string;
+  paymentTiming: CompanyBillingTiming | null;
+  creditDays: number | null;
+  creditStatus: CompanyCreditStatus | null;
+  creditLimitAmount: number | null;
+  taxExempt: boolean;
+  taxExemptionRuleId: string | null;
+  taxExemptionCertificateNumber: string;
+  taxExemptionValidTo: string | null;
+
+  // Legacy compatibility fields (kept for read compatibility)
   billingArrangement: string;
   billingContactName: string;
   billingEmail: string;
@@ -126,6 +227,7 @@ export type GuestCompanyCreateDraft = {
   creditLimitNote: string;
   taxExemptionNote: string;
   taxNote: string;
+  contract: CompanyContractDraft;
 };
 
 export type GuestCompanyCreateHold = {
@@ -146,6 +248,8 @@ export function isGuestCompanyCreateStepId(value: string | undefined): value is 
 }
 
 export function guestCompanyCreateStep(id: string | undefined): GuestCompanyCreateStepId {
+  if (id === "basic") return "details";
+  if (id === "business") return "contracts";
   return isGuestCompanyCreateStepId(id) ? id : "details";
 }
 
@@ -167,13 +271,22 @@ function isGuestCompanyCreateDraftShape(value: unknown): value is GuestCompanyCr
 }
 
 export function inferGuestCompanyCreateStep(draft: GuestCompanyCreateDraft): GuestCompanyCreateStepId {
-  if (filled(draft.billingArrangement) || draft.creditAccountEnabled || filled(draft.paymentMethodId)) {
+  if (filled(draft.contract?.name) || draft.contract?.contractTypeId) {
+    return "contracts";
+  }
+  if (
+    filled(draft.defaultBillingRuleId) ||
+    draft.paymentTiming ||
+    draft.creditAccountEnabled ||
+    draft.taxExempt ||
+    filled(draft.billingArrangement) ||
+    filled(draft.paymentMethodId)
+  ) {
     return "billing";
   }
-  if (filled(draft.addressLine1) || filled(draft.marketSegmentId) || filled(draft.contractReference)) {
-    return "business";
+  if (draft.contacts.some((row) => filled(row.name))) {
+    return "contacts";
   }
-  if (draft.contacts.some((row) => filled(row.name))) return "contacts";
   return "details";
 }
 
@@ -181,10 +294,17 @@ export function parseGuestCompanyCreateHold(payload: unknown): GuestCompanyCreat
   if (!payload || typeof payload !== "object") return null;
   const record = payload as { step?: unknown; draft?: unknown };
   if (isGuestCompanyCreateDraftShape(record.draft)) {
+    const rawStep = String(record.step ?? "");
+    const normalizedStep: GuestCompanyCreateStepId =
+      rawStep === "basic"
+        ? "details"
+        : rawStep === "business"
+          ? "contracts"
+          : isGuestCompanyCreateStepId(rawStep)
+            ? rawStep
+            : inferGuestCompanyCreateStep(record.draft);
     return {
-      step: isGuestCompanyCreateStepId(String(record.step ?? ""))
-        ? (record.step as GuestCompanyCreateStepId)
-        : inferGuestCompanyCreateStep(record.draft),
+      step: normalizedStep,
       draft: normalizeCompanyCreateDraft(record.draft),
     };
   }
@@ -247,10 +367,10 @@ export function emptyGuestCompanyCreateDraft(): GuestCompanyCreateDraft {
     contacts: [emptyAccountCreateContact(true)],
     addressLine1: "",
     addressLine2: "",
-    city: "",
-    region: "",
+    city: "Addis Ababa",
+    region: "Addis Ababa",
     postalCode: "",
-    country: "",
+    country: "Ethiopia",
     marketSegmentId: "",
     sourceCodeId: "",
     sourceOfBusiness: "",
@@ -261,6 +381,19 @@ export function emptyGuestCompanyCreateDraft(): GuestCompanyCreateDraft {
     ratePlanId: "",
     packageId: "",
     mealPlanId: "",
+    // Step 3 structured fields
+    defaultBillingRuleId: null,
+    defaultPaymentMethodId: null,
+    billingCurrencyCode: "",
+    paymentTiming: null,
+    creditDays: null,
+    creditStatus: null,
+    creditLimitAmount: null,
+    taxExempt: false,
+    taxExemptionRuleId: null,
+    taxExemptionCertificateNumber: "",
+    taxExemptionValidTo: null,
+    // Legacy fields
     billingArrangement: "",
     billingContactName: "",
     billingEmail: "",
@@ -272,6 +405,7 @@ export function emptyGuestCompanyCreateDraft(): GuestCompanyCreateDraft {
     creditLimitNote: "",
     taxExemptionNote: "",
     taxNote: "",
+    contract: emptyCompanyContractDraft(),
   };
 }
 
@@ -286,7 +420,39 @@ export function normalizeCompanyCreateDraft(draft: GuestCompanyCreateDraft): Gue
     ...emptyGuestCompanyCreateDraft(),
     ...draft,
     accountStatus: status,
-    contacts,
+    defaultBillingRuleId: draft.defaultBillingRuleId ?? null,
+    defaultPaymentMethodId: draft.defaultPaymentMethodId ?? (draft.paymentMethodId || null),
+    billingCurrencyCode: draft.billingCurrencyCode || draft.currency || "",
+    paymentTiming: draft.paymentTiming ?? null,
+    creditDays: typeof draft.creditDays === "number" ? draft.creditDays : draft.creditDays ? Number(draft.creditDays) : null,
+    creditStatus: draft.creditStatus ?? null,
+    creditLimitAmount: typeof draft.creditLimitAmount === "number" ? draft.creditLimitAmount : draft.creditLimitAmount ? Number(draft.creditLimitAmount) : null,
+    taxExempt: Boolean(draft.taxExempt),
+    taxExemptionRuleId: draft.taxExemptionRuleId ?? null,
+    taxExemptionCertificateNumber: draft.taxExemptionCertificateNumber ?? "",
+    taxExemptionValidTo: draft.taxExemptionValidTo ?? null,
+    creditAccountEnabled: Boolean(draft.creditAccountEnabled),
+    contract:
+      draft.contract && typeof draft.contract === "object" && !Array.isArray(draft.contract)
+        ? {
+            ...emptyCompanyContractDraft(),
+            ...draft.contract,
+            ratePlanScope:
+              draft.contract.ratePlanScope ||
+              ((draft.contract.ratePlanIds && draft.contract.ratePlanIds.length > 0) || draft.contract.ratePlanId
+                ? "selected"
+                : "all"),
+            ratePlanIds: Array.isArray(draft.contract.ratePlanIds)
+              ? draft.contract.ratePlanIds
+              : draft.contract.ratePlanId
+              ? [draft.contract.ratePlanId]
+              : [],
+            discountApplication: draft.contract.discountApplication || "uniform",
+            ratePlanDiscounts: Array.isArray(draft.contract.ratePlanDiscounts)
+              ? draft.contract.ratePlanDiscounts
+              : [],
+          }
+        : emptyCompanyContractDraft(),
   };
 }
 
@@ -308,6 +474,36 @@ function contractDateError(start: string, end: string): string | null {
   return null;
 }
 
+export function isValidCompanyPhone(value: string): boolean {
+  if (!value || !value.trim()) return true;
+  const trimmed = value.trim();
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  // Ethiopian mobile: +251 9... / +251 7...
+  if (/^(\+?251)[79]\d{8}$/.test(trimmed.replace(/[\s\-\(\)]/g, ""))) {
+    return true;
+  }
+  // Ethiopian local: 09... / 07...
+  if (/^0[79]\d{8}$/.test(trimmed.replace(/[\s\-\(\)]/g, ""))) {
+    return true;
+  }
+  // International E.164 with +
+  if (/^\+[1-9]\d{6,14}$/.test(trimmed.replace(/[\s\-\(\)]/g, ""))) {
+    return true;
+  }
+  // Generic numeric between 9 and 15 digits
+  if (digitsOnly.length >= 9 && digitsOnly.length <= 15) {
+    return true;
+  }
+  return false;
+}
+
+export function validateCompanyPhone(phone: string): string | null {
+  if (!phone || !phone.trim()) return null;
+  return isValidCompanyPhone(phone)
+    ? null
+    : "Enter a valid phone number (+251..., 09..., or 07...)";
+}
+
 export type CompanyCreateFieldIssue = CreateFieldIssue<GuestCompanyCreateStepId>;
 
 export function companyCreateFieldIssues(
@@ -317,10 +513,15 @@ export function companyCreateFieldIssues(
     paymentMethodIds?: string[];
     currencyCodes?: string[];
     creditAccountAllowed?: boolean;
+    contractDocumentTypes?: Array<{ id: string; name: string; required?: boolean; active?: boolean }>;
+    billingRuleIds?: string[];
+    taxExemptionRules?: Array<{ id: string; name?: string; documentationRequired?: boolean; active?: boolean }>;
   },
 ): CompanyCreateFieldIssue[] {
   const issues: CompanyCreateFieldIssue[] = [];
   const typeIds = options?.businessProfileTypeIds;
+
+  // Step 1: Company Information
   if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "details" });
   if (!filled(draft.businessProfileTypeId)) {
     issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "details" });
@@ -328,12 +529,8 @@ export function companyCreateFieldIssues(
   if (filled(draft.businessProfileTypeId) && typeIds && !typeIds.includes(draft.businessProfileTypeId)) {
     issues.push({ key: "businessProfileTypeId", message: "Select a configured company type.", step: "details" });
   }
-  if (filled(draft.companyType) && !isCompanyType(draft.companyType)) {
-    issues.push({ key: "companyType", message: "Select a recognised legal form.", step: "details" });
-  }
-  if (draft.companyType === "other" && !filled(draft.companyTypeOther)) {
-    issues.push({ key: "companyTypeOther", message: "Describe the legal form when Other is selected.", step: "details" });
-  }
+
+  // Step 2: Contacts
   const named = draft.contacts.filter((row) => filled(row.name));
   const primaries = named.filter((row) => row.isPrimary);
   if (named.length > 0 && primaries.length !== 1) {
@@ -347,12 +544,92 @@ export function companyCreateFieldIssues(
     if (!validEmail(contact.email)) {
       issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
     }
+    const phoneErr = validateCompanyPhone(contact.phone);
+    if (phoneErr) {
+      issues.push({ key: "contacts", message: phoneErr, step: "contacts" });
+    }
   }
-  const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
-  if (dateError) {
-    issues.push({ key: "contractStartDate", message: dateError, step: "business" });
-    issues.push({ key: "contractEndDate", message: dateError, step: "business" });
+  for (const contact of draft.contacts) {
+    if (!filled(contact.name) && filled(contact.phone)) {
+      const phoneErr = validateCompanyPhone(contact.phone);
+      if (phoneErr) {
+        issues.push({ key: "contacts", message: phoneErr, step: "contacts" });
+      }
+    }
   }
+
+  // Step 3: Billing & Credit
+  // Section 1: Billing Configuration
+  if (!filled(draft.defaultBillingRuleId)) {
+    issues.push({ key: "defaultBillingRuleId", message: "Default billing rule is required.", step: "billing" });
+  }
+
+  if (filled(draft.defaultPaymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.defaultPaymentMethodId)) {
+    issues.push({ key: "defaultPaymentMethodId", message: "Select a configured payment method.", step: "billing" });
+  }
+
+  if (filled(draft.billingCurrencyCode) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.billingCurrencyCode)) {
+    issues.push({ key: "billingCurrencyCode", message: "Select a configured billing currency.", step: "billing" });
+  }
+
+  if (!draft.paymentTiming) {
+    issues.push({ key: "paymentTiming", message: "Payment timing is required.", step: "billing" });
+  }
+
+  // Cross-conditional: Payment Timing = Credit Terms requires Credit enabled and credit days
+  if (draft.paymentTiming === "credit_terms") {
+    if (!draft.creditAccountEnabled) {
+      issues.push({
+        key: "creditAccountEnabled",
+        message: "Enable Credit Facility to use Credit Terms.",
+        step: "billing",
+      });
+    }
+    if (draft.creditDays === null || draft.creditDays === undefined || draft.creditDays <= 0) {
+      issues.push({
+        key: "creditDays",
+        message: "Credit days are required when credit terms are selected.",
+        step: "billing",
+      });
+    }
+  }
+
+  // Section 2: Credit Facility
+  if (draft.creditAccountEnabled) {
+    if (options?.creditAccountAllowed === false) {
+      issues.push({ key: "creditAccountEnabled", message: "This company type does not allow a credit account.", step: "billing" });
+    }
+
+    if (!draft.creditStatus) {
+      issues.push({ key: "creditStatus", message: "Credit status is required when credit is enabled.", step: "billing" });
+    }
+
+    if (draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && draft.creditLimitAmount < 0) {
+      issues.push({ key: "creditLimitAmount", message: "Credit limit must be 0 or greater.", step: "billing" });
+    }
+
+    if (draft.creditDays !== null && draft.creditDays !== undefined && draft.creditDays < 0) {
+      issues.push({ key: "creditDays", message: "Credit days must be 0 or greater.", step: "billing" });
+    }
+  }
+
+  // Section 3: Tax Exemption
+  if (draft.taxExempt) {
+    if (!filled(draft.taxExemptionRuleId)) {
+      issues.push({ key: "taxExemptionRuleId", message: "Tax exemption rule is required when tax exempt is enabled.", step: "billing" });
+    } else if (options?.taxExemptionRules) {
+      const selectedRule = options.taxExemptionRules.find((r) => r.id === draft.taxExemptionRuleId);
+      if (selectedRule?.documentationRequired && !filled(draft.taxExemptionCertificateNumber)) {
+        issues.push({
+          key: "taxExemptionCertificateNumber",
+          message: "Certificate or reference number is required for this exemption rule.",
+          step: "billing",
+        });
+      }
+    }
+  }
+
+  // Legacy field validation (fallback compatibility if legacy fields are still populated)
   if (
     filled(draft.billingArrangement) &&
     !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
@@ -368,9 +645,108 @@ export function companyCreateFieldIssues(
   if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
     issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "billing" });
   }
-  if (draft.creditAccountEnabled && options?.creditAccountAllowed === false) {
-    issues.push({ key: "creditAccountEnabled", message: "This company type does not allow a credit account.", step: "billing" });
+
+  // Step 4: Contracts & Agreements
+  const contract = draft.contract;
+  if (contract) {
+    if (!filled(contract.contractTypeId)) {
+      issues.push({ key: "contractTypeId", message: "Contract type is required.", step: "contracts" });
+    }
+    if (!filled(contract.name)) {
+      issues.push({ key: "contractName", message: "Contract name is required.", step: "contracts" });
+    }
+    if (!filled(contract.code)) {
+      issues.push({ key: "contractCode", message: "Contract code is required.", step: "contracts" });
+    }
+    if (!filled(contract.validFrom)) {
+      issues.push({ key: "validFrom", message: "Valid-from date is required.", step: "contracts" });
+    }
+    if (!filled(contract.validTo)) {
+      issues.push({ key: "validTo", message: "Valid-until date is required.", step: "contracts" });
+    }
+    if (filled(contract.validFrom) && filled(contract.validTo) && contract.validTo < contract.validFrom) {
+      issues.push({ key: "validTo", message: "Valid-until must be on or after valid-from date.", step: "contracts" });
+    }
+    if (!filled(contract.currencyCode)) {
+      issues.push({ key: "currencyCode", message: "Contract currency is required.", step: "contracts" });
+    } else if (options?.currencyCodes?.length && !options.currencyCodes.includes(contract.currencyCode)) {
+      issues.push({ key: "currencyCode", message: "Select a configured contract currency from settings.", step: "contracts" });
+    }
+
+    // Pricing Method validation
+    if (contract.pricingMethod === "rate_plan") {
+      const isSelected = contract.ratePlanScope === "selected" || !contract.ratePlanScope;
+      const hasPlan = (contract.ratePlanIds && contract.ratePlanIds.length > 0) || filled(contract.ratePlanId);
+      if (isSelected && !hasPlan) {
+        issues.push({ key: "ratePlanId", message: "Method A requires selecting an active Rate Plan.", step: "contracts" });
+      }
+    } else if (contract.pricingMethod === "rate_plan_discount") {
+      const isSelected = contract.ratePlanScope === "selected" || !contract.ratePlanScope;
+      const hasPlan = (contract.ratePlanIds && contract.ratePlanIds.length > 0) || filled(contract.ratePlanId);
+      if (isSelected && !hasPlan) {
+        issues.push({ key: "ratePlanId", message: "Method B requires selecting a base Rate Plan.", step: "contracts" });
+      }
+      if (contract.discountApplication === "custom") {
+        const discounts = contract.ratePlanDiscounts ?? [];
+        for (let i = 0; i < discounts.length; i++) {
+          const d = discounts[i];
+          if (d.discountValue === null || d.discountValue === undefined || d.discountValue < 0) {
+            issues.push({ key: `ratePlanDiscounts.${d.ratePlanId}`, message: "Enter a non-negative discount value.", step: "contracts" });
+          } else if (d.discountType === "percent" && d.discountValue > 100) {
+            issues.push({ key: `ratePlanDiscounts.${d.ratePlanId}`, message: "Percentage discount cannot exceed 100%.", step: "contracts" });
+          }
+        }
+      } else {
+        if (!filled(contract.discountType)) {
+          issues.push({ key: "discountType", message: "Select a discount type for Method B.", step: "contracts" });
+        }
+        if (contract.discountValue === null || contract.discountValue === undefined || contract.discountValue < 0) {
+          issues.push({ key: "discountValue", message: "Enter a non-negative discount value.", step: "contracts" });
+        } else if (contract.discountType === "percent" && contract.discountValue > 100) {
+          issues.push({ key: "discountValue", message: "Percentage discount cannot exceed 100%.", step: "contracts" });
+        }
+      }
+    } else if (contract.pricingMethod === "contracted_rates") {
+      const rates = contract.contractRates ?? [];
+      if (rates.length === 0) {
+        if (contract.status === "active") {
+          issues.push({ key: "contractRates", message: "At least one contracted room rate is required for Method C.", step: "contracts" });
+        }
+      } else {
+        const seen = new Set<string>();
+        for (let i = 0; i < rates.length; i++) {
+          const row = rates[i];
+          if (!filled(row.roomTypeId)) {
+            issues.push({ key: `contractRates.${i}.roomTypeId`, message: `Select a room type for line ${i + 1}.`, step: "contracts" });
+          } else if (seen.has(row.roomTypeId)) {
+            issues.push({ key: `contractRates.${i}.roomTypeId`, message: `Duplicate room type selected on line ${i + 1}.`, step: "contracts" });
+          } else {
+            seen.add(row.roomTypeId);
+          }
+          if (row.amount === null || row.amount === undefined || row.amount < 0) {
+            issues.push({ key: `contractRates.${i}.amount`, message: `Rate amount must be 0 or greater on line ${i + 1}.`, step: "contracts" });
+          }
+        }
+      }
+    }
+
+    // Required Contract Documents Validation (enforced for Active status)
+    if (contract.status === "active" && options?.contractDocumentTypes) {
+      for (const docType of options.contractDocumentTypes) {
+        if (docType.required && docType.active) {
+          const uploaded = contract.documents.some((d) => d.documentTypeId === docType.id);
+          if (!uploaded) {
+            issues.push({
+              key: `documents.${docType.id}`,
+              message: `${docType.name} is required for an active contract.`,
+              step: "contracts",
+            });
+          }
+        }
+      }
+    }
   }
+
   return issues;
 }
 
@@ -420,18 +796,18 @@ export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
       step: "contacts",
     },
     {
-      id: "business",
-      label: "Business defaults",
-      complete: !contractDateError(draft.contractStartDate, draft.contractEndDate),
-      requiredRemaining: Boolean(contractDateError(draft.contractStartDate, draft.contractEndDate)),
-      step: "business",
-    },
-    {
       id: "billing",
       label: "Billing & credit",
-      complete: true,
-      requiredRemaining: false,
+      complete: filled(draft.defaultBillingRuleId) && Boolean(draft.paymentTiming),
+      requiredRemaining: !filled(draft.defaultBillingRuleId) || !draft.paymentTiming,
       step: "billing",
+    },
+    {
+      id: "contracts",
+      label: "Contracts & agreements",
+      complete: Boolean(draft.contract && filled(draft.contract.name) && filled(draft.contract.contractTypeId)),
+      requiredRemaining: Boolean(!draft.contract || !filled(draft.contract.name) || !filled(draft.contract.contractTypeId)),
+      step: "contracts",
     },
   ];
   const done = items.filter((item) => item.complete && !item.requiredRemaining).length;
@@ -442,7 +818,9 @@ export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
 }
 
 export function optionLabel(options: AccountCreateCatalogueOption[], id: string): string {
-  return options.find((row) => row.id === id)?.name || "";
+  const match = options.find((row) => row.id === id);
+  if (!match) return "";
+  return match.code && match.code !== match.name ? `${match.code} — ${match.name}` : match.name;
 }
 
 export function billingArrangementLabel(id: string): string {
@@ -467,8 +845,17 @@ export function primaryCompanyContact(draft: GuestCompanyCreateDraft): AccountCr
   return draft.contacts.find((row) => row.isPrimary && filled(row.name)) ?? draft.contacts.find((row) => filled(row.name));
 }
 
+export function paymentTimingLabel(id?: string | null): string {
+  return COMPANY_BILLING_TIMINGS.find((t) => t.id === id)?.label || id || "—";
+}
+
+export function creditStatusLabel(id?: string | null): string {
+  return COMPANY_CREDIT_STATUSES.find((s) => s.id === id)?.label || id || "—";
+}
+
 export function draftToCompanyAccountInput(draft: GuestCompanyCreateDraft) {
   const primary = primaryCompanyContact(draft);
+  const creditEnabled = Boolean(draft.creditAccountEnabled);
   return {
     name: draft.name,
     code: blank(draft.code),
@@ -496,24 +883,43 @@ export function draftToCompanyAccountInput(draft: GuestCompanyCreateDraft) {
     paymentTerms: blank(draft.paymentTerms),
     creditLimitNote: blank(draft.creditLimitNote),
     billingInstruction: blank(draft.billingInstruction),
-    creditAccountEnabled: draft.creditAccountEnabled,
+    creditAccountEnabled: creditEnabled,
     acknowledgeNameDuplicate: draft.acknowledgeNameDuplicate,
+
+    // Step 3 Structured fields for guest_account_masters
+    defaultBillingRuleId: blank(draft.defaultBillingRuleId),
+    defaultPaymentMethodId: blank(draft.defaultPaymentMethodId) || blank(draft.paymentMethodId),
+    billingCurrencyCode: blank(draft.billingCurrencyCode) || blank(draft.currency),
+    paymentTiming: draft.paymentTiming || null,
+    creditLimitAmount: creditEnabled && draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined ? Number(draft.creditLimitAmount) : null,
+    creditDays: creditEnabled && draft.creditDays !== null && draft.creditDays !== undefined ? Number(draft.creditDays) : null,
+    creditStatus: creditEnabled ? (draft.creditStatus || "pending_approval") : null,
+    taxExempt: Boolean(draft.taxExempt),
+    taxExemptionRuleId: draft.taxExempt ? blank(draft.taxExemptionRuleId) : null,
+    taxExemptionCertificateNumber: draft.taxExempt ? blank(draft.taxExemptionCertificateNumber) : null,
+    taxExemptionValidTo: draft.taxExempt ? blank(draft.taxExemptionValidTo) : null,
   };
 }
 
 export function draftToAccountOperations(draft: GuestCompanyCreateDraft): Record<string, unknown> {
+  const hasNewContract = Boolean(
+    draft.contract && (filled(draft.contract.name) || filled(draft.contract.contractTypeId)),
+  );
   return {
     industry: blank(draft.industry),
     sourceCodeId: blank(draft.sourceCodeId),
     sourceOfBusiness: blank(draft.sourceOfBusiness),
     marketSegmentId: blank(draft.marketSegmentId),
     accountManagerMembershipId: blank(draft.accountManagerId),
-    contract: {
-      reference: blank(draft.contractReference),
-      startDate: blank(draft.contractStartDate),
-      endDate: blank(draft.contractEndDate),
-      copy: COMPANY_CREATE_CONTRACT_COPY,
-    },
+    // Rule 34: New contract data is authoritative in pms_corporate_agreements
+    contract: hasNewContract
+      ? null
+      : {
+          reference: blank(draft.contractReference),
+          startDate: blank(draft.contractStartDate),
+          endDate: blank(draft.contractEndDate),
+          copy: COMPANY_CREATE_CONTRACT_COPY,
+        },
     defaults: {
       ratePlanId: blank(draft.ratePlanId),
       packageId: blank(draft.packageId),
