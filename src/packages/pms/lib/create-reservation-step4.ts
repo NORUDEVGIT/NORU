@@ -4,7 +4,7 @@ import {
   formatDepositPolicyResult,
   type DepositPolicyCard3Row,
   type DepositPolicyType,
-} from "./payments-card3.server.ts";
+} from "./payments-card3.ts";
 import { allowCashieringTender } from "./pms-polish1-payment-admin.ts";
 
 export type DepositComputeQuote = {
