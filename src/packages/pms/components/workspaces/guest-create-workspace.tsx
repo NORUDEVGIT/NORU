@@ -179,6 +179,7 @@ export function GuestCreateWorkspace({
     set3: context.data?.set3 ?? null,
     requiredPreferenceTypeIds: requiredPrefs,
     dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
+    hasPhoto: Boolean(photoPreview || photoFile),
   });
 
   function markAttempted(...ids: string[]) {
@@ -759,7 +760,7 @@ function BasicStep({
           <Field label="Profile Type">
             <Input value="Individual Guest" disabled />
           </Field>
-          <Field label="Title">
+          <Field label="Title" required={required("TITLE")} error={fieldError("TITLE", "basic")}>
             <Select value={draft.title || "__none"} onValueChange={(value) => set("title", value === "__none" ? "" : value as GuestCreateDraft["title"])}>
               <SelectTrigger><SelectValue placeholder="Title" /></SelectTrigger>
               <SelectContent>
@@ -776,7 +777,7 @@ function BasicStep({
               autoComplete="given-name"
             />
           </Field>
-          <Field label="Middle Name">
+          <Field label="Middle Name" required={required("MIDDLE_NAME")} error={fieldError("MIDDLE_NAME", "basic")}>
             <Input value={draft.middleName} onChange={(event) => set("middleName", event.target.value)} />
           </Field>
           {visible("LAST_NAME") ? (
@@ -784,7 +785,7 @@ function BasicStep({
               <Input value={draft.lastName} onChange={(event) => set("lastName", event.target.value)} />
             </Field>
           ) : null}
-          <Field label="Preferred Name">
+          <Field label="Preferred Name" required={required("PREFERRED_NAME")} error={fieldError("PREFERRED_NAME", "basic")}>
             <Input value={draft.preferredName} onChange={(event) => set("preferredName", event.target.value)} />
           </Field>
           {visible("DATE_OF_BIRTH") ? (
@@ -792,7 +793,7 @@ function BasicStep({
               <Input type="date" value={draft.dateOfBirth} onChange={(event) => set("dateOfBirth", event.target.value)} />
             </Field>
           ) : null}
-          <Field label="Gender">
+          <Field label="Gender" required={required("GENDER")} error={fieldError("GENDER", "basic")}>
             <Select value={draft.gender || "__none"} onValueChange={(value) => set("gender", value === "__none" ? "" : value as GuestCreateDraft["gender"])}>
               <SelectTrigger><SelectValue placeholder="Gender" /></SelectTrigger>
               <SelectContent>
@@ -806,10 +807,10 @@ function BasicStep({
               <Input value={draft.nationality} onChange={(event) => set("nationality", event.target.value)} />
             </Field>
           ) : null}
-          <Field label="Language">
+          <Field label="Language" required={required("LANGUAGE")} error={fieldError("LANGUAGE", "basic")}>
             <Input value={draft.language} onChange={(event) => set("language", event.target.value)} />
           </Field>
-          <Field label="Photo">
+          <Field label="Photo" required={required("GUEST_PHOTO")} error={fieldError("GUEST_PHOTO", "basic")}>
             <Input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => onPhoto(event.target.files?.[0] ?? null)} />
             {photoPreview ? <img src={photoPreview} alt="" className="mt-2 h-16 w-16 rounded-xl object-cover" /> : null}
           </Field>
@@ -823,7 +824,7 @@ function BasicStep({
               <Input value={draft.phone} onChange={(event) => set("phone", event.target.value)} />
             </Field>
           ) : null}
-          <Field label="Alternative Phone">
+          <Field label="Alternative Phone" required={required("PHONE_ALT")} error={fieldError("PHONE_ALT", "basic")}>
             <Input value={draft.phoneAlt} onChange={(event) => set("phoneAlt", event.target.value)} />
           </Field>
           {visible("EMAIL") ? (
@@ -831,10 +832,10 @@ function BasicStep({
               <Input value={draft.email} onChange={(event) => set("email", event.target.value)} />
             </Field>
           ) : null}
-          <Field label="Alternative Email">
+          <Field label="Alternative Email" required={required("EMAIL_ALT")} error={fieldError("EMAIL_ALT", "basic")}>
             <Input value={draft.emailAlt} onChange={(event) => set("emailAlt", event.target.value)} />
           </Field>
-          <Field label="Preferred Contact Method">
+          <Field label="Preferred Contact Method" required={required("PREFERRED_CONTACT_METHOD")} error={fieldError("PREFERRED_CONTACT_METHOD", "basic")}>
             <Select value={draft.preferredContactMethod || "__none"} onValueChange={(value) => set("preferredContactMethod", value === "__none" ? "" : value as GuestCreateDraft["preferredContactMethod"])}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -843,7 +844,7 @@ function BasicStep({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Preferred Contact Time">
+          <Field label="Preferred Contact Time" required={required("PREFERRED_CONTACT_TIME")} error={fieldError("PREFERRED_CONTACT_TIME", "basic")}>
             <Select value={draft.preferredContactTime || "__none"} onValueChange={(value) => set("preferredContactTime", value === "__none" ? "" : value as GuestCreateDraft["preferredContactTime"])}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -858,22 +859,22 @@ function BasicStep({
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg">Address Information</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label="Country" required={required("ADDRESS")} error={fieldError("ADDRESS", "basic")}>
+            <Field label="Country" required={required("COUNTRY") || required("ADDRESS")} error={fieldError("COUNTRY", "basic") || fieldError("ADDRESS", "basic")}>
               <Input value={draft.country} onChange={(event) => set("country", event.target.value)} />
             </Field>
-            <Field label="Region / State">
+            <Field label="Region / State" required={required("REGION")} error={fieldError("REGION", "basic")}>
               <Input value={draft.region} onChange={(event) => set("region", event.target.value)} />
             </Field>
-            <Field label="City" required={required("ADDRESS")}>
+            <Field label="City" required={required("CITY") || required("ADDRESS")} error={fieldError("CITY", "basic")}>
               <Input value={draft.city} onChange={(event) => set("city", event.target.value)} />
             </Field>
-            <Field label="Street">
+            <Field label="Street" required={required("ADDRESS_LINE1")} error={fieldError("ADDRESS_LINE1", "basic")}>
               <Input value={draft.addressLine1} onChange={(event) => set("addressLine1", event.target.value)} />
             </Field>
             <Field label="House / Building">
               <Input value={draft.addressLine2} onChange={(event) => set("addressLine2", event.target.value)} />
             </Field>
-            <Field label="Postal Code">
+            <Field label="Postal Code" required={required("POSTAL_CODE")} error={fieldError("POSTAL_CODE", "basic")}>
               <Input value={draft.postalCode} onChange={(event) => set("postalCode", event.target.value)} />
             </Field>
           </div>

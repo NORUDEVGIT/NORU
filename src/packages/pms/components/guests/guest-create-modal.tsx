@@ -472,6 +472,7 @@ export function GuestCreateModal({
     set3: context.data?.set3 ?? null,
     requiredPreferenceTypeIds: requiredPrefs,
     dataProcessingRequired: false,
+    hasPhoto: Boolean(photoPreview || photoFile),
   });
 
   // Also check Card 4 required custom fields (only for visible company field)
@@ -609,6 +610,7 @@ export function GuestCreateModal({
         set3: context.data?.set3 ?? null,
         requiredPreferenceTypeIds: requiredPrefs,
         dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
+        hasPhoto: Boolean(photoPreview || photoFile),
       });
       if (issues.length) throw new Error(formatCreateIssuesByStep(issues, activeSteps));
 
@@ -1607,7 +1609,7 @@ function BasicStep({
           <Field label="Profile Type">
             <Input value="Individual Guest" disabled className={cn(MODAL_CONTROL_CLASS, "font-medium")} />
           </Field>
-          <Field label="Title">
+          <Field label="Title" required={required("TITLE")} error={fieldError("TITLE", "basic")}>
             <Select
               value={draft.title || "__none"}
               onValueChange={(value) =>
@@ -1634,7 +1636,7 @@ function BasicStep({
               className={MODAL_CONTROL_CLASS}
             />
           </Field>
-          <Field label="Middle Name">
+          <Field label="Middle Name" required={required("MIDDLE_NAME")} error={fieldError("MIDDLE_NAME", "basic")}>
             <Input
               value={draft.middleName}
               onChange={(event) => set("middleName", event.target.value)}
@@ -1650,7 +1652,7 @@ function BasicStep({
               />
             </Field>
           ) : null}
-          <Field label="Preferred Name">
+          <Field label="Preferred Name" required={required("PREFERRED_NAME")} error={fieldError("PREFERRED_NAME", "basic")}>
             <Input
               value={draft.preferredName}
               onChange={(event) => set("preferredName", event.target.value)}
@@ -1667,7 +1669,7 @@ function BasicStep({
               />
             </Field>
           ) : null}
-          <Field label="Gender">
+          <Field label="Gender" required={required("GENDER")} error={fieldError("GENDER", "basic")}>
             <Select
               value={draft.gender || "__none"}
               onValueChange={(value) =>
@@ -1701,7 +1703,7 @@ function BasicStep({
               />
             </Field>
           ) : null}
-          <Field label="Language">
+          <Field label="Language" required={required("LANGUAGE")} error={fieldError("LANGUAGE", "basic")}>
             <Input
               value={draft.language}
               onChange={(event) => set("language", event.target.value)}
@@ -1716,7 +1718,7 @@ function BasicStep({
               onCheckedChange={(checked) => set("vipStatus", checked)}
             />
           </div>
-          <Field label="Guest Photo">
+          <Field label="Guest Photo" required={required("GUEST_PHOTO")} error={fieldError("GUEST_PHOTO", "basic")}>
             <div className="flex items-center gap-2">
               <Input
                 type="file"
@@ -1745,7 +1747,7 @@ function BasicStep({
               />
             </Field>
           ) : null}
-          <Field label="Alternative Phone">
+          <Field label="Alternative Phone" required={required("PHONE_ALT")} error={fieldError("PHONE_ALT", "basic")}>
             <Input
               value={draft.phoneAlt}
               onChange={(event) => set("phoneAlt", event.target.value)}
@@ -1762,7 +1764,7 @@ function BasicStep({
               />
             </Field>
           ) : null}
-          <Field label="Alternative Email">
+          <Field label="Alternative Email" required={required("EMAIL_ALT")} error={fieldError("EMAIL_ALT", "basic")}>
             <Input
               type="email"
               value={draft.emailAlt}
@@ -1770,7 +1772,7 @@ function BasicStep({
               className={MODAL_CONTROL_CLASS}
             />
           </Field>
-          <Field label="Preferred Contact Method">
+          <Field label="Preferred Contact Method" required={required("PREFERRED_CONTACT_METHOD")} error={fieldError("PREFERRED_CONTACT_METHOD", "basic")}>
             <Select
               value={draft.preferredContactMethod || "__none"}
               onValueChange={(value) =>
@@ -1791,7 +1793,7 @@ function BasicStep({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Preferred Contact Time">
+          <Field label="Preferred Contact Time" required={required("PREFERRED_CONTACT_TIME")} error={fieldError("PREFERRED_CONTACT_TIME", "basic")}>
             <Select
               value={draft.preferredContactTime || "__none"}
               onValueChange={(value) =>
@@ -1820,7 +1822,7 @@ function BasicStep({
         <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
           <h2 className="font-display text-base font-semibold text-[#251605]">Address Information</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Country" required={required("ADDRESS")} error={fieldError("ADDRESS", "basic")}>
+            <Field label="Country" required={required("COUNTRY") || required("ADDRESS")} error={fieldError("COUNTRY", "basic") || fieldError("ADDRESS", "basic")}>
               <SearchableSelect
                 id="guest-create-country"
                 value={countryCode}
@@ -1837,7 +1839,7 @@ function BasicStep({
                 }}
               />
             </Field>
-            <Field label={layout.regionLabel || "Region / State"}>
+            <Field label={layout.regionLabel || "Region / State"} required={required("REGION")} error={fieldError("REGION", "basic")}>
               {availableRegions.length > 0 ? (
                 <SearchableSelect
                   id="guest-create-region"
@@ -1858,14 +1860,14 @@ function BasicStep({
                 />
               )}
             </Field>
-            <Field label="City" required={required("ADDRESS")}>
+            <Field label="City" required={required("CITY") || required("ADDRESS")} error={fieldError("CITY", "basic")}>
               <Input
                 value={draft.city}
                 onChange={(event) => set("city", event.target.value)}
                 className={MODAL_CONTROL_CLASS}
               />
             </Field>
-            <Field label="Street Address Line 1">
+            <Field label="Street Address Line 1" required={required("ADDRESS_LINE1")} error={fieldError("ADDRESS_LINE1", "basic")}>
               <Input
                 value={draft.addressLine1}
                 onChange={(event) => set("addressLine1", event.target.value)}
@@ -1879,7 +1881,7 @@ function BasicStep({
                 className={MODAL_CONTROL_CLASS}
               />
             </Field>
-            <Field label="Postal Code">
+            <Field label="Postal Code" required={required("POSTAL_CODE")} error={fieldError("POSTAL_CODE", "basic")}>
               <Input
                 value={draft.postalCode}
                 onChange={(event) => set("postalCode", event.target.value)}

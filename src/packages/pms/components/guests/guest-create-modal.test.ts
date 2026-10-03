@@ -13,8 +13,8 @@ import {
   guestCreateFieldIssues,
   guestCreateCompletion,
   guestCreateHasChanges,
-} from "@/packages/pms/lib/guest-create-workspace";
-import { formatCustomFieldValueForDisplay } from "@/packages/pms/lib/guest-custom-fields.server";
+} from "../../lib/guest-create-workspace.ts";
+import { formatCustomFieldValueForDisplay } from "../../lib/guest-custom-fields.server.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

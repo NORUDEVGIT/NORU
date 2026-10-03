@@ -128,6 +128,43 @@ describe("Guest create workflow helpers", () => {
     );
   });
 
+  it("enforces additional fields when marked required in Card 4", () => {
+    const rules = createFieldRules(
+      [
+        field({ code: "MIDDLE_NAME", required: true }),
+        field({ code: "TITLE", required: true }),
+        field({ code: "GENDER", required: true }),
+        field({ code: "LANGUAGE", required: true }),
+        field({ code: "PHONE_ALT", required: true }),
+        field({ code: "ADDRESS_LINE1", required: true }),
+      ],
+      null,
+    );
+    const draft = emptyGuestCreateDraft();
+    draft.firstName = "Abebe";
+    const gaps = card4CreateGaps(draft, rules);
+    assert.equal(gaps.some((gap) => gap.code === "MIDDLE_NAME"), true);
+    assert.equal(gaps.some((gap) => gap.code === "TITLE"), true);
+    assert.equal(gaps.some((gap) => gap.code === "GENDER"), true);
+    assert.equal(gaps.some((gap) => gap.code === "LANGUAGE"), true);
+    assert.equal(gaps.some((gap) => gap.code === "PHONE_ALT"), true);
+    assert.equal(gaps.some((gap) => gap.code === "ADDRESS_LINE1"), true);
+
+    draft.middleName = "Tadesse";
+    draft.title = "mr";
+    draft.gender = "male";
+    draft.language = "am";
+    draft.phoneAlt = "+251911223344";
+    draft.addressLine1 = "Bole Road 123";
+    const resolvedGaps = card4CreateGaps(draft, rules);
+    assert.equal(resolvedGaps.some((gap) => gap.code === "MIDDLE_NAME"), false);
+    assert.equal(resolvedGaps.some((gap) => gap.code === "TITLE"), false);
+    assert.equal(resolvedGaps.some((gap) => gap.code === "GENDER"), false);
+    assert.equal(resolvedGaps.some((gap) => gap.code === "LANGUAGE"), false);
+    assert.equal(resolvedGaps.some((gap) => gap.code === "PHONE_ALT"), false);
+    assert.equal(resolvedGaps.some((gap) => gap.code === "ADDRESS_LINE1"), false);
+  });
+
   it("does not hardcode completion at 30 percent", () => {
     const rules = createFieldRules([field({ code: "FIRST_NAME", required: true })], null);
     const empty = guestCreateCompletion(emptyGuestCreateDraft(), rules);
