@@ -82,6 +82,7 @@ import {
   emptyAccountCreateContact,
   emptyGuestTravelAgentCreateDraft,
   filled,
+  generateAgencyCode,
   guestTravelAgentCreateCompletion,
   guestTravelAgentCreateHasChanges,
   optionLabel,
@@ -101,6 +102,7 @@ import {
   type TravelAgentCreateContext,
 } from "@/packages/pms/lib/guest-travel-agent-create.functions";
 import { getGuestAccount, type GuestAccountProfile } from "@/packages/pms/lib/guest-accounts.functions";
+import { BasicInfoStep } from "./guest-travel-agency-basic-info-step";
 
 const MODAL_CONTROL_CLASS =
   "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
@@ -246,7 +248,7 @@ export function GuestTravelAgencyCreateModal({
   const currentAgency = agency ?? accountQuery.data ?? null;
 
   const localHold = useMemo(() => (!isEdit && open ? readGuestTravelAgentCreateHold(restaurantId) : null), [isEdit, open, restaurantId]);
-  const [step, setStep] = useState<GuestTravelAgentCreateStepId>(() => localHold?.step ?? "details");
+  const [step, setStep] = useState<GuestTravelAgentCreateStepId>(() => localHold?.step ?? "basic_info");
   const [draft, setDraft] = useState<GuestTravelAgentCreateDraft>(() => {
     if (isEdit && currentAgency) return agencyProfileToCreateDraft(currentAgency);
     return localHold?.draft ?? emptyGuestTravelAgentCreateDraft();
@@ -268,7 +270,7 @@ export function GuestTravelAgencyCreateModal({
     if (isEdit) {
       if (currentAgency) {
         setDraft(agencyProfileToCreateDraft(currentAgency));
-        setStep("details");
+        setStep("basic_info");
         setDefaultsApplied(true);
       }
       return;
@@ -617,19 +619,8 @@ export function GuestTravelAgencyCreateModal({
                   </div>
                 ) : (
                   <>
-                    {step === "details" ? (
-                      <DetailsStep draft={draft} set={set} fieldError={fieldError} />
-                    ) : null}
-                    {step === "contacts" ? (
-                      <ContactsStep
-                        draft={draft}
-                        set={set}
-                        catalogues={catalogues}
-                        error={fieldError("contacts", "contacts")}
-                      />
-                    ) : null}
-                    {step === "business" ? (
-                      <BusinessStep draft={draft} set={set} catalogues={catalogues} />
+                    {step === "basic_info" ? (
+                      <BasicInfoStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
                     ) : null}
                     {step === "billing" ? (
                       <BillingStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
@@ -663,12 +654,10 @@ export function GuestTravelAgencyCreateModal({
                     <span className="text-[#756A5B]">Agency Name:</span>
                     <p className="font-semibold text-[#251605] break-words">{draft.name || "—"}</p>
                   </div>
-                  {draft.tradeName ? (
-                    <div>
-                      <span className="text-[#756A5B]">Trade Name:</span>
-                      <p className="font-medium text-[#251605] break-words">{draft.tradeName}</p>
-                    </div>
-                  ) : null}
+                  <div>
+                    <span className="text-[#756A5B]">Agency Code:</span>
+                    <p className="font-mono font-medium text-[#251605]">{draft.code || "—"}</p>
+                  </div>
                   <div>
                     <span className="text-[#756A5B]">Profile Type:</span>
                     <p className="font-medium text-[#251605]">Travel Agency (TRA)</p>
@@ -682,7 +671,7 @@ export function GuestTravelAgencyCreateModal({
                   <div>
                     <span className="text-[#756A5B]">Status:</span>
                     <p className="font-medium text-[#251605]">
-                      {ACCOUNT_CREATE_STATUS_LABELS[draft.accountStatus]}
+                      {draft.accountStatus === "inactive" ? "Inactive" : "Active"}
                     </p>
                   </div>
                   <div>
@@ -693,8 +682,14 @@ export function GuestTravelAgencyCreateModal({
                   </div>
                   {draft.iataLicenseNumber ? (
                     <div>
-                      <span className="text-[#756A5B]">IATA / License:</span>
+                      <span className="text-[#756A5B]">Licence #:</span>
                       <p className="font-medium text-[#251605]">{draft.iataLicenseNumber}</p>
+                    </div>
+                  ) : null}
+                  {draft.taxId ? (
+                    <div>
+                      <span className="text-[#756A5B]">TIN #:</span>
+                      <p className="font-medium text-[#251605]">{draft.taxId}</p>
                     </div>
                   ) : null}
                   {draft.city || draft.country ? (
@@ -753,15 +748,11 @@ export function GuestTravelAgencyCreateModal({
                   Step Guidance
                 </span>
                 <p className="text-[#756A5B] leading-relaxed">
-                  {step === "details"
-                    ? "Enter the travel agency's core registration, legal name, agency classification, and IATA accreditation details."
-                    : step === "contacts"
-                      ? "Add designated agency representatives, key account managers, and communication channels."
-                      : step === "business"
-                        ? "Record address, tax identifiers, assigned market segment, and account ownership."
-                        : step === "billing"
-                          ? "Configure contracted rates, billing arrangements, credit allowance, and commission plan terms."
-                          : "Verify all agency master information before completing creation and publishing the account."}
+                  {step === "basic_info"
+                    ? "Enter legal identification, agency classification, contacts, address location, and market segmentation."
+                    : step === "billing"
+                      ? "Configure contracted rates, billing arrangements, credit allowance, and commission plan terms."
+                      : "Verify all agency master information before completing creation and publishing the account."}
                 </p>
                 <div className="pt-2 border-t border-[#EDE6D8] text-[11px] text-[#A89F91]">
                   Property Setup Controlled
@@ -1004,512 +995,10 @@ function ModalSelect({
   );
 }
 
-function DetailsStep({
-  draft,
-  set,
-  fieldError,
-}: {
-  draft: GuestTravelAgentCreateDraft;
-  set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
-  fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
-}) {
-  return (
-    <div className="space-y-4">
-      {/* Profile Type Read-only Context */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-[#756A5B]">Profile Type:</span>
-          <span className="rounded-[4px] bg-[#FAF8F5] border border-[#EDE6D8] px-2 py-0.5 text-xs font-semibold text-[#8A641A]">
-            Travel Agency (TRA)
-          </span>
-        </div>
-        <span className="text-[11px] text-[#A89F91]">Canonical Guest & Services Master</span>
-      </div>
 
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-        <div className="border-b border-[#EDE6D8] pb-3">
-          <h2 className="text-sm font-semibold text-[#251605]">Agency Identification</h2>
-          <p className="text-xs text-[#756A5B]">Enter legal registration and primary agency details.</p>
-        </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ModalField label="Agency name" required error={fieldError("name", "details")}>
-            <Input
-              data-testid="travel-agent-create-name"
-              value={draft.name}
-              onChange={(e) => set("name", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="e.g. Blue Nile Travel & Tours"
-            />
-          </ModalField>
 
-          <ModalField label="Trade name">
-            <Input
-              value={draft.tradeName}
-              onChange={(e) => set("tradeName", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Operating / Brand name"
-            />
-          </ModalField>
 
-          <ModalField label="Agency type" required error={fieldError("agencyType", "details")}>
-            <Select value={draft.agencyType} onValueChange={(val) => set("agencyType", val)}>
-              <SelectTrigger
-                data-testid="travel-agent-create-type"
-                className={cn(MODAL_SELECT_TRIGGER_CLASS, fieldError("agencyType", "details") && "border-destructive")}
-              >
-                <SelectValue placeholder="Select agency type" />
-              </SelectTrigger>
-              <SelectContent>
-                {AGENCY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {AGENCY_TYPE_LABELS[type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </ModalField>
-
-          {draft.agencyType === "other" ? (
-            <ModalField label="Agency type description" required error={fieldError("agencyTypeOther", "details")}>
-              <Input
-                value={draft.agencyTypeOther}
-                onChange={(e) => set("agencyTypeOther", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-                placeholder="Specify agency type"
-              />
-            </ModalField>
-          ) : null}
-
-          <ModalField label="Agency code">
-            <Input
-              value={draft.code}
-              onChange={(e) => set("code", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Optional staff code"
-            />
-          </ModalField>
-
-          <ModalField label="Status">
-            <Select
-              value={draft.accountStatus}
-              onValueChange={(val) => set("accountStatus", val as GuestTravelAgentCreateDraft["accountStatus"])}
-            >
-              <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GUEST_ACCOUNT_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {ACCOUNT_CREATE_STATUS_LABELS[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="mt-1 text-[11px] text-[#756A5B]">
-              Travel agency create stays pending. There is no auto-approval.
-            </p>
-          </ModalField>
-
-          <ModalField label="IATA / license number">
-            <Input
-              value={draft.iataLicenseNumber}
-              onChange={(e) => set("iataLicenseNumber", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="e.g. 12-34567 8"
-            />
-          </ModalField>
-
-          <ModalField label="License expiry">
-            <Input
-              type="date"
-              value={draft.licenseExpiryDate}
-              onChange={(e) => set("licenseExpiryDate", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </ModalField>
-
-          <ModalField label="Website">
-            <Input
-              value={draft.website}
-              onChange={(e) => set("website", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="https://example.com"
-            />
-          </ModalField>
-        </div>
-
-        <ModalField label="Notes">
-          <Textarea
-            value={draft.notes}
-            onChange={(e) => set("notes", e.target.value)}
-            className={MODAL_TEXTAREA_CLASS}
-            rows={3}
-            placeholder="Operational notes, special handling, or contract background..."
-          />
-        </ModalField>
-      </div>
-    </div>
-  );
-}
-
-function ContactsStep({
-  draft,
-  set,
-  catalogues,
-  error,
-}: {
-  draft: GuestTravelAgentCreateDraft;
-  set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
-  catalogues?: TravelAgentCreateContext["catalogues"];
-  error?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-      <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-3">
-        <div>
-          <h2 className={cn("text-sm font-semibold text-[#251605]", error && "text-destructive")}>
-            Agency Contacts
-          </h2>
-          <p className="text-xs text-[#756A5B]">
-            Add agency coordinators, reservation desks, and key account managers.
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => set("contacts", [...draft.contacts, emptyAccountCreateContact()])}
-          className="h-8 border-[#C89933]/50 text-xs text-[#8A641A] hover:bg-[#FAF8F5]"
-        >
-          <Plus className="mr-1 size-3.5" /> Add contact
-        </Button>
-      </div>
-
-      {error ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive font-medium">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="space-y-3">
-        {draft.contacts.map((contact, index) => (
-          <div
-            key={contact.key}
-            className="rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/50 p-4 space-y-3"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#8A641A]">
-                Contact #{index + 1} {contact.isPrimary ? "(Primary)" : ""}
-              </span>
-              {draft.contacts.length > 1 ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => set("contacts", draft.contacts.filter((_, i) => i !== index))}
-                  className="size-7 text-[#756A5B] hover:text-destructive"
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ModalField label="Name">
-                <Input
-                  value={contact.name}
-                  onChange={(e) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, name: e.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                />
-              </ModalField>
-
-              <ModalField label="Position / Role">
-                <div className="space-y-1.5">
-                  <Input
-                    value={contact.position}
-                    onChange={(e) =>
-                      set(
-                        "contacts",
-                        draft.contacts.map((row, i) => (i === index ? { ...row, position: e.target.value } : row)),
-                      )
-                    }
-                    className={MODAL_CONTROL_CLASS}
-                    placeholder="e.g. Contracting Manager"
-                  />
-                  {catalogues?.contactRoles && catalogues.contactRoles.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1 text-[11px] text-[#756A5B]">
-                      <span className="text-[10px] text-[#A89F91]">Role:</span>
-                      {catalogues.contactRoles.slice(0, 5).map((role) => (
-                        <button
-                          key={role.id}
-                          type="button"
-                          onClick={() =>
-                            set(
-                              "contacts",
-                              draft.contacts.map((row, i) => (i === index ? { ...row, position: role.name } : row)),
-                            )
-                          }
-                          className={cn(
-                            "rounded-[4px] border border-[#EDE6D8] px-1.5 py-0.5 text-[10px] transition-colors",
-                            contact.position === role.name
-                              ? "bg-[#C89933] text-[#251605] font-semibold border-[#C89933]"
-                              : "bg-[#FAF8F5] text-[#756A5B] hover:bg-[#F2ECE1] hover:text-[#251605]",
-                          )}
-                        >
-                          {role.name}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </ModalField>
-
-              <ModalField label="Email">
-                <Input
-                  value={contact.email}
-                  onChange={(e) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, email: e.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="contact@agency.com"
-                />
-              </ModalField>
-
-              <ModalField label="Phone">
-                <Input
-                  value={contact.phone}
-                  onChange={(e) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, phone: e.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="+1..."
-                />
-              </ModalField>
-
-              <ModalField label="WhatsApp">
-                <Input
-                  value={contact.whatsapp}
-                  onChange={(e) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp: e.target.value } : row)),
-                    )
-                  }
-                  className={MODAL_CONTROL_CLASS}
-                />
-              </ModalField>
-
-              <ModalField label="Preferred method">
-                <ModalSelect
-                  value={contact.preferredMethod}
-                  onChange={(val) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => (i === index ? { ...row, preferredMethod: val } : row)),
-                    )
-                  }
-                  options={CONTACT_PREFERRED_METHODS.map((row) => ({ id: row.id, name: row.label }))}
-                  placeholder="Optional"
-                />
-              </ModalField>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <label className="flex items-center gap-2 text-xs font-medium text-[#251605] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={contact.isPrimary}
-                  onChange={(e) =>
-                    set(
-                      "contacts",
-                      draft.contacts.map((row, i) => ({
-                        ...row,
-                        isPrimary: e.target.checked ? i === index : i === index ? false : row.isPrimary,
-                      })),
-                    )
-                  }
-                  className="size-3.5 rounded border-[#CCCCCC] text-[#C89933] focus:ring-[#C89933]"
-                />
-                Designate as Primary Contact
-              </label>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function BusinessStep({
-  draft,
-  set,
-  catalogues,
-}: {
-  draft: GuestTravelAgentCreateDraft;
-  set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
-  catalogues?: TravelAgentCreateContext["catalogues"];
-}) {
-  const countryOptions = useMemo(
-    () => ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name })),
-    [],
-  );
-  const selectedCountryCode = useMemo(() => countryCodeFromInput(draft.country), [draft.country]);
-  const countryCode = selectedCountryCode || (draft.country ? draft.country : "");
-  const availableRegions = useMemo(() => regionsForCountry(selectedCountryCode), [selectedCountryCode]);
-  const regionOptions = useMemo(
-    () => availableRegions.map((region) => ({ value: region, label: region })),
-    [availableRegions],
-  );
-  const layout = useMemo(() => addressLayoutForCountry(selectedCountryCode), [selectedCountryCode]);
-
-  return (
-    <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-      <div className="border-b border-[#EDE6D8] pb-3">
-        <h2 className="text-sm font-semibold text-[#251605]">Business & Registration</h2>
-        <p className="text-xs text-[#756A5B]">Agency physical location, fiscal registration, and market segmentation.</p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <ModalField label="Country">
-          <SearchableSelect
-            id="travel-agency-country"
-            value={countryCode}
-            options={countryOptions}
-            placeholder="Select country"
-            searchPlaceholder="Search countries..."
-            className={MODAL_SELECT_TRIGGER_CLASS}
-            onChange={(code) => {
-              const name = countryNameFromInput(code);
-              set("country", name);
-              if (!isRegionValidForCountry(name, draft.region)) {
-                set("region", "");
-              }
-            }}
-          />
-        </ModalField>
-
-        <ModalField label={layout.regionLabel || "Region / State"}>
-          {availableRegions.length > 0 ? (
-            <SearchableSelect
-              id="travel-agency-region"
-              value={draft.region}
-              options={regionOptions}
-              placeholder={`Select ${(layout.regionLabel || "region").toLowerCase()}`}
-              searchPlaceholder={`Search ${(layout.regionLabel || "regions").toLowerCase()}...`}
-              className={MODAL_SELECT_TRIGGER_CLASS}
-              onChange={(val) => set("region", val)}
-            />
-          ) : (
-            <Input
-              id="travel-agency-region"
-              value={draft.region}
-              placeholder={layout.regionLabel || "Region / State / Province"}
-              onChange={(e) => set("region", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          )}
-        </ModalField>
-
-        <ModalField label="City">
-          <Input
-            value={draft.city}
-            onChange={(e) => set("city", e.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="City or locality"
-          />
-        </ModalField>
-
-        <ModalField label="Postal / ZIP code">
-          <Input
-            value={draft.postalCode}
-            onChange={(e) => set("postalCode", e.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="ZIP or postal code"
-          />
-        </ModalField>
-
-        <ModalField label="Address line 1">
-          <Input
-            value={draft.addressLine1}
-            onChange={(e) => set("addressLine1", e.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Street address or P.O. Box"
-          />
-        </ModalField>
-
-        <ModalField label="Address line 2">
-          <Input
-            value={draft.addressLine2}
-            onChange={(e) => set("addressLine2", e.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Suite, unit, floor"
-          />
-        </ModalField>
-
-        <ModalField label="Tax ID / VAT">
-          <Input
-            value={draft.taxId}
-            onChange={(e) => set("taxId", e.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Tax registration number"
-          />
-        </ModalField>
-
-        <ModalField label="Registration number">
-          <Input
-            value={draft.registrationNumber}
-            onChange={(e) => set("registrationNumber", e.target.value)}
-            className={MODAL_CONTROL_CLASS}
-            placeholder="Commercial register number"
-          />
-        </ModalField>
-
-        <ModalField label="Market segment">
-          <ModalSelect
-            value={draft.marketSegmentId}
-            onChange={(val) => set("marketSegmentId", val)}
-            options={catalogues?.marketSegments ?? []}
-            placeholder="Select segment"
-          />
-        </ModalField>
-
-        <ModalField label="Source">
-          <ModalSelect
-            value={draft.sourceCodeId}
-            onChange={(val) => {
-              const selected = (catalogues?.sourceCodes ?? []).find((row) => row.id === val);
-              set("sourceCodeId", val);
-              set("sourceOfBusiness", selected?.code || selected?.name || "");
-            }}
-            options={catalogues?.sourceCodes ?? []}
-            placeholder="Select source"
-          />
-        </ModalField>
-
-        <ModalField label="Account manager">
-          <ModalSelect
-            value={draft.accountManagerId}
-            onChange={(val) => set("accountManagerId", val)}
-            options={catalogues?.staff ?? []}
-            placeholder="Select staff"
-          />
-        </ModalField>
-      </div>
-    </div>
-  );
-}
 
 function BillingStep({
   draft,
@@ -1771,33 +1260,18 @@ function ReviewStep({
         </div>
       ) : null}
 
-      <ReviewCard title="Agency Details" onEdit={() => onEdit("details")}>
+      <ReviewCard title="Basic Info & Contacts" onEdit={() => onEdit("basic_info")}>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div><span className="text-[#756A5B]">Agency Name:</span> <span className="font-medium text-[#251605]">{draft.name || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Trade Name:</span> <span className="font-medium text-[#251605]">{draft.tradeName || "—"}</span></div>
           <div><span className="text-[#756A5B]">Type:</span> <span className="font-medium text-[#251605]">{agencyTypeLabel(draft.agencyType) || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Status:</span> <span className="font-medium text-[#251605]">{ACCOUNT_CREATE_STATUS_LABELS[draft.accountStatus]}</span></div>
-          <div><span className="text-[#756A5B]">IATA / License:</span> <span className="font-medium text-[#251605]">{draft.iataLicenseNumber || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Website:</span> <span className="font-medium text-[#251605]">{draft.website || "—"}</span></div>
-        </div>
-      </ReviewCard>
-
-      <ReviewCard title="Contacts" onEdit={() => onEdit("contacts")}>
-        <div className="text-xs space-y-1">
-          <p><span className="text-[#756A5B]">Primary Contact:</span> <span className="font-medium text-[#251605]">{primary?.name || "—"}</span> {primary?.position ? `(${primary.position})` : ""}</p>
-          <p><span className="text-[#756A5B]">Email:</span> <span className="font-medium text-[#251605]">{primary?.email || "—"}</span> · <span className="text-[#756A5B]">Phone:</span> <span className="font-medium text-[#251605]">{primary?.phone || "—"}</span></p>
-          <p><span className="text-[#756A5B]">Total Contacts:</span> <span className="font-medium text-[#251605]">{draft.contacts.filter((c) => filled(c.name)).length}</span></p>
-        </div>
-      </ReviewCard>
-
-      <ReviewCard title="Business & Registration" onEdit={() => onEdit("business")}>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div><span className="text-[#756A5B]">Address:</span> <span className="font-medium text-[#251605]">{[draft.addressLine1, draft.city, draft.country].filter(Boolean).join(", ") || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Tax ID:</span> <span className="font-medium text-[#251605]">{draft.taxId || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Registration:</span> <span className="font-medium text-[#251605]">{draft.registrationNumber || "—"}</span></div>
+          <div><span className="text-[#756A5B]">Code:</span> <span className="font-medium text-[#251605]">{draft.code || "—"}</span></div>
+          <div><span className="text-[#756A5B]">Status:</span> <span className="font-medium text-[#251605]">{draft.accountStatus === "inactive" ? "Inactive" : "Active"}</span></div>
+          <div><span className="text-[#756A5B]">Licence #:</span> <span className="font-medium text-[#251605]">{draft.iataLicenseNumber || "—"}</span></div>
+          <div><span className="text-[#756A5B]">TIN #:</span> <span className="font-medium text-[#251605]">{draft.taxId || "—"}</span></div>
+          <div><span className="text-[#756A5B]">Location:</span> <span className="font-medium text-[#251605]">{[draft.addressLine1, draft.city, draft.country].filter(Boolean).join(", ") || "—"}</span></div>
+          <div><span className="text-[#756A5B]">Primary Contact:</span> <span className="font-medium text-[#251605]">{primary?.name ? `${primary.name}${primary.position ? ` (${primary.position})` : ""}` : "—"}</span></div>
           <div><span className="text-[#756A5B]">Market Segment:</span> <span className="font-medium text-[#251605]">{optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</span></div>
           <div><span className="text-[#756A5B]">Source:</span> <span className="font-medium text-[#251605]">{draft.sourceOfBusiness || optionLabel(catalogues?.sourceCodes ?? [], draft.sourceCodeId) || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Account Manager:</span> <span className="font-medium text-[#251605]">{optionLabel(catalogues?.staff ?? [], draft.accountManagerId) || "—"}</span></div>
         </div>
       </ReviewCard>
 

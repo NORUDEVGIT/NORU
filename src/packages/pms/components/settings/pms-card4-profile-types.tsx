@@ -988,8 +988,9 @@ export function PmsCard4ProfileTypes({
                                 </Button>
                               ) : null}
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
+                      </div>
                       )}
                     </div>
                   );

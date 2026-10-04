@@ -18,11 +18,9 @@ import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-
 export const GUEST_TRAVEL_AGENT_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
 export const GUEST_TRAVEL_AGENT_CREATE_STEPS = [
-  { id: "details", number: 1, title: "Agency Details" },
-  { id: "contacts", number: 2, title: "Contacts" },
-  { id: "business", number: 3, title: "Business & Registration" },
-  { id: "billing", number: 4, title: "Commercial & Billing" },
-  { id: "review", number: 5, title: "Review & Confirm" },
+  { id: "basic_info", number: 1, title: "Basic Info" },
+  { id: "billing", number: 2, title: "Commercial & Billing" },
+  { id: "review", number: 3, title: "Review & Confirm" },
 ] as const;
 
 export type GuestTravelAgentCreateStepId = (typeof GUEST_TRAVEL_AGENT_CREATE_STEPS)[number]["id"];
@@ -74,6 +72,7 @@ export type AccountCreateContactDraft = {
   key: string;
   id: string | null;
   name: string;
+  roleId: string | null;
   position: string;
   email: string;
   phone: string;
@@ -82,6 +81,12 @@ export type AccountCreateContactDraft = {
   preferredMethod: string;
   notes: string;
 };
+
+export function generateAgencyCode(typeCode: string, sequence = 1): string {
+  const prefix = (typeCode || "TA").trim().toUpperCase();
+  const padded = String(sequence).padStart(3, "0");
+  return `${prefix}-${padded}`;
+}
 
 export type GuestTravelAgentCreateDraft = {
   accountId: string | null;
@@ -172,21 +177,22 @@ export function inferGuestTravelAgentCreateStep(draft: GuestTravelAgentCreateDra
   if (draft.commissionEnabled || filled(draft.creditLimitAmount) || filled(draft.billingArrangement)) {
     return "billing";
   }
-  if (filled(draft.addressLine1) || filled(draft.marketSegmentId) || filled(draft.taxId)) {
-    return "business";
-  }
-  if (draft.contacts.some((row) => filled(row.name))) return "contacts";
-  return "details";
+  return "basic_info";
 }
 
 export function parseGuestTravelAgentCreateHold(payload: unknown): GuestTravelAgentCreateHold | null {
   if (!payload || typeof payload !== "object") return null;
   const record = payload as { step?: unknown; draft?: unknown };
   if (isTravelAgentCreateDraftShape(record.draft)) {
+    const rawStep = String(record.step ?? "");
+    const mappedStep: GuestTravelAgentCreateStepId =
+      rawStep === "details" || rawStep === "contacts" || rawStep === "business"
+        ? "basic_info"
+        : isGuestTravelAgentCreateStepId(rawStep)
+          ? (rawStep as GuestTravelAgentCreateStepId)
+          : inferGuestTravelAgentCreateStep(record.draft);
     return {
-      step: isGuestTravelAgentCreateStepId(String(record.step ?? ""))
-        ? (record.step as GuestTravelAgentCreateStepId)
-        : inferGuestTravelAgentCreateStep(record.draft),
+      step: mappedStep,
       draft: normalizeTravelAgentCreateDraft(record.draft),
     };
   }
@@ -221,6 +227,7 @@ export function emptyAccountCreateContact(primary = false): AccountCreateContact
     key: `contact-${Math.random().toString(36).slice(2, 10)}`,
     id: null,
     name: "",
+    roleId: null,
     position: "",
     email: "",
     phone: "",
@@ -236,10 +243,10 @@ export function emptyGuestTravelAgentCreateDraft(): GuestTravelAgentCreateDraft 
     accountId: null,
     name: "",
     tradeName: "",
-    code: "",
+    code: generateAgencyCode("TA"),
     agencyType: "",
     agencyTypeOther: "",
-    accountStatus: "pending",
+    accountStatus: "active",
     iataLicenseNumber: "",
     licenseExpiryDate: "",
     website: "",
@@ -324,12 +331,15 @@ export function travelAgentCreateFieldIssues(
   },
 ): TravelAgentCreateFieldIssue[] {
   const issues: TravelAgentCreateFieldIssue[] = [];
-  if (!filled(draft.name)) issues.push({ key: "name", message: "Agency name is required.", step: "details" });
+  if (!filled(draft.name)) issues.push({ key: "name", message: "Agency name is required.", step: "basic_info" });
   if (!filled(draft.agencyType) || !isAgencyType(draft.agencyType)) {
-    issues.push({ key: "agencyType", message: "Agency type is required.", step: "details" });
+    issues.push({ key: "agencyType", message: "Agency type is required.", step: "basic_info" });
   }
-  if (draft.agencyType === "other" && !filled(draft.agencyTypeOther)) {
-    issues.push({ key: "agencyTypeOther", message: "Describe the agency type when Other is selected.", step: "details" });
+  if (
+    (draft.agencyType.toLowerCase() === "other" || draft.agencyType.toUpperCase() === "OTHR") &&
+    !filled(draft.agencyTypeOther)
+  ) {
+    issues.push({ key: "agencyTypeOther", message: "Describe the agency type when Other is selected.", step: "basic_info" });
   }
   const named = draft.contacts.filter((row) => filled(row.name));
   const primaries = named.filter((row) => row.isPrimary);
@@ -337,12 +347,12 @@ export function travelAgentCreateFieldIssues(
     issues.push({
       key: "contacts",
       message: "Exactly one primary contact is required when contacts are entered.",
-      step: "contacts",
+      step: "basic_info",
     });
   }
   for (const contact of named) {
     if (!validEmail(contact.email)) {
-      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
+      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "basic_info" });
     }
   }
   const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
@@ -419,21 +429,21 @@ export function guestTravelAgentCreateCompletion(draft: GuestTravelAgentCreateDr
       label: "Agency identity",
       complete: filled(draft.name) && isAgencyType(draft.agencyType),
       requiredRemaining: !filled(draft.name) || !isAgencyType(draft.agencyType),
-      step: "details",
+      step: "basic_info",
     },
     {
       id: "contacts",
-      label: "Contacts",
+      label: "Contacts & Role",
       complete: true,
       requiredRemaining: false,
-      step: "contacts",
+      step: "basic_info",
     },
     {
-      id: "business",
-      label: "Registration",
-      complete: !contractDateError(draft.contractStartDate, draft.contractEndDate),
-      requiredRemaining: Boolean(contractDateError(draft.contractStartDate, draft.contractEndDate)),
-      step: "business",
+      id: "address",
+      label: "Address & Market",
+      complete: true,
+      requiredRemaining: false,
+      step: "basic_info",
     },
     {
       id: "billing",
@@ -476,7 +486,7 @@ export function draftToTravelAgentAccountInput(draft: GuestTravelAgentCreateDraf
     tradeName: blank(draft.tradeName),
     agencyType: blank(draft.agencyType) as AgencyType | null,
     agencyTypeOther: draft.agencyType === "other" ? blank(draft.agencyTypeOther) : null,
-    accountStatus: "pending" as const,
+    accountStatus: (draft.accountStatus === "inactive" ? "inactive" : "active") as GuestAccountStatus,
     website: blank(draft.website),
     notes: blank(draft.notes),
     email: primary?.email ? primary.email.trim() : null,

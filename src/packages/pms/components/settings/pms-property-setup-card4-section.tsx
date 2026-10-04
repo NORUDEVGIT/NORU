@@ -42,6 +42,10 @@ import {
   PmsCard4GroupTypes,
 } from "@/packages/pms/components/settings/pms-card4-group-types";
 import {
+  Card4TravelAgencyTypesGuide,
+  PmsCard4TravelAgencyTypes,
+} from "@/packages/pms/components/settings/pms-card4-travel-agency-types";
+import {
   Card4ServiceCategoriesGuide,
   PmsCard4ServiceCategories,
 } from "@/packages/pms/components/settings/pms-card4-service-categories";
@@ -93,6 +97,8 @@ import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4GroupTypes } from "@/packages/pms/lib/group-types-card4.functions";
 import { groupTypesConfigured as groupTypesReadyFn } from "@/packages/pms/lib/group-types-card4.server";
+import { getPmsCard4TravelAgencyTypes } from "@/packages/pms/lib/travel-agency-types-card4.functions";
+import { travelAgencyTypesConfigured as travelAgencyTypesReadyFn } from "@/packages/pms/lib/travel-agency-types-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
 import { serviceCategoriesConfigured } from "@/packages/pms/lib/service-categories-card4.server";
 import { getPmsCard4ServiceTypes } from "@/packages/pms/lib/service-types-card4.functions";
@@ -161,7 +167,9 @@ export function PmsPropertySetupCard4Section({
       ? "company-business"
       : initialStep === "group-types"
         ? "group-types"
-        : "profile-types";
+        : initialStep === "travel-agency-types"
+          ? "travel-agency-types"
+          : "profile-types";
 
   const resolvedInitialTab: ProfileTypeTabId =
     initialStep === "required-fields"
@@ -205,6 +213,7 @@ export function PmsPropertySetupCard4Section({
   const loadPreferences = useServerFn(getPmsCard4Preferences);
   const loadCompanyBusiness = useServerFn(getPmsCard4CompanyBusiness);
   const loadGroupTypes = useServerFn(getPmsCard4GroupTypes);
+  const loadTravelAgencyTypes = useServerFn(getPmsCard4TravelAgencyTypes);
   const loadServiceCategories = useServerFn(getPmsCard4ServiceCategories);
   const loadServiceTypes = useServerFn(getPmsCard4ServiceTypes);
   const loadServicePricing = useServerFn(getPmsCard4ServicePricing);
@@ -246,6 +255,11 @@ export function PmsPropertySetupCard4Section({
   const groupTypesQuery = useQuery({
     queryKey: ["pms-card4-group-types", restaurantId],
     queryFn: () => loadGroupTypes({ data: { restaurantId } }),
+    retry: false,
+  });
+  const travelAgencyTypesQuery = useQuery({
+    queryKey: ["pms-card4-travel-agency-types", restaurantId],
+    queryFn: () => loadTravelAgencyTypes({ data: { restaurantId } }),
     retry: false,
   });
   const serviceCategoriesQuery = useQuery({
@@ -327,6 +341,9 @@ export function PmsPropertySetupCard4Section({
     },
   );
   const groupTypesReady = groupTypesReadyFn(groupTypesQuery.data?.types ?? []);
+  const travelAgencyTypesReady = travelAgencyTypesReadyFn(
+    travelAgencyTypesQuery.data?.types ?? [],
+  );
   const categoriesReady = serviceCategoriesConfigured(
     serviceCategoriesQuery.data?.categories ?? [],
   );
@@ -407,6 +424,17 @@ export function PmsPropertySetupCard4Section({
       preferencesReady,
       companyReady,
       groupTypesReady,
+    ),
+    "travel-agency-types": evaluateCard4StepStatus(
+      "travel-agency-types",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+      identityDocumentsConfigured,
+      preferencesReady,
+      companyReady,
+      groupTypesReady,
+      travelAgencyTypesReady,
     ),
   };
   const gstStatuses: Partial<Record<Card4GstStepId, PropertySetupCardStatus>> = {
@@ -590,7 +618,8 @@ export function PmsPropertySetupCard4Section({
     if (
       step === "profile-types" ||
       step === "company-business" ||
-      step === "group-types"
+      step === "group-types" ||
+      step === "travel-agency-types"
     ) {
       requestSave(true);
       return;
@@ -601,7 +630,8 @@ export function PmsPropertySetupCard4Section({
   const gprLive =
     step === "profile-types" ||
     step === "company-business" ||
-    step === "group-types";
+    step === "group-types" ||
+    step === "travel-agency-types";
   const gstLive =
     gstStep === "service-categories" ||
     gstStep === "service-types" ||
@@ -795,6 +825,8 @@ export function PmsPropertySetupCard4Section({
               />
             ) : step === "group-types" ? (
               <Card4GroupTypesGuide count={groupTypesQuery.data?.types.length ?? 0} />
+            ) : step === "travel-agency-types" ? (
+              <Card4TravelAgencyTypesGuide count={travelAgencyTypesQuery.data?.types.length ?? 0} />
             ) : null}
 
             {mainSection === "notifications" ? (
@@ -955,6 +987,14 @@ export function PmsPropertySetupCard4Section({
               />
             ) : step === "group-types" ? (
               <PmsCard4GroupTypes
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "travel-agency-types" ? (
+              <PmsCard4TravelAgencyTypes
                 restaurantId={restaurantId}
                 canEdit={canEdit}
                 onSavingChange={onSavingChange}
