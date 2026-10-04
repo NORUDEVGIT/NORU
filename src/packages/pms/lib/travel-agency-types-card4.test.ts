@@ -104,4 +104,17 @@ describe("Card 4 Travel Agency Types catalogue", () => {
     assert.match(sectionSrc, /getPmsCard4TravelAgencyTypes/);
     assert.match(sectionSrc, /travel-agency-types/);
   });
+
+  it("persists active toggles with fallback storage and filters inactive types from creation form", () => {
+    assert.match(functionsSrc, /saveTravelAgencyTypesFallback/);
+    assert.match(loadSrc, /saveTravelAgencyTypesFallback/);
+    assert.match(loadSrc, /pms_guest_profile_rules/);
+
+    const basicStepSrc = readFileSync(
+      new URL("../components/guests/guest-travel-agency-basic-info-step.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(basicStepSrc, /type\.active !== false/);
+  });
 });
+

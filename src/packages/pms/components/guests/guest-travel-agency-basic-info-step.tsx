@@ -181,11 +181,18 @@ export function BasicInfoStep({
               </SelectTrigger>
               <SelectContent>
                 {agencyTypeOptions.length > 0
-                  ? agencyTypeOptions.map((type) => (
-                      <SelectItem key={type.id} value={type.code || type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))
+                  ? agencyTypeOptions
+                      .filter(
+                        (type) =>
+                          type.active !== false ||
+                          (draft.agencyType &&
+                            (type.code === draft.agencyType || type.id === draft.agencyType)),
+                      )
+                      .map((type) => (
+                        <SelectItem key={type.id} value={type.code || type.id}>
+                          {type.name}
+                        </SelectItem>
+                      ))
                   : AGENCY_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>
                         {AGENCY_TYPE_LABELS[type]}
