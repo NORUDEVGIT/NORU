@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Images } from "lucide-react";
 
 import {
   Dialog,
@@ -65,6 +65,7 @@ import {
   PropertySetupFormItem,
   PropertySetupRemoveButton,
 } from "@/packages/pms/components/settings/setup-kit";
+import { RoomTypeImagesDialog } from "@/packages/pms/components/rooms/room-type-dialogs";
 
 type TypeForm = {
   id?: string;
@@ -391,6 +392,7 @@ export function PmsPropertySetupCard2RoomTypes({
 
   const [typeForm, setTypeForm] = useState<TypeForm>(emptyType);
   const [typeEditorOpen, setTypeEditorOpen] = useState(false);
+  const [imagesFor, setImagesFor] = useState<RoomType | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [addClassOpen, setAddClassOpen] = useState(false);
   const [roomEditorOpen, setRoomEditorOpen] = useState(false);
@@ -766,6 +768,7 @@ export function PmsPropertySetupCard2RoomTypes({
           <table className="w-full text-sm">
             <thead className="bg-[#F7F4EE] text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
+                <th className="px-3 py-2">Cover</th>
                 <th className="px-3 py-2">Code</th>
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Category</th>
@@ -779,6 +782,17 @@ export function PmsPropertySetupCard2RoomTypes({
             <tbody>
               {types.map((row) => (
                 <tr key={row.id} className="border-t border-[#EDE6D8] hover:bg-[#FBF9F5]">
+                  <td className="px-3 py-2">
+                    {row.coverUrl ? (
+                      <img
+                        src={row.coverUrl}
+                        alt=""
+                        className="h-10 w-14 rounded-md object-cover"
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 font-medium text-[#251605]">{row.code}</td>
                   <td className="px-3 py-2">{row.name}</td>
                   <td className="px-3 py-2">{row.category || "—"}</td>
@@ -794,23 +808,34 @@ export function PmsPropertySetupCard2RoomTypes({
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setTypeForm(typeFromRow(row));
-                        setTypeEditorOpen(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setImagesFor(row)}
+                      >
+                        <Images className="mr-1 h-4 w-4" />
+                        Images
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setTypeForm(typeFromRow(row));
+                          setTypeEditorOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {types.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={9} className="px-3 py-8 text-center text-sm text-muted-foreground">
                     No room types configured yet.
                   </td>
                 </tr>
@@ -827,7 +852,7 @@ export function PmsPropertySetupCard2RoomTypes({
               {typeForm.id ? "Edit room type" : "New room type"}
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Configure identity, occupancy, location preferences, attributes, and bed setup.
+              Configure identity, occupancy, location preferences, attributes, bed setup, and images.
             </DialogDescription>
           </DialogHeader>
         <PropertySetupFormGrid>
@@ -1148,6 +1173,30 @@ export function PmsPropertySetupCard2RoomTypes({
           </Button>
         </div>
 
+        <div className="mt-5 rounded-xl border border-[#E6DFD3] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-[#251605]">Images</p>
+              <p className="text-xs text-muted-foreground">
+                Uses the existing room type image library. Save the room type before adding images.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!typeForm.id}
+              onClick={() => {
+                const row = types.find((item) => item.id === typeForm.id);
+                if (row) setImagesFor(row);
+              }}
+            >
+              <Images className="mr-1 h-4 w-4" />
+              Manage images
+            </Button>
+          </div>
+        </div>
+
         <div className="sticky bottom-0 -mx-5 mt-5 flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
           <Button
             type="button"
@@ -1186,6 +1235,14 @@ export function PmsPropertySetupCard2RoomTypes({
         placeholder="e.g. Standard, Executive, Presidential"
         isPending={addClassMutation.isPending}
         onSubmit={(name) => addClassMutation.mutate(name)}
+      />
+
+      <RoomTypeImagesDialog
+        open={!!imagesFor}
+        onOpenChange={(open) => !open && setImagesFor(null)}
+        restaurantId={restaurantId}
+        roomType={imagesFor}
+        canEdit={canEdit}
       />
 
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">

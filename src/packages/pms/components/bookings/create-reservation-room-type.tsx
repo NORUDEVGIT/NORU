@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, BedDouble, Check } from "lucide-react";
 
 import { cn } from "@/shared/lib/utils";
 import type { RoomTypeAvailability } from "@/packages/pms/lib/reservations.functions";
@@ -75,7 +75,9 @@ export function OccupancySoftWarn({
       <AlertTriangle className="mt-0.5 size-4 shrink-0" />
       <div>
         <p>{message}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE}
+        </p>
       </div>
     </div>
   );
@@ -174,11 +176,17 @@ export function CreateReservationRoomType({
       {/* CREATE_RESERVATION_SECTION4_SCOPE */}
 
       {!datesValid ? (
-        <p className="px-4 py-6 text-sm text-muted-foreground">{CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES}</p>
+        <p className="px-4 py-6 text-sm text-muted-foreground">
+          {CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES}
+        </p>
       ) : loading ? (
-        <p className="px-4 py-6 text-sm text-muted-foreground">{CREATE_RESERVATION_CHECKING_AVAILABILITY}</p>
+        <p className="px-4 py-6 text-sm text-muted-foreground">
+          {CREATE_RESERVATION_CHECKING_AVAILABILITY}
+        </p>
       ) : availability.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-muted-foreground">{CREATE_RESERVATION_EMPTY_CATALOGUE}</p>
+        <p className="px-4 py-6 text-sm text-muted-foreground">
+          {CREATE_RESERVATION_EMPTY_CATALOGUE}
+        </p>
       ) : (
         <ul className="divide-y divide-[#E7E0D4]">
           {rows.map((row) => {
@@ -186,9 +194,8 @@ export function CreateReservationRoomType({
             const disabled = !isRoomTypeSelectable(row.available);
             const selectedCard = row.roomTypeId === roomTypeId;
             const details = catalog?.[row.roomTypeId];
-            const bedLabel =
-              details?.bedType?.trim() ||
-              null;
+            const bedLabel = details?.bedType?.trim() || null;
+            const coverUrl = details?.coverUrl ?? row.coverUrl;
             return (
               <li key={row.roomTypeId} className={cn(selectedCard && "bg-[#FAF7EF]")}>
                 <div className="grid gap-0 lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
@@ -204,16 +211,15 @@ export function CreateReservationRoomType({
                         disabled && "cursor-not-allowed opacity-60",
                       )}
                     >
-                      {details?.coverUrl ? (
+                      {coverUrl ? (
                         <img
-                          src={details.coverUrl}
+                          src={coverUrl}
                           alt=""
                           className="mb-3 h-24 w-full rounded-lg object-cover"
                         />
                       ) : (
-                        <div className="mb-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4] text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {/* TODO: wire room-type image from Rooms & Inventory / room-type media configuration */}
-                          Room image
+                        <div className="mb-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4] text-muted-foreground">
+                          <BedDouble className="size-6" />
                         </div>
                       )}
                       <div className="flex flex-wrap items-center gap-2">
@@ -223,10 +229,14 @@ export function CreateReservationRoomType({
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <AvailabilityBadge state={state} available={row.available} />
-                        <span className="text-[11px] text-muted-foreground">Total: {row.totalRooms}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Total: {row.totalRooms}
+                        </span>
                       </div>
                       {details?.description ? (
-                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{details.description}</p>
+                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                          {details.description}
+                        </p>
                       ) : null}
                       <p className="mt-2 text-xs text-muted-foreground">
                         {roomTypeCapacityDisplay(row.adultCapacity, row.childCapacity)}
@@ -241,7 +251,13 @@ export function CreateReservationRoomType({
                         <RoomDetailLine label="" value={details?.roomView} />
                       </p>
                     </button>
-                    <Button type="button" variant="ghost" size="sm" className="mt-2 h-7 px-2 text-xs" disabled>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-2 h-7 px-2 text-xs"
+                      disabled
+                    >
                       View Room Details
                     </Button>
                   </div>
@@ -255,8 +271,14 @@ export function CreateReservationRoomType({
 
       {roomTypeId ? (
         <div className="space-y-2 border-t border-[#E7E0D4] px-4 py-3">
-          <OccupancySoftWarn adults={adults} childCount={childCount} maxOccupancy={occupancyCeiling} />
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY}</p>
+          <OccupancySoftWarn
+            adults={adults}
+            childCount={childCount}
+            maxOccupancy={occupancyCeiling}
+          />
+          <p className="text-xs text-muted-foreground">
+            {CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY}
+          </p>
         </div>
       ) : null}
     </section>

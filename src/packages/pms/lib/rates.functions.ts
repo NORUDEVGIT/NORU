@@ -18,6 +18,10 @@ import { REPORTS_ROLES } from "@/core/lib/module-access";
 import { requireReservationManager } from "./reservations.server";
 import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
 import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
+import {
+  parsePackageInclusionType,
+  type RatePlanPackageLink,
+} from "./rate-plan-package-inclusion";
 
 const idSchema = z.string().uuid();
 
@@ -47,10 +51,17 @@ export interface RatePlan {
   baseRate: number;
   validFrom: string | null;
   validTo: string | null;
+  mealPlanId: string | null;
+  mealPlanName: string;
+  breakfastIncluded: boolean;
   cancellationPolicyId: string | null;
+  cancellationName: string;
   refundabilityId: string | null;
+  refundabilityName: string;
+  refundabilityKind: string | null;
   minAdvanceDays: number | null;
   maxAdvanceDays: number | null;
+  packages: RatePlanPackageLink[];
   active: boolean;
 }
 
@@ -162,12 +173,22 @@ export const saveRateCategory = createServerFn({ method: "POST" })
 
 /* ------------------------------------------------------------------- plans */
 
-const PLAN_SELECT = `
+const PLAN_SELECT_BASE = `
   id, code, name, description, rate_category_id, room_type_id, currency, base_rate,
   valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active,
   hotel_rate_categories!hotel_rate_plans_category_same_property ( name ),
   room_types!hotel_rate_plans_type_same_property ( name )
 `;
+const PLAN_SELECT = `
+  id, code, name, description, rate_category_id, room_type_id, currency, base_rate,
+  valid_from, valid_to, meal_plan_id, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active,
+  hotel_rate_categories!hotel_rate_plans_category_same_property ( name ),
+  room_types!hotel_rate_plans_type_same_property ( name )
+`;
+
+function missingColumn(error: { code?: string } | null | undefined) {
+  return error?.code === "42703" || error?.code === "PGRST204";
+}
 
 type PlanRow = {
   id: string;
@@ -180,6 +201,7 @@ type PlanRow = {
   base_rate: number | string;
   valid_from: string | null;
   valid_to: string | null;
+  meal_plan_id?: string | null;
   cancellation_policy_id: string | null;
   refundability_id: string | null;
   min_advance_days: number | null;
@@ -203,12 +225,245 @@ function toPlan(row: PlanRow): RatePlan {
     baseRate: Number(row.base_rate),
     validFrom: row.valid_from,
     validTo: row.valid_to,
+    mealPlanId: row.meal_plan_id ?? null,
+    mealPlanName: "",
+    breakfastIncluded: false,
     cancellationPolicyId: row.cancellation_policy_id,
+    cancellationName: "",
     refundabilityId: row.refundability_id,
+    refundabilityName: "",
+    refundabilityKind: null,
     minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
     maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
+    packages: [],
     active: row.active,
   };
+}
+
+async function hydrateRatePlanMerchandising(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  plans: RatePlan[],
+): Promise<RatePlan[]> {
+  const mealIds = [...new Set(plans.map((row) => row.mealPlanId).filter((id): id is string => Boolean(id)))];
+  const cancelIds = [
+    ...new Set(plans.map((row) => row.cancellationPolicyId).filter((id): id is string => Boolean(id))),
+  ];
+  const refundIds = [
+    ...new Set(plans.map((row) => row.refundabilityId).filter((id): id is string => Boolean(id))),
+  ];
+
+  const [meals, cancellations, refundability] = await Promise.all([
+    mealIds.length
+      ? db
+          .from("pms_meal_plans")
+          .select("id, name, includes_breakfast")
+          .eq("restaurant_id", restaurantId)
+          .in("id", mealIds)
+      : Promise.resolve({ data: [], error: null }),
+    cancelIds.length
+      ? db
+          .from("pms_rate_cancellation_policies")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", cancelIds)
+      : Promise.resolve({ data: [], error: null }),
+    refundIds.length
+      ? db
+          .from("pms_rate_refundability_codes")
+          .select("id, name, kind")
+          .eq("restaurant_id", restaurantId)
+          .in("id", refundIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const mealById = new Map(
+    ((meals.data ?? []) as { id: string; name: string; includes_breakfast: boolean | null }[]).map((row) => [
+      row.id,
+      row,
+    ]),
+  );
+  const cancelById = new Map(
+    ((cancellations.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row]),
+  );
+  const refundById = new Map(
+    ((refundability.data ?? []) as { id: string; name: string; kind: string | null }[]).map((row) => [row.id, row]),
+  );
+
+  const packagesByPlan = await loadRatePlanPackageLinks(
+    db,
+    restaurantId,
+    plans.map((row) => row.id),
+  );
+
+  return plans.map((plan) => {
+    const meal = plan.mealPlanId ? mealById.get(plan.mealPlanId) : undefined;
+    const cancel = plan.cancellationPolicyId ? cancelById.get(plan.cancellationPolicyId) : undefined;
+    const refund = plan.refundabilityId ? refundById.get(plan.refundabilityId) : undefined;
+    return {
+      ...plan,
+      mealPlanName: meal?.name ?? "",
+      breakfastIncluded: meal?.includes_breakfast === true,
+      cancellationName: cancel?.name ?? "",
+      refundabilityName: refund?.name ?? "",
+      refundabilityKind: refund?.kind ?? null,
+      packages: packagesByPlan.get(plan.id) ?? [],
+    };
+  });
+}
+
+async function loadRatePlanPackageLinks(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  planIds: string[],
+): Promise<Map<string, RatePlanPackageLink[]>> {
+  const byPlan = new Map<string, RatePlanPackageLink[]>();
+  if (planIds.length === 0) return byPlan;
+
+  let mapping = await db
+    .from("pms_package_rate_plans")
+    .select("package_id, rate_plan_id, inclusion_type")
+    .eq("restaurant_id", restaurantId)
+    .in("rate_plan_id", planIds);
+  if (mapping.error && (mapping.error.code === "42703" || mapping.error.code === "PGRST204")) {
+    mapping = await db
+      .from("pms_package_rate_plans")
+      .select("package_id, rate_plan_id")
+      .eq("restaurant_id", restaurantId)
+      .in("rate_plan_id", planIds);
+  }
+  if (mapping.error) return byPlan;
+
+  const rows = (mapping.data ?? []) as Array<{
+    package_id: string;
+    rate_plan_id: string;
+    inclusion_type?: string | null;
+  }>;
+  const packageIds = [...new Set(rows.map((row) => row.package_id))];
+  if (packageIds.length === 0) return byPlan;
+
+  const [packages, components] = await Promise.all([
+    db
+      .from("pms_packages")
+      .select("id, name, active")
+      .eq("restaurant_id", restaurantId)
+      .in("id", packageIds),
+    db
+      .from("pms_package_components")
+      .select("package_id, component_kind, meal_plan_id, room_amenity_id, fo_service_id")
+      .eq("restaurant_id", restaurantId)
+      .in("package_id", packageIds),
+  ]);
+  if (packages.error) return byPlan;
+
+  const packageById = new Map(
+    ((packages.data ?? []) as { id: string; name: string; active: boolean | null }[])
+      .filter((row) => row.active !== false)
+      .map((row) => [row.id, row]),
+  );
+  const componentMealIds = [
+    ...new Set(
+      ((components.data ?? []) as { meal_plan_id?: string | null }[])
+        .map((row) => row.meal_plan_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const componentAmenityIds = [
+    ...new Set(
+      ((components.data ?? []) as { room_amenity_id?: string | null }[])
+        .map((row) => row.room_amenity_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const componentServiceIds = [
+    ...new Set(
+      ((components.data ?? []) as { fo_service_id?: string | null }[])
+        .map((row) => row.fo_service_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const [meals, amenities, services] = await Promise.all([
+    componentMealIds.length
+      ? db.from("pms_meal_plans").select("id, name").eq("restaurant_id", restaurantId).in("id", componentMealIds)
+      : Promise.resolve({ data: [], error: null }),
+    componentAmenityIds.length
+      ? db
+          .from("room_amenities")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", componentAmenityIds)
+      : Promise.resolve({ data: [], error: null }),
+    componentServiceIds.length
+      ? db
+          .from("fo_service_catalogue")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", componentServiceIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const mealName = new Map(((meals.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
+  const amenityName = new Map(
+    ((amenities.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]),
+  );
+  const serviceName = new Map(
+    ((services.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]),
+  );
+  const componentsByPackage = new Map<string, RatePlanPackageLink["components"]>();
+  for (const row of (components.data ?? []) as Array<{
+    package_id: string;
+    component_kind: string;
+    meal_plan_id?: string | null;
+    room_amenity_id?: string | null;
+    fo_service_id?: string | null;
+  }>) {
+    const list = componentsByPackage.get(row.package_id) ?? [];
+    const mealPlanId = row.meal_plan_id ?? null;
+    list.push({
+      kind: row.component_kind,
+      mealPlanId,
+      label:
+        (mealPlanId && mealName.get(mealPlanId)) ||
+        (row.room_amenity_id && amenityName.get(row.room_amenity_id)) ||
+        (row.fo_service_id && serviceName.get(row.fo_service_id)) ||
+        row.component_kind,
+    });
+    componentsByPackage.set(row.package_id, list);
+  }
+
+  for (const row of rows) {
+    const pkg = packageById.get(row.package_id);
+    if (!pkg) continue;
+    const list = byPlan.get(row.rate_plan_id) ?? [];
+    list.push({
+      packageId: row.package_id,
+      packageName: pkg.name,
+      inclusionType: parsePackageInclusionType(row.inclusion_type),
+      components: componentsByPackage.get(row.package_id) ?? [],
+    });
+    byPlan.set(row.rate_plan_id, list);
+  }
+  return byPlan;
+}
+
+async function loadRatePlans(
+  supabase: { from: (table: string) => any },
+  restaurantId: string,
+  apply: (query: any) => any,
+): Promise<RatePlan[]> {
+  const composed = await apply(
+    supabase.from("hotel_rate_plans").select(PLAN_SELECT).eq("restaurant_id", restaurantId).order("code"),
+  );
+  let rows = composed.data;
+  if (composed.error) {
+    if (!missingColumn(composed.error)) throw new Error(composed.error.message);
+    const fallback = await apply(
+      supabase.from("hotel_rate_plans").select(PLAN_SELECT_BASE).eq("restaurant_id", restaurantId).order("code"),
+    );
+    if (fallback.error) throw new Error(fallback.error.message);
+    rows = fallback.data;
+  }
+  const plans = ((rows ?? []) as unknown as PlanRow[]).map(toPlan);
+  return hydrateRatePlanMerchandising(supabase, restaurantId, plans);
 }
 
 export const listRatePlans = createServerFn({ method: "POST" })
@@ -224,17 +479,12 @@ export const listRatePlans = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RatePlan[]> => {
     await requireRateManager(context as never, data.restaurantId);
-    let query = context.supabase
-      .from("hotel_rate_plans")
-      .select(PLAN_SELECT)
-      .eq("restaurant_id", data.restaurantId)
-      .order("code");
-    if (data.roomTypeId) query = query.eq("room_type_id", data.roomTypeId);
-    if (data.activeOnly) query = query.eq("active", true);
-
-    const { data: rows, error } = await query;
-    if (error) throw new Error(error.message);
-    return ((rows ?? []) as unknown as PlanRow[]).map(toPlan);
+    return loadRatePlans(context.supabase, data.restaurantId, (query) => {
+      let next = query;
+      if (data.roomTypeId) next = next.eq("room_type_id", data.roomTypeId);
+      if (data.activeOnly) next = next.eq("active", true);
+      return next;
+    });
   });
 
 export const saveRatePlan = createServerFn({ method: "POST" })
@@ -579,18 +829,11 @@ export const quoteStay = createServerFn({ method: "POST" })
     await requireReservationManager(context as never, data.restaurantId);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
 
-    let query = context.supabase
-      .from("hotel_rate_plans")
-      .select(PLAN_SELECT)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("room_type_id", data.roomTypeId)
-      .eq("active", true)
-      .order("code");
-    if (data.ratePlanId) query = query.eq("id", data.ratePlanId);
-
-    const { data: rows, error } = await query;
-    if (error) throw new Error(error.message);
-    const plans = ((rows ?? []) as unknown as PlanRow[]).map(toPlan);
+    const plans = await loadRatePlans(context.supabase, data.restaurantId, (query) => {
+      let next = query.eq("room_type_id", data.roomTypeId).eq("active", true);
+      if (data.ratePlanId) next = next.eq("id", data.ratePlanId);
+      return next;
+    });
     if (plans.length === 0) return [];
 
     const policyLabels = new Map<

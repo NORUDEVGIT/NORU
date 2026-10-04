@@ -63,6 +63,7 @@ const activePackage = {
   active: true,
   roomTypeIds: ["rt1"],
   ratePlanIds: [],
+  ratePlanLinks: [],
 };
 
 const validComponent = {
@@ -139,9 +140,10 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.match(section, /mealsQuery\.isLoading/);
     assert.match(section, /currencyStatus/);
     assert.match(section, /taxesStatus/);
-    assert.match(section, /ratesStatus/);
     assert.match(section, /mealsStatus/);
     assert.match(section, /paymentsStatus/);
+    assert.match(section, /billingStatus/);
+    assert.match(section, /commercialStatus/);
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_MEALS_TABS/);
@@ -188,6 +190,8 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.match(fns, /package_price/);
     assert.match(fns, /from\("pms_package_room_types"\)/);
     assert.match(fns, /from\("pms_package_rate_plans"\)/);
+    assert.match(fns, /inclusion_type/);
+    assert.match(fns, /parsePackageInclusionType/);
     assert.match(fns, /from\("pms_package_components"\)/);
     assert.match(fns, /from\("room_types"\)/);
     assert.match(fns, /from\("room_amenities"\)/);

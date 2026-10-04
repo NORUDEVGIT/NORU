@@ -44,10 +44,43 @@ export type RateCategoryRow = {
   active: boolean;
 };
 
+export type Card2MealPlanRef = {
+  id: string;
+  code: string;
+  name: string;
+  includesBreakfast: boolean;
+  active: boolean;
+};
+
+export type RateCancellationPolicyRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  active: boolean;
+};
+
+export const RATE_REFUNDABILITY_KINDS = [
+  "refundable",
+  "non_refundable",
+  "partially_refundable",
+] as const;
+export type RateRefundabilityKind = (typeof RATE_REFUNDABILITY_KINDS)[number];
+
+export type RateRefundabilityRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  kind: RateRefundabilityKind;
+  active: boolean;
+};
+
 export type RatePlanRow = {
   id: string;
   code: string;
   name: string;
+  description: string;
   categoryId: string;
   categoryName: string;
   roomTypeId: string;
@@ -57,12 +90,23 @@ export type RatePlanRow = {
   baseRate: number;
   validFrom?: string | null;
   validTo?: string | null;
+  mealPlanId: string | null;
+  mealPlanName: string;
+  breakfastIncluded: boolean;
+  cancellationPolicyId: string | null;
+  cancellationName: string;
+  refundabilityId: string | null;
+  refundabilityName: string;
+  refundabilityKind: RateRefundabilityKind | null;
   active: boolean;
 };
 
 export type RatesCard2Snapshot = {
   roomTypes: Card2RoomTypeRef[];
   categories: RateCategoryRow[];
+  mealPlans: Card2MealPlanRef[];
+  cancellationPolicies: RateCancellationPolicyRow[];
+  refundabilityCodes: RateRefundabilityRow[];
   plans: RatePlanRow[];
 };
 

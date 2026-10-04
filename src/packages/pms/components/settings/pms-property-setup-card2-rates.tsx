@@ -9,6 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
+import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,20 +25,34 @@ import {
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   getRatesCard2,
+  saveRateCancellationPolicyCard2,
   saveRateCategoryCard2,
   saveRatePlanCard2,
+  saveRateRefundabilityCard2,
 } from "@/packages/pms/lib/rates-card2.functions";
 import {
   CARD2_RATES_ROOM_TYPES_COPY,
   PREDEFINED_RATE_CATEGORIES,
-  isPredefinedCategoryConfigured,
+  RATE_REFUNDABILITY_KINDS,
   findMatchingPredefinedCategory,
+  isPredefinedCategoryConfigured,
   type PredefinedRateCategory,
+  type RateCancellationPolicyRow,
   type RateCategoryRow,
   type RatePlanRow,
+  type RateRefundabilityKind,
+  type RateRefundabilityRow,
   type RatesCard2Snapshot,
 } from "@/packages/pms/lib/rates-card2.server";
+import { formatRateValidity } from "@/packages/pms/lib/pms-property-setup-card2";
 import { cn } from "@/shared/lib/utils";
+
+const NONE = "__none__";
+const REFUNDABILITY_KIND_LABELS: Record<RateRefundabilityKind, string> = {
+  refundable: "Refundable",
+  non_refundable: "Non-refundable",
+  partially_refundable: "Partially refundable",
+};
 
 function matchesQuery(query: string, ...values: string[]) {
   const q = query.trim().toLowerCase();
@@ -49,6 +64,7 @@ export function PmsPropertySetupCard2Rates({
   restaurantId,
   canEdit,
   onReadiness,
+  onNavigateToRoomTypes,
 }: {
   restaurantId: string;
   canEdit: boolean;
@@ -59,12 +75,18 @@ export function PmsPropertySetupCard2Rates({
   const load = useServerFn(getRatesCard2);
   const saveCategory = useServerFn(saveRateCategoryCard2);
   const savePlan = useServerFn(saveRatePlanCard2);
+  const saveCancellation = useServerFn(saveRateCancellationPolicyCard2);
+  const saveRefundability = useServerFn(saveRateRefundabilityCard2);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [planSearch, setPlanSearch] = useState("");
+  const [cancelSearch, setCancelSearch] = useState("");
+  const [refundSearch, setRefundSearch] = useState("");
   const [categoryDraft, setCategoryDraft] = useState<RateCategoryRow | "new" | null>(null);
   const [planDraft, setPlanDraft] = useState<RatePlanRow | "new" | null>(null);
   const [batchPending, setBatchPending] = useState(false);
+  const [cancelDraft, setCancelDraft] = useState<RateCancellationPolicyRow | "new" | null>(null);
+  const [refundDraft, setRefundDraft] = useState<RateRefundabilityRow | "new" | null>(null);
 
   const query = useQuery({
     queryKey: ["pms-card2-rates", restaurantId],
@@ -76,6 +98,9 @@ export function PmsPropertySetupCard2Rates({
   const roomTypes = snapshot?.roomTypes ?? [];
   const categories = snapshot?.categories ?? [];
   const plans = snapshot?.plans ?? [];
+  const mealPlans = snapshot?.mealPlans ?? [];
+  const cancellationPolicies = snapshot?.cancellationPolicies ?? [];
+  const refundabilityCodes = snapshot?.refundabilityCodes ?? [];
 
   useEffect(() => {
     if (readiness && onReadiness) {
@@ -101,6 +126,15 @@ export function PmsPropertySetupCard2Rates({
         ),
       ),
     [plans, planSearch],
+  );
+
+  const filteredCancellations = useMemo(
+    () => cancellationPolicies.filter((row) => matchesQuery(cancelSearch, row.code, row.name)),
+    [cancellationPolicies, cancelSearch],
+  );
+  const filteredRefundability = useMemo(
+    () => refundabilityCodes.filter((row) => matchesQuery(refundSearch, row.code, row.name)),
+    [refundabilityCodes, refundSearch],
   );
 
   function invalidate() {
@@ -150,6 +184,28 @@ export function PmsPropertySetupCard2Rates({
     onSuccess: () => {
       toast.success("Rate plan saved.");
       setPlanDraft(null);
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const cancelMut = useMutation({
+    mutationFn: (input: Parameters<typeof saveCancellation>[0]["data"]) =>
+      saveCancellation({ data: input }),
+    onSuccess: () => {
+      toast.success("Cancellation policy saved.");
+      setCancelDraft(null);
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const refundMut = useMutation({
+    mutationFn: (input: Parameters<typeof saveRefundability>[0]["data"]) =>
+      saveRefundability({ data: input }),
+    onSuccess: () => {
+      toast.success("Refundability saved.");
+      setRefundDraft(null);
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -214,7 +270,16 @@ export function PmsPropertySetupCard2Rates({
             onAdd={() => setPlanDraft("new")}
             canEdit={canEdit}
             empty="No room rates yet. Create a category, then a plan on a Card 2 room type."
-            columns={["Code", "Name", "Category", "Room type", "Base rate", "Status"]}
+            columns={[
+              "Code",
+              "Name",
+              "Category",
+              "Room type",
+              "Validity",
+              "Meal plan",
+              "Base rate",
+              "Status",
+            ]}
             rows={filteredPlans.map((row) => ({
               id: row.id,
               cells: [
@@ -222,10 +287,53 @@ export function PmsPropertySetupCard2Rates({
                 row.name,
                 row.categoryName || row.categoryId,
                 `${row.roomTypeCode} ${row.roomTypeName}`.trim(),
+                formatRateValidity(row.validFrom, row.validTo),
+                row.mealPlanName || "—",
                 String(row.baseRate),
                 <Card3StatusDot key="status" active={row.active} />,
               ],
               onEdit: () => setPlanDraft(row),
+            }))}
+          />
+
+          <Card3ListSection
+            title="Cancellation policies"
+            icon="tag"
+            search={cancelSearch}
+            onSearch={setCancelSearch}
+            placeholder="Search cancellation policies"
+            addLabel="Add cancellation policy"
+            onAdd={() => setCancelDraft("new")}
+            canEdit={canEdit}
+            empty="No cancellation policies yet. Optional on rate plans."
+            columns={["Code", "Name", "Status"]}
+            rows={filteredCancellations.map((row) => ({
+              id: row.id,
+              cells: [row.code, row.name, <Card3StatusDot key="status" active={row.active} />],
+              onEdit: () => setCancelDraft(row),
+            }))}
+          />
+
+          <Card3ListSection
+            title="Refundability"
+            icon="tag"
+            search={refundSearch}
+            onSearch={setRefundSearch}
+            placeholder="Search refundability"
+            addLabel="Add refundability"
+            onAdd={() => setRefundDraft("new")}
+            canEdit={canEdit}
+            empty="No refundability codes yet. Optional on rate plans."
+            columns={["Code", "Name", "Kind", "Status"]}
+            rows={filteredRefundability.map((row) => ({
+              id: row.id,
+              cells: [
+                row.code,
+                row.name,
+                REFUNDABILITY_KIND_LABELS[row.kind],
+                <Card3StatusDot key="status" active={row.active} />,
+              ],
+              onEdit: () => setRefundDraft(row),
             }))}
           />
 
@@ -247,10 +355,33 @@ export function PmsPropertySetupCard2Rates({
             canEdit={canEdit}
             categories={categories}
             roomTypes={roomTypes}
+            mealPlans={mealPlans}
+            cancellationPolicies={cancellationPolicies}
+            refundabilityCodes={refundabilityCodes}
             value={planDraft === "new" || planDraft === null ? null : planDraft}
             pending={planMut.isPending}
             onClose={() => setPlanDraft(null)}
             onSave={(payload) => planMut.mutate({ restaurantId, ...payload })}
+          />
+
+          <CancellationDrawer
+            key={cancelDraft === "new" ? "cancel-new" : (cancelDraft?.id ?? "cancel-closed")}
+            open={cancelDraft !== null}
+            canEdit={canEdit}
+            value={cancelDraft === "new" || cancelDraft === null ? null : cancelDraft}
+            pending={cancelMut.isPending}
+            onClose={() => setCancelDraft(null)}
+            onSave={(payload) => cancelMut.mutate({ restaurantId, ...payload })}
+          />
+
+          <RefundabilityDrawer
+            key={refundDraft === "new" ? "refund-new" : (refundDraft?.id ?? "refund-closed")}
+            open={refundDraft !== null}
+            canEdit={canEdit}
+            value={refundDraft === "new" || refundDraft === null ? null : refundDraft}
+            pending={refundMut.isPending}
+            onClose={() => setRefundDraft(null)}
+            onSave={(payload) => refundMut.mutate({ restaurantId, ...payload })}
           />
         </div>
       )}
@@ -600,11 +731,18 @@ function CategoryDrawer({
   );
 }
 
+function optionalId(value: string) {
+  return value && value !== NONE ? value : null;
+}
+
 function PlanDrawer({
   open,
   canEdit,
   categories,
   roomTypes,
+  mealPlans,
+  cancellationPolicies,
+  refundabilityCodes,
   value,
   pending,
   onClose,
@@ -614,6 +752,9 @@ function PlanDrawer({
   canEdit: boolean;
   categories: RateCategoryRow[];
   roomTypes: RatesCard2Snapshot["roomTypes"];
+  mealPlans: RatesCard2Snapshot["mealPlans"];
+  cancellationPolicies: RateCancellationPolicyRow[];
+  refundabilityCodes: RateRefundabilityRow[];
   value: RatePlanRow | null;
   pending: boolean;
   onClose: () => void;
@@ -623,7 +764,13 @@ function PlanDrawer({
     roomTypeId: string;
     code: string;
     name: string;
+    description: string;
     baseRate: number;
+    validFrom: string | null;
+    validTo: string | null;
+    mealPlanId: string | null;
+    cancellationPolicyId: string | null;
+    refundabilityId: string | null;
     active: boolean;
   }) => void;
 }) {
@@ -631,7 +778,15 @@ function PlanDrawer({
   const [roomTypeId, setRoomTypeId] = useState(value?.roomTypeId ?? roomTypes[0]?.id ?? "");
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
+  const [description, setDescription] = useState(value?.description ?? "");
   const [baseRate, setBaseRate] = useState(value?.baseRate ?? 0);
+  const [validFrom, setValidFrom] = useState(value?.validFrom ?? "");
+  const [validTo, setValidTo] = useState(value?.validTo ?? "");
+  const [mealPlanId, setMealPlanId] = useState(value?.mealPlanId ?? NONE);
+  const [cancellationPolicyId, setCancellationPolicyId] = useState(
+    value?.cancellationPolicyId ?? NONE,
+  );
+  const [refundabilityId, setRefundabilityId] = useState(value?.refundabilityId ?? NONE);
   const [active, setActive] = useState(value?.active ?? true);
 
   return (
@@ -650,7 +805,13 @@ function PlanDrawer({
           roomTypeId,
           code,
           name,
+          description,
           baseRate,
+          validFrom: validFrom.trim() || null,
+          validTo: validTo.trim() || null,
+          mealPlanId: optionalId(mealPlanId),
+          cancellationPolicyId: optionalId(cancellationPolicyId),
+          refundabilityId: optionalId(refundabilityId),
           active,
         })
       }
@@ -705,6 +866,91 @@ function PlanDrawer({
           />
         </div>
         <div className="space-y-1">
+          <Label htmlFor="plan-description">Description</Label>
+          <Textarea
+            id="plan-description"
+            value={description}
+            disabled={!canEdit}
+            rows={3}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="plan-valid-from">Valid from</Label>
+            <Input
+              id="plan-valid-from"
+              type="date"
+              value={validFrom}
+              disabled={!canEdit}
+              onChange={(event) => setValidFrom(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="plan-valid-to">Valid to</Label>
+            <Input
+              id="plan-valid-to"
+              type="date"
+              value={validTo}
+              disabled={!canEdit}
+              onChange={(event) => setValidTo(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label>Meal plan</Label>
+          <Select value={mealPlanId} disabled={!canEdit} onValueChange={setMealPlanId}>
+            <SelectTrigger>
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>None</SelectItem>
+              {mealPlans.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.code} — {row.name}
+                  {row.includesBreakfast ? " (breakfast)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label>Cancellation policy</Label>
+          <Select
+            value={cancellationPolicyId}
+            disabled={!canEdit}
+            onValueChange={setCancellationPolicyId}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>None</SelectItem>
+              {cancellationPolicies.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.code} — {row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label>Refundability</Label>
+          <Select value={refundabilityId} disabled={!canEdit} onValueChange={setRefundabilityId}>
+            <SelectTrigger>
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>None</SelectItem>
+              {refundabilityCodes.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.code} — {row.name} ({REFUNDABILITY_KIND_LABELS[row.kind]})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
           <Label htmlFor="plan-rate">Base rate</Label>
           <Input
             id="plan-rate"
@@ -720,6 +966,191 @@ function PlanDrawer({
           <Label htmlFor="plan-active">Active</Label>
           <Switch
             id="plan-active"
+            checked={active}
+            disabled={!canEdit}
+            onCheckedChange={setActive}
+          />
+        </div>
+      </div>
+    </Card3OverlapSheet>
+  );
+}
+
+function CancellationDrawer({
+  open,
+  canEdit,
+  value,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  canEdit: boolean;
+  value: RateCancellationPolicyRow | null;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (payload: {
+    id?: string;
+    code: string;
+    name: string;
+    description: string;
+    active: boolean;
+  }) => void;
+}) {
+  const [code, setCode] = useState(value?.code ?? "");
+  const [name, setName] = useState(value?.name ?? "");
+  const [description, setDescription] = useState(value?.description ?? "");
+  const [active, setActive] = useState(value?.active ?? true);
+
+  return (
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit cancellation policy" : "Add cancellation policy"}
+      description="Linked to rate plans. Does not change confirmed reservations."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save policy"
+      onSubmit={() =>
+        onSave({ ...(value ? { id: value.id } : {}), code, name, description, active })
+      }
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="cancel-code">Code</Label>
+          <Input
+            id="cancel-code"
+            value={code}
+            disabled={!canEdit}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="cancel-name">Name</Label>
+          <Input
+            id="cancel-name"
+            value={name}
+            disabled={!canEdit}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="cancel-description">Description</Label>
+          <Textarea
+            id="cancel-description"
+            value={description}
+            disabled={!canEdit}
+            rows={3}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-between rounded-xl border px-3 py-2">
+          <Label htmlFor="cancel-active">Active</Label>
+          <Switch
+            id="cancel-active"
+            checked={active}
+            disabled={!canEdit}
+            onCheckedChange={setActive}
+          />
+        </div>
+      </div>
+    </Card3OverlapSheet>
+  );
+}
+
+function RefundabilityDrawer({
+  open,
+  canEdit,
+  value,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  canEdit: boolean;
+  value: RateRefundabilityRow | null;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (payload: {
+    id?: string;
+    code: string;
+    name: string;
+    description: string;
+    kind: RateRefundabilityKind;
+    active: boolean;
+  }) => void;
+}) {
+  const [code, setCode] = useState(value?.code ?? "");
+  const [name, setName] = useState(value?.name ?? "");
+  const [description, setDescription] = useState(value?.description ?? "");
+  const [kind, setKind] = useState<RateRefundabilityKind>(value?.kind ?? "refundable");
+  const [active, setActive] = useState(value?.active ?? true);
+
+  return (
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit refundability" : "Add refundability"}
+      description="Linked to rate plans. Does not change confirmed reservations."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save refundability"
+      onSubmit={() =>
+        onSave({ ...(value ? { id: value.id } : {}), code, name, description, kind, active })
+      }
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="refund-code">Code</Label>
+          <Input
+            id="refund-code"
+            value={code}
+            disabled={!canEdit}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="refund-name">Name</Label>
+          <Input
+            id="refund-name"
+            value={name}
+            disabled={!canEdit}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Kind</Label>
+          <Select
+            value={kind}
+            disabled={!canEdit}
+            onValueChange={(next) => setKind(next as RateRefundabilityKind)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RATE_REFUNDABILITY_KINDS.map((row) => (
+                <SelectItem key={row} value={row}>
+                  {REFUNDABILITY_KIND_LABELS[row]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="refund-description">Description</Label>
+          <Textarea
+            id="refund-description"
+            value={description}
+            disabled={!canEdit}
+            rows={3}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-between rounded-xl border px-3 py-2">
+          <Label htmlFor="refund-active">Active</Label>
+          <Switch
+            id="refund-active"
             checked={active}
             disabled={!canEdit}
             onCheckedChange={setActive}

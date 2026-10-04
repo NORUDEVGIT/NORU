@@ -252,6 +252,13 @@ describe("PMS Card 2 Room Types Form UI Component Contract", () => {
     assert.match(uiSrc, /<PropertySetupField label="Room Type Code">/);
     assert.match(uiSrc, /code: typeForm\.code\.trim\(\)/);
   });
+
+  it("reuses existing room type image CRUD instead of a second media writer", () => {
+    assert.match(uiSrc, /RoomTypeImagesDialog/);
+    assert.match(uiSrc, /listRoomTypes/);
+    assert.doesNotMatch(uiSrc, /createRoomTypeImageUpload/);
+    assert.doesNotMatch(uiSrc, /CREATE TABLE/);
+  });
 });
 
 describe("PMS Card 2 Physical Room Setup Form UI Contract", () => {

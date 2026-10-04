@@ -2759,6 +2759,7 @@ export type Database = {
           description: string | null
           id: string
           max_advance_days: number | null
+          meal_plan_id: string | null
           min_advance_days: number | null
           name: string
           rate_category_id: string
@@ -2780,6 +2781,7 @@ export type Database = {
           description?: string | null
           id?: string
           max_advance_days?: number | null
+          meal_plan_id?: string | null
           min_advance_days?: number | null
           name: string
           rate_category_id: string
@@ -2801,6 +2803,7 @@ export type Database = {
           description?: string | null
           id?: string
           max_advance_days?: number | null
+          meal_plan_id?: string | null
           min_advance_days?: number | null
           name?: string
           rate_category_id?: string
@@ -2832,6 +2835,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurant_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_plans_meal_plan_same_property"
+            columns: ["meal_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_meal_plans"
+            referencedColumns: ["id", "restaurant_id"]
           },
           {
             foreignKeyName: "hotel_rate_plans_refundability_fk"
@@ -10501,6 +10511,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          inclusion_type: string
           package_id: string
           rate_plan_id: string
           restaurant_id: string
@@ -10509,6 +10520,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          inclusion_type?: string
           package_id: string
           rate_plan_id: string
           restaurant_id: string
@@ -10517,6 +10529,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          inclusion_type?: string
           package_id?: string
           rate_plan_id?: string
           restaurant_id?: string

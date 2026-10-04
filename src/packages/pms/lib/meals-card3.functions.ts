@@ -26,10 +26,12 @@ import {
   type Card3RoomTypeRef,
   type MealPlanCard3Row,
   type MealsCard3Snapshot,
+  type PackageCard3RatePlanLink,
   type PackageCard3Row,
   type PackageComponentCard3Row,
   type PackageComponentKind,
 } from "./meals-card3.server";
+import { parsePackageInclusionType } from "./rate-plan-package-inclusion";
 
 // 0072 is intentionally not represented in generated types.ts until its approved apply.
 // Keep the untyped database boundary isolated to this functions module.
@@ -69,6 +71,15 @@ const packageSchema = z.object({
   active: z.boolean(),
   roomTypeIds: z.array(idSchema).max(200),
   ratePlanIds: z.array(idSchema).max(200),
+  ratePlanLinks: z
+    .array(
+      z.object({
+        ratePlanId: idSchema,
+        inclusionType: z.enum(["included", "optional"]),
+      }),
+    )
+    .max(200)
+    .optional(),
 });
 
 const componentBase = {
@@ -222,7 +233,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       .eq("restaurant_id", restaurantId),
     db
       .from("pms_package_rate_plans")
-      .select("package_id, rate_plan_id")
+      .select("package_id, rate_plan_id, inclusion_type")
       .eq("restaurant_id", restaurantId),
     db
       .from("pms_package_components")
@@ -257,7 +268,6 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     meals,
     packages,
     roomMappings,
-    rateMappings,
     components,
     roomTypes,
     roomAmenities,
@@ -265,6 +275,20 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     foServices,
   ]) {
     if (result.error) unavailable(result.error);
+  }
+
+  let rateMappingRows = rateMappings.data ?? [];
+  if (rateMappings.error) {
+    if (rateMappings.error.code === "42703" || rateMappings.error.code === "PGRST204") {
+      const fallback = await db
+        .from("pms_package_rate_plans")
+        .select("package_id, rate_plan_id")
+        .eq("restaurant_id", restaurantId);
+      if (fallback.error) unavailable(fallback.error);
+      rateMappingRows = fallback.data ?? [];
+    } else {
+      unavailable(rateMappings.error);
+    }
   }
 
   const mealRows = (meals.data ?? []).map(mapMealPlan);
@@ -276,21 +300,25 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   const amenityById = new Map(roomAmenityRows.map((row) => [row.id, row.name]));
   const serviceById = new Map(foServiceRows.map((row) => [row.id, row.name]));
   const roomTypeIdsByPackage = new Map<string, string[]>();
-  const ratePlanIdsByPackage = new Map<string, string[]>();
+  const ratePlanLinksByPackage = new Map<string, PackageCard3RatePlanLink[]>();
 
   for (const row of roomMappings.data ?? []) {
     const list = roomTypeIdsByPackage.get(String(row.package_id)) ?? [];
     list.push(String(row.room_type_id));
     roomTypeIdsByPackage.set(String(row.package_id), list);
   }
-  for (const row of rateMappings.data ?? []) {
-    const list = ratePlanIdsByPackage.get(String(row.package_id)) ?? [];
-    list.push(String(row.rate_plan_id));
-    ratePlanIdsByPackage.set(String(row.package_id), list);
+  for (const row of rateMappingRows) {
+    const list = ratePlanLinksByPackage.get(String(row.package_id)) ?? [];
+    list.push({
+      ratePlanId: String(row.rate_plan_id),
+      inclusionType: parsePackageInclusionType(row.inclusion_type),
+    });
+    ratePlanLinksByPackage.set(String(row.package_id), list);
   }
 
   const packageRows: PackageCard3Row[] = (packages.data ?? []).map((row: any) => {
     const type = asPackageType(row.type);
+    const ratePlanLinks = ratePlanLinksByPackage.get(row.id) ?? [];
     return {
       id: row.id,
       code: String(row.code ?? "").toUpperCase(),
@@ -301,7 +329,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       packagePrice: Number(row.package_price ?? 0),
       active: row.active !== false,
       roomTypeIds: roomTypeIdsByPackage.get(row.id) ?? [],
-      ratePlanIds: ratePlanIdsByPackage.get(row.id) ?? [],
+      ratePlanIds: ratePlanLinks.map((link) => link.ratePlanId),
+      ratePlanLinks,
     };
   });
 
@@ -453,6 +482,9 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const roomTypeIds = [...new Set(data.roomTypeIds)];
     const ratePlanIds = [...new Set(data.ratePlanIds)];
+    const inclusionByPlan = new Map(
+      (data.ratePlanLinks ?? []).map((link) => [link.ratePlanId, link.inclusionType]),
+    );
     await Promise.all([
       requireOwnedIds(
         db,
@@ -531,15 +563,22 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
       );
     }
     if (ratePlanIds.length > 0) {
-      mappingWrites.push(
-        db.from("pms_package_rate_plans").insert(
-          ratePlanIds.map((ratePlanId) => ({
-            restaurant_id: data.restaurantId,
-            package_id: packageId,
-            rate_plan_id: ratePlanId,
-          })),
-        ),
-      );
+      const rateRows = ratePlanIds.map((ratePlanId) => ({
+        restaurant_id: data.restaurantId,
+        package_id: packageId,
+        rate_plan_id: ratePlanId,
+        inclusion_type: inclusionByPlan.get(ratePlanId) ?? "optional",
+      }));
+      const withType = await db.from("pms_package_rate_plans").insert(rateRows);
+      if (withType.error && (withType.error.code === "42703" || withType.error.code === "PGRST204")) {
+        mappingWrites.push(
+          db.from("pms_package_rate_plans").insert(
+            rateRows.map(({ inclusion_type: _ignored, ...row }) => row),
+          ),
+        );
+      } else if (withType.error) {
+        unavailable(withType.error);
+      }
     }
     for (const write of await Promise.all(mappingWrites)) {
       if (write.error) unavailable(write.error);

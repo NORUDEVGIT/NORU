@@ -35,6 +35,8 @@ import {
   MEAL_PLAN_TYPE_LABELS,
   PACKAGE_COMPONENT_KIND_LABELS,
   PACKAGE_COMPONENT_KINDS,
+  PACKAGE_INCLUSION_TYPE_LABELS,
+  PACKAGE_INCLUSION_TYPES,
   PACKAGE_TYPE_LABELS,
   TAX_POSTURE_LABELS,
   type MealPlanCard3Row,
@@ -42,6 +44,7 @@ import {
   type PackageCard3Row,
   type PackageComponentCard3Row,
   type PackageComponentKind,
+  type PackageInclusionType,
 } from "@/packages/pms/lib/meals-card3.server";
 import {
   MEAL_PLAN_TYPES,
@@ -80,6 +83,7 @@ type PackageInput = {
   active: boolean;
   roomTypeIds: string[];
   ratePlanIds: string[];
+  ratePlanLinks: { ratePlanId: string; inclusionType: PackageInclusionType }[];
 };
 
 type ComponentInput =
@@ -327,12 +331,42 @@ export function PmsPropertySetupCard3Meals({
                 `${snapshot.currencyCode} ${row.packagePrice}`.trim(),
                 row.roomTypeIds.map((id) => roomTypeById.get(id) ?? id).join(", ") ||
                   "All / none assigned",
-                row.ratePlanIds.map((id) => ratePlanById.get(id) ?? id).join(", ") ||
-                  "All / none assigned",
+                row.ratePlanLinks
+                  .map(
+                    (link) =>
+                      `${ratePlanById.get(link.ratePlanId) ?? link.ratePlanId} (${
+                        link.inclusionType === "included" ? "Included" : "Optional"
+                      })`,
+                  )
+                  .join(", ") || "All / none assigned",
                 <Card3StatusDot active={row.active} />,
               ],
               onEdit: () => setPackageDraft(row),
             }))}
+          />
+
+          <Card3ListSection
+            title="Package rate plan types"
+            icon="tag"
+            search={packageSearch}
+            onSearch={setPackageSearch}
+            placeholder="Search package rate plan links"
+            canEdit={canEdit}
+            addLabel="Add package"
+            onAdd={() => setPackageDraft("new")}
+            columns={["Package", "Rate Plan", "Type"]}
+            empty="No package rate-plan links yet. Link a package to a rate plan and choose Included or Optional."
+            rows={filteredPackages.flatMap((row) =>
+              row.ratePlanLinks.map((link) => ({
+                id: `${row.id}-${link.ratePlanId}`,
+                cells: [
+                  row.name,
+                  ratePlanById.get(link.ratePlanId) ?? link.ratePlanId,
+                  link.inclusionType === "included" ? "Included" : "Optional",
+                ],
+                onEdit: () => setPackageDraft(row),
+              })),
+            )}
           />
 
           <div className="space-y-2">
@@ -627,6 +661,7 @@ function PackageSheet({
     active: boolean;
     roomTypeIds: string[];
     ratePlanIds: string[];
+    ratePlanLinks: { ratePlanId: string; inclusionType: PackageInclusionType }[];
   }) => void;
 }) {
   const [code, setCode] = useState(value?.code ?? "");
@@ -637,6 +672,11 @@ function PackageSheet({
   const [active, setActive] = useState(value?.active ?? true);
   const [roomTypeIds, setRoomTypeIds] = useState(value?.roomTypeIds ?? []);
   const [ratePlanIds, setRatePlanIds] = useState(value?.ratePlanIds ?? []);
+  const [inclusionByPlan, setInclusionByPlan] = useState<Record<string, PackageInclusionType>>(
+    Object.fromEntries(
+      (value?.ratePlanLinks ?? []).map((link) => [link.ratePlanId, link.inclusionType]),
+    ),
+  );
 
   function toggle(
     current: string[],
@@ -668,6 +708,10 @@ function PackageSheet({
             active,
             roomTypeIds,
             ratePlanIds,
+            ratePlanLinks: ratePlanIds.map((ratePlanId) => ({
+              ratePlanId,
+              inclusionType: inclusionByPlan[ratePlanId] ?? "optional",
+            })),
           });
       }}
     >
@@ -745,13 +789,25 @@ function PackageSheet({
           canEdit={canEdit}
           onToggle={(id, checked) => toggle(roomTypeIds, id, checked, setRoomTypeIds)}
         />
-        <ApplicabilityList
-          title="Rate plans (Phase 3)"
-          prefix="package-rate"
+        <RatePlanApplicabilityList
           rows={ratePlans}
           selected={ratePlanIds}
+          inclusionByPlan={inclusionByPlan}
           canEdit={canEdit}
-          onToggle={(id, checked) => toggle(ratePlanIds, id, checked, setRatePlanIds)}
+          onToggle={(id, checked) => {
+            toggle(ratePlanIds, id, checked, setRatePlanIds);
+            setInclusionByPlan((current) => {
+              if (!checked) {
+                const next = { ...current };
+                delete next[id];
+                return next;
+              }
+              return { ...current, [id]: current[id] ?? "optional" };
+            });
+          }}
+          onInclusionChange={(id, inclusionType) =>
+            setInclusionByPlan((current) => ({ ...current, [id]: inclusionType }))
+          }
         />
         <ActiveField id="package-active" active={active} canEdit={canEdit} onChange={setActive} />
       </div>
@@ -794,6 +850,68 @@ function ApplicabilityList({
               <Label htmlFor={id}>
                 {row.code} — {row.name}
               </Label>
+            </div>
+          );
+        })
+      )}
+    </fieldset>
+  );
+}
+
+function RatePlanApplicabilityList({
+  rows,
+  selected,
+  inclusionByPlan,
+  canEdit,
+  onToggle,
+  onInclusionChange,
+}: {
+  rows: { id: string; code: string; name: string }[];
+  selected: string[];
+  inclusionByPlan: Record<string, PackageInclusionType>;
+  canEdit: boolean;
+  onToggle: (id: string, checked: boolean) => void;
+  onInclusionChange: (id: string, inclusionType: PackageInclusionType) => void;
+}) {
+  return (
+    <fieldset className="space-y-2 rounded-xl border px-3 py-2">
+      <legend className="px-1 text-sm font-medium text-[#251605]">Rate plans (Phase 3)</legend>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No inherited options available.</p>
+      ) : (
+        rows.map((row) => {
+          const id = `package-rate-${row.id}`;
+          const checked = selected.includes(row.id);
+          return (
+            <div key={row.id} className="flex flex-wrap items-center gap-2">
+              <Checkbox
+                id={id}
+                checked={checked}
+                disabled={!canEdit}
+                className={goldFocus}
+                onCheckedChange={(next) => onToggle(row.id, next === true)}
+              />
+              <Label htmlFor={id} className="min-w-[12rem]">
+                {row.code} — {row.name}
+              </Label>
+              {checked ? (
+                <Select
+                  value={inclusionByPlan[row.id] ?? "optional"}
+                  disabled={!canEdit}
+                  onValueChange={(next) => onInclusionChange(row.id, next as PackageInclusionType)}
+                >
+                  <SelectTrigger className={`${goldFocus} h-8 w-[11rem]`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PACKAGE_INCLUSION_TYPES.map((kind) => (
+                      <SelectItem key={kind} value={kind}>
+                        {PACKAGE_INCLUSION_TYPE_LABELS[kind]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
             </div>
           );
         })
