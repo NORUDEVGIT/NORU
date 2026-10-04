@@ -170,6 +170,11 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.match(ui, /housekeepingStatus/);
     assert.match(ui, /PropertySetupFormGrid/);
     assert.match(ui, /PropertySetupRemoveButton/);
+    assert.match(ui, /RoomTypeImagesDialog/);
+    assert.match(ui, /Manage images/);
+    assert.match(ui, /Save the room type before adding images/);
+    assert.doesNotMatch(ui, /createRoomTypeImageUpload/);
+    assert.doesNotMatch(ui, /from\("room_type_images"\)/);
     assert.match(sectionSrc, /step === "room-types"/);
     assert.match(sectionSrc, /step === "amenities"/);
     assert.match(sectionSrc, /PmsPropertySetupCard2Amenities/);

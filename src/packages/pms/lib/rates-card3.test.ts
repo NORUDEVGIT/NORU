@@ -142,7 +142,10 @@ describe("Card 3 Phase 3 rates readiness", () => {
   });
 
   it("exposes description and validity on Card 3 rate plans without a new column", () => {
-    assert.match(fns, /valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days/);
+    assert.match(
+      fns,
+      /valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days/,
+    );
     assert.match(fns, /description: data\.description/);
     assert.match(fns, /valid_from: data\.validFrom/);
     assert.match(fns, /valid_to: data\.validTo/);

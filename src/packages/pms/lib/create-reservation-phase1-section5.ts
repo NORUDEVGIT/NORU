@@ -21,6 +21,11 @@
  * model change. Flag Abel: NOT required.
  */
 
+import {
+  partitionRatePlanPackages,
+  type RatePlanPackageLink,
+} from "./rate-plan-package-inclusion.ts";
+
 export const CREATE_RESERVATION_SECTION5_ISSUE = 141;
 export const CREATE_RESERVATION_SECTION5_MIGRATION = "NONE";
 
@@ -81,8 +86,7 @@ export const CREATE_RESERVATION_PRICING_STAY = "Pricing the stay…";
 export const CREATE_RESERVATION_RATE_QUOTE_ERROR =
   "Rates could not be loaded for this stay. Try again or pick another room type.";
 
-export const CREATE_RESERVATION_EMPTY_RATE_CATALOGUE =
-  "No rate plans for this room type yet.";
+export const CREATE_RESERVATION_EMPTY_RATE_CATALOGUE = "No rate plans for this room type yet.";
 
 export const CREATE_RESERVATION_EMPTY_RATE_MANAGER =
   "No rate plans for this room type yet. You can create a Pending stay without pricing.";
@@ -98,8 +102,7 @@ export const CREATE_RESERVATION_SUMMARY_NEEDS_CONTEXT =
 
 export const CREATE_RESERVATION_SUMMARY_LOADING = "Pricing the stay… no total yet.";
 
-export const CREATE_RESERVATION_SUMMARY_QUOTE_ERROR =
-  "Stay total is unavailable until rates load.";
+export const CREATE_RESERVATION_SUMMARY_QUOTE_ERROR = "Stay total is unavailable until rates load.";
 
 export const CREATE_RESERVATION_UNPRICED_BADGE = "Unpriced";
 
@@ -154,6 +157,13 @@ export type CreateRateQuoteRow = {
     description: string | null;
     validFrom: string | null;
     validTo: string | null;
+    breakfastIncluded?: boolean;
+    mealPlanName?: string;
+    cancellationName?: string;
+    refundabilityName?: string;
+    refundabilityKind?: string | null;
+    mealPlanId?: string | null;
+    packages?: RatePlanPackageLink[];
   };
   quote: CreateStayQuoteView | null;
   unavailableReason: string | null;
@@ -188,7 +198,9 @@ export function canCreateUnpricedPending(role: string): boolean {
   return (UNPRICED_PENDING_ROLES as readonly string[]).includes(role);
 }
 
-export function isPricedQuote(row: { quote: CreateStayQuoteView | null } | null | undefined): boolean {
+export function isPricedQuote(
+  row: { quote: CreateStayQuoteView | null } | null | undefined,
+): boolean {
   return row?.quote != null;
 }
 
@@ -217,6 +229,27 @@ export function stickyPricingCopy(state: CreatePricingState): string {
 export function fromNightlyRate(quote: CreateStayQuoteView): number | null {
   if (quote.nightly.length === 0) return null;
   return Math.min(...quote.nightly.map((night) => night.rate));
+}
+
+export function ratePlanMerchandisingLines(plan: CreateRateQuoteRow["plan"]): string[] {
+  const lines: string[] = [];
+  const description = plan.description?.trim();
+  if (description) lines.push(description);
+  if (plan.breakfastIncluded) lines.push("Breakfast included");
+  else if (plan.mealPlanName?.trim()) lines.push(plan.mealPlanName.trim());
+  if (plan.cancellationName?.trim()) lines.push(plan.cancellationName.trim());
+  if (plan.refundabilityName?.trim()) lines.push(plan.refundabilityName.trim());
+  return lines;
+}
+
+export function ratePlanPackageMerchandising(plan: CreateRateQuoteRow["plan"]): {
+  includedServices: RatePlanPackageLink[];
+  optionalAddOns: RatePlanPackageLink[];
+} {
+  return partitionRatePlanPackages({
+    links: plan.packages ?? [],
+    mealPlanId: plan.mealPlanId ?? null,
+  });
 }
 
 export function rateCatalogueCopy(input: {

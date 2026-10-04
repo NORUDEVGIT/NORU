@@ -5,6 +5,11 @@
 
 import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
 import {
+  PACKAGE_INCLUSION_TYPE_LABELS,
+  PACKAGE_INCLUSION_TYPES,
+  type PackageInclusionType,
+} from "./rate-plan-package-inclusion.ts";
+import {
   MEAL_PLAN_TYPE_LABELS,
   PACKAGE_TYPE_LABELS,
   TAX_POSTURE_LABELS,
@@ -36,6 +41,7 @@ export const PACKAGE_COMPONENT_KIND_LABELS: Record<PackageComponentKind, string>
 
 export { MEAL_PLAN_TYPE_LABELS, PACKAGE_TYPE_LABELS, TAX_POSTURE_LABELS };
 export type { MealPlanType, PackageType, TaxPosture };
+export { PACKAGE_INCLUSION_TYPE_LABELS, PACKAGE_INCLUSION_TYPES, type PackageInclusionType };
 
 export type MealsCard3AuditRow = {
   id: string;
@@ -59,6 +65,11 @@ export type MealPlanCard3Row = {
   active: boolean;
 };
 
+export type PackageCard3RatePlanLink = {
+  ratePlanId: string;
+  inclusionType: PackageInclusionType;
+};
+
 export type PackageCard3Row = {
   id: string;
   code: string;
@@ -70,6 +81,7 @@ export type PackageCard3Row = {
   active: boolean;
   roomTypeIds: string[];
   ratePlanIds: string[];
+  ratePlanLinks: PackageCard3RatePlanLink[];
 };
 
 export type PackageComponentCard3Row = {

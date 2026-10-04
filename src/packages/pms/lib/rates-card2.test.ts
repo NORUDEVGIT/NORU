@@ -59,10 +59,27 @@ const card3Fns = readFileSync(
   "utf8",
 );
 
+function emptyPlanFields() {
+  return {
+    description: "",
+    mealPlanId: null as string | null,
+    mealPlanName: "",
+    breakfastIncluded: false,
+    cancellationPolicyId: null as string | null,
+    cancellationName: "",
+    refundabilityId: null as string | null,
+    refundabilityName: "",
+    refundabilityKind: null,
+  };
+}
+
 function makeSnapshot(partial?: Partial<RatesCard2Snapshot>): RatesCard2Snapshot {
   return {
     roomTypes: [{ id: "rt-1", code: "DLX", name: "Deluxe Room", active: true }],
     categories: [{ id: "cat-1", code: "BAR", name: "Best Available Rate", active: true }],
+    mealPlans: [],
+    cancellationPolicies: [],
+    refundabilityCodes: [],
     plans: [],
     ...partial,
   };
@@ -116,7 +133,7 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
     assert.match(card2Fns, /from\("room_types"\)/);
   });
 
-  it("preserves canonical tables, IDs, and columns with zero DB migrations", () => {
+  it("preserves canonical tables, IDs, and columns", () => {
     assert.match(card2Fns, /hotel_rate_categories/);
     assert.match(card2Fns, /hotel_rate_plans/);
     assert.match(card2Fns, /room_types/);
@@ -159,6 +176,7 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
           roomTypeName: "Deluxe Room",
           currency: "ETB",
           baseRate: 2500,
+          ...emptyPlanFields(),
           active: true,
         },
       ],
@@ -208,5 +226,33 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
     // 3. No mixed ?tab / ?view navigation for Rate Calendar or Rate History in Card 2
     assert.doesNotMatch(card2Ui, /\?tab=rates#rate-calendar/);
     assert.doesNotMatch(card2Ui, /\?tab=rates#history/);
+  });
+
+  it("owns rate plan composition in Card 2: validity, description, meal plan, cancellation, refundability", () => {
+    assert.match(card2Ui, /Valid from/);
+    assert.match(card2Ui, /plan-description/);
+    assert.match(card2Ui, />Meal plan</);
+    assert.match(card2Ui, /title="Cancellation policies"/);
+    assert.match(card2Ui, /title="Refundability"/);
+    assert.match(card2Fns, /saveRateCancellationPolicyCard2/);
+    assert.match(card2Fns, /saveRateRefundabilityCard2/);
+    assert.match(card2Fns, /pms_meal_plans/);
+    assert.match(card2Fns, /pms_rate_cancellation_policies/);
+    assert.match(card2Fns, /pms_rate_refundability_codes/);
+    assert.match(card2Fns, /meal_plan_id/);
+    assert.match(card2Fns, /42703/);
+
+    const drizzle = readFileSync(
+      new URL("../../../../drizzle/migrations/0119_pms_rate_plan_composition.sql", import.meta.url),
+      "utf8",
+    );
+    const supabase = readFileSync(
+      new URL("../../../../supabase/migrations/0119_pms_rate_plan_composition.sql", import.meta.url),
+      "utf8",
+    );
+    assert.equal(drizzle, supabase);
+    assert.match(drizzle, /pms_rate_cancellation_policies/);
+    assert.match(drizzle, /pms_rate_refundability_codes/);
+    assert.match(drizzle, /hotel_rate_plans_meal_plan_same_property/);
   });
 });

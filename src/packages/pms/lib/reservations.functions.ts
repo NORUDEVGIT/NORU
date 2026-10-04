@@ -38,6 +38,7 @@ import {
   getRoomTypeAvailabilityCompat,
   type AssignmentEligibilityResult,
 } from "./room-inventory-compat";
+import { signRoomImages } from "./rooms.server";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -117,6 +118,7 @@ export interface RoomTypeAvailability {
   totalRooms: number;
   reserved: number;
   available: number;
+  coverUrl: string | null;
 }
 
 export interface AssignableRoom {
@@ -361,6 +363,21 @@ export const getRoomTypeAvailability = createServerFn({ method: "POST" })
       .order("name");
     if (error) throw new Error(error.message);
 
+    const { data: images } = await context.supabase
+      .from("room_type_images")
+      .select("room_type_id, storage_path, is_cover, display_order")
+      .eq("restaurant_id", data.restaurantId)
+      .order("display_order");
+    const coverPath = new Map<string, string>();
+    for (const img of images ?? []) {
+      if (!coverPath.has(img.room_type_id) || img.is_cover) {
+        if (img.is_cover || !coverPath.has(img.room_type_id)) {
+          coverPath.set(img.room_type_id, img.storage_path);
+        }
+      }
+    }
+    const signed = await signRoomImages([...coverPath.values()]);
+
     const out: RoomTypeAvailability[] = [];
     for (const type of types ?? []) {
       const availability = await getRoomTypeAvailabilityCompat(context.supabase, {
@@ -383,6 +400,7 @@ export const getRoomTypeAvailability = createServerFn({ method: "POST" })
         totalRooms,
         reserved: reservedRooms,
         available: availability.available,
+        coverUrl: signed.get(coverPath.get(type.id) ?? "") ?? null,
       });
     }
     return out;

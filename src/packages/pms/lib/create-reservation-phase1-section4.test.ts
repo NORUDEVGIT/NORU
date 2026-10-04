@@ -116,6 +116,11 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.match(functions, /\.eq\("active", true\)/);
     assert.match(functions, /\.eq\("sellable", true\)/);
     assert.doesNotMatch(functions, /getOtaAvailability|listRmsInventory|yieldAvailability/);
+    assert.match(functions, /coverUrl/);
+    assert.match(functions, /signRoomImages/);
+    assert.match(functions, /from\("room_type_images"\)/);
+    assert.match(roomType, /row\.coverUrl/);
+    assert.match(roomType, /BedDouble/);
   });
 
   it("AC-CR4-2 Availability is stay-dated for arrival → departure", () => {
