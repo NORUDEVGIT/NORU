@@ -56,25 +56,33 @@ describe("Guest preference workspace helpers", () => {
 
   it("does not apply reservation defaults unless the guest flag is on", () => {
     const rooms = [{ id: "rt-1", code: "DLX", label: "Deluxe" }];
+    const rates = [{ id: "rp-1", code: "BAR", label: "Standard Rate (BAR)" }];
     assert.deepEqual(
       reservationDefaultsFromWorkspace({
         applyToFutureReservations: false,
-        answers: [{ code: "ROOM_TYPE", valueType: "single", values: ["rt-1"] }],
+        answers: [
+          { code: "ROOM_TYPE", valueType: "single", values: ["rt-1"] },
+          { code: "RATE_PLAN", valueType: "single", values: ["rp-1"] },
+        ],
         specialRequests: "High floor",
         roomTypes: rooms,
+        ratePlans: rates,
       }),
-      { specialRequests: null, roomTypeId: null },
+      { specialRequests: null, roomTypeId: null, ratePlanId: null },
     );
     const on = reservationDefaultsFromWorkspace({
       applyToFutureReservations: true,
       answers: [
         { code: "ROOM_TYPE", valueType: "single", values: ["rt-1"] },
+        { code: "RATE_PLAN", valueType: "single", values: ["rp-1"] },
         { code: "NOTES", valueType: "text", values: ["Quiet please"] },
       ],
       specialRequests: "High floor",
       roomTypes: rooms,
+      ratePlans: rates,
     });
     assert.equal(on.roomTypeId, "rt-1");
+    assert.equal(on.ratePlanId, "rp-1");
     assert.match(on.specialRequests ?? "", /Quiet please/);
   });
 

@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   User,
   X,
 } from "lucide-react";
@@ -448,7 +450,15 @@ export function GuestCreateModal({
     [context.data?.fields, context.data?.profileType],
   );
   const completion = guestCreateCompletion(draft, rules);
-  const requiredPrefs = (context.data?.preferenceTypes ?? [])
+  const allowedPrefTypes = useMemo(() => {
+    const all = context.data?.preferenceTypes ?? [];
+    const prefIds = context.data?.profileType?.preferenceTypeIds;
+    if (!prefIds || prefIds.length === 0) return all;
+    const allowedSet = new Set(prefIds);
+    return all.filter((t) => allowedSet.has(t.id));
+  }, [context.data?.preferenceTypes, context.data?.profileType?.preferenceTypeIds]);
+
+  const requiredPrefs = allowedPrefTypes
     .filter((row) => row.active && row.required)
     .map((row) => row.id);
   const visible = (code: string) => rules.find((rule) => rule.code === code)?.visible !== false;
@@ -1269,8 +1279,9 @@ export function GuestCreateModal({
                   draft={draft}
                   setDraft={setDraft}
                   categories={context.data?.preferenceCategories ?? []}
-                  types={context.data?.preferenceTypes ?? []}
+                  types={allowedPrefTypes}
                   fieldError={fieldError}
+                  isLoading={context.isLoading}
                 />
               ) : null}
 
@@ -2212,28 +2223,93 @@ function PreferencesStep({
   categories,
   types,
   fieldError,
+  isLoading,
 }: {
   draft: GuestCreateDraft;
   setDraft: React.Dispatch<React.SetStateAction<GuestCreateDraft>>;
-  categories: Array<{ id: string; name: string; active: boolean }>;
+  categories: Array<{ id: string; name: string; active: boolean; displayOrder?: number }>;
   types: Array<{
     id: string;
     categoryId: string;
     name: string;
+    code?: string;
     valueType: string;
     required: boolean;
     active: boolean;
+    displayOrder?: number;
     options: Array<{ label: string; value: string; active: boolean }>;
   }>;
   fieldError: (key: string, stepId?: GuestCreateStepId) => string | undefined;
+  isLoading?: boolean;
 }) {
-  const activeCategories = categories.filter((category) => category.active);
+  const [customTypeOrder, setCustomTypeOrder] = useState<Record<string, string[]>>({});
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <div key={i} className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4 animate-pulse">
+            <div className="h-5 w-44 rounded bg-[#EBE5DA]" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="h-24 rounded-lg bg-[#FAF8F5] border border-[#EBE5DA]" />
+              <div className="h-24 rounded-lg bg-[#FAF8F5] border border-[#EBE5DA]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const activeCategories = [...categories]
+    .filter((category) => category.active)
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+
   if (activeCategories.length === 0 || types.filter((type) => type.active).length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-[#DDD4C5] bg-white p-6 text-center text-xs text-muted-foreground">
         {GUEST_CREATE_NO_PREFERENCES}
       </div>
     );
+  }
+
+  function getCategoryTypes(categoryId: string) {
+    const raw = types.filter((type) => type.categoryId === categoryId && type.active);
+    const order = customTypeOrder[categoryId];
+    if (!order || order.length === 0) {
+      return [...raw].sort(
+        (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.name.localeCompare(b.name),
+      );
+    }
+    return [...raw].sort((a, b) => {
+      const idxA = order.indexOf(a.id);
+      const idxB = order.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+    });
+  }
+
+  function moveTypeInCategory(categoryId: string, index: number, direction: "up" | "down") {
+    const currentTypes = getCategoryTypes(categoryId);
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= currentTypes.length) return;
+    const reordered = [...currentTypes];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(targetIndex, 0, moved);
+    const newIds = reordered.map((t) => t.id);
+    setCustomTypeOrder((prev) => ({ ...prev, [categoryId]: newIds }));
+
+    setDraft((current) => {
+      const answers = [...current.preferenceAnswers];
+      answers.sort((a, b) => {
+        const posA = newIds.indexOf(a.typeId);
+        const posB = newIds.indexOf(b.typeId);
+        if (posA !== -1 && posB !== -1) return posA - posB;
+        return 0;
+      });
+      return { ...current, preferenceAnswers: answers };
+    });
   }
 
   function valuesFor(typeId: string) {
@@ -2253,80 +2329,137 @@ function PreferencesStep({
   return (
     <div className="space-y-4">
       {activeCategories.map((category) => {
-        const categoryTypes = types.filter((type) => type.categoryId === category.id && type.active);
+        const categoryTypes = getCategoryTypes(category.id);
         if (categoryTypes.length === 0) return null;
         return (
           <section key={category.id} className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-            <h2 className="font-display text-base font-semibold text-[#251605]">{category.name}</h2>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              {categoryTypes.map((type) => {
+            <div className="flex items-center justify-between border-b border-[#EBE5DA] pb-2.5">
+              <h2 className="font-display text-base font-semibold text-[#251605]">{category.name}</h2>
+              <span className="text-[11px] text-muted-foreground">
+                Reorder preferences to specify priority
+              </span>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {categoryTypes.map((type, index) => {
                 const values = valuesFor(type.id);
+                const placeholder =
+                  type.code === "ROOM_TYPE"
+                    ? "Choose preferred room type..."
+                    : type.code === "RATE_PLAN"
+                      ? "Choose preferred rate plan..."
+                      : type.code === "MEAL_PLAN"
+                        ? "Choose preferred meal plan..."
+                        : "Not recorded";
+
                 return (
-                  <Field
+                  <div
                     key={type.id}
-                    label={type.name}
-                    required={type.required}
-                    error={fieldError(`PREF:${type.id}`, "preferences")}
+                    className="rounded-lg border border-[#EBE5DA] bg-[#FAF8F5]/60 p-3.5 space-y-2.5 transition-colors"
                   >
-                    {type.valueType === "yes_no" ? (
-                      <div className="flex items-center gap-2 pt-1">
-                        <Switch
-                          checked={values[0] === "yes"}
-                          onCheckedChange={(checked) => setValues(type.id, [checked ? "yes" : "no"])}
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          {values[0] === "yes" ? "Yes" : "No"}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-medium text-[#251605]">
+                          {type.name} {type.required ? <span className="text-destructive">*</span> : null}
+                        </span>
+                        <span className="rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
+                          Priority #{index + 1}
                         </span>
                       </div>
-                    ) : type.valueType === "multi" ? (
-                      <div className="space-y-1.5 pt-1">
-                        {type.options
-                          .filter((option) => option.active)
-                          .map((option) => (
-                            <label key={option.value} className="flex items-center gap-2 text-xs">
-                              <Checkbox
-                                checked={values.includes(option.value)}
-                                onCheckedChange={(checked) =>
-                                  setValues(
-                                    type.id,
-                                    checked
-                                      ? [...values, option.value]
-                                      : values.filter((value) => value !== option.value),
-                                  )
-                                }
-                              />
-                              <span>{option.label}</span>
-                            </label>
-                          ))}
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 text-muted-foreground hover:text-[#251605]"
+                          disabled={index === 0}
+                          onClick={() => moveTypeInCategory(category.id, index, "up")}
+                          aria-label={`Move ${type.name} up in priority`}
+                          title="Move up in priority"
+                        >
+                          <ChevronUp className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 text-muted-foreground hover:text-[#251605]"
+                          disabled={index === categoryTypes.length - 1}
+                          onClick={() => moveTypeInCategory(category.id, index, "down")}
+                          aria-label={`Move ${type.name} down in priority`}
+                          title="Move down in priority"
+                        >
+                          <ChevronDown className="size-3.5" />
+                        </Button>
                       </div>
-                    ) : type.valueType === "text" || type.valueType === "number" ? (
-                      <Input
-                        type={type.valueType === "number" ? "number" : "text"}
-                        value={values[0] ?? ""}
-                        onChange={(event) =>
-                          setValues(type.id, event.target.value ? [event.target.value] : [])
-                        }
-                        className={MODAL_CONTROL_CLASS}
-                      />
-                    ) : (
-                      <Select
-                        value={values[0] || "__none"}
-                        onValueChange={(value) => setValues(type.id, value === "__none" ? [] : [value])}
-                      >
-                        <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}><SelectValue placeholder="Not recorded" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">Not recorded</SelectItem>
+                    </div>
+
+                    <Field
+                      key={type.id}
+                      label=""
+                      error={fieldError(`PREF:${type.id}`, "preferences")}
+                    >
+                      {type.valueType === "yes_no" ? (
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            checked={values[0] === "yes"}
+                            onCheckedChange={(checked) => setValues(type.id, [checked ? "yes" : "no"])}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {values[0] === "yes" ? "Yes" : "No"}
+                          </span>
+                        </div>
+                      ) : type.valueType === "multi" ? (
+                        <div className="space-y-1.5 pt-1">
                           {type.options
                             .filter((option) => option.active)
                             .map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
+                              <label key={option.value} className="flex items-center gap-2 text-xs">
+                                <Checkbox
+                                  checked={values.includes(option.value)}
+                                  onCheckedChange={(checked) =>
+                                    setValues(
+                                      type.id,
+                                      checked
+                                        ? [...values, option.value]
+                                        : values.filter((value) => value !== option.value),
+                                    )
+                                  }
+                                />
+                                <span>{option.label}</span>
+                              </label>
                             ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </Field>
+                        </div>
+                      ) : type.valueType === "text" || type.valueType === "number" ? (
+                        <Input
+                          type={type.valueType === "number" ? "number" : "text"}
+                          value={values[0] ?? ""}
+                          onChange={(event) =>
+                            setValues(type.id, event.target.value ? [event.target.value] : [])
+                          }
+                          className={MODAL_CONTROL_CLASS}
+                        />
+                      ) : (
+                        <Select
+                          value={values[0] || "__none"}
+                          onValueChange={(value) => setValues(type.id, value === "__none" ? [] : [value])}
+                        >
+                          <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}>
+                            <SelectValue placeholder={placeholder} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">Not recorded</SelectItem>
+                            {type.options
+                              .filter((option) => option.active)
+                              .map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </Field>
+                  </div>
                 );
               })}
             </div>

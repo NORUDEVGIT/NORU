@@ -20,15 +20,15 @@ import {
   GUEST_GENDERS,
   GUEST_TITLE_LABELS,
   GUEST_TITLES,
-} from "./guest-profile-individual";
+} from "./guest-profile-individual.ts";
 import {
   PREFERRED_CONTACT_METHOD_LABELS,
   PREFERRED_CONTACT_METHODS,
   PREFERRED_CONTACT_TIME_LABELS,
   PREFERRED_CONTACT_TIMES,
-} from "./guest-profile-overview";
-import { ISO_COUNTRIES } from "./pms-geography";
-import { guestCreateBlocked, type GuestProfileRules } from "./pms-set3-rates-guest";
+} from "./guest-profile-overview.ts";
+import { ISO_COUNTRIES } from "./pms-geography.ts";
+import { guestCreateBlocked, type GuestProfileRules } from "./pms-set3-rates-guest.ts";
 
 export type GuestFieldContext = "profile_create" | "profile_edit" | "reservation" | "check_in";
 
