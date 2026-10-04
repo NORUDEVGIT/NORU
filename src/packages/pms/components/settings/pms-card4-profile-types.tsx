@@ -851,7 +851,30 @@ export function PmsCard4ProfileTypes({
                 </p>
               </div>
               {canEdit ? (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() =>
+                      mark(
+                        "preferenceTypeIds",
+                        allPrefs.filter((p) => p.active).map((p) => p.id),
+                      )
+                    }
+                  >
+                    Select All Active
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => mark("preferenceTypeIds", [])}
+                  >
+                    Deselect All
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -905,26 +928,35 @@ export function PmsCard4ProfileTypes({
                         </p>
                       ) : (
                         <div className="grid sm:grid-cols-2 gap-2 pt-1">
-                          {catTypes.map((pref) => (
-                            <div
-                              key={pref.id}
-                              className={cn(
-                                "flex items-center justify-between border rounded-lg p-2 text-xs",
-                                !pref.active && "opacity-70 bg-muted/20",
-                              )}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Checkbox
-                                  id={`pref-${pref.id}`}
-                                  checked={draft.preferenceTypeIds.includes(pref.id)}
-                                  disabled={!canEdit}
-                                  onCheckedChange={(checked) =>
-                                    mark(
-                                      "preferenceTypeIds",
-                                      toggleId(draft.preferenceTypeIds, pref.id, checked === true),
-                                    )
-                                  }
-                                />
+                          {catTypes.map((pref) => {
+                            const isChecked =
+                              draft.preferenceTypeIds.length === 0
+                                ? pref.active
+                                : draft.preferenceTypeIds.includes(pref.id);
+                            return (
+                              <div
+                                key={pref.id}
+                                className={cn(
+                                  "flex items-center justify-between border rounded-lg p-2 text-xs",
+                                  !pref.active && "opacity-70 bg-muted/20",
+                                )}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Checkbox
+                                    id={`pref-${pref.id}`}
+                                    checked={isChecked}
+                                    disabled={!canEdit}
+                                    onCheckedChange={(checked) => {
+                                      const baseList =
+                                        draft.preferenceTypeIds.length === 0
+                                          ? allPrefs.filter((p) => p.active).map((p) => p.id)
+                                          : draft.preferenceTypeIds;
+                                      mark(
+                                        "preferenceTypeIds",
+                                        toggleId(baseList, pref.id, checked === true),
+                                      );
+                                    }}
+                                  />
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <Label htmlFor={`pref-${pref.id}`} className="font-medium cursor-pointer truncate block">
@@ -956,8 +988,9 @@ export function PmsCard4ProfileTypes({
                                 </Button>
                               ) : null}
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
+                      </div>
                       )}
                     </div>
                   );

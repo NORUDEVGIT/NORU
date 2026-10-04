@@ -76,8 +76,10 @@ import {
   type GuestServiceStatus,
 } from "./guest-services-workspace";
 import {
+  enrichPreferenceTypesWithOptions,
   isPreferenceValueType,
   normalizePreferenceOptions,
+  resolveEffectivePreferences,
   type PreferenceCategoryRecord,
   type PreferenceTypeRecord,
   type PreferenceValueType,
@@ -2303,7 +2305,7 @@ async function loadPreferenceWorkspaceCatalogue(
   restaurantId: string,
 ): Promise<{ categories: PreferenceCategoryRecord[]; types: PreferenceTypeRecord[] }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const [categories, types] = await Promise.all([
+  const [categories, types, roomTypesRes, mealPlansRes, ratePlansRes] = await Promise.all([
     supabaseAdmin
       .from("pms_guest_preference_categories")
       .select("id, name, code, description, active, display_order, created_at, updated_at")
@@ -2316,6 +2318,21 @@ async function loadPreferenceWorkspaceCatalogue(
       )
       .eq("restaurant_id", restaurantId)
       .order("display_order"),
+    supabaseAdmin
+      .from("room_types")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    supabaseAdmin
+      .from("pms_meal_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    supabaseAdmin
+      .from("hotel_rate_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
   ]);
   if (categories.error) {
     if (isMissingSchemaError(categories.error)) return { categories: [], types: [] };
@@ -2348,32 +2365,44 @@ async function loadPreferenceWorkspaceCatalogue(
     created_at?: string | null;
     updated_at?: string | null;
   }
+  const rawCategories = ((categories.data ?? []) as PrefCategoryRow[]).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    code: String(row.code),
+    description: (row.description as string | null) ?? null,
+    active: Boolean(row.active),
+    displayOrder: Number(row.display_order ?? 1),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }));
+
+  const rawTypes = ((types.data ?? []) as PrefTypeRow[]).map((row) => ({
+    id: String(row.id),
+    categoryId: String(row.category_id),
+    name: String(row.name),
+    code: String(row.code),
+    valueType: isPreferenceValueType(String(row.value_type))
+      ? (row.value_type as PreferenceValueType)
+      : "single",
+    options: normalizePreferenceOptions(row.options),
+    required: Boolean(row.required),
+    active: Boolean(row.active),
+    displayOrder: Number(row.display_order ?? 1),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }));
+
+  const effective = resolveEffectivePreferences(
+    rawCategories,
+    rawTypes,
+    (roomTypesRes.data ?? []) as any,
+    (mealPlansRes.data ?? []) as any,
+    (ratePlansRes.data ?? []) as any,
+  );
+
   return {
-    categories: ((categories.data ?? []) as PrefCategoryRow[]).map((row) => ({
-      id: String(row.id),
-      name: String(row.name),
-      code: String(row.code),
-      description: (row.description as string | null) ?? null,
-      active: Boolean(row.active),
-      displayOrder: Number(row.display_order ?? 1),
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at),
-    })),
-    types: ((types.data ?? []) as PrefTypeRow[]).map((row) => ({
-      id: String(row.id),
-      categoryId: String(row.category_id),
-      name: String(row.name),
-      code: String(row.code),
-      valueType: isPreferenceValueType(String(row.value_type))
-        ? (row.value_type as PreferenceValueType)
-        : "single",
-      options: normalizePreferenceOptions(row.options),
-      required: Boolean(row.required),
-      active: Boolean(row.active),
-      displayOrder: Number(row.display_order ?? 1),
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at),
-    })),
+    categories: effective.categories,
+    types: effective.types,
   };
 }
 

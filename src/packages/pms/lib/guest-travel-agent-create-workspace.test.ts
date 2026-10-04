@@ -35,21 +35,21 @@ function filledDraft() {
 }
 
 describe("Travel agency create workflow helpers", () => {
-  it("keeps exactly five dedicated steps", () => {
+  it("keeps exactly three consolidated steps", () => {
     assert.deepEqual(
       GUEST_TRAVEL_AGENT_CREATE_STEPS.map((step) => step.id),
-      ["details", "contacts", "business", "billing", "review"],
+      ["basic_info", "billing", "review"],
     );
-    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 5);
+    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 3);
   });
 
   it("requires name and agency type", () => {
     const draft = emptyGuestTravelAgentCreateDraft();
-    assert.match(travelAgentCreateStepErrors("details", draft)[0] ?? "", /Agency name/);
+    assert.match(travelAgentCreateStepErrors("basic_info", draft)[0] ?? "", /Agency name/);
     draft.name = "Blue Nile Travel";
-    assert.match(travelAgentCreateStepErrors("details", draft).join(" "), /Agency type/);
+    assert.match(travelAgentCreateStepErrors("basic_info", draft).join(" "), /Agency type/);
     draft.agencyType = "local";
-    assert.equal(travelAgentCreateStepErrors("details", draft).length, 0);
+    assert.equal(travelAgentCreateStepErrors("basic_info", draft).length, 0);
   });
 
   it("lets Save Draft persist with only a name", () => {
@@ -62,14 +62,14 @@ describe("Travel agency create workflow helpers", () => {
 
   it("names the missing field and the step that holds it", () => {
     const issues = travelAgentCreateFieldIssues(emptyGuestTravelAgentCreateDraft());
-    assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "details"));
+    assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "basic_info"));
     assert.match(
       formatCreateIssuesByStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS),
-      /Agency Details — Agency name is required/,
+      /Basic Info — Agency name is required/,
     );
-    assert.equal(issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "details").length, 0);
+    assert.equal(issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "basic_info").length, 0);
     assert.ok(
-      issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "contacts").some(
+      issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "billing").some(
         (issue) => issue.key === "name",
       ),
     );

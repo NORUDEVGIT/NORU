@@ -41,6 +41,12 @@ export const CARD4_STEPS = [
     title: "Group Types",
     placeholder: null,
   },
+  {
+    id: "travel-agency-types",
+    number: 4,
+    title: "Travel Agency Types",
+    placeholder: null,
+  },
 ] as const;
 
 export type Card4StepId = (typeof CARD4_STEPS)[number]["id"];
@@ -245,6 +251,7 @@ export function evaluateCard4StepStatus(
   preferencesConfigured = false,
   companyBusinessConfigured = false,
   groupTypesConfigured = false,
+  travelAgencyTypesConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "profile-types") {
     if (profileTypesConfigured) return "complete";
@@ -273,6 +280,11 @@ export function evaluateCard4StepStatus(
   }
   if (step === "group-types") {
     if (groupTypesConfigured) return "complete";
+    if (stored === "in_progress" || stored === "complete") return stored;
+    return "not_started";
+  }
+  if (step === "travel-agency-types") {
+    if (travelAgencyTypesConfigured) return "complete";
     if (stored === "in_progress" || stored === "complete") return stored;
     return "not_started";
   }

@@ -155,9 +155,10 @@ export function reservationDefaultsFromWorkspace(input: {
   answers: Array<{ code: string; valueType: PreferenceValueType; values: string[] }>;
   specialRequests: string | null;
   roomTypes: Array<{ id: string; code?: string | null; label: string }>;
-}): { specialRequests: string | null; roomTypeId: string | null } {
+  ratePlans?: Array<{ id: string; code?: string | null; label: string }>;
+}): { specialRequests: string | null; roomTypeId: string | null; ratePlanId?: string | null } {
   if (!input.applyToFutureReservations) {
-    return { specialRequests: null, roomTypeId: null };
+    return { specialRequests: null, roomTypeId: null, ratePlanId: null };
   }
   const texts = input.answers
     .filter((row) => row.valueType === "text")
@@ -178,7 +179,18 @@ export function reservationDefaultsFromWorkspace(input: {
     );
     roomTypeId = match?.id ?? null;
   }
-  return { specialRequests, roomTypeId };
+  const rateAnswer = input.answers.find((row) => row.code === "RATE_PLAN")?.values[0] ?? null;
+  let ratePlanId: string | null = null;
+  if (rateAnswer && input.ratePlans) {
+    const match = input.ratePlans.find(
+      (row) =>
+        row.id === rateAnswer ||
+        (row.code ?? "").toLowerCase() === rateAnswer.toLowerCase() ||
+        row.label.toLowerCase() === rateAnswer.toLowerCase(),
+    );
+    ratePlanId = match?.id ?? null;
+  }
+  return { specialRequests, roomTypeId, ratePlanId };
 }
 
 export function applyPreferenceDefaults(input: {

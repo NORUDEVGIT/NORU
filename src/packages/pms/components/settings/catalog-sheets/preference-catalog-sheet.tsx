@@ -50,6 +50,7 @@ import {
 import {
   deletePmsCard4PreferenceType,
   getPmsCard4Preferences,
+  reorderPmsCard4PreferenceCategories,
   reorderPmsCard4PreferenceTypes,
   savePmsCard4PreferenceCategory,
   savePmsCard4PreferenceType,
@@ -211,6 +212,18 @@ export function PreferenceTypeEditorSheet({
     }));
   }
 
+  function moveOption(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= draft.options.length) return;
+    const newOpts = [...draft.options];
+    const [removed] = newOpts.splice(index, 1);
+    newOpts.splice(targetIndex, 0, removed);
+    setDraft((prev) => ({
+      ...prev,
+      options: newOpts.map((o, idx) => ({ ...o, displayOrder: idx })),
+    }));
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto sm:max-w-lg">
@@ -323,16 +336,52 @@ export function PreferenceTypeEditorSheet({
                   <Plus className="size-3 mr-1" /> Add Option
                 </Button>
               </div>
-              {draft.options.map((opt) => (
-                <div key={opt.id} className="flex gap-2">
+              {draft.options.map((opt, idx) => (
+                <div key={opt.id} className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-4 text-center font-mono">
+                    {idx + 1}
+                  </span>
                   <Input
                     placeholder="Option Label"
                     value={opt.label}
                     onChange={(e) => updateOption(opt.id, { label: e.target.value, value: e.target.value })}
                   />
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeOption(opt.id)}>
-                    ✕
-                  </Button>
+                  {canEdit ? (
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        disabled={idx === 0}
+                        onClick={() => moveOption(idx, -1)}
+                        title="Move option up"
+                      >
+                        <ChevronUp className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        disabled={idx === draft.options.length - 1}
+                        onClick={() => moveOption(idx, 1)}
+                        title="Move option down"
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeOption(opt.id)}
+                        title="Remove option"
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -511,6 +560,7 @@ export function PreferenceCatalogSheet({
   const setCatActive = useServerFn(setPmsCard4PreferenceCategoryActive);
   const setTypeFlags = useServerFn(setPmsCard4PreferenceTypeFlags);
   const reorderTypes = useServerFn(reorderPmsCard4PreferenceTypes);
+  const reorderCats = useServerFn(reorderPmsCard4PreferenceCategories);
   const removeType = useServerFn(deletePmsCard4PreferenceType);
 
   const queryKey = ["pms-card4-preferences", restaurantId];
@@ -522,6 +572,9 @@ export function PreferenceCatalogSheet({
 
   const categories = query.data?.categories ?? [];
   const types = query.data?.types ?? [];
+  const sortedCategories = [...categories].sort(
+    (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name),
+  );
   const [selectedCat, setSelectedCat] = useState<PreferenceCategoryRecord | null>(null);
   const [catEditorOpen, setCatEditorOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<PreferenceTypeRecord | null>(null);
@@ -561,6 +614,48 @@ export function PreferenceCatalogSheet({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const reorderCategoriesMutation = useMutation({
+    mutationFn: (ids: string[]) => reorderCats({ data: { restaurantId, ids } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const reorderTypesMutation = useMutation({
+    mutationFn: (ids: string[]) => reorderTypes({ data: { restaurantId, ids } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const handleMoveCategory = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= sortedCategories.length) return;
+    const newItems = [...sortedCategories];
+    const [removed] = newItems.splice(index, 1);
+    newItems.splice(targetIndex, 0, removed);
+    reorderCategoriesMutation.mutate(newItems.map((c) => c.id));
+  };
+
+  const handleMoveType = (
+    categoryList: PreferenceTypeRecord[],
+    index: number,
+    direction: -1 | 1,
+  ) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= categoryList.length) return;
+    const newItems = [...categoryList];
+    const [removed] = newItems.splice(index, 1);
+    newItems.splice(targetIndex, 0, removed);
+    reorderTypesMutation.mutate(newItems.map((t) => t.id));
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -603,14 +698,44 @@ export function PreferenceCatalogSheet({
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          {categories.map((cat) => {
-            const catTypes = types.filter((t) => t.categoryId === cat.id);
+          {sortedCategories.map((cat, catIdx) => {
+            const catTypes = types
+              .filter((t) => t.categoryId === cat.id)
+              .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
             return (
               <div key={cat.id} className="border rounded-2xl p-4 bg-white space-y-3">
                 <div className="flex items-center justify-between border-b pb-2">
-                  <div>
+                  <div className="flex items-center gap-2">
                     <span className="font-semibold text-sm text-[#251605]">{cat.name}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">({cat.code})</span>
+                    <span className="text-xs text-muted-foreground">({cat.code})</span>
+                    {canEdit ? (
+                      <div className="flex items-center gap-0.5 ml-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={catIdx === 0 || reorderCategoriesMutation.isPending}
+                          onClick={() => handleMoveCategory(catIdx, -1)}
+                          title="Move category up"
+                          aria-label={`Move category ${cat.name} up`}
+                        >
+                          <ChevronUp className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={catIdx === sortedCategories.length - 1 || reorderCategoriesMutation.isPending}
+                          onClick={() => handleMoveCategory(catIdx, 1)}
+                          title="Move category down"
+                          aria-label={`Move category ${cat.name} down`}
+                        >
+                          <ChevronDown className="size-3.5" />
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -647,6 +772,7 @@ export function PreferenceCatalogSheet({
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-14 text-center">Order</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Value Type</TableHead>
                         <TableHead>Required</TableHead>
@@ -655,8 +781,43 @@ export function PreferenceCatalogSheet({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {catTypes.map((row) => (
+                      {catTypes.map((row, idx) => (
                         <TableRow key={row.id}>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-0.5">
+                              <span className="text-xs font-mono text-muted-foreground w-4 text-center">
+                                #{idx + 1}
+                              </span>
+                              {canEdit ? (
+                                <div className="flex flex-col">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                                    disabled={idx === 0 || reorderTypesMutation.isPending}
+                                    onClick={() => handleMoveType(catTypes, idx, -1)}
+                                    title="Move preference up"
+                                    aria-label={`Move ${row.name} up`}
+                                  >
+                                    <ChevronUp className="size-3" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                                    disabled={idx === catTypes.length - 1 || reorderTypesMutation.isPending}
+                                    onClick={() => handleMoveType(catTypes, idx, 1)}
+                                    title="Move preference down"
+                                    aria-label={`Move ${row.name} down`}
+                                  >
+                                    <ChevronDown className="size-3" />
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </div>
+                          </TableCell>
                           <TableCell className="font-medium text-xs text-[#251605]">
                             {row.name}
                           </TableCell>
@@ -697,6 +858,16 @@ export function PreferenceCatalogSheet({
                                 >
                                   Edit
                                 </DropdownMenuItem>
+                                {canEdit && idx > 0 ? (
+                                  <DropdownMenuItem onSelect={() => handleMoveType(catTypes, idx, -1)}>
+                                    Move Up
+                                  </DropdownMenuItem>
+                                ) : null}
+                                {canEdit && idx < catTypes.length - 1 ? (
+                                  <DropdownMenuItem onSelect={() => handleMoveType(catTypes, idx, 1)}>
+                                    Move Down
+                                  </DropdownMenuItem>
+                                ) : null}
                                 {canEdit ? (
                                   <DropdownMenuItem onSelect={() => setPendingDeleteType(row)}>
                                     Delete

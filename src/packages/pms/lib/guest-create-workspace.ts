@@ -70,7 +70,23 @@ export type GuestCreateFieldCode =
   | "DATE_OF_BIRTH"
   | "IDENTITY_DOCUMENT"
   | "ADDRESS"
-  | "COMPANY";
+  | "COMPANY"
+  | "TITLE"
+  | "MIDDLE_NAME"
+  | "PREFERRED_NAME"
+  | "GENDER"
+  | "LANGUAGE"
+  | "VIP_STATUS"
+  | "GUEST_PHOTO"
+  | "PHONE_ALT"
+  | "EMAIL_ALT"
+  | "PREFERRED_CONTACT_METHOD"
+  | "PREFERRED_CONTACT_TIME"
+  | "COUNTRY"
+  | "CITY"
+  | "REGION"
+  | "POSTAL_CODE"
+  | "ADDRESS_LINE1";
 
 export type GuestCreateFieldRule = {
   code: GuestCreateFieldCode;
@@ -335,23 +351,55 @@ export function createFieldRule(
   };
 }
 
+export const ALL_CREATION_FIELD_DEFINITIONS: Array<[GuestCreateFieldCode, string]> = [
+  ["FIRST_NAME", "First Name"],
+  ["LAST_NAME", "Last Name"],
+  ["PHONE", "Mobile Phone"],
+  ["EMAIL", "Email Address"],
+  ["NATIONALITY", "Nationality"],
+  ["DATE_OF_BIRTH", "Date of Birth"],
+  ["IDENTITY_DOCUMENT", "Identity Document"],
+  ["ADDRESS", "Address"],
+  ["COMPANY", "Company"],
+  ["TITLE", "Title"],
+  ["MIDDLE_NAME", "Middle Name"],
+  ["PREFERRED_NAME", "Preferred Name"],
+  ["GENDER", "Gender"],
+  ["LANGUAGE", "Language"],
+  ["VIP_STATUS", "VIP Guest"],
+  ["GUEST_PHOTO", "Guest Photo"],
+  ["PHONE_ALT", "Alternative Phone"],
+  ["EMAIL_ALT", "Alternative Email"],
+  ["PREFERRED_CONTACT_METHOD", "Preferred Contact Method"],
+  ["PREFERRED_CONTACT_TIME", "Preferred Contact Time"],
+  ["COUNTRY", "Country"],
+  ["CITY", "City"],
+  ["REGION", "Region / State"],
+  ["POSTAL_CODE", "Postal Code"],
+  ["ADDRESS_LINE1", "Street Address"],
+];
+
 export function createFieldRules(
   fields: GuestFieldRecord[],
   profileType: ProfileTypeRecord | null,
 ): GuestCreateFieldRule[] {
-  return (
-    [
-      ["FIRST_NAME", "First Name"],
-      ["LAST_NAME", "Last Name"],
-      ["PHONE", "Mobile Phone"],
-      ["EMAIL", "Email"],
-      ["NATIONALITY", "Nationality"],
-      ["DATE_OF_BIRTH", "Date of Birth"],
-      ["IDENTITY_DOCUMENT", "Identity Document"],
-      ["ADDRESS", "Address"],
-      ["COMPANY", "Company"],
-    ] as Array<[GuestCreateFieldCode, string]>
-  ).map(([code, label]) => createFieldRule(fields, profileType, code, label));
+  const seen = new Set<string>();
+  const rules: GuestCreateFieldRule[] = [];
+
+  for (const [code, label] of ALL_CREATION_FIELD_DEFINITIONS) {
+    seen.add(code.toUpperCase());
+    rules.push(createFieldRule(fields, profileType, code, label));
+  }
+
+  for (const field of fields) {
+    const code = field.code.trim().toUpperCase() as GuestCreateFieldCode;
+    if (!seen.has(code)) {
+      seen.add(code);
+      rules.push(createFieldRule(fields, profileType, code, field.name));
+    }
+  }
+
+  return rules;
 }
 
 function filled(value: string | null | undefined): boolean {
@@ -365,6 +413,7 @@ function addressFilled(draft: GuestCreateDraft): boolean {
 export function card4CreateGaps(
   draft: GuestCreateDraft,
   rules: GuestCreateFieldRule[],
+  options?: { hasPhoto?: boolean },
 ): Array<{ code: GuestCreateFieldCode; label: string; step: GuestCreateStepId }> {
   const gaps: Array<{ code: GuestCreateFieldCode; label: string; step: GuestCreateStepId }> = [];
   const byCode = new Map(rules.map((rule) => [rule.code, rule]));
@@ -374,11 +423,26 @@ export function card4CreateGaps(
   };
   need("FIRST_NAME", filled(draft.firstName), "basic");
   need("LAST_NAME", filled(draft.lastName), "basic");
-  need("PHONE", filled(draft.phone), "basic");
-  need("EMAIL", filled(draft.email), "basic");
-  need("NATIONALITY", filled(draft.nationality), "basic");
+  need("TITLE", filled(draft.title), "basic");
+  need("MIDDLE_NAME", filled(draft.middleName), "basic");
+  need("PREFERRED_NAME", filled(draft.preferredName), "basic");
   need("DATE_OF_BIRTH", filled(draft.dateOfBirth), "basic");
+  need("GENDER", filled(draft.gender), "basic");
+  need("NATIONALITY", filled(draft.nationality), "basic");
+  need("LANGUAGE", filled(draft.language), "basic");
+  need("GUEST_PHOTO", Boolean(options?.hasPhoto), "basic");
+  need("PHONE", filled(draft.phone), "basic");
+  need("PHONE_ALT", filled(draft.phoneAlt), "basic");
+  need("EMAIL", filled(draft.email), "basic");
+  need("EMAIL_ALT", filled(draft.emailAlt), "basic");
+  need("PREFERRED_CONTACT_METHOD", filled(draft.preferredContactMethod), "basic");
+  need("PREFERRED_CONTACT_TIME", filled(draft.preferredContactTime), "basic");
   need("ADDRESS", addressFilled(draft), "basic");
+  need("COUNTRY", filled(draft.country), "basic");
+  need("CITY", filled(draft.city), "basic");
+  need("REGION", filled(draft.region), "basic");
+  need("POSTAL_CODE", filled(draft.postalCode), "basic");
+  need("ADDRESS_LINE1", filled(draft.addressLine1), "basic");
   need("COMPANY", draft.links.length > 0, "business");
   return gaps;
 }
@@ -392,6 +456,7 @@ export function guestCreateFieldIssues(
     set3: GuestProfileRules | null;
     requiredPreferenceTypeIds: string[];
     dataProcessingRequired: boolean;
+    hasPhoto?: boolean;
   },
 ): GuestCreateFieldIssue[] {
   const issues: GuestCreateFieldIssue[] = [];
@@ -400,7 +465,7 @@ export function guestCreateFieldIssues(
   }
   const set3 = options.set3 ? guestCreateBlocked(options.set3, draft) : null;
   if (set3) issues.push({ key: "SET3", message: set3, step: "basic" });
-  for (const gap of card4CreateGaps(draft, options.rules)) {
+  for (const gap of card4CreateGaps(draft, options.rules, { hasPhoto: options.hasPhoto })) {
     if (gap.code === "FIRST_NAME" && issues.some((issue) => issue.key === "FIRST_NAME")) continue;
     issues.push({ key: gap.code, message: `${gap.label} is required.`, step: gap.step });
   }
@@ -436,6 +501,7 @@ export function guestCreateStepErrors(
     set3: GuestProfileRules | null;
     requiredPreferenceTypeIds: string[];
     dataProcessingRequired: boolean;
+    hasPhoto?: boolean;
   },
 ): string[] {
   return uniqueIssueMessages(guestCreateFieldIssues(draft, options), step);
@@ -449,30 +515,90 @@ export function guestCreateCompletion(
   items: GuestCreateCompletionItem[];
 } {
   const byCode = new Map(rules.map((rule) => [rule.code, rule]));
+  const personalReqs: GuestCreateFieldCode[] = [
+    "FIRST_NAME",
+    "LAST_NAME",
+    "TITLE",
+    "MIDDLE_NAME",
+    "PREFERRED_NAME",
+    "DATE_OF_BIRTH",
+    "GENDER",
+    "NATIONALITY",
+    "LANGUAGE",
+  ];
+  const personalVals: Record<string, string> = {
+    FIRST_NAME: draft.firstName,
+    LAST_NAME: draft.lastName,
+    TITLE: draft.title,
+    MIDDLE_NAME: draft.middleName,
+    PREFERRED_NAME: draft.preferredName,
+    DATE_OF_BIRTH: draft.dateOfBirth,
+    GENDER: draft.gender,
+    NATIONALITY: draft.nationality,
+    LANGUAGE: draft.language,
+  };
+  const personalMissing = personalReqs.some(
+    (code) => byCode.get(code)?.required && !filled(personalVals[code]),
+  );
+
+  const contactReqs: GuestCreateFieldCode[] = [
+    "PHONE",
+    "EMAIL",
+    "PHONE_ALT",
+    "EMAIL_ALT",
+    "PREFERRED_CONTACT_METHOD",
+    "PREFERRED_CONTACT_TIME",
+  ];
+  const contactVals: Record<string, string> = {
+    PHONE: draft.phone,
+    EMAIL: draft.email,
+    PHONE_ALT: draft.phoneAlt,
+    EMAIL_ALT: draft.emailAlt,
+    PREFERRED_CONTACT_METHOD: draft.preferredContactMethod,
+    PREFERRED_CONTACT_TIME: draft.preferredContactTime,
+  };
+  const contactMissing = contactReqs.some(
+    (code) => byCode.get(code)?.required && !filled(contactVals[code]),
+  );
+
+  const addressReqs: GuestCreateFieldCode[] = [
+    "COUNTRY",
+    "CITY",
+    "REGION",
+    "POSTAL_CODE",
+    "ADDRESS_LINE1",
+  ];
+  const addressVals: Record<string, string> = {
+    COUNTRY: draft.country,
+    CITY: draft.city,
+    REGION: draft.region,
+    POSTAL_CODE: draft.postalCode,
+    ADDRESS_LINE1: draft.addressLine1,
+  };
+  const addressMissing =
+    (byCode.get("ADDRESS")?.required && !addressFilled(draft)) ||
+    addressReqs.some((code) => byCode.get(code)?.required && !filled(addressVals[code]));
+
   const items: GuestCreateCompletionItem[] = [
     {
       id: "personal",
       label: "Personal Information",
-      complete: filled(draft.firstName) && (!(byCode.get("LAST_NAME")?.required) || filled(draft.lastName)),
-      requiredRemaining: Boolean(byCode.get("FIRST_NAME")?.required && !filled(draft.firstName)),
+      complete: filled(draft.firstName) && !personalMissing,
+      requiredRemaining: personalMissing,
       step: "basic",
     },
     {
       id: "contact",
       label: "Contact Information",
-      complete:
-        (!(byCode.get("PHONE")?.required) || filled(draft.phone)) &&
-        (!(byCode.get("EMAIL")?.required) || filled(draft.email)),
-      requiredRemaining:
-        Boolean(byCode.get("PHONE")?.required && !filled(draft.phone)) ||
-        Boolean(byCode.get("EMAIL")?.required && !filled(draft.email)),
+      complete: (filled(draft.phone) || filled(draft.email)) && !contactMissing,
+      requiredRemaining: contactMissing,
       step: "basic",
     },
     {
       id: "address",
       label: "Address",
-      complete: !byCode.get("ADDRESS")?.required || addressFilled(draft),
-      requiredRemaining: Boolean(byCode.get("ADDRESS")?.required && !addressFilled(draft)),
+      complete: addressFilled(draft) && !addressMissing,
+      requiredRemaining: addressMissing,
       step: "basic",
     },
     ...(byCode.get("IDENTITY_DOCUMENT")?.visible !== false

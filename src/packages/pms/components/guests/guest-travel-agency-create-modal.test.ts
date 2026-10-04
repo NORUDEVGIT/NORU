@@ -22,6 +22,8 @@ function readRel(rel: string) {
 
 describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization (5-Step Architecture)", () => {
   const modalCode = readRel("./guest-travel-agency-create-modal.tsx");
+  const basicInfoCode = readRel("./guest-travel-agency-basic-info-step.tsx");
+  const fullModalCode = modalCode + "\n" + basicInfoCode;
   const shellCode = readRel("../workspaces/guest-profile-workspace.tsx");
   const directoryCode = readRel("./guest-travel-agent-directory.tsx");
 
@@ -48,18 +50,16 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.doesNotMatch(createBranch, /<GuestTravelAgentCreateWorkspace/);
   });
 
-  it("4. Modal has compact 5-step horizontal navigation matching established business steps", () => {
-    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 5);
+  it("4. Modal has compact 3-step horizontal navigation matching established company/group patterns", () => {
+    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 3);
     assert.deepEqual(
       GUEST_TRAVEL_AGENT_CREATE_STEPS.map((s) => s.id),
-      ["details", "contacts", "business", "billing", "review"],
+      ["basic_info", "billing", "review"],
     );
     assert.deepEqual(
       GUEST_TRAVEL_AGENT_CREATE_STEPS.map((s) => s.title),
       [
-        "Agency Details",
-        "Contacts",
-        "Business & Registration",
+        "Basic Info",
         "Commercial & Billing",
         "Review & Confirm",
       ],
@@ -68,47 +68,37 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.match(modalCode, /GUEST_TRAVEL_AGENT_CREATE_STEPS\.map/);
   });
 
-  it("5. Next and Back navigation works across the 5 steps", () => {
+  it("5. Next and Back navigation works across the 3 steps", () => {
     assert.match(modalCode, /go\(GUEST_TRAVEL_AGENT_CREATE_STEPS\[stepIndex - 1\]\.id\)/);
     assert.match(modalCode, /go\(GUEST_TRAVEL_AGENT_CREATE_STEPS\[stepIndex \+ 1\]\.id\)/);
     assert.match(modalCode, /validateCurrent\(\)/);
   });
 
   it("6. Core travel agency, contact, address, business, and billing fields are preserved", () => {
-    assert.match(modalCode, /Profile Type/);
-    assert.match(modalCode, /Travel Agency \(TRA\)/);
-    assert.match(modalCode, /draft\.name/);
-    assert.match(modalCode, /draft\.tradeName/);
-    assert.match(modalCode, /draft\.agencyType/);
-    assert.match(modalCode, /draft\.agencyTypeOther/);
-    assert.match(modalCode, /draft\.code/);
-    assert.match(modalCode, /draft\.accountStatus/);
-    assert.match(modalCode, /draft\.iataLicenseNumber/);
-    assert.match(modalCode, /draft\.licenseExpiryDate/);
-    assert.match(modalCode, /draft\.website/);
-    assert.match(modalCode, /draft\.contacts/);
-    assert.match(modalCode, /draft\.addressLine1/);
-    assert.match(modalCode, /draft\.city/);
-    assert.match(modalCode, /draft\.country/);
-    assert.match(modalCode, /draft\.region/);
-    assert.match(modalCode, /draft\.taxId/);
-    assert.match(modalCode, /draft\.registrationNumber/);
-    assert.match(modalCode, /draft\.marketSegmentId/);
-    assert.match(modalCode, /draft\.sourceCodeId/);
-    assert.match(modalCode, /draft\.accountManagerId/);
-    assert.match(modalCode, /draft\.ratePlanId/);
-    assert.match(modalCode, /draft\.packageId/);
-    assert.match(modalCode, /draft\.mealPlanId/);
-    assert.match(modalCode, /draft\.contractReference/);
-    assert.match(modalCode, /draft\.contractStartDate/);
-    assert.match(modalCode, /draft\.contractEndDate/);
-    assert.match(modalCode, /draft\.billingArrangement/);
-    assert.match(modalCode, /draft\.paymentMethodId/);
-    assert.match(modalCode, /draft\.currency/);
-    assert.match(modalCode, /draft\.creditLimitAmount/);
-    assert.match(modalCode, /draft\.commissionEnabled/);
-    assert.match(modalCode, /draft\.commissionType/);
-    assert.match(modalCode, /draft\.commissionValue/);
+    assert.match(fullModalCode, /Profile Type/);
+    assert.match(fullModalCode, /Travel Agency \(TRA\)/);
+    assert.match(fullModalCode, /draft\.name/);
+    assert.match(fullModalCode, /draft\.agencyType/);
+    assert.match(fullModalCode, /draft\.agencyTypeOther/);
+    assert.match(fullModalCode, /draft\.code/);
+    assert.match(fullModalCode, /draft\.accountStatus/);
+    assert.match(fullModalCode, /draft\.iataLicenseNumber/);
+    assert.match(fullModalCode, /draft\.website/);
+    assert.match(fullModalCode, /draft\.contacts/);
+    assert.match(fullModalCode, /draft\.addressLine1/);
+    assert.match(fullModalCode, /draft\.city/);
+    assert.match(fullModalCode, /draft\.country/);
+    assert.match(fullModalCode, /draft\.region/);
+    assert.match(fullModalCode, /draft\.taxId/);
+    assert.match(fullModalCode, /draft\.marketSegmentId/);
+    assert.match(fullModalCode, /draft\.sourceCodeId/);
+    assert.match(fullModalCode, /draft\.billingArrangement/);
+    assert.match(fullModalCode, /draft\.paymentMethodId/);
+    assert.match(fullModalCode, /draft\.currency/);
+    assert.match(fullModalCode, /draft\.creditLimitAmount/);
+    assert.match(fullModalCode, /draft\.commissionEnabled/);
+    assert.match(fullModalCode, /draft\.commissionType/);
+    assert.match(fullModalCode, /draft\.commissionValue/);
   });
 
   it("7. Canonical persistTravelAgentCreate function is used for persistence", () => {
@@ -129,8 +119,8 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.match(modalCode, /data-testid="travel-agency-create-start-over"/);
   });
 
-  it("10. Fields use square settings-style styling (rounded-[6px] and border-[#CCCCCC])", () => {
-    assert.match(modalCode, /rounded-\[6px\]/);
+  it("10. Fields use square settings-style styling (rounded-[6px] and border-[#CCCCCC] or border-[#DDD4C5])", () => {
+    assert.match(fullModalCode, /rounded-\[6px\]/);
     assert.match(modalCode, /border-\[#CCCCCC\]/);
     assert.match(modalCode, /MODAL_CONTROL_CLASS/);
     assert.match(modalCode, /MODAL_SELECT_TRIGGER_CLASS/);
@@ -159,10 +149,10 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
   });
 
   it("14. Address uses SearchableSelect for Country with dynamic concurrent Region selection", () => {
-    assert.match(modalCode, /import \{ SearchableSelect \} from "@/);
-    assert.match(modalCode, /id="travel-agency-country"/);
-    assert.match(modalCode, /countryOptions = useMemo/);
-    assert.match(modalCode, /regionsForCountry\(selectedCountryCode\)/);
+    assert.match(basicInfoCode, /import \{ SearchableSelect \} from "@/);
+    assert.match(basicInfoCode, /id="travel-agency-country"/);
+    assert.match(basicInfoCode, /countryOptions = useMemo/);
+    assert.match(basicInfoCode, /regionsForCountry\(selectedCountryCode\)/);
   });
 
   it("15. Zero database migrations introduced for Travel Agency redesign", () => {

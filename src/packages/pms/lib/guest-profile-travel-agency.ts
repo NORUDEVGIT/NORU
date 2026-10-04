@@ -20,14 +20,49 @@ export const TA_ENRICHMENT_MIGRATION_FILE = "0058_pms_travel_agency_enrichment.s
 export const TA_ENRICHMENT_UNAVAILABLE =
   "Unavailable until Travel Agency enrichment migration 0058 is applied.";
 
-export const AGENCY_TYPES = ["ota", "local", "online", "other"] as const;
+export const AGENCY_TYPES = [
+  "ota",
+  "traditional",
+  "corporate",
+  "leisure",
+  "business",
+  "tour_operator",
+  "wholesale",
+  "tmc",
+  "dmc",
+  "inbound",
+  "outbound",
+  "domestic",
+  "consolidator",
+  "independent",
+  "government",
+  "specialty",
+  "other",
+  "local",
+  "online",
+] as const;
 export type AgencyType = (typeof AGENCY_TYPES)[number];
 
 export const AGENCY_TYPE_LABELS: Record<AgencyType, string> = {
-  ota: "OTA",
-  local: "Local",
-  online: "Online",
+  ota: "Online Travel Agency (OTA)",
+  traditional: "Traditional Travel Agency",
+  corporate: "Corporate Travel Agency",
+  leisure: "Leisure Travel Agency",
+  business: "Business Travel Agency",
+  tour_operator: "Tour Operator",
+  wholesale: "Wholesale Travel Agency",
+  tmc: "Travel Management Company (TMC)",
+  dmc: "Destination Management Company (DMC)",
+  inbound: "Inbound Tour Operator",
+  outbound: "Outbound Tour Operator",
+  domestic: "Domestic Tour Operator",
+  consolidator: "Travel Consolidator",
+  independent: "Independent Travel Agent",
+  government: "Government/Institutional Travel Agency",
+  specialty: "Specialty Travel Agency",
   other: "Other",
+  local: "Traditional Travel Agency",
+  online: "Online Travel Agency (OTA)",
 };
 
 export const COMMISSION_TYPES = ["percent", "fixed_note"] as const;
@@ -115,7 +150,9 @@ export function taLegalName(name: string): string {
 }
 
 export function isAgencyType(value: string): value is AgencyType {
-  return (AGENCY_TYPES as readonly string[]).includes(value);
+  if (!value || typeof value !== "string") return false;
+  const val = value.trim().toLowerCase();
+  return (AGENCY_TYPES as readonly string[]).includes(val) || val.length > 0;
 }
 
 export function isCommissionType(value: string): value is CommissionType {
@@ -137,7 +174,8 @@ export function validateAgencyType(
   if (!agencyType || !isAgencyType(agencyType)) {
     return "Agency type is required.";
   }
-  if (agencyType === "other" && !(agencyTypeOther ?? "").trim()) {
+  const norm = agencyType.trim().toLowerCase();
+  if ((norm === "other" || norm === "othr") && !(agencyTypeOther ?? "").trim()) {
     return "Describe the agency type when Other is selected.";
   }
   return null;

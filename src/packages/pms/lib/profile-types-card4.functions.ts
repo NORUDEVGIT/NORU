@@ -196,11 +196,59 @@ async function loadSnapshot(
 
   const prefsRes = await db
     .from("pms_guest_preference_types")
-    .select("id, name")
+    .select("id, name, code, active")
     .eq("restaurant_id", restaurantId)
     .eq("active", true)
     .order("name");
-  const preferenceTypes: NamedOption[] = prefsRes.error ? [] : (prefsRes.data ?? []);
+  const preferenceTypes: NamedOption[] = prefsRes.error
+    ? []
+    : ((prefsRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => ({
+        id: row.id,
+        name: row.name,
+      }));
+
+  const activePrefList = (prefsRes.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>;
+  const activePrefIds = activePrefList.map((p) => p.id);
+  const activePrefIdSet = new Set(activePrefIds);
+  const roomTypePref = activePrefList.find((p) => p.code === "ROOM_TYPE");
+  const ratePlanPref = activePrefList.find((p) => p.code === "RATE_PLAN");
+  const mealPlanPref = activePrefList.find((p) => p.code === "MEAL_PLAN");
+
+  for (const rawRow of (typesRes.data ?? []) as Array<Record<string, unknown>>) {
+    let rawIds: string[] = Array.isArray(rawRow.preference_type_ids)
+      ? [...(rawRow.preference_type_ids as string[])]
+      : [];
+    let changed = false;
+
+    // Prune stale/deleted preference IDs that no longer exist
+    const validIds = rawIds.filter((id) => activePrefIdSet.has(id));
+    if (validIds.length !== rawIds.length) {
+      rawIds = validIds;
+      changed = true;
+    }
+
+    // Default IND to have all active preferences if empty
+    if (rawRow.code === "IND" && rawIds.length === 0 && activePrefIds.length > 0) {
+      rawIds = [...activePrefIds];
+      changed = true;
+    } else if (rawRow.code === "IND") {
+      // Ensure ROOM_TYPE, RATE_PLAN, and MEAL_PLAN are included by default if active
+      for (const defPref of [roomTypePref, ratePlanPref, mealPlanPref]) {
+        if (defPref && !rawIds.includes(defPref.id)) {
+          rawIds.push(defPref.id);
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      rawRow.preference_type_ids = rawIds;
+      await db
+        .from("pms_guest_profile_types")
+        .update({ preference_type_ids: rawIds })
+        .eq("id", rawRow.id);
+    }
+  }
 
   const canonicalOrder: Record<string, number> = {
     IND: 1,

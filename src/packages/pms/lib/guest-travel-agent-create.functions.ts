@@ -34,6 +34,7 @@ function admin(client: { from: (table: string) => unknown }) {
 
 export type TravelAgentCreateContext = {
   catalogues: {
+    agencyTypes: AccountCreateCatalogueOption[];
     contactRoles: AccountCreateCatalogueOption[];
     marketSegments: AccountCreateCatalogueOption[];
     sourceCodes: AccountCreateCatalogueOption[];
@@ -75,8 +76,10 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<TravelAgentCreateContext> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { loadTravelAgencyTypes } = await import("./guest-travel-agency-types");
     const db = admin(supabaseAdmin);
     const [
+      taTypes,
       contactRoles,
       marketSegments,
       sourceCodes,
@@ -88,6 +91,7 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
       restaurant,
       draft,
     ] = await Promise.all([
+      loadTravelAgencyTypes(data.restaurantId, supabaseAdmin),
       loadOptionalOptions(db, "pms_business_contact_roles", data.restaurantId),
       loadOptionalOptions(db, "pms_market_segments", data.restaurantId),
       loadOptionalOptions(db, "pms_source_codes", data.restaurantId),
@@ -110,6 +114,13 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
         .maybeSingle(),
     ]);
 
+    const agencyTypes: AccountCreateCatalogueOption[] = taTypes.map((row) => ({
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      active: row.active,
+    }));
+
     let savedDraft: { id: string; payload: GuestTravelAgentCreateDraft; step: GuestTravelAgentCreateStepId } | null =
       null;
     if (!draft.error && draft.data) {
@@ -131,6 +142,7 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
 
     return {
       catalogues: {
+        agencyTypes,
         contactRoles,
         marketSegments,
         sourceCodes,
@@ -243,15 +255,18 @@ async function persistContacts(
         notes: contact.notes || null,
       },
     });
-    if (filled(contact.preferredMethod)) {
+    if (filled(contact.preferredMethod) || filled(contact.roleId)) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const updates: Record<string, unknown> = {};
+      if (filled(contact.preferredMethod)) updates.preferred_method = contact.preferredMethod;
+      if (filled(contact.roleId)) updates.role_id = contact.roleId;
       const updated = await admin(supabaseAdmin)
         .from("guest_company_contacts")
-        .update({ preferred_method: contact.preferredMethod })
+        .update(updates)
         .eq("id", saved.id)
         .eq("restaurant_id", restaurantId);
       if (updated.error && updated.error.code !== "42703" && !isMissingSchemaError(updated.error)) {
-        throw new Error(updated.error.message);
+        console.warn("[persistContacts] role/preferred_method update warning:", updated.error.message);
       }
     }
     next.push({ ...contact, id: saved.id });

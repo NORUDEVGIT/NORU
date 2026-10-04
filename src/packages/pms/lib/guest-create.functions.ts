@@ -17,7 +17,12 @@ import {
 } from "./profile-types-card4.server";
 import type { GuestFieldRecord } from "./required-fields-card4.server";
 import type { PreferenceCategoryRecord, PreferenceTypeRecord } from "./preferences-card4.server";
-import { isPreferenceValueType, normalizePreferenceOptions } from "./preferences-card4.server";
+import {
+  enrichPreferenceTypesWithOptions,
+  isPreferenceValueType,
+  normalizePreferenceOptions,
+  resolveEffectivePreferences,
+} from "./preferences-card4.server";
 import { parseGuestCreateHold, type GuestCreateDraft, type GuestCreateStepId } from "./guest-create-workspace";
 
 const idSchema = z.string().uuid();
@@ -79,7 +84,19 @@ export const getGuestCreateContext = createServerFn({ method: "POST" })
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
-    const [typesRes, fieldsRes, prefsCat, prefsType, business, rules, docsRes, draft] = await Promise.all([
+    const [
+      typesRes,
+      fieldsRes,
+      prefsCat,
+      prefsType,
+      business,
+      rules,
+      docsRes,
+      draft,
+      roomTypesRes,
+      mealPlansRes,
+      ratePlansRes,
+    ] = await Promise.all([
       db
         .from("pms_guest_profile_types")
         .select(
@@ -123,6 +140,21 @@ export const getGuestCreateContext = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId)
         .eq("created_by_membership_id", me.id)
         .maybeSingle(),
+      db
+        .from("room_types")
+        .select("id, name, code, active")
+        .eq("restaurant_id", data.restaurantId)
+        .order("name"),
+      db
+        .from("pms_meal_plans")
+        .select("id, name, code, active")
+        .eq("restaurant_id", data.restaurantId)
+        .order("name"),
+      db
+        .from("hotel_rate_plans")
+        .select("id, name, code, active")
+        .eq("restaurant_id", data.restaurantId)
+        .order("name"),
     ]);
 
     const types = ((typesRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
@@ -178,6 +210,29 @@ export const getGuestCreateContext = createServerFn({ method: "POST" })
             updatedAt: String(row.updated_at ?? ""),
           })) as PreferenceTypeRecord[];
 
+    const effectivePrefs = resolveEffectivePreferences(
+      preferenceCategories,
+      preferenceTypes,
+      (roomTypesRes.data ?? []) as any,
+      (mealPlansRes.data ?? []) as any,
+      (ratePlansRes.data ?? []) as any,
+    );
+
+    if (profileType) {
+      if (profileType.preferenceTypeIds.length === 0 && effectivePrefs.types.length > 0) {
+        profileType.preferenceTypeIds = effectivePrefs.types.filter((t) => t.active).map((t) => t.id);
+      } else if (profileType.preferenceTypeIds.length > 0) {
+        const roomTypePref = effectivePrefs.types.find((t) => t.code === "ROOM_TYPE");
+        const ratePlanPref = effectivePrefs.types.find((t) => t.code === "RATE_PLAN");
+        const mealPlanPref = effectivePrefs.types.find((t) => t.code === "MEAL_PLAN");
+        for (const defPref of [roomTypePref, ratePlanPref, mealPlanPref]) {
+          if (defPref && !profileType.preferenceTypeIds.includes(defPref.id)) {
+            profileType.preferenceTypeIds.push(defPref.id);
+          }
+        }
+      }
+    }
+
     const businessTypes = business.error && isMissingSchemaError(business.error)
       ? []
       : ((business.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>);
@@ -221,8 +276,8 @@ export const getGuestCreateContext = createServerFn({ method: "POST" })
                 ? (row.valid_for_profile_type_ids as string[])
                 : [],
             })),
-      preferenceCategories,
-      preferenceTypes,
+      preferenceCategories: effectivePrefs.categories,
+      preferenceTypes: effectivePrefs.types,
       businessTypes,
       set3Saved: Boolean(rules?.savedAt),
       dataProcessingRequired: Boolean(rules?.savedAt && rules.consentDefaults.dataProcessing),

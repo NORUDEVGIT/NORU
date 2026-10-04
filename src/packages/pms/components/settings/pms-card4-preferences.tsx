@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, MoreHorizontal, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -51,6 +51,8 @@ import { cn } from "@/shared/lib/utils";
 import {
   deletePmsCard4PreferenceType,
   getPmsCard4Preferences,
+  reorderPmsCard4PreferenceCategories,
+  reorderPmsCard4PreferenceTypes,
   savePmsCard4PreferenceCategory,
   savePmsCard4PreferenceType,
   setPmsCard4PreferenceCategoryActive,
@@ -121,6 +123,8 @@ export function PmsCard4Preferences({
   const setCategoryActive = useServerFn(setPmsCard4PreferenceCategoryActive);
   const setTypeFlags = useServerFn(setPmsCard4PreferenceTypeFlags);
   const removeType = useServerFn(deletePmsCard4PreferenceType);
+  const reorderTypes = useServerFn(reorderPmsCard4PreferenceTypes);
+  const reorderCategories = useServerFn(reorderPmsCard4PreferenceCategories);
   const queryKey = ["pms-card4-preferences", restaurantId];
   const query = useQuery({
     queryKey,
@@ -130,9 +134,12 @@ export function PmsCard4Preferences({
 
   const categories = query.data?.categories ?? [];
   const types = query.data?.types ?? [];
+  const sortedCategories = [...categories].sort(
+    (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name),
+  );
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const selectedCategory =
-    categories.find((row) => row.id === selectedCategoryId) ?? categories[0] ?? null;
+    sortedCategories.find((row) => row.id === selectedCategoryId) ?? sortedCategories[0] ?? null;
   const categoryTypes = types
     .filter((row) => row.categoryId === selectedCategory?.id)
     .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
@@ -241,11 +248,43 @@ export function PmsCard4Preferences({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const reorderCategoriesMutation = useMutation({
+    mutationFn: (ids: string[]) => reorderCategories({ data: { restaurantId, ids } }),
+    onSuccess: invalidate,
+    onError: (error: Error) => toast.error(error.message || "Failed to reorder categories."),
+  });
+
+  const reorderTypesMutation = useMutation({
+    mutationFn: (ids: string[]) => reorderTypes({ data: { restaurantId, ids } }),
+    onSuccess: invalidate,
+    onError: (error: Error) => toast.error(error.message || "Failed to reorder preferences."),
+  });
+
+  const handleMoveCategory = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= sortedCategories.length) return;
+    const newItems = [...sortedCategories];
+    const [removed] = newItems.splice(index, 1);
+    newItems.splice(targetIndex, 0, removed);
+    reorderCategoriesMutation.mutate(newItems.map((c) => c.id));
+  };
+
+  const handleMoveType = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= categoryTypes.length) return;
+    const newItems = [...categoryTypes];
+    const [removed] = newItems.splice(index, 1);
+    newItems.splice(targetIndex, 0, removed);
+    reorderTypesMutation.mutate(newItems.map((t) => t.id));
+  };
+
   const busy =
     categoryMutation.isPending ||
     typeMutation.isPending ||
     categoryActiveMutation.isPending ||
-    typeFlagsMutation.isPending;
+    typeFlagsMutation.isPending ||
+    reorderCategoriesMutation.isPending ||
+    reorderTypesMutation.isPending;
   const configured = preferencesConfigured(categories, types);
   const editorValid =
     (!categoryOpen || categoryErrors.length === 0) && (!typeOpen || typeErrors.length === 0);
@@ -375,7 +414,7 @@ export function PmsCard4Preferences({
                 </Button>
               ) : null}
             </div>
-            {categories.length === 0 ? (
+            {sortedCategories.length === 0 ? (
               <div className="p-3 text-center">
                 <p className="text-sm text-[#251605]">No preference categories configured.</p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -393,21 +432,55 @@ export function PmsCard4Preferences({
               </div>
             ) : (
               <ul className="space-y-1">
-                {categories.map((row) => (
-                  <li key={row.id}>
+                {sortedCategories.map((row, idx) => (
+                  <li key={row.id} className="group flex items-center justify-between gap-1 rounded-xl">
                     <button
                       type="button"
                       onClick={() => setSelectedCategoryId(row.id)}
                       className={cn(
-                        "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm",
+                        "flex flex-1 items-center justify-between rounded-xl px-3 py-2 text-left text-sm",
                         selectedCategory?.id === row.id
-                          ? "bg-[#C89933]/15 text-[#251605]"
+                          ? "bg-[#C89933]/15 font-medium text-[#251605]"
                           : "text-muted-foreground hover:bg-muted",
                       )}
                     >
                       <span>{row.name}</span>
-                      {!row.active ? <span className="text-xs">Off</span> : null}
+                      {!row.active ? <span className="text-xs text-muted-foreground">Off</span> : null}
                     </button>
+                    {canEdit ? (
+                      <div className="flex items-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={idx === 0 || reorderCategoriesMutation.isPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveCategory(idx, -1);
+                          }}
+                          title="Move category up"
+                          aria-label={`Move category ${row.name} up`}
+                        >
+                          <ChevronUp className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={idx === sortedCategories.length - 1 || reorderCategoriesMutation.isPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveCategory(idx, 1);
+                          }}
+                          title="Move category down"
+                          aria-label={`Move category ${row.name} down`}
+                        >
+                          <ChevronDown className="size-3.5" />
+                        </Button>
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -473,6 +546,7 @@ export function PmsCard4Preferences({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-16 text-center">Order</TableHead>
                     <TableHead>Preference Type</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Values / Options</TableHead>
@@ -482,8 +556,43 @@ export function PmsCard4Preferences({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {categoryTypes.map((row) => (
+                  {categoryTypes.map((row, index) => (
                     <TableRow key={row.id}>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <span className="text-xs font-mono text-muted-foreground w-4 text-center">
+                            #{index + 1}
+                          </span>
+                          {canEdit ? (
+                            <div className="flex flex-col">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                                disabled={index === 0 || reorderTypesMutation.isPending}
+                                onClick={() => handleMoveType(index, -1)}
+                                title="Move preference up"
+                                aria-label={`Move ${row.name} up`}
+                              >
+                                <ChevronUp className="size-3" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                                disabled={index === categoryTypes.length - 1 || reorderTypesMutation.isPending}
+                                onClick={() => handleMoveType(index, 1)}
+                                title="Move preference down"
+                                aria-label={`Move ${row.name} down`}
+                              >
+                                <ChevronDown className="size-3" />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
                       <TableCell>{row.code}</TableCell>
                       <TableCell className="max-w-[16rem] truncate text-sm">
@@ -525,6 +634,16 @@ export function PmsCard4Preferences({
                             <DropdownMenuItem onSelect={() => openEditType(row)}>
                               Edit
                             </DropdownMenuItem>
+                            {canEdit && index > 0 ? (
+                              <DropdownMenuItem onSelect={() => handleMoveType(index, -1)}>
+                                Move Up
+                              </DropdownMenuItem>
+                            ) : null}
+                            {canEdit && index < categoryTypes.length - 1 ? (
+                              <DropdownMenuItem onSelect={() => handleMoveType(index, 1)}>
+                                Move Down
+                              </DropdownMenuItem>
+                            ) : null}
                             {canEdit ? (
                               <DropdownMenuItem
                                 onSelect={() =>
@@ -712,16 +831,20 @@ export function PmsCard4Preferences({
             {typeDraft.valueType === "single" || typeDraft.valueType === "multi" ? (
             <div className="space-y-2">
               <Label>Options / Values *</Label>
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-1.5">
                 {typeDraft.options.map((option, index) => (
-                  <span
+                  <div
                     key={option.id}
-                    className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
+                    className="flex items-center gap-2 rounded-lg border bg-muted/20 px-2.5 py-1.5 text-xs"
                   >
+                    <span className="font-mono text-muted-foreground w-4 text-center">
+                      {index + 1}
+                    </span>
                     <Input
-                      className="h-6 w-24 border-0 p-0 text-xs shadow-none"
+                      className="h-7 flex-1 border bg-white px-2 text-xs"
                       value={option.label}
                       disabled={!canEdit}
+                      placeholder="Option label"
                       onChange={(event) => {
                         const next = [...typeDraft.options];
                         next[index] = {
@@ -733,20 +856,64 @@ export function PmsCard4Preferences({
                       }}
                     />
                     {canEdit ? (
-                      <button
-                        type="button"
-                        aria-label={`Remove ${option.label || "option"}`}
-                        onClick={() =>
-                          markType(
-                            "options",
-                            typeDraft.options.filter((_, i) => i !== index),
-                          )
-                        }
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={index === 0}
+                          onClick={() => {
+                            const newOpts = [...typeDraft.options];
+                            const [removed] = newOpts.splice(index, 1);
+                            newOpts.splice(index - 1, 0, removed);
+                            markType(
+                              "options",
+                              newOpts.map((opt, i) => ({ ...opt, displayOrder: i })),
+                            );
+                          }}
+                          title="Move option up"
+                        >
+                          <ChevronUp className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                          disabled={index === typeDraft.options.length - 1}
+                          onClick={() => {
+                            const newOpts = [...typeDraft.options];
+                            const [removed] = newOpts.splice(index, 1);
+                            newOpts.splice(index + 1, 0, removed);
+                            markType(
+                              "options",
+                              newOpts.map((opt, i) => ({ ...opt, displayOrder: i })),
+                            );
+                          }}
+                          title="Move option down"
+                        >
+                          <ChevronDown className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                          aria-label={`Remove ${option.label || "option"}`}
+                          onClick={() =>
+                            markType(
+                              "options",
+                              typeDraft.options.filter((_, i) => i !== index),
+                            )
+                          }
+                          title="Remove option"
+                        >
+                          ×
+                        </Button>
+                      </div>
                     ) : null}
-                  </span>
+                  </div>
                 ))}
               </div>
               {canEdit ? (
@@ -761,7 +928,7 @@ export function PmsCard4Preferences({
                     ])
                   }
                 >
-                  + Add Option
+                  <Plus className="mr-1 size-3.5" /> Add Option
                 </Button>
               ) : null}
               {errorFor(typeErrors, "options") ? (
