@@ -1196,6 +1196,7 @@ export function ReservationsWorkspace({
               setOverlay({ type: "reservation-detail", reservationId });
               invalidateReservationReads();
             }}
+            onBackToList={() => closeWorkspaceOverlay(false)}
           />
         ) : null}
       </ReservationWorkspaceOverlay>

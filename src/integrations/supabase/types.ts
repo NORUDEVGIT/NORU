@@ -10898,40 +10898,52 @@ export type Database = {
           active: boolean
           code: string
           created_at: string
+          cutoff_time: string | null
           deadline_hours: number | null
           description: string | null
           id: string
           name: string
           penalty_type: string
           penalty_value: number
+          policy_kind: string
           restaurant_id: string
           updated_at: string
+          window_unit: string
+          window_value: number | null
         }
         Insert: {
           active?: boolean
           code: string
           created_at?: string
+          cutoff_time?: string | null
           deadline_hours?: number | null
           description?: string | null
           id?: string
           name: string
           penalty_type?: string
           penalty_value?: number
+          policy_kind?: string
           restaurant_id: string
           updated_at?: string
+          window_unit?: string
+          window_value?: number | null
         }
         Update: {
           active?: boolean
           code?: string
           created_at?: string
+          cutoff_time?: string | null
           deadline_hours?: number | null
           description?: string | null
           id?: string
           name?: string
           penalty_type?: string
           penalty_value?: number
+          policy_kind?: string
           restaurant_id?: string
           updated_at?: string
+          window_unit?: string
+          window_value?: number | null
         }
         Relationships: [
           {

@@ -31,11 +31,20 @@ import {
   saveRateRefundabilityCard2,
 } from "@/packages/pms/lib/rates-card2.functions";
 import {
+  CANCELLATION_PENALTY_TYPE_LABELS,
+  CANCELLATION_PENALTY_TYPES,
+  CANCELLATION_POLICY_KIND_LABELS,
+  CANCELLATION_POLICY_KINDS,
+  CANCELLATION_WINDOW_UNIT_LABELS,
+  CANCELLATION_WINDOW_UNITS,
   CARD2_RATES_ROOM_TYPES_COPY,
   PREDEFINED_RATE_CATEGORIES,
   RATE_REFUNDABILITY_KINDS,
   findMatchingPredefinedCategory,
   isPredefinedCategoryConfigured,
+  type CancellationPenaltyType,
+  type CancellationPolicyKind,
+  type CancellationWindowUnit,
   type PredefinedRateCategory,
   type RateCancellationPolicyRow,
   type RateCategoryRow,
@@ -44,6 +53,7 @@ import {
   type RateRefundabilityRow,
   type RatesCard2Snapshot,
 } from "@/packages/pms/lib/rates-card2.server";
+import { penaltyNeedsValue } from "@/packages/pms/lib/cancellation-policy-rules";
 import { formatRateValidity } from "@/packages/pms/lib/pms-property-setup-card2";
 import { cn } from "@/shared/lib/utils";
 
@@ -306,10 +316,20 @@ export function PmsPropertySetupCard2Rates({
             onAdd={() => setCancelDraft("new")}
             canEdit={canEdit}
             empty="No cancellation policies yet. Optional on rate plans."
-            columns={["Code", "Name", "Status"]}
+            columns={["Code", "Name", "Kind", "Window", "Status"]}
             rows={filteredCancellations.map((row) => ({
               id: row.id,
-              cells: [row.code, row.name, <Card3StatusDot key="status" active={row.active} />],
+              cells: [
+                row.code,
+                row.name,
+                CANCELLATION_POLICY_KIND_LABELS[row.policyKind],
+                row.policyKind === "non_refundable"
+                  ? "—"
+                  : row.windowValue == null
+                    ? "—"
+                    : `${row.windowValue} ${CANCELLATION_WINDOW_UNIT_LABELS[row.windowUnit].toLowerCase()}`,
+                <Card3StatusDot key="status" active={row.active} />,
+              ],
               onEdit: () => setCancelDraft(row),
             }))}
           />
@@ -994,25 +1014,53 @@ function CancellationDrawer({
     code: string;
     name: string;
     description: string;
+    policyKind: CancellationPolicyKind;
+    windowValue: number | null;
+    windowUnit: CancellationWindowUnit;
+    cutoffTime: string | null;
+    penaltyType: CancellationPenaltyType;
+    penaltyValue: number;
     active: boolean;
   }) => void;
 }) {
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
+  const [policyKind, setPolicyKind] = useState<CancellationPolicyKind>(value?.policyKind ?? "flexible");
+  const [windowValue, setWindowValue] = useState(String(value?.windowValue ?? 24));
+  const [windowUnit, setWindowUnit] = useState<CancellationWindowUnit>(
+    value?.windowUnit ?? "hours_before_arrival",
+  );
+  const [cutoffTime, setCutoffTime] = useState(value?.cutoffTime ?? "");
+  const [penaltyType, setPenaltyType] = useState<CancellationPenaltyType>(value?.penaltyType ?? "none");
+  const [penaltyValue, setPenaltyValue] = useState(String(value?.penaltyValue ?? 0));
   const [active, setActive] = useState(value?.active ?? true);
+  const showWindow = policyKind !== "non_refundable";
+  const showPenaltyValue = penaltyNeedsValue(penaltyType);
 
   return (
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
       title={value ? "Edit cancellation policy" : "Add cancellation policy"}
-      description="Linked to rate plans. Does not change confirmed reservations."
+      description="Reusable window and cutoff. Linked rate plans pick this catalogue. Confirmed reservations keep their snapshot."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save policy"
       onSubmit={() =>
-        onSave({ ...(value ? { id: value.id } : {}), code, name, description, active })
+        onSave({
+          ...(value ? { id: value.id } : {}),
+          code,
+          name,
+          description,
+          policyKind,
+          windowValue: showWindow ? Number(windowValue) : null,
+          windowUnit,
+          cutoffTime: cutoffTime.trim() ? cutoffTime : null,
+          penaltyType,
+          penaltyValue: showPenaltyValue ? Number(penaltyValue) : 0,
+          active,
+        })
       }
     >
       <div className="space-y-3">
@@ -1044,6 +1092,103 @@ function CancellationDrawer({
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="cancel-kind">Policy kind</Label>
+          <Select
+            value={policyKind}
+            disabled={!canEdit}
+            onValueChange={(next) => setPolicyKind(next as CancellationPolicyKind)}
+          >
+            <SelectTrigger id="cancel-kind">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCELLATION_POLICY_KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {CANCELLATION_POLICY_KIND_LABELS[kind]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {showWindow ? (
+          <>
+            <div className="space-y-1">
+              <Label htmlFor="cancel-window-value">Window</Label>
+              <Input
+                id="cancel-window-value"
+                type="number"
+                min={0}
+                value={windowValue}
+                disabled={!canEdit}
+                onChange={(event) => setWindowValue(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cancel-window-unit">Window unit</Label>
+              <Select
+                value={windowUnit}
+                disabled={!canEdit}
+                onValueChange={(next) => setWindowUnit(next as CancellationWindowUnit)}
+              >
+                <SelectTrigger id="cancel-window-unit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CANCELLATION_WINDOW_UNITS.map((unit) => (
+                    <SelectItem key={unit} value={unit}>
+                      {CANCELLATION_WINDOW_UNIT_LABELS[unit]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cancel-cutoff">Cutoff time (property local, optional)</Label>
+              <Input
+                id="cancel-cutoff"
+                type="time"
+                value={cutoffTime}
+                disabled={!canEdit}
+                onChange={(event) => setCutoffTime(event.target.value)}
+              />
+            </div>
+          </>
+        ) : null}
+        <div className="space-y-1">
+          <Label htmlFor="cancel-penalty-type">Penalty after the window</Label>
+          <Select
+            value={penaltyType}
+            disabled={!canEdit}
+            onValueChange={(next) => setPenaltyType(next as CancellationPenaltyType)}
+          >
+            <SelectTrigger id="cancel-penalty-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCELLATION_PENALTY_TYPES.filter(
+                (type) => type !== "percent" && type !== "nights" && type !== "fixed",
+              ).map((type) => (
+                <SelectItem key={type} value={type}>
+                  {CANCELLATION_PENALTY_TYPE_LABELS[type]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {showPenaltyValue ? (
+          <div className="space-y-1">
+            <Label htmlFor="cancel-penalty-value">Penalty value</Label>
+            <Input
+              id="cancel-penalty-value"
+              type="number"
+              min={0}
+              value={penaltyValue}
+              disabled={!canEdit}
+              onChange={(event) => setPenaltyValue(event.target.value)}
+            />
+          </div>
+        ) : null}
         <div className="flex items-center justify-between rounded-xl border px-3 py-2">
           <Label htmlFor="cancel-active">Active</Label>
           <Switch

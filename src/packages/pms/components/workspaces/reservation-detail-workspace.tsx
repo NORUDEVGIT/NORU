@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronDown, Pencil, Printer, Send } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -34,9 +34,35 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import {
   ReservationStatusBadge,
   formatStayDate,
 } from "@/packages/pms/components/bookings/reservation-bits";
+import {
+  ReservationDetailKpiStrip,
+  ReservationDetailOverviewDashboard,
+} from "@/packages/pms/components/workspaces/reservation-detail-overview";
+import { ReservationDetailStayTab } from "@/packages/pms/components/workspaces/reservation-detail-stay";
+import { ReservationDetailGuestTab } from "@/packages/pms/components/workspaces/reservation-detail-guest";
+import { ReservationDetailRatesTab } from "@/packages/pms/components/workspaces/reservation-detail-rates";
+import { ReservationDetailRoomsTab } from "@/packages/pms/components/workspaces/reservation-detail-rooms";
+import {
+  arriveInLabel,
+  COMMUNICATION_DEFERRED_COPY,
+  DETAIL_DASH,
+  DETAIL_SIDEBAR_ITEMS,
+  depositStatusLabel,
+  LINKED_DEFERRED_COPY,
+  PACKAGES_DEFERRED_COPY,
+  parseDepositRequirementSnapshot,
+  stayStatusLabel,
+  type DetailWorkspaceTab,
+} from "@/packages/pms/lib/reservation-detail-overview";
 import {
   amendReservation,
   assignReservationRoom,
@@ -62,10 +88,7 @@ import {
 import { FALLBACK_CASHIERING_TENDERS } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.functions";
-import {
-  useMoney,
-  useRestaurantTime,
-} from "@/core/state/property-format";
+import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { ReservationGuestMastersCard } from "@/packages/pms/components/guests/reservation-guest-masters";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
@@ -76,16 +99,11 @@ import { cn } from "@/shared/lib/utils";
 
 const UNASSIGNED = "unassigned";
 
-type DetailWorkspaceTab = "overview" | "stay" | "guest" | "rates" | "notes" | "history";
 type FrontOfficeAction = "check_in" | "check_out" | "no_show" | "change_room";
 
-const DETAIL_TABS: Array<{ id: DetailWorkspaceTab; label: string }> = [
+const DETAIL_TABS: Array<{ id: DetailWorkspaceTab; label: string; deferred?: boolean }> = [
   { id: "overview", label: "Overview" },
-  { id: "stay", label: "Stay" },
-  { id: "guest", label: "Guest" },
-  { id: "rates", label: "Rates" },
-  { id: "notes", label: "Notes" },
-  { id: "history", label: "History" },
+  ...DETAIL_SIDEBAR_ITEMS.filter((item) => item.id !== "overview"),
 ];
 
 export function ReservationDetailWorkspace({
@@ -94,17 +112,20 @@ export function ReservationDetailWorkspace({
   embedded = false,
   amendRequest = 0,
   onCopiedReservation,
+  onBackToList,
 }: {
   membership: RestaurantMembership;
   reservationId: string;
   embedded?: boolean;
   amendRequest?: number;
   onCopiedReservation?: (reservationId: string) => void;
+  onBackToList?: () => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const set1 = usePmsSet1Foundation(restaurantId);
   const queryClient = useQueryClient();
   const { dateTime, timezone } = useRestaurantTime();
+  const money = useMoney();
   const businessDate = usePropertyBusinessDate(restaurantId, timezone);
 
   const fetchAccess = useServerFn(getBookingsAccess);
@@ -169,6 +190,25 @@ export function ReservationDetailWorkspace({
         },
       }),
     enabled: canManage && !!reservation && reservation.status !== "cancelled",
+  });
+
+  const availabilityQuery = useQuery({
+    queryKey: [
+      "reservation-detail-availability",
+      restaurantId,
+      reservation?.arrivalDate,
+      reservation?.departureDate,
+    ],
+    queryFn: () =>
+      fetchAvailability({
+        data: {
+          restaurantId,
+          arrival: reservation!.arrivalDate,
+          departure: reservation!.departureDate,
+        },
+      }),
+    enabled: canManage && Boolean(reservation),
+    retry: false,
   });
 
   function invalidate() {
@@ -247,10 +287,10 @@ export function ReservationDetailWorkspace({
   const history = detailQuery.data?.history ?? [];
   const rooms = roomsQuery.data ?? [];
   const cancelled = reservation.status === "cancelled";
-  const occupancy = `${reservation.adults} adult${reservation.adults === 1 ? "" : "s"} · ${reservation.children} ${reservation.children === 1 ? "child" : "children"}`;
-  const dash = "—";
   const createdBy =
-    history.find((entry) => entry.eventType === "created")?.actorName ?? null;
+    reservation.createdByName ??
+    history.find((entry) => entry.eventType === "created")?.actorName ??
+    null;
   const foStay: FrontOfficeStay = {
     ...stayFromReservation(reservation, businessDate),
     guestEmail: reservation.guestEmail,
@@ -259,8 +299,7 @@ export function ReservationDetailWorkspace({
   const showCheckIn = reservation.status === "confirmed";
   const showCheckOut = reservation.status === "checked_in";
   const showChangeRoom = reservation.status === "checked_in" && Boolean(reservation.roomId);
-  const showNoShow =
-    reservation.status === "confirmed" && reservation.arrivalDate <= businessDate;
+  const showNoShow = reservation.status === "confirmed" && reservation.arrivalDate <= businessDate;
 
   const lifecycleButtons = !cancelled ? (
     <>
@@ -382,9 +421,75 @@ export function ReservationDetailWorkspace({
   );
 
   if (embedded) {
+    const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
+    const roomType = (availabilityQuery.data ?? []).find(
+      (row) => row.roomTypeId === reservation.roomTypeId,
+    );
+    const assigned = Boolean(reservation.roomId && reservation.roomNumber);
+    const stayPanel = (
+      <ReservationDetailStayTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        onBackToOverview={() => setDetailTab("overview")}
+        onSaved={invalidate}
+      />
+    );
+    const guestPanel = (
+      <ReservationDetailGuestTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        guest={guestQuery.data?.guest ?? null}
+        preferences={guestQuery.data?.preferences ?? null}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        onBackToOverview={() => setDetailTab("overview")}
+        onSaved={invalidate}
+      />
+    );
+    const ratesPanel = (
+      <ReservationDetailRatesTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        occupancyLabel={
+          roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
+        }
+        onBackToRooms={() => setDetailTab("rooms")}
+        onSaved={invalidate}
+      />
+    );
+    const roomsPanel = (
+      <ReservationDetailRoomsTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        assignableRooms={rooms}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        occupancyLabel={
+          roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
+        }
+        onBackToGuest={() => setDetailTab("guest")}
+        onChangeRoomType={() => setAmendOpen(true)}
+        onSaved={invalidate}
+      />
+    );
+    const deferredPanel = (title: string, copy: string) => (
+      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+        <h2 className="font-display text-lg">{title}</h2>
+        <p className="mt-3 text-sm text-muted-foreground">{copy}</p>
+      </section>
+    );
+
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-workspace">
-        <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-4 pr-12">
+        <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-3 pr-12">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Reservation Detail
           </p>
@@ -395,22 +500,137 @@ export function ReservationDetailWorkspace({
                 <span className="text-lg font-normal">{reservation.guestName}</span>
                 <ReservationStatusBadge status={reservation.status} />
               </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatStayDate(reservation.arrivalDate)} →{" "}
-                {formatStayDate(reservation.departureDate)} · {reservation.nights} night
-                {reservation.nights === 1 ? "" : "s"} · {occupancy}
-                {reservation.roomNumber ? ` · Room ${reservation.roomNumber}` : ""}
-              </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Created {dateTime(reservation.createdAt)}
                 {createdBy ? ` · ${createdBy}` : ""}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">{lifecycleButtons}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
+                <Printer className="size-3.5" />
+                Print
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled
+                title="Send is not available in this workspace yet."
+              >
+                <Send className="size-3.5" />
+                Send
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    More Actions
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="z-[80]">
+                  {!cancelled && reservation.status === "pending" ? (
+                    <DropdownMenuItem
+                      disabled={statusMutation.isPending}
+                      onClick={() => statusMutation.mutate({ status: "confirmed" })}
+                    >
+                      Confirm
+                    </DropdownMenuItem>
+                  ) : null}
+                  {showCheckIn ? (
+                    <DropdownMenuItem onClick={() => setFoAction("check_in")}>
+                      Check In
+                    </DropdownMenuItem>
+                  ) : null}
+                  {showCheckOut ? (
+                    <DropdownMenuItem onClick={() => setFoAction("check_out")}>
+                      Check Out
+                    </DropdownMenuItem>
+                  ) : null}
+                  {showChangeRoom ? (
+                    <DropdownMenuItem onClick={() => setFoAction("change_room")}>
+                      Change Room
+                    </DropdownMenuItem>
+                  ) : null}
+                  {showNoShow ? (
+                    <DropdownMenuItem onClick={() => setFoAction("no_show")}>
+                      Mark No-Show
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    disabled={copyMutation.isPending}
+                    onClick={() => copyMutation.mutate()}
+                  >
+                    Copy stay
+                  </DropdownMenuItem>
+                  {!cancelled ? (
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => setCancelOpen(true)}
+                    >
+                      Cancel reservation
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      disabled={statusMutation.isPending}
+                      onClick={() => statusMutation.mutate({ status: "pending" })}
+                    >
+                      Restore reservation
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {!cancelled ? (
+                <Button type="button" size="sm" onClick={() => setAmendOpen(true)}>
+                  <Pencil className="size-3.5" />
+                  Edit
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" size="sm" onClick={() => onBackToList?.()}>
+                <ArrowLeft className="size-3.5" />
+                Back to List
+              </Button>
+            </div>
           </div>
         </header>
-        <div className="shrink-0 overflow-x-auto border-b border-[#DDD4C5] bg-white px-4">
-          <div className="flex min-w-max gap-1" role="tablist" aria-label="Reservation detail">
+        <ReservationDetailKpiStrip
+          items={[
+            {
+              label: "Arrive in",
+              value: arriveInLabel(reservation.arrivalDate, businessDate),
+            },
+            {
+              label: "Stay Status",
+              value: stayStatusLabel({
+                status: reservation.status,
+                arrivalDate: reservation.arrivalDate,
+                departureDate: reservation.departureDate,
+                businessDate,
+              }),
+            },
+            { label: "Nights", value: String(reservation.nights) },
+            {
+              label: "Room",
+              value: assigned ? `Room ${reservation.roomNumber}` : "Not Assigned",
+              hint: assigned ? reservation.roomTypeName : "Not Assigned",
+            },
+            {
+              label: "Total Amount",
+              value:
+                reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal),
+            },
+            {
+              label: "Deposit",
+              value: deposit?.amount == null ? DETAIL_DASH : money(deposit.amount),
+              hint: depositStatusLabel(deposit),
+            },
+          ]}
+        />
+        <div className="flex min-h-0 flex-1">
+          <nav
+            className="hidden w-52 shrink-0 overflow-y-auto border-r border-[#DDD4C5] bg-white py-2 md:block"
+            aria-label="Reservation detail"
+            data-testid="reservation-detail-sidebar"
+          >
             {DETAIL_TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -419,208 +639,89 @@ export function ReservationDetailWorkspace({
                 aria-selected={detailTab === tab.id}
                 onClick={() => setDetailTab(tab.id)}
                 className={cn(
-                  "border-b-2 px-3 py-2 text-sm",
+                  "flex w-full items-center px-4 py-2 text-left text-sm",
                   detailTab === tab.id
-                    ? "border-[#C89933] font-medium text-[#251605]"
-                    : "border-transparent text-muted-foreground",
+                    ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                    : "text-muted-foreground hover:bg-[#F7F4EE]",
+                  tab.deferred && detailTab !== tab.id ? "text-muted-foreground/70" : null,
                 )}
               >
                 {tab.label}
               </button>
             ))}
-            <button
-              type="button"
-              disabled
-              className="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground/60"
-              title="Folio embedding is deferred"
-            >
-              Folio
-            </button>
-            <button
-              type="button"
-              disabled
-              className="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground/60"
-              title="Rooms workspace is deferred"
-            >
-              Rooms
-            </button>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          {detailTab === "overview" ? (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <OverviewCard title="Stay Information">
-                  <Field label="Arrival" value={formatStayDate(reservation.arrivalDate)} />
-                  <Field label="Departure" value={formatStayDate(reservation.departureDate)} />
-                  <Field label="Nights" value={String(reservation.nights)} />
-                  <Field label="Guests" value={occupancy} />
-                  <Field label="Status" value={reservation.status.replaceAll("_", " ")} />
-                </OverviewCard>
-                <OverviewCard title="Room Information">
-                  <Field label="Room type" value={reservation.roomTypeName} />
-                  <Field label="Assigned room" value={reservation.roomNumber ?? "Unassigned"} />
-                  <Field
-                    label="Operational status"
-                    value={displayValue(reservation.roomOperationalStatus)}
-                  />
-                  <Field
-                    label="Housekeeping"
-                    value={displayValue(reservation.housekeepingStatus)}
-                  />
-                </OverviewCard>
-                <OverviewCard title="Guest Information">
-                  <Field label="Guest name" value={reservation.guestName} />
-                  <Field label="Phone" value={reservation.guestPhone ?? dash} />
-                  <Field label="Email" value={reservation.guestEmail ?? dash} />
-                  <Field label="VIP" value={reservation.guestVip ? "VIP" : dash} />
-                </OverviewCard>
-                <OverviewCard title="Rate & Source">
-                  <Field
-                    label="Source"
-                    value={reservation.source === "staff" ? "Staff" : reservation.source}
-                  />
-                  <Field
-                    label="Booking source"
-                    value={displayValue(reservation.commercialBookingSource)}
-                  />
-                  <Field label="Market segment" value={displayValue(reservation.marketSegment)} />
-                  <Field
-                    label="External reference"
-                    value={displayValue(reservation.externalReference)}
-                  />
-                  <Field
-                    label="Rate plan"
-                    value={displayValue(reservation.ratePlanName ?? reservation.ratePlanId)}
-                  />
-                  <Field
-                    label="Room total"
-                    value={
-                      reservation.roomSubtotal == null ? dash : String(reservation.roomSubtotal)
-                    }
-                  />
-                  <Field label="Currency" value={reservation.currency ?? dash} />
-                </OverviewCard>
-                <OverviewCard title="Folio Summary">
-                  <p className="text-sm text-muted-foreground">
+          </nav>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="border-b border-[#DDD4C5] bg-white px-3 py-2 md:hidden">
+              <div className="flex min-w-max gap-1 overflow-x-auto" role="tablist">
+                {DETAIL_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={detailTab === tab.id}
+                    onClick={() => setDetailTab(tab.id)}
+                    className={cn(
+                      "whitespace-nowrap rounded-full px-3 py-1 text-xs",
+                      detailTab === tab.id
+                        ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 sm:p-5">
+              {detailTab === "overview" ? (
+                <ReservationDetailOverviewDashboard
+                  reservation={reservation}
+                  guest={guestQuery.data?.guest ?? null}
+                  createdBy={createdBy}
+                  coverUrl={roomType?.coverUrl ?? null}
+                  roomMeta={{
+                    occupancy: roomType
+                      ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children`
+                      : null,
+                    beds: null,
+                  }}
+                  money={(value) => money(value)}
+                  onEditTab={setDetailTab}
+                />
+              ) : null}
+              {detailTab === "stay" ? stayPanel : null}
+              {detailTab === "rooms" ? roomsPanel : null}
+              {detailTab === "guest" ? guestPanel : null}
+              {detailTab === "rates" ? ratesPanel : null}
+              {detailTab === "packages" ? deferredPanel("Packages", PACKAGES_DEFERRED_COPY) : null}
+              {detailTab === "folio" ? (
+                <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+                  <h2 className="font-display text-lg">Folio Summary</h2>
+                  <p className="mt-3 text-sm text-muted-foreground">
                     Folio is not available in this workspace yet.
                   </p>
-                </OverviewCard>
-                <OverviewCard title="Additional Information">
-                  <Field label="Company" value={displayValue(reservation.companyName)} />
-                  <Field label="Travel Agent" value={displayValue(reservation.travelAgentName)} />
-                  <Field label="Group" value={displayValue(reservation.groupName)} />
-                  <Field label="Guarantee" value={displayValue(reservation.guaranteeMethod)} />
-                  <Field
-                    label="Special requests"
-                    value={reservation.specialRequests ?? dash}
-                  />
-                </OverviewCard>
-              </div>
-              {history.length > 0 ? (
-                <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-                  <h2 className="font-display text-lg">Stay Timeline</h2>
-                  <ol className="mt-3 space-y-2">
-                    {history.map((e) => (
-                      <li key={e.id} className="text-sm">
-                        <span className="font-medium capitalize">
-                          {e.eventType.replace(/_/g, " ")}
-                        </span>
-                        <span className="text-muted-foreground"> · {dateTime(e.createdAt)}</span>
-                      </li>
-                    ))}
-                  </ol>
                 </section>
               ) : null}
-            </div>
-          ) : null}
-          {detailTab === "stay" ? (
-            <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-              <h2 className="font-display text-lg">Stay</h2>
-              <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-                <Field label="Room type" value={reservation.roomTypeName} />
-                <Field label="Room" value={reservation.roomNumber ?? "Unassigned"} />
-                <Field label="Arrival" value={formatStayDate(reservation.arrivalDate)} />
-                <Field label="Departure" value={formatStayDate(reservation.departureDate)} />
-                <Field label="Occupancy" value={occupancy} />
-                <Field
-                  label="Source"
-                  value={reservation.source === "staff" ? "Staff" : reservation.source}
+              {detailTab === "requests" || detailTab === "notes" ? (
+                <NotesEditor
+                  reservation={reservation}
+                  restaurantId={restaurantId}
+                  canManage={canManage && !cancelled}
+                  amend={submitAmend}
+                  onSaved={invalidate}
                 />
-              </dl>
-              {!cancelled ? (
-                <div className="mt-4 max-w-sm space-y-1">
-                  <Label>Room assignment</Label>
-                  <Select
-                    value={reservation.roomId ?? UNASSIGNED}
-                    onValueChange={(v) => assignMutation.mutate(v === UNASSIGNED ? null : v)}
-                    disabled={assignMutation.isPending}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Assign later" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
-                      {reservation.roomId && reservation.roomNumber ? (
-                        <SelectItem value={reservation.roomId}>
-                          Room {reservation.roomNumber}
-                        </SelectItem>
-                      ) : null}
-                      {rooms
-                        .filter((r) => r.id !== reservation.roomId)
-                        .map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            Room {r.roomNumber}
-                            {r.floor ? ` · Floor ${r.floor}` : ""}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               ) : null}
-            </section>
-          ) : null}
-          {detailTab === "guest" ? (
-            <div className="space-y-4">
-              <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-                <h2 className="font-display text-lg">Guest</h2>
-                {guestQuery.data ? (
-                  <div className="mt-3">
-                    <GuestRestrictionWarn guest={guestQuery.data.guest} />
-                  </div>
-                ) : null}
-                <dl className="mt-3 space-y-3">
-                  <Field label="Name" value={reservation.guestName} />
-                  <Field label="Phone" value={reservation.guestPhone ?? "—"} />
-                  <Field label="Email" value={reservation.guestEmail ?? "—"} />
-                </dl>
-              </section>
-              <ReservationGuestMastersCard
-                restaurantId={restaurantId}
-                reservationId={reservationId}
-              />
+              {detailTab === "communication"
+                ? deferredPanel("Communication", COMMUNICATION_DEFERRED_COPY)
+                : null}
+              {detailTab === "linked"
+                ? deferredPanel("Linked Reservations", LINKED_DEFERRED_COPY)
+                : null}
+              {detailTab === "history" ? (
+                <HistoryList history={history} dateTime={dateTime} />
+              ) : null}
             </div>
-          ) : null}
-          {detailTab === "rates" ? (
-            <PricingSection
-              restaurantId={restaurantId}
-              reservation={reservation}
-              canManage={canManage && !cancelled}
-              onRepriced={invalidate}
-            />
-          ) : null}
-          {detailTab === "notes" ? (
-            <NotesEditor
-              reservation={reservation}
-              restaurantId={restaurantId}
-              canManage={canManage && !cancelled}
-              amend={submitAmend}
-              onSaved={invalidate}
-            />
-          ) : null}
-          {detailTab === "history" ? (
-            <HistoryList history={history} dateTime={dateTime} />
-          ) : null}
+          </div>
         </div>
         {childDialogs}
       </div>
@@ -735,10 +836,7 @@ export function ReservationDetailWorkspace({
           </dl>
           {embedded ? null : (
             <Button asChild variant="outline" size="sm" className="mt-4">
-              <Link
-                to="/restaurant/pms/guests/$guestId"
-                params={{ guestId: reservation.guestId }}
-              >
+              <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: reservation.guestId }}>
                 Open guest profile
               </Link>
             </Button>
@@ -781,15 +879,6 @@ function Field({ label, value }: { label: string; value: string }) {
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm">{value}</dd>
     </div>
-  );
-}
-
-function OverviewCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-      <h2 className="font-display text-lg">{title}</h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">{children}</div>
-    </section>
   );
 }
 
@@ -1035,14 +1124,7 @@ function AmendDialog({
   });
 
   const quoteQuery = useQuery({
-    queryKey: [
-      "amend-quote",
-      restaurantId,
-      roomTypeId,
-      arrival,
-      departure,
-      reservation.ratePlanId,
-    ],
+    queryKey: ["amend-quote", restaurantId, roomTypeId, arrival, departure, reservation.ratePlanId],
     queryFn: () =>
       fetchQuotes({
         data: {
@@ -1091,7 +1173,8 @@ function AmendDialog({
       roomTypeId,
       roomTypeName: selectedType?.name ?? reservation.roomTypeName,
       roomId: roomId === UNASSIGNED ? null : roomId,
-      roomNumber: roomId === UNASSIGNED ? null : (selectedRoom?.roomNumber ?? reservation.roomNumber),
+      roomNumber:
+        roomId === UNASSIGNED ? null : (selectedRoom?.roomNumber ?? reservation.roomNumber),
       specialRequests,
       notes,
       commercialBookingSource,
@@ -1138,7 +1221,10 @@ function AmendDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="z-[70] max-h-[90vh] max-w-2xl overflow-y-auto" data-testid="amend-stay-dialog">
+      <DialogContent
+        className="z-[70] max-h-[90vh] max-w-2xl overflow-y-auto"
+        data-testid="amend-stay-dialog"
+      >
         <DialogHeader>
           <DialogTitle>{step === "edit" ? "Amend stay" : "Review amendment"}</DialogTitle>
           <DialogDescription>
@@ -1150,198 +1236,209 @@ function AmendDialog({
 
         {step === "edit" ? (
           <>
-        <div className="space-y-1">
-          <Label htmlFor="amend-guest-search">Guest</Label>
-          <p className="text-sm">{guestName}</p>
-          <Input
-            id="amend-guest-search"
-            value={guestSearch}
-            onChange={(e) => setGuestSearch(e.target.value)}
-            placeholder="Search guests to change"
-          />
-          {guestSearch.trim() ? (
-            <div className="max-h-32 overflow-y-auto rounded-xl border border-border">
-              {(guestsQuery.data ?? []).map((guest) => (
-                <button
-                  key={guest.id}
-                  type="button"
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={() => {
-                    setGuestId(guest.id);
-                    setGuestName(guest.fullName || "Guest");
-                    setGuestSearch("");
-                  }}
-                >
-                  {guest.fullName}
-                </button>
-              ))}
+            <div className="space-y-1">
+              <Label htmlFor="amend-guest-search">Guest</Label>
+              <p className="text-sm">{guestName}</p>
+              <Input
+                id="amend-guest-search"
+                value={guestSearch}
+                onChange={(e) => setGuestSearch(e.target.value)}
+                placeholder="Search guests to change"
+              />
+              {guestSearch.trim() ? (
+                <div className="max-h-32 overflow-y-auto rounded-xl border border-border">
+                  {(guestsQuery.data ?? []).map((guest) => (
+                    <button
+                      key={guest.id}
+                      type="button"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => {
+                        setGuestId(guest.id);
+                        setGuestName(guest.fullName || "Guest");
+                        setGuestSearch("");
+                      }}
+                    >
+                      {guest.fullName}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="amend-arrival">Arrival</Label>
-            <Input
-              id="amend-arrival"
-              type="date"
-              value={arrival}
-              onChange={(e) => setArrival(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="amend-departure">Departure</Label>
-            <Input
-              id="amend-departure"
-              type="date"
-              value={departure}
-              onChange={(e) => setDeparture(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="amend-adults">Adults</Label>
-            <Input
-              id="amend-adults"
-              type="number"
-              min={1}
-              value={adults}
-              onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="amend-children">Children</Label>
-            <Input
-              id="amend-children"
-              type="number"
-              min={0}
-              value={children}
-              onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
-            />
-          </div>
-        </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="amend-arrival">Arrival</Label>
+                <Input
+                  id="amend-arrival"
+                  type="date"
+                  value={arrival}
+                  onChange={(e) => setArrival(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="amend-departure">Departure</Label>
+                <Input
+                  id="amend-departure"
+                  type="date"
+                  value={departure}
+                  onChange={(e) => setDeparture(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="amend-adults">Adults</Label>
+                <Input
+                  id="amend-adults"
+                  type="number"
+                  min={1}
+                  value={adults}
+                  onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="amend-children">Children</Label>
+                <Input
+                  id="amend-children"
+                  type="number"
+                  min={0}
+                  value={children}
+                  onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
+                />
+              </div>
+            </div>
 
-        <div className="space-y-1">
-          <Label>Room type</Label>
-          <Select
-            value={roomTypeId}
-            onValueChange={(v) => {
-              setRoomTypeId(v);
-              setRoomId(UNASSIGNED);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(availabilityQuery.data ?? []).map((a) => (
-                <SelectItem key={a.roomTypeId} value={a.roomTypeId} disabled={a.available <= 0}>
-                  {a.name} — {a.available} available
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+            <div className="space-y-1">
+              <Label>Room type</Label>
+              <Select
+                value={roomTypeId}
+                onValueChange={(v) => {
+                  setRoomTypeId(v);
+                  setRoomId(UNASSIGNED);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(availabilityQuery.data ?? []).map((a) => (
+                    <SelectItem key={a.roomTypeId} value={a.roomTypeId} disabled={a.available <= 0}>
+                      {a.name} — {a.available} available
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <div className="space-y-1">
-          <Label>Room</Label>
-          <Select value={roomId} onValueChange={setRoomId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Assign later" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
-              {(roomsQuery.data ?? []).map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  Room {r.roomNumber}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+            <div className="space-y-1">
+              <Label>Room</Label>
+              <Select value={roomId} onValueChange={setRoomId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Assign later" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
+                  {(roomsQuery.data ?? []).map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      Room {r.roomNumber}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="amend-special-requests">Special requests</Label>
-          <Textarea
-            id="amend-special-requests"
-            value={specialRequests}
-            onChange={(e) => setSpecialRequests(e.target.value)}
-            maxLength={2000}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="amend-notes">Internal notes</Label>
-          <Textarea
-            id="amend-notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            maxLength={2000}
-          />
-        </div>
+            <div className="space-y-1">
+              <Label htmlFor="amend-special-requests">Special requests</Label>
+              <Textarea
+                id="amend-special-requests"
+                value={specialRequests}
+                onChange={(e) => setSpecialRequests(e.target.value)}
+                maxLength={2000}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="amend-notes">Internal notes</Label>
+              <Textarea
+                id="amend-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={2000}
+              />
+            </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label>Booking source</Label>
-            <Select value={commercialBookingSource || "none"} onValueChange={(value) => setCommercialBookingSource(value === "none" ? "" : value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {DEFAULT_BOOKING_SOURCES.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Market segment</Label>
-            <Select value={marketSegment || "none"} onValueChange={(value) => setMarketSegment(value === "none" ? "" : value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {DEFAULT_MARKET_SEGMENTS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="amend-external-reference">External reference</Label>
-            <Input
-              id="amend-external-reference"
-              value={externalReference}
-              onChange={(e) => setExternalReference(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Guarantee</Label>
-            <Select value={guaranteeMethod || "none"} onValueChange={(value) => setGuaranteeMethod(value === "none" ? "" : value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {FALLBACK_CASHIERING_TENDERS.map((option) => (
-                  <SelectItem key={option.code} value={option.code}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Booking source</Label>
+                <Select
+                  value={commercialBookingSource || "none"}
+                  onValueChange={(value) =>
+                    setCommercialBookingSource(value === "none" ? "" : value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {DEFAULT_BOOKING_SOURCES.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Market segment</Label>
+                <Select
+                  value={marketSegment || "none"}
+                  onValueChange={(value) => setMarketSegment(value === "none" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {DEFAULT_MARKET_SEGMENTS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="amend-external-reference">External reference</Label>
+                <Input
+                  id="amend-external-reference"
+                  value={externalReference}
+                  onChange={(e) => setExternalReference(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Guarantee</Label>
+                <Select
+                  value={guaranteeMethod || "none"}
+                  onValueChange={(value) => setGuaranteeMethod(value === "none" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {FALLBACK_CASHIERING_TENDERS.map((option) => (
+                      <SelectItem key={option.code} value={option.code}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-        <p className="text-xs text-muted-foreground">
-          {datesValid
-            ? `${nights} night${nights === 1 ? "" : "s"}`
-            : "Departure must be after arrival."}
-        </p>
+            <p className="text-xs text-muted-foreground">
+              {datesValid
+                ? `${nights} night${nights === 1 ? "" : "s"}`
+                : "Departure must be after arrival."}
+            </p>
           </>
         ) : (
           <div className="space-y-3" data-testid="amend-impact-review">
@@ -1368,14 +1465,17 @@ function AmendDialog({
               </table>
             )}
             {impact.availabilityNone ? (
-              <p className="text-sm text-destructive">The proposed room type has no remaining availability.</p>
+              <p className="text-sm text-destructive">
+                The proposed room type has no remaining availability.
+              </p>
             ) : null}
             {impact.assignmentCleared ? (
               <p className="text-sm text-muted-foreground">The assigned room will be cleared.</p>
             ) : null}
             {impact.rateMayChange ? (
               <p className="text-sm text-muted-foreground">
-                Stay dates or room type changed — the server will reprice if a rate plan is attached.
+                Stay dates or room type changed — the server will reprice if a rate plan is
+                attached.
               </p>
             ) : null}
           </div>
@@ -1397,7 +1497,12 @@ function AmendDialog({
             </Button>
           ) : (
             <Button
-              disabled={!datesValid || impact.availabilityNone || impact.changes.length === 0 || save.isPending}
+              disabled={
+                !datesValid ||
+                impact.availabilityNone ||
+                impact.changes.length === 0 ||
+                save.isPending
+              }
               onClick={() => save.mutate()}
             >
               {save.isPending ? "Saving…" : "Confirm amendment"}

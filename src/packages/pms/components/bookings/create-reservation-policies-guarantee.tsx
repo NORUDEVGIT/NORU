@@ -21,12 +21,17 @@ const CONTROL =
 const NOTES_MAX = 500;
 
 /** Frontend-only policy labels until Settings catalogue is wired. */
-const LOCAL_STAY_POLICY_OPTIONS = [
+export const LOCAL_STAY_POLICY_OPTIONS = [
   { value: "charge_full_stay", label: "Charge full stay amount" },
   { value: "charge_first_night", label: "Charge first night" },
   { value: "no_charge", label: "No charge" },
   { value: "custom", label: "Custom policy" },
 ] as const;
+
+export function stayPolicyLabel(value: string | null | undefined): string {
+  const match = LOCAL_STAY_POLICY_OPTIONS.find((row) => row.value === value);
+  return match?.label ?? (value?.trim() ? value : "—");
+}
 
 export type CreateReservationPoliciesState = {
   depositPolicyId: string;

@@ -569,20 +569,24 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.doesNotMatch(page, /Fixed Rate LIVE|legacy Individual create chrome/i);
   });
 
-  it("Step 2 merchandising reads quoteStay plan breakfast, cancellation, and refundability", () => {
+    it("Step 2 merchandising reads quoteStay plan breakfast, cancellation, and refundability", () => {
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const functions = readRel("./rates.functions.ts");
-    assert.match(rate, /ratePlanMerchandisingLines/);
     assert.match(functions, /hydrateRatePlanMerchandising/);
     assert.match(functions, /pms_meal_plans/);
     assert.match(functions, /includes_breakfast/);
     assert.match(functions, /pms_rate_cancellation_policies/);
     assert.match(functions, /pms_rate_refundability_codes/);
-    assert.match(functions, /pms_package_rate_plans/);
-    assert.match(functions, /inclusion_type/);
-    assert.match(rate, /ratePlanPackageMerchandising/);
-    assert.match(rate, /Included Services/);
-    assert.match(rate, /Optional Add-ons/);
+    assert.match(functions, /breakfastLabelFromMealPlan/);
+    assert.match(functions, /deriveCancellationDisplay/);
+    assert.doesNotMatch(rate, /ratePlanMerchandisingLines/);
+    assert.doesNotMatch(rate, /text-muted-foreground">\{row.plan.code\}/);
+    assert.doesNotMatch(rate, /formatRatePlanValidity/);
+    assert.doesNotMatch(rate, /Included Services/);
+    assert.doesNotMatch(rate, /Optional Add-ons/);
+    assert.match(rate, /row\.cancellationLabel/);
+    assert.match(rate, /row\.breakfastLabel/);
+    assert.match(rate, /money\(row\.quote\.subtotal\)/);
     assert.deepEqual(
       ratePlanMerchandisingLines({
         id: "p1",
@@ -595,5 +599,15 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
       }),
       ["Flexible stay", "Breakfast included", "Free cancel 24h", "Refundable"],
     );
+  });
+
+  it("merges base currency into Step 2 display and stores the property base", () => {
+    const page = readRel("../components/bookings/create-reservation-page.tsx");
+    const create = readRel("./reservations.functions.ts");
+    assert.match(page, /options.unshift/);
+    assert.match(page, /formatMoney\(value, displayCurrencyCode/);
+    assert.match(page, /quoteCurrency: null/);
+    assert.doesNotMatch(create, /_quote_currency: data.quoteCurrency/);
+    assert.match(readRel("./rates.functions.ts"), /_quote_currency: data.quoteCurrency/);
   });
 });

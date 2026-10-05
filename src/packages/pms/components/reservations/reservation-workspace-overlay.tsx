@@ -164,7 +164,7 @@ export function ReservationWorkspaceOverlay({
         <DialogContent
           data-testid={WORKSPACE_OVERLAY_TEST_ID}
           className={cn(
-            "z-50 flex h-[min(92vh,960px)] w-[min(96vw,1400px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
+            "z-50 flex h-[min(94vh,1080px)] w-[min(98vw,1680px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
             "rounded-2xl border border-[#DDD4C5] bg-white shadow-xl",
           )}
           {...dismissGuards}
