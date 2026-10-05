@@ -81,8 +81,8 @@ describe("Phase 1 workspace overlay routing", () => {
   it("uses a large Dialog on desktop and a full-height Sheet on narrower viewports", () => {
     expect(overlay).toContain("<Dialog");
     expect(overlay).toContain("<Sheet");
-    expect(overlay).toContain("h-[min(92vh,960px)]");
-    expect(overlay).toContain("w-[min(96vw,1400px)]");
+    expect(overlay).toContain("h-[min(94vh,1080px)]");
+    expect(overlay).toContain("w-[min(98vw,1680px)]");
     expect(overlay).toContain("max-w-none");
     expect(overlay).toContain("sm:max-w-none");
     expect(overlay).toContain("h-dvh");
@@ -128,7 +128,7 @@ describe("Phase 1 workspace overlay routing", () => {
     expect(createPage).toContain("Booking Details");
     expect(createPage).toContain("Policies & Guarantee");
     expect(createPage).toContain("Review & Confirm");
-    expect(createPage).toContain("Review and Confirm");
+    expect(createPage).toContain("<CreateReservationReview");
     expect(createPage).toContain('data-testid="create-reservation-stepper"');
     expect(createPage).toContain("CREATE_RESERVATION_PENDING_LABEL");
     expect(createPage).toContain("CREATE_RESERVATION_CONFIRM_LABEL");
@@ -140,16 +140,19 @@ describe("Phase 1 workspace overlay routing", () => {
     expect(detail).toContain('{ id: "overview", label: "Overview" }');
     expect(detail).toContain("Folio is not available in this workspace yet.");
     expect(detail).toContain("if (embedded)");
+    expect(detail).toContain("ReservationDetailKpiStrip");
+    expect(detail).toContain("reservation-detail-sidebar");
+    expect(detail).toContain("Back to List");
     const allReservationsHits = detail.match(/All reservations/g) ?? [];
     expect(allReservationsHits).toHaveLength(1);
   });
 
   it("prevents the parent overlay from closing on nested Escape", () => {
-    expect(overlay).toContain("onEscapeKeyDown: blockParentDismiss");
-    expect(overlay).toContain("onPointerDownOutside: blockParentDismiss");
-    expect(overlay).toContain("onInteractOutside: blockParentDismiss");
+    expect(overlay).toContain("onEscapeKeyDown: blockEscapeDismiss");
+    expect(overlay).toContain("onPointerDownOutside: blockPointerDismiss");
+    expect(overlay).toContain("onInteractOutside: blockPointerDismiss");
     expect(overlay).toContain("hasNestedReservationLayer");
-    expect(overlay).toContain("dataset.testid !== WORKSPACE_OVERLAY_TEST_ID");
+    expect(overlay).toContain('dataset["testid"] !== WORKSPACE_OVERLAY_TEST_ID');
     expect(overlay).toContain("if (!next && hasNestedReservationLayer()) return;");
     expect(detail).toContain('data-testid="amend-stay-dialog"');
     expect(detail).toContain("z-[70]");

@@ -7,6 +7,11 @@
  */
 
 import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
+import type {
+  CancellationPenaltyType,
+  CancellationPolicyKind,
+  CancellationWindowUnit,
+} from "./cancellation-policy-rules";
 export {
   PREDEFINED_RATE_CATEGORIES,
   isPredefinedCategoryConfigured,
@@ -52,11 +57,30 @@ export type Card2MealPlanRef = {
   active: boolean;
 };
 
+export {
+  CANCELLATION_PENALTY_TYPE_LABELS,
+  CANCELLATION_PENALTY_TYPES,
+  CANCELLATION_POLICY_KIND_LABELS,
+  CANCELLATION_POLICY_KINDS,
+  CANCELLATION_WINDOW_UNIT_LABELS,
+  CANCELLATION_WINDOW_UNITS,
+  type CancellationPenaltyType,
+  type CancellationPolicyKind,
+  type CancellationWindowUnit,
+} from "./cancellation-policy-rules";
+
 export type RateCancellationPolicyRow = {
   id: string;
   code: string;
   name: string;
   description: string;
+  policyKind: CancellationPolicyKind;
+  windowValue: number | null;
+  windowUnit: CancellationWindowUnit;
+  cutoffTime: string | null;
+  penaltyType: CancellationPenaltyType;
+  penaltyValue: number;
+  deadlineHours: number | null;
   active: boolean;
 };
 

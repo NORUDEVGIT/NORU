@@ -15,9 +15,11 @@ import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/c
 import {
   CreateReservationPoliciesGuarantee,
   EMPTY_CREATE_RESERVATION_POLICIES,
+  stayPolicyLabel,
 } from "@/packages/pms/components/bookings/create-reservation-policies-guarantee";
 import { CreateReservationConfirmation } from "@/packages/pms/components/bookings/create-reservation-confirmation";
 import { CreateReservationBookingDetails } from "@/packages/pms/components/bookings/create-reservation-booking-details";
+import { CreateReservationReview } from "@/packages/pms/components/bookings/create-reservation-review";
 
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -68,6 +70,7 @@ import { getPmsPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-ad
 import { getPaymentsCard3 } from "@/packages/pms/lib/payments-card3.functions";
 import {
   activeDepositPolicies,
+  computeDepositRequirementAmount,
   defaultActiveDepositPolicy,
   defaultDepositPolicyHint,
   formatQuotedPolicySummary,
@@ -140,7 +143,8 @@ import {
   activePackageCountFromRows,
   stickyPackagesCopy,
 } from "@/packages/pms/lib/create-reservation-phase1-section8";
-import { useMoney, useRestaurantTimezone } from "@/core/state/property-format";
+import { useRestaurantTimezone } from "@/core/state/property-format";
+import { formatMoney } from "@/shared/lib/property-time";
 import { cn } from "@/shared/lib/utils";
 
 const UNASSIGNED = "unassigned";
@@ -208,7 +212,6 @@ export function CreateReservationPage({
   const fetchRoomTypes = useServerFn(listRoomTypes);
   const fetchCurrencies = useServerFn(getCurrencyCard3);
   const queryClient = useQueryClient();
-  const money = useMoney();
 
   const [reservationType, setReservationType] = useState<ReservationTypeMode>("individual");
   const [pendingType, setPendingType] = useState<ReservationTypeMode | null>(null);
@@ -576,13 +579,20 @@ export function CreateReservationPage({
     );
   }, [paymentsCard3Query.data?.snapshot.depositPolicies]);
   const currencyOptions = useMemo(() => {
-    const rows = (currencyQuery.data?.snapshot.currencies ?? [])
+    const extras = (currencyQuery.data?.snapshot.currencies ?? [])
       .filter((row) => row.active)
       .map((row) => ({ code: row.code, name: row.name }));
-    if (rows.length > 0) return rows;
-    return propertyCurrencyCode ? [{ code: propertyCurrencyCode, name: propertyCurrencyCode }] : [];
+    const options = [...extras];
+    if (propertyCurrencyCode && !options.some((row) => row.code === propertyCurrencyCode)) {
+      options.unshift({ code: propertyCurrencyCode, name: propertyCurrencyCode });
+    }
+    return options;
   }, [currencyQuery.data, propertyCurrencyCode]);
   const displayCurrencyCode = quoteCurrency || propertyCurrencyCode;
+  const money = useMemo(
+    () => (value: number) => formatMoney(value, displayCurrencyCode || propertyCurrencyCode),
+    [displayCurrencyCode, propertyCurrencyCode],
+  );
   const selectedCurrencyName =
     currencyOptions.find((row) => row.code === displayCurrencyCode)?.name ?? displayCurrencyCode;
   const actorRole = accessQuery.data?.role ?? membership.role;
@@ -715,7 +725,7 @@ export function CreateReservationPage({
           children,
           infants,
           rooms: roomsRequested,
-          quoteCurrency: displayCurrencyCode || null,
+          quoteCurrency: null,
           specialRequests: specialRequests.trim() || null,
           notes: notes.trim() || null,
           status: nextStatus,
@@ -917,6 +927,7 @@ export function CreateReservationPage({
       : selectedRoomType?.roomTypeId === roomTypeId
         ? selectedRoomType
         : null;
+  const catalogRow = roomTypeId ? (roomTypeCatalog[roomTypeId] ?? null) : null;
   const summaryAvailability = stickyAvailability({
     roomTypeId,
     datesValid,
@@ -1296,91 +1307,107 @@ export function CreateReservationPage({
   );
 
   const reviewSection = (
-    <div className="space-y-3">
-      <ReviewCard title="Guest & Booker Information" onEdit={() => setWorkflowStep(0)}>
-        <dl className="grid gap-1 sm:grid-cols-2">
-          <div>Guest · {guest?.fullName ?? "Select a guest"}</div>
-          <div>Phone · {guest?.phone ?? "No phone on the guest profile"}</div>
-          <div>Email · {guest?.email ?? "No email on the guest profile"}</div>
-          <div>Profile No. · {guest?.profileNumber ?? "No profile number"}</div>
-        </dl>
-      </ReviewCard>
-      <ReviewCard title="Stay Information" onEdit={() => setWorkflowStep(0)}>
-        {datesValid
-          ? `${formatStayDate(arrival)} to ${formatStayDate(departure)} · ${nights} nights · ${roomsRequested} rooms · ${formatStayOccupancySummary(adults, children)}`
-          : "Set arrival and departure"}
-        <div className="mt-1">
-          Room ·{" "}
-          {stickyRoomAssignmentLabel({
-            roomTypeId,
-            roomId,
-            unassignedValue: UNASSIGNED,
-            room: selectedAssignedRoom,
-          })}
-        </div>
-      </ReviewCard>
-      <ReviewCard title="Room & Rate Information" onEdit={() => setWorkflowStep(1)}>
-        <div>Room type · {stickyRoomTypeLabel(selectedMeta)}</div>
-        <div>
-          Rate ·{" "}
-          {pricingState.kind === "priced"
-            ? `${pricingState.quote.ratePlanName || pricingState.quote.ratePlanCode} · ${money(pricingState.quote.subtotal)}`
-            : "No priced rate selected"}
-        </div>
-      </ReviewCard>
-      <ReviewCard title="Booking Source & Classification" onEdit={() => setWorkflowStep(2)}>
-        <div>
-          Source ·{" "}
-          {sourceOptions.find((row) => row.value === bookingSource)?.label ?? "No booking source"}
-        </div>
-        <div>
-          Market segment ·{" "}
-          {segmentOptions.find((row) => row.value === marketSegment)?.label ?? "No market segment"}
-        </div>
-        <div>Company · {companyMaster?.name ?? "No company"}</div>
-        <div>Travel agent · {travelAgentMaster?.name ?? "No travel agency"}</div>
-        {externalReference.trim() ? (
-          <div>External reference · {externalReference.trim()}</div>
-        ) : null}
-      </ReviewCard>
-      <ReviewCard title="Guarantee & Deposit" onEdit={() => setWorkflowStep(3)}>
-        {guaranteeOptions.find((row) => row.value === guaranteeMethod)?.label ??
-          "No guarantee type"}
-        <p className="mt-1 text-xs text-muted-foreground">
-          Deposit · {selectedDepositPolicy?.name ?? "No deposit policy"} · Cashiering posts money.
-        </p>
-      </ReviewCard>
-      <ReviewCard title="Policies & Additional Information" onEdit={() => setWorkflowStep(3)}>
-        <div>
-          Cancellation ·{" "}
-          {formatQuotedPolicySummary(
-            selectedQuote?.cancellationLabel,
-            selectedQuote?.refundabilityLabel,
-          ) ?? "No quoted cancellation policy"}
-        </div>
-        <div className="mt-1">Special request · {specialRequests.trim() || "No special request"}</div>
-        <div className="mt-1">Internal notes · {notes.trim() || "No internal notes"}</div>
-      </ReviewCard>
-      <CreateReservationPackages
-        loading={set3Query.isLoading || set3Query.isFetching}
-        error={set3Query.isError}
-        packagesAvailable={set3Query.data?.snapshot.packagesAvailable ?? false}
-        activePackageCount={activePackageCountFromRows(set3Query.data?.snapshot.packages ?? [])}
-        canEditSet3={set3Query.data?.canEdit ?? false}
-        operational
-      />
-      <WorkspaceCard>
-        <h2 className="font-display text-lg text-[#251605]">Review and Confirm</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Check the sections above, then save as pending or confirm using the existing create
-          action.
-        </p>
-        {/* TODO: wire to a confirmation preview reader */}
-        <Button type="button" variant="outline" className="mt-3" disabled>
-          Preview Confirmation
-        </Button>
-      </WorkspaceCard>
-    </div>
+    <CreateReservationReview
+      guestName={guest?.fullName ?? null}
+      guestVip={guest?.vipStatus === true}
+      profileNumber={guest?.profileNumber ?? null}
+      phone={guest?.phone ?? null}
+      email={guest?.email ?? null}
+      nationality={guest?.nationality ?? null}
+      idDocumentNumber={guest?.idDocumentNumber ?? null}
+      bookedBy={sameAsGuest ? "Same as guest" : "—"}
+      companyName={companyMaster?.name ?? null}
+      travelAgentName={travelAgentMaster?.name ?? null}
+      groupName={groupMaster?.name ?? null}
+      arrivalLabel={datesValid ? formatStayDate(arrival) : "—"}
+      departureLabel={datesValid ? formatStayDate(departure) : "—"}
+      nights={nights}
+      rooms={roomsRequested}
+      adults={adults}
+      children={children}
+      infants={infants}
+      purposeOfStay={purposeOfStay.trim() || null}
+      coverUrl={catalogRow?.coverUrl ?? null}
+      roomName={stickyRoomTypeLabel(selectedMeta)}
+      ratePlan={
+        pricingState.kind === "priced"
+          ? pricingState.quote.ratePlanName || pricingState.quote.ratePlanCode
+          : (selectedQuote?.plan.name ?? "—")
+      }
+      ratePerNight={
+        pricingState.kind === "priced" && fromNightlyRate(pricingState.quote) != null
+          ? money(fromNightlyRate(pricingState.quote)!)
+          : "—"
+      }
+      stayTotal={pricingState.kind === "priced" ? money(pricingState.quote.subtotal) : "—"}
+      breakfastLabel={selectedQuote?.breakfastLabel ?? "—"}
+      cancellationLabel={selectedQuote?.cancellationLabel ?? "—"}
+      bookingSource={
+        sourceOptions.find((row) => row.value === bookingSource)?.label ?? bookingSource
+      }
+      salesChannel={
+        salesChannelOptions.find((row) => row.value === salesChannel)?.label ?? salesChannel
+      }
+      marketSegment={
+        segmentOptions.find((row) => row.value === marketSegment)?.label ?? marketSegment
+      }
+      internalNotes={notes.trim() || null}
+      guaranteeRequired={guaranteeMethod.trim() ? "Yes" : "No"}
+      guaranteeType={
+        guaranteeOptions.find((row) => row.value === guaranteeMethod)?.label ?? guaranteeMethod
+      }
+      cardHolderName={step4Policies.cardHolderName.trim() || guest?.fullName || null}
+      cardNumber={step4Policies.cardNumber}
+      cardExpiry={step4Policies.cardExpiry.trim() || null}
+      guaranteeMethod={guaranteeMethod}
+      depositRequired={
+        selectedDepositPolicy == null ? "—" : selectedDepositPolicy.required ? "Yes" : "No"
+      }
+      depositAmount={
+        selectedDepositPolicy
+          ? (() => {
+              const amount = computeDepositRequirementAmount(
+                selectedDepositPolicy,
+                selectedQuote?.quote
+                  ? {
+                      subtotal: selectedQuote.quote.subtotal,
+                      nightly: selectedQuote.quote.nightly,
+                      currency: selectedQuote.quote.currency,
+                    }
+                  : null,
+              );
+              return amount > 0 ? money(amount) : "—";
+            })()
+          : "—"
+      }
+      depositDueDate={step4Policies.depositDueDate.trim() || null}
+      depositPaymentMethod={
+        step4Policies.depositPaymentMethod === "same_as_guarantee"
+          ? "Same as Guarantee"
+          : guaranteeOptions.find((row) => row.value === step4Policies.depositPaymentMethod)
+              ?.label ?? step4Policies.depositPaymentMethod
+      }
+      noShowPolicy={stayPolicyLabel(step4Policies.noShowPolicy)}
+      earlyDeparturePolicy={stayPolicyLabel(step4Policies.earlyDeparturePolicy)}
+      specialRequests={specialRequests.trim() || null}
+      ackInformed={step4Policies.ackInformed}
+      ackConsent={step4Policies.ackConsent}
+      ackNonRefundable={step4Policies.ackNonRefundable}
+      ackSpecialTerms={step4Policies.ackSpecialTerms}
+      quotedNonRefundable={quotedNonRefundable(selectedQuote?.refundabilityKind)}
+      onAckChange={(patch) => setStep4Policies((current) => ({ ...current, ...patch }))}
+      onEdit={setWorkflowStep}
+      packagesSlot={
+        <CreateReservationPackages
+          loading={set3Query.isLoading || set3Query.isFetching}
+          error={set3Query.isError}
+          packagesAvailable={set3Query.data?.snapshot.packagesAvailable ?? false}
+          activePackageCount={activePackageCountFromRows(set3Query.data?.snapshot.packages ?? [])}
+          canEditSet3={set3Query.data?.canEdit ?? false}
+          operational
+        />
+      }
+    />
   );
 
   const guestOnly = (
@@ -1442,7 +1469,6 @@ export function CreateReservationPage({
     </div>
   );
 
-  const catalogRow = roomTypeId ? (roomTypeCatalog[roomTypeId] ?? null) : null;
   const bookingDetailsSection = (
     <CreateReservationBookingDetails
       restaurantId={restaurantId}
@@ -1808,6 +1834,16 @@ export function CreateReservationPage({
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+            Cancellation Policy
+          </p>
+          <p className="mt-1 text-sm" data-testid="summary-cancellation">
+            {selectedQuote?.cancellationLabel && selectedQuote.cancellationLabel !== "—"
+              ? selectedQuote.cancellationLabel
+              : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
             Special Requests
           </p>
           <p className="mt-1 text-sm">{specialRequests.trim() || "—"}</p>
@@ -1982,28 +2018,6 @@ function WorkspaceCard({ children }: { children: ReactNode }) {
   return (
     <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
       {children}
-    </section>
-  );
-}
-
-function ReviewCard({
-  title,
-  onEdit,
-  children,
-}: {
-  title: string;
-  onEdit: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="font-display text-base text-[#251605]">{title}</h2>
-        <Button type="button" variant="ghost" size="sm" onClick={onEdit}>
-          Edit
-        </Button>
-      </div>
-      <div className="mt-2 text-sm text-[#251605]">{children}</div>
     </section>
   );
 }

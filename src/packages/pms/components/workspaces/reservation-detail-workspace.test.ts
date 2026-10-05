@@ -29,6 +29,7 @@ describe("Phase 3 reservation detail gaps", () => {
     expect(detail).toContain("displayValue(reservation.marketSegment)");
     expect(detail).toContain("displayValue(reservation.companyName)");
     expect(detail).toContain("displayValue(reservation.guaranteeMethod)");
+    expect(detail).toContain("reservation-detail-overview");
     expect(detail).not.toContain('<Field label="Booking source" value={dash} />');
   });
 
