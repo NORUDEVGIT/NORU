@@ -20,6 +20,9 @@ export type ReservationWorkspaceOverlayState =
       initialGroupMasterId?: string | null;
     }
   | { type: "reservation-detail"; reservationId: string }
+  | { type: "edit-reservation"; reservationId: string }
+  | { type: "cancel-reservation"; reservationId: string }
+  | { type: "no-show-reservation"; reservationId: string }
   | null;
 
 const WORKSPACE_OVERLAY_TEST_ID = "reservation-workspace-overlay";
