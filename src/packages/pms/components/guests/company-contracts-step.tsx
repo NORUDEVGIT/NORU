@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Plus, Trash2, Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -85,6 +86,8 @@ export function CompanyContractsStep({
     draft.contract && typeof draft.contract === "object" && !Array.isArray(draft.contract)
       ? draft.contract
       : emptyCompanyContractDraft();
+
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const baseCurrencyFromSettings =
     config?.baseCurrency ||
@@ -344,8 +347,16 @@ export function CompanyContractsStep({
   }
 
   // Document upload simulator / handler
-  function handleDocumentUpload(docTypeId: string, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  function handleDocumentUpload(
+    docTypeId: string,
+    fileOrEvent: File | React.ChangeEvent<HTMLInputElement> | null,
+  ) {
+    const file =
+      fileOrEvent instanceof File
+        ? fileOrEvent
+        : fileOrEvent && "target" in fileOrEvent
+        ? fileOrEvent.target.files?.[0]
+        : null;
     if (!file) return;
 
     const currentDocs = contract?.documents ?? [];
@@ -1295,20 +1306,30 @@ export function CompanyContractsStep({
 
       {/* SECTION 4: Contract Documents */}
       <section className="rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
-        <div className="border-b border-[#E8E4DC] pb-3">
-          <h2 className="font-display text-base font-semibold text-[#251605]">Section 4 — Contract Documents</h2>
-          <p className="text-xs text-[#756A5B]">
-            Upload required or optional contract documents configured in Settings → Card 4.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E4DC] pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileText className="size-4 text-[#8A641A]" />
+              <h2 className="font-display text-base font-semibold text-[#251605]">Section 4 — Contract Documents</h2>
+            </div>
+            <p className="text-xs text-[#756A5B] mt-0.5">
+              Upload compliance and contract documents configured for companies in Settings Card 4.
+            </p>
+          </div>
+          <span className="text-xs text-[#756A5B]">
+            {contract?.documents?.length || 0} uploaded
+          </span>
         </div>
 
-        {(!config?.contractDocumentTypes || config.contractDocumentTypes.length === 0) ? (
+        {(!config?.contractDocumentTypes || config.contractDocumentTypes.filter((d) => d.active !== false).length === 0) ? (
           <p className="text-xs text-[#756A5B] italic p-3 text-center bg-[#FAF8F5] rounded-none">
-            No contract document types are currently configured in Settings → Card 4.
+            No company document types are currently configured in Settings → Card 4.
           </p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {config.contractDocumentTypes.map((docType) => {
+          <div className="space-y-3" data-testid="company-documents-list">
+            {config.contractDocumentTypes
+              .filter((d) => d.active !== false)
+              .map((docType) => {
               const uploadedDoc = (contract?.documents ?? []).find((d) => d.documentTypeId === docType.id);
               const docError = fieldError(`documents.${docType.id}`, "contracts");
 
@@ -1316,72 +1337,98 @@ export function CompanyContractsStep({
                 <div
                   key={docType.id}
                   className={cn(
-                    "flex flex-col justify-between rounded-none border p-3.5 transition-colors",
+                    "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border transition-colors",
                     docError
                       ? "border-destructive bg-destructive/5"
                       : uploadedDoc
-                      ? "border-emerald-200 bg-emerald-50/40"
-                      : "border-[#DDD4C5] bg-[#FAF8F5]",
+                      ? "border-emerald-200 bg-emerald-50/30"
+                      : docType.required
+                      ? "border-[#C89933]/40 bg-[#FAF8F5]"
+                      : "border-[#EDE6D8] bg-white",
                   )}
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-display text-xs font-semibold text-[#251605]">
-                        {docType.name}
-                      </span>
-                      <span
-                        className={cn(
-                          "rounded-none px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                          docType.required
-                            ? "border border-amber-300 bg-amber-100 text-amber-900"
-                            : "border border-stone-200 bg-stone-100 text-stone-600",
-                        )}
-                      >
-                        {docType.required ? "Required" : "Optional"}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <FileText className={cn("size-4", uploadedDoc ? "text-emerald-700" : "text-[#8A641A]")} />
+                      <span className="text-xs font-semibold text-[#251605]">{docType.name}</span>
+                      {docType.required ? (
+                        <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[10px] text-amber-800 font-semibold">
+                          Required for Create
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-stone-200 text-[10px] text-stone-500 font-normal">
+                          Optional
+                        </Badge>
+                      )}
                     </div>
                     {docType.description && (
-                      <p className="text-[11px] text-[#756A5B]">{docType.description}</p>
+                      <p className="text-[11px] text-[#756A5B] pl-6">{docType.description}</p>
                     )}
+
+                    {uploadedDoc && (
+                      <div className="flex items-center gap-2 text-xs text-emerald-800 pl-6 font-medium pt-0.5">
+                        <CheckCircle2 className="size-3.5 text-emerald-600" />
+                        <span className="truncate max-w-[280px]">{uploadedDoc.fileName}</span>
+                        {uploadedDoc.fileSize ? (
+                          <span className="text-[10px] text-[#756A5B]">
+                            ({(uploadedDoc.fileSize / 1024).toFixed(0)} KB)
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                    {docError && <p className="text-[11px] text-destructive pl-6">{docError}</p>}
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-[#E8E4DC] flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    <input
+                      type="file"
+                      ref={(el) => {
+                        fileInputRefs.current[docType.id] = el;
+                      }}
+                      className="hidden"
+                      accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleDocumentUpload(docType.id, file);
+                        }
+                      }}
+                    />
+
                     {uploadedDoc ? (
                       <>
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                          <span className="truncate text-xs font-medium text-emerald-900">
-                            {uploadedDoc.fileName}
-                          </span>
-                        </div>
                         <Button
                           type="button"
+                          variant="outline"
                           size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs text-[#756A5B] hover:text-destructive shrink-0 rounded-none"
-                          onClick={() => removeDocument(docType.id)}
+                          onClick={() => fileInputRefs.current[docType.id]?.click()}
+                          className="h-7 text-xs border-[#DDD4C5] text-[#251605] hover:bg-white"
                         >
-                          Remove
+                          Replace
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeDocument(docType.id)}
+                          className="h-7 text-xs text-destructive hover:bg-destructive/10 px-2"
+                        >
+                          <Trash2 className="size-3.5" />
                         </Button>
                       </>
                     ) : (
-                      <>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#8A641A] hover:text-[#765719]">
-                          <Upload className="size-3.5" />
-                          <span>Upload File</span>
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.png,.jpg,.jpeg,.webp"
-                            onChange={(e) => handleDocumentUpload(docType.id, e)}
-                          />
-                        </label>
-                        <span className="text-[10px] text-[#756A5B]">PDF, PNG, JPG</span>
-                      </>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRefs.current[docType.id]?.click()}
+                        className="h-8 text-xs border-[#C89933]/50 text-[#8A641A] hover:bg-[#FAF8F5] gap-1.5"
+                      >
+                        <Upload className="size-3" />
+                        Upload File
+                      </Button>
                     )}
                   </div>
-
-                  {docError && <p className="text-[11px] text-destructive mt-1.5">{docError}</p>}
                 </div>
               );
             })}

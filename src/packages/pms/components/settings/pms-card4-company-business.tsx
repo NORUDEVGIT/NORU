@@ -59,9 +59,11 @@ import {
   setPmsCard4ContactRoleActive,
 } from "@/packages/pms/lib/company-business-card4.functions";
 import {
+  deletePmsCompanyDocumentType,
   listPmsCompanyDocumentTypes,
   savePmsCompanyDocumentType,
   setPmsCompanyDocumentTypeActive,
+  setPmsCompanyDocumentTypeRequired,
   type CompanyDocumentTypeRecord,
 } from "@/packages/pms/lib/corporate-contracts.functions";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
@@ -188,6 +190,8 @@ export function PmsCard4CompanyBusiness({
   const fetchDocTypes = useServerFn(listPmsCompanyDocumentTypes);
   const saveDocType = useServerFn(savePmsCompanyDocumentType);
   const setDocTypeActive = useServerFn(setPmsCompanyDocumentTypeActive);
+  const setDocTypeRequired = useServerFn(setPmsCompanyDocumentTypeRequired);
+  const deleteDocType = useServerFn(deletePmsCompanyDocumentType);
 
   const docTypesQuery = useQuery({
     queryKey: ["pms-company-document-types", restaurantId],
@@ -195,9 +199,12 @@ export function PmsCard4CompanyBusiness({
   });
   const docTypes = docTypesQuery.data ?? [];
   const [docTypeDraft, setDocTypeDraft] = useState<CompanyDocumentTypeRecord | "new" | null>(null);
+  const [pendingDeleteDocType, setPendingDeleteDocType] = useState<CompanyDocumentTypeRecord | null>(null);
+  const [docTypePage, setDocTypePage] = useState(1);
+  const DOC_TYPE_PAGE_SIZE = 8;
 
   const docTypeMutation = useMutation({
-    mutationFn: (input: { id?: string; name: string; code: string; description?: string; required: boolean; appliesToContract: boolean; appliesToCompany: boolean; displayOrder: number; active: boolean }) =>
+    mutationFn: (input: { id?: string; name: string; code: string; description?: string; required: boolean; appliesToContract: boolean; appliesToCompany: boolean; appliesToTravelAgency: boolean; displayOrder: number; active: boolean }) =>
       saveDocType({ data: { restaurantId, ...input } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
@@ -216,6 +223,35 @@ export function PmsCard4CompanyBusiness({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const docTypeRequiredMutation = useMutation({
+    mutationFn: (input: { id: string; required: boolean }) =>
+      setDocTypeRequired({ data: { restaurantId, ...input } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
+      toast.success("Document requirement updated.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const docTypeDeleteMutation = useMutation({
+    mutationFn: (id: string) => deleteDocType({ data: { restaurantId, id } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
+      setPendingDeleteDocType(null);
+      toast.success("Document type deleted.");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete document type."),
+  });
+
+  const docTypePageCount = Math.max(1, Math.ceil(docTypes.length / DOC_TYPE_PAGE_SIZE));
+  const safeDocTypePage = Math.min(docTypePage, docTypePageCount);
+  const docTypeStart = docTypes.length === 0 ? 0 : (safeDocTypePage - 1) * DOC_TYPE_PAGE_SIZE + 1;
+  const docTypeEnd = Math.min(safeDocTypePage * DOC_TYPE_PAGE_SIZE, docTypes.length);
+  const visibleDocTypes = docTypes.slice(
+    (safeDocTypePage - 1) * DOC_TYPE_PAGE_SIZE,
+    safeDocTypePage * DOC_TYPE_PAGE_SIZE,
+  );
 
   useEffect(() => {
     if (!query.data) return;
@@ -779,17 +815,18 @@ export function PmsCard4CompanyBusiness({
         </Table>
       </section>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-4" data-testid="card4-company-document-types">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <section className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white" data-testid="card4-company-document-types">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#CCCCCC] px-4 py-3">
           <div>
-            <h2 className="font-display text-xl text-[#251605]">6.4 Company &amp; Contract Document Types</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Define document types required or applicable to corporate companies and contracts. Contract document types feed Step 4 of the Company creation wizard.
+            <h3 className="font-medium text-[#251605]">Document Types</h3>
+            <p className="text-xs text-muted-foreground">
+              Configure document requirements and applicability for corporate companies and travel agencies.
             </p>
           </div>
           {canEdit ? (
             <Button
               type="button"
+              size="sm"
               onClick={() => setDocTypeDraft("new")}
               className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             >
@@ -799,75 +836,174 @@ export function PmsCard4CompanyBusiness({
         </div>
 
         {docTypes.length === 0 ? (
-          <div className="p-6 text-center text-sm text-muted-foreground border border-dashed rounded-xl">
-            No document types configured yet. Add document types such as Tax Certificate, Trade License, or Rate Agreement.
+          <div className="p-8 text-center">
+            <p className="font-medium text-[#251605]">No document types configured.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add a document type to define compliance and registration documents accepted for companies and travel agencies.
+            </p>
+            {canEdit ? (
+              <Button
+                type="button"
+                className="mt-4 bg-[#C89933] text-[#251605]"
+                onClick={() => setDocTypeDraft("new")}
+              >
+                <Plus className="mr-1 size-4" /> Add Document Type
+              </Button>
+            ) : null}
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Required</TableHead>
-                <TableHead>Contract</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Order</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {docTypes.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                  <TableCell className="font-mono text-xs">{row.code}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-xs truncate">{row.description || "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={row.required ? "default" : "outline"} className={row.required ? "bg-amber-600" : ""}>
-                      {row.required ? "Mandatory" : "Optional"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={row.appliesToContract ? "secondary" : "outline"}>
-                      {row.appliesToContract ? "Yes" : "No"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={row.appliesToCompany ? "secondary" : "outline"}>
-                      {row.appliesToCompany ? "Yes" : "No"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs">{row.displayOrder}</TableCell>
-                  <TableCell>
-                    <Badge variant={row.active ? "default" : "secondary"} className={row.active ? "bg-[#436436]" : ""}>
-                      {row.active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={!canEdit}
-                      onClick={() => setDocTypeDraft(row)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={!canEdit}
-                      onClick={() => docTypeActiveMutation.mutate({ id: row.id, active: !row.active })}
-                    >
-                      {row.active ? "Deactivate" : "Activate"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Document Type</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Requirement</TableHead>
+                    <TableHead>Applies To</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead className="w-28 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleDocTypes.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
+                      <TableCell className="font-mono text-xs">{row.code}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                        {row.description || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={row.required}
+                            disabled={!canEdit || docTypeRequiredMutation.isPending}
+                            onCheckedChange={(required) =>
+                              docTypeRequiredMutation.mutate({ id: row.id, required })
+                            }
+                            aria-label={`Toggle requirement for ${row.name}`}
+                          />
+                          <span
+                            className={cn(
+                              "text-xs font-medium",
+                              row.required ? "text-[#436436]" : "text-muted-foreground",
+                            )}
+                          >
+                            {row.required ? "Required" : "Optional"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {row.appliesToCompany ? (
+                            <Badge variant="secondary" className="text-[10px]">Company</Badge>
+                          ) : null}
+                          {row.appliesToTravelAgency ? (
+                            <Badge variant="secondary" className="text-[10px]">Travel Agency</Badge>
+                          ) : null}
+                          {!row.appliesToCompany && !row.appliesToTravelAgency ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={row.active}
+                          disabled={!canEdit || docTypeActiveMutation.isPending}
+                          onCheckedChange={(active) =>
+                            docTypeActiveMutation.mutate({ id: row.id, active })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!canEdit}
+                            className="h-8 px-2.5 text-xs font-medium"
+                            onClick={() => setDocTypeDraft(row)}
+                          >
+                            Edit
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label={`Actions for ${row.name}`}
+                              >
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => setDocTypeDraft(row)}>
+                                Edit
+                              </DropdownMenuItem>
+                              {canEdit ? (
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    docTypeRequiredMutation.mutate({ id: row.id, required: !row.required })
+                                  }
+                                >
+                                  {row.required ? "Make Optional" : "Make Required"}
+                                </DropdownMenuItem>
+                              ) : null}
+                              {canEdit ? (
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    docTypeActiveMutation.mutate({ id: row.id, active: !row.active })
+                                  }
+                                >
+                                  {row.active ? "Disable" : "Enable"}
+                                </DropdownMenuItem>
+                              ) : null}
+                              {canEdit ? (
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onSelect={() => setPendingDeleteDocType(row)}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              ) : null}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+              <p className="text-xs text-muted-foreground">
+                Showing {docTypeStart}–{docTypeEnd} of {docTypes.length} document types
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={safeDocTypePage <= 1}
+                  onClick={() => setDocTypePage((v) => Math.max(1, v - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={safeDocTypePage >= docTypePageCount}
+                  onClick={() => setDocTypePage((v) => Math.min(docTypePageCount, v + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </section>
 
@@ -1068,7 +1204,31 @@ export function PmsCard4CompanyBusiness({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={Boolean(pendingDeleteDocType)}
+        onOpenChange={(open) => !open && setPendingDeleteDocType(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document Type?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &quot;{pendingDeleteDocType?.name}&quot; from property settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => pendingDeleteDocType && docTypeDeleteMutation.mutate(pendingDeleteDocType.id)}
+            >
+              {docTypeDeleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <CompanyDocumentTypeSheet
+        key={docTypeDraft === "new" ? "new" : docTypeDraft?.id ?? "closed"}
         open={docTypeDraft !== null}
         canEdit={canEdit}
         value={docTypeDraft === "new" || docTypeDraft === null ? null : docTypeDraft}
@@ -1093,16 +1253,29 @@ function CompanyDocumentTypeSheet({
   value: CompanyDocumentTypeRecord | null;
   pending: boolean;
   onClose: () => void;
-  onSave: (payload: { id?: string; name: string; code: string; description?: string; required: boolean; appliesToContract: boolean; appliesToCompany: boolean; displayOrder: number; active: boolean }) => void;
+  onSave: (payload: { id?: string; name: string; code: string; description?: string; required: boolean; appliesToContract: boolean; appliesToCompany: boolean; appliesToTravelAgency: boolean; displayOrder: number; active: boolean }) => void;
 }) {
   const [name, setName] = useState(value?.name ?? "");
   const [code, setCode] = useState(value?.code ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
-  const [required, setRequired] = useState(value?.required ?? false);
-  const [appliesToContract, setAppliesToContract] = useState(value?.appliesToContract ?? true);
+  const [required, setRequired] = useState(Boolean(value?.required));
   const [appliesToCompany, setAppliesToCompany] = useState(value?.appliesToCompany ?? true);
+  const [appliesToTravelAgency, setAppliesToTravelAgency] = useState(value?.appliesToTravelAgency ?? false);
   const [displayOrder, setDisplayOrder] = useState(String(value?.displayOrder ?? 0));
   const [active, setActive] = useState(value?.active ?? true);
+
+  useEffect(() => {
+    if (open) {
+      setName(value?.name ?? "");
+      setCode(value?.code ?? "");
+      setDescription(value?.description ?? "");
+      setRequired(Boolean(value?.required));
+      setAppliesToCompany(value?.appliesToCompany ?? true);
+      setAppliesToTravelAgency(value?.appliesToTravelAgency ?? false);
+      setDisplayOrder(String(value?.displayOrder ?? 0));
+      setActive(value?.active ?? true);
+    }
+  }, [open, value]);
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -1110,7 +1283,7 @@ function CompanyDocumentTypeSheet({
         <SheetHeader>
           <SheetTitle>{value ? "Edit Document Type" : "Add Document Type"}</SheetTitle>
           <SheetDescription>
-            Configure document requirements and contract applicability.
+            Configure document requirements and applicability for corporate companies and travel agencies.
           </SheetDescription>
         </SheetHeader>
         <form
@@ -1127,8 +1300,9 @@ function CompanyDocumentTypeSheet({
               code: code.trim().toUpperCase(),
               description: description.trim() || undefined,
               required,
-              appliesToContract,
+              appliesToContract: appliesToCompany,
               appliesToCompany,
+              appliesToTravelAgency,
               displayOrder: Number(displayOrder) || 0,
               active,
             });
@@ -1180,7 +1354,7 @@ function CompanyDocumentTypeSheet({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <Label htmlFor="dt-required">Mandatory Requirement</Label>
-                <p className="text-xs text-muted-foreground">If enabled, active contract creation will require this document.</p>
+                <p className="text-xs text-muted-foreground">If enabled, registration will require this document.</p>
               </div>
               <Switch
                 id="dt-required"
@@ -1191,26 +1365,26 @@ function CompanyDocumentTypeSheet({
             </div>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <Label htmlFor="dt-applies-contract">Applies to Contracts</Label>
-                <p className="text-xs text-muted-foreground">Visible in Step 4 Contracts &amp; Agreements.</p>
-              </div>
-              <Switch
-                id="dt-applies-contract"
-                checked={appliesToContract}
-                disabled={!canEdit}
-                onCheckedChange={setAppliesToContract}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="dt-applies-company">Applies to Company Profile</Label>
-                <p className="text-xs text-muted-foreground">Visible in Company Profile Documents.</p>
+                <Label htmlFor="dt-applies-company">Applies to Company</Label>
+                <p className="text-xs text-muted-foreground">Visible in Company creation and profile documents.</p>
               </div>
               <Switch
                 id="dt-applies-company"
                 checked={appliesToCompany}
                 disabled={!canEdit}
                 onCheckedChange={setAppliesToCompany}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="dt-applies-travel-agency">Applies to Travel Agency</Label>
+                <p className="text-xs text-muted-foreground">Visible in Travel Agency registration and documents.</p>
+              </div>
+              <Switch
+                id="dt-applies-travel-agency"
+                checked={appliesToTravelAgency}
+                disabled={!canEdit}
+                onCheckedChange={setAppliesToTravelAgency}
               />
             </div>
             <div className="flex items-center justify-between gap-3">

@@ -64,7 +64,7 @@ function unavailable(error: { code?: string; message?: string } | null | undefin
 }
 
 const TA_MASTER_COLUMNS =
-  "id, name, trade_name, code, email, phone, phone_alt, email_alt, address_line1, address_line2, city, region, country, postal_code, website, notes, account_status, agency_type, agency_type_other, primary_contact_name, billing_contact_name, iata_license_number, license_expiry_date, tax_id, business_registration_number, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction, negotiated_rate_reference, logo_storage_path, preferred_currency, market_segment_id, booking_access, max_advance_booking_days, min_stay_nights, max_stay_nights, group_bookings_allowed, credit_limit_amount, created_at, updated_at";
+  "id, name, trade_name, code, email, phone, phone_alt, email_alt, address_line1, address_line2, city, region, country, postal_code, website, notes, account_status, agency_type, agency_type_other, primary_contact_name, billing_contact_name, iata_license_number, license_expiry_date, tax_id, business_registration_number, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction, negotiated_rate_reference, logo_storage_path, preferred_currency, market_segment_id, booking_access, max_advance_booking_days, min_stay_nights, max_stay_nights, group_bookings_allowed, credit_limit_amount, billing_currency_code, default_payment_method_id, payment_timing, default_billing_rule_id, credit_account_enabled, credit_days, credit_status, default_deposit_policy_id, default_cancellation_policy_id, default_no_show_policy_id, booking_notes, created_at, updated_at";
 
 export type TravelAgentMasterRow = {
   id: string;
@@ -113,6 +113,17 @@ export type TravelAgentMasterRow = {
   max_stay_nights: number | null;
   group_bookings_allowed: boolean | null;
   credit_limit_amount: number | null;
+  billing_currency_code?: string | null;
+  default_payment_method_id?: string | null;
+  payment_timing?: string | null;
+  default_billing_rule_id?: string | null;
+  credit_account_enabled?: boolean | null;
+  credit_days?: number | null;
+  credit_status?: string | null;
+  default_deposit_policy_id?: string | null;
+  default_cancellation_policy_id?: string | null;
+  default_no_show_policy_id?: string | null;
+  booking_notes?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -243,6 +254,17 @@ function mapAgency(agency: TravelAgentMasterRow, logoUrl: string | null) {
     minStayNights: agency.min_stay_nights,
     maxStayNights: agency.max_stay_nights,
     groupBookingsAllowed: agency.group_bookings_allowed !== false,
+    billingCurrencyCode: agency.billing_currency_code ?? agency.preferred_currency ?? null,
+    defaultPaymentMethodId: agency.default_payment_method_id ?? null,
+    paymentTiming: agency.payment_timing ?? null,
+    defaultBillingRuleId: agency.default_billing_rule_id ?? null,
+    creditAccountEnabled: agency.credit_account_enabled ?? false,
+    creditDays: agency.credit_days ?? null,
+    creditStatus: agency.credit_status ?? null,
+    defaultDepositPolicyId: agency.default_deposit_policy_id ?? null,
+    defaultCancellationPolicyId: agency.default_cancellation_policy_id ?? null,
+    defaultNoShowPolicyId: agency.default_no_show_policy_id ?? null,
+    bookingNotes: agency.booking_notes ?? null,
     logoUrl,
     partnerSince: agency.created_at,
     updatedAt: agency.updated_at,
@@ -1043,7 +1065,7 @@ async function ensureTravelAgentDocumentTypes(db: { from: (table: string) => any
   if (missing.length === 0) return rows;
   const inserted = await db
     .from("pms_company_document_types")
-    .insert(missing.map((type) => ({ restaurant_id: restaurantId, ...type })))
+    .insert(missing.map((type) => ({ restaurant_id: restaurantId, applies_to_travel_agency: true, ...type })))
     .select("id, name, code, active");
   if (inserted.error) return rows;
   return [...rows, ...((inserted.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>)];
@@ -1592,6 +1614,17 @@ export const listTravelAgentBilling = createServerFn({ method: "POST" })
         creditLimitAmount: agency.credit_limit_amount == null ? null : Number(agency.credit_limit_amount),
         billingInstruction: agency.billing_instruction,
         billingContact: agency.billing_contact_name || agency.primary_contact_name,
+        billingCurrencyCode: agency.billing_currency_code ?? agency.preferred_currency ?? null,
+        defaultPaymentMethodId: agency.default_payment_method_id ?? null,
+        paymentTiming: agency.payment_timing ?? null,
+        defaultBillingRuleId: agency.default_billing_rule_id ?? null,
+        creditAccountEnabled: agency.credit_account_enabled ?? false,
+        creditDays: agency.credit_days ?? null,
+        creditStatus: agency.credit_status ?? null,
+        defaultDepositPolicyId: agency.default_deposit_policy_id ?? null,
+        defaultCancellationPolicyId: agency.default_cancellation_policy_id ?? null,
+        defaultNoShowPolicyId: agency.default_no_show_policy_id ?? null,
+        bookingNotes: agency.booking_notes ?? null,
         moneyAvailable,
         commission: moneyAvailable ? commissionTotals : null,
       },
@@ -1641,6 +1674,17 @@ export const updateTravelAgentSettings = createServerFn({ method: "POST" })
         billingInstruction: z.string().max(4000).optional().nullable(),
         creditLimitNote: z.string().max(200).optional().nullable(),
         creditLimitAmount: z.number().min(0).max(1_000_000_000).optional().nullable(),
+        billingCurrencyCode: z.string().regex(/^[A-Z]{3}$/).optional().nullable(),
+        defaultPaymentMethodId: idSchema.optional().nullable(),
+        paymentTiming: z.enum(["due_on_arrival", "due_on_departure", "prepaid", "credit_terms"]).optional().nullable(),
+        defaultBillingRuleId: idSchema.optional().nullable(),
+        creditAccountEnabled: z.boolean().optional(),
+        creditDays: z.number().int().min(0).max(365).optional().nullable(),
+        creditStatus: z.enum(["pending_approval", "approved", "suspended"]).optional().nullable(),
+        defaultDepositPolicyId: idSchema.optional().nullable(),
+        defaultCancellationPolicyId: idSchema.optional().nullable(),
+        defaultNoShowPolicyId: idSchema.optional().nullable(),
+        bookingNotes: z.string().max(500).optional().nullable(),
         allowedRoomTypeIds: z.array(idSchema).max(80).optional(),
       })
       .parse(input),
@@ -1679,6 +1723,17 @@ export const updateTravelAgentSettings = createServerFn({ method: "POST" })
       billing_instruction: blankToNull(data.billingInstruction),
       credit_limit_note: blankToNull(data.creditLimitNote),
       credit_limit_amount: data.creditLimitAmount ?? null,
+      billing_currency_code: blankToNull(data.billingCurrencyCode),
+      default_payment_method_id: data.defaultPaymentMethodId || null,
+      payment_timing: data.paymentTiming || null,
+      default_billing_rule_id: data.defaultBillingRuleId || null,
+      credit_account_enabled: data.creditAccountEnabled,
+      credit_days: data.creditDays ?? null,
+      credit_status: data.creditStatus || null,
+      default_deposit_policy_id: data.defaultDepositPolicyId || null,
+      default_cancellation_policy_id: data.defaultCancellationPolicyId || null,
+      default_no_show_policy_id: data.defaultNoShowPolicyId || null,
+      booking_notes: blankToNull(data.bookingNotes),
     };
     const cleaned = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
     const updated = await db

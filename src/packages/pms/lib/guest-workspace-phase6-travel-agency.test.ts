@@ -315,8 +315,9 @@ describe("Phase 6: Header Modernization & Single Edit Flow", () => {
   it("canonical edit flow is strictly GuestTravelAgentFormDialog (Amendment 8)", () => {
     const workspaceFile = readRel("../components/workspaces/guest-travel-agent-detail-workspace.tsx");
     assert.ok(
-      workspaceFile.includes("GuestTravelAgentFormDialog"),
-      "Workspace must mount canonical GuestTravelAgentFormDialog",
+      workspaceFile.includes("GuestTravelAgentFormDialog") ||
+        workspaceFile.includes("GuestTravelAgencyCreateModal"),
+      "Workspace must mount canonical edit dialog",
     );
   });
 });

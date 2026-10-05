@@ -286,7 +286,7 @@ export const persistTravelAgentCreate = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    const me = await requireGuestManager(context as never, data.restaurantId);
     const draft = data.draft;
     if (!draft.accountId) {
       const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
@@ -328,25 +328,67 @@ export const persistTravelAgentCreate = createServerFn({ method: "POST" })
     let error: string | undefined;
     try {
       contacts = await persistContacts(data.restaurantId, accountId, draft.contacts);
+      const { executeSaveTravelAgencyCommissionRates } = await import(
+        "./guest-travel-agency-step3-commission-rates.server.ts"
+      );
       const commissionCurrency = [draft.commissionCurrency, draft.currency].find((value) =>
         /^[A-Z]{3}$/.test(value.trim()),
       );
-      if (travelAgentCommissionReady(draft) && commissionCurrency) {
-        const today = new Date().toISOString().slice(0, 10);
-        await saveTravelAgentCommissionPlan({
-          data: {
-            restaurantId: data.restaurantId,
-            agencyId: accountId,
-            commissionType: draft.commissionType as (typeof TA_COMMISSION_PLAN_TYPES)[number],
-            rateValue: Number(draft.commissionValue),
-            currency: commissionCurrency.trim(),
-            effectiveOn: filled(draft.commissionEffectiveOn) ? draft.commissionEffectiveOn : today,
-            expiresOn: filled(draft.commissionExpiresOn) ? draft.commissionExpiresOn : null,
-            notes: draft.commissionNotes || null,
+
+      let rulesToPersist = draft.commissionRules ?? [];
+      if (draft.commissionApplicationMode === "all" || rulesToPersist.length === 0) {
+        rulesToPersist = [
+          {
+            scopeType: "all",
+            roomTypeId: null,
+            ratePlanId: null,
+            commissionType: (draft.allCommissionType || draft.commissionType || "percent") as "percent" | "fixed",
+            commissionValue: Number(draft.allCommissionValue || draft.commissionValue || 0),
           },
-        });
+        ];
       }
+
+      await executeSaveTravelAgencyCommissionRates(admin(supabaseAdmin), {
+        restaurantId: data.restaurantId,
+        agencyId: accountId,
+        commercialModel: draft.commercialModel || (draft.commissionEnabled ? "commissionable" : "net_rate"),
+        commissionCurrency: commissionCurrency || "ETB",
+        commissionEffectiveOn: draft.commissionEffectiveOn || new Date().toISOString().slice(0, 10),
+        commissionExpiresOn: draft.commissionExpiresOn || null,
+        commissionNotes: draft.commissionNotes || null,
+        commissionRules: rulesToPersist.map((r) => ({
+          ...r,
+          commissionValue: Number(r.commissionValue || 0),
+        })),
+        agencyRateDefaults: draft.agencyRateDefaults ?? [],
+        netPricingMethod: draft.netPricingMethod || null,
+        netRoomTypeId: draft.netRoomTypeId || null,
+        netRatePlanId: draft.netRatePlanId || null,
+        netDiscountType: draft.netDiscountType || null,
+        netDiscountValue: draft.netDiscountValue ? Number(draft.netDiscountValue) : null,
+        netCurrencyCode: draft.netCurrencyCode || draft.currency || "ETB",
+        netValidFrom: draft.netValidFrom || null,
+        netValidUntil: draft.netValidUntil || null,
+        contractedRates: (draft.contractedRates ?? []).map((cr) => ({
+          roomTypeId: cr.roomTypeId,
+          amount: Number(cr.amount || 0),
+        })),
+        commercialNotes: draft.commercialNotes || null,
+      });
+
+      // Step 4: Payment, Credit & Reservation Rules + Documents Persistence
+      const { persistTravelAgencyStep4, travelAgencyStep4PayloadFromDraft } = await import(
+        "./guest-travel-agency-step4.server.ts"
+      );
+      const step4Payload = travelAgencyStep4PayloadFromDraft(data.restaurantId, accountId, draft);
+      await persistTravelAgencyStep4(admin(supabaseAdmin), step4Payload, {
+        mode: data.mode,
+        membershipId: me.id,
+      });
     } catch (caught) {
+      if (data.mode === "complete") {
+        throw caught;
+      }
       error = caught instanceof Error ? caught.message : "Some agency details could not be saved.";
     }
     return { id: accountId, contacts, created: true as const, error };

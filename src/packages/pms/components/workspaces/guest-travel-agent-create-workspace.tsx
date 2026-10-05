@@ -68,17 +68,23 @@ import {
   saveTravelAgentCreateDraft,
   type TravelAgentCreateContext,
 } from "@/packages/pms/lib/guest-travel-agent-create.functions";
+import {
+  GuestTravelAgencyCommissionRatesStep,
+  CommercialSummaryPanel,
+} from "@/packages/pms/components/guests/guest-travel-agency-commission-rates-step";
+import { getTravelAgencyCommissionRatesConfig } from "@/packages/pms/lib/guest-travel-agency-step3-commission-rates.functions";
 
 export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const load = useServerFn(getTravelAgentCreateContext);
+  const loadStep3Config = useServerFn(getTravelAgencyCommissionRatesConfig);
   const saveDraftHold = useServerFn(saveTravelAgentCreateDraft);
   const clearDraft = useServerFn(deleteTravelAgentCreateDraft);
   const persist = useServerFn(persistTravelAgentCreate);
 
   const localHold = useMemo(() => readGuestTravelAgentCreateHold(restaurantId), [restaurantId]);
-  const [step, setStep] = useState<GuestTravelAgentCreateStepId>(() => localHold?.step ?? "details");
+  const [step, setStep] = useState<GuestTravelAgentCreateStepId>(() => localHold?.step ?? "basic_info");
   const [draft, setDraft] = useState<GuestTravelAgentCreateDraft>(
     () => localHold?.draft ?? emptyGuestTravelAgentCreateDraft(),
   );
@@ -91,6 +97,11 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   const context = useQuery({
     queryKey: ["travel-agent-create-context", restaurantId],
     queryFn: () => load({ data: { restaurantId } }),
+  });
+
+  const step3ConfigQuery = useQuery({
+    queryKey: ["travel-agency-step3-config", restaurantId],
+    queryFn: () => loadStep3Config({ data: { restaurantId } }),
   });
 
   useEffect(() => {
@@ -353,23 +364,42 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
 
       <div className="grid min-h-0 flex-1 items-start gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(18rem,20rem)] sm:p-6">
         <div className="min-w-0 space-y-4">
-          {step === "details" ? <DetailsStep draft={draft} set={set} fieldError={fieldError} /> : null}
+          {step === "basic_info" || step === "details" ? (
+            <>
+              <DetailsStep draft={draft} set={set} fieldError={fieldError} />
+              <BusinessStep draft={draft} set={set} catalogues={catalogues} />
+            </>
+          ) : null}
           {step === "contacts" ? <ContactsStep draft={draft} set={set} error={fieldError("contacts", "contacts")} /> : null}
-          {step === "business" ? <BusinessStep draft={draft} set={set} catalogues={catalogues} /> : null}
+          {step === "commission_rates" || step === "business" ? (
+            <GuestTravelAgencyCommissionRatesStep
+              draft={draft}
+              set={set}
+              config={step3ConfigQuery.data}
+              fieldError={fieldError}
+            />
+          ) : null}
+          {step === "booking_operations" ? (
+            <BookingOperationsStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
+          ) : null}
           {step === "billing" ? <BillingStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} /> : null}
           {step === "review" ? <ReviewStep draft={draft} catalogues={catalogues} issues={fieldIssues} onEdit={go} /> : null}
         </div>
         <aside className="space-y-4">
-          <section className="rounded-2xl border border-border bg-card p-4">
-            <h3 className="font-display text-base">Agency Summary</h3>
-            <dl className="mt-3 space-y-2 text-sm">
-              <SummaryRow label="Agency Name" value={draft.name || "—"} />
-              <SummaryRow label="Type" value={agencyTypeLabel(draft.agencyType) || "—"} />
-              <SummaryRow label="Status" value={ACCOUNT_CREATE_STATUS_LABELS[draft.accountStatus]} />
-              <SummaryRow label="Primary contact" value={primary?.name || "—"} />
-              <SummaryRow label="IATA / license" value={draft.iataLicenseNumber || "—"} />
-            </dl>
-          </section>
+          {step === "commission_rates" ? (
+            <CommercialSummaryPanel draft={draft} config={step3ConfigQuery.data} />
+          ) : (
+            <section className="rounded-2xl border border-border bg-card p-4">
+              <h3 className="font-display text-base">Agency Summary</h3>
+              <dl className="mt-3 space-y-2 text-sm">
+                <SummaryRow label="Agency Name" value={draft.name || "—"} />
+                <SummaryRow label="Type" value={agencyTypeLabel(draft.agencyType) || "—"} />
+                <SummaryRow label="Status" value={ACCOUNT_CREATE_STATUS_LABELS[draft.accountStatus]} />
+                <SummaryRow label="Primary contact" value={primary?.name || "—"} />
+                <SummaryRow label="IATA / license" value={draft.iataLicenseNumber || "—"} />
+              </dl>
+            </section>
+          )}
           <section className="rounded-2xl border border-border bg-card p-4">
             <h3 className="font-display text-base">Data Completion</h3>
             <p className="mt-1 text-2xl font-semibold">{completion.percent}%</p>
@@ -765,6 +795,44 @@ function BusinessStep({
         </Field>
       </div>
     </section>
+  );
+}
+
+function BookingOperationsStep({
+  draft,
+  set,
+  catalogues,
+  fieldError,
+}: {
+  draft: GuestTravelAgentCreateDraft;
+  set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
+  catalogues?: TravelAgentCreateContext["catalogues"];
+  fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
+}) {
+  return (
+    <div className="space-y-4" data-testid="travel-agency-booking-operations-step">
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
+        <h2 className="font-display text-lg">Booking & Contracts</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Contract reference">
+            <Input value={draft.contractReference} onChange={(event) => set("contractReference", event.target.value)} />
+          </Field>
+          <Field label="Contract start" error={fieldError("contractStartDate", "booking_operations")}>
+            <Input type="date" value={draft.contractStartDate} onChange={(event) => set("contractStartDate", event.target.value)} />
+          </Field>
+          <Field label="Contract end" error={fieldError("contractEndDate", "booking_operations")}>
+            <Input type="date" value={draft.contractEndDate} onChange={(event) => set("contractEndDate", event.target.value)} />
+          </Field>
+          <Field label="Default package">
+            <NoneSelect value={draft.packageId} onChange={(value) => set("packageId", value)} options={catalogues?.packages ?? []} placeholder="Select package" />
+          </Field>
+          <Field label="Default meal plan">
+            <NoneSelect value={draft.mealPlanId} onChange={(value) => set("mealPlanId", value)} options={catalogues?.mealPlans ?? []} placeholder="Select meal plan" />
+          </Field>
+        </div>
+        <p className="text-xs text-muted-foreground">{TRAVEL_AGENT_CREATE_CONTRACT_COPY}</p>
+      </section>
+    </div>
   );
 }
 

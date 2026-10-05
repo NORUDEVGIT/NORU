@@ -236,6 +236,7 @@ export function GuestTravelAgentDetailWorkspace({
         <GuestTravelAgentCommercialCommissionView
           restaurantId={restaurantId}
           agencyId={agencyId}
+          agencyName={data.agency.name}
           initialSubTab={commercialSubTab}
           onOpenSettings={() => selectNav("settings")}
         />
