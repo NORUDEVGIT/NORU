@@ -63,6 +63,8 @@ export type CompanyCreateContext = {
   autoApproval?: boolean;
   nextCompanyCode: string;
   draft: { id: string; payload: GuestCompanyCreateDraft; step: GuestCompanyCreateStepId } | null;
+  fields?: Array<{ id: string; name: string; code: string; fieldType: string; required: boolean; active: boolean; displayOrder: number }>;
+  profileType?: { id: string; name: string; code: string; active: boolean; requiredFieldIds: string[] } | null;
 };
 
 function mapOption(row: Record<string, unknown>): AccountCreateCatalogueOption {
@@ -113,6 +115,8 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       draft,
       businessSettingsRes,
       existingCodesRes,
+      fieldsRes,
+      profileTypeRes,
     ] = await Promise.all([
       loadOptionalOptions(
         db,
@@ -154,6 +158,17 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId)
         .eq("account_type", "company")
         .not("code", "is", null),
+      db
+        .from("pms_guest_fields")
+        .select("id, name, code, field_type, required, active, display_order")
+        .eq("restaurant_id", data.restaurantId)
+        .order("display_order"),
+      db
+        .from("pms_guest_profile_types")
+        .select("id, name, code, active, required_field_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", ["COM", "COMPANY"])
+        .maybeSingle(),
     ]);
 
     let maxSeq = 0;
@@ -277,6 +292,26 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       autoApproval,
       nextCompanyCode,
       draft: savedDraft,
+      fields: ((fieldsRes?.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        code: String(row.code ?? ""),
+        fieldType: String(row.field_type ?? "text"),
+        required: Boolean(row.required),
+        active: row.active == null ? true : Boolean(row.active),
+        displayOrder: Number(row.display_order ?? 0),
+      })),
+      profileType: profileTypeRes?.data
+        ? {
+            id: String(profileTypeRes.data.id),
+            name: String(profileTypeRes.data.name ?? "Company"),
+            code: String(profileTypeRes.data.code ?? "COM"),
+            active: Boolean(profileTypeRes.data.active),
+            requiredFieldIds: Array.isArray(profileTypeRes.data.required_field_ids)
+              ? profileTypeRes.data.required_field_ids
+              : [],
+          }
+        : null,
     };
   });
 

@@ -358,10 +358,32 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
       const requiredSet = new Set(data.requiredFieldIds);
       const fieldsRes = await db
         .from("pms_guest_fields")
-        .select("id, required")
+        .select("id, code, required")
         .eq("restaurant_id", data.restaurantId);
       if (fieldsRes.data) {
-        for (const f of fieldsRes.data) {
+        // Only sync individual fields
+        const indFields = fieldsRes.data.filter((f) => !f.code.toUpperCase().startsWith("COMPANY_"));
+        for (const f of indFields) {
+          const shouldBeReq = requiredSet.has(f.id);
+          if (f.required !== shouldBeReq) {
+            await db
+              .from("pms_guest_fields")
+              .update({ required: shouldBeReq, updated_by: context.userId })
+              .eq("id", f.id)
+              .eq("restaurant_id", data.restaurantId);
+          }
+        }
+      }
+    } else if (code === "COM" || code === "COMPANY" || name.toLowerCase().includes("company")) {
+      const requiredSet = new Set(data.requiredFieldIds);
+      const fieldsRes = await db
+        .from("pms_guest_fields")
+        .select("id, code, required")
+        .eq("restaurant_id", data.restaurantId);
+      if (fieldsRes.data) {
+        // Only sync company fields
+        const comFields = fieldsRes.data.filter((f) => f.code.toUpperCase().startsWith("COMPANY_"));
+        for (const f of comFields) {
           const shouldBeReq = requiredSet.has(f.id);
           if (f.required !== shouldBeReq) {
             await db

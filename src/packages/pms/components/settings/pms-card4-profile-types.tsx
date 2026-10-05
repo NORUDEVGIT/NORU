@@ -95,6 +95,10 @@ import {
 import {
   INDIVIDUAL_GUEST_CREATION_FIELDS,
   ESSENTIAL_GUEST_FIELD_CODES,
+  COMPANY_CREATION_FIELDS,
+  COMPANY_CREATION_CATEGORIES,
+  ESSENTIAL_COMPANY_FIELD_CODES,
+  GUEST_CREATION_CATEGORIES,
 } from "@/packages/pms/lib/guest-creation-field-definitions";
 import { ManageGuestFieldsDrawer } from "./catalog-sheets/manage-guest-fields-drawer";
 
@@ -193,32 +197,61 @@ export function PmsCard4ProfileTypes({
   const [selectedAdditionalCodes, setSelectedAdditionalCodes] = useState<Set<string>>(new Set());
   const [selectedField, setSelectedField] = useState<GuestFieldRecord | null>(null);
 
-  useEffect(() => {
-    const matchingCodes = allFields
-      .filter((f) => draft.requiredFieldIds.includes(f.id) || f.required)
-      .map((f) => f.code.toUpperCase())
-      .filter((code) => !ESSENTIAL_GUEST_FIELD_CODES.has(code));
-    if (matchingCodes.length > 0) {
-      setSelectedAdditionalCodes((prev) => new Set([...prev, ...matchingCodes]));
-    }
-  }, [draft.requiredFieldIds, allFields]);
-
   const isIndividual =
     draft.code === "IND" ||
     draft.code === "INDIVIDUAL" ||
     draft.name.toLowerCase().includes("individual");
 
+  const isCompany =
+    draft.code === "COM" ||
+    draft.code === "COMPANY" ||
+    draft.name.toLowerCase().includes("company");
+
+  const activeCreationFields = isCompany
+    ? COMPANY_CREATION_FIELDS
+    : INDIVIDUAL_GUEST_CREATION_FIELDS;
+
+  const essentialCodes = isCompany
+    ? ESSENTIAL_COMPANY_FIELD_CODES
+    : ESSENTIAL_GUEST_FIELD_CODES;
+
+  const activeCategories = isCompany
+    ? COMPANY_CREATION_CATEGORIES
+    : GUEST_CREATION_CATEGORIES;
+
+  useEffect(() => {
+    const activeAdditional = activeCreationFields
+      .filter((def) => !def.essential)
+      .filter((def) => {
+        const matched = allFields.find((f) => f.code.toUpperCase() === def.code.toUpperCase());
+        if (matched) return matched.active !== false;
+        return false;
+      })
+      .map((def) => def.code);
+
+    const validCodesForCurrentType = new Set(
+      activeCreationFields.map((d) => d.code.toUpperCase()),
+    );
+
+    const matchingCodes = allFields
+      .filter((f) => draft.requiredFieldIds.includes(f.id))
+      .map((f) => f.code.toUpperCase())
+      .filter((code) => validCodesForCurrentType.has(code) && !essentialCodes.has(code));
+
+    setSelectedAdditionalCodes(new Set([...activeAdditional, ...matchingCodes]));
+  }, [selectedId, draft.code, isCompany, isIndividual, allFields, activeCreationFields, essentialCodes]);
+
   const displayedFields = useMemo(() => {
-    if (!isIndividual) return [];
-    return INDIVIDUAL_GUEST_CREATION_FIELDS.filter((def) => {
+    if (!isIndividual && !isCompany) return [];
+    return activeCreationFields.filter((def) => {
       if (def.essential) return true;
       const matched = allFields.find((f) => f.code.toUpperCase() === def.code.toUpperCase());
       const isRequiredInDraft = Boolean(
-        matched && (draft.requiredFieldIds.includes(matched.id) || matched.required),
+        matched && draft.requiredFieldIds.includes(matched.id),
       );
       return selectedAdditionalCodes.has(def.code) || isRequiredInDraft;
     });
-  }, [isIndividual, allFields, draft.requiredFieldIds, selectedAdditionalCodes]);
+  }, [isIndividual, isCompany, activeCreationFields, allFields, draft.requiredFieldIds, selectedAdditionalCodes]);
 
   const [docEditorOpen, setDocEditorOpen] = useState(false);
   const [docCatalogOpen, setDocCatalogOpen] = useState(false);
@@ -549,7 +582,7 @@ export function PmsCard4ProfileTypes({
 
           {/* TAB: FIELDS */}
           <TabsContent value="fields" className="space-y-4 pt-3">
-            {!isIndividual ? (
+            {!isIndividual && !isCompany ? (
               <div
                 className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-8 text-center"
                 data-testid="non-individual-fields-notice"
@@ -561,7 +594,7 @@ export function PmsCard4ProfileTypes({
                   No Individual Guest Fields
                 </h4>
                 <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
-                  Field requirements and catalog configurations in this tab apply specifically to Individual Guest profiles. {draft.name || "This profile type"} operates under its dedicated account and entity structure.
+                  Field requirements and catalog configurations in this tab apply specifically to Individual Guest and Company profiles. {draft.name || "This profile type"} operates under its dedicated account and entity structure.
                 </p>
               </div>
             ) : (
@@ -569,10 +602,10 @@ export function PmsCard4ProfileTypes({
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
                   <div>
                     <p className="text-xs font-medium text-[#251605]">
-                      Configure fields for {draft.name || "Individual Guest"}
+                      Configure fields for {draft.name || (isCompany ? "Company" : "Individual Guest")}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Essential fields from the guest creation wizard are listed by default. Select additional fields via Manage Fields and control their requirements below.
+                      Essential fields from the {isCompany ? "company" : "guest"} creation wizard are listed by default. Select additional fields via Manage Fields and control their requirements below.
                     </p>
                   </div>
                   {canEdit ? (
@@ -608,7 +641,7 @@ export function PmsCard4ProfileTypes({
                         <TableHead>Category</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Tier</TableHead>
-                        <TableHead>Required for {draft.name || "Individual Guest"}</TableHead>
+                        <TableHead>Required for {draft.name || (isCompany ? "Company" : "Individual Guest")}</TableHead>
                         <TableHead className="w-16" />
                       </TableRow>
                     </TableHeader>
@@ -619,7 +652,10 @@ export function PmsCard4ProfileTypes({
                         );
                         const isRequired =
                           def.systemRequired ||
-                          Boolean(matched && draft.requiredFieldIds.includes(matched.id));
+                          Boolean(
+                            (matched && draft.requiredFieldIds.includes(matched.id)) ||
+                              draft.requiredFieldIds.includes(def.code),
+                          );
 
                         return (
                           <TableRow key={def.code}>
@@ -661,19 +697,31 @@ export function PmsCard4ProfileTypes({
                                   <Switch
                                     id={`field-req-${def.code}`}
                                     checked={isRequired}
-                                    disabled={!canEdit || !matched || fieldFlagsMutation.isPending}
+                                    disabled={!canEdit || fieldFlagsMutation.isPending}
                                     onCheckedChange={(checked) => {
-                                      if (!matched) return;
-                                      const nextRequiredIds = toggleId(
-                                        draft.requiredFieldIds,
-                                        matched.id,
-                                        checked === true,
-                                      );
+                                      const targetId = matched?.id ?? def.code;
+                                      let nextRequiredIds: string[];
+                                      if (checked) {
+                                        nextRequiredIds = draft.requiredFieldIds.includes(targetId)
+                                          ? draft.requiredFieldIds
+                                          : [...draft.requiredFieldIds, targetId];
+                                      } else {
+                                        const removeCodes = new Set([
+                                          targetId,
+                                          def.code,
+                                          def.code.toUpperCase(),
+                                          matched?.id,
+                                          def.code.replace(/^COMPANY_/, ""),
+                                        ].filter(Boolean) as string[]);
+                                        nextRequiredIds = draft.requiredFieldIds.filter((id) => !removeCodes.has(id));
+                                      }
                                       mark("requiredFieldIds", nextRequiredIds);
-                                      fieldFlagsMutation.mutate({
-                                        id: matched.id,
-                                        required: checked,
-                                      });
+                                      if (matched && canEdit) {
+                                        fieldFlagsMutation.mutate({
+                                          id: matched.id,
+                                          required: checked,
+                                        });
+                                      }
                                     }}
                                   />
                                   <Label
@@ -706,6 +754,13 @@ export function PmsCard4ProfileTypes({
                                         "requiredFieldIds",
                                         draft.requiredFieldIds.filter((id) => id !== matched.id),
                                       );
+                                    }
+                                    if (matched && canEdit) {
+                                      fieldFlagsMutation.mutate({
+                                        id: matched.id,
+                                        active: false,
+                                        required: false,
+                                      });
                                     }
                                   }}
                                   title="Remove from listed fields"
@@ -1065,6 +1120,14 @@ export function PmsCard4ProfileTypes({
         canEdit={canEdit}
         allFields={allFields}
         selectedCodes={selectedAdditionalCodes}
+        fieldDefinitions={activeCreationFields}
+        categories={activeCategories}
+        title={isCompany ? "Manage Company Fields" : "Manage Guest Fields"}
+        description={
+          isCompany
+            ? "Select which creation fields appear in the configuration table for Company profiles."
+            : "Select which creation fields appear in the configuration table for Individual Guests."
+        }
         onToggleCode={(code, active) => {
           setSelectedAdditionalCodes((prev) => {
             const next = new Set(prev);
@@ -1072,14 +1135,21 @@ export function PmsCard4ProfileTypes({
             else next.delete(code);
             return next;
           });
+          const matched = allFields.find((f) => f.code.toUpperCase() === code.toUpperCase());
           if (!active) {
-            const matched = allFields.find((f) => f.code.toUpperCase() === code.toUpperCase());
             if (matched && draft.requiredFieldIds.includes(matched.id)) {
               mark(
                 "requiredFieldIds",
                 draft.requiredFieldIds.filter((id) => id !== matched.id),
               );
             }
+          }
+          if (matched && canEdit) {
+            fieldFlagsMutation.mutate({
+              id: matched.id,
+              active,
+              required: active ? undefined : false,
+            });
           }
         }}
       />

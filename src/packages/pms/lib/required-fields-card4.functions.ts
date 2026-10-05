@@ -20,7 +20,10 @@ import {
   type GuestFieldType,
   type NamedOption,
 } from "./required-fields-card4.server";
-import { INDIVIDUAL_GUEST_CREATION_FIELDS } from "./guest-creation-field-definitions";
+import {
+  INDIVIDUAL_GUEST_CREATION_FIELDS,
+  COMPANY_CREATION_FIELDS,
+} from "./guest-creation-field-definitions";
 
 // Generated schema predates 0078.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,30 +198,50 @@ async function loadSnapshot(
   const existingCodes = new Set(
     (fieldsRes.data ?? []).map((row: { code: string }) => row.code.toUpperCase()),
   );
-  const missingDefs = INDIVIDUAL_GUEST_CREATION_FIELDS.filter(
-    (def) => !existingCodes.has(def.code.toUpperCase()) && def.code !== "ADDRESS",
+  const existingNames = new Set(
+    (fieldsRes.data ?? []).map((row: { name: string }) => row.name.trim().toLowerCase()),
   );
-  if (missingDefs.length > 0 && userId) {
+  const combinedDefs = [
+    ...INDIVIDUAL_GUEST_CREATION_FIELDS.filter((def) => def.code !== "ADDRESS"),
+    ...COMPANY_CREATION_FIELDS,
+  ];
+  const missingDefs = combinedDefs.filter(
+    (def, index, self) =>
+      !existingCodes.has(def.code.toUpperCase()) &&
+      self.findIndex((d) => d.code.toUpperCase() === def.code.toUpperCase()) === index,
+  );
+  if (missingDefs.length > 0) {
     const nextOrder = (fieldsRes.data ?? []).length;
-    const payload = missingDefs.map((def, index) => ({
-      restaurant_id: restaurantId,
-      name: def.name,
-      code: def.code,
-      field_type: def.fieldType,
-      description: def.description,
-      options: [],
-      required: false,
-      check_in: false,
-      reservation: false,
-      active: true,
-      display_order: nextOrder + index,
-      lookup_source: def.code === "COMPANY" ? "company" : null,
-      document_type_ids: [],
-      min_value: null,
-      max_value: null,
-      updated_by: userId,
-    }));
-    await db.from("pms_guest_fields").insert(payload);
+    for (let index = 0; index < missingDefs.length; index++) {
+      const def = missingDefs[index];
+      let fieldName = def.name;
+      if (existingNames.has(fieldName.trim().toLowerCase())) {
+        fieldName = def.code.startsWith("COMPANY_")
+          ? `Company ${def.name}`
+          : `${def.name} (${def.code})`;
+      }
+      existingNames.add(fieldName.trim().toLowerCase());
+      const isEssential = def.essential;
+      const rowPayload = {
+        restaurant_id: restaurantId,
+        name: fieldName,
+        code: def.code,
+        field_type: def.fieldType,
+        description: def.description,
+        options: [],
+        required: Boolean(def.systemRequired),
+        check_in: false,
+        reservation: false,
+        active: isEssential ? true : false,
+        display_order: nextOrder + index,
+        lookup_source: def.code === "COMPANY" ? "company" : null,
+        document_type_ids: [],
+        min_value: null,
+        max_value: null,
+        updated_by: userId || null,
+      };
+      await db.from("pms_guest_fields").insert(rowPayload).catch(() => undefined);
+    }
     const refreshed = await db
       .from("pms_guest_fields")
       .select(
@@ -361,15 +384,17 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
     }
     if (!id) throw new Error("Could not save the field.");
     if (data.required !== undefined && id) {
-      const indTypes = await db
+      const isCompanyField = code.toUpperCase().startsWith("COMPANY_");
+      const targetCodes = isCompanyField ? ["COM", "COMPANY"] : ["IND", "INDIVIDUAL"];
+      const targetTypes = await db
         .from("pms_guest_profile_types")
         .select("id, required_field_ids")
         .eq("restaurant_id", data.restaurantId)
-        .in("code", ["IND", "INDIVIDUAL"]);
-      if (indTypes.data && indTypes.data.length > 0) {
-        for (const indType of indTypes.data) {
-          const currentIds: string[] = Array.isArray(indType.required_field_ids)
-            ? indType.required_field_ids
+        .in("code", targetCodes);
+      if (targetTypes.data && targetTypes.data.length > 0) {
+        for (const targetType of targetTypes.data) {
+          const currentIds: string[] = Array.isArray(targetType.required_field_ids)
+            ? targetType.required_field_ids
             : [];
           const nextIds = data.required
             ? [...new Set([...currentIds, id])]
@@ -377,7 +402,7 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
           await db
             .from("pms_guest_profile_types")
             .update({ required_field_ids: nextIds, updated_by: context.userId })
-            .eq("id", indType.id);
+            .eq("id", targetType.id);
         }
       }
     }
@@ -428,7 +453,19 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
         throw new Error("First Name is system-required and cannot be deactivated.");
       }
     }
-    const active = data.active ?? current.data.active;
+    if (current.data.code === "COMPANY_NAME" || current.data.code === "COMPANY_TYPE") {
+      const fieldTitle = current.data.code === "COMPANY_NAME" ? "Company Name" : "Company Type";
+      if (data.required === false) {
+        throw new Error(`${fieldTitle} is system-required and cannot be made optional.`);
+      }
+      if (data.active === false) {
+        throw new Error(`${fieldTitle} is system-required and cannot be deactivated.`);
+      }
+    }
+    let active = data.active ?? current.data.active;
+    if (data.required === true && !active) {
+      active = true;
+    }
     const required = flagsForActiveChange(active, data.required ?? current.data.required).required;
     if (!active && required) throw new Error("An inactive field cannot be required.");
     const patch = {
@@ -447,15 +484,17 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
       .maybeSingle();
     if (result.error) unavailable(result.error);
     if (data.required !== undefined) {
-      const indTypes = await db
+      const isCompanyField = current.data.code.toUpperCase().startsWith("COMPANY_");
+      const targetCodes = isCompanyField ? ["COM", "COMPANY"] : ["IND", "INDIVIDUAL"];
+      const targetTypes = await db
         .from("pms_guest_profile_types")
         .select("id, required_field_ids")
         .eq("restaurant_id", data.restaurantId)
-        .in("code", ["IND", "INDIVIDUAL"]);
-      if (indTypes.data && indTypes.data.length > 0) {
-        for (const indType of indTypes.data) {
-          const currentIds: string[] = Array.isArray(indType.required_field_ids)
-            ? indType.required_field_ids
+        .in("code", targetCodes);
+      if (targetTypes.data && targetTypes.data.length > 0) {
+        for (const targetType of targetTypes.data) {
+          const currentIds: string[] = Array.isArray(targetType.required_field_ids)
+            ? targetType.required_field_ids
             : [];
           const nextIds = required
             ? [...new Set([...currentIds, data.id])]
@@ -463,7 +502,7 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
           await db
             .from("pms_guest_profile_types")
             .update({ required_field_ids: nextIds, updated_by: context.userId })
-            .eq("id", indType.id);
+            .eq("id", targetType.id);
         }
       }
     }

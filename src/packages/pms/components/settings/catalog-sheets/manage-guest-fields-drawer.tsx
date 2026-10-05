@@ -29,6 +29,10 @@ export function ManageGuestFieldsDrawer({
   allFields,
   selectedCodes,
   onToggleCode,
+  fieldDefinitions = INDIVIDUAL_GUEST_CREATION_FIELDS,
+  categories = GUEST_CREATION_CATEGORIES,
+  title = "Manage Guest Fields",
+  description = "Select which creation fields appear in the configuration table for Individual Guests.",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,24 +40,28 @@ export function ManageGuestFieldsDrawer({
   allFields: GuestFieldRecord[];
   selectedCodes: Set<string>;
   onToggleCode: (code: string, active: boolean) => void;
+  fieldDefinitions?: GuestCreationFieldDefinition[];
+  categories?: Array<{ id: GuestCreationFieldCategory; label: string; description: string }>;
+  title?: string;
+  description?: string;
 }) {
   const [search, setSearch] = useState("");
 
   const filteredFields = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return INDIVIDUAL_GUEST_CREATION_FIELDS;
-    return INDIVIDUAL_GUEST_CREATION_FIELDS.filter(
+    if (!q) return fieldDefinitions;
+    return fieldDefinitions.filter(
       (field) =>
         field.name.toLowerCase().includes(q) ||
         field.code.toLowerCase().includes(q) ||
         field.categoryLabel.toLowerCase().includes(q) ||
         field.description.toLowerCase().includes(q),
     );
-  }, [search]);
+  }, [search, fieldDefinitions]);
 
   const byCategory = useMemo(() => {
     const map = new Map<GuestCreationFieldCategory, GuestCreationFieldDefinition[]>();
-    for (const cat of GUEST_CREATION_CATEGORIES) {
+    for (const cat of categories) {
       map.set(cat.id, []);
     }
     for (const field of filteredFields) {
@@ -62,15 +70,15 @@ export function ManageGuestFieldsDrawer({
       map.set(field.category, list);
     }
     return map;
-  }, [filteredFields]);
+  }, [filteredFields, categories]);
 
   const activeCount = useMemo(() => {
-    return INDIVIDUAL_GUEST_CREATION_FIELDS.filter(
+    return fieldDefinitions.filter(
       (f) => f.essential || selectedCodes.has(f.code),
     ).length;
-  }, [selectedCodes]);
+  }, [fieldDefinitions, selectedCodes]);
 
-  const totalCount = INDIVIDUAL_GUEST_CREATION_FIELDS.length;
+  const totalCount = fieldDefinitions.length;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -86,10 +94,10 @@ export function ManageGuestFieldsDrawer({
             </span>
             <div>
               <SheetTitle className="font-display text-lg font-semibold text-[#251605]">
-                Manage Guest Fields
+                {title}
               </SheetTitle>
               <SheetDescription className="text-xs text-muted-foreground">
-                Select which creation fields appear in the configuration table for Individual Guests.
+                {description}
               </SheetDescription>
             </div>
           </div>
@@ -117,7 +125,7 @@ export function ManageGuestFieldsDrawer({
 
         {/* Scrollable list grouped by category */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-          {GUEST_CREATION_CATEGORIES.map((category) => {
+          {categories.map((category) => {
             const fields = byCategory.get(category.id) ?? [];
             if (fields.length === 0) return null;
 
@@ -141,8 +149,17 @@ export function ManageGuestFieldsDrawer({
                     return (
                       <div
                         key={def.code}
+                        onClick={(e) => {
+                          if (isEssential || !canEdit) return;
+                          const target = e.target as HTMLElement;
+                          if (target.closest("button") || target.closest("label") || target.closest("[role='checkbox']")) {
+                            return;
+                          }
+                          onToggleCode(def.code, !isChecked);
+                        }}
                         className={cn(
                           "flex items-start gap-3 rounded-lg border p-3 transition-colors",
+                          !isEssential && canEdit && "cursor-pointer select-none",
                           isChecked
                             ? "border-[#DDD4C5] bg-white shadow-sm"
                             : "border-transparent bg-white/60 hover:bg-white hover:border-[#DDD4C5]",

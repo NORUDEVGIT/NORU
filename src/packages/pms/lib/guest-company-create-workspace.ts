@@ -7,6 +7,10 @@
 import { COMPANY_TYPES, isCompanyType } from "./guest-profile-company.ts";
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import {
+  COMPANY_CREATION_FIELDS,
+  type GuestCreationFieldDefinition,
+} from "./guest-creation-field-definitions.ts";
 
 export const GUEST_COMPANY_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
@@ -504,11 +508,259 @@ export function validateCompanyPhone(phone: string): string | null {
     : "Enter a valid phone number (+251..., 09..., or 07...)";
 }
 
+export type CompanyCreateFieldCode =
+  | "COMPANY_NAME"
+  | "COMPANY_TYPE"
+  | "COMPANY_CODE"
+  | "ACCOUNT_STATUS"
+  | "TAX_ID"
+  | "REGISTRATION_NUMBER"
+  | "INDUSTRY"
+  | "WEBSITE"
+  | "NOTES"
+  | "COUNTRY"
+  | "REGION"
+  | "CITY"
+  | "ADDRESS_LINE1"
+  | "ADDRESS_LINE2"
+  | "POSTAL_CODE"
+  | "CONTACT_NAME"
+  | "CONTACT_POSITION"
+  | "CONTACT_EMAIL"
+  | "CONTACT_PHONE"
+  | "CONTACT_WHATSAPP"
+  | "CONTACT_PREFERRED_METHOD"
+  | "CONTACT_ROLE";
+
+export type CompanyCreateFieldRule = {
+  code: string;
+  visible: boolean;
+  required: boolean;
+  label: string;
+};
+
+export const FIELD_CODE_BY_COMPANY_PROP: Record<string, string> = {
+  name: "COMPANY_NAME",
+  businessProfileTypeId: "COMPANY_TYPE",
+  code: "COMPANY_CODE",
+  accountStatus: "COMPANY_ACCOUNT_STATUS",
+  taxId: "COMPANY_TAX_ID",
+  registrationNumber: "COMPANY_REGISTRATION_NUMBER",
+  industry: "COMPANY_INDUSTRY",
+  website: "COMPANY_WEBSITE",
+  notes: "COMPANY_NOTES",
+  country: "COMPANY_COUNTRY",
+  region: "COMPANY_REGION",
+  city: "COMPANY_CITY",
+  addressLine1: "COMPANY_ADDRESS_LINE1",
+  addressLine2: "COMPANY_ADDRESS_LINE2",
+  postalCode: "COMPANY_POSTAL_CODE",
+  contacts: "COMPANY_CONTACT_NAME",
+  contactName: "COMPANY_CONTACT_NAME",
+  contactPosition: "COMPANY_CONTACT_POSITION",
+  contactEmail: "COMPANY_CONTACT_EMAIL",
+  contactPhone: "COMPANY_CONTACT_PHONE",
+  contactWhatsapp: "COMPANY_CONTACT_WHATSAPP",
+  contactPreferredMethod: "COMPANY_CONTACT_PREFERRED_METHOD",
+  contactRole: "COMPANY_CONTACT_ROLE",
+};
+
+export const FIELD_CODES_BY_COMPANY_PROP: Record<string, string[]> = {
+  name: ["COMPANY_NAME", "NAME"],
+  businessProfileTypeId: ["COMPANY_TYPE", "TYPE", "BUSINESS_PROFILE_TYPE_ID"],
+  code: ["COMPANY_CODE", "CODE"],
+  accountStatus: ["COMPANY_ACCOUNT_STATUS", "ACCOUNT_STATUS"],
+  taxId: ["COMPANY_TAX_ID", "TAX_ID", "TIN"],
+  registrationNumber: ["COMPANY_REGISTRATION_NUMBER", "REGISTRATION_NUMBER"],
+  industry: ["COMPANY_INDUSTRY", "INDUSTRY"],
+  website: ["COMPANY_WEBSITE", "WEBSITE"],
+  notes: ["COMPANY_NOTES", "NOTES"],
+  country: ["COMPANY_COUNTRY", "COUNTRY"],
+  region: ["COMPANY_REGION", "REGION"],
+  city: ["COMPANY_CITY", "CITY"],
+  addressLine1: ["COMPANY_ADDRESS_LINE1", "ADDRESS_LINE1"],
+  addressLine2: ["COMPANY_ADDRESS_LINE2", "ADDRESS_LINE2"],
+  postalCode: ["COMPANY_POSTAL_CODE", "POSTAL_CODE"],
+  contacts: ["COMPANY_CONTACT_NAME", "CONTACT_NAME", "CONTACTS"],
+  contactName: ["COMPANY_CONTACT_NAME", "CONTACT_NAME"],
+  contactPosition: ["COMPANY_CONTACT_POSITION", "CONTACT_POSITION"],
+  position: ["COMPANY_CONTACT_POSITION", "CONTACT_POSITION"],
+  contactEmail: ["COMPANY_CONTACT_EMAIL", "CONTACT_EMAIL"],
+  email: ["COMPANY_CONTACT_EMAIL", "CONTACT_EMAIL"],
+  contactPhone: ["COMPANY_CONTACT_PHONE", "CONTACT_PHONE"],
+  phone: ["COMPANY_CONTACT_PHONE", "CONTACT_PHONE"],
+  contactWhatsapp: ["COMPANY_CONTACT_WHATSAPP", "CONTACT_WHATSAPP"],
+  whatsapp: ["COMPANY_CONTACT_WHATSAPP", "CONTACT_WHATSAPP"],
+  contactPreferredMethod: ["COMPANY_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD"],
+  preferredMethod: ["COMPANY_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD"],
+  contactRole: ["COMPANY_CONTACT_ROLE", "CONTACT_ROLE"],
+  role: ["COMPANY_CONTACT_ROLE", "CONTACT_ROLE"],
+};
+
+export function createCompanyFieldRules(
+  fields: Array<{ id: string; code: string; name?: string; required?: boolean; active?: boolean }>,
+  profileType: { id?: string; requiredFieldIds?: string[] } | null,
+  businessProfileType?: { taxIdRequired?: boolean; contactRequired?: boolean; requiredFieldIds?: string[] } | null,
+): CompanyCreateFieldRule[] {
+  const byCode = new Map<string, { id: string; code: string; name?: string; required?: boolean; active?: boolean }>();
+  for (const f of fields) {
+    byCode.set(f.code.trim().toUpperCase(), f);
+  }
+
+  const rules: CompanyCreateFieldRule[] = [];
+
+  for (const def of COMPANY_CREATION_FIELDS) {
+    const code = def.code.toUpperCase();
+    const strippedCode = code.startsWith("COMPANY_") ? code.replace(/^COMPANY_/, "") : code;
+    const matched =
+      byCode.get(code) ||
+      (code.startsWith("COMPANY_") ? byCode.get(strippedCode) : undefined);
+
+    const isSystem = Boolean(def.systemRequired);
+    const active = matched ? matched.active !== false : true;
+
+    let required = false;
+    if (isSystem) {
+      required = true;
+    } else if (active) {
+      const inProfileType = Boolean(
+        (matched && profileType?.requiredFieldIds?.includes(matched.id)) ||
+          profileType?.requiredFieldIds?.includes(def.code) ||
+          profileType?.requiredFieldIds?.includes(code) ||
+          profileType?.requiredFieldIds?.includes(strippedCode),
+      );
+      const inBusinessProfile = Boolean(
+        (matched && businessProfileType?.requiredFieldIds?.includes(matched.id)) ||
+          businessProfileType?.requiredFieldIds?.includes(def.code) ||
+          businessProfileType?.requiredFieldIds?.includes(code) ||
+          businessProfileType?.requiredFieldIds?.includes(strippedCode),
+      );
+      const fieldRequired = Boolean(matched?.required);
+
+      if (profileType) {
+        // Profile Type configuration directly governs field requirement
+        required = inProfileType || inBusinessProfile || fieldRequired;
+      } else {
+        // Fallback when no profileType is supplied
+        const taxReq = (code === "COMPANY_TAX_ID" || code === "TAX_ID") && Boolean(businessProfileType?.taxIdRequired);
+        const contactReq =
+          (code === "COMPANY_CONTACT_NAME" || code === "CONTACT_NAME" || code === "COMPANY_CONTACT_PHONE" || code === "CONTACT_PHONE") &&
+          Boolean(businessProfileType?.contactRequired);
+
+        required = inBusinessProfile || fieldRequired || taxReq || contactReq;
+      }
+    }
+
+    const rule: CompanyCreateFieldRule = {
+      code: def.code,
+      visible: isSystem ? true : active,
+      required,
+      label: def.name,
+    };
+    rules.push(rule);
+
+    if (def.code.startsWith("COMPANY_")) {
+      rules.push({
+        ...rule,
+        code: def.code.replace(/^COMPANY_/, ""),
+      });
+    }
+  }
+
+  return rules;
+}
+
+export function card4CompanyCreateGaps(
+  draft: GuestCompanyCreateDraft,
+  rules: CompanyCreateFieldRule[],
+): Array<{ code: string; label: string; step: GuestCompanyCreateStepId }> {
+  const gaps: Array<{ code: string; label: string; step: GuestCompanyCreateStepId }> = [];
+  const byCode = new Map(rules.map((rule) => [rule.code.toUpperCase(), rule]));
+
+  const need = (codes: string[], ok: boolean, step: GuestCompanyCreateStepId) => {
+    for (const code of codes) {
+      const rule = byCode.get(code.toUpperCase());
+      if (rule?.required && !ok) {
+        gaps.push({ code: codes[codes.length - 1], label: rule.label, step });
+        break;
+      }
+    }
+  };
+
+  // Step 1: Company Information (details)
+  need(["COMPANY_NAME"], filled(draft.name), "details");
+  need(["COMPANY_TYPE"], filled(draft.businessProfileTypeId), "details");
+  need(["COMPANY_CODE"], filled(draft.code), "details");
+  need(["COMPANY_ACCOUNT_STATUS", "ACCOUNT_STATUS"], filled(draft.accountStatus), "details");
+  need(["COMPANY_TAX_ID", "TAX_ID"], filled(draft.taxId), "details");
+  need(["COMPANY_REGISTRATION_NUMBER", "REGISTRATION_NUMBER"], filled(draft.registrationNumber), "details");
+  need(["COMPANY_INDUSTRY", "INDUSTRY"], filled(draft.industry), "details");
+  need(["COMPANY_WEBSITE", "WEBSITE"], filled(draft.website), "details");
+  need(["COMPANY_NOTES", "NOTES"], filled(draft.notes), "details");
+
+  need(["COMPANY_COUNTRY", "COUNTRY"], filled(draft.country), "details");
+  need(["COMPANY_REGION", "REGION"], filled(draft.region), "details");
+  need(["COMPANY_CITY", "CITY"], filled(draft.city), "details");
+  need(["COMPANY_ADDRESS_LINE1", "ADDRESS_LINE1"], filled(draft.addressLine1), "details");
+  need(["COMPANY_ADDRESS_LINE2", "ADDRESS_LINE2"], filled(draft.addressLine2), "details");
+  need(["COMPANY_POSTAL_CODE", "POSTAL_CODE"], filled(draft.postalCode), "details");
+
+  // Step 2: Contacts
+  need(["COMPANY_CONTACT_NAME", "CONTACT_NAME"], draft.contacts.some((c) => filled(c.name)), "contacts");
+  need(["COMPANY_CONTACT_POSITION", "CONTACT_POSITION"], draft.contacts.some((c) => filled(c.position)), "contacts");
+  need(["COMPANY_CONTACT_EMAIL", "CONTACT_EMAIL"], draft.contacts.some((c) => filled(c.email)), "contacts");
+  need(["COMPANY_CONTACT_PHONE", "CONTACT_PHONE"], draft.contacts.some((c) => filled(c.phone)), "contacts");
+  need(["COMPANY_CONTACT_WHATSAPP", "CONTACT_WHATSAPP"], draft.contacts.some((c) => filled(c.whatsapp)), "contacts");
+  need(["COMPANY_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD"], draft.contacts.some((c) => filled(c.preferredMethod)), "contacts");
+  need(["COMPANY_CONTACT_ROLE", "CONTACT_ROLE"], draft.contacts.some((c) => Array.isArray(c.roleIds) && c.roleIds.length > 0), "contacts");
+
+  return gaps;
+}
+
 export type CompanyCreateFieldIssue = CreateFieldIssue<GuestCompanyCreateStepId>;
+
+export function matchCompanyFieldIssue(
+  issues: CompanyCreateFieldIssue[],
+  key: string,
+): CompanyCreateFieldIssue | undefined {
+  if (!issues || issues.length === 0 || !key) return undefined;
+
+  const direct = issues.find((issue) => issue.key === key);
+  if (direct) return direct;
+
+  const upperKey = key.toUpperCase();
+  const strippedKey = upperKey.startsWith("COMPANY_") ? upperKey.slice(8) : upperKey;
+  const companyKey = upperKey.startsWith("COMPANY_") ? upperKey : `COMPANY_${upperKey}`;
+
+  const aliasList = FIELD_CODES_BY_COMPANY_PROP[key] || [];
+  const singleMapped = FIELD_CODE_BY_COMPANY_PROP[key];
+
+  const candidateKeys = new Set<string>([
+    key,
+    upperKey,
+    strippedKey,
+    companyKey,
+    ...(singleMapped ? [singleMapped, singleMapped.toUpperCase()] : []),
+    ...aliasList.map((a) => a.toUpperCase()),
+  ]);
+
+  return issues.find((issue) => {
+    const k = issue.key;
+    if (candidateKeys.has(k)) return true;
+    const kUpper = k.toUpperCase();
+    if (candidateKeys.has(kUpper)) return true;
+    const kStripped = kUpper.startsWith("COMPANY_") ? kUpper.slice(8) : kUpper;
+    if (candidateKeys.has(kStripped)) return true;
+    const kCompany = kUpper.startsWith("COMPANY_") ? kUpper : `COMPANY_${kUpper}`;
+    if (candidateKeys.has(kCompany)) return true;
+    return false;
+  });
+}
 
 export function companyCreateFieldIssues(
   draft: GuestCompanyCreateDraft,
   options?: {
+    rules?: CompanyCreateFieldRule[];
     businessProfileTypeIds?: string[];
     paymentMethodIds?: string[];
     currencyCodes?: string[];
@@ -521,11 +773,24 @@ export function companyCreateFieldIssues(
   const issues: CompanyCreateFieldIssue[] = [];
   const typeIds = options?.businessProfileTypeIds;
 
-  // Step 1: Company Information
-  if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "details" });
-  if (!filled(draft.businessProfileTypeId)) {
-    issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "details" });
+  // Step 1: Company Information & Step 2: Contacts via Card 4 Rules
+  if (options?.rules && options.rules.length > 0) {
+    const gaps = card4CompanyCreateGaps(draft, options.rules);
+    for (const gap of gaps) {
+      issues.push({
+        key: gap.code,
+        message: `${gap.label} is required.`,
+        step: gap.step,
+      });
+    }
+  } else {
+    // Default fallback when no rules passed (backwards compatibility)
+    if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "details" });
+    if (!filled(draft.businessProfileTypeId)) {
+      issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "details" });
+    }
   }
+
   if (filled(draft.businessProfileTypeId) && typeIds && !typeIds.includes(draft.businessProfileTypeId)) {
     issues.push({ key: "businessProfileTypeId", message: "Select a configured company type.", step: "details" });
   }
@@ -776,23 +1041,32 @@ export function guestCompanyCreateHasChanges(draft: GuestCompanyCreateDraft): bo
   return JSON.stringify(current) !== JSON.stringify(baseline);
 }
 
-export function guestCompanyCreateCompletion(draft: GuestCompanyCreateDraft): {
+export function guestCompanyCreateCompletion(
+  draft: GuestCompanyCreateDraft,
+  options?: { rules?: CompanyCreateFieldRule[] },
+): {
   percent: number;
   items: GuestCompanyCreateCompletionItem[];
 } {
+  const gaps = options?.rules ? card4CompanyCreateGaps(draft, options.rules) : [];
+  const detailsGaps = gaps.filter((g) => g.step === "details");
+  const contactsGaps = gaps.filter((g) => g.step === "contacts");
+
   const items: GuestCompanyCreateCompletionItem[] = [
     {
       id: "identity",
       label: "Company identity",
-      complete: filled(draft.name) && filled(draft.businessProfileTypeId),
-      requiredRemaining: !filled(draft.name) || !filled(draft.businessProfileTypeId),
+      complete: detailsGaps.length === 0 && filled(draft.name) && filled(draft.businessProfileTypeId),
+      requiredRemaining: detailsGaps.length > 0 || !filled(draft.name) || !filled(draft.businessProfileTypeId),
       step: "details",
     },
     {
       id: "contacts",
       label: "Contacts",
-      complete: draft.contacts.some((row) => filled(row.name) && row.isPrimary) || draft.contacts.every((row) => !filled(row.name)),
-      requiredRemaining: false,
+      complete:
+        contactsGaps.length === 0 &&
+        (draft.contacts.some((row) => filled(row.name) && row.isPrimary) || draft.contacts.every((row) => !filled(row.name))),
+      requiredRemaining: contactsGaps.length > 0,
       step: "contacts",
     },
     {
