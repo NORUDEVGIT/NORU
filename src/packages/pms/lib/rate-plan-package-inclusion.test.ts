@@ -119,8 +119,8 @@ describe("Rate plan package inclusion merchandising", () => {
       new URL("../components/bookings/create-reservation-rate.tsx", import.meta.url),
       "utf8",
     );
-    assert.match(rateUi, /Included Services/);
-    assert.match(rateUi, /Optional Add-ons/);
+    assert.doesNotMatch(rateUi, /Included Services/);
+    assert.doesNotMatch(rateUi, /Optional Add-ons/);
     assert.match(rateUi, /money\(row\.quote\.subtotal\)/);
     assert.doesNotMatch(rateUi, /packagePrice|package_price|quote\.subtotal \+/);
     assert.doesNotMatch(rateUi, /type="checkbox"|onSelectPackage|addPackage/);

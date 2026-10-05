@@ -5,6 +5,18 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
+  deadlineHoursFromWindow,
+  parseCancellationPenaltyType,
+  parseCancellationPolicyKind,
+  parseCancellationWindowUnit,
+  parseCutoffTime,
+  penaltyNeedsValue,
+  windowFromDeadlineHours,
+} from "./cancellation-policy-rules";
+import {
+  CANCELLATION_PENALTY_TYPES,
+  CANCELLATION_POLICY_KINDS,
+  CANCELLATION_WINDOW_UNITS,
   CARD2_RATES_AUDIT_SECTION,
   CARD2_RATES_UNAVAILABLE,
   RATE_REFUNDABILITY_KINDS,
@@ -73,14 +85,42 @@ const planSchema = z.object({
   }
 });
 
-const cancellationSchema = z.object({
-  restaurantId: idSchema,
-  id: idSchema.optional(),
-  code: setupCode,
-  name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(500).nullable().optional(),
-  active: z.boolean(),
-});
+const cancellationSchema = z
+  .object({
+    restaurantId: idSchema,
+    id: idSchema.optional(),
+    code: setupCode,
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(500).nullable().optional(),
+    policyKind: z.enum(CANCELLATION_POLICY_KINDS),
+    windowValue: z.number().int().min(0).max(24 * 365).nullable().optional(),
+    windowUnit: z.enum(CANCELLATION_WINDOW_UNITS),
+    cutoffTime: z
+      .string()
+      .trim()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:mm.")
+      .nullable()
+      .optional(),
+    penaltyType: z.enum(CANCELLATION_PENALTY_TYPES),
+    penaltyValue: z.number().min(0).max(10_000_000),
+    active: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.policyKind !== "non_refundable" && value.windowValue == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["windowValue"],
+        message: "Enter a cancellation window.",
+      });
+    }
+    if (penaltyNeedsValue(value.penaltyType) && !(value.penaltyValue > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["penaltyValue"],
+        message: "Enter a penalty value.",
+      });
+    }
+  });
 
 const refundabilitySchema = z.object({
   restaurantId: idSchema,
@@ -138,6 +178,36 @@ function mapCategory(row: any): RateCategoryRow {
   };
 }
 
+function mapCancellationPolicy(row: any): RateCancellationPolicyRow {
+  const policyKind = parseCancellationPolicyKind(row.policy_kind);
+  const fromHours = windowFromDeadlineHours(
+    row.deadline_hours == null ? null : Number(row.deadline_hours),
+  );
+  const windowUnit = row.window_unit
+    ? parseCancellationWindowUnit(row.window_unit)
+    : fromHours.windowUnit;
+  const windowValue =
+    row.window_value == null
+      ? fromHours.windowValue
+      : Number.isFinite(Number(row.window_value))
+        ? Number(row.window_value)
+        : null;
+  return {
+    id: row.id,
+    code: String(row.code ?? "").toUpperCase(),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    policyKind,
+    windowValue,
+    windowUnit,
+    cutoffTime: parseCutoffTime(row.cutoff_time),
+    penaltyType: parseCancellationPenaltyType(row.penalty_type),
+    penaltyValue: Number(row.penalty_value ?? 0),
+    deadlineHours: row.deadline_hours == null ? null : Number(row.deadline_hours),
+    active: row.active !== false,
+  };
+}
+
 export async function loadRatesCard2Snapshot(
   db: DbClient,
   restaurantId: string,
@@ -164,7 +234,9 @@ export async function loadRatesCard2Snapshot(
       .order("code"),
     db
       .from("pms_rate_cancellation_policies")
-      .select("id, code, name, description, active")
+      .select(
+        "id, code, name, description, active, policy_kind, window_value, window_unit, cutoff_time, penalty_type, penalty_value, deadline_hours",
+      )
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
@@ -195,13 +267,19 @@ export async function loadRatesCard2Snapshot(
 
   const cancellationPolicies: RateCancellationPolicyRow[] = cancellations.error
     ? []
-    : (cancellations.data ?? []).map((row: any) => ({
-        id: row.id,
-        code: String(row.code ?? "").toUpperCase(),
-        name: String(row.name ?? ""),
-        description: String(row.description ?? ""),
-        active: row.active !== false,
-      }));
+    : (cancellations.data ?? []).map(mapCancellationPolicy);
+
+  if (cancellations.error && (cancellations.error.code === "42703" || cancellations.error.code === "PGRST204")) {
+    const fallback = await db
+      .from("pms_rate_cancellation_policies")
+      .select("id, code, name, description, active, deadline_hours, penalty_type, penalty_value")
+      .eq("restaurant_id", restaurantId)
+      .order("code");
+    if (!fallback.error) {
+      cancellationPolicies.length = 0;
+      cancellationPolicies.push(...(fallback.data ?? []).map(mapCancellationPolicy));
+    }
+  }
 
   const refundabilityCodes: RateRefundabilityRow[] = refundability.error
     ? []
@@ -505,21 +583,45 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const cutoffTime = parseCutoffTime(data.cutoffTime);
+    const windowValue = data.policyKind === "non_refundable" ? null : (data.windowValue ?? null);
     const payload = {
       restaurant_id: data.restaurantId,
       code: data.code,
       name: data.name,
       description: data.description?.trim() ? data.description.trim() : null,
+      policy_kind: data.policyKind,
+      window_value: windowValue,
+      window_unit: data.windowUnit,
+      cutoff_time: cutoffTime,
+      penalty_type: data.penaltyType,
+      penalty_value: penaltyNeedsValue(data.penaltyType) ? data.penaltyValue : 0,
+      deadline_hours: deadlineHoursFromWindow(data.policyKind, windowValue, data.windowUnit),
       active: data.active,
     };
-    const result = data.id
-      ? await db
-          .from("pms_rate_cancellation_policies")
-          .update(payload)
-          .eq("id", data.id)
-          .eq("restaurant_id", data.restaurantId)
-      : await db.from("pms_rate_cancellation_policies").insert(payload);
-    if (result.error) unavailable(result.error);
+    const write = data.id
+      ? (body: typeof payload | Record<string, unknown>) =>
+          db
+            .from("pms_rate_cancellation_policies")
+            .update(body)
+            .eq("id", data.id)
+            .eq("restaurant_id", data.restaurantId)
+      : (body: typeof payload | Record<string, unknown>) =>
+          db.from("pms_rate_cancellation_policies").insert(body);
+    const result = await write(payload);
+    if (result.error && (result.error.code === "42703" || result.error.code === "PGRST204")) {
+      const {
+        policy_kind: _kind,
+        window_value: _window,
+        window_unit: _unit,
+        cutoff_time: _cutoff,
+        ...legacy
+      } = payload;
+      const retry = await write(legacy);
+      if (retry.error) unavailable(retry.error);
+    } else if (result.error) {
+      unavailable(result.error);
+    }
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_cancellation_saved", {
       detail: `${data.code} ${data.name}`,
     });

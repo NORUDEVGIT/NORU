@@ -58,6 +58,10 @@ const card3Fns = readFileSync(
   new URL("./rates-card3.functions.ts", import.meta.url),
   "utf8",
 );
+const card3Ui = readFileSync(
+  new URL("../components/settings/pms-property-setup-card3-rates.tsx", import.meta.url),
+  "utf8",
+);
 
 function emptyPlanFields() {
   return {
@@ -254,5 +258,33 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
     assert.match(drizzle, /pms_rate_cancellation_policies/);
     assert.match(drizzle, /pms_rate_refundability_codes/);
     assert.match(drizzle, /hotel_rate_plans_meal_plan_same_property/);
+  });
+
+  it("owns cancellation rule columns on Card 2 via 0123", () => {
+    const drizzle = readFileSync(
+      new URL("../../../../drizzle/migrations/0123_pms_cancellation_policy_rules.sql", import.meta.url),
+      "utf8",
+    );
+    const supabase = readFileSync(
+      new URL("../../../../supabase/migrations/0123_pms_cancellation_policy_rules.sql", import.meta.url),
+      "utf8",
+    );
+    assert.equal(drizzle, supabase);
+    assert.match(drizzle, /policy_kind/);
+    assert.match(drizzle, /window_value/);
+    assert.match(drizzle, /window_unit/);
+    assert.match(drizzle, /cutoff_time/);
+    assert.match(drizzle, /deadline_hours/);
+    assert.match(drizzle, /'percentage'/);
+    assert.match(drizzle, /'first_night'/);
+    assert.match(drizzle, /'fixed_amount'/);
+    assert.match(drizzle, /'full_stay'/);
+    assert.match(card2Fns, /policy_kind: data.policyKind/);
+    assert.match(card2Fns, /deadline_hours: deadlineHoursFromWindow/);
+    assert.match(card2Ui, /id="cancel-kind"/);
+    assert.match(card2Ui, /id="cancel-window-value"/);
+    assert.match(card2Ui, /id="cancel-cutoff"/);
+    assert.doesNotMatch(card3Ui, /id="cx-hours"/);
+    assert.match(card3Fns, /saveRateCancellationPolicyCard2 as saveRateCancellationPolicyCard3/);
   });
 });

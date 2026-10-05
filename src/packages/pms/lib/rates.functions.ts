@@ -18,6 +18,7 @@ import { REPORTS_ROLES } from "@/core/lib/module-access";
 import { requireReservationManager } from "./reservations.server";
 import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
 import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
+import { breakfastLabelFromMealPlan, deriveCancellationDisplay } from "./cancellation-deadline";
 import {
   parsePackageInclusionType,
   type RatePlanPackageLink,
@@ -264,7 +265,7 @@ async function hydrateRatePlanMerchandising(
     cancelIds.length
       ? db
           .from("pms_rate_cancellation_policies")
-          .select("id, name")
+          .select("id, name, policy_kind, window_value, window_unit, cutoff_time, deadline_hours")
           .eq("restaurant_id", restaurantId)
           .in("id", cancelIds)
       : Promise.resolve({ data: [], error: null }),
@@ -277,6 +278,15 @@ async function hydrateRatePlanMerchandising(
       : Promise.resolve({ data: [], error: null }),
   ]);
 
+  let cancelRows = cancellations;
+  if (cancellations.error && missingColumn(cancellations.error) && cancelIds.length > 0) {
+    cancelRows = await db
+      .from("pms_rate_cancellation_policies")
+      .select("id, name, deadline_hours")
+      .eq("restaurant_id", restaurantId)
+      .in("id", cancelIds);
+  }
+
   const mealById = new Map(
     ((meals.data ?? []) as { id: string; name: string; includes_breakfast: boolean | null }[]).map((row) => [
       row.id,
@@ -284,7 +294,7 @@ async function hydrateRatePlanMerchandising(
     ]),
   );
   const cancelById = new Map(
-    ((cancellations.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row]),
+    ((cancelRows.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row]),
   );
   const refundById = new Map(
     ((refundability.data ?? []) as { id: string; name: string; kind: string | null }[]).map((row) => [row.id, row]),
@@ -842,16 +852,41 @@ export const quoteStay = createServerFn({ method: "POST" })
     >();
     const cancelIds = [...new Set(plans.map((plan) => plan.cancellationPolicyId).filter((id): id is string => Boolean(id)))];
     const refundIds = [...new Set(plans.map((plan) => plan.refundabilityId).filter((id): id is string => Boolean(id)))];
-    const cancelNames = new Map<string, string>();
+    const cancelNames = new Map<
+      string,
+      {
+        name: string;
+        policy_kind?: string | null;
+        window_value?: number | null;
+        window_unit?: string | null;
+        cutoff_time?: string | null;
+        deadline_hours?: number | null;
+      }
+    >();
     const refundNames = new Map<string, string>();
     const refundKinds = new Map<string, string>();
+    const { data: propertyRow } = await context.supabase
+      .from("restaurants")
+      .select("timezone")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const timeZone = (propertyRow as { timezone?: string | null } | null)?.timezone ?? null;
     if (cancelIds.length > 0) {
-      const { data: cancelRows } = await context.supabase
+      let cancelQuery = await context.supabase
         .from("pms_rate_cancellation_policies")
-        .select("id, name")
+        .select("id, name, policy_kind, window_value, window_unit, cutoff_time, deadline_hours")
         .eq("restaurant_id", data.restaurantId)
         .in("id", cancelIds);
-      for (const row of cancelRows ?? []) cancelNames.set(row.id, row.name);
+      if (cancelQuery.error && missingColumn(cancelQuery.error)) {
+        cancelQuery = await context.supabase
+          .from("pms_rate_cancellation_policies")
+          .select("id, name, deadline_hours")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", cancelIds);
+      }
+      for (const row of cancelQuery.data ?? []) {
+        cancelNames.set(row.id, row as never);
+      }
     }
     if (refundIds.length > 0) {
       const { data: refundRows } = await context.supabase
@@ -865,8 +900,21 @@ export const quoteStay = createServerFn({ method: "POST" })
       }
     }
     for (const plan of plans) {
+      const cancel = plan.cancellationPolicyId ? cancelNames.get(plan.cancellationPolicyId) : undefined;
+      const derived = cancel
+        ? deriveCancellationDisplay({
+            policyName: cancel.name,
+            policyKind: cancel.policy_kind,
+            windowValue: cancel.window_value == null ? null : Number(cancel.window_value),
+            windowUnit: cancel.window_unit,
+            cutoffTime: cancel.cutoff_time,
+            deadlineHours: cancel.deadline_hours == null ? null : Number(cancel.deadline_hours),
+            arrivalDate: data.arrival,
+            timeZone,
+          })
+        : null;
       policyLabels.set(plan.id, {
-        cancellationLabel: plan.cancellationPolicyId ? cancelNames.get(plan.cancellationPolicyId) ?? "—" : "—",
+        cancellationLabel: derived?.label ?? (cancel?.name || "—"),
         refundabilityLabel: plan.refundabilityId ? refundNames.get(plan.refundabilityId) ?? "—" : "—",
         refundabilityKind: plan.refundabilityId ? refundKinds.get(plan.refundabilityId) || null : null,
       });
@@ -903,7 +951,7 @@ export const quoteStay = createServerFn({ method: "POST" })
           plan,
           quote: null,
           unavailableReason: rateError(priceError.message).message,
-          breakfastLabel: extra?.breakfastLabel ?? "—",
+          breakfastLabel: breakfastLabelFromMealPlan(plan),
           includedServicesLabel: extra?.includedServicesLabel ?? "—",
           restrictionSummary: extra?.restrictionSummary ?? null,
           cancellationLabel: extra?.cancellationLabel ?? "—",
@@ -916,7 +964,7 @@ export const quoteStay = createServerFn({ method: "POST" })
         plan,
         quote: toQuote(pricing),
         unavailableReason: null,
-        breakfastLabel: extra?.breakfastLabel ?? "—",
+        breakfastLabel: breakfastLabelFromMealPlan(plan),
         includedServicesLabel: extra?.includedServicesLabel ?? "—",
         restrictionSummary: extra?.restrictionSummary ?? null,
         cancellationLabel: extra?.cancellationLabel ?? "—",

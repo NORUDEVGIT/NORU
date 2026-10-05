@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
+import { saveRateCancellationPolicyCard2 } from "./rates-card2.functions";
 import {
   CARD3_RATES_AUDIT_SECTION,
   CARD3_RATES_UNAVAILABLE,
@@ -371,17 +372,7 @@ export const saveRateOverrideCard3 = createServerFn({ method: "POST" })
     return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
   });
 
-const cancellationSchema = z.object({
-  restaurantId: idSchema,
-  id: idSchema.optional(),
-  code: setupCode,
-  name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(500).nullable().optional(),
-  deadlineHours: z.number().int().min(0).max(24 * 365).nullable().optional(),
-  penaltyType: z.enum(["none", "percent", "nights", "fixed"]),
-  penaltyValue: z.number().min(0).max(10_000_000),
-  active: z.boolean(),
-});
+export { saveRateCancellationPolicyCard2 as saveRateCancellationPolicyCard3 };
 
 const refundabilitySchema = z.object({
   restaurantId: idSchema,
@@ -392,33 +383,6 @@ const refundabilitySchema = z.object({
   kind: z.enum(["refundable", "non_refundable", "partial"]),
   active: z.boolean(),
 });
-
-export const saveRateCancellationPolicyCard3 = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => cancellationSchema.parse(input))
-  .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
-    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
-    const payload = {
-      restaurant_id: data.restaurantId,
-      code: data.code,
-      name: data.name,
-      description: data.description?.trim() ? data.description.trim() : null,
-      deadline_hours: data.deadlineHours ?? null,
-      penalty_type: data.penaltyType,
-      penalty_value: data.penaltyValue,
-      active: data.active,
-    };
-    const result = data.id
-      ? await db.from("pms_rate_cancellation_policies").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
-      : await db.from("pms_rate_cancellation_policies").insert(payload);
-    if (result.error) unavailable(result.error);
-    await writeAudit(db, data.restaurantId, context.userId, "card3_rate_cancellation_policy_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
-    const snapshot = await loadSnapshot(db, data.restaurantId);
-    return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
-  });
 
 export const saveRateRefundabilityCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

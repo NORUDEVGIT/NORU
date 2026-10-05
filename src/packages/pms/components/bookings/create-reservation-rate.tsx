@@ -4,11 +4,8 @@ import { formatStayDate } from "@/packages/pms/components/bookings/reservation-b
 import {
   CREATE_RESERVATION_QUOTE_SERVER_COPY,
   CREATE_RESERVATION_UNPRICED_BADGE,
-  formatRatePlanValidity,
   fromNightlyRate,
   rateCatalogueCopy,
-  ratePlanMerchandisingLines,
-  ratePlanPackageMerchandising,
   type CreateRateQuoteRow,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
 import { Button } from "@/shared/components/ui/button";
@@ -83,7 +80,6 @@ export function CreateReservationRate({
                 const isSelected = row.plan.id === ratePlanId;
                 const disabled = !row.quote;
                 const fromRate = row.quote ? fromNightlyRate(row.quote) : null;
-                const packages = ratePlanPackageMerchandising(row.plan);
                 return (
                   <tr
                     key={row.plan.id}
@@ -91,64 +87,12 @@ export function CreateReservationRate({
                   >
                     <td className="px-3 py-2.5">
                       <p className="font-medium text-[#251605]">{row.plan.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{row.plan.code}</p>
-                      {row.plan.description ? (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {row.plan.description}
-                        </p>
-                      ) : null}
-                      {ratePlanMerchandisingLines(row.plan)
-                        .filter((line) => line !== row.plan.description?.trim())
-                        .map((line) => (
-                          <p key={line} className="text-[11px] text-muted-foreground">
-                            {line}
-                          </p>
-                        ))}
-                      {formatRatePlanValidity(row.plan) ? (
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatRatePlanValidity(row.plan)}
-                        </p>
-                      ) : null}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {row.quote
-                        ? `${row.cancellationLabel}${row.refundabilityLabel !== "—" ? ` · ${row.refundabilityLabel}` : ""}`
-                        : (row.unavailableReason ?? "—")}
-                      {row.restrictionSummary ? (
-                        <p className="mt-1 text-[11px]">{row.restrictionSummary}</p>
-                      ) : null}
+                      {row.quote ? row.cancellationLabel : (row.unavailableReason ?? "—")}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       <p>{row.breakfastLabel}</p>
-                      {packages.includedServices.length > 0 ? (
-                        <div
-                          className="mt-1"
-                          data-testid={`rate-included-services-${row.plan.code}`}
-                        >
-                          <p className="text-[10px] font-medium uppercase tracking-wide">
-                            Included Services
-                          </p>
-                          <ul>
-                            {packages.includedServices.map((item) => (
-                              <li key={item.packageId}>{item.packageName}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : row.includedServicesLabel !== "—" ? (
-                        <p className="mt-1 text-[11px]">{row.includedServicesLabel}</p>
-                      ) : null}
-                      {packages.optionalAddOns.length > 0 ? (
-                        <div className="mt-1" data-testid={`rate-optional-addons-${row.plan.code}`}>
-                          <p className="text-[10px] font-medium uppercase tracking-wide">
-                            Optional Add-ons
-                          </p>
-                          <ul>
-                            {packages.optionalAddOns.map((item) => (
-                              <li key={item.packageId}>{item.packageName} · Available add-on</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">
                       {row.quote && fromRate != null ? (

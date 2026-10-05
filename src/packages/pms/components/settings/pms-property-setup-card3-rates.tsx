@@ -24,7 +24,6 @@ import {
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   getRatesCard3,
-  saveRateCancellationPolicyCard3,
   saveRateCategoryCard3,
   saveRateOverrideCard3,
   saveRatePlanCard3,
@@ -63,7 +62,6 @@ export function PmsPropertySetupCard3Rates({
   const saveCategory = useServerFn(saveRateCategoryCard3);
   const savePlan = useServerFn(saveRatePlanCard3);
   const saveOverride = useServerFn(saveRateOverrideCard3);
-  const saveCancellation = useServerFn(saveRateCancellationPolicyCard3);
   const saveRefundability = useServerFn(saveRateRefundabilityCard3);
   const [categorySearch, setCategorySearch] = useState("");
   const [planSearch, setPlanSearch] = useState("");
@@ -71,9 +69,7 @@ export function PmsPropertySetupCard3Rates({
   const [categoryDraft, setCategoryDraft] = useState<RateCategoryRow | "new" | null>(null);
   const [planDraft, setPlanDraft] = useState<RatePlanRow | "new" | null>(null);
   const [calendarDraft, setCalendarDraft] = useState<RateCalendarRow | "new" | null>(null);
-  const [cancellationDraft, setCancellationDraft] = useState<RateCancellationPolicyRow | "new" | null>(null);
   const [refundabilityDraft, setRefundabilityDraft] = useState<RateRefundabilityRow | "new" | null>(null);
-  const [cancellationSearch, setCancellationSearch] = useState("");
   const [refundabilitySearch, setRefundabilitySearch] = useState("");
 
   const query = useQuery({
@@ -113,10 +109,6 @@ export function PmsPropertySetupCard3Rates({
       ),
     [calendar, calendarSearch],
   );
-  const filteredCancellation = useMemo(
-    () => cancellationPolicies.filter((row) => matchesQuery(cancellationSearch, row.code, row.name)),
-    [cancellationPolicies, cancellationSearch],
-  );
   const filteredRefundability = useMemo(
     () => refundabilityCodes.filter((row) => matchesQuery(refundabilitySearch, row.code, row.name, row.kind)),
     [refundabilityCodes, refundabilitySearch],
@@ -151,16 +143,6 @@ export function PmsPropertySetupCard3Rates({
     onSuccess: () => {
       toast.success("Rate calendar saved.");
       setCalendarDraft(null);
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  const cancellationMut = useMutation({
-    mutationFn: (input: Parameters<typeof saveCancellation>[0]["data"]) =>
-      saveCancellation({ data: input }),
-    onSuccess: () => {
-      toast.success("Cancellation policy saved.");
-      setCancellationDraft(null);
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -238,29 +220,10 @@ export function PmsPropertySetupCard3Rates({
             }))}
           />
 
-          <Card3ListSection
-            title="Cancellation policies"
-            icon="tag"
-            search={cancellationSearch}
-            onSearch={setCancellationSearch}
-            placeholder="Search cancellation policies"
-            addLabel="Add cancellation policy"
-            onAdd={() => setCancellationDraft("new")}
-            canEdit={canEdit}
-            empty="No guest-facing cancellation policies yet. This catalogue is not the Front Office cancel-fee default."
-            columns={["Code", "Name", "Deadline (hours)", "Penalty", "Status"]}
-            rows={filteredCancellation.map((row) => ({
-              id: row.id,
-              cells: [
-                row.code,
-                row.name,
-                row.deadlineHours == null ? "—" : String(row.deadlineHours),
-                `${row.penaltyType} ${row.penaltyValue}`,
-                <Card3StatusDot active={row.active} />,
-              ],
-              onEdit: () => setCancellationDraft(row),
-            }))}
-          />
+          <p className="rounded-xl border border-[#E8E1D4] bg-white px-4 py-3 text-sm text-[#5C5346]">
+            Cancellation policies are edited on Card 2 Rate &amp; Pricing. This page can still attach an
+            existing policy on a rate plan; it does not write the catalogue.
+          </p>
 
           <Card3ListSection
             title="Refundability"
@@ -329,15 +292,6 @@ export function PmsPropertySetupCard3Rates({
             pending={calendarMut.isPending}
             onClose={() => setCalendarDraft(null)}
             onSave={(payload) => calendarMut.mutate({ restaurantId, ...payload })}
-          />
-          <CancellationDrawer
-            key={cancellationDraft === "new" ? "cx-new" : (cancellationDraft?.id ?? "cx-closed")}
-            open={cancellationDraft !== null}
-            canEdit={canEdit}
-            value={cancellationDraft === "new" || cancellationDraft === null ? null : cancellationDraft}
-            pending={cancellationMut.isPending}
-            onClose={() => setCancellationDraft(null)}
-            onSave={(payload) => cancellationMut.mutate({ restaurantId, ...payload })}
           />
           <RefundabilityDrawer
             key={refundabilityDraft === "new" ? "rf-new" : (refundabilityDraft?.id ?? "rf-closed")}
@@ -753,121 +707,6 @@ function CalendarDrawer({
             disabled={!canEdit}
             onChange={(event) => setNightlyRate(Number(event.target.value))}
           />
-        </div>
-      </div>
-    </Card3OverlapSheet>
-  );
-}
-
-function CancellationDrawer({
-  open,
-  canEdit,
-  value,
-  pending,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  canEdit: boolean;
-  value: RateCancellationPolicyRow | null;
-  pending: boolean;
-  onClose: () => void;
-  onSave: (payload: {
-    id?: string;
-    code: string;
-    name: string;
-    description: string | null;
-    deadlineHours: number | null;
-    penaltyType: RateCancellationPolicyRow["penaltyType"];
-    penaltyValue: number;
-    active: boolean;
-  }) => void;
-}) {
-  const [code, setCode] = useState(value?.code ?? "");
-  const [name, setName] = useState(value?.name ?? "");
-  const [deadlineHours, setDeadlineHours] = useState(value?.deadlineHours ?? 0);
-  const [hasDeadline, setHasDeadline] = useState(value?.deadlineHours != null);
-  const [penaltyType, setPenaltyType] = useState<RateCancellationPolicyRow["penaltyType"]>(
-    value?.penaltyType ?? "none",
-  );
-  const [penaltyValue, setPenaltyValue] = useState(value?.penaltyValue ?? 0);
-  const [active, setActive] = useState(value?.active ?? true);
-
-  return (
-    <Card3OverlapSheet
-      open={open}
-      onClose={onClose}
-      title={value ? "Edit cancellation policy" : "Add cancellation policy"}
-      description="Guest-facing rate policy. This is not the Front Office cancel-fee default on the property."
-      canEdit={canEdit}
-      pending={pending}
-      submitLabel="Save policy"
-      onSubmit={() =>
-        onSave({
-          ...(value ? { id: value.id } : {}),
-          code,
-          name,
-          description: null,
-          deadlineHours: hasDeadline ? deadlineHours : null,
-          penaltyType,
-          penaltyValue,
-          active,
-        })
-      }
-    >
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label htmlFor="cx-code">Code</Label>
-          <Input id="cx-code" value={code} disabled={!canEdit} onChange={(event) => setCode(event.target.value.toUpperCase())} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="cx-name">Name</Label>
-          <Input id="cx-name" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="cx-hours">Deadline hours before arrival</Label>
-          <Input
-            id="cx-hours"
-            type="number"
-            min={0}
-            value={hasDeadline ? deadlineHours : ""}
-            disabled={!canEdit}
-            onChange={(event) => {
-              const next = event.target.value;
-              setHasDeadline(next !== "");
-              setDeadlineHours(next === "" ? 0 : Number(next));
-            }}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label>Penalty type</Label>
-          <Select value={penaltyType} disabled={!canEdit} onValueChange={(next) => setPenaltyType(next as RateCancellationPolicyRow["penaltyType"])}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">None</SelectItem>
-              <SelectItem value="percent">Percent</SelectItem>
-              <SelectItem value="nights">Nights</SelectItem>
-              <SelectItem value="fixed">Fixed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="cx-value">Penalty value</Label>
-          <Input
-            id="cx-value"
-            type="number"
-            min={0}
-            step="any"
-            value={penaltyValue}
-            disabled={!canEdit}
-            onChange={(event) => setPenaltyValue(Number(event.target.value))}
-          />
-        </div>
-        <div className="flex items-center justify-between rounded-xl border px-3 py-2">
-          <Label htmlFor="cx-active">Active</Label>
-          <Switch id="cx-active" checked={active} disabled={!canEdit} onCheckedChange={setActive} />
         </div>
       </div>
     </Card3OverlapSheet>
