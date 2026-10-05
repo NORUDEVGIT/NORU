@@ -169,7 +169,11 @@ export function GuestCreateWorkspace({
     () => createFieldRules(context.data?.fields ?? [], context.data?.profileType ?? null),
     [context.data?.fields, context.data?.profileType],
   );
-  const completion = guestCreateCompletion(draft, rules);
+  const completion = guestCreateCompletion(draft, rules, {
+    documentTypes: context.data?.documentTypes ?? [],
+    docFiles,
+    identityActive: true,
+  });
   const allowedPrefTypes = useMemo(() => {
     const all = context.data?.preferenceTypes ?? [];
     const prefIds = context.data?.profileType?.preferenceTypeIds;
@@ -188,6 +192,9 @@ export function GuestCreateWorkspace({
     requiredPreferenceTypeIds: requiredPrefs,
     dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
     hasPhoto: Boolean(photoPreview || photoFile),
+    documentTypes: context.data?.documentTypes ?? [],
+    docFiles,
+    identityActive: true,
   });
 
   function markAttempted(...ids: string[]) {
@@ -209,6 +216,11 @@ export function GuestCreateWorkspace({
   }
 
   function go(next: GuestCreateStepId) {
+    const targetIndex = GUEST_CREATE_STEPS.findIndex((s) => s.id === next);
+    const currentIndex = GUEST_CREATE_STEPS.findIndex((s) => s.id === step);
+    if (targetIndex > currentIndex) {
+      if (!validateCurrent()) return;
+    }
     const blockers = issuesBeforeStep(fieldIssues, GUEST_CREATE_STEPS, next);
     if (blockers.length) {
       markAttempted(step, ...blockers.map((issue) => issue.step));
@@ -597,6 +609,7 @@ export function GuestCreateWorkspace({
               docFiles={docFiles}
               setDocFiles={setDocFiles}
               error={fieldError("IDENTITY_DOCUMENT", "identity")}
+              fieldError={fieldError}
             />
           ) : null}
           {step === "preferences" ? (
@@ -901,6 +914,7 @@ function IdentityStep({
   docFiles,
   setDocFiles,
   error,
+  fieldError,
 }: {
   draft: GuestCreateDraft;
   setDraft: React.Dispatch<React.SetStateAction<GuestCreateDraft>>;
@@ -912,12 +926,16 @@ function IdentityStep({
     expiryDateRequired: boolean;
     documentNumberRequired: boolean;
     scanImageAllowed: boolean;
+    scanImageRequired?: boolean;
+    issueDateRequired?: boolean;
+    issuingAuthorityRequired?: boolean;
     validForProfileTypeIds: string[];
   }>;
   profileTypeId: string | null;
   docFiles: Record<string, File | undefined>;
   setDocFiles: React.Dispatch<React.SetStateAction<Record<string, File | undefined>>>;
   error?: string;
+  fieldError?: (key: string, stepId?: GuestCreateStepId) => string | undefined;
 }) {
   const available = types.filter((type) => type.active && (type.validForProfileTypeIds.length === 0 || !profileTypeId || type.validForProfileTypeIds.includes(profileTypeId)));
   function add() {
@@ -955,26 +973,50 @@ function IdentityStep({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Document Number" required={type?.documentNumberRequired}>
+              <Field
+                label="Document Number"
+                required={type?.documentNumberRequired}
+                error={fieldError?.(`DOC_${document.key}_documentNumber`, "identity")}
+              >
                 <Input value={document.documentNumber} onChange={(event) => setDraft((current) => ({ ...current, documents: current.documents.map((row) => row.key === document.key ? { ...row, documentNumber: event.target.value } : row) }))} />
               </Field>
               {type?.issuingCountryRequired !== false ? (
-                <Field label="Issuing Country" required={type?.issuingCountryRequired}>
+                <Field
+                  label="Issuing Country"
+                  required={type?.issuingCountryRequired}
+                  error={fieldError?.(`DOC_${document.key}_issuingCountry`, "identity")}
+                >
                   <Input value={document.issuingCountry} onChange={(event) => setDraft((current) => ({ ...current, documents: current.documents.map((row) => row.key === document.key ? { ...row, issuingCountry: event.target.value } : row) }))} />
                 </Field>
               ) : null}
-              <Field label="Issue Date">
+              <Field
+                label="Issue Date"
+                required={type?.issueDateRequired}
+                error={fieldError?.(`DOC_${document.key}_issueDate`, "identity")}
+              >
                 <Input type="date" value={document.issueDate} onChange={(event) => setDraft((current) => ({ ...current, documents: current.documents.map((row) => row.key === document.key ? { ...row, issueDate: event.target.value } : row) }))} />
               </Field>
-              <Field label="Expiry Date" required={type?.expiryDateRequired}>
+              <Field
+                label="Expiry Date"
+                required={type?.expiryDateRequired}
+                error={fieldError?.(`DOC_${document.key}_expiryDate`, "identity")}
+              >
                 <Input type="date" value={document.expiryDate} onChange={(event) => setDraft((current) => ({ ...current, documents: current.documents.map((row) => row.key === document.key ? { ...row, expiryDate: event.target.value } : row) }))} />
               </Field>
-              <Field label="Issuing Authority">
+              <Field
+                label="Issuing Authority"
+                required={type?.issuingAuthorityRequired}
+                error={fieldError?.(`DOC_${document.key}_issuingAuthority`, "identity")}
+              >
                 <Input value={document.issuingAuthority} onChange={(event) => setDraft((current) => ({ ...current, documents: current.documents.map((row) => row.key === document.key ? { ...row, issuingAuthority: event.target.value } : row) }))} />
               </Field>
               {type?.scanImageAllowed ? (
                 <>
-                  <Field label="Front Image">
+                  <Field
+                    label="Front Image"
+                    required={type?.scanImageRequired && !document.hasFront}
+                    error={fieldError?.(`DOC_${document.key}_scan`, "identity")}
+                  >
                     <Input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => {
                       const file = event.target.files?.[0];
                       setDocFiles((current) => ({ ...current, [`${document.key}-front`]: file }));

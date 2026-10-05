@@ -19,6 +19,12 @@ export const GUEST_WORKSPACE_CONFIG_QUERY_KEYS = [
   "pms-card4-group-types",
   "pms-card4-communication-channels",
   "pms-card4-communication-defaults",
+  "pms-company-document-types",
+  "company-contract-create-config",
+  "travel-agency-step4-config",
+  "guest-company-create-context",
+  "pms-guest-travel-agent-create-context",
+  "pms-corporate-contracts-context",
 ] as const;
 
 export const GUEST_OPERATIONAL_QUERY_KEYS = [

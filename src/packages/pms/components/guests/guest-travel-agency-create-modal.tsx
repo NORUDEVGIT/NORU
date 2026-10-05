@@ -69,7 +69,6 @@ import {
   GUEST_TRAVEL_AGENT_CREATE_COPY,
   GUEST_TRAVEL_AGENT_CREATE_DRAFT_SAVED,
   GUEST_TRAVEL_AGENT_CREATE_HOLD_DEBOUNCE_MS,
-  GUEST_TRAVEL_AGENT_CREATE_PROGRESS_KEPT,
   GUEST_TRAVEL_AGENT_CREATE_START_OVER,
   GUEST_TRAVEL_AGENT_CREATE_START_OVER_COPY,
   GUEST_TRAVEL_AGENT_CREATE_STEPS,
@@ -510,16 +509,8 @@ export function GuestTravelAgencyCreateModal({
     if (guestTravelAgentCreateHasChanges(draft) && !created) {
       setDiscardConfirmOpen(true);
     } else {
-      performClose();
+      handleActualClose();
     }
-  }
-
-  function performClose() {
-    if (!created) writeGuestTravelAgentCreateHold(restaurantId, { step, draft });
-    if (!created && guestTravelAgentCreateHasChanges(draft)) {
-      toast.success(GUEST_TRAVEL_AGENT_CREATE_PROGRESS_KEPT);
-    }
-    handleActualClose();
   }
 
   useEffect(() => {
@@ -974,61 +965,56 @@ export function GuestTravelAgencyCreateModal({
 
       {/* Discard Confirmation Dialog */}
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
-        <AlertDialogContent className="border-[#DDD4C5] bg-[#F7F4EE]">
+        <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#251605]">Discard new travel agency?</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-[#756A5B]">
-              You have unsaved changes. Closing will keep your progress stored as a draft, but you can discard it if preferred.
+            <AlertDialogTitle className="font-display text-lg text-[#251605]">
+              Discard new travel agency?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              Your entered information will be lost if not saved as a draft.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel
-              className="border-[#DDD4C5] text-xs text-[#251605]"
-              onClick={() => setDiscardConfirmOpen(false)}
-            >
-              Continue Editing
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDiscardConfirmOpen(false)}>Keep Editing</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] text-xs font-semibold"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 setDiscardConfirmOpen(false);
-                performClose();
+                handleActualClose();
               }}
             >
-              Close & Keep Progress
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Start Over Confirmation Dialog */}
-      <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
-        <AlertDialogContent className="border-[#DDD4C5] bg-[#F7F4EE]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#251605]">
-              {GUEST_TRAVEL_AGENT_CREATE_START_OVER}?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-[#756A5B]">
-              {GUEST_TRAVEL_AGENT_CREATE_START_OVER_COPY}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              className="border-[#DDD4C5] text-xs text-[#251605]"
-              onClick={() => setStartOverOpen(false)}
-            >
-              Keep Progress
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={startOverMutation.isPending}
-              className="bg-destructive text-white hover:bg-destructive/90 text-xs font-semibold"
-              onClick={() => startOverMutation.mutate()}
-            >
-              {startOverMutation.isPending ? "Clearing…" : GUEST_TRAVEL_AGENT_CREATE_START_OVER}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {startOverOpen ? (
+        <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
+          <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display text-lg text-[#251605]">
+                {GUEST_TRAVEL_AGENT_CREATE_START_OVER}?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-sm text-muted-foreground">
+                {GUEST_TRAVEL_AGENT_CREATE_START_OVER_COPY}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setStartOverOpen(false)}>Keep Progress</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                data-testid="travel-agency-create-start-over-confirm"
+                disabled={startOverMutation.isPending}
+                onClick={() => startOverMutation.mutate()}
+              >
+                {startOverMutation.isPending ? "Clearing…" : GUEST_TRAVEL_AGENT_CREATE_START_OVER}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </>
   );
 }

@@ -108,9 +108,9 @@ SELECT
 FROM public.restaurants r
 CROSS JOIN (
   VALUES
-    ('AGENCY_AGREEMENT', 'Travel Agency Agreement', 'Signed corporate or wholesale travel agency agreement.', true, true, false, 10),
-    ('BUSINESS_LICENSE', 'Business License / Commercial Registration', 'Official government business license or trade certificate.', true, false, true, 20),
-    ('TIN_CERTIFICATE', 'TIN Registration Certificate', 'Taxpayer Identification Number certificate.', true, false, true, 30),
+    ('AGENCY_AGREEMENT', 'Travel Agency Agreement', 'Signed corporate or wholesale travel agency agreement.', false, true, false, 10),
+    ('BUSINESS_LICENSE', 'Business License / Commercial Registration', 'Official government business license or trade certificate.', false, false, true, 20),
+    ('TIN_CERTIFICATE', 'TIN Registration Certificate', 'Taxpayer Identification Number certificate.', false, false, true, 30),
     ('IATA_CERTIFICATE', 'IATA / Tourism Accreditation', 'International Air Transport Association or national tourism license.', false, false, false, 40),
     ('RATE_AGREEMENT', 'Rate Addendum / Confidential Wholesale Annex', 'Signed annex of approved contracted or net rate pricing.', false, true, false, 50),
     ('OTHER', 'Other Documentation', 'Supplementary accreditation or verification documents.', false, false, true, 60)

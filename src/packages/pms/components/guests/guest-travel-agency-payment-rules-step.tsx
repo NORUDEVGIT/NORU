@@ -689,7 +689,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           </span>
         </div>
 
-        <div className="space-y-3" data-testid="travel-agency-documents-list">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5" data-testid="travel-agency-documents-list">
           {config?.documentTypes && config.documentTypes.filter((d) => d.active !== false).length > 0 ? (
             config.documentTypes
               .filter((d) => d.active !== false)
@@ -700,46 +700,34 @@ export function GuestTravelAgencyPaymentRulesStep({
                 <div
                   key={docType.id}
                   className={cn(
-                    "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border transition-colors",
+                    "flex flex-col justify-between rounded-md border bg-white transition-colors overflow-hidden",
                     uploadedDoc
-                      ? "border-emerald-200 bg-emerald-50/30"
-                      : docType.required
-                        ? "border-[#C89933]/40 bg-[#FAF8F5]"
-                        : "border-[#EDE6D8] bg-white",
+                      ? "border-emerald-200 bg-emerald-50/20"
+                      : "border-[#E8E2D9] hover:border-[#D5CABE]",
                   )}
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <FileText className={cn("size-4", uploadedDoc ? "text-emerald-700" : "text-[#8A641A]")} />
-                      <span className="text-xs font-semibold text-[#251605]">{docType.name}</span>
-                      {docType.required ? (
-                        <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[10px] text-amber-800 font-semibold">
-                          Required for Create
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-stone-200 text-[10px] text-stone-500 font-normal">
-                          Optional
-                        </Badge>
-                      )}
+                  {/* Top Row: Document Name and Requirement Badge */}
+                  <div className="px-4 py-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-semibold text-[#251605] truncate">{docType.name}</span>
                     </div>
-                    {docType.description && (
-                      <p className="text-[11px] text-[#756A5B] pl-6">{docType.description}</p>
-                    )}
-
-                    {uploadedDoc && (
-                      <div className="flex items-center gap-2 text-xs text-emerald-800 pl-6 font-medium pt-0.5">
-                        <CheckCircle2 className="size-3.5 text-emerald-600" />
-                        <span className="truncate max-w-[280px]">{uploadedDoc.name}</span>
-                        {uploadedDoc.fileSizeBytes ? (
-                          <span className="text-[10px] text-[#756A5B]">
-                            ({(uploadedDoc.fileSizeBytes / 1024).toFixed(0)} KB)
-                          </span>
-                        ) : null}
-                      </div>
+                    {docType.required ? (
+                      <span className="shrink-0 rounded-[3px] border border-[#D4A138] bg-[#FDF9EE] px-2 py-0.5 text-[10px] font-bold tracking-wider text-[#A07018] uppercase">
+                        <span className="sr-only">Required for Create</span>
+                        REQUIRED
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-[3px] border border-[#E5DFD5] bg-[#F7F5F0] px-2 py-0.5 text-[10px] font-medium tracking-wider text-[#8A8175] uppercase">
+                        OPTIONAL
+                      </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  {/* Divider line */}
+                  <div className="border-t border-[#F0EBE1]" />
+
+                  {/* Bottom Row: Upload Action and Supported Formats */}
+                  <div className="px-4 py-2.5 flex items-center justify-between gap-3 bg-[#FAF8F5]/30">
                     <input
                       type="file"
                       ref={(el) => {
@@ -756,13 +744,23 @@ export function GuestTravelAgencyPaymentRulesStep({
                     />
 
                     {uploadedDoc ? (
-                      <>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                        <FileText className="size-3.5 text-emerald-700 shrink-0 hidden" />
+                        <span className="truncate max-w-[130px] sm:max-w-[170px] text-xs font-medium text-emerald-800">
+                          {uploadedDoc.name}
+                        </span>
+                        {uploadedDoc.fileSizeBytes ? (
+                          <span className="text-[10px] text-[#756A5B] shrink-0">
+                            ({(uploadedDoc.fileSizeBytes / 1024).toFixed(0)} KB)
+                          </span>
+                        ) : null}
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={() => fileInputRefs.current[docType.id]?.click()}
-                          className="h-7 text-xs border-[#DDD4C5] text-[#251605] hover:bg-white"
+                          className="h-6 px-1.5 text-[11px] text-[#251605] hover:bg-stone-100"
                         >
                           Replace
                         </Button>
@@ -771,29 +769,31 @@ export function GuestTravelAgencyPaymentRulesStep({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveDocument(docType.id)}
-                          className="h-7 text-xs text-destructive hover:bg-destructive/10 px-2"
+                          className="h-6 px-1 text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
-                      </>
+                      </div>
                     ) : (
-                      <Button
+                      <button
                         type="button"
-                        variant="outline"
-                        size="sm"
                         onClick={() => fileInputRefs.current[docType.id]?.click()}
-                        className="h-8 text-xs border-[#C89933]/50 text-[#8A641A] hover:bg-[#FAF8F5] gap-1.5"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8A641A] hover:text-[#6D4E13] transition-colors"
                       >
-                        <Upload className="size-3" />
-                        Upload
-                      </Button>
+                        <Upload className="size-3.5 text-[#8A641A]" />
+                        <span>Upload File</span>
+                      </button>
                     )}
+
+                    <span className="text-[11px] font-normal text-[#A39A8E] shrink-0">
+                      PDF, PNG, JPG
+                    </span>
                   </div>
                 </div>
               );
             })
           ) : (
-            <div className="rounded-lg bg-[#FAF8F5] border border-dashed border-[#DDD4C5] p-4 text-center text-xs text-[#756A5B]">
+            <div className="col-span-full rounded-lg bg-[#FAF8F5] border border-dashed border-[#DDD4C5] p-4 text-center text-xs text-[#756A5B]">
               No Travel Agency document types configured. Configure them in Settings &gt; Card 4 &gt; Document Types.
             </div>
           )}

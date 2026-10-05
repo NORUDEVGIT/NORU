@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Pencil, Plus } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -201,13 +201,29 @@ export function PmsCard4CompanyBusiness({
   const [docTypeDraft, setDocTypeDraft] = useState<CompanyDocumentTypeRecord | "new" | null>(null);
   const [pendingDeleteDocType, setPendingDeleteDocType] = useState<CompanyDocumentTypeRecord | null>(null);
   const [docTypePage, setDocTypePage] = useState(1);
-  const DOC_TYPE_PAGE_SIZE = 8;
+  const [docTypeSearch, setDocTypeSearch] = useState("");
+  const [docTypeApplicability, setDocTypeApplicability] = useState<"all" | "company" | "travel_agency">("all");
+  const [docTypeRequirement, setDocTypeRequirement] = useState<"all" | "required" | "optional">("all");
+  const [docTypeStatus, setDocTypeStatus] = useState<"all" | "active" | "inactive">("all");
+  const DOC_TYPE_PAGE_SIZE = 25;
+
+  const invalidateDocumentTypeQueries = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["pms-company-document-types"] }),
+      queryClient.invalidateQueries({ queryKey: ["company-contract-create-config"] }),
+      queryClient.invalidateQueries({ queryKey: ["travel-agency-step4-config"] }),
+      queryClient.invalidateQueries({ queryKey: ["guest-company-create-context"] }),
+      queryClient.invalidateQueries({ queryKey: ["pms-guest-travel-agent-create-context"] }),
+      queryClient.invalidateQueries({ queryKey: ["pms-corporate-contracts-context"] }),
+      invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId),
+    ]);
+  };
 
   const docTypeMutation = useMutation({
     mutationFn: (input: { id?: string; name: string; code: string; description?: string; required: boolean; appliesToContract: boolean; appliesToCompany: boolean; appliesToTravelAgency: boolean; displayOrder: number; active: boolean }) =>
       saveDocType({ data: { restaurantId, ...input } }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
+      await invalidateDocumentTypeQueries();
       setDocTypeDraft(null);
       toast.success("Document type saved.");
     },
@@ -217,9 +233,9 @@ export function PmsCard4CompanyBusiness({
   const docTypeActiveMutation = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setDocTypeActive({ data: { restaurantId, ...input } }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
-      toast.success("Document type updated.");
+    onSuccess: async (_result, input) => {
+      await invalidateDocumentTypeQueries();
+      toast.success(input.active ? "Document type enabled." : "Document type disabled.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -227,9 +243,9 @@ export function PmsCard4CompanyBusiness({
   const docTypeRequiredMutation = useMutation({
     mutationFn: (input: { id: string; required: boolean }) =>
       setDocTypeRequired({ data: { restaurantId, ...input } }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
-      toast.success("Document requirement updated.");
+    onSuccess: async (_result, input) => {
+      await invalidateDocumentTypeQueries();
+      toast.success(input.required ? "Document marked as required." : "Document marked as optional.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -237,18 +253,37 @@ export function PmsCard4CompanyBusiness({
   const docTypeDeleteMutation = useMutation({
     mutationFn: (id: string) => deleteDocType({ data: { restaurantId, id } }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["pms-company-document-types", restaurantId] });
+      await invalidateDocumentTypeQueries();
       setPendingDeleteDocType(null);
       toast.success("Document type deleted.");
     },
     onError: (error: Error) => toast.error(error.message || "Failed to delete document type."),
   });
 
-  const docTypePageCount = Math.max(1, Math.ceil(docTypes.length / DOC_TYPE_PAGE_SIZE));
+  const filteredDocTypes = useMemo(() => {
+    return docTypes.filter((row) => {
+      const q = docTypeSearch.trim().toLowerCase();
+      if (q) {
+        const matchesName = row.name.toLowerCase().includes(q);
+        const matchesCode = row.code.toLowerCase().includes(q);
+        const matchesDesc = (row.description ?? "").toLowerCase().includes(q);
+        if (!matchesName && !matchesCode && !matchesDesc) return false;
+      }
+      if (docTypeApplicability === "company" && !row.appliesToCompany) return false;
+      if (docTypeApplicability === "travel_agency" && !row.appliesToTravelAgency) return false;
+      if (docTypeRequirement === "required" && !row.required) return false;
+      if (docTypeRequirement === "optional" && row.required) return false;
+      if (docTypeStatus === "active" && !row.active) return false;
+      if (docTypeStatus === "inactive" && row.active) return false;
+      return true;
+    });
+  }, [docTypes, docTypeSearch, docTypeApplicability, docTypeRequirement, docTypeStatus]);
+
+  const docTypePageCount = Math.max(1, Math.ceil(filteredDocTypes.length / DOC_TYPE_PAGE_SIZE));
   const safeDocTypePage = Math.min(docTypePage, docTypePageCount);
-  const docTypeStart = docTypes.length === 0 ? 0 : (safeDocTypePage - 1) * DOC_TYPE_PAGE_SIZE + 1;
-  const docTypeEnd = Math.min(safeDocTypePage * DOC_TYPE_PAGE_SIZE, docTypes.length);
-  const visibleDocTypes = docTypes.slice(
+  const docTypeStart = filteredDocTypes.length === 0 ? 0 : (safeDocTypePage - 1) * DOC_TYPE_PAGE_SIZE + 1;
+  const docTypeEnd = Math.min(safeDocTypePage * DOC_TYPE_PAGE_SIZE, filteredDocTypes.length);
+  const visibleDocTypes = filteredDocTypes.slice(
     (safeDocTypePage - 1) * DOC_TYPE_PAGE_SIZE,
     safeDocTypePage * DOC_TYPE_PAGE_SIZE,
   );
@@ -818,9 +853,14 @@ export function PmsCard4CompanyBusiness({
       <section className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white" data-testid="card4-company-document-types">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#CCCCCC] px-4 py-3">
           <div>
-            <h3 className="font-medium text-[#251605]">Document Types</h3>
-            <p className="text-xs text-muted-foreground">
-              Configure document requirements and applicability for corporate companies and travel agencies.
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-[#251605]">Document Types</h3>
+              <Badge variant="outline" className="text-xs font-normal">
+                {docTypes.length} configured
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Single source of truth for compliance documents required across Company and Travel Agency creation.
             </p>
           </div>
           {canEdit ? (
@@ -835,19 +875,178 @@ export function PmsCard4CompanyBusiness({
           ) : null}
         </div>
 
-        {docTypes.length === 0 ? (
+        {/* Search & Filter Bar */}
+        <div className="border-b border-[#E5E7EB] bg-[#FAF8F5]/60 p-3 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                value={docTypeSearch}
+                placeholder="Search document name, code, or description..."
+                className="pl-8 h-8 text-xs bg-white"
+                onChange={(event) => {
+                  setDocTypeSearch(event.target.value);
+                  setDocTypePage(1);
+                }}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground mr-1">Applies to:</span>
+              <button
+                type="button"
+                onClick={() => { setDocTypeApplicability("all"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  docTypeApplicability === "all"
+                    ? "bg-[#251605] text-white"
+                    : "bg-white border border-[#E5E7EB] text-[#251605] hover:bg-muted",
+                )}
+              >
+                All ({docTypes.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDocTypeApplicability("company"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  docTypeApplicability === "company"
+                    ? "bg-[#C89933] text-[#251605] font-semibold"
+                    : "bg-white border border-[#E5E7EB] text-[#251605] hover:bg-muted",
+                )}
+              >
+                Company ({docTypes.filter((d) => d.appliesToCompany).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDocTypeApplicability("travel_agency"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  docTypeApplicability === "travel_agency"
+                    ? "bg-[#C89933] text-[#251605] font-semibold"
+                    : "bg-white border border-[#E5E7EB] text-[#251605] hover:bg-muted",
+                )}
+              >
+                Travel Agency ({docTypes.filter((d) => d.appliesToTravelAgency).length})
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#EDE6D8]/60">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground mr-1">Requirement:</span>
+              <button
+                type="button"
+                onClick={() => { setDocTypeRequirement("all"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  docTypeRequirement === "all"
+                    ? "bg-[#EDE6D8] font-semibold text-[#251605]"
+                    : "text-muted-foreground hover:text-[#251605]",
+                )}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDocTypeRequirement("required"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  docTypeRequirement === "required"
+                    ? "bg-[#436436]/15 font-semibold text-[#436436]"
+                    : "text-muted-foreground hover:text-[#251605]",
+                )}
+              >
+                Required ({docTypes.filter((d) => d.required).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDocTypeRequirement("optional"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  docTypeRequirement === "optional"
+                    ? "bg-stone-200 font-semibold text-[#251605]"
+                    : "text-muted-foreground hover:text-[#251605]",
+                )}
+              >
+                Optional ({docTypes.filter((d) => !d.required).length})
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground mr-1">Status:</span>
+              <button
+                type="button"
+                onClick={() => { setDocTypeStatus("all"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  docTypeStatus === "all"
+                    ? "bg-[#EDE6D8] font-semibold text-[#251605]"
+                    : "text-muted-foreground hover:text-[#251605]",
+                )}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDocTypeStatus("active"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  docTypeStatus === "active"
+                    ? "bg-emerald-100 font-semibold text-emerald-800"
+                    : "text-muted-foreground hover:text-[#251605]",
+                )}
+              >
+                Active ({docTypes.filter((d) => d.active).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDocTypeStatus("inactive"); setDocTypePage(1); }}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  docTypeStatus === "inactive"
+                    ? "bg-amber-100 font-semibold text-amber-800"
+                    : "text-muted-foreground hover:text-[#251605]",
+                )}
+              >
+                Inactive ({docTypes.filter((d) => !d.active).length})
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {filteredDocTypes.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="font-medium text-[#251605]">No document types configured.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Add a document type to define compliance and registration documents accepted for companies and travel agencies.
+            <p className="font-medium text-[#251605]">
+              {docTypes.length === 0 ? "No document types configured." : "No document types match your filters."}
             </p>
-            {canEdit ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {docTypes.length === 0
+                ? "Add a document type to define compliance and registration documents accepted for companies and travel agencies."
+                : "Try adjusting your search terms or filter selection."}
+            </p>
+            {docTypes.length === 0 && canEdit ? (
               <Button
                 type="button"
                 className="mt-4 bg-[#C89933] text-[#251605]"
                 onClick={() => setDocTypeDraft("new")}
               >
                 <Plus className="mr-1 size-4" /> Add Document Type
+              </Button>
+            ) : docTypes.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  setDocTypeSearch("");
+                  setDocTypeApplicability("all");
+                  setDocTypeRequirement("all");
+                  setDocTypeStatus("all");
+                  setDocTypePage(1);
+                }}
+              >
+                Reset Filters
               </Button>
             ) : null}
           </div>
@@ -884,23 +1083,25 @@ export function PmsCard4CompanyBusiness({
                             }
                             aria-label={`Toggle requirement for ${row.name}`}
                           />
-                          <span
-                            className={cn(
-                              "text-xs font-medium",
-                              row.required ? "text-[#436436]" : "text-muted-foreground",
-                            )}
+                          <Badge
+                            variant={row.required ? "default" : "secondary"}
+                            className={row.required ? "bg-[#436436]" : ""}
                           >
                             {row.required ? "Required" : "Optional"}
-                          </span>
+                          </Badge>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {row.appliesToCompany ? (
-                            <Badge variant="secondary" className="text-[10px]">Company</Badge>
+                            <Badge variant="secondary" className="text-[10px] bg-[#FAF8F5] border border-[#DDD4C5] text-[#251605]">
+                              Company
+                            </Badge>
                           ) : null}
                           {row.appliesToTravelAgency ? (
-                            <Badge variant="secondary" className="text-[10px]">Travel Agency</Badge>
+                            <Badge variant="secondary" className="text-[10px] bg-[#FAF8F5] border border-[#DDD4C5] text-[#251605]">
+                              Travel Agency
+                            </Badge>
                           ) : null}
                           {!row.appliesToCompany && !row.appliesToTravelAgency ? (
                             <span className="text-xs text-muted-foreground">—</span>
@@ -914,6 +1115,7 @@ export function PmsCard4CompanyBusiness({
                           onCheckedChange={(active) =>
                             docTypeActiveMutation.mutate({ id: row.id, active })
                           }
+                          aria-label={`Toggle active for ${row.name}`}
                         />
                       </TableCell>
                       <TableCell className="text-right">
@@ -981,6 +1183,7 @@ export function PmsCard4CompanyBusiness({
             <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
               <p className="text-xs text-muted-foreground">
                 Showing {docTypeStart}–{docTypeEnd} of {docTypes.length} document types
+                {filteredDocTypes.length !== docTypes.length ? ` (filtered from ${filteredDocTypes.length} active matching)` : ""}
               </p>
               <div className="flex gap-2">
                 <Button

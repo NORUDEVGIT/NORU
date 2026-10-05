@@ -551,7 +551,7 @@ export function GuestGroupCreateModal({
     <>
       <Dialog open={open} onOpenChange={handleCloseRequest}>
         <DialogContent
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(98vw,1550px)] h-[min(92vh,960px)] max-w-none rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605] shadow-2xl p-0 flex flex-col overflow-hidden outline-none"
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(98vw,1550px)] h-[min(92vh,960px)] max-w-none rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605] shadow-2xl p-0 flex flex-col overflow-hidden outline-none [&>button]:hidden"
           data-testid="guest-group-create-modal"
           aria-describedby="guest-group-create-description"
         >
