@@ -197,8 +197,8 @@ describe("Reservation contextual action integration", () => {
     expect(workspace).toContain("<RoomMoveDialog");
     expect(workspace).toContain("<CheckInDialog");
     expect(workspace).toContain("<CheckOutDialog");
-    expect(workspace).toContain("<NoShowDialog");
-    expect(workspace).toContain("<FoCancelStepper");
+    expect(workspace).toContain("<ReservationCancelWorkspace");
+    expect(workspace).toContain("<ReservationNoShowWorkspace");
     expect(workspace).toContain("setReservationStatus");
     expect(workspace).not.toContain("checkInReservation(");
     expect(workspace).not.toContain("checkOutReservation(");

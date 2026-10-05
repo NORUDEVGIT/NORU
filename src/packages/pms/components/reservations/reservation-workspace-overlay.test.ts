@@ -135,16 +135,47 @@ describe("Phase 1 workspace overlay routing", () => {
   });
 
   it("gives embedded Detail one header, Overview, and no All reservations chrome", () => {
-    expect(workspace).toContain('hideVisualHeader={overlay?.type === "reservation-detail"}');
+    expect(workspace).toContain("hideVisualHeader={");
+    expect(workspace).toContain('overlay?.type === "reservation-detail"');
+    expect(workspace).toContain('overlay?.type === "edit-reservation"');
+    expect(workspace).toContain('overlay?.type === "cancel-reservation"');
+    expect(workspace).toContain('overlay?.type === "no-show-reservation"');
     expect(detail).toContain("Reservation Detail");
     expect(detail).toContain('{ id: "overview", label: "Overview" }');
-    expect(detail).toContain("Folio is not available in this workspace yet.");
+    expect(detail).toContain("ReservationDetailFolioTab");
     expect(detail).toContain("if (embedded)");
     expect(detail).toContain("ReservationDetailKpiStrip");
     expect(detail).toContain("reservation-detail-sidebar");
     expect(detail).toContain("Back to List");
     const allReservationsHits = detail.match(/All reservations/g) ?? [];
     expect(allReservationsHits).toHaveLength(1);
+  });
+
+  it("opens Edit Reservation as its own overlay from the Desk action menu", () => {
+    expect(workspace).toContain("function openEditReservation(id: string)");
+    expect(workspace).toContain('setOverlay({ type: "edit-reservation", reservationId: id })');
+    expect(workspace).toContain("openEditReservation(row.reservationId)");
+    expect(workspace).toContain("<ReservationEditWorkspace");
+    expect(workspace).not.toContain("setAmendRequest");
+    expect(overlay).toContain('{ type: "edit-reservation"; reservationId: string }');
+  });
+
+  it("opens Cancel Reservation as its own overlay from the Desk action menu", () => {
+    expect(workspace).toContain("function openCancelReservation(id: string)");
+    expect(workspace).toContain('setOverlay({ type: "cancel-reservation", reservationId: id })');
+    expect(workspace).toContain("openCancelReservation(row.reservationId)");
+    expect(workspace).toContain("<ReservationCancelWorkspace");
+    expect(workspace).not.toContain("<FoCancelStepper");
+    expect(overlay).toContain('{ type: "cancel-reservation"; reservationId: string }');
+  });
+
+  it("opens Mark No-Show as its own overlay from the Desk action menu", () => {
+    expect(workspace).toContain("function openNoShowReservation(id: string)");
+    expect(workspace).toContain('setOverlay({ type: "no-show-reservation", reservationId: id })');
+    expect(workspace).toContain("openNoShowReservation(row.reservationId)");
+    expect(workspace).toContain("<ReservationNoShowWorkspace");
+    expect(workspace).not.toContain("<NoShowDialog");
+    expect(overlay).toContain('{ type: "no-show-reservation"; reservationId: string }');
   });
 
   it("prevents the parent overlay from closing on nested Escape", () => {
