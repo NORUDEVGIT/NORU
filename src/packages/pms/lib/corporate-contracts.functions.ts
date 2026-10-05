@@ -532,6 +532,7 @@ export interface CompanyDocumentTypeRecord {
   required: boolean;
   appliesToContract: boolean;
   appliesToCompany: boolean;
+  appliesToTravelAgency: boolean;
   displayOrder: number;
   active: boolean;
   createdAt: string;
@@ -545,6 +546,7 @@ export const listPmsCompanyDocumentTypes = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         contractOnly: z.boolean().optional(),
+        travelAgencyOnly: z.boolean().optional(),
         activeOnly: z.boolean().optional(),
       })
       .parse(input),
@@ -555,7 +557,7 @@ export const listPmsCompanyDocumentTypes = createServerFn({ method: "POST" })
 
     let query = db
       .from("pms_company_document_types")
-      .select("id, restaurant_id, name, code, description, required, applies_to_contract, applies_to_company, display_order, active, created_at, updated_at")
+      .select("id, restaurant_id, name, code, description, required, applies_to_contract, applies_to_company, applies_to_travel_agency, display_order, active, created_at, updated_at")
       .eq("restaurant_id", data.restaurantId)
       .order("display_order", { ascending: true })
       .order("name", { ascending: true });
@@ -565,6 +567,9 @@ export const listPmsCompanyDocumentTypes = createServerFn({ method: "POST" })
     }
     if (data.contractOnly) {
       query = query.eq("applies_to_contract", true);
+    }
+    if (data.travelAgencyOnly) {
+      query = query.eq("applies_to_travel_agency", true);
     }
 
     const { data: rows, error } = await query;
@@ -584,6 +589,7 @@ export const listPmsCompanyDocumentTypes = createServerFn({ method: "POST" })
       required: Boolean(r.required),
       appliesToContract: r.applies_to_contract !== undefined ? Boolean(r.applies_to_contract) : true,
       appliesToCompany: r.applies_to_company !== undefined ? Boolean(r.applies_to_company) : true,
+      appliesToTravelAgency: r.applies_to_travel_agency !== undefined ? Boolean(r.applies_to_travel_agency) : false,
       displayOrder: Number(r.display_order ?? 0),
       active: Boolean(r.active),
       createdAt: r.created_at,
@@ -607,8 +613,9 @@ export const savePmsCompanyDocumentType = createServerFn({ method: "POST" })
           .regex(/^[A-Z][A-Z0-9_]{1,19}$/, "Code must start with letter and contain uppercase letters, numbers, underscores."),
         description: z.string().trim().max(500).optional().default(""),
         required: z.boolean().default(false),
-        appliesToContract: z.boolean().default(true),
+        appliesToContract: z.boolean().optional(),
         appliesToCompany: z.boolean().default(true),
+        appliesToTravelAgency: z.boolean().default(false),
         displayOrder: z.number().int().min(0).default(0),
         active: z.boolean().default(true),
       })
@@ -618,14 +625,16 @@ export const savePmsCompanyDocumentType = createServerFn({ method: "POST" })
     await requireRoomManager(context as never, data.restaurantId);
     const db: DbClient = context.supabase;
 
+    const appliesToCompany = Boolean(data.appliesToCompany);
     const payload = {
       restaurant_id: data.restaurantId,
       name: data.name,
       code: data.code,
       description: data.description?.trim() || null,
       required: data.required,
-      applies_to_contract: data.appliesToContract,
-      applies_to_company: data.appliesToCompany,
+      applies_to_contract: data.appliesToContract ?? appliesToCompany,
+      applies_to_company: appliesToCompany,
+      applies_to_travel_agency: Boolean(data.appliesToTravelAgency),
       display_order: data.displayOrder,
       active: data.active,
       updated_at: new Date().toISOString(),
@@ -662,6 +671,7 @@ export const savePmsCompanyDocumentType = createServerFn({ method: "POST" })
       required: Boolean(r.required),
       appliesToContract: Boolean(r.applies_to_contract),
       appliesToCompany: Boolean(r.applies_to_company),
+      appliesToTravelAgency: Boolean(r.applies_to_travel_agency),
       displayOrder: Number(r.display_order ?? 0),
       active: Boolean(r.active),
       createdAt: r.created_at,
@@ -692,6 +702,59 @@ export const setPmsCompanyDocumentTypeActive = createServerFn({ method: "POST" }
 
     if (error) {
       throw new Error(`Failed to toggle company document type: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const setPmsCompanyDocumentTypeRequired = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        id: idSchema,
+        required: z.boolean(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ success: boolean }> => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db: DbClient = context.supabase;
+
+    const { error } = await db
+      .from("pms_company_document_types")
+      .update({ required: data.required, updated_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+
+    if (error) {
+      throw new Error(`Failed to toggle document type requirement: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const deletePmsCompanyDocumentType = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        id: idSchema,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ success: boolean }> => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db: DbClient = context.supabase;
+
+    const { error } = await db
+      .from("pms_company_document_types")
+      .delete()
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+
+    if (error) {
+      throw new Error(`Failed to delete company document type: ${error.message}`);
     }
     return { success: true };
   });
@@ -868,10 +931,10 @@ export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
       .order("is_default", { ascending: false })
       .order("name", { ascending: true });
 
-    // Load active contract document types
+    // Load active company document types (applicable to company)
     const documentTypesRes = await db
       .from("pms_company_document_types")
-      .select("id, code, name, description, required, applies_to_contract, display_order, active")
+      .select("id, code, name, description, required, applies_to_company, display_order, active")
       .eq("restaurant_id", restaurantId)
       .eq("active", true)
       .order("display_order", { ascending: true })
@@ -957,7 +1020,7 @@ export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
         description: nsp.description ?? null,
       })),
       contractDocumentTypes: (documentTypesRes.data ?? [])
-        .filter((dt: any) => dt.applies_to_contract !== false)
+        .filter((dt: any) => dt.applies_to_company !== false)
         .map((dt: any) => ({
           id: dt.id,
           code: dt.code,

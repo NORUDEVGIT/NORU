@@ -652,6 +652,7 @@ export function GuestCompanyCreateModal({
           className={cn(
             "z-50 flex h-[min(92vh,960px)] w-[min(98vw,1550px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
             "rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] shadow-2xl",
+            "[&>button]:hidden",
           )}
           onEscapeKeyDown={(e) => {
             if (hasNestedModalLayer()) {

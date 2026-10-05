@@ -66,7 +66,24 @@ async function fetchTravelAgencyTypes(
     .eq("restaurant_id", restaurantId)
     .order("sort_order")
     .order("name");
-  if (result.error && (isMissingSchemaError(result.error) || result.error.code === "42P01")) {
+  if (
+    result.error &&
+    (isMissingSchemaError(result.error) ||
+      result.error.code === "42P01" ||
+      result.error.code === "PGRST205")
+  ) {
+    const resRes = await admin(supabase)
+      .from("restaurants")
+      .select("pms_guest_profile_rules")
+      .eq("id", restaurantId)
+      .maybeSingle();
+    const rules = (resRes.data?.pms_guest_profile_rules ?? {}) as Record<string, unknown>;
+    const stored = Array.isArray(rules.travel_agency_types)
+      ? (rules.travel_agency_types as TravelAgencyTypeRow[])
+      : null;
+    if (stored && stored.length > 0) {
+      return { rows: stored, missingSchema: true };
+    }
     return { rows: fallbackDefaultRows(), missingSchema: true };
   }
   if (result.error) throw new Error(result.error.message);
@@ -74,6 +91,27 @@ async function fetchTravelAgencyTypes(
     rows: ((result.data ?? []) as TravelAgencyTypeDbRow[]).map(mapTravelAgencyType),
     missingSchema: false,
   };
+}
+
+export async function saveTravelAgencyTypesFallback(
+  restaurantId: string,
+  supabase: { from: (table: string) => unknown },
+  types: TravelAgencyTypeRow[],
+): Promise<void> {
+  const resRes = await admin(supabase)
+    .from("restaurants")
+    .select("pms_guest_profile_rules")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  const rules = (resRes.data?.pms_guest_profile_rules ?? {}) as Record<string, unknown>;
+  const updated = {
+    ...rules,
+    travel_agency_types: types,
+  };
+  await admin(supabase)
+    .from("restaurants")
+    .update({ pms_guest_profile_rules: updated as unknown })
+    .eq("id", restaurantId);
 }
 
 async function ensureDefaultTravelAgencyTypes(
@@ -106,7 +144,7 @@ export async function loadTravelAgencyTypes(
   supabase: { from: (table: string) => unknown },
 ): Promise<TravelAgencyTypeRow[]> {
   const loaded = await fetchTravelAgencyTypes(restaurantId, supabase);
-  if (loaded.missingSchema) return fallbackDefaultRows();
+  if (loaded.missingSchema) return loaded.rows;
   return ensureDefaultTravelAgencyTypes(restaurantId, supabase, loaded.rows);
 }
 

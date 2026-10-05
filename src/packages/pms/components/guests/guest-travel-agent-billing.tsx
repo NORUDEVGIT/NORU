@@ -57,11 +57,15 @@ export function GuestTravelAgentBilling({
         <h2 className="font-display text-xl">Payment & Invoices</h2>
         <p className="text-sm text-muted-foreground">{TA_BILLING_COPY}</p>
       </div>
-      <dl className="grid gap-2 sm:grid-cols-2 text-sm">
-        <div><dt className="text-muted-foreground">Payment terms</dt><dd>{data.summary.paymentTerms || "—"}</dd></div>
-        <div><dt className="text-muted-foreground">Billing instructions</dt><dd>{data.summary.billingInstruction || "—"}</dd></div>
-        <div><dt className="text-muted-foreground">Credit limit note</dt><dd>{data.summary.creditLimitNote || "—"}</dd></div>
-        <div><dt className="text-muted-foreground">Numeric credit limit</dt><dd>{data.summary.creditLimitAmount == null ? "—" : data.summary.creditLimitAmount.toFixed(2)}</dd></div>
+      <dl className="grid gap-2 sm:grid-cols-3 text-sm">
+        <div><dt className="text-muted-foreground">Billing currency</dt><dd className="font-semibold">{data.summary.billingCurrencyCode || "—"}</dd></div>
+        <div><dt className="text-muted-foreground">Payment timing</dt><dd className="font-semibold">{data.summary.paymentTiming ? data.summary.paymentTiming.replace(/_/g, " ") : (data.summary.paymentTerms || "—")}</dd></div>
+        <div><dt className="text-muted-foreground">Credit account</dt><dd className="font-semibold">{data.summary.creditAccountEnabled ? `Enabled (${data.summary.creditStatus || "active"})` : "Disabled"}</dd></div>
+        <div><dt className="text-muted-foreground">Credit days</dt><dd>{data.summary.creditDays != null ? `${data.summary.creditDays} days` : "—"}</dd></div>
+        <div><dt className="text-muted-foreground">Numeric credit limit</dt><dd className="font-mono">{data.summary.creditLimitAmount == null ? "—" : data.summary.creditLimitAmount.toFixed(2)}</dd></div>
+        <div><dt className="text-muted-foreground">Billing contact</dt><dd>{data.summary.billingContact || "—"}</dd></div>
+        {data.summary.billingInstruction ? <div className="sm:col-span-3"><dt className="text-muted-foreground">Billing instructions</dt><dd>{data.summary.billingInstruction}</dd></div> : null}
+        {data.summary.bookingNotes ? <div className="sm:col-span-3"><dt className="text-muted-foreground">Booking notes</dt><dd>{data.summary.bookingNotes}</dd></div> : null}
       </dl>
       {money && data.kpis ? (
         <div className="grid gap-3 sm:grid-cols-4">

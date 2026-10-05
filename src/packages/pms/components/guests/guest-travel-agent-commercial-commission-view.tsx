@@ -51,6 +51,7 @@ import {
   saveTravelAgentCommissionPlan,
   updateTravelAgentCommissionStatus,
 } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
+import { getTravelAgencyCommissionRatesConfig } from "@/packages/pms/lib/guest-travel-agency-step3-commission-rates.functions";
 import {
   TA_BILLING_COPY,
   TA_COMMISSION_PLAN_TYPES,
@@ -59,25 +60,35 @@ import {
   type TravelAgentCommissionEntryStatus,
   type TravelAgentCommissionPlanType,
 } from "@/packages/pms/lib/guest-travel-agent-detail-workspace";
+import { GuestTravelAgencyCommercialEditModal } from "./guest-travel-agency-commercial-edit-modal";
 import { cn } from "@/shared/lib/utils";
 
 export function GuestTravelAgentCommercialCommissionView({
   restaurantId,
   agencyId,
+  agencyName,
   initialSubTab = "commission",
 }: {
   restaurantId: string;
   agencyId: string;
+  agencyName?: string;
   initialSubTab?: TravelAgentCommercialSubTab;
 }) {
   const queryClient = useQueryClient();
   const [subTab, setSubTab] = useState<TravelAgentCommercialSubTab>(initialSubTab);
+  const [commercialEditOpen, setCommercialEditOpen] = useState(false);
 
   const loadEntries = useServerFn(listTravelAgentCommissionEntries);
   const loadPlans = useServerFn(listTravelAgentCommissionPlans);
   const savePlan = useServerFn(saveTravelAgentCommissionPlan);
   const updateStatus = useServerFn(updateTravelAgentCommissionStatus);
   const loadBilling = useServerFn(listTravelAgentBilling);
+  const loadRatesConfig = useServerFn(getTravelAgencyCommissionRatesConfig);
+
+  const ratesConfigQuery = useQuery({
+    queryKey: ["travel-agency-step3-config", restaurantId, agencyId],
+    queryFn: () => loadRatesConfig({ data: { restaurantId, agencyId } }),
+  });
 
   // Commission Subtab State
   const [entryStatus, setEntryStatus] = useState("all");
@@ -239,6 +250,120 @@ export function GuestTravelAgentCommercialCommissionView({
             Operational Settlement Status: Commission "settled" reflects internal operational verification and folio reconciliation. It does not imply external bank payouts or supplier transfers.
           </p>
 
+          {/* Step 3 Commercial Model: Net Rate Agreement Card */}
+          {ratesConfigQuery.data?.existingAgreement ? (
+            <div className="rounded-xl border border-[#C89933]/40 bg-[#FAF8F5] p-4 shadow-sm space-y-3" data-testid="net-rate-agreement-card">
+              <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-2">
+                <div className="flex items-center gap-2">
+                  <FileCheck className="size-4 text-[#8A641A]" />
+                  <h3 className="font-display text-sm font-bold text-[#251605]">Net Rate Commercial Agreement</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCommercialEditOpen(true)}
+                    className="h-7 text-xs border-[#C89933] text-[#8A641A] hover:bg-[#F5EEDC]"
+                    data-testid="edit-net-rate-agreement-button"
+                  >
+                    <Pencil className="mr-1 size-3" />
+                    Edit Terms
+                  </Button>
+                  <Badge variant="outline" className="border-[#C89933] text-[#8A641A] font-semibold text-[11px]">
+                    Confidential Wholesale
+                  </Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                <div>
+                  <span className="text-[#756A5B]">Pricing Method:</span>
+                  <p className="font-semibold text-[#251605] capitalize">
+                    {ratesConfigQuery.data.existingAgreement.pricingMethod === "rate_plan"
+                      ? "Linked Rate Plan"
+                      : ratesConfigQuery.data.existingAgreement.pricingMethod === "rate_plan_discount"
+                        ? `Discount (${ratesConfigQuery.data.existingAgreement.discountValue}${ratesConfigQuery.data.existingAgreement.discountType === "percent" ? "%" : ""})`
+                        : "Contracted Room Rates"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[#756A5B]">Settlement Currency:</span>
+                  <p className="font-mono font-bold text-[#8A641A]">
+                    {ratesConfigQuery.data.existingAgreement.currencyCode}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[#756A5B]">Valid From:</span>
+                  <p className="font-mono text-[#251605]">{ratesConfigQuery.data.existingAgreement.validFrom}</p>
+                </div>
+                <div>
+                  <span className="text-[#756A5B]">Valid To:</span>
+                  <p className="font-mono text-[#251605]">{ratesConfigQuery.data.existingAgreement.validTo}</p>
+                </div>
+              </div>
+              {ratesConfigQuery.data.existingAgreement.contractedRates?.length > 0 && (
+                <div className="pt-2 border-t border-[#EDE6D8]">
+                  <span className="text-[11px] text-[#756A5B] block mb-1">Contracted Room Rates:</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                    {ratesConfigQuery.data.existingAgreement.contractedRates.map((cr, idx) => {
+                      const room = ratesConfigQuery.data?.roomTypes?.find((r) => r.id === cr.roomTypeId)?.name || "Room";
+                      return (
+                        <div key={idx} className="rounded bg-white p-2 border border-[#EDE6D8]">
+                          <span className="text-[#756A5B] block">{room}:</span>
+                          <span className="font-bold text-[#251605]">
+                            {cr.amount} {ratesConfigQuery.data?.existingAgreement?.currencyCode}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* Granular Commission Rules Snapshot Card */}
+          {!ratesConfigQuery.data?.existingAgreement && ratesConfigQuery.data?.commissionRules && ratesConfigQuery.data.commissionRules.length > 0 && (
+            <div className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-sm space-y-2.5" data-testid="commission-rules-snapshot-card">
+              <div className="flex items-center justify-between border-b border-[#F0EAE1] pb-2">
+                <span className="text-xs font-bold text-[#251605]">
+                  Granular Commission Rules ({ratesConfigQuery.data.commissionRules.length})
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#756A5B] hidden sm:inline">Scope precedence: Rate Plan &gt; Room Type &gt; All</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCommercialEditOpen(true)}
+                    className="h-7 text-xs border-[#DDD4C5]"
+                    data-testid="edit-commission-rules-button"
+                  >
+                    <Pencil className="mr-1 size-3" />
+                    Edit Rules & Rates
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {ratesConfigQuery.data.commissionRules.map((rule, idx) => {
+                  const room = ratesConfigQuery.data?.roomTypes?.find((r) => r.id === rule.roomTypeId)?.name || "All Rooms";
+                  const plan = ratesConfigQuery.data?.ratePlans?.find((p) => p.id === rule.ratePlanId)?.name || "All Plans";
+                  return (
+                    <div key={idx} className="rounded-md border border-[#EDE6D8] bg-[#FAF8F5] p-2 text-xs">
+                      <div className="text-[11px] text-[#756A5B] capitalize">{rule.scopeType} Scope</div>
+                      <div className="font-medium text-[#251605] truncate">
+                        {rule.scopeType === "all" ? "Default / All" : rule.scopeType === "room_type" ? room : `${room} / ${plan}`}
+                      </div>
+                      <div className="font-bold text-[#8A641A] mt-1">
+                        {rule.commissionValue}{rule.commissionType === "percent" ? "%" : ` ${ratesConfigQuery.data?.baseCurrency || "ETB"}`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Active Plan Snapshot & Plan Configuration Trigger */}
           {plans.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-5 text-center" data-testid="commission-no-plan-box">
@@ -250,12 +375,12 @@ export function GuestTravelAgentCommercialCommissionView({
               <Button
                 type="button"
                 size="sm"
-                onClick={() => setPlanDialogOpen(true)}
+                onClick={() => setCommercialEditOpen(true)}
                 className="mt-3.5 bg-[#C89933] text-[#251605] hover:bg-[#B88928] text-xs font-medium"
                 data-testid="configure-commission-plan-button"
               >
                 <Plus className="mr-1.5 size-3.5" />
-                Configure Commission Plan
+                Configure Commercial Terms & Rates
               </Button>
             </div>
           ) : (
@@ -265,17 +390,19 @@ export function GuestTravelAgentCommercialCommissionView({
                   <Percent className="size-4 text-[#8A641A]" />
                   <h3 className="font-display text-sm font-bold text-[#251605]">Active Commission Plan</h3>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPlanDialogOpen(true)}
-                  className="h-7 text-xs border-[#DDD4C5]"
-                  data-testid="edit-commission-plan-button"
-                >
-                  <Plus className="mr-1 size-3" />
-                  Add / Update Plan
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCommercialEditOpen(true)}
+                    className="h-7 text-xs border-[#C89933] text-[#8A641A] hover:bg-[#F5EEDC]"
+                    data-testid="edit-commission-plan-button"
+                  >
+                    <Pencil className="mr-1 size-3" />
+                    Edit Commercial Terms
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
@@ -569,12 +696,34 @@ export function GuestTravelAgentCommercialCommissionView({
 
             <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
               <div>
-                <span className="text-[#756A5B]">Payment Terms:</span>
-                <p className="font-semibold text-[#251605]">{billingSummary?.paymentTerms || "Direct Payment"}</p>
+                <span className="text-[#756A5B]">Billing Currency:</span>
+                <p className="font-semibold text-[#251605]">{billingSummary?.billingCurrencyCode || "Default"}</p>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">Payment Timing:</span>
+                <p className="font-semibold text-[#251605]">
+                  {billingSummary?.paymentTiming
+                    ? billingSummary.paymentTiming.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+                    : billingSummary?.paymentTerms || "Direct Payment"}
+                </p>
               </div>
               <div>
                 <span className="text-[#756A5B]">Billing Contact:</span>
                 <p className="font-semibold text-[#251605]">{billingSummary?.billingContact || "Primary Contact"}</p>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">Credit Account:</span>
+                <p className="font-semibold text-[#251605]">
+                  {billingSummary?.creditAccountEnabled
+                    ? `Enabled (${billingSummary?.creditStatus || "pending"})`
+                    : "Disabled"}
+                </p>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">Credit Days:</span>
+                <p className="font-semibold text-[#251605]">
+                  {billingSummary?.creditDays != null ? `${billingSummary.creditDays} days` : "—"}
+                </p>
               </div>
               <div>
                 <span className="text-[#756A5B]">Credit Limit:</span>
@@ -582,14 +731,18 @@ export function GuestTravelAgentCommercialCommissionView({
                   {billingSummary?.creditLimitAmount != null ? billingSummary.creditLimitAmount.toFixed(2) : "None configured"}
                 </p>
               </div>
-              <div className="col-span-2">
-                <span className="text-[#756A5B]">Credit Terms Note:</span>
-                <p className="text-[#251605]">{billingSummary?.creditLimitNote || "—"}</p>
-              </div>
-              <div className="col-span-2 sm:col-span-3">
-                <span className="text-[#756A5B]">Billing Instructions:</span>
-                <p className="text-[#251605]">{billingSummary?.billingInstruction || "Standard guest billing procedure."}</p>
-              </div>
+              {billingSummary?.bookingNotes && (
+                <div className="col-span-2 sm:col-span-3">
+                  <span className="text-[#756A5B]">Booking Notes:</span>
+                  <p className="text-[#251605] font-medium">{billingSummary.bookingNotes}</p>
+                </div>
+              )}
+              {billingSummary?.billingInstruction && (
+                <div className="col-span-2 sm:col-span-3">
+                  <span className="text-[#756A5B]">Billing Instructions:</span>
+                  <p className="text-[#251605]">{billingSummary.billingInstruction}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -692,6 +845,15 @@ export function GuestTravelAgentCommercialCommissionView({
           </div>
         </div>
       )}
+      {/* Focused Commercial Terms & Rates Edit Modal */}
+      <GuestTravelAgencyCommercialEditModal
+        restaurantId={restaurantId}
+        agencyId={agencyId}
+        agencyName={agencyName}
+        open={commercialEditOpen}
+        onOpenChange={setCommercialEditOpen}
+        onSaved={refresh}
+      />
     </div>
   );
 }

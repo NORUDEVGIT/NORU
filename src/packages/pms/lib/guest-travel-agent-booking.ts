@@ -12,6 +12,7 @@ import {
   type TravelAgentCommissionPlanType,
   type TravelAgentNotificationEvent,
 } from "./guest-travel-agent-detail-workspace";
+import { resolveTravelAgentCommissionRule } from "./guest-travel-agent-commission-resolver";
 
 type Db = { from: (table: string) => any };
 
@@ -189,7 +190,7 @@ export async function syncTravelAgentCommission(options: {
 }): Promise<void> {
   const reservation = await options.db
     .from("hotel_reservations")
-    .select("id, travel_agent_master_id, room_subtotal, currency, arrival_date, status")
+    .select("id, travel_agent_master_id, room_type_id, rate_plan_id, room_subtotal, currency, arrival_date, status")
     .eq("restaurant_id", options.restaurantId)
     .eq("id", options.reservationId)
     .maybeSingle();
@@ -230,31 +231,47 @@ export async function syncTravelAgentCommission(options: {
     .order("effective_on", { ascending: false });
   if (unavailable(plans.error)) return;
   if (plans.error) throw new Error(plans.error.message);
-  const stayDate = String(reservation.data.arrival_date);
-  const plan = ((plans.data ?? []) as Array<{
-    id: string;
-    commission_type: TravelAgentCommissionPlanType;
-    rate_value: number;
-    currency: string;
-    effective_on: string;
-    expires_on: string | null;
-  }>).find((row) => row.effective_on <= stayDate && (!row.expires_on || row.expires_on >= stayDate));
-  if (!plan) return;
+
+  const planList = plans.data ?? [];
+  const planIds = planList.map((p: { id: string }) => p.id);
+  let rules: any[] = [];
+  if (planIds.length > 0) {
+    const rulesRes = await options.db
+      .from("pms_agency_commission_rules")
+      .select("id, commission_plan_id, scope_type, room_type_id, rate_plan_id, commission_type, commission_value, active")
+      .eq("restaurant_id", options.restaurantId)
+      .in("commission_plan_id", planIds)
+      .eq("active", true);
+    if (!unavailable(rulesRes.error) && rulesRes.data) {
+      rules = rulesRes.data;
+    }
+  }
+
   const basis = Number(reservation.data.room_subtotal ?? 0);
-  const amount = calculateCommissionAmount({
-    type: plan.commission_type,
-    rateValue: Number(plan.rate_value),
-    basisAmount: basis,
+  const resolved = resolveTravelAgentCommissionRule({
+    plans: planList,
+    rules,
+    arrivalDate: String(reservation.data.arrival_date),
+    roomTypeId: reservation.data.room_type_id,
+    ratePlanId: reservation.data.rate_plan_id,
+    roomSubtotal: basis,
   });
+
+  if (!resolved.matched || resolved.amount <= 0) return;
+
   const payload = {
     restaurant_id: options.restaurantId,
     agency_master_id: agencyId,
     reservation_id: options.reservationId,
-    plan_id: plan.id,
+    plan_id: resolved.planId,
     basis_amount: basis,
-    amount,
-    currency: String(reservation.data.currency || plan.currency || "ETB"),
+    amount: resolved.amount,
+    currency: String(reservation.data.currency || resolved.currency || "ETB"),
     status: "calculated",
+    commission_rule_id: resolved.ruleId,
+    rule_scope: resolved.scope,
+    commission_type: resolved.commissionType,
+    commission_value: resolved.commissionValue,
   };
   const existing = await options.db
     .from("pms_agency_commission_entries")
@@ -277,7 +294,7 @@ export async function syncTravelAgentCommission(options: {
     restaurantId: options.restaurantId,
     masterId: agencyId,
     eventType: existing.data ? "commission_updated" : "commission_calculated",
-    newValues: { reservationId: options.reservationId, amount },
+    newValues: { reservationId: options.reservationId, amount: resolved.amount },
     actorMembershipId: options.actorMembershipId,
   });
 }

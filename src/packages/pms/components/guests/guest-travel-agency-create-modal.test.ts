@@ -23,7 +23,9 @@ function readRel(rel: string) {
 describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization (5-Step Architecture)", () => {
   const modalCode = readRel("./guest-travel-agency-create-modal.tsx");
   const basicInfoCode = readRel("./guest-travel-agency-basic-info-step.tsx");
-  const fullModalCode = modalCode + "\n" + basicInfoCode;
+  const step3Code = readRel("./guest-travel-agency-commission-rates-step.tsx");
+  const step4Code = readRel("./guest-travel-agency-payment-rules-step.tsx");
+  const fullModalCode = modalCode + "\n" + basicInfoCode + "\n" + step3Code + "\n" + step4Code;
   const shellCode = readRel("../workspaces/guest-profile-workspace.tsx");
   const directoryCode = readRel("./guest-travel-agent-directory.tsx");
 
@@ -50,25 +52,27 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.doesNotMatch(createBranch, /<GuestTravelAgentCreateWorkspace/);
   });
 
-  it("4. Modal has compact 3-step horizontal navigation matching established company/group patterns", () => {
-    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 3);
+  it("4. Modal has canonical 5-step horizontal navigation matching established travel agency specifications", () => {
+    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 5);
     assert.deepEqual(
       GUEST_TRAVEL_AGENT_CREATE_STEPS.map((s) => s.id),
-      ["basic_info", "billing", "review"],
+      ["basic_info", "contacts", "commission_rates", "payment_rules", "review"],
     );
     assert.deepEqual(
       GUEST_TRAVEL_AGENT_CREATE_STEPS.map((s) => s.title),
       [
-        "Basic Info",
-        "Commercial & Billing",
-        "Review & Confirm",
+        "Basic Information",
+        "Contacts",
+        "Commission & Rates",
+        "Payment, Credit & Reservation Rules",
+        "Final Review & Create",
       ],
     );
     assert.match(modalCode, /data-testid="guest-travel-agency-create-stepper"/);
     assert.match(modalCode, /GUEST_TRAVEL_AGENT_CREATE_STEPS\.map/);
   });
 
-  it("5. Next and Back navigation works across the 3 steps", () => {
+  it("5. Next and Back navigation works across the 5 steps", () => {
     assert.match(modalCode, /go\(GUEST_TRAVEL_AGENT_CREATE_STEPS\[stepIndex - 1\]\.id\)/);
     assert.match(modalCode, /go\(GUEST_TRAVEL_AGENT_CREATE_STEPS\[stepIndex \+ 1\]\.id\)/);
     assert.match(modalCode, /validateCurrent\(\)/);
@@ -92,13 +96,11 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.match(fullModalCode, /draft\.taxId/);
     assert.match(fullModalCode, /draft\.marketSegmentId/);
     assert.match(fullModalCode, /draft\.sourceCodeId/);
-    assert.match(fullModalCode, /draft\.billingArrangement/);
-    assert.match(fullModalCode, /draft\.paymentMethodId/);
-    assert.match(fullModalCode, /draft\.currency/);
+    assert.match(fullModalCode, /draft\.billingCurrencyCode|draft\.currency/);
+    assert.match(fullModalCode, /draft\.defaultBillingRuleId|draft\.billingArrangement/);
+    assert.match(fullModalCode, /draft\.defaultPaymentMethodId|draft\.paymentMethodId/);
     assert.match(fullModalCode, /draft\.creditLimitAmount/);
-    assert.match(fullModalCode, /draft\.commissionEnabled/);
-    assert.match(fullModalCode, /draft\.commissionType/);
-    assert.match(fullModalCode, /draft\.commissionValue/);
+    assert.match(fullModalCode, /draft\.commercialModel|draft\.commissionEnabled/);
   });
 
   it("7. Canonical persistTravelAgentCreate function is used for persistence", () => {
@@ -163,5 +165,14 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
       .map((f) => parseInt(f.slice(0, 4), 10))
       .sort((a, b) => b - a)[0];
     assert.ok(highest >= 118);
+  });
+
+  it("16. Step 3 mounts GuestTravelAgencyCommissionRatesStep and Step 4 mounts GuestTravelAgencyPaymentRulesStep", () => {
+    assert.match(modalCode, /GuestTravelAgencyCommissionRatesStep/);
+    assert.match(modalCode, /CommercialSummaryPanel/);
+    assert.match(modalCode, /getTravelAgencyCommissionRatesConfig/);
+    assert.match(modalCode, /step === "commission_rates"/);
+    assert.match(modalCode, /GuestTravelAgencyPaymentRulesStep/);
+    assert.match(modalCode, /PaymentRulesSummaryPanel/);
   });
 });

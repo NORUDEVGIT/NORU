@@ -109,11 +109,13 @@ export function BasicInfoStep({
   set,
   catalogues,
   fieldError,
+  step,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
   catalogues?: TravelAgentCreateContext["catalogues"];
   fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
+  step?: "basic_info" | "contacts";
 }) {
   const countryOptions = useMemo(
     () => ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name })),
@@ -130,21 +132,27 @@ export function BasicInfoStep({
 
   const agencyTypeOptions = catalogues?.agencyTypes ?? [];
 
+  const showBasicInfo = !step || step === "basic_info";
+  const showContacts = !step || step === "contacts";
+
   return (
     <div className="space-y-4" data-testid="travel-agency-basic-info-step">
       {/* Profile Type Read-only Context */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-[#756A5B]">Profile Type:</span>
-          <span className="rounded-[4px] bg-[#FAF8F5] border border-[#EDE6D8] px-2 py-0.5 text-xs font-semibold text-[#8A641A]">
-            Travel Agency (TRA)
-          </span>
+      {showBasicInfo && (
+        <div className="rounded-xl border border-[#EDE6D8] bg-white p-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-[#756A5B]">Profile Type:</span>
+            <span className="rounded-[4px] bg-[#FAF8F5] border border-[#EDE6D8] px-2 py-0.5 text-xs font-semibold text-[#8A641A]">
+              Travel Agency (TRA)
+            </span>
+          </div>
+          <span className="text-[11px] text-[#A89F91]">Canonical Guest & Services Master</span>
         </div>
-        <span className="text-[11px] text-[#A89F91]">Canonical Guest & Services Master</span>
-      </div>
+      )}
 
       {/* 1. Agency Details Section */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+      {showBasicInfo && (
+        <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
         <div className="border-b border-[#EDE6D8] pb-3">
           <h2 className="text-sm font-semibold text-[#251605]">Agency Details</h2>
           <p className="text-xs text-[#756A5B]">
@@ -181,11 +189,18 @@ export function BasicInfoStep({
               </SelectTrigger>
               <SelectContent>
                 {agencyTypeOptions.length > 0
-                  ? agencyTypeOptions.map((type) => (
-                      <SelectItem key={type.id} value={type.code || type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))
+                  ? agencyTypeOptions
+                      .filter(
+                        (type) =>
+                          type.active !== false ||
+                          (draft.agencyType &&
+                            (type.code === draft.agencyType || type.id === draft.agencyType)),
+                      )
+                      .map((type) => (
+                        <SelectItem key={type.id} value={type.code || type.id}>
+                          {type.name}
+                        </SelectItem>
+                      ))
                   : AGENCY_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>
                         {AGENCY_TYPE_LABELS[type]}
@@ -268,11 +283,13 @@ export function BasicInfoStep({
             placeholder="Operational notes, special handling, or background..."
           />
         </StepField>
-      </div>
+        </div>
+      )}
 
       {/* 2. Contacts Section */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-        <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-3">
+      {showContacts && (
+        <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+          <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-3">
           <div>
             <h2 className={cn("text-sm font-semibold text-[#251605]", fieldError("contacts", "basic_info") && "text-destructive")}>
               Agency Contacts
@@ -462,9 +479,11 @@ export function BasicInfoStep({
           ))}
         </div>
       </div>
+      )}
 
       {/* 3. Address & Market Section */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+      {showBasicInfo && (
+        <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
         <div className="border-b border-[#EDE6D8] pb-3">
           <h2 className="text-sm font-semibold text-[#251605]">Address & Market</h2>
           <p className="text-xs text-[#756A5B]">Agency physical location, fiscal registration, and market segmentation.</p>
@@ -566,6 +585,11 @@ export function BasicInfoStep({
           </StepField>
         </div>
       </div>
+      )}
     </div>
   );
+}
+
+export function ContactsStep(props: Parameters<typeof BasicInfoStep>[0]) {
+  return <BasicInfoStep {...props} step="contacts" />;
 }

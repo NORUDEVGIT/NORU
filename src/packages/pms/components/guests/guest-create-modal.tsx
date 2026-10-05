@@ -445,11 +445,28 @@ export function GuestCreateModal({
     return () => window.clearTimeout(handle);
   }, [context.data?.profileType?.defaults, created, defaultsApplied, draft, isEdit, open, restaurantId, saveDraft, step]);
 
+  // Determine whether the identity-document feature is active for this property
+  const identityField = context.data?.fields?.find((f) => f.code === "IDENTITY_DOCUMENT");
+  const identityActive = identityField ? Boolean(identityField.active) : true;
+  const activeSteps = useMemo(() => resolveGuestCreateSteps(identityActive), [identityActive]);
+  const stepIndex = activeSteps.findIndex((item) => item.id === step);
+
+  // Redirect away from the identity step when documents are disabled
+  useEffect(() => {
+    if (!identityActive && step === "identity") {
+      setStep("basic");
+    }
+  }, [identityActive, step]);
+
   const rules = useMemo(
     () => createFieldRules(context.data?.fields ?? [], context.data?.profileType ?? null),
     [context.data?.fields, context.data?.profileType],
   );
-  const completion = guestCreateCompletion(draft, rules);
+  const completion = guestCreateCompletion(draft, rules, {
+    documentTypes: context.data?.documentTypes ?? [],
+    docFiles,
+    identityActive,
+  });
   const allowedPrefTypes = useMemo(() => {
     const all = context.data?.preferenceTypes ?? [];
     const prefIds = context.data?.profileType?.preferenceTypeIds;
@@ -464,25 +481,15 @@ export function GuestCreateModal({
   const visible = (code: string) => rules.find((rule) => rule.code === code)?.visible !== false;
   const required = (code: string) => Boolean(rules.find((rule) => rule.code === code)?.required);
 
-  // Determine whether the identity-document feature is active for this property
-  const identityField = context.data?.fields?.find((f) => f.code === "IDENTITY_DOCUMENT");
-  const identityActive = identityField ? Boolean(identityField.active) : true;
-  const activeSteps = useMemo(() => resolveGuestCreateSteps(identityActive), [identityActive]);
-  const stepIndex = activeSteps.findIndex((item) => item.id === step);
-
-  // Redirect away from the identity step when documents are disabled
-  useEffect(() => {
-    if (!identityActive && step === "identity") {
-      setStep("basic");
-    }
-  }, [identityActive, step]);
-
   const fieldIssues = guestCreateFieldIssues(draft, {
     rules,
     set3: context.data?.set3 ?? null,
     requiredPreferenceTypeIds: requiredPrefs,
     dataProcessingRequired: false,
     hasPhoto: Boolean(photoPreview || photoFile),
+    documentTypes: context.data?.documentTypes ?? [],
+    docFiles,
+    identityActive,
   });
 
   // Also check Card 4 required custom fields (only for visible company field)
@@ -519,6 +526,11 @@ export function GuestCreateModal({
       setStep(next);
       return;
     }
+    const targetIndex = activeSteps.findIndex((s) => s.id === next);
+    const currentIndex = activeSteps.findIndex((s) => s.id === step);
+    if (targetIndex > currentIndex) {
+      if (!validateCurrent()) return;
+    }
     const blockers = issuesBeforeStep(fieldIssues, activeSteps, next);
     if (blockers.length) {
       markAttempted(step, ...blockers.map((issue) => issue.step));
@@ -537,39 +549,8 @@ export function GuestCreateModal({
       toast.error(formatCreateIssuesByStep(current, activeSteps));
       return false;
     }
-    if (step === "identity") {
-      const docTypes = context.data?.documentTypes ?? [];
-      for (let i = 0; i < draft.documents.length; i++) {
-        const doc = draft.documents[i];
-        const docType = docTypes.find((t) => t.id === doc.idTypeId);
-        if (!docType) continue;
-        if (docType.documentNumberActive !== false && docType.documentNumberRequired && !doc.documentNumber.trim()) {
-          toast.error(`Document #${i + 1}: Document number is required.`);
-          return false;
-        }
-        if (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) {
-          toast.error(`Document #${i + 1}: Issuing country is required.`);
-          return false;
-        }
-        if (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) {
-          toast.error(`Document #${i + 1}: Issue date is required.`);
-          return false;
-        }
-        if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) {
-          toast.error(`Document #${i + 1}: Expiry date is required.`);
-          return false;
-        }
-        if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) {
-          toast.error(`Document #${i + 1}: Issuing authority is required.`);
-          return false;
-        }
-        if (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !docFiles[`${doc.key}-front`]) {
-          toast.error(`Document #${i + 1}: Front document scan/image is required.`);
-          return false;
-        }
-      }
-    }
     if (step === "additional" && missingCustomFields.length > 0) {
+      markAttempted("additional");
       toast.error(`${missingCustomFields[0].label} is required.`);
       return false;
     }
@@ -621,6 +602,9 @@ export function GuestCreateModal({
         requiredPreferenceTypeIds: requiredPrefs,
         dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
         hasPhoto: Boolean(photoPreview || photoFile),
+        documentTypes: context.data?.documentTypes ?? [],
+        docFiles,
+        identityActive,
       });
       if (issues.length) throw new Error(formatCreateIssuesByStep(issues, activeSteps));
 
@@ -1099,6 +1083,7 @@ export function GuestCreateModal({
           className={cn(
             "z-50 flex h-[min(92vh,960px)] w-[min(98vw,1550px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
             "rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] shadow-2xl",
+            "[&>button]:hidden",
           )}
           onEscapeKeyDown={(e) => {
             if (hasNestedModalLayer()) {
@@ -1270,6 +1255,7 @@ export function GuestCreateModal({
                   docFiles={docFiles}
                   setDocFiles={setDocFiles}
                   error={fieldError("IDENTITY_DOCUMENT", "identity")}
+                  fieldError={fieldError}
                   onRemoveExistingDoc={(id) => setDeletedDocIds((prev) => [...prev, id])}
                 />
               ) : null}
@@ -1914,6 +1900,7 @@ function IdentityStep({
   docFiles,
   setDocFiles,
   error,
+  fieldError,
   onRemoveExistingDoc,
 }: {
   draft: GuestCreateDraft;
@@ -1940,6 +1927,7 @@ function IdentityStep({
   docFiles: Record<string, File | undefined>;
   setDocFiles: React.Dispatch<React.SetStateAction<Record<string, File | undefined>>>;
   error?: string;
+  fieldError?: (key: string, stepId?: GuestCreateStepId) => string | undefined;
   onRemoveExistingDoc?: (id: string) => void;
 }) {
   const available = types.filter(
@@ -2032,7 +2020,11 @@ function IdentityStep({
                 </Select>
               </Field>
               {type?.documentNumberActive !== false ? (
-                <Field label="Document Number" required={type?.documentNumberRequired}>
+                <Field
+                  label="Document Number"
+                  required={type?.documentNumberRequired}
+                  error={fieldError?.(`DOC_${document.key}_documentNumber`, "identity")}
+                >
                   <Input
                     value={document.documentNumber}
                     onChange={(event) =>
@@ -2048,7 +2040,11 @@ function IdentityStep({
                 </Field>
               ) : null}
               {type?.issuingCountryActive !== false ? (
-                <Field label="Issuing Country" required={type?.issuingCountryRequired}>
+                <Field
+                  label="Issuing Country"
+                  required={type?.issuingCountryRequired}
+                  error={fieldError?.(`DOC_${document.key}_issuingCountry`, "identity")}
+                >
                   <SearchableSelect
                     id={`doc-issuing-country-${document.key}`}
                     value={countryCodeFromInput(document.issuingCountry) || document.issuingCountry}
@@ -2069,7 +2065,11 @@ function IdentityStep({
                 </Field>
               ) : null}
               {type?.issueDateActive !== false ? (
-                <Field label="Issue Date" required={type?.issueDateRequired}>
+                <Field
+                  label="Issue Date"
+                  required={type?.issueDateRequired}
+                  error={fieldError?.(`DOC_${document.key}_issueDate`, "identity")}
+                >
                   <Input
                     type="date"
                     value={document.issueDate}
@@ -2086,7 +2086,11 @@ function IdentityStep({
                 </Field>
               ) : null}
               {type?.expiryDateActive !== false ? (
-                <Field label="Expiry Date" required={type?.expiryDateRequired}>
+                <Field
+                  label="Expiry Date"
+                  required={type?.expiryDateRequired}
+                  error={fieldError?.(`DOC_${document.key}_expiryDate`, "identity")}
+                >
                   <Input
                     type="date"
                     value={document.expiryDate}
@@ -2103,7 +2107,11 @@ function IdentityStep({
                 </Field>
               ) : null}
               {type?.issuingAuthorityActive !== false ? (
-                <Field label="Issuing Authority" required={type?.issuingAuthorityRequired}>
+                <Field
+                  label="Issuing Authority"
+                  required={type?.issuingAuthorityRequired}
+                  error={fieldError?.(`DOC_${document.key}_issuingAuthority`, "identity")}
+                >
                   <Input
                     value={document.issuingAuthority}
                     onChange={(event) =>
@@ -2120,7 +2128,11 @@ function IdentityStep({
               ) : null}
               {type?.scanImageAllowed ? (
                 <>
-                  <Field label="Front Scan/Image" required={type?.scanImageRequired && !document.hasFront}>
+                  <Field
+                    label="Front Scan/Image"
+                    required={type?.scanImageRequired && !document.hasFront}
+                    error={fieldError?.(`DOC_${document.key}_scan`, "identity")}
+                  >
                     <Input
                       type="file"
                       accept="image/jpeg,image/png,image/webp,application/pdf"

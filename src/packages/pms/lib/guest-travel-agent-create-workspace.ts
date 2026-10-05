@@ -18,12 +18,41 @@ import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-
 export const GUEST_TRAVEL_AGENT_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
 export const GUEST_TRAVEL_AGENT_CREATE_STEPS = [
-  { id: "basic_info", number: 1, title: "Basic Info" },
-  { id: "billing", number: 2, title: "Commercial & Billing" },
-  { id: "review", number: 3, title: "Review & Confirm" },
+  { id: "basic_info", number: 1, title: "Basic Information" },
+  { id: "contacts", number: 2, title: "Contacts" },
+  { id: "commission_rates", number: 3, title: "Commission & Rates" },
+  { id: "payment_rules", number: 4, title: "Payment, Credit & Reservation Rules" },
+  { id: "review", number: 5, title: "Final Review & Create" },
 ] as const;
 
-export type GuestTravelAgentCreateStepId = (typeof GUEST_TRAVEL_AGENT_CREATE_STEPS)[number]["id"];
+export type GuestTravelAgentCreateStepId =
+  | (typeof GUEST_TRAVEL_AGENT_CREATE_STEPS)[number]["id"]
+  | "booking_operations" // legacy compatibility alias
+  | "billing"; // legacy compatibility alias
+
+export type Step3CommercialModel = "commissionable" | "net_rate";
+export type Step3CommissionApplicationMode = "all" | "specific";
+export type Step3RateDefaultMode = "all" | "specific";
+export type Step3NetPricingMethod = "rate_plan" | "rate_plan_discount" | "contracted_rates";
+
+export type CommissionRuleDraft = {
+  id?: string;
+  scopeType: "all" | "room_type" | "rate_plan";
+  roomTypeId: string | null;
+  ratePlanId: string | null;
+  commissionType: "percent" | "fixed";
+  commissionValue: string;
+};
+
+export type AgencyRateDefaultDraft = {
+  roomTypeId: string;
+  ratePlanId: string;
+};
+
+export type ContractedRateDraft = {
+  roomTypeId: string;
+  amount: string;
+};
 
 export const GUEST_TRAVEL_AGENT_CREATE_TITLE = "Register New Travel Agency";
 export const GUEST_TRAVEL_AGENT_CREATE_COPY =
@@ -88,6 +117,14 @@ export function generateAgencyCode(typeCode: string, sequence = 1): string {
   return `${prefix}-${padded}`;
 }
 
+export type TravelAgencyDraftDocument = {
+  documentTypeId: string;
+  documentTypeCode?: string;
+  name: string;
+  storagePath: string;
+  fileSizeBytes?: number;
+};
+
 export type GuestTravelAgentCreateDraft = {
   accountId: string | null;
   name: string;
@@ -128,6 +165,11 @@ export type GuestTravelAgentCreateDraft = {
   billingInstruction: string;
   creditLimitAmount: string;
   creditLimitNote: string;
+
+  // Step 3: Commercial Model & Rates Domain
+  commercialModel: Step3CommercialModel;
+
+  // Step 3: Commission Setup (Commissionable only)
   commissionEnabled: boolean;
   commissionType: string;
   commissionValue: string;
@@ -135,6 +177,45 @@ export type GuestTravelAgentCreateDraft = {
   commissionEffectiveOn: string;
   commissionExpiresOn: string;
   commissionNotes: string;
+
+  // Step 3: Commission Application Rules
+  commissionApplicationMode: Step3CommissionApplicationMode;
+  allCommissionType: "percent" | "fixed";
+  allCommissionValue: string;
+  commissionRules: CommissionRuleDraft[];
+
+  // Step 3: Agency Rate Defaults (Commissionable only)
+  rateDefaultMode: Step3RateDefaultMode;
+  rateDefaultCategoryId: string | null;
+  agencyRateDefaults: AgencyRateDefaultDraft[];
+
+  // Step 3: Net Rate Pricing (Net Rate only)
+  netPricingMethod: Step3NetPricingMethod | null;
+  netRoomTypeId: string | null;
+  netRatePlanId: string | null;
+  netDiscountType: "percent" | "fixed" | null;
+  netDiscountValue: string;
+  netCurrencyCode: string;
+  netValidFrom: string;
+  netValidUntil: string;
+  contractedRates: ContractedRateDraft[];
+
+  commercialNotes: string;
+
+  // Step 4: Payment, Credit & Reservation Rules
+  billingCurrencyCode: string;
+  defaultPaymentMethodId: string | null;
+  paymentTiming: "due_on_arrival" | "due_on_departure" | "prepaid" | "credit_terms" | null;
+  defaultBillingRuleId: string | null;
+  allowCredit: boolean;
+  creditDays: number | null;
+  creditDaysPreset: string;
+  creditStatus: "pending_approval" | "approved" | "suspended" | null;
+  defaultDepositPolicyId: string | null;
+  defaultCancellationPolicyId: string | null;
+  defaultNoShowPolicyId: string | null;
+  bookingNotes: string;
+  documents: TravelAgencyDraftDocument[];
 };
 
 export type GuestTravelAgentCreateHold = {
@@ -174,8 +255,25 @@ function isTravelAgentCreateDraftShape(value: unknown): value is GuestTravelAgen
 }
 
 export function inferGuestTravelAgentCreateStep(draft: GuestTravelAgentCreateDraft): GuestTravelAgentCreateStepId {
-  if (draft.commissionEnabled || filled(draft.creditLimitAmount) || filled(draft.billingArrangement)) {
-    return "billing";
+  if (
+    filled(draft.defaultBillingRuleId) ||
+    draft.allowCredit ||
+    filled(draft.defaultDepositPolicyId) ||
+    (draft.documents && draft.documents.length > 0)
+  ) {
+    return "payment_rules";
+  }
+  if (
+    draft.commercialModel === "net_rate" ||
+    draft.commissionEnabled ||
+    (draft.commissionRules && draft.commissionRules.length > 1) ||
+    (draft.agencyRateDefaults && draft.agencyRateDefaults.length > 0) ||
+    filled(draft.commissionCurrency)
+  ) {
+    return "commission_rates";
+  }
+  if (draft.contacts && draft.contacts.some((c) => filled(c.name))) {
+    return "contacts";
   }
   return "basic_info";
 }
@@ -186,11 +284,15 @@ export function parseGuestTravelAgentCreateHold(payload: unknown): GuestTravelAg
   if (isTravelAgentCreateDraftShape(record.draft)) {
     const rawStep = String(record.step ?? "");
     const mappedStep: GuestTravelAgentCreateStepId =
-      rawStep === "details" || rawStep === "contacts" || rawStep === "business"
-        ? "basic_info"
-        : isGuestTravelAgentCreateStepId(rawStep)
-          ? (rawStep as GuestTravelAgentCreateStepId)
-          : inferGuestTravelAgentCreateStep(record.draft);
+      rawStep === "billing"
+        ? "commission_rates"
+        : rawStep === "booking_operations"
+          ? "payment_rules"
+          : rawStep === "details" || rawStep === "business"
+            ? "basic_info"
+            : isGuestTravelAgentCreateStepId(rawStep)
+              ? (rawStep as GuestTravelAgentCreateStepId)
+              : inferGuestTravelAgentCreateStep(record.draft);
     return {
       step: mappedStep,
       draft: normalizeTravelAgentCreateDraft(record.draft),
@@ -279,13 +381,53 @@ export function emptyGuestTravelAgentCreateDraft(): GuestTravelAgentCreateDraft 
     billingInstruction: "",
     creditLimitAmount: "",
     creditLimitNote: "",
-    commissionEnabled: false,
-    commissionType: "",
-    commissionValue: "",
+
+    // Step 3 defaults
+    commercialModel: "commissionable",
+    commissionEnabled: true,
+    commissionType: "percent",
+    commissionValue: "10",
     commissionCurrency: "",
     commissionEffectiveOn: "",
     commissionExpiresOn: "",
     commissionNotes: "",
+    commissionApplicationMode: "all",
+    allCommissionType: "percent",
+    allCommissionValue: "10",
+    commissionRules: [
+      {
+        scopeType: "all",
+        roomTypeId: null,
+        ratePlanId: null,
+        commissionType: "percent",
+        commissionValue: "10",
+      },
+    ],
+    rateDefaultMode: "all",
+    rateDefaultCategoryId: null,
+    agencyRateDefaults: [],
+    netPricingMethod: "rate_plan",
+    netRoomTypeId: null,
+    netRatePlanId: null,
+    netDiscountType: "percent",
+    netDiscountValue: "",
+    netCurrencyCode: "",
+    netValidFrom: "",
+    netValidUntil: "",
+    // Step 4: Payment, Credit & Reservation Rules
+    billingCurrencyCode: "",
+    defaultPaymentMethodId: null,
+    paymentTiming: "due_on_departure",
+    defaultBillingRuleId: null,
+    allowCredit: false,
+    creditDays: 30,
+    creditDaysPreset: "30",
+    creditStatus: "pending_approval",
+    defaultDepositPolicyId: null,
+    defaultCancellationPolicyId: null,
+    defaultNoShowPolicyId: null,
+    bookingNotes: "",
+    documents: [],
   };
 }
 
@@ -300,6 +442,10 @@ export function normalizeTravelAgentCreateDraft(draft: GuestTravelAgentCreateDra
     ...draft,
     accountStatus: status,
     contacts,
+    documents: Array.isArray(draft.documents) ? draft.documents : [],
+    allowCredit: Boolean(draft.allowCredit),
+    paymentTiming: draft.paymentTiming || "due_on_departure",
+    creditStatus: draft.creditStatus || "pending_approval",
   };
 }
 
@@ -357,39 +503,122 @@ export function travelAgentCreateFieldIssues(
   }
   const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
   if (dateError) {
-    issues.push({ key: "contractStartDate", message: dateError, step: "billing" });
-    issues.push({ key: "contractEndDate", message: dateError, step: "billing" });
+    issues.push({ key: "contractStartDate", message: dateError, step: "booking_operations" });
+    issues.push({ key: "contractEndDate", message: dateError, step: "booking_operations" });
   }
   if (
     filled(draft.billingArrangement) &&
     !ACCOUNT_BILLING_ARRANGEMENTS.some((row) => row.id === draft.billingArrangement)
   ) {
-    issues.push({ key: "billingArrangement", message: "Select a configured billing arrangement.", step: "billing" });
+    issues.push({ key: "billingArrangement", message: "Select a configured billing arrangement.", step: "review" });
   }
   if (filled(draft.paymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.paymentMethodId)) {
-    issues.push({ key: "paymentMethodId", message: "Select a configured payment method.", step: "billing" });
+    issues.push({ key: "paymentMethodId", message: "Select a configured payment method.", step: "review" });
   }
   if (filled(draft.currency) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.currency)) {
-    issues.push({ key: "currency", message: "Select a configured currency.", step: "billing" });
+    issues.push({ key: "currency", message: "Select a configured currency.", step: "review" });
   }
   if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
-    issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "billing" });
+    issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "review" });
   }
   if (filled(draft.creditLimitAmount)) {
     const amount = Number(draft.creditLimitAmount);
     if (Number.isNaN(amount) || amount < 0) {
-      issues.push({ key: "creditLimitAmount", message: "Credit limit amount cannot be negative.", step: "billing" });
+      issues.push({ key: "creditLimitAmount", message: "Credit limit amount cannot be negative.", step: "review" });
     }
   }
-  if (draft.commissionEnabled) {
-    if (!TA_COMMISSION_PLAN_TYPES.includes(draft.commissionType as (typeof TA_COMMISSION_PLAN_TYPES)[number])) {
-      issues.push({ key: "commissionType", message: "Select a commission type.", step: "billing" });
+
+  // Step 3 Issues: Commission & Rates
+  if (draft.commercialModel === "commissionable") {
+    if (!filled(draft.commissionCurrency)) {
+      issues.push({ key: "commissionCurrency", message: "Select a commission currency.", step: "commission_rates" });
     }
-    const value = Number(draft.commissionValue);
-    if (!filled(draft.commissionValue) || Number.isNaN(value) || value < 0) {
-      issues.push({ key: "commissionValue", message: "Enter a commission value.", step: "billing" });
+    if (!filled(draft.commissionEffectiveOn)) {
+      issues.push({ key: "commissionEffectiveOn", message: "Effective from date is required.", step: "commission_rates" });
+    }
+    if (filled(draft.commissionExpiresOn) && filled(draft.commissionEffectiveOn) && draft.commissionExpiresOn < draft.commissionEffectiveOn) {
+      issues.push({ key: "commissionExpiresOn", message: "Expires on cannot be earlier than effective date.", step: "commission_rates" });
+    }
+    if (draft.commissionApplicationMode === "all") {
+      const val = Number(draft.allCommissionValue || draft.commissionValue);
+      if (!filled(draft.allCommissionValue) && !filled(draft.commissionValue)) {
+        issues.push({ key: "commissionValue", message: "Enter a commission value.", step: "commission_rates" });
+      } else if (Number.isNaN(val) || val < 0) {
+        issues.push({ key: "commissionValue", message: "Commission value cannot be negative.", step: "commission_rates" });
+      } else if (draft.allCommissionType === "percent" && val > 100) {
+        issues.push({ key: "commissionValue", message: "Commission percentage cannot exceed 100%.", step: "commission_rates" });
+      }
+    } else {
+      if (!draft.commissionRules || draft.commissionRules.length === 0) {
+        issues.push({ key: "commissionRules", message: "At least one commission rule is required.", step: "commission_rates" });
+      }
+    }
+  } else if (draft.commercialModel === "net_rate") {
+    if (!draft.netPricingMethod) {
+      issues.push({ key: "netPricingMethod", message: "Select a net pricing method.", step: "commission_rates" });
+    }
+    if (!filled(draft.netValidFrom)) {
+      issues.push({ key: "netValidFrom", message: "Valid from date is required.", step: "commission_rates" });
+    }
+    if (!filled(draft.netValidUntil)) {
+      issues.push({ key: "netValidUntil", message: "Valid until date is required.", step: "commission_rates" });
+    }
+    if (filled(draft.netValidUntil) && filled(draft.netValidFrom) && draft.netValidUntil < draft.netValidFrom) {
+      issues.push({ key: "netValidUntil", message: "Valid until date cannot be earlier than valid from.", step: "commission_rates" });
+    }
+    if (!filled(draft.netCurrencyCode)) {
+      issues.push({ key: "netCurrencyCode", message: "Select a settlement currency.", step: "commission_rates" });
+    }
+    if (draft.netPricingMethod === "contracted_rates" && (!draft.contractedRates || draft.contractedRates.length === 0)) {
+      issues.push({ key: "contractedRates", message: "At least one contracted room rate is required.", step: "commission_rates" });
     }
   }
+
+  // Step 4 Issues: Payment, Credit & Reservation Rules
+  if (!filled(draft.billingCurrencyCode) && !filled(draft.currency)) {
+    issues.push({ key: "billingCurrencyCode", message: "Billing currency is required.", step: "payment_rules" });
+  }
+
+  const validTimings = ["due_on_arrival", "due_on_departure", "prepaid", "credit_terms"];
+  if (!draft.paymentTiming || !validTimings.includes(draft.paymentTiming)) {
+    issues.push({ key: "paymentTiming", message: "A valid payment timing is required.", step: "payment_rules" });
+  }
+
+  if (!filled(draft.defaultBillingRuleId)) {
+    issues.push({ key: "defaultBillingRuleId", message: "Default billing rule is required.", step: "payment_rules" });
+  }
+
+  if (draft.paymentTiming === "credit_terms") {
+    if (!draft.allowCredit) {
+      issues.push({ key: "allowCredit", message: "Enable Credit Arrangement to use Credit Terms.", step: "payment_rules" });
+    }
+    if (draft.creditDays == null || Number.isNaN(Number(draft.creditDays)) || Number(draft.creditDays) <= 0) {
+      issues.push({ key: "creditDays", message: "Credit days is required when payment timing is credit terms.", step: "payment_rules" });
+    }
+  }
+
+  if (draft.allowCredit) {
+    if (!draft.creditStatus) {
+      issues.push({ key: "creditStatus", message: "Credit status is required when credit is enabled.", step: "payment_rules" });
+    }
+    if (filled(draft.creditLimitAmount)) {
+      const limit = Number(draft.creditLimitAmount);
+      if (Number.isNaN(limit) || limit < 0) {
+        issues.push({ key: "creditLimitAmount", message: "Credit limit cannot be negative.", step: "payment_rules" });
+      }
+    }
+    if (draft.creditDays != null) {
+      const days = Number(draft.creditDays);
+      if (Number.isNaN(days) || days < 0 || days > 365) {
+        issues.push({ key: "creditDays", message: "Credit days must be between 0 and 365.", step: "payment_rules" });
+      }
+    }
+  }
+
+  if (draft.bookingNotes && draft.bookingNotes.length > 500) {
+    issues.push({ key: "bookingNotes", message: "Booking notes cannot exceed 500 characters.", step: "payment_rules" });
+  }
+
   return issues;
 }
 
@@ -419,6 +648,15 @@ export function guestTravelAgentCreateHasChanges(draft: GuestTravelAgentCreateDr
   return JSON.stringify(current) !== JSON.stringify(baseline);
 }
 
+export function travelAgentCommissionReady(draft: GuestTravelAgentCreateDraft): boolean {
+  if (draft.commercialModel === "net_rate") return false;
+  if (!draft.commissionEnabled) return false;
+  if (draft.commissionApplicationMode === "all") {
+    return filled(draft.commissionValue || draft.allCommissionValue) && Number(draft.commissionValue || draft.allCommissionValue) >= 0;
+  }
+  return Boolean(draft.commissionRules && draft.commissionRules.length > 0);
+}
+
 export function guestTravelAgentCreateCompletion(draft: GuestTravelAgentCreateDraft): {
   percent: number;
   items: GuestTravelAgentCreateCompletionItem[];
@@ -436,21 +674,35 @@ export function guestTravelAgentCreateCompletion(draft: GuestTravelAgentCreateDr
       label: "Contacts & Role",
       complete: true,
       requiredRemaining: false,
-      step: "basic_info",
+      step: "contacts",
     },
     {
-      id: "address",
-      label: "Address & Market",
-      complete: true,
+      id: "commercial",
+      label: "Commission & Rates",
+      complete:
+        draft.commercialModel === "net_rate"
+          ? Boolean(draft.netPricingMethod && filled(draft.netValidFrom) && filled(draft.netValidUntil))
+          : Boolean(filled(draft.commissionCurrency) && filled(draft.commissionEffectiveOn)),
       requiredRemaining: false,
-      step: "basic_info",
+      step: "commission_rates",
+    },
+    {
+      id: "operations",
+      label: "Payment, Credit & Rules",
+      complete: Boolean(
+        filled(draft.billingCurrencyCode || draft.currency) &&
+          draft.paymentTiming &&
+          filled(draft.defaultBillingRuleId),
+      ),
+      requiredRemaining: false,
+      step: "payment_rules",
     },
     {
       id: "billing",
-      label: "Commercial & billing",
-      complete: !draft.commissionEnabled || filled(draft.commissionValue),
-      requiredRemaining: draft.commissionEnabled && !filled(draft.commissionValue),
-      step: "billing",
+      label: "Final Review & Create",
+      complete: true,
+      requiredRemaining: false,
+      step: "review",
     },
   ];
   const done = items.filter((item) => item.complete && !item.requiredRemaining).length;
@@ -506,7 +758,16 @@ export function draftToTravelAgentAccountInput(draft: GuestTravelAgentCreateDraf
     contractReference: blank(draft.contractReference),
     contractStartDate: blank(draft.contractStartDate),
     contractEndDate: blank(draft.contractEndDate),
-    paymentTerms: blank(draft.paymentTerms),
+    paymentTerms:
+      draft.paymentTiming === "credit_terms" && draft.creditDays
+        ? `Net ${draft.creditDays} Days`
+        : draft.paymentTiming === "due_on_arrival"
+          ? "Due on Arrival"
+          : draft.paymentTiming === "prepaid"
+            ? "Prepaid"
+            : draft.paymentTiming === "due_on_departure"
+              ? "Due on Departure"
+              : blank(draft.paymentTerms),
     creditLimitNote: blank(draft.creditLimitNote),
     billingInstruction: blank(draft.billingInstruction),
     commissionType: draft.commissionEnabled ? blank(draft.commissionType) : null,
@@ -542,17 +803,6 @@ export function draftToTravelAgentAccountOperations(draft: GuestTravelAgentCreat
       .filter((row) => filled(row.name))
       .map((row) => ({ key: row.key, id: row.id, method: blank(row.preferredMethod) })),
   };
-}
-
-export function travelAgentCommissionReady(draft: GuestTravelAgentCreateDraft): boolean {
-  if (!draft.commissionEnabled) return false;
-  const value = Number(draft.commissionValue);
-  return (
-    TA_COMMISSION_PLAN_TYPES.includes(draft.commissionType as (typeof TA_COMMISSION_PLAN_TYPES)[number]) &&
-    filled(draft.commissionValue) &&
-    !Number.isNaN(value) &&
-    value >= 0
-  );
 }
 
 export { AGENCY_TYPES, TA_COMMISSION_REFERENCE_COPY, TA_COMMISSION_PLAN_TYPES };

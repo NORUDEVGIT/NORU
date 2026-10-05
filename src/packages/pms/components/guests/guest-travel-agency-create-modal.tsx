@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
+  AlertCircle,
   Building2,
   Check,
+  CheckCircle2,
   ChevronRight,
   Plus,
   Trash2,
@@ -67,7 +69,6 @@ import {
   GUEST_TRAVEL_AGENT_CREATE_COPY,
   GUEST_TRAVEL_AGENT_CREATE_DRAFT_SAVED,
   GUEST_TRAVEL_AGENT_CREATE_HOLD_DEBOUNCE_MS,
-  GUEST_TRAVEL_AGENT_CREATE_PROGRESS_KEPT,
   GUEST_TRAVEL_AGENT_CREATE_START_OVER,
   GUEST_TRAVEL_AGENT_CREATE_START_OVER_COPY,
   GUEST_TRAVEL_AGENT_CREATE_STEPS,
@@ -102,7 +103,19 @@ import {
   type TravelAgentCreateContext,
 } from "@/packages/pms/lib/guest-travel-agent-create.functions";
 import { getGuestAccount, type GuestAccountProfile } from "@/packages/pms/lib/guest-accounts.functions";
-import { BasicInfoStep } from "./guest-travel-agency-basic-info-step";
+import { BasicInfoStep, ContactsStep } from "./guest-travel-agency-basic-info-step";
+import {
+  GuestTravelAgencyCommissionRatesStep,
+  CommercialSummaryPanel,
+} from "./guest-travel-agency-commission-rates-step";
+import { getTravelAgencyCommissionRatesConfig } from "@/packages/pms/lib/guest-travel-agency-step3-commission-rates.functions";
+import type { TravelAgencyCommissionRatesConfig } from "@/packages/pms/lib/guest-travel-agency-step3-commission-rates.server";
+import {
+  GuestTravelAgencyPaymentRulesStep,
+  PaymentRulesSummaryPanel,
+} from "./guest-travel-agency-payment-rules-step";
+import { getTravelAgencyStep4Config } from "@/packages/pms/lib/guest-travel-agency-step4.functions";
+import type { TravelAgencyStep4Config } from "@/packages/pms/lib/guest-travel-agency-step4.server";
 
 const MODAL_CONTROL_CLASS =
   "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
@@ -238,6 +251,7 @@ export function GuestTravelAgencyCreateModal({
   const saveDraftHold = useServerFn(saveTravelAgentCreateDraft);
   const clearDraft = useServerFn(deleteTravelAgentCreateDraft);
   const persist = useServerFn(persistTravelAgentCreate);
+  const loadStep3Config = useServerFn(getTravelAgencyCommissionRatesConfig);
 
   const accountQuery = useQuery({
     queryKey: ["guest-account", restaurantId, agencyId],
@@ -265,6 +279,32 @@ export function GuestTravelAgencyCreateModal({
     queryFn: () => load({ data: { restaurantId } }),
   });
 
+  const step3ConfigQuery = useQuery({
+    queryKey: ["travel-agency-step3-config", restaurantId, agencyId ?? draft.accountId],
+    queryFn: () =>
+      loadStep3Config({
+        data: {
+          restaurantId,
+          agencyId: (agencyId ?? draft.accountId) || undefined,
+        },
+      }),
+    enabled: open,
+  });
+
+  const loadStep4Config = useServerFn(getTravelAgencyStep4Config);
+
+  const step4ConfigQuery = useQuery({
+    queryKey: ["travel-agency-step4-config", restaurantId, agencyId ?? draft.accountId],
+    queryFn: () =>
+      loadStep4Config({
+        data: {
+          restaurantId,
+          agencyId: (agencyId ?? draft.accountId) || undefined,
+        },
+      }),
+    enabled: open,
+  });
+
   useEffect(() => {
     if (!open) return;
     if (isEdit) {
@@ -287,7 +327,12 @@ export function GuestTravelAgencyCreateModal({
       setDraft((current) =>
         current.currency
           ? current
-          : { ...current, currency: context.data.defaultCurrency, commissionCurrency: context.data.defaultCurrency },
+          : {
+              ...current,
+              currency: context.data.defaultCurrency,
+              billingCurrencyCode: context.data.defaultCurrency,
+              commissionCurrency: context.data.defaultCurrency,
+            },
       );
     }
     setDefaultsApplied(true);
@@ -414,6 +459,18 @@ export function GuestTravelAgencyCreateModal({
         if (first) setStep(first.step);
         throw new Error(formatCreateIssuesByStep(fieldIssues, GUEST_TRAVEL_AGENT_CREATE_STEPS));
       }
+      const requiredDocs = (step4ConfigQuery.data?.documentTypes ?? []).filter((d) => d.required && d.active !== false);
+      if (requiredDocs.length > 0) {
+        const uploadedIds = new Set((draft.documents || []).map((d) => d.documentTypeId));
+        const missing = requiredDocs.filter((d) => !uploadedIds.has(d.id));
+        if (missing.length > 0) {
+          markAttempted("payment_rules");
+          setStep("payment_rules");
+          throw new Error(
+            `Upload required documents before creating agency: ${missing.map((d) => d.name).join(", ")}`,
+          );
+        }
+      }
       const saved = await persist({ data: { restaurantId, draft, mode: "complete" } });
       if (saved.id) setDraft((current) => ({ ...current, accountId: saved.id, contacts: saved.contacts }));
       if (!saved.id) throw new Error("Travel agency could not be created.");
@@ -452,26 +509,32 @@ export function GuestTravelAgencyCreateModal({
     if (guestTravelAgentCreateHasChanges(draft) && !created) {
       setDiscardConfirmOpen(true);
     } else {
-      performClose();
+      handleActualClose();
     }
   }
 
-  function performClose() {
-    if (!created) writeGuestTravelAgentCreateHold(restaurantId, { step, draft });
-    if (!created && guestTravelAgentCreateHasChanges(draft)) {
-      toast.success(GUEST_TRAVEL_AGENT_CREATE_PROGRESS_KEPT);
+  useEffect(() => {
+    if (step3ConfigQuery.data?.baseCurrency) {
+      setDraft((current) => {
+        const updates: Partial<GuestTravelAgentCreateDraft> = {};
+        if (!current.commissionCurrency) updates.commissionCurrency = step3ConfigQuery.data.baseCurrency;
+        if (!current.netCurrencyCode) updates.netCurrencyCode = step3ConfigQuery.data.baseCurrency;
+        if (Object.keys(updates).length > 0) return { ...current, ...updates };
+        return current;
+      });
     }
-    handleActualClose();
-  }
+  }, [step3ConfigQuery.data?.baseCurrency]);
 
   function resetForm() {
     const next = emptyGuestTravelAgentCreateDraft();
-    if (context.data?.defaultCurrency) {
-      next.currency = context.data.defaultCurrency;
-      next.commissionCurrency = context.data.defaultCurrency;
+    const curr = step3ConfigQuery.data?.baseCurrency || context.data?.defaultCurrency;
+    if (curr) {
+      next.currency = curr;
+      next.commissionCurrency = curr;
+      next.netCurrencyCode = curr;
     }
     setDraft(next);
-    setStep("details");
+    setStep("basic_info");
     setHoldState("idle");
     setCreated(null);
     setAttemptedSteps(new Set());
@@ -620,15 +683,34 @@ export function GuestTravelAgencyCreateModal({
                 ) : (
                   <>
                     {step === "basic_info" ? (
-                      <BasicInfoStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
+                      <BasicInfoStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} step="basic_info" />
                     ) : null}
-                    {step === "billing" ? (
-                      <BillingStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
+                    {step === "contacts" ? (
+                      <ContactsStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
+                    ) : null}
+                    {step === "commission_rates" || step === "billing" ? (
+                      <GuestTravelAgencyCommissionRatesStep
+                        draft={draft}
+                        set={set}
+                        config={step3ConfigQuery.data}
+                        fieldError={fieldError}
+                      />
+                    ) : null}
+                    {step === "payment_rules" || step === "booking_operations" ? (
+                      <GuestTravelAgencyPaymentRulesStep
+                        draft={draft}
+                        set={set}
+                        config={step4ConfigQuery.data}
+                        fieldError={fieldError}
+                        restaurantId={restaurantId}
+                      />
                     ) : null}
                     {step === "review" ? (
                       <ReviewStep
                         draft={draft}
                         catalogues={catalogues}
+                        config={step3ConfigQuery.data}
+                        step4Config={step4ConfigQuery.data}
                         issues={fieldIssues}
                         onEdit={go}
                       />
@@ -640,68 +722,74 @@ export function GuestTravelAgencyCreateModal({
 
             {/* Right-side Preview & Guidance Panel */}
             <aside className="w-80 border-l border-[#EDE6D8] bg-[#FAF8F5] overflow-y-auto p-5 space-y-4 hidden lg:block">
-              {/* Profile Preview Card */}
-              <div
-                data-testid="travel-agency-create-profile-preview"
-                className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none"
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#8A641A] uppercase tracking-wider">
-                  <Building2 className="size-3.5" />
-                  <span>Travel Agency Preview</span>
-                </div>
-                <div className="mt-3 space-y-2 border-t border-[#EDE6D8] pt-3 text-xs">
-                  <div>
-                    <span className="text-[#756A5B]">Agency Name:</span>
-                    <p className="font-semibold text-[#251605] break-words">{draft.name || "—"}</p>
+              {step === "commission_rates" || step === "billing" ? (
+                <CommercialSummaryPanel draft={draft} config={step3ConfigQuery.data} />
+              ) : step === "payment_rules" || step === "booking_operations" ? (
+                <PaymentRulesSummaryPanel draft={draft} config={step4ConfigQuery.data} />
+              ) : (
+                /* Profile Preview Card */
+                <div
+                  data-testid="travel-agency-create-profile-preview"
+                  className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none"
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[#8A641A] uppercase tracking-wider">
+                    <Building2 className="size-3.5" />
+                    <span>Travel Agency Preview</span>
                   </div>
-                  <div>
-                    <span className="text-[#756A5B]">Agency Code:</span>
-                    <p className="font-mono font-medium text-[#251605]">{draft.code || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Profile Type:</span>
-                    <p className="font-medium text-[#251605]">Travel Agency (TRA)</p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Agency Type:</span>
-                    <p className="font-medium text-[#251605]">
-                      {agencyTypeLabel(draft.agencyType) || "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Status:</span>
-                    <p className="font-medium text-[#251605]">
-                      {draft.accountStatus === "inactive" ? "Inactive" : "Active"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Primary Contact:</span>
-                    <p className="font-medium text-[#251605] break-words">
-                      {primary?.name ? `${primary.name}${primary.email ? ` · ${primary.email}` : ""}` : "—"}
-                    </p>
-                  </div>
-                  {draft.iataLicenseNumber ? (
+                  <div className="mt-3 space-y-2 border-t border-[#EDE6D8] pt-3 text-xs">
                     <div>
-                      <span className="text-[#756A5B]">Licence #:</span>
-                      <p className="font-medium text-[#251605]">{draft.iataLicenseNumber}</p>
+                      <span className="text-[#756A5B]">Agency Name:</span>
+                      <p className="font-semibold text-[#251605] break-words">{draft.name || "—"}</p>
                     </div>
-                  ) : null}
-                  {draft.taxId ? (
                     <div>
-                      <span className="text-[#756A5B]">TIN #:</span>
-                      <p className="font-medium text-[#251605]">{draft.taxId}</p>
+                      <span className="text-[#756A5B]">Agency Code:</span>
+                      <p className="font-mono font-medium text-[#251605]">{draft.code || "—"}</p>
                     </div>
-                  ) : null}
-                  {draft.city || draft.country ? (
                     <div>
-                      <span className="text-[#756A5B]">Location:</span>
+                      <span className="text-[#756A5B]">Profile Type:</span>
+                      <p className="font-medium text-[#251605]">Travel Agency (TRA)</p>
+                    </div>
+                    <div>
+                      <span className="text-[#756A5B]">Agency Type:</span>
                       <p className="font-medium text-[#251605]">
-                        {[draft.city, draft.country].filter(Boolean).join(", ")}
+                        {agencyTypeLabel(draft.agencyType) || "—"}
                       </p>
                     </div>
-                  ) : null}
+                    <div>
+                      <span className="text-[#756A5B]">Status:</span>
+                      <p className="font-medium text-[#251605]">
+                        {draft.accountStatus === "inactive" ? "Inactive" : "Active"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[#756A5B]">Primary Contact:</span>
+                      <p className="font-medium text-[#251605] break-words">
+                        {primary?.name ? `${primary.name}${primary.email ? ` · ${primary.email}` : ""}` : "—"}
+                      </p>
+                    </div>
+                    {draft.iataLicenseNumber ? (
+                      <div>
+                        <span className="text-[#756A5B]">Licence #:</span>
+                        <p className="font-medium text-[#251605]">{draft.iataLicenseNumber}</p>
+                      </div>
+                    ) : null}
+                    {draft.taxId ? (
+                      <div>
+                        <span className="text-[#756A5B]">TIN #:</span>
+                        <p className="font-medium text-[#251605]">{draft.taxId}</p>
+                      </div>
+                    ) : null}
+                    {draft.city || draft.country ? (
+                      <div>
+                        <span className="text-[#756A5B]">Location:</span>
+                        <p className="font-medium text-[#251605]">
+                          {[draft.city, draft.country].filter(Boolean).join(", ")}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Data Completion Card */}
               <div className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none">
@@ -749,10 +837,14 @@ export function GuestTravelAgencyCreateModal({
                 </span>
                 <p className="text-[#756A5B] leading-relaxed">
                   {step === "basic_info"
-                    ? "Enter legal identification, agency classification, contacts, address location, and market segmentation."
-                    : step === "billing"
-                      ? "Configure contracted rates, billing arrangements, credit allowance, and commission plan terms."
-                      : "Verify all agency master information before completing creation and publishing the account."}
+                    ? "Enter legal identification, agency classification, physical address, and market segmentation."
+                    : step === "contacts"
+                      ? "Manage primary coordinator and team contact points for reservations and contracting."
+                      : step === "commission_rates" || step === "billing"
+                        ? "Configure commercial model (Commissionable vs Net Rate), commission percentage or rules, and commercial terms."
+                        : step === "booking_operations"
+                          ? "Specify contract reference, validity window, and default packages or meal plans."
+                          : "Review all registration sections, configure billing arrangements, and complete creation."}
                 </p>
                 <div className="pt-2 border-t border-[#EDE6D8] text-[11px] text-[#A89F91]">
                   Property Setup Controlled
@@ -873,61 +965,56 @@ export function GuestTravelAgencyCreateModal({
 
       {/* Discard Confirmation Dialog */}
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
-        <AlertDialogContent className="border-[#DDD4C5] bg-[#F7F4EE]">
+        <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#251605]">Discard new travel agency?</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-[#756A5B]">
-              You have unsaved changes. Closing will keep your progress stored as a draft, but you can discard it if preferred.
+            <AlertDialogTitle className="font-display text-lg text-[#251605]">
+              Discard new travel agency?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              Your entered information will be lost if not saved as a draft.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel
-              className="border-[#DDD4C5] text-xs text-[#251605]"
-              onClick={() => setDiscardConfirmOpen(false)}
-            >
-              Continue Editing
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDiscardConfirmOpen(false)}>Keep Editing</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] text-xs font-semibold"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 setDiscardConfirmOpen(false);
-                performClose();
+                handleActualClose();
               }}
             >
-              Close & Keep Progress
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Start Over Confirmation Dialog */}
-      <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
-        <AlertDialogContent className="border-[#DDD4C5] bg-[#F7F4EE]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#251605]">
-              {GUEST_TRAVEL_AGENT_CREATE_START_OVER}?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-[#756A5B]">
-              {GUEST_TRAVEL_AGENT_CREATE_START_OVER_COPY}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              className="border-[#DDD4C5] text-xs text-[#251605]"
-              onClick={() => setStartOverOpen(false)}
-            >
-              Keep Progress
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={startOverMutation.isPending}
-              className="bg-destructive text-white hover:bg-destructive/90 text-xs font-semibold"
-              onClick={() => startOverMutation.mutate()}
-            >
-              {startOverMutation.isPending ? "Clearing…" : GUEST_TRAVEL_AGENT_CREATE_START_OVER}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {startOverOpen ? (
+        <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
+          <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display text-lg text-[#251605]">
+                {GUEST_TRAVEL_AGENT_CREATE_START_OVER}?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-sm text-muted-foreground">
+                {GUEST_TRAVEL_AGENT_CREATE_START_OVER_COPY}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setStartOverOpen(false)}>Keep Progress</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                data-testid="travel-agency-create-start-over-confirm"
+                disabled={startOverMutation.isPending}
+                onClick={() => startOverMutation.mutate()}
+              >
+                {startOverMutation.isPending ? "Clearing…" : GUEST_TRAVEL_AGENT_CREATE_START_OVER}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </>
   );
 }
@@ -1000,228 +1087,18 @@ function ModalSelect({
 
 
 
-function BillingStep({
-  draft,
-  set,
-  catalogues,
-  fieldError,
-}: {
-  draft: GuestTravelAgentCreateDraft;
-  set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
-  catalogues?: TravelAgentCreateContext["catalogues"];
-  fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-        <div className="border-b border-[#EDE6D8] pb-3">
-          <h2 className="text-sm font-semibold text-[#251605]">Commercial Defaults & Contracts</h2>
-          <p className="text-xs text-[#756A5B]">Setup contracted rate plans, booking arrangements, and credit limit.</p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ModalField label="Default rate plan">
-            <ModalSelect
-              value={draft.ratePlanId}
-              onChange={(val) => set("ratePlanId", val)}
-              options={catalogues?.ratePlans ?? []}
-              placeholder="Select rate plan"
-            />
-          </ModalField>
-
-          <ModalField label="Default package">
-            <ModalSelect
-              value={draft.packageId}
-              onChange={(val) => set("packageId", val)}
-              options={catalogues?.packages ?? []}
-              placeholder="Select package"
-            />
-          </ModalField>
-
-          <ModalField label="Default meal plan">
-            <ModalSelect
-              value={draft.mealPlanId}
-              onChange={(val) => set("mealPlanId", val)}
-              options={catalogues?.mealPlans ?? []}
-              placeholder="Select meal plan"
-            />
-          </ModalField>
-
-          <ModalField label="Contract reference">
-            <Input
-              value={draft.contractReference}
-              onChange={(e) => set("contractReference", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Reference number"
-            />
-          </ModalField>
-
-          <ModalField label="Contract start" error={fieldError("contractStartDate", "billing")}>
-            <Input
-              type="date"
-              value={draft.contractStartDate}
-              onChange={(e) => set("contractStartDate", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </ModalField>
-
-          <ModalField label="Contract end" error={fieldError("contractEndDate", "billing")}>
-            <Input
-              type="date"
-              value={draft.contractEndDate}
-              onChange={(e) => set("contractEndDate", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </ModalField>
-
-          <ModalField label="Billing arrangement" error={fieldError("billingArrangement", "billing")}>
-            <ModalSelect
-              value={draft.billingArrangement}
-              onChange={(val) => set("billingArrangement", val)}
-              options={ACCOUNT_BILLING_ARRANGEMENTS.map((row) => ({ id: row.id, name: row.label }))}
-              placeholder="Select arrangement"
-            />
-          </ModalField>
-
-          <ModalField label="Payment method" error={fieldError("paymentMethodId", "billing")}>
-            <ModalSelect
-              value={draft.paymentMethodId}
-              onChange={(val) => set("paymentMethodId", val)}
-              options={catalogues?.paymentMethods ?? []}
-              placeholder="Select payment method"
-            />
-          </ModalField>
-
-          <ModalField label="Currency" error={fieldError("currency", "billing")}>
-            <ModalSelect
-              value={draft.currency}
-              onChange={(val) => set("currency", val)}
-              options={(catalogues?.currencies ?? []).map((code) => ({ id: code, name: code }))}
-              placeholder="Property currency"
-            />
-          </ModalField>
-
-          <ModalField label="Billing contact">
-            <Input
-              value={draft.billingContactName}
-              onChange={(e) => set("billingContactName", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Invoice recipient"
-            />
-          </ModalField>
-
-          <ModalField label="Credit limit amount" error={fieldError("creditLimitAmount", "billing")}>
-            <Input
-              type="number"
-              min={0}
-              value={draft.creditLimitAmount}
-              onChange={(e) => set("creditLimitAmount", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="0.00"
-            />
-          </ModalField>
-
-          <ModalField label="Credit limit note">
-            <Input
-              value={draft.creditLimitNote}
-              onChange={(e) => set("creditLimitNote", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="e.g. 30-day payment term"
-            />
-          </ModalField>
-        </div>
-
-        <div className="pt-2 border-t border-[#EDE6D8] space-y-1 text-[11px] text-[#756A5B]">
-          <p>{TRAVEL_AGENT_CREATE_CONTRACT_COPY}</p>
-          <p>{TRAVEL_AGENT_CREATE_CREDIT_COPY}</p>
-        </div>
-      </div>
-
-      {/* Commission Configuration Card */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-[#251605]">Commission Plan</h2>
-            <p className="text-xs text-[#756A5B]">{TA_COMMISSION_REFERENCE_COPY}</p>
-          </div>
-          <Switch
-            checked={draft.commissionEnabled}
-            onCheckedChange={(checked) => set("commissionEnabled", Boolean(checked))}
-          />
-        </div>
-
-        {draft.commissionEnabled ? (
-          <div className="grid gap-3 pt-3 border-t border-[#EDE6D8] sm:grid-cols-2">
-            <ModalField label="Commission type" error={fieldError("commissionType", "billing")}>
-              <ModalSelect
-                value={draft.commissionType}
-                onChange={(val) => set("commissionType", val)}
-                options={TA_COMMISSION_PLAN_TYPES.map((id) => ({ id, name: id === "percent" ? "Percent (%)" : "Fixed Amount" }))}
-                placeholder="Select type"
-              />
-            </ModalField>
-
-            <ModalField label="Commission value" error={fieldError("commissionValue", "billing")}>
-              <Input
-                type="number"
-                min={0}
-                value={draft.commissionValue}
-                onChange={(e) => set("commissionValue", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-                placeholder={draft.commissionType === "percent" ? "e.g. 10 (%)" : "e.g. 25.00"}
-              />
-            </ModalField>
-
-            <ModalField label="Currency">
-              <Input
-                value={draft.commissionCurrency}
-                onChange={(e) => set("commissionCurrency", e.target.value.toUpperCase())}
-                className={MODAL_CONTROL_CLASS}
-                placeholder="ISO currency (e.g. USD)"
-              />
-            </ModalField>
-
-            <ModalField label="Effective on">
-              <Input
-                type="date"
-                value={draft.commissionEffectiveOn}
-                onChange={(e) => set("commissionEffectiveOn", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-              />
-            </ModalField>
-
-            <ModalField label="Expires on">
-              <Input
-                type="date"
-                value={draft.commissionExpiresOn}
-                onChange={(e) => set("commissionExpiresOn", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-              />
-            </ModalField>
-
-            <ModalField label="Commission notes">
-              <Input
-                value={draft.commissionNotes}
-                onChange={(e) => set("commissionNotes", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-                placeholder="Rate code eligibility, booking window rules..."
-              />
-            </ModalField>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function ReviewStep({
   draft,
   catalogues,
+  config,
+  step4Config,
   issues,
   onEdit,
 }: {
   draft: GuestTravelAgentCreateDraft;
   catalogues?: TravelAgentCreateContext["catalogues"];
+  config?: TravelAgencyCommissionRatesConfig;
+  step4Config?: TravelAgencyStep4Config;
   issues: Array<{ key: string; message: string; step: GuestTravelAgentCreateStepId }>;
   onEdit: (step: GuestTravelAgentCreateStepId) => void;
 }) {
@@ -1234,8 +1111,20 @@ function ReviewStep({
       }));
   const primary = primaryTravelAgentContact(draft);
 
+  const requiredDocTypes = (step4Config?.documentTypes ?? []).filter((d) => d.required && d.active !== false);
+  const uploadedDocTypeIds = new Set((draft.documents || []).map((d) => d.documentTypeId));
+  const missingRequiredDocs = requiredDocTypes.filter((d) => !uploadedDocTypeIds.has(d.id));
+
+  const selectedRule = step4Config?.billingRules.find((r) => r.id === draft.defaultBillingRuleId);
+  const selectedMethod = step4Config?.paymentMethods.find(
+    (m) => m.id === (draft.defaultPaymentMethodId || draft.paymentMethodId),
+  );
+  const depositPolicy = step4Config?.depositPolicies.find((p) => p.id === draft.defaultDepositPolicyId);
+  const cancellationPolicy = step4Config?.cancellationPolicies.find((p) => p.id === draft.defaultCancellationPolicyId);
+  const noShowPolicy = step4Config?.noShowPolicies.find((p) => p.id === draft.defaultNoShowPolicyId);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="travel-agency-review-step">
       {remaining.length > 0 ? (
         <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4">
           <p className="font-semibold text-xs text-destructive">
@@ -1260,7 +1149,32 @@ function ReviewStep({
         </div>
       ) : null}
 
-      <ReviewCard title="Basic Info & Contacts" onEdit={() => onEdit("basic_info")}>
+      {missingRequiredDocs.length > 0 ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-destructive font-semibold text-xs">
+            <AlertCircle className="size-4 shrink-0" />
+            <span>Missing Required Documents ({missingRequiredDocs.length})</span>
+          </div>
+          <p className="text-xs text-destructive/90">
+            The following mandatory document(s) must be uploaded before creating the agency:
+          </p>
+          <ul className="list-disc pl-5 text-xs text-destructive space-y-0.5">
+            {missingRequiredDocs.map((d) => (
+              <li key={d.id}>{d.name}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="text-xs font-semibold underline text-destructive hover:text-destructive/80 pt-1"
+            onClick={() => onEdit("payment_rules")}
+          >
+            Go to Documents (Step 4) &rarr;
+          </button>
+        </div>
+      ) : null}
+
+      {/* Review Cards for each step */}
+      <ReviewCard title="1. Basic Information" onEdit={() => onEdit("basic_info")}>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div><span className="text-[#756A5B]">Agency Name:</span> <span className="font-medium text-[#251605]">{draft.name || "—"}</span></div>
           <div><span className="text-[#756A5B]">Type:</span> <span className="font-medium text-[#251605]">{agencyTypeLabel(draft.agencyType) || "—"}</span></div>
@@ -1269,20 +1183,197 @@ function ReviewStep({
           <div><span className="text-[#756A5B]">Licence #:</span> <span className="font-medium text-[#251605]">{draft.iataLicenseNumber || "—"}</span></div>
           <div><span className="text-[#756A5B]">TIN #:</span> <span className="font-medium text-[#251605]">{draft.taxId || "—"}</span></div>
           <div><span className="text-[#756A5B]">Location:</span> <span className="font-medium text-[#251605]">{[draft.addressLine1, draft.city, draft.country].filter(Boolean).join(", ") || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Primary Contact:</span> <span className="font-medium text-[#251605]">{primary?.name ? `${primary.name}${primary.position ? ` (${primary.position})` : ""}` : "—"}</span></div>
           <div><span className="text-[#756A5B]">Market Segment:</span> <span className="font-medium text-[#251605]">{optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</span></div>
           <div><span className="text-[#756A5B]">Source:</span> <span className="font-medium text-[#251605]">{draft.sourceOfBusiness || optionLabel(catalogues?.sourceCodes ?? [], draft.sourceCodeId) || "—"}</span></div>
         </div>
       </ReviewCard>
 
-      <ReviewCard title="Commercial & Billing" onEdit={() => onEdit("billing")}>
+      <ReviewCard title="2. Agency Contacts" onEdit={() => onEdit("contacts")}>
+        <div className="space-y-1.5 text-xs">
+          <div><span className="text-[#756A5B]">Primary Contact:</span> <span className="font-semibold text-[#251605]">{primary?.name ? `${primary.name}${primary.position ? ` (${primary.position})` : ""}` : "—"}</span></div>
+          {primary?.email && <div><span className="text-[#756A5B]">Email:</span> <span className="font-medium text-[#251605]">{primary.email}</span></div>}
+          {primary?.phone && <div><span className="text-[#756A5B]">Phone:</span> <span className="font-medium text-[#251605]">{primary.phone}</span></div>}
+          <div className="pt-1 text-[#756A5B]">{draft.contacts.length} total contact{draft.contacts.length === 1 ? "" : "s"} registered</div>
+        </div>
+      </ReviewCard>
+
+      <ReviewCard title="3. Commission & Rates" onEdit={() => onEdit("commission_rates")}>
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div><span className="text-[#756A5B]">Billing Arrangement:</span> <span className="font-medium text-[#251605]">{billingArrangementLabel(draft.billingArrangement) || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Payment Method:</span> <span className="font-medium text-[#251605]">{optionLabel(catalogues?.paymentMethods ?? [], draft.paymentMethodId) || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Credit Limit:</span> <span className="font-medium text-[#251605]">{draft.creditLimitAmount ? `${draft.creditLimitAmount} ${draft.currency}` : "—"}</span></div>
-          <div><span className="text-[#756A5B]">Commission:</span> <span className="font-medium text-[#251605]">{draft.commissionEnabled ? `${draft.commissionType === "percent" ? `${draft.commissionValue}%` : `${draft.commissionValue} ${draft.commissionCurrency}`} (${draft.commissionType})` : "Disabled"}</span></div>
-          <div><span className="text-[#756A5B]">Contract Ref:</span> <span className="font-medium text-[#251605]">{draft.contractReference || "—"}</span></div>
-          <div><span className="text-[#756A5B]">Default Rate Plan:</span> <span className="font-medium text-[#251605]">{optionLabel(catalogues?.ratePlans ?? [], draft.ratePlanId) || "—"}</span></div>
+          <div><span className="text-[#756A5B]">Commercial Model:</span> <span className="font-semibold text-[#251605] capitalize">{draft.commercialModel === "net_rate" ? "Net Rate (Confidential Wholesale)" : "Commissionable"}</span></div>
+          {draft.commercialModel === "commissionable" ? (
+            <>
+              <div><span className="text-[#756A5B]">Commission Currency:</span> <span className="font-medium text-[#251605]">{draft.commissionCurrency || "ETB"}</span></div>
+              <div><span className="text-[#756A5B]">Commission Basis:</span> <span className="font-medium text-[#251605]">Room Subtotal (excl. tax)</span></div>
+              <div><span className="text-[#756A5B]">Validity:</span> <span className="font-medium text-[#251605]">{draft.commissionEffectiveOn || "Today"} {draft.commissionExpiresOn ? `to ${draft.commissionExpiresOn}` : "(Indefinite)"}</span></div>
+              <div>
+                <span className="text-[#756A5B]">Commission Rule:</span>{" "}
+                <span className="font-semibold text-[#251605]">
+                  {draft.commissionApplicationMode === "all"
+                    ? `${draft.allCommissionValue || draft.commissionValue || "10"}${draft.allCommissionType === "percent" ? "%" : " " + (draft.commissionCurrency || "ETB")} (Apply to All)`
+                    : `${draft.commissionRules?.length ?? 0} Specific Rule(s)`}
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div><span className="text-[#756A5B]">Pricing Method:</span> <span className="font-semibold text-[#251605] capitalize">{draft.netPricingMethod === "rate_plan" ? "Linked Rate Plan" : draft.netPricingMethod === "rate_plan_discount" ? `Discount (${draft.netDiscountValue}${draft.netDiscountType === "percent" ? "%" : ""})` : "Contracted Net Rates"}</span></div>
+              <div><span className="text-[#756A5B]">Settlement Currency:</span> <span className="font-medium text-[#251605]">{draft.netCurrencyCode || "ETB"}</span></div>
+              <div><span className="text-[#756A5B]">Validity:</span> <span className="font-medium text-[#251605]">{draft.netValidFrom || "Today"} {draft.netValidUntil ? `to ${draft.netValidUntil}` : ""}</span></div>
+              <div><span className="text-[#756A5B]">Contracted Rates:</span> <span className="font-medium text-[#251605]">{draft.contractedRates?.length ?? 0} Room Rate(s)</span></div>
+            </>
+          )}
+          {draft.commercialNotes && (
+            <div className="col-span-2 pt-1 border-t border-[#EDE6D8]"><span className="text-[#756A5B]">Commercial Notes:</span> <span className="text-[#251605]">{draft.commercialNotes}</span></div>
+          )}
+        </div>
+      </ReviewCard>
+
+      {/* 4. Payment, Credit & Reservation Rules */}
+      <ReviewCard title="4. Payment, Credit & Reservation Rules" onEdit={() => onEdit("payment_rules")}>
+        <div className="space-y-3 text-xs">
+          <div>
+            <p className="font-semibold text-[#8A641A] mb-1">Payment &amp; Billing</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[#756A5B]">Billing Currency:</span>{" "}
+                <span className="font-medium text-[#251605]">{draft.billingCurrencyCode || draft.currency || "ETB"}</span>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">Settlement Method:</span>{" "}
+                <span className="font-medium text-[#251605]">
+                  {selectedMethod?.name || "No preference"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">Payment Timing:</span>{" "}
+                <span className="font-medium text-[#251605] capitalize">
+                  {draft.paymentTiming?.replace(/_/g, " ") || "Due on Departure"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">Billing Rule:</span>{" "}
+                <span className="font-medium text-[#251605]">
+                  {selectedRule?.name || "—"}
+                </span>
+              </div>
+              {draft.billingInstruction ? (
+                <div className="col-span-2 pt-1">
+                  <span className="text-[#756A5B]">Billing Instruction:</span>{" "}
+                  <span className="text-[#251605] italic">{draft.billingInstruction}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="border-t border-[#EDE6D8] pt-2">
+            <p className="font-semibold text-[#8A641A] mb-1">Credit Arrangement</p>
+            {draft.allowCredit ? (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[#756A5B]">Credit Facility:</span>{" "}
+                  <span className="font-medium text-emerald-700">Enabled</span>
+                </div>
+                <div>
+                  <span className="text-[#756A5B]">Credit Status:</span>{" "}
+                  <span className="font-medium text-[#251605] capitalize">
+                    {draft.creditStatus?.replace(/_/g, " ") || "Pending Approval"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[#756A5B]">Credit Limit:</span>{" "}
+                  <span className="font-medium text-[#251605]">
+                    {draft.creditLimitAmount
+                      ? `${draft.creditLimitAmount} ${draft.billingCurrencyCode || "ETB"}`
+                      : "No limit specified"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[#756A5B]">Credit Days:</span>{" "}
+                  <span className="font-medium text-[#251605]">
+                    {draft.creditDays ? `Net ${draft.creditDays} Days` : "—"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[#756A5B]">Credit Facility: Disabled (Direct folio settlement upon arrival/departure)</p>
+            )}
+          </div>
+
+          <div className="border-t border-[#EDE6D8] pt-2">
+            <p className="font-semibold text-[#8A641A] mb-1">Reservation Policy Defaults</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[#756A5B]">Guarantee Policy:</span>{" "}
+                <span className="font-medium text-[#251605]">
+                  {depositPolicy?.name || "Property Default"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">Cancellation Policy:</span>{" "}
+                <span className="font-medium text-[#251605]">
+                  {cancellationPolicy?.name || "Property Default"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#756A5B]">No-Show Policy:</span>{" "}
+                <span className="font-medium text-[#251605]">
+                  {noShowPolicy?.name || "Property Default"}
+                </span>
+              </div>
+              {draft.bookingNotes ? (
+                <div className="col-span-2 pt-1">
+                  <span className="text-[#756A5B]">Booking Notes:</span>{" "}
+                  <span className="text-[#251605]">{draft.bookingNotes}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </ReviewCard>
+
+      {/* 5. Documents & Compliance */}
+      <ReviewCard title="5. Documents & Verification" onEdit={() => onEdit("payment_rules")}>
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[#756A5B]">Documents Uploaded:</span>
+            <span className="font-semibold text-[#251605]">
+              {draft.documents?.length || 0} file(s)
+            </span>
+          </div>
+
+          {missingRequiredDocs.length > 0 ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-destructive space-y-1">
+              <p className="font-semibold text-[11px]">
+                {missingRequiredDocs.length} Required Document(s) Missing:
+              </p>
+              <ul className="list-disc pl-4 text-[11px] space-y-0.5">
+                {missingRequiredDocs.map((d) => (
+                  <li key={d.id}>{d.name}</li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-destructive/80 pt-0.5">
+                Upload required compliance documents in Step 4 before creating this travel agency.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-2 text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+              <span>All mandatory document types verified</span>
+            </div>
+          )}
+
+          {draft.documents && draft.documents.length > 0 && (
+            <ul className="pt-1 space-y-1 border-t border-[#EDE6D8]">
+              {draft.documents.map((doc, idx) => (
+                <li key={`${doc.documentTypeId}-${idx}`} className="flex items-center justify-between text-[11px]">
+                  <span className="text-[#251605] truncate max-w-[260px] font-medium">{doc.name}</span>
+                  <span className="text-[#756A5B]">
+                    {step4Config?.documentTypes.find((d) => d.id === doc.documentTypeId)?.name || "Uploaded Document"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </ReviewCard>
     </div>

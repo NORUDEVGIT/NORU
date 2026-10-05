@@ -221,6 +221,172 @@ describe("Guest create workflow helpers", () => {
       ),
     );
   });
+
+  it("enforces required fields in Identity Documents step before allowing Step 3 Preferences navigation", () => {
+    const draft = emptyGuestCreateDraft();
+    draft.firstName = "John";
+    draft.lastName = "Doe";
+    draft.documents = [
+      {
+        key: "doc-1",
+        idTypeId: "passport-type-id",
+        documentNumber: "",
+        issuingCountry: "",
+        issueDate: "",
+        expiryDate: "",
+        issuingAuthority: "",
+        notes: "",
+        hasFront: false,
+        hasBack: false,
+      },
+    ];
+
+    const documentTypes = [
+      {
+        id: "passport-type-id",
+        name: "Passport",
+        active: true,
+        documentNumberActive: true,
+        documentNumberRequired: true,
+        issuingCountryActive: true,
+        issuingCountryRequired: true,
+        issueDateActive: true,
+        issueDateRequired: true,
+        expiryDateActive: true,
+        expiryDateRequired: true,
+        issuingAuthorityActive: true,
+        issuingAuthorityRequired: true,
+        scanImageAllowed: true,
+        scanImageRequired: true,
+      },
+    ];
+
+    const issues = guestCreateFieldIssues(draft, {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      documentTypes,
+      identityActive: true,
+    });
+
+    // Verify all missing required document fields generate issues for step "identity"
+    assert.ok(issues.some((i) => i.key === "DOC_doc-1_documentNumber" && i.step === "identity"));
+    assert.ok(issues.some((i) => i.key === "DOC_doc-1_issuingCountry" && i.step === "identity"));
+    assert.ok(issues.some((i) => i.key === "DOC_doc-1_issueDate" && i.step === "identity"));
+    assert.ok(issues.some((i) => i.key === "DOC_doc-1_expiryDate" && i.step === "identity"));
+    assert.ok(issues.some((i) => i.key === "DOC_doc-1_issuingAuthority" && i.step === "identity"));
+    assert.ok(issues.some((i) => i.key === "DOC_doc-1_scan" && i.step === "identity"));
+
+    // Crucial check: Navigation before Step 3 (Preferences) MUST be blocked by these issues
+    const blockersBeforePreferences = issuesBeforeStep(issues, GUEST_CREATE_STEPS, "preferences");
+    assert.ok(blockersBeforePreferences.length >= 6);
+    assert.ok(blockersBeforePreferences.every((b) => b.step === "identity"));
+
+    // Once the user fills the required document fields, blockers are cleared
+    draft.documents[0].documentNumber = "AB1234567";
+    draft.documents[0].issuingCountry = "Ethiopia";
+    draft.documents[0].issueDate = "2025-01-01";
+    draft.documents[0].expiryDate = "2030-01-01";
+    draft.documents[0].issuingAuthority = "Immigration";
+    draft.documents[0].hasFront = true;
+
+    const clearedIssues = guestCreateFieldIssues(draft, {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      documentTypes,
+      identityActive: true,
+    });
+
+    assert.equal(issuesBeforeStep(clearedIssues, GUEST_CREATE_STEPS, "preferences").length, 0);
+  });
+
+  it("enforces mandatory identity document when Card 4 marks IDENTITY_DOCUMENT required", () => {
+    const draft = emptyGuestCreateDraft();
+    draft.firstName = "John";
+    draft.documents = [];
+
+    const issues = guestCreateFieldIssues(draft, {
+      rules: createFieldRules(
+        [
+          field({ code: "FIRST_NAME", required: true }),
+          field({ code: "IDENTITY_DOCUMENT", required: true, active: true }),
+        ],
+        null,
+      ),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      identityActive: true,
+    });
+
+    const identityIssues = issues.filter((i) => i.step === "identity");
+    assert.ok(identityIssues.length > 0);
+    assert.ok(identityIssues.some((i) => i.key === "IDENTITY_DOCUMENT"));
+
+    // Blockers before Step 3 must contain IDENTITY_DOCUMENT
+    const blockers = issuesBeforeStep(issues, GUEST_CREATE_STEPS, "preferences");
+    assert.ok(blockers.some((b) => b.key === "IDENTITY_DOCUMENT"));
+  });
+
+  it("overrides and does not hold when document type or identity switch is inactive", () => {
+    const draft = emptyGuestCreateDraft();
+    draft.firstName = "John";
+    draft.documents = [
+      {
+        key: "doc-1",
+        idTypeId: "inactive-type-id",
+        documentNumber: "",
+        issuingCountry: "",
+        issueDate: "",
+        expiryDate: "",
+        issuingAuthority: "",
+        notes: "",
+        hasFront: false,
+        hasBack: false,
+      },
+    ];
+
+    // Document type is inactive: requiredness is overridden and ignored
+    const inactiveDocTypes = [
+      {
+        id: "inactive-type-id",
+        name: "Passport",
+        active: false,
+        documentNumberRequired: true,
+      },
+    ];
+
+    const issues = guestCreateFieldIssues(draft, {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      documentTypes: inactiveDocTypes,
+      identityActive: true,
+    });
+
+    assert.equal(issuesBeforeStep(issues, GUEST_CREATE_STEPS, "preferences").length, 0);
+
+    // Global switch identityActive: false also overrides and yields 0 blockers
+    const issuesGloballyInactive = guestCreateFieldIssues(draft, {
+      rules: createFieldRules(
+        [
+          field({ code: "FIRST_NAME", required: true }),
+          field({ code: "IDENTITY_DOCUMENT", required: true, active: false }),
+        ],
+        null,
+      ),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      identityActive: false,
+    });
+
+    assert.equal(issuesBeforeStep(issuesGloballyInactive, GUEST_CREATE_STEPS, "preferences").length, 0);
+  });
 });
 
 describe("Guest create honesty", () => {

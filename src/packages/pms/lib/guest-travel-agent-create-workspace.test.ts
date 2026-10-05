@@ -35,12 +35,12 @@ function filledDraft() {
 }
 
 describe("Travel agency create workflow helpers", () => {
-  it("keeps exactly three consolidated steps", () => {
+  it("defines the canonical 5-step Travel Agency registration wizard", () => {
     assert.deepEqual(
       GUEST_TRAVEL_AGENT_CREATE_STEPS.map((step) => step.id),
-      ["basic_info", "billing", "review"],
+      ["basic_info", "contacts", "commission_rates", "payment_rules", "review"],
     );
-    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 3);
+    assert.equal(GUEST_TRAVEL_AGENT_CREATE_STEPS.length, 5);
   });
 
   it("requires name and agency type", () => {
@@ -65,32 +65,39 @@ describe("Travel agency create workflow helpers", () => {
     assert.ok(issues.some((issue) => issue.key === "name" && issue.step === "basic_info"));
     assert.match(
       formatCreateIssuesByStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS),
-      /Basic Info — Agency name is required/,
+      /Basic Information — Agency name is required/,
     );
     assert.equal(issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "basic_info").length, 0);
     assert.ok(
-      issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "billing").some(
+      issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "commission_rates").some(
         (issue) => issue.key === "name",
       ),
     );
   });
 
-  it("does not treat empty commission as ready to persist", () => {
+  it("evaluates commission readiness for commissionable and net rate models", () => {
     const draft = filledDraft();
-    assert.equal(travelAgentCommissionReady(draft), false);
+    draft.commercialModel = "commissionable";
     draft.commissionEnabled = true;
-    draft.commissionType = "percent";
     draft.commissionValue = "10";
     assert.equal(travelAgentCommissionReady(draft), true);
+
+    // Net rate model should have commission disabled
+    draft.commercialModel = "net_rate";
+    assert.equal(travelAgentCommissionReady(draft), false);
   });
 
-  it("restores the held step and draft", () => {
+  it("restores the held step and draft with legacy step mapping", () => {
     const draft = filledDraft();
     draft.creditLimitAmount = "5000";
-    const held = parseGuestTravelAgentCreateHold({ step: "billing", draft });
-    assert.equal(held?.step, "billing");
+    const held = parseGuestTravelAgentCreateHold({ step: "commission_rates", draft });
+    assert.equal(held?.step, "commission_rates");
     assert.equal(held?.draft.name, "Blue Nile Travel");
-    assert.equal(inferGuestTravelAgentCreateStep(draft), "billing");
+
+    // Legacy "billing" step maps safely to commission_rates
+    const legacyHeld = parseGuestTravelAgentCreateHold({ step: "billing", draft });
+    assert.equal(legacyHeld?.step, "commission_rates");
+
     assert.equal(
       guestTravelAgentCreateHoldKey("rest-1"),
       `${GUEST_TRAVEL_AGENT_CREATE_HOLD_KEY_PREFIX}:rest-1`,

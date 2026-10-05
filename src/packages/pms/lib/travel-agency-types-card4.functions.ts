@@ -5,7 +5,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { requireRoomManager } from "./rooms.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { loadTravelAgencyTypes, type TravelAgencyTypeRow } from "./guest-travel-agency-types";
+import {
+  loadTravelAgencyTypes,
+  saveTravelAgencyTypesFallback,
+  type TravelAgencyTypeRow,
+} from "./guest-travel-agency-types";
 import {
   normalizeTravelAgencyTypeCode,
   normalizeTravelAgencyTypeName,
@@ -113,6 +117,8 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
     };
 
+    let targetId = data.id;
+
     if (data.id && !data.id.startsWith("default-ta-type-")) {
       const updateResult = await db
         .from("pms_travel_agency_types")
@@ -122,28 +128,60 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       if (updateResult.error && !isMissingSchemaError(updateResult.error)) {
         throw new Error(updateResult.error.message);
       }
-      await writeAudit(db, data.restaurantId, context.userId, "travel_agency_type.updated", {
-        id: data.id,
-        code,
-        name,
-      });
-      return { id: data.id };
+    } else {
+      const insertResult = await db
+        .from("pms_travel_agency_types")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (insertResult.error && !isMissingSchemaError(insertResult.error)) {
+        throw new Error(insertResult.error.message);
+      }
+      targetId = insertResult.data?.id ?? data.id ?? `ta-type-${code.toLowerCase()}`;
     }
 
-    const insertResult = await db
-      .from("pms_travel_agency_types")
-      .insert(payload)
-      .select("id")
-      .single();
-    if (insertResult.error && !isMissingSchemaError(insertResult.error)) {
-      throw new Error(insertResult.error.message);
-    }
-    const createdId = insertResult.data?.id ?? `ta-type-${code.toLowerCase()}`;
-    await writeAudit(db, data.restaurantId, context.userId, "travel_agency_type.created", {
+    const createdId = targetId ?? `ta-type-${code.toLowerCase()}`;
+    const nextList: TravelAgencyTypeRecord[] = [...snapshot.types];
+    const existingIndex = nextList.findIndex((t) => t.id === createdId || t.code === code);
+    const newRecord: TravelAgencyTypeRecord = {
       id: createdId,
       code,
       name,
-    });
+      description: data.description ? data.description.trim() : "",
+      active: data.active,
+      sortOrder: data.sortOrder,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (existingIndex >= 0) {
+      nextList[existingIndex] = newRecord;
+    } else {
+      nextList.push(newRecord);
+    }
+    await saveTravelAgencyTypesFallback(
+      data.restaurantId,
+      db,
+      nextList.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        description: r.description,
+        active: r.active,
+        sortOrder: r.sortOrder,
+      })),
+    );
+
+    await writeAudit(
+      db,
+      data.restaurantId,
+      context.userId,
+      data.id ? "travel_agency_type.updated" : "travel_agency_type.created",
+      {
+        id: createdId,
+        code,
+        name,
+      },
+    );
     return { id: createdId };
   });
 
@@ -163,6 +201,7 @@ export const setPmsCard4TravelAgencyTypeActive = createServerFn({ method: "POST"
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
+
     if (!data.id.startsWith("default-ta-type-")) {
       const updateResult = await db
         .from("pms_travel_agency_types")
@@ -173,6 +212,27 @@ export const setPmsCard4TravelAgencyTypeActive = createServerFn({ method: "POST"
         throw new Error(updateResult.error.message);
       }
     }
+
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    const targetCode = data.id.replace("default-ta-type-", "").toLowerCase();
+    const updated = snapshot.types.map((t) =>
+      t.id === data.id || t.code.toLowerCase() === targetCode
+        ? { ...t, active: data.active }
+        : t,
+    );
+    await saveTravelAgencyTypesFallback(
+      data.restaurantId,
+      db,
+      updated.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        description: r.description,
+        active: r.active,
+        sortOrder: r.sortOrder,
+      })),
+    );
+
     await writeAudit(db, data.restaurantId, context.userId, "travel_agency_type.active_toggled", {
       id: data.id,
       active: data.active,
@@ -205,6 +265,27 @@ export const deletePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
         throw new Error(result.error.message);
       }
     }
+
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    const targetCode = data.id.replace("default-ta-type-", "").toLowerCase();
+    const nextList = snapshot.types.filter(
+      (t) =>
+        t.id !== data.id &&
+        t.code.toLowerCase() !== targetCode,
+    );
+    await saveTravelAgencyTypesFallback(
+      data.restaurantId,
+      db,
+      nextList.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        description: r.description,
+        active: r.active,
+        sortOrder: r.sortOrder,
+      })),
+    );
+
     await writeAudit(db, data.restaurantId, context.userId, "travel_agency_type.deleted", { id: data.id });
     return { ok: true as const };
   });

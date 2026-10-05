@@ -342,11 +342,10 @@ export function createFieldRule(
       label,
     };
   }
-  const isIdDoc = code === "IDENTITY_DOCUMENT";
   return {
     code,
     visible: alwaysVisible || field.active,
-    required: isIdDoc ? false : (alwaysVisible || (field.active && (field.required || typeRequired))),
+    required: alwaysVisible || (field.active && (field.required || typeRequired)),
     label: field.name || label,
   };
 }
@@ -413,7 +412,7 @@ function addressFilled(draft: GuestCreateDraft): boolean {
 export function card4CreateGaps(
   draft: GuestCreateDraft,
   rules: GuestCreateFieldRule[],
-  options?: { hasPhoto?: boolean },
+  options?: { hasPhoto?: boolean; identityActive?: boolean },
 ): Array<{ code: GuestCreateFieldCode; label: string; step: GuestCreateStepId }> {
   const gaps: Array<{ code: GuestCreateFieldCode; label: string; step: GuestCreateStepId }> = [];
   const byCode = new Map(rules.map((rule) => [rule.code, rule]));
@@ -444,8 +443,31 @@ export function card4CreateGaps(
   need("POSTAL_CODE", filled(draft.postalCode), "basic");
   need("ADDRESS_LINE1", filled(draft.addressLine1), "basic");
   need("COMPANY", draft.links.length > 0, "business");
+  if (options?.identityActive !== false) {
+    need("IDENTITY_DOCUMENT", draft.documents.length > 0, "identity");
+  }
   return gaps;
 }
+
+export type GuestCreateDocumentTypeOption = {
+  id: string;
+  name?: string;
+  code?: string;
+  active?: boolean;
+  documentNumberActive?: boolean;
+  documentNumberRequired?: boolean;
+  issuingCountryActive?: boolean;
+  issuingCountryRequired?: boolean;
+  issueDateActive?: boolean;
+  issueDateRequired?: boolean;
+  expiryDateActive?: boolean;
+  expiryDateRequired?: boolean;
+  issuingAuthorityActive?: boolean;
+  issuingAuthorityRequired?: boolean;
+  scanImageAllowed?: boolean;
+  scanImageRequired?: boolean;
+  validForProfileTypeIds?: string[];
+};
 
 export type GuestCreateFieldIssue = CreateFieldIssue<GuestCreateStepId>;
 
@@ -457,6 +479,9 @@ export function guestCreateFieldIssues(
     requiredPreferenceTypeIds: string[];
     dataProcessingRequired: boolean;
     hasPhoto?: boolean;
+    documentTypes?: GuestCreateDocumentTypeOption[];
+    docFiles?: Record<string, File | undefined>;
+    identityActive?: boolean;
   },
 ): GuestCreateFieldIssue[] {
   const issues: GuestCreateFieldIssue[] = [];
@@ -465,9 +490,63 @@ export function guestCreateFieldIssues(
   }
   const set3 = options.set3 ? guestCreateBlocked(options.set3, draft) : null;
   if (set3) issues.push({ key: "SET3", message: set3, step: "basic" });
-  for (const gap of card4CreateGaps(draft, options.rules, { hasPhoto: options.hasPhoto })) {
+  for (const gap of card4CreateGaps(draft, options.rules, { hasPhoto: options.hasPhoto, identityActive: options.identityActive })) {
     if (gap.code === "FIRST_NAME" && issues.some((issue) => issue.key === "FIRST_NAME")) continue;
-    issues.push({ key: gap.code, message: `${gap.label} is required.`, step: gap.step });
+    const message = gap.code === "IDENTITY_DOCUMENT" ? "At least one identity document is required." : `${gap.label} is required.`;
+    issues.push({ key: gap.code, message, step: gap.step });
+  }
+  if (options.identityActive !== false && options.documentTypes && options.documentTypes.length > 0) {
+    draft.documents.forEach((doc, i) => {
+      const docType = options.documentTypes?.find((t) => t.id === doc.idTypeId && t.active !== false);
+      if (!docType) return;
+      if (docType.documentNumberActive !== false && docType.documentNumberRequired && !doc.documentNumber.trim()) {
+        issues.push({
+          key: `DOC_${doc.key}_documentNumber`,
+          message: `Document #${i + 1}: Document number is required.`,
+          step: "identity",
+        });
+      }
+      if (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) {
+        issues.push({
+          key: `DOC_${doc.key}_issuingCountry`,
+          message: `Document #${i + 1}: Issuing country is required.`,
+          step: "identity",
+        });
+      }
+      if (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) {
+        issues.push({
+          key: `DOC_${doc.key}_issueDate`,
+          message: `Document #${i + 1}: Issue date is required.`,
+          step: "identity",
+        });
+      }
+      if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) {
+        issues.push({
+          key: `DOC_${doc.key}_expiryDate`,
+          message: `Document #${i + 1}: Expiry date is required.`,
+          step: "identity",
+        });
+      }
+      if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) {
+        issues.push({
+          key: `DOC_${doc.key}_issuingAuthority`,
+          message: `Document #${i + 1}: Issuing authority is required.`,
+          step: "identity",
+        });
+      }
+      if (
+        docType.scanImageAllowed &&
+        docType.scanImageRequired &&
+        !doc.hasFront &&
+        !options.docFiles?.[`${doc.key}-front`]
+      ) {
+        issues.push({
+          key: `DOC_${doc.key}_scan`,
+          message: `Document #${i + 1}: Front document scan/image is required.`,
+          step: "identity",
+        });
+      }
+    });
   }
   for (const typeId of options.requiredPreferenceTypeIds) {
     const answer = draft.preferenceAnswers.find((row) => row.typeId === typeId);
@@ -502,6 +581,9 @@ export function guestCreateStepErrors(
     requiredPreferenceTypeIds: string[];
     dataProcessingRequired: boolean;
     hasPhoto?: boolean;
+    documentTypes?: GuestCreateDocumentTypeOption[];
+    docFiles?: Record<string, File | undefined>;
+    identityActive?: boolean;
   },
 ): string[] {
   return uniqueIssueMessages(guestCreateFieldIssues(draft, options), step);
@@ -510,6 +592,11 @@ export function guestCreateStepErrors(
 export function guestCreateCompletion(
   draft: GuestCreateDraft,
   rules: GuestCreateFieldRule[],
+  options?: {
+    documentTypes?: GuestCreateDocumentTypeOption[];
+    docFiles?: Record<string, File | undefined>;
+    identityActive?: boolean;
+  },
 ): {
   percent: number;
   items: GuestCreateCompletionItem[];
@@ -601,13 +688,41 @@ export function guestCreateCompletion(
       requiredRemaining: addressMissing,
       step: "basic",
     },
-    ...(byCode.get("IDENTITY_DOCUMENT")?.visible !== false
+    ...(byCode.get("IDENTITY_DOCUMENT")?.visible !== false && options?.identityActive !== false
       ? [
           {
             id: "identity",
             label: "Identity Document",
-            complete: !byCode.get("IDENTITY_DOCUMENT")?.required || draft.documents.length > 0,
-            requiredRemaining: Boolean(byCode.get("IDENTITY_DOCUMENT")?.required && draft.documents.length === 0),
+            complete:
+              (!byCode.get("IDENTITY_DOCUMENT")?.required || draft.documents.length > 0) &&
+              (!options?.documentTypes ||
+                draft.documents.every((doc) => {
+                  const docType = options.documentTypes?.find((t) => t.id === doc.idTypeId && t.active !== false);
+                  if (!docType) return true;
+                  if (docType.documentNumberActive !== false && docType.documentNumberRequired && !doc.documentNumber.trim()) return false;
+                  if (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) return false;
+                  if (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) return false;
+                  if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) return false;
+                  if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) return false;
+                  if (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !options.docFiles?.[`${doc.key}-front`]) return false;
+                  return true;
+                })),
+            requiredRemaining: Boolean(
+              (byCode.get("IDENTITY_DOCUMENT")?.required && draft.documents.length === 0) ||
+              (options?.documentTypes &&
+                draft.documents.some((doc) => {
+                  const docType = options.documentTypes?.find((t) => t.id === doc.idTypeId && t.active !== false);
+                  if (!docType) return false;
+                  return (
+                    (docType.documentNumberActive !== false && docType.documentNumberRequired && !doc.documentNumber.trim()) ||
+                    (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) ||
+                    (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) ||
+                    (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) ||
+                    (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) ||
+                    (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !options.docFiles?.[`${doc.key}-front`])
+                  );
+                })),
+            ),
             step: "identity" as GuestCreateStepId,
           },
         ]

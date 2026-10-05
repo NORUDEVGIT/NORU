@@ -146,6 +146,9 @@ describe("NORU PMS — Guest Profile: New Guest Wide Modal Modernization (6-Step
     assert.match(modalCode, /issueDate/);
     assert.match(modalCode, /expiryDate/);
     assert.match(modalCode, /issuingAuthority/);
+    assert.match(modalCode, /fieldError\?\.\(`DOC_\$\{document\.key\}_documentNumber`/);
+    assert.match(modalCode, /fieldError\?\.\(`DOC_\$\{document\.key\}_issuingCountry`/);
+    assert.match(modalCode, /if \(targetIndex > currentIndex\) \{\s*if \(!validateCurrent\(\)\) return;/);
   });
 
   it("14. Staged identity uploads (front/back) are preserved in Step 2", () => {
