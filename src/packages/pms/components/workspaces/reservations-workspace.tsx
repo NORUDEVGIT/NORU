@@ -26,12 +26,10 @@ import {
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ReservationStatusBadge } from "@/packages/pms/components/bookings/reservation-bits";
-import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import {
   AssignRoomDialog,
   CheckInDialog,
   CheckOutDialog,
-  NoShowDialog,
   RoomMoveDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
@@ -58,6 +56,9 @@ import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-invent
 import { WAVE4_GROUP_ACCOUNT_COPY } from "@/packages/pms/lib/guest-profile-wave4";
 // Wave 4 guest account integration: listReservationsForGuestAccount reads reservations linked to account masters (not Sales & Events group blocks).
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
+import { ReservationEditWorkspace } from "@/packages/pms/components/workspaces/reservation-edit-workspace";
+import { ReservationCancelWorkspace } from "@/packages/pms/components/workspaces/reservation-cancel-workspace";
+import { ReservationNoShowWorkspace } from "@/packages/pms/components/workspaces/reservation-noshow-workspace";
 import { getReservationDesk } from "@/packages/pms/lib/reservation-workspace/desk.server";
 import { getReservationQuickView } from "@/packages/pms/lib/reservation-workspace/quick-view.server";
 import type {
@@ -105,8 +106,7 @@ const ALL = DESK_FILTER_ALL;
 type SourceFilter = DeskSourceFilter;
 type StatusFilter = DeskStatusFilter;
 
-type ReservationActionDialog =
-  "assign_room" | "change_room" | "cancel" | "check_in" | "check_out" | "no_show";
+type ReservationActionDialog = "assign_room" | "change_room" | "check_in" | "check_out";
 
 const RESERVATION_ACTION_ROLES = new Set(["owner", "manager", "receptionist"]);
 
@@ -295,7 +295,6 @@ export function ReservationsWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [viewsCollapsed, setViewsCollapsed] = useState(false);
   const [quickViewCollapsed, setQuickViewCollapsed] = useState(true);
-  const [amendRequest, setAmendRequest] = useState(0);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [actionDialog, setActionDialog] = useState<{
     kind: ReservationActionDialog;
@@ -515,6 +514,21 @@ export function ReservationsWorkspace({
     setOverlay({ type: "reservation-detail", reservationId: id });
   }
 
+  function openEditReservation(id: string) {
+    setMobileDetailOpen(false);
+    setOverlay({ type: "edit-reservation", reservationId: id });
+  }
+
+  function openCancelReservation(id: string) {
+    setMobileDetailOpen(false);
+    setOverlay({ type: "cancel-reservation", reservationId: id });
+  }
+
+  function openNoShowReservation(id: string) {
+    setMobileDetailOpen(false);
+    setOverlay({ type: "no-show-reservation", reservationId: id });
+  }
+
   function goWorkspaceSection(section: CalendarWorkspaceSection) {
     setWorkspaceSection(section);
     setSelectedId(null);
@@ -550,13 +564,7 @@ export function ReservationsWorkspace({
         openReservation(row.reservationId);
         return;
       case "edit":
-        if (
-          overlay?.type !== "reservation-detail" ||
-          overlay.reservationId !== row.reservationId
-        ) {
-          setOverlay({ type: "reservation-detail", reservationId: row.reservationId });
-        }
-        setAmendRequest((current) => current + 1);
+        openEditReservation(row.reservationId);
         return;
       case "copy":
         copyMutation.mutate(row.reservationId);
@@ -575,12 +583,16 @@ export function ReservationsWorkspace({
           status: "pending",
         });
         return;
+      case "cancel":
+        openCancelReservation(row.reservationId);
+        return;
+      case "no_show":
+        openNoShowReservation(row.reservationId);
+        return;
       case "assign_room":
       case "change_room":
-      case "cancel":
       case "check_in":
       case "check_out":
-      case "no_show":
         setActionDialog({ kind: actionId, row });
     }
   }
@@ -1164,7 +1176,12 @@ export function ReservationsWorkspace({
             ? "Create a new reservation, check availability and assign a room."
             : overlayDescription(overlay, snapshot?.rows ?? [], selectedRow)
         }
-        hideVisualHeader={overlay?.type === "reservation-detail"}
+        hideVisualHeader={
+          overlay?.type === "reservation-detail" ||
+          overlay?.type === "edit-reservation" ||
+          overlay?.type === "cancel-reservation" ||
+          overlay?.type === "no-show-reservation"
+        }
         showCreateIcon={overlay?.type === "new-reservation"}
         onOpenChange={closeWorkspaceOverlay}
       >
@@ -1194,13 +1211,48 @@ export function ReservationsWorkspace({
             membership={membership}
             reservationId={overlay.reservationId}
             embedded
-            amendRequest={amendRequest}
             onCopiedReservation={(reservationId) => {
               setSelectedId(reservationId);
               setOverlay({ type: "reservation-detail", reservationId });
               invalidateReservationReads();
             }}
             onBackToList={() => closeWorkspaceOverlay(false)}
+          />
+        ) : null}
+        {overlay?.type === "edit-reservation" ? (
+          <ReservationEditWorkspace
+            membership={membership}
+            reservationId={overlay.reservationId}
+            onBackToDesk={() => closeWorkspaceOverlay(false)}
+            onOpenReservation={(id) => {
+              setSelectedId(id);
+              setOverlay({ type: "reservation-detail", reservationId: id });
+              invalidateReservationReads();
+            }}
+          />
+        ) : null}
+        {overlay?.type === "cancel-reservation" ? (
+          <ReservationCancelWorkspace
+            membership={membership}
+            reservationId={overlay.reservationId}
+            onBackToDesk={() => closeWorkspaceOverlay(false)}
+            onOpenReservation={(id) => {
+              setSelectedId(id);
+              setOverlay({ type: "reservation-detail", reservationId: id });
+              invalidateReservationReads();
+            }}
+          />
+        ) : null}
+        {overlay?.type === "no-show-reservation" ? (
+          <ReservationNoShowWorkspace
+            membership={membership}
+            reservationId={overlay.reservationId}
+            onBackToDesk={() => closeWorkspaceOverlay(false)}
+            onOpenReservation={(id) => {
+              setSelectedId(id);
+              setOverlay({ type: "reservation-detail", reservationId: id });
+              invalidateReservationReads();
+            }}
           />
         ) : null}
       </ReservationWorkspaceOverlay>
@@ -1635,10 +1687,6 @@ function ReservationActionDialogHost({
       return (
         <RoomMoveDialog restaurantId={restaurantId} stay={stay} open onOpenChange={onOpenChange} />
       );
-    case "cancel":
-      return (
-        <FoCancelStepper restaurantId={restaurantId} stay={stay} open onOpenChange={onOpenChange} />
-      );
     case "check_in":
       return (
         <CheckInDialog restaurantId={restaurantId} stay={stay} open onOpenChange={onOpenChange} />
@@ -1646,16 +1694,6 @@ function ReservationActionDialogHost({
     case "check_out":
       return (
         <CheckOutDialog restaurantId={restaurantId} stay={stay} open onOpenChange={onOpenChange} />
-      );
-    case "no_show":
-      return (
-        <NoShowDialog
-          restaurantId={restaurantId}
-          stay={stay}
-          today={businessDate}
-          open
-          onOpenChange={onOpenChange}
-        />
       );
   }
 }
@@ -1665,7 +1703,14 @@ function overlayDetailRow(
   rows: ReservationDeskRow[],
   selectedRow: ReservationDeskRow | null,
 ): ReservationDeskRow | null {
-  if (overlay?.type !== "reservation-detail") return null;
+  if (
+    overlay?.type !== "reservation-detail" &&
+    overlay?.type !== "edit-reservation" &&
+    overlay?.type !== "cancel-reservation" &&
+    overlay?.type !== "no-show-reservation"
+  ) {
+    return null;
+  }
   return (
     rows.find((row) => row.reservationId === overlay.reservationId) ??
     (selectedRow?.reservationId === overlay.reservationId ? selectedRow : null)
@@ -1679,7 +1724,7 @@ function overlayTitle(
 ): string {
   const row = overlayDetailRow(overlay, rows, selectedRow);
   if (row) return row.confirmationNumber;
-  return overlay?.type === "reservation-detail" ? "Reservation Detail" : "New Reservation";
+  return overlay?.type === "new-reservation" ? "New Reservation" : "Reservation";
 }
 
 function overlayDescription(
@@ -1689,9 +1734,9 @@ function overlayDescription(
 ): string {
   const row = overlayDetailRow(overlay, rows, selectedRow);
   if (row) return `${row.guestName} · ${row.status.replaceAll("_", " ")}`;
-  return overlay?.type === "reservation-detail"
-    ? "Review stay, guest, room and commercial information."
-    : "Create and manage a new reservation";
+  return overlay?.type === "new-reservation"
+    ? "Create and manage a new reservation"
+    : "Review stay, guest, room and commercial information.";
 }
 
 function deskRowToFrontOfficeStay(row: ReservationDeskRow, businessDate: string): FrontOfficeStay {

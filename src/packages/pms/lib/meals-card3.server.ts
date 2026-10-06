@@ -18,10 +18,15 @@ import {
   type TaxPosture,
 } from "./pms-set3-rates-guest.ts";
 
+// Phase B: CARD3_MEALS_TABS reflects the Package Master editor structure.
+// "Package Components" and "Package rate plan types" are no longer primary tabs.
+// They will be nested inside the Package Master editor in Phase E / Phase F.
 export const CARD3_MEALS_TABS = [
   { id: "overview", label: "Overview" },
   { id: "meal-plans", label: "Meal Plans" },
+  // Phase B: one unified Packages entry replaces the old three-section layout
   { id: "packages", label: "Packages" },
+  // Phase E placeholder — will become nested includes inside the Package editor
   { id: "package-components", label: "Package Components" },
 ] as const;
 export type Card3MealsTabId = (typeof CARD3_MEALS_TABS)[number]["id"];
@@ -82,7 +87,38 @@ export type PackageCard3Row = {
   roomTypeIds: string[];
   ratePlanIds: string[];
   ratePlanLinks: PackageCard3RatePlanLink[];
+  coverImagePath: string | null;
+  coverUrl: string | null;
 };
+
+export const PACKAGE_COVER_MAX_BYTES = 8 * 1024 * 1024;
+export const PACKAGE_COVER_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export function packageCoverPathPrefix(restaurantId: string, packageId: string): string {
+  return `${restaurantId}/packages/${packageId}/`;
+}
+
+export function packageCoverImagePath(restaurantId: string, packageId: string, ext: string): string {
+  return `${packageCoverPathPrefix(restaurantId, packageId)}${crypto.randomUUID()}.${ext}`;
+}
+
+export function isOwnedPackageCoverPath(
+  restaurantId: string,
+  packageId: string,
+  storagePath: string,
+): boolean {
+  return storagePath.startsWith(packageCoverPathPrefix(restaurantId, packageId));
+}
+
+/** Previous object to delete after a successful replace. Identical paths are kept. */
+export function previousPackageCoverToRemove(
+  currentPath: string | null | undefined,
+  nextPath: string,
+): string | null {
+  const current = (currentPath ?? "").trim();
+  if (!current || current === nextPath) return null;
+  return current;
+}
 
 export type PackageComponentCard3Row = {
   id: string;

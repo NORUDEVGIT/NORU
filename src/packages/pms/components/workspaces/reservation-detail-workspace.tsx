@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronDown, Pencil, Printer, Send } from "lucide-react";
+import { ArrowLeft, ChevronDown, Printer, Send } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -51,6 +51,10 @@ import { ReservationDetailStayTab } from "@/packages/pms/components/workspaces/r
 import { ReservationDetailGuestTab } from "@/packages/pms/components/workspaces/reservation-detail-guest";
 import { ReservationDetailRatesTab } from "@/packages/pms/components/workspaces/reservation-detail-rates";
 import { ReservationDetailRoomsTab } from "@/packages/pms/components/workspaces/reservation-detail-rooms";
+import { ReservationDetailPackagesTab } from "@/packages/pms/components/workspaces/reservation-detail-packages";
+import { ReservationDetailFolioTab } from "@/packages/pms/components/workspaces/reservation-detail-folio";
+import { ReservationDetailRequestsTab } from "@/packages/pms/components/workspaces/reservation-detail-requests";
+import { ReservationDetailNotesTab } from "@/packages/pms/components/workspaces/reservation-detail-notes";
 import {
   arriveInLabel,
   COMMUNICATION_DEFERRED_COPY,
@@ -58,7 +62,6 @@ import {
   DETAIL_SIDEBAR_ITEMS,
   depositStatusLabel,
   LINKED_DEFERRED_COPY,
-  PACKAGES_DEFERRED_COPY,
   parseDepositRequirementSnapshot,
   stayStatusLabel,
   type DetailWorkspaceTab,
@@ -110,14 +113,12 @@ export function ReservationDetailWorkspace({
   membership,
   reservationId,
   embedded = false,
-  amendRequest = 0,
   onCopiedReservation,
   onBackToList,
 }: {
   membership: RestaurantMembership;
   reservationId: string;
   embedded?: boolean;
-  amendRequest?: number;
   onCopiedReservation?: (reservationId: string) => void;
   onBackToList?: () => void;
 }) {
@@ -142,10 +143,6 @@ export function ReservationDetailWorkspace({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [foAction, setFoAction] = useState<FrontOfficeAction | null>(null);
   const [detailTab, setDetailTab] = useState<DetailWorkspaceTab>("overview");
-
-  useEffect(() => {
-    if (amendRequest > 0) setAmendOpen(true);
-  }, [amendRequest]);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -480,6 +477,54 @@ export function ReservationDetailWorkspace({
         onSaved={invalidate}
       />
     );
+    const packagesPanel = (
+      <ReservationDetailPackagesTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        onBackToRates={() => setDetailTab("rates")}
+      />
+    );
+    const folioPanel = (
+      <ReservationDetailFolioTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        onBackToPackages={() => setDetailTab("packages")}
+      />
+    );
+    const requestsPanel = (
+      <ReservationDetailRequestsTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        guest={guestQuery.data?.guest ?? null}
+        preferences={guestQuery.data?.preferences ?? null}
+        history={history}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        onBackToFolio={() => setDetailTab("folio")}
+        onSaved={invalidate}
+      />
+    );
+    const notesPanel = (
+      <ReservationDetailNotesTab
+        restaurantId={restaurantId}
+        reservation={reservation}
+        guest={guestQuery.data?.guest ?? null}
+        guestHistory={guestQuery.data?.history ?? []}
+        history={history}
+        canManage={canManage && !cancelled}
+        money={money}
+        coverUrl={roomType?.coverUrl ?? null}
+        onBackToRequests={() => setDetailTab("requests")}
+        onSaved={invalidate}
+      />
+    );
     const deferredPanel = (title: string, copy: string) => (
       <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
         <h2 className="font-display text-lg">{title}</h2>
@@ -579,12 +624,6 @@ export function ReservationDetailWorkspace({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              {!cancelled ? (
-                <Button type="button" size="sm" onClick={() => setAmendOpen(true)}>
-                  <Pencil className="size-3.5" />
-                  Edit
-                </Button>
-              ) : null}
               <Button type="button" variant="outline" size="sm" onClick={() => onBackToList?.()}>
                 <ArrowLeft className="size-3.5" />
                 Back to List
@@ -693,24 +732,10 @@ export function ReservationDetailWorkspace({
               {detailTab === "rooms" ? roomsPanel : null}
               {detailTab === "guest" ? guestPanel : null}
               {detailTab === "rates" ? ratesPanel : null}
-              {detailTab === "packages" ? deferredPanel("Packages", PACKAGES_DEFERRED_COPY) : null}
-              {detailTab === "folio" ? (
-                <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-                  <h2 className="font-display text-lg">Folio Summary</h2>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Folio is not available in this workspace yet.
-                  </p>
-                </section>
-              ) : null}
-              {detailTab === "requests" || detailTab === "notes" ? (
-                <NotesEditor
-                  reservation={reservation}
-                  restaurantId={restaurantId}
-                  canManage={canManage && !cancelled}
-                  amend={submitAmend}
-                  onSaved={invalidate}
-                />
-              ) : null}
+              {detailTab === "packages" ? packagesPanel : null}
+              {detailTab === "folio" ? folioPanel : null}
+              {detailTab === "requests" ? requestsPanel : null}
+              {detailTab === "notes" ? notesPanel : null}
               {detailTab === "communication"
                 ? deferredPanel("Communication", COMMUNICATION_DEFERRED_COPY)
                 : null}
