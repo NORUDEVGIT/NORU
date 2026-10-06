@@ -39,6 +39,8 @@ const catalogue: PackageCard3Row[] = [
     roomTypeIds: [],
     ratePlanIds: [],
     ratePlanLinks: [],
+    coverImagePath: null,
+    coverUrl: null,
   },
   {
     id: "pkg-2",
@@ -52,6 +54,8 @@ const catalogue: PackageCard3Row[] = [
     roomTypeIds: ["other-type"],
     ratePlanIds: [],
     ratePlanLinks: [],
+    coverImagePath: null,
+    coverUrl: null,
   },
   {
     id: "pkg-3",
@@ -65,6 +69,8 @@ const catalogue: PackageCard3Row[] = [
     roomTypeIds: [],
     ratePlanIds: [],
     ratePlanLinks: [],
+    coverImagePath: null,
+    coverUrl: null,
   },
 ];
 
