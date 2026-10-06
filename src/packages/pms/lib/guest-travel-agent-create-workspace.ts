@@ -14,7 +14,10 @@ import {
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
 import { TA_COMMISSION_PLAN_TYPES } from "./guest-travel-agent-detail-workspace.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
-import { ALL_TRAVEL_AGENCY_CREATION_FIELDS } from "./guest-creation-field-definitions.ts";
+import {
+  ALL_TRAVEL_AGENCY_CREATION_FIELDS,
+  isTravelAgencyFieldCode,
+} from "./guest-creation-field-definitions.ts";
 
 export const GUEST_TRAVEL_AGENT_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
@@ -584,7 +587,8 @@ export function createTravelAgencyFieldRules(
         (matched && profileType?.requiredFieldIds?.includes(matched.id)) ||
           profileType?.requiredFieldIds?.some((id) => allCandidateCodes.has(id.toUpperCase())),
       );
-      const fieldRequired = Boolean(matched?.required);
+      const isTaMatched = Boolean(matched && isTravelAgencyFieldCode(matched.code));
+      const fieldRequired = Boolean(isTaMatched && matched?.required);
       required = inProfileType || fieldRequired;
     }
 

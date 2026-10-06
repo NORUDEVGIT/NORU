@@ -19,6 +19,11 @@ import {
 } from "./guest-profile-individual.ts";
 import type { GuestStatus } from "./guests.server.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import {
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
+  isGroupFieldCode,
+} from "./guest-creation-field-definitions.ts";
 
 export const GUEST_CREATE_MIGRATION_FILE = "0093_pms_guest_create_drafts.sql";
 
@@ -331,6 +336,14 @@ export function createFieldRule(
   code: GuestCreateFieldCode,
   label: string,
 ): GuestCreateFieldRule {
+  if (isCompanyFieldCode(code) || isTravelAgencyFieldCode(code) || isGroupFieldCode(code)) {
+    return {
+      code,
+      visible: false,
+      required: false,
+      label,
+    };
+  }
   const field = fieldByCode(fields, code);
   const typeRequired = Boolean(field && profileType?.requiredFieldIds.includes(field.id));
   const alwaysVisible = ALWAYS_VISIBLE_CREATE_FIELDS.has(code);
@@ -392,6 +405,9 @@ export function createFieldRules(
 
   for (const field of fields) {
     const code = field.code.trim().toUpperCase() as GuestCreateFieldCode;
+    if (isCompanyFieldCode(code) || isTravelAgencyFieldCode(code) || isGroupFieldCode(code)) {
+      continue;
+    }
     if (!seen.has(code)) {
       seen.add(code);
       rules.push(createFieldRule(fields, profileType, code, field.name));

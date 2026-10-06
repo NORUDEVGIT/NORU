@@ -1,4 +1,5 @@
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -60,14 +61,13 @@ export function GuestDynamicFieldControl({
       case "phone": {
         const strVal = typeof value === "string" ? value : "";
         return (
-          <Input
+          <CanonicalPhoneInput
             id={inputId}
-            type="tel"
             value={strVal}
             disabled={disabled}
-            placeholder="+1 555 000 0000"
-            onChange={(e) => onChange(e.target.value)}
-            className={inputClass}
+            placeholder="e.g. 911 234 567"
+            onChange={(nextPhone) => onChange(nextPhone)}
+            error={Boolean(error)}
           />
         );
       }

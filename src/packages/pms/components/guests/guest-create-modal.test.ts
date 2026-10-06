@@ -279,6 +279,23 @@ describe("NORU PMS — Guest Profile: New Guest Wide Modal Modernization (6-Step
     assert.match(stagedCode, /data-testid="individual-link-role"/);
     assert.match(stagedCode, /data-testid="individual-link-master-target"/);
   });
+
+  it("35. Step 2 (Identity Documents) automatically opens the document section without requiring Add Identity Document button", () => {
+    // There must NOT be any "+ Add Identity Document" button in the modal code
+    assert.doesNotMatch(modalCode, /\+ Add Identity Document/);
+    assert.doesNotMatch(modalCode, />\s*\+?\s*Add identity document\s*</i);
+
+    // Modal code automatically stages the first document when entering identity step
+    assert.match(modalCode, /next === "identity" && identityActive && draft\.documents\.length === 0/);
+    assert.match(modalCode, /step === "identity" && identityActive && draft\.documents\.length === 0/);
+
+    // IdentityStep component auto-adds if available and empty
+    assert.match(modalCode, /available\.length > 0 && draft\.documents\.length === 0/);
+
+    // When single document is open, Remove button is suppressed so mandatory section is never deleted
+    assert.match(modalCode, /draft\.documents\.length > 1 \? `Document #\$\{docIdx \+ 1\}` : "Identity Document"/);
+    assert.match(modalCode, /draft\.documents\.length > 1 \? \(\s*<Button[\s\S]*?Remove/);
+  });
 });
 
 

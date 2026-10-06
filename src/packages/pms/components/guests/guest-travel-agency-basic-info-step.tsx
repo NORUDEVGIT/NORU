@@ -35,6 +35,7 @@ import {
   type GuestTravelAgentCreateStepId,
 } from "@/packages/pms/lib/guest-travel-agent-create-workspace";
 import type { TravelAgentCreateContext } from "@/packages/pms/lib/guest-travel-agent-create.functions";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { cn } from "@/shared/lib/utils";
 
 const CONTROL_CLASS = "h-8 text-xs bg-[#FAF8F5] border-[#DDD4C5] focus:bg-white rounded-[6px]";
@@ -460,16 +461,17 @@ export function BasicInfoStep({
                   required={req("TA_CONTACT_PHONE")}
                   error={!contact.phone && req("TA_CONTACT_PHONE") ? (fieldError("contactPhone", "contacts") || "Phone is required") : undefined}
                 >
-                  <Input
+                  <CanonicalPhoneInput
                     value={contact.phone}
-                    onChange={(e) =>
+                    onChange={(phone) =>
                       set(
                         "contacts",
-                        draft.contacts.map((row, i) => (i === index ? { ...row, phone: e.target.value } : row)),
+                        draft.contacts.map((row, i) => (i === index ? { ...row, phone } : row)),
                       )
                     }
-                    className={CONTROL_CLASS}
-                    placeholder="+1..."
+                    error={Boolean(!contact.phone && req("TA_CONTACT_PHONE"))}
+                    placeholder="e.g. 911 234 567"
+                    size="sm"
                   />
                 </StepField>
 
@@ -478,15 +480,17 @@ export function BasicInfoStep({
                   required={req("TA_CONTACT_WHATSAPP")}
                   error={!contact.whatsapp && req("TA_CONTACT_WHATSAPP") ? (fieldError("contactWhatsapp", "contacts") || "WhatsApp is required") : undefined}
                 >
-                  <Input
+                  <CanonicalPhoneInput
                     value={contact.whatsapp}
-                    onChange={(e) =>
+                    onChange={(whatsapp) =>
                       set(
                         "contacts",
-                        draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp: e.target.value } : row)),
+                        draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp } : row)),
                       )
                     }
-                    className={CONTROL_CLASS}
+                    error={Boolean(!contact.whatsapp && req("TA_CONTACT_WHATSAPP"))}
+                    placeholder="e.g. 911 234 567"
+                    size="sm"
                   />
                 </StepField>
 

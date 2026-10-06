@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Badge } from "@/shared/components/ui/badge";
@@ -492,21 +493,25 @@ export function GuestTravelAgentContacts({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">Phone</Label>
-                <Input
-                  value={form.phone}
-                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  placeholder="+251 9..."
-                  className="mt-1 h-8 text-xs border-[#DDD4C5]"
-                />
+                <div className="mt-1">
+                  <CanonicalPhoneInput
+                    value={form.phone}
+                    onChange={(phone) => setForm((f) => ({ ...f, phone }))}
+                    placeholder="e.g. 911 234 567"
+                    size="sm"
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs">WhatsApp</Label>
-                <Input
-                  value={form.whatsapp}
-                  onChange={(e) => setForm((f) => ({ ...f, whatsapp: e.target.value }))}
-                  placeholder="+251 9..."
-                  className="mt-1 h-8 text-xs border-[#DDD4C5]"
-                />
+                <div className="mt-1">
+                  <CanonicalPhoneInput
+                    value={form.whatsapp}
+                    onChange={(whatsapp) => setForm((f) => ({ ...f, whatsapp }))}
+                    placeholder="e.g. 911 234 567"
+                    size="sm"
+                  />
+                </div>
               </div>
             </div>
             <div>

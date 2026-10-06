@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
@@ -315,7 +316,12 @@ export function GuestGroupFormDialog({
             </div>
             <div>
               <Label htmlFor="group-phone">Phone</Label>
-              <Input id="group-phone" value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} />
+              <CanonicalPhoneInput
+                id="group-phone"
+                value={form.phone}
+                onChange={(phone) => setForm((prev) => ({ ...prev, phone }))}
+                placeholder="e.g. 911 234 567"
+              />
             </div>
           </div>
           <div>

@@ -1354,3 +1354,110 @@ export const ESSENTIAL_TRAVEL_AGENCY_FIELD_CODES = new Set<string>(
   ALL_TRAVEL_AGENCY_CREATION_FIELDS.filter((f) => f.essential).map((f) => f.code),
 );
 
+export const INDIVIDUAL_GUEST_FIELD_CODES = new Set<string>([
+  ...INDIVIDUAL_GUEST_CREATION_FIELDS.map((f) => f.code.toUpperCase()),
+  "IDENTITY_DOCUMENT",
+  "ADDRESS",
+  "COMPANY",
+]);
+
+export const COMPANY_FIELD_CODES = new Set<string>([
+  ...ALL_COMPANY_CREATION_FIELDS.map((f) => f.code.toUpperCase()),
+  "TAX_ID",
+  "TIN",
+  "COMPANY_TIN",
+  "CONTACT_PERSON",
+  "BUSINESS_ADDRESS",
+  "BUSINESS_LICENSE",
+  "EXTERNAL_REFERENCE",
+]);
+
+export const TRAVEL_AGENCY_FIELD_CODES = new Set<string>([
+  ...ALL_TRAVEL_AGENCY_CREATION_FIELDS.map((f) => f.code.toUpperCase()),
+  "AGENCY_NAME",
+  "AGENCY_TYPE",
+  "AGENCY_TRADE_NAME",
+  "AGENCY_CODE",
+  "AGENCY_ACCOUNT_STATUS",
+  "AGENCY_IATA_NUMBER",
+  "AGENCY_LICENSE_EXPIRY",
+  "AGENCY_WEBSITE",
+  "AGENCY_NOTES",
+  "AGENCY_COUNTRY",
+  "AGENCY_REGION",
+  "AGENCY_CITY",
+  "AGENCY_POSTAL_CODE",
+  "AGENCY_ADDRESS_LINE1",
+  "AGENCY_ADDRESS_LINE2",
+  "AGENCY_TAX_ID",
+  "AGENCY_REGISTRATION_NUMBER",
+  "AGENCY_MARKET_SEGMENT",
+  "AGENCY_SOURCE",
+  "AGENCY_ACCOUNT_MANAGER",
+  "AGENCY_CONTACT_NAME",
+  "AGENCY_CONTACT_ROLE",
+  "AGENCY_CONTACT_POSITION",
+  "AGENCY_CONTACT_EMAIL",
+  "AGENCY_CONTACT_PHONE",
+  "AGENCY_CONTACT_WHATSAPP",
+  "AGENCY_CONTACT_PREFERRED_METHOD",
+  "AGENCY_CONTACT_NOTES",
+  "TRAVEL_AGENCY_TAX_ID",
+  "IATA_NUMBER",
+]);
+
+/**
+ * Checks whether a given field code belongs strictly to Company profile/creation.
+ */
+export function isCompanyFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  if (upper.startsWith("COMPANY_")) return true;
+  return (
+    upper === "TAX_ID" ||
+    upper === "TIN" ||
+    upper === "COMPANY_TIN" ||
+    upper === "CONTACT_PERSON" ||
+    upper === "BUSINESS_ADDRESS" ||
+    upper === "BUSINESS_LICENSE" ||
+    upper === "EXTERNAL_REFERENCE" ||
+    COMPANY_FIELD_CODES.has(upper)
+  );
+}
+
+/**
+ * Checks whether a given field code belongs strictly to Travel Agency profile/creation.
+ */
+export function isTravelAgencyFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  if (
+    upper.startsWith("TA_") ||
+    upper.startsWith("TRAVEL_AGENCY_") ||
+    upper.startsWith("AGENCY_")
+  ) {
+    return true;
+  }
+  return TRAVEL_AGENCY_FIELD_CODES.has(upper);
+}
+
+/**
+ * Checks whether a given field code belongs to Group profile/creation.
+ */
+export function isGroupFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  return upper.startsWith("GRP_") || upper.startsWith("GROUP_");
+}
+
+/**
+ * Checks whether a given field code belongs to Individual Guest profile/creation.
+ */
+export function isIndividualGuestFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  if (isCompanyFieldCode(upper) || isTravelAgencyFieldCode(upper) || isGroupFieldCode(upper)) {
+    return false;
+  }
+  return true;
+}

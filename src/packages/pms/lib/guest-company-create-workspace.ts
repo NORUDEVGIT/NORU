@@ -10,6 +10,7 @@ import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-
 import {
   COMPANY_CREATION_FIELDS,
   ALL_COMPANY_CREATION_FIELDS,
+  isCompanyFieldCode,
   type GuestCreationFieldDefinition,
 } from "./guest-creation-field-definitions.ts";
 
@@ -802,7 +803,8 @@ export function createCompanyFieldRules(
         (matched && businessProfileType?.requiredFieldIds?.includes(matched.id)) ||
           businessProfileType?.requiredFieldIds?.some((id) => allCandidateCodes.has(id.toUpperCase())),
       );
-      const fieldRequired = Boolean(matched?.required);
+      const isCompanyMatched = Boolean(matched && isCompanyFieldCode(matched.code));
+      const fieldRequired = Boolean(isCompanyMatched && matched?.required);
 
       if (profileType) {
         // Profile Type configuration directly governs field requirement

@@ -119,6 +119,7 @@ import {
 } from "@/packages/pms/lib/guest-company-create.functions";
 import { CompanyContractsStep } from "./company-contracts-step";
 import { CompanyBillingStep } from "./company-billing-step";
+import { CanonicalPhoneInput } from "./canonical-phone-input";
 import {
   paymentTimingLabel,
   creditStatusLabel,
@@ -1615,16 +1616,16 @@ function ContactsStep({
                     required={required("CONTACT_PHONE")}
                     error={phoneError || (!contact.phone && required("CONTACT_PHONE") ? (fieldError("CONTACT_PHONE", "contacts") || "Phone is required") : undefined)}
                   >
-                    <Input
+                    <CanonicalPhoneInput
                       value={contact.phone}
-                      onChange={(event) =>
+                      onChange={(phone) =>
                         set(
                           "contacts",
-                          draft.contacts.map((row, i) => (i === index ? { ...row, phone: event.target.value } : row)),
+                          draft.contacts.map((row, i) => (i === index ? { ...row, phone } : row)),
                         )
                       }
-                      className={MODAL_CONTROL_CLASS}
-                      placeholder="+251 9... or 09... / 07..."
+                      error={Boolean(phoneError || (!contact.phone && required("CONTACT_PHONE")))}
+                      placeholder="e.g. 911 234 567"
                     />
                   </Field>
                   <Field
@@ -1632,16 +1633,16 @@ function ContactsStep({
                     required={required("CONTACT_WHATSAPP")}
                     error={!contact.whatsapp && required("CONTACT_WHATSAPP") ? (fieldError("CONTACT_WHATSAPP", "contacts") || "WhatsApp is required") : undefined}
                   >
-                    <Input
+                    <CanonicalPhoneInput
                       value={contact.whatsapp}
-                      onChange={(event) =>
+                      onChange={(whatsapp) =>
                         set(
                           "contacts",
-                          draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp: event.target.value } : row)),
+                          draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp } : row)),
                         )
                       }
-                      className={MODAL_CONTROL_CLASS}
-                      placeholder="+251 9... or 09... / 07..."
+                      error={Boolean(!contact.whatsapp && required("CONTACT_WHATSAPP"))}
+                      placeholder="e.g. 911 234 567"
                     />
                   </Field>
                   <Field

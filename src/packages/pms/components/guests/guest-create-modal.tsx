@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Switch } from "@/shared/components/ui/switch";
@@ -136,6 +137,11 @@ import {
   isRegionValidForCountry,
 } from "@/packages/pms/lib/pms-geography";
 import { SearchableSelect } from "@/shared/components/ui/searchable-select";
+import {
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
+  isGroupFieldCode,
+} from "@/packages/pms/lib/guest-creation-field-definitions";
 
 const MODAL_CONTROL_CLASS =
   "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
@@ -458,6 +464,38 @@ export function GuestCreateModal({
     }
   }, [identityActive, step]);
 
+  // Automatically open the identity document section when on the identity step
+  useEffect(() => {
+    if (step === "identity" && identityActive && draft.documents.length === 0) {
+      const available = (context.data?.documentTypes ?? []).filter(
+        (type) =>
+          type.active &&
+          (type.validForProfileTypeIds.length === 0 ||
+            !context.data?.profileType?.id ||
+            type.validForProfileTypeIds.includes(context.data.profileType.id)),
+      );
+      if (available.length > 0) {
+        setDraft((current) => ({
+          ...current,
+          documents: [
+            {
+              key: crypto.randomUUID(),
+              idTypeId: available[0].id,
+              documentNumber: "",
+              issuingCountry: "",
+              issueDate: "",
+              expiryDate: "",
+              issuingAuthority: "",
+              notes: "",
+              hasFront: false,
+              hasBack: false,
+            },
+          ],
+        }));
+      }
+    }
+  }, [step, identityActive, draft.documents.length, context.data?.documentTypes, context.data?.profileType?.id]);
+
   const rules = useMemo(
     () => createFieldRules(context.data?.fields ?? [], context.data?.profileType ?? null),
     [context.data?.fields, context.data?.profileType],
@@ -492,9 +530,16 @@ export function GuestCreateModal({
     identityActive,
   });
 
-  // Also check Card 4 required custom fields (only for visible company field)
+  // Also check Card 4 required custom fields (only individual fields, never company or travel agency)
   const missingCustomFields = dynamicFieldRules
-    .filter((f) => f.category === "custom_value" && f.requiredForContext && isCompanyField(f))
+    .filter(
+      (f) =>
+        f.category === "custom_value" &&
+        f.requiredForContext &&
+        !isCompanyFieldCode(f.code) &&
+        !isTravelAgencyFieldCode(f.code) &&
+        !isGroupFieldCode(f.code),
+    )
     .filter((f) => {
       const val =
         customValues[f.id] ??
@@ -538,6 +583,34 @@ export function GuestCreateModal({
       const first = blockers[0];
       if (first && first.step !== step) setStep(first.step);
       return;
+    }
+    if (next === "identity" && identityActive && draft.documents.length === 0) {
+      const available = (context.data?.documentTypes ?? []).filter(
+        (type) =>
+          type.active &&
+          (type.validForProfileTypeIds.length === 0 ||
+            !context.data?.profileType?.id ||
+            type.validForProfileTypeIds.includes(context.data.profileType.id)),
+      );
+      if (available.length > 0) {
+        setDraft((current) => ({
+          ...current,
+          documents: [
+            {
+              key: crypto.randomUUID(),
+              idTypeId: available[0].id,
+              documentNumber: "",
+              issuingCountry: "",
+              issueDate: "",
+              expiryDate: "",
+              issuingAuthority: "",
+              notes: "",
+              hasFront: false,
+              hasBack: false,
+            },
+          ],
+        }));
+      }
     }
     setStep(next);
   }
@@ -1737,18 +1810,20 @@ function BasicStep({
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {visible("PHONE") ? (
             <Field label="Mobile Phone" required={required("PHONE")} error={fieldError("PHONE", "basic")}>
-              <Input
+              <CanonicalPhoneInput
                 value={draft.phone}
-                onChange={(event) => set("phone", event.target.value)}
-                className={MODAL_CONTROL_CLASS}
+                onChange={(phone) => set("phone", phone)}
+                error={Boolean(fieldError("PHONE", "basic"))}
+                placeholder="e.g. 911 234 567"
               />
             </Field>
           ) : null}
           <Field label="Alternative Phone" required={required("PHONE_ALT")} error={fieldError("PHONE_ALT", "basic")}>
-            <Input
+            <CanonicalPhoneInput
               value={draft.phoneAlt}
-              onChange={(event) => set("phoneAlt", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
+              onChange={(phoneAlt) => set("phoneAlt", phoneAlt)}
+              error={Boolean(fieldError("PHONE_ALT", "basic"))}
+              placeholder="e.g. 911 234 567"
             />
           </Field>
           {visible("EMAIL") ? (
@@ -1953,6 +2028,12 @@ function IdentityStep({
     setDraft((current) => ({ ...current, documents: [...current.documents, next] }));
   }
 
+  useEffect(() => {
+    if (available.length > 0 && draft.documents.length === 0) {
+      add();
+    }
+  }, [available.length, draft.documents.length]);
+
   if (available.length === 0 && draft.documents.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-[#DDD4C5] bg-white p-6 text-center text-xs text-muted-foreground">
@@ -1971,25 +2052,27 @@ function IdentityStep({
           <section key={document.key} className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-[#E8E4DC] pb-2">
               <h3 className="font-display text-sm font-semibold text-[#251605]">
-                Document #{docIdx + 1}
+                {draft.documents.length > 1 ? `Document #${docIdx + 1}` : "Identity Document"}
               </h3>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                onClick={() => {
-                  if (document.existingDocumentId) {
-                    onRemoveExistingDoc?.(document.existingDocumentId);
-                  }
-                  setDraft((curr) => ({
-                    ...curr,
-                    documents: curr.documents.filter((d) => d.key !== document.key),
-                  }));
-                }}
-              >
-                Remove
-              </Button>
+              {draft.documents.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    if (document.existingDocumentId) {
+                      onRemoveExistingDoc?.(document.existingDocumentId);
+                    }
+                    setDraft((curr) => ({
+                      ...curr,
+                      documents: curr.documents.filter((d) => d.key !== document.key),
+                    }));
+                  }}
+                >
+                  Remove
+                </Button>
+              ) : null}
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="Document Type" required>
@@ -2222,9 +2305,6 @@ function IdentityStep({
           </section>
         );
       })}
-      <Button type="button" variant="outline" size="sm" onClick={add} className="border-[#DDD4C5]">
-        + Add Identity Document
-      </Button>
     </div>
   );
 }
@@ -2609,17 +2689,17 @@ function AdditionalStep({
                 />
               </Field>
               <Field label="Phone">
-                <Input
+                <CanonicalPhoneInput
                   value={contact.phone}
-                  onChange={(event) =>
+                  onChange={(phone) =>
                     set(
                       "emergencyContacts",
                       draft.emergencyContacts.map((row, i) =>
-                        i === index ? { ...row, phone: event.target.value } : row,
+                        i === index ? { ...row, phone } : row,
                       ),
                     )
                   }
-                  className={MODAL_CONTROL_CLASS}
+                  placeholder="e.g. 911 234 567"
                 />
               </Field>
               <Field label="Email">

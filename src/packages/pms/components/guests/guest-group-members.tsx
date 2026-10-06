@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
@@ -167,7 +168,7 @@ export function GuestGroupMembers({
             <Input placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
             <Input placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
             <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <CanonicalPhoneInput placeholder="Phone" value={phone} onChange={(val) => setPhone(val)} />
           </div>
           <Button type="button" disabled={!firstName.trim() || createMutation.isPending} onClick={() => createMutation.mutate()}>
             Create and add

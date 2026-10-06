@@ -6,6 +6,7 @@ import { AlertTriangle, ChevronDown, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -899,17 +900,19 @@ function LegacyGuestEditFormDialog({
                 label={fieldRuleMap.get("phone")?.label ?? "Primary phone"}
                 required={fieldRuleMap.get("phone")?.requiredForContext ?? Boolean(savedRules)}
               >
-                <Input
+                <CanonicalPhoneInput
                   data-testid="individual-phone"
                   value={form.phone}
-                  onChange={(e) => set("phone", e.target.value)}
+                  onChange={(phone) => set("phone", phone)}
+                  placeholder="e.g. 911 234 567"
                 />
               </Field>
               <Field label={fieldRuleMap.get("phoneAlt")?.label ?? "Alternate phone"}>
-                <Input
+                <CanonicalPhoneInput
                   data-testid="individual-phone-alt"
                   value={form.phoneAlt}
-                  onChange={(e) => set("phoneAlt", e.target.value)}
+                  onChange={(phoneAlt) => set("phoneAlt", phoneAlt)}
+                  placeholder="e.g. 911 234 567"
                 />
               </Field>
               <Field
@@ -1136,10 +1139,11 @@ function LegacyGuestEditFormDialog({
                     />
                   </Field>
                   <Field label="Phone">
-                    <Input
+                    <CanonicalPhoneInput
                       data-testid="individual-emergency-phone"
                       value={contact.phone}
-                      onChange={(e) => setContact(index, "phone", e.target.value)}
+                      onChange={(phone) => setContact(index, "phone", phone)}
+                      placeholder="e.g. 911 234 567"
                     />
                   </Field>
                   <Field label="Email">

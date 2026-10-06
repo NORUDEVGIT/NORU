@@ -25,6 +25,8 @@ import {
   COMPANY_CREATION_FIELDS,
   ALL_COMPANY_CREATION_FIELDS,
   ALL_TRAVEL_AGENCY_CREATION_FIELDS,
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
 } from "./guest-creation-field-definitions";
 
 // Generated schema predates 0078.
@@ -610,8 +612,8 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
     if (result.error) unavailable(result.error);
     if (data.required !== undefined) {
       const codeToCheck = (data.code ?? fieldRow.code).toUpperCase();
-      let isCompanyField = codeToCheck.startsWith("COMPANY_");
-      let isTaField = codeToCheck.startsWith("TA_") || codeToCheck.startsWith("TRAVEL_AGENCY_");
+      let isCompanyField = isCompanyFieldCode(codeToCheck);
+      let isTaField = isTravelAgencyFieldCode(codeToCheck);
 
       if (data.profileTypeId) {
         const pt = await db
@@ -640,6 +642,50 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
         : isCompanyField
           ? ["COM", "COMPANY"]
           : ["IND", "INDIVIDUAL"];
+
+      // Strip non-applicable fields from other entity profile types
+      if (isCompanyField || isTaField) {
+        const indTypes = await db
+          .from("pms_guest_profile_types")
+          .select("id, required_field_ids")
+          .eq("restaurant_id", data.restaurantId)
+          .in("code", ["IND", "INDIVIDUAL"]);
+        if (indTypes.data) {
+          for (const it of indTypes.data) {
+            const cur: string[] = Array.isArray(it.required_field_ids) ? it.required_field_ids : [];
+            if (cur.includes(fieldRow.id)) {
+              await db
+                .from("pms_guest_profile_types")
+                .update({
+                  required_field_ids: cur.filter((fid) => fid !== fieldRow.id),
+                  updated_by: context.userId,
+                })
+                .eq("id", it.id);
+            }
+          }
+        }
+      }
+      if (!isCompanyField && !isTaField) {
+        const otherTypes = await db
+          .from("pms_guest_profile_types")
+          .select("id, required_field_ids")
+          .eq("restaurant_id", data.restaurantId)
+          .in("code", ["COM", "COMPANY", "TRA", "TRAVEL_AGENCY", "TRAVEL_AGENT"]);
+        if (otherTypes.data) {
+          for (const ot of otherTypes.data) {
+            const cur: string[] = Array.isArray(ot.required_field_ids) ? ot.required_field_ids : [];
+            if (cur.includes(fieldRow.id)) {
+              await db
+                .from("pms_guest_profile_types")
+                .update({
+                  required_field_ids: cur.filter((fid) => fid !== fieldRow.id),
+                  updated_by: context.userId,
+                })
+                .eq("id", ot.id);
+            }
+          }
+        }
+      }
 
       const targetTypes = await db
         .from("pms_guest_profile_types")

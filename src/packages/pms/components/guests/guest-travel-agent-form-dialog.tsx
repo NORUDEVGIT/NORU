@@ -45,6 +45,7 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -475,20 +476,22 @@ export function GuestTravelAgentFormDialog({
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="guest-account-phone">Primary phone</Label>
-                <Input
+                <CanonicalPhoneInput
                   id="guest-account-phone"
                   data-testid="ta-phone"
                   value={form.phone}
-                  onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  onChange={(phone) => setForm((prev) => ({ ...prev, phone }))}
+                  placeholder="e.g. 911 234 567"
                 />
               </div>
               <div>
                 <Label htmlFor="ta-phone-alt">Alternate phone</Label>
-                <Input
+                <CanonicalPhoneInput
                   id="ta-phone-alt"
                   data-testid="ta-phone-alt"
                   value={form.phoneAlt}
-                  onChange={(e) => setForm((prev) => ({ ...prev, phoneAlt: e.target.value }))}
+                  onChange={(phoneAlt) => setForm((prev) => ({ ...prev, phoneAlt }))}
+                  placeholder="e.g. 911 234 567"
                 />
               </div>
             </div>
